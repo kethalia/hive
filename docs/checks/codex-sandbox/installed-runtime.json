@@ -1,8 +1,12 @@
 {
   "read": {
-    "at": "2026-10-06T08:38:47.275099+00:00",
+    "schemaVersion": 1,
     "passed": true,
+    "writableFixture": false,
+    "kernel": "6.8.0-111-generic",
+    "at": "2026-10-06T08:38:47.275099+00:00",
     "profile": "software",
+    "imageVariant": "cli",
     "apparmor": "hive-codex-v1 (enforce)",
     "processSecurity": [
       "CapInh:\t0000000000000000",
@@ -14,6 +18,30 @@
       "Seccomp:\t0",
       "Seccomp_filters:\t0"
     ],
+    "sysctls": {
+      "kernel/unprivileged_userns_clone": "1",
+      "kernel/apparmor_restrict_unprivileged_userns": "1",
+      "user/max_user_namespaces": "126361"
+    },
+    "outerSecurityBlockers": [],
+    "namespaces": {
+      "user": {
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "mount": {
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "mountPropagation": {
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "runtimeReadableExecutable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
     "cli": {
       "status": 0,
       "stdout": "codex-cli 0.160.1\n",
@@ -25,12 +53,158 @@
       "sha256": "77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c",
       "executable": true
     },
-    "writableFixture": false
+    "results": {
+      "inside": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"inside\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"inside\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "outcome": "allowed",
+        "externalFixturesUnchanged": true
+      },
+      "outside": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "symlink": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "write": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"write\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"write\", \"outcome\": \"error\", \"errno\": 30}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "outside-write": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside-write\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside-write\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "symlink-write": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink-write\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink-write\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "outside-create": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside-create\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside-create\", \"outcome\": \"error\", \"errno\": 30}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "symlink-create": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink-create\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink-create\", \"outcome\": \"error\", \"errno\": 30}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "runtime-sibling": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"runtime-sibling\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"runtime-sibling\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "network": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"network\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"network\", \"outcome\": \"error\", \"errno\": 1}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      }
+    },
+    "unchanged": true
   },
   "write": {
-    "at": "2026-10-06T08:38:48.267909+00:00",
+    "schemaVersion": 1,
     "passed": true,
+    "writableFixture": true,
+    "kernel": "6.8.0-111-generic",
+    "at": "2026-10-06T08:38:48.267909+00:00",
     "profile": "software",
+    "imageVariant": "cli",
     "apparmor": "hive-codex-v1 (enforce)",
     "processSecurity": [
       "CapInh:\t0000000000000000",
@@ -42,6 +216,30 @@
       "Seccomp:\t0",
       "Seccomp_filters:\t0"
     ],
+    "sysctls": {
+      "kernel/unprivileged_userns_clone": "1",
+      "kernel/apparmor_restrict_unprivileged_userns": "1",
+      "user/max_user_namespaces": "126361"
+    },
+    "outerSecurityBlockers": [],
+    "namespaces": {
+      "user": {
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "mount": {
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "mountPropagation": {
+        "status": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "runtimeReadableExecutable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
     "cli": {
       "status": 0,
       "stdout": "codex-cli 0.160.1\n",
@@ -53,6 +251,148 @@
       "sha256": "77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c",
       "executable": true
     },
-    "writableFixture": true
+    "results": {
+      "inside": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"inside\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"inside\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "outcome": "allowed",
+        "externalFixturesUnchanged": true
+      },
+      "outside": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "symlink": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "write": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"write\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"write\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "outcome": "allowed",
+        "externalFixturesUnchanged": true
+      },
+      "outside-write": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside-write\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside-write\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "symlink-write": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink-write\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink-write\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "outside-create": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside-create\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"outside-create\", \"outcome\": \"error\", \"errno\": 30}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "symlink-create": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink-create\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"symlink-create\", \"outcome\": \"error\", \"errno\": 30}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "runtime-sibling": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"runtime-sibling\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"runtime-sibling\", \"outcome\": \"error\", \"errno\": 2}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      },
+      "network": {
+        "control": {
+          "status": 0,
+          "stdout": "{\"probe\": \"network\", \"outcome\": \"allowed\"}\n",
+          "stderr": ""
+        },
+        "sandbox": {
+          "status": 0,
+          "stdout": "{\"probe\": \"network\", \"outcome\": \"error\", \"errno\": 1}\n",
+          "stderr": ""
+        },
+        "outcome": "denied",
+        "externalFixturesUnchanged": true
+      }
+    },
+    "unchanged": false
   }
 }

@@ -88,6 +88,12 @@ changes the sandbox interface or behavior, failed or inconclusive probes still
 return nonzero. A successful run proves only the checks exercised on that runtime;
 it does not guarantee compatibility with releases that have not run the probes.
 
+The [installed-runtime receipt](checks/codex-sandbox/installed-runtime.json)
+retains the full read-only and scoped-write outputs, including positive controls,
+per-boundary results, external-fixture checks, and final fixture state. A passing
+receipt records that execution; it does not verify package provenance or approve
+a node-policy or template rollout.
+
 The diagnostic uses private synthetic fixtures and no credentials or model
 calls. It needs a writable runtime directory for a temporary sibling sentinel,
 removes its fixtures, and returns nonzero unless all checks pass. The terminal
