@@ -22,6 +22,35 @@ run_step() {
   fi
 }
 
+ensure_codex_bwrap() {
+  # Expose the helper shipped with this CLI; do not install a different sandbox
+  # runtime or replace an existing user/system command. The persistent symlink
+  # follows upgrades within the same npm package layout.
+  if command -v bwrap >/dev/null 2>&1; then
+    return 0
+  fi
+  [ "$(uname -s)" = "Linux" ] || return 0
+  local package_arch triple
+  case "$(uname -m)" in
+    x86_64) package_arch=x64; triple=x86_64-unknown-linux-musl ;;
+    aarch64|arm64) package_arch=arm64; triple=aarch64-unknown-linux-musl ;;
+    *) return 0 ;;
+  esac
+  local helper="$HOME/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-$package_arch/vendor/$triple/codex-resources/bwrap"
+  local link="$HOME/.local/bin/bwrap"
+  if [ ! -x "$helper" ] || [ -e "$link" ] || [ -L "$link" ]; then
+    printf '%s\n' '[warn] Bundled bubblewrap link not changed; helper missing or destination occupied.'
+    return 0
+  fi
+  mkdir -p "$HOME/.local/bin"
+  if ln -s "$helper" "$link"; then
+    hash -r 2>/dev/null || true
+    printf '%s\n' '[ok] Codex bundled bubblewrap available on PATH'
+  else
+    printf '%s\n' '[warn] Could not expose Codex bundled bubblewrap; keeping fallback behavior.'
+  fi
+}
+
 repair_node_shims() {
   mkdir -p "$HOME/.local/bin"
 
@@ -295,6 +324,8 @@ elif [ -n "$codex_path" ]; then
 else
   printf '%b[warn] codex was not found on PATH after installation%b\n' "$YELLOW" "$RESET"
 fi
+
+ensure_codex_bwrap
 
 install_official_skills
 install_official_github_plugin
