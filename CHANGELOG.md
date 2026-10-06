@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.15
+
+### Patch Changes
+
+- b8d5516: Validate the installed Codex runtime with behavioral sandbox probes without CLI version or helper-hash allowlists, so readiness works with latest releases.
+
 ## 2.17.14
 
 ### Patch Changes
