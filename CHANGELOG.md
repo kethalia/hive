@@ -1,5 +1,13 @@
 # hive-orchestrator
 
+## 2.17.13
+
+### Patch Changes
+
+- 1b60cf0: Enable the validated Codex AppArmor policy in workspace templates and strengthen the on-demand sandbox readiness checks.
+
+  Pin patched proxy-addr and tinypool transitive dependencies so the critical dependency audit passes on Node 22.
+
 ## 2.17.12
 
 ### Patch Changes
