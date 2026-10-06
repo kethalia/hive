@@ -18,5 +18,6 @@
     "memory_limit": "16Gi",
     "storage": "50Gi"
   },
-  "vscode_extensions": ["ms-playwright.playwright", "dbaeumer.vscode-eslint"]
+  "vscode_extensions": ["ms-playwright.playwright", "dbaeumer.vscode-eslint"],
+  "codex_sandbox_apparmor_profile": "hive-codex-v1"
 }
