@@ -16,10 +16,12 @@ import socket
 import subprocess
 import tempfile
 
-CODEX_VERSION = "codex-cli 0.160.0"
+BWRAP_PINS = {
+    "codex-cli 0.160.0": "01fb705f067bd5365b63d8ad2323a61c8d007733ca5e649437e086f3fb9935d8",
+    "codex-cli 0.160.1": "77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c",
+}
 APPARMOR_PROFILE = "hive-codex-v1 (enforce)"
 CAPABILITY_FIELDS = ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb")
-BWRAP_SHA256 = "01fb705f067bd5365b63d8ad2323a61c8d007733ca5e649437e086f3fb9935d8"
 ESCAPE_WRITES = ("outside-write", "symlink-write", "outside-create", "symlink-create")
 
 
@@ -128,7 +130,7 @@ def diagnose(codex, writable=False):
         "sysctls": {name: read_public("/proc/sys/" + name) for name in (
             "kernel/unprivileged_userns_clone", "kernel/apparmor_restrict_unprivileged_userns",
             "user/max_user_namespaces")},
-        "requiredCli": CODEX_VERSION,
+        "supportedCli": sorted(BWRAP_PINS),
     }
     report["outerSecurityBlockers"] = outer_security_blockers(
         report["apparmor"], report["processSecurity"])
@@ -156,8 +158,9 @@ def diagnose(codex, writable=False):
     report["runtimeReadableExecutable"] = executable
     version = run([executable, "--version"])
     report["cli"] = version
-    if version.get("status") != 0 or version.get("stdout", "").strip() != CODEX_VERSION:
-        report["blocker"] = "CLI mismatch or unavailable; use an isolated 0.160.0 install. Existing tools are preserved."
+    required_digest = BWRAP_PINS.get(version.get("stdout", "").strip())
+    if version.get("status") != 0 or required_digest is None:
+        report["blocker"] = "CLI mismatch or unavailable; supported versions: " + ", ".join(sorted(BWRAP_PINS)) + ". Existing tools are preserved."
         return report
     helper = Path(executable).parent.parent / "codex-resources" / "bwrap"
     try:
@@ -165,8 +168,8 @@ def diagnose(codex, writable=False):
     except OSError:
         helper_digest = None
     report["bubblewrap"] = {"selection": "bundled-only", "path": str(helper),
-                            "sha256": helper_digest, "requiredSHA256": BWRAP_SHA256}
-    if helper_digest != BWRAP_SHA256:
+                            "sha256": helper_digest, "requiredSHA256": required_digest}
+    if helper_digest != required_digest:
         report["blocker"] = "Pinned bundled bubblewrap is missing or has a different digest."
         return report
     # Codex refuses helper aliases beneath /tmp. Use a fresh private home child,

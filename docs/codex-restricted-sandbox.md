@@ -77,9 +77,15 @@ python3 templates/ai-dev-k8s/scripts/codex-sandbox-readiness.py --writable-fixtu
 
 The default is the native executable in Hive's persistent Linux x64 npm install.
 Use `--codex /absolute/path/to/native/codex` for an isolated alternative with its
-sibling `codex-resources/bwrap`. The CLI must be exactly `codex-cli 0.160.0` and
-the bundled helper SHA-256 must be
-`01fb705f067bd5365b63d8ad2323a61c8d007733ca5e649437e086f3fb9935d8`.
+sibling `codex-resources/bwrap`. The diagnostic accepts only these validated
+Linux x64 CLI/helper pairs:
+
+| CLI | Bundled helper SHA-256 |
+| --- | --- |
+| `codex-cli 0.160.0` | `01fb705f067bd5365b63d8ad2323a61c8d007733ca5e649437e086f3fb9935d8` |
+| `codex-cli 0.160.1` | `77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c` |
+
+A supported CLI with the other version's helper still fails closed.
 The diagnostic never installs or replaces tools. Other versions/platforms fail
 closed pending validation. No startup hooks or AI-tool upgrade behavior change.
 
@@ -115,8 +121,8 @@ missing-helper warning with `/usr/bin:/bin` and started without that warning
 with the link present. Both read-only and scoped-write boundary checks passed
 using PATH selection of the same bundled helper (SHA-256
 `77360cb751ccedc5971391444ac86a8a33c15b04d6b4a6fe45f5d25496e62c4c`).
-This was a separate candidate-version check; the on-demand diagnostic above
-remains pinned to 0.160.0 and will report a version mismatch for 0.160.1.
+The on-demand diagnostic now accepts both validated versions with their exact
+helper digest. Its isolated empty PATH continues to exercise bundled selection.
 
 An already-open Codex session can retain its startup warning. Start a new Codex
 session after the link is installed; a workspace restart is not needed for
