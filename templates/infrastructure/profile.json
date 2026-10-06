@@ -24,5 +24,6 @@
     "hashicorp.terraform",
     "ms-kubernetes-tools.vscode-kubernetes-tools",
     "ms-azuretools.vscode-docker"
-  ]
+  ],
+  "codex_sandbox_apparmor_profile": "hive-codex-v1"
 }

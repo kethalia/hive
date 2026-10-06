@@ -28,5 +28,6 @@
     "hashicorp.terraform",
     "ms-azuretools.vscode-docker",
     "cweijan.vscode-postgresql-client2"
-  ]
+  ],
+  "codex_sandbox_apparmor_profile": "hive-codex-v1"
 }

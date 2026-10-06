@@ -73,7 +73,9 @@
   },
   "pnpm": {
     "overrides": {
-      "defu": "6.1.5"
+      "defu": "6.1.5",
+      "proxy-addr": "2.0.8",
+      "tinypool": "2.1.2"
     },
     "onlyBuiltDependencies": [
       "@hive/db",

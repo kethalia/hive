@@ -1,0 +1,19 @@
+{
+  "mode": "resume",
+  "profile": "hive-codex-v1 (enforce)",
+  "threadId": "01a10fb9-3d5c-79b0-b554-98a228eaa64e",
+  "activePermissionProfile": {
+    "id": "hive-canary",
+    "extends": null
+  },
+  "turnStatus": "completed",
+  "commands": [
+    {
+      "command": "/bin/zsh -lc \"/usr/bin/python3 -I -c \\\"import errno; from pathlib import Path; assert Path('inside.txt').read_text() == 'INSIDE_FIXTURE';\ntry:\n Path('/home/coder/.hive-rollout-20261006/outside.txt').read_text(); print('OUTSIDE_ALLOWED')\nexcept OSError as e:\n print('OUTSIDE_DENIED' if e.errno in (errno.ENOENT, errno.EACCES, errno.EPERM) else 'UNEXPECTED_ERROR')\\\"\"",
+      "exitCode": 0,
+      "aggregatedOutput": "OUTSIDE_DENIED\n",
+      "status": "completed"
+    }
+  ],
+  "passed": true
+}

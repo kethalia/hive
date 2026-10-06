@@ -18,5 +18,6 @@
     "memory_limit": "16Gi",
     "storage": "100Gi"
   },
-  "vscode_extensions": ["ms-vscode.cpptools", "ms-vscode.cmake-tools"]
+  "vscode_extensions": ["ms-vscode.cpptools", "ms-vscode.cmake-tools"],
+  "codex_sandbox_apparmor_profile": "hive-codex-v1"
 }

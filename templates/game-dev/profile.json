@@ -22,5 +22,6 @@
     "ms-dotnettools.csharp",
     "visualstudiotoolsforunity.vstuc",
     "slevesque.shader"
-  ]
+  ],
+  "codex_sandbox_apparmor_profile": "hive-codex-v1"
 }
