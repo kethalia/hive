@@ -355,3 +355,12 @@ test("every profile receives the same workspace routing and interactive handoff 
     assert.match(terraform, /trimspace\(file\("\$\{path\.module\}\/WORKSPACE_ROUTING\.md"\)\)/);
   }
 });
+
+
+test("Turborepo cache cleanup preserves project data", () => {
+  const result = spawnSync("python3", ["scripts/test-prune-turbo-cache.py"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});

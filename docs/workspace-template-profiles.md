@@ -154,8 +154,8 @@ Before publishing:
 
 ## Scheduled workspace cache maintenance
 
-Every profile includes a Coder agent script named **Weekly npm cache maintenance**.
-It runs Sundays at 06:45 UTC while the workspace is running, using Coder's
+Every profile includes a Coder agent script named **Daily development cache maintenance**.
+It runs daily at 06:45 UTC while the workspace is running, using Coder's
 [six-field script scheduler](https://registry.terraform.io/providers/coder/coder/2.18.0/docs/resources/script).
 It does not require systemd or a separate cron daemon, run at startup, or block
 login. A stopped workspace skips that occurrence and waits for the next schedule
@@ -165,8 +165,10 @@ The script calls `npm cache verify` as the workspace owner with low CPU priority
 and a nine-minute execution limit (ten minutes for the whole Coder script). It
 accepts only the standard `$HOME/.npm` directory and refuses symlinked caches or
 redirected cache objects or logs. Npm verifies cached objects and removes its own garbage;
-valid package data may remain, so reclaimed space can be zero. Repositories,
-worktrees, agent conversations, and PVCs are outside its scope.
+valid package data may remain, so reclaimed space can be zero. It also removes at most 2,000 recognized Turborepo cache objects older than seven
+days per run under `$HOME/projects`. It skips tracked cache directories, follows
+no symlinked paths, and preserves recent or unrecognized files. Source files,
+dependencies, worktrees, agent conversations, and PVCs are outside its scope.
 
 Inspect the script's Coder logs for timestamps, before/after KiB, and failures.
 The template change takes effect when a workspace is updated to the new template
@@ -177,3 +179,12 @@ resource stops future scheduled runs after the next workspace update.
 Node image/log retention and Longhorn snapshot cleanup remain separate policies
 in `k8s-cluster`. This script does not activate those policies or post Telegram
 messages directly.
+
+The software profile reserves two CPU cores and can burst to its unchanged
+12-core limit. This replaces the previous six-core reservation after reviewing
+seven days of cluster metrics (observed per-pod 95th percentiles up to 1.15 cores).
+The lower reservation improves scheduler headroom; it does not guarantee
+failover when memory, GPU placement or single-instance applications constrain it.
+Existing workspaces receive the new request and cache schedule on their next
+template update. Do not restart an active primary workspace without coordinating
+its running sessions.
