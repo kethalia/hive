@@ -8,7 +8,7 @@ inside each workspace.
 
 | Template | Profile | Image variant | Surface | Default resources |
 | --- | --- | --- | --- | --- |
-| `ai-dev-k8s` | Development & orchestration | `cli` | TUI, VS Code, files | 6 CPU, 16 GiB RAM, 100 GiB home |
+| `ai-dev-k8s` | Development & orchestration | `cli` | TUI, VS Code, files | 2 CPU, 16 GiB RAM, 100 GiB home |
 | `browser-testing` | Browser testing | `browser` | Chrome, Playwright, desktop | 4 CPU, 8 GiB RAM, 50 GiB home |
 | `game-dev` | Game development | `game` | Unity, Blender, desktop | 6 CPU, 16 GiB RAM, 150 GiB home |
 | `electronics` | Electronics | `electronics` | KiCad, desktop | 4 CPU, 8 GiB RAM, 100 GiB home |
@@ -154,8 +154,8 @@ Before publishing:
 
 ## Scheduled workspace cache maintenance
 
-Every profile includes a Coder agent script named **Weekly npm cache maintenance**.
-It runs Sundays at 06:45 UTC while the workspace is running, using Coder's
+Every profile includes a Coder agent script named **Daily development cache maintenance**.
+It runs daily at 06:45 UTC while the workspace is running, using Coder's
 [six-field script scheduler](https://registry.terraform.io/providers/coder/coder/2.18.0/docs/resources/script).
 It does not require systemd or a separate cron daemon, run at startup, or block
 login. A stopped workspace skips that occurrence and waits for the next schedule
@@ -165,8 +165,34 @@ The script calls `npm cache verify` as the workspace owner with low CPU priority
 and a nine-minute execution limit (ten minutes for the whole Coder script). It
 accepts only the standard `$HOME/.npm` directory and refuses symlinked caches or
 redirected cache objects or logs. Npm verifies cached objects and removes its own garbage;
-valid package data may remain, so reclaimed space can be zero. Repositories,
-worktrees, agent conversations, and PVCs are outside its scope.
+valid package data may remain, so reclaimed space can be zero. Git probe timeouts skip that
+repository while maintenance continues. Discovery skips common generated trees (including
+Unity `Library`, Python virtual environments, and Rust `target`) and stops after 5,000
+directories or a 120-second cooperative time budget, leaving room in the 900-second
+script window for the full 540-second npm verification allowance and completion reporting. Git probes use at most the remaining budget;
+budget checks occur between directories and cache entries. Source and cache directories are streamed
+without sorting or collecting all entries, with a shared limit of 50,000 inspected entries
+(including metadata and unrelated files) in each phase per pass. Discovery retains only
+the ancestor frontier rather than collecting complete child/file lists. A checkpoint in
+`~/.cache/hive/turbo-prune-state.json` retains the depth-first directory frontier and
+Linux directory cookies, so following runs seek directly past inspected entries without
+replaying the prefix. Cookies are bound to the directory device/inode and reset when that
+identity changes, on read errors, or at end of directory. Old entry-count checkpoints are
+discarded. Completing discovery starts a fresh cycle to revisit entries affected by churn.
+This uses the Linux/glibc workspace images; unsupported directory seeking skips that cache. Top-level project directories and detected Git roots at any depth are preserved even
+when named `build`, `target`, `dist`, or `Library`, including the usual
+`projects/<owner>/<repo>` layout and worktrees with a `.git` file. Both `<hash>.tar` and `<hash>.tar.zst` archives are eligible. Candidates move into a private
+quarantine directory and are checked against the validated inode, modification time, and size
+before deletion. Changed candidates are restored without overwriting a newly published
+archive; if restoration conflicts or fails, the quarantine copy is retained and reported.
+Only archives are removed;
+metadata and manifest sidecars remain untouched, including orphan sidecars, to protect active
+readers and concurrent writers. Small metadata files therefore accumulate, while large archive
+payloads are reclaimed. Filesystem errors skip
+the affected entry or cache and allow other repositories and npm verification to continue. It removes at most 2,000 recognized Turborepo cache archives older than seven
+days per run under `$HOME/projects`. It skips tracked cache directories, follows
+no symlinked paths, and preserves recent or unrecognized files. Source files,
+dependencies, worktrees, agent conversations, and PVCs are outside its scope.
 
 Inspect the script's Coder logs for timestamps, before/after KiB, and failures.
 The template change takes effect when a workspace is updated to the new template
@@ -177,3 +203,12 @@ resource stops future scheduled runs after the next workspace update.
 Node image/log retention and Longhorn snapshot cleanup remain separate policies
 in `k8s-cluster`. This script does not activate those policies or post Telegram
 messages directly.
+
+The software profile reserves two CPU cores and can burst to its unchanged
+12-core limit. This replaces the previous six-core reservation after reviewing
+seven days of cluster metrics (observed per-pod 95th percentiles up to 1.15 cores).
+The lower reservation improves scheduler headroom; it does not guarantee
+failover when memory, GPU placement or single-instance applications constrain it.
+Existing workspaces receive the new request and cache schedule on their next
+template update. Do not restart an active primary workspace without coordinating
+its running sessions.

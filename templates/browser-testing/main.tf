@@ -178,13 +178,13 @@ resource "coder_app" "codex_sandbox_readiness" {
 # after starting; cache maintenance never blocks workspace startup.
 resource "coder_script" "workspace_cache_maintenance" {
   agent_id           = coder_agent.main.id
-  display_name       = "Weekly npm cache maintenance"
+  display_name       = "Daily development cache maintenance"
   icon               = "/icon/nodejs.svg"
-  cron               = "CRON_TZ=UTC 0 45 6 * * 0"
+  cron               = "CRON_TZ=UTC 0 45 6 * * *"
   run_on_start       = false
   start_blocks_login = false
-  timeout            = 600
-  script             = file("${path.module}/scripts/workspace-cache-maintenance.sh")
+  timeout            = 900
+  script             = "set -e\npython3 - <<'HIVE_CACHE_PY'\n${file("${path.module}/scripts/prune-turbo-cache.py")}\nHIVE_CACHE_PY\n${file("${path.module}/scripts/workspace-cache-maintenance.sh")}"
 }
 
 resource "coder_script" "tools_web3" {

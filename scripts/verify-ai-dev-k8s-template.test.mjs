@@ -152,7 +152,7 @@ function verifyPodSecurity() {
     web3: true,
   });
   assert.equal(profile.resources.storage, "100Gi");
-  assert.equal(profile.resources.cpu_request, "6");
+  assert.equal(profile.resources.cpu_request, "2");
   assert.equal(profile.resources.memory_request, "16Gi");
   assert.match(profile.image, /^ghcr\.io\/kethalia\/hive-base@sha256:[0-9a-f]{64}$/);
 }
