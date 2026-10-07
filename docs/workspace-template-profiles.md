@@ -165,7 +165,10 @@ The script calls `npm cache verify` as the workspace owner with low CPU priority
 and a nine-minute execution limit (ten minutes for the whole Coder script). It
 accepts only the standard `$HOME/.npm` directory and refuses symlinked caches or
 redirected cache objects or logs. Npm verifies cached objects and removes its own garbage;
-valid package data may remain, so reclaimed space can be zero. It also removes at most 2,000 recognized Turborepo cache objects older than seven
+valid package data may remain, so reclaimed space can be zero. Git probe timeouts skip that
+repository while maintenance continues. The Turborepo file budget is applied between complete
+hash groups, with archives removed before their sidecars; any recent member preserves the
+whole group. It removes at most 2,000 recognized Turborepo cache objects older than seven
 days per run under `$HOME/projects`. It skips tracked cache directories, follows
 no symlinked paths, and preserves recent or unrecognized files. Source files,
 dependencies, worktrees, agent conversations, and PVCs are outside its scope.

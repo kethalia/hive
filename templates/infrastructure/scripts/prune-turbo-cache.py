@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import time
 
 
@@ -25,8 +26,12 @@ def prune(projects, now=None, maximum=2000, apply=False):
         cache = Path(directory, ".turbo", "cache")
         if not cache.is_dir() or cache.is_symlink():
             continue
-        tracked = subprocess.run(["git", "-C", directory, "ls-files", "--", ".turbo"],
-                                 capture_output=True, timeout=10, check=False)
+        try:
+            tracked = subprocess.run(["git", "-C", directory, "ls-files", "--", ".turbo"],
+                                     capture_output=True, timeout=10, check=False)
+        except subprocess.TimeoutExpired:
+            print(f"Skipping cache: Git probe timed out in {directory}", file=sys.stderr)
+            continue
         if tracked.returncode or tracked.stdout:
             continue
         # Open every component without following symlinks, including if a
@@ -41,23 +46,34 @@ def prune(projects, now=None, maximum=2000, apply=False):
             os.close(fd)
             continue
         try:
+            groups = {}
             for name in sorted(os.listdir(fd)):
-                if removed >= maximum:
+                if OBJECT.fullmatch(name):
+                    groups.setdefault(name[:16], []).append(name)
+            for names in groups.values():
+                # Keep the file budget, but never split an archive from its
+                # sidecars at the boundary. Remove the archive first so an
+                # interrupted pass does not leave a hit with missing metadata.
+                if removed + len(names) > maximum:
                     return removed, size
-                if not OBJECT.fullmatch(name):
-                    continue
+                names.sort(key=lambda name: (not name.endswith(".tar.zst"), name))
                 try:
-                    before = os.stat(name, dir_fd=fd, follow_symlinks=False)
-                    if not stat.S_ISREG(before.st_mode) or now - before.st_mtime <= 7 * 86400:
+                    before = {name: os.stat(name, dir_fd=fd, follow_symlinks=False)
+                              for name in names}
+                    if any(not stat.S_ISREG(s.st_mode) or now - s.st_mtime <= 7 * 86400
+                           for s in before.values()):
                         continue
-                    current = os.stat(name, dir_fd=fd, follow_symlinks=False)
-                    if (before.st_ino, before.st_mtime_ns, before.st_size) != (
-                            current.st_ino, current.st_mtime_ns, current.st_size):
+                    current = {name: os.stat(name, dir_fd=fd, follow_symlinks=False)
+                               for name in names}
+                    if any((s.st_ino, s.st_mtime_ns, s.st_size) != (
+                            current[name].st_ino, current[name].st_mtime_ns,
+                            current[name].st_size) for name, s in before.items()):
                         continue
-                    if apply:
-                        os.unlink(name, dir_fd=fd)
-                    removed += 1
-                    size += before.st_size
+                    for name in names:
+                        if apply:
+                            os.unlink(name, dir_fd=fd)
+                        removed += 1
+                        size += before[name].st_size
                 except FileNotFoundError:
                     continue  # A build or another maintenance pass won the race.
         finally:
