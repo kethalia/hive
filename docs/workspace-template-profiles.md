@@ -170,10 +170,11 @@ repository while maintenance continues. Discovery skips common generated trees (
 Unity `Library`, Python virtual environments, and Rust `target`) and stops after 5,000
 directories or a 120-second cooperative time budget, leaving room in the 900-second
 script window for the full 540-second npm verification allowance and completion reporting. Git probes use at most the remaining budget;
-budget checks occur between directories and cache entries. Cache directories are streamed
+budget checks occur between directories and cache entries. Source and cache directories are streamed
 without sorting or collecting all entries, with a shared limit of 50,000 inspected entries
-(including metadata and unrelated files) per pass. A checkpoint in
-`~/.cache/hive/turbo-prune-state.json` retains the breadth-first directory frontier and
+(including metadata and unrelated files) in each phase per pass. Discovery retains only
+the ancestor frontier rather than collecting complete child/file lists. A checkpoint in
+`~/.cache/hive/turbo-prune-state.json` retains the depth-first directory frontier and
 Linux directory cookies, so following runs seek directly past inspected entries without
 replaying the prefix. Cookies are bound to the directory device/inode and reset when that
 identity changes, on read errors, or at end of directory. Old entry-count checkpoints are

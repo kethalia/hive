@@ -62,34 +62,79 @@ def cache_entries(fd, cookie=0):
     yield entries()
 
 
-def discovery(projects, state):
-    # Persist a breadth-first frontier instead of restarting at the first tree.
+def discovery(projects, state, deadline, max_directories=5000, max_entries=50000):
+    # Depth-first streaming keeps only ancestors on the frontier. Each parent
+    # resumes at its own cookie, without materializing its children or files.
     pending = state.setdefault("pending", [])
+    cursors = state.setdefault("discovery_cursors", {})
     if not pending:
         pending.append(".")
+    scanned = visited = 0
     while pending:
+        if (time.monotonic() >= deadline or visited >= max_directories
+                or scanned >= max_entries):
+            return
         relative = pending[0]
         directory = projects / relative
         if Path(relative).is_absolute() or ".." in Path(relative).parts:
             pending.pop(0)
+            cursors.pop(relative, None)
             continue
-        if any(parent.is_symlink() for parent in [directory, *directory.parents]):
+        fd = None
+        try:
+            fd = os.open(projects, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            for part in Path(relative).parts:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+                os.close(fd)
+                fd = child
+            visited += 1
+            identity = os.fstat(fd)
+            saved = cursors.get(relative, {})
+            same = (saved.get("device"), saved.get("inode")) == (
+                identity.st_dev, identity.st_ino)
+            resume = saved.get("cookie", 0) if same else 0
+            with cache_entries(fd, resume) as entries:
+                while True:
+                    if time.monotonic() >= deadline or scanned >= max_entries:
+                        return
+                    entry = next(entries, None)
+                    if entry is None:
+                        pending.pop(0)
+                        cursors.pop(relative, None)
+                        break
+                    scanned += 1
+                    checkpoint = {"device": identity.st_dev, "inode": identity.st_ino,
+                                  "cookie": entry.cookie}
+                    name = entry.name
+                    if name in {".", ".."}:
+                        cursors[relative] = checkpoint
+                        continue
+                    try:
+                        is_directory = stat.S_ISDIR(os.stat(
+                            name, dir_fd=fd, follow_symlinks=False).st_mode)
+                    except OSError:
+                        is_directory = False
+                    if not is_directory:
+                        cursors[relative] = checkpoint
+                        continue
+                    if name == ".turbo":
+                        # Commit only after cache processing completes. A caller
+                        # budget return leaves this entry pending for resumption.
+                        yield str(directory), [".turbo"], []
+                        cursors[relative] = checkpoint
+                    elif directory == projects or name not in GENERATED_DIRECTORIES:
+                        cursors[relative] = checkpoint
+                        pending.insert(0, str((directory / name).relative_to(projects)))
+                        break
+                    else:
+                        cursors[relative] = checkpoint
+        except OSError as error:
+            print(f"Skipping discovery directory {directory}: {error}", file=sys.stderr)
             pending.pop(0)
-            continue
-        found = next(os.walk(directory, followlinks=False), None)
-        if found is None:
-            pending.pop(0)
-            continue
-        _, children, files = found
-        children[:] = [name for name in children
-                       if (directory == projects or name not in GENERATED_DIRECTORIES)
-                       and not (directory / name).is_symlink()]
-        yield str(directory), children, files
-        # Advance only after the caller has completed this directory. If it
-        # exhausts a budget, this item stays at the front for the next run.
-        pending.pop(0)
-        pending.extend(str((directory / name).relative_to(projects))
-                       for name in children if name != ".turbo")
+            cursors.pop(relative, None)
+        finally:
+            if fd is not None:
+                os.close(fd)
 
 
 def scheduled_prune(projects, state_path):
@@ -102,12 +147,13 @@ def scheduled_prune(projects, state_path):
         if (not isinstance(state, dict)
                 or not isinstance(state.get("pending", []), list)
                 or not all(isinstance(p, str) for p in state.get("pending", []))
-                or not isinstance(state.get("cursors", {}), dict)
-                or not all(isinstance(k, str) and isinstance(v, dict)
-                           and all(type(v.get(field)) is int and v[field] >= 0
-                                   for field in ["device", "inode", "cookie"])
-                           and v["cookie"] <= 2**63 - 1
-                           for k, v in state.get("cursors", {}).items())):
+                or not all(isinstance(state.get(group, {}), dict)
+                           and all(isinstance(k, str) and isinstance(v, dict)
+                                   and all(type(v.get(field)) is int and v[field] >= 0
+                                           for field in ["device", "inode", "cookie"])
+                                   and v["cookie"] <= 2**63 - 1
+                                   for k, v in state.get(group, {}).items())
+                           for group in ["cursors", "discovery_cursors"])):
             raise ValueError("Invalid maintenance state")
     except (FileNotFoundError, ValueError):
         state = {}
@@ -136,7 +182,7 @@ def prune(projects, now=None, maximum=2000, apply=False,
     if projects.is_symlink() or not projects.is_dir():
         return removed, size
     for visited, (directory, children, _) in enumerate(
-            discovery(projects, state)):
+            discovery(projects, state, deadline, max_directories, max_cache_entries)):
         if visited >= max_directories or time.monotonic() >= deadline:
             print("Cache discovery budget reached; continuing other maintenance", file=sys.stderr)
             return removed, size

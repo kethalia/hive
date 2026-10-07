@@ -224,10 +224,12 @@ class CacheSafety(unittest.TestCase):
 
     def test_git_probe_timeout_uses_remaining_budget(self):
         old = self.cache_file()
-        with mock.patch.object(pruner.time, "monotonic", return_value=0) as clock, \
+        with mock.patch.object(pruner, "discovery", return_value=[
+                (str(self.repo), [".turbo"], [])]), \
+                mock.patch.object(pruner.time, "monotonic", return_value=0) as clock, \
                 mock.patch.object(pruner.subprocess, "run",
                                   side_effect=subprocess.TimeoutExpired("git", 1)) as probe:
-            clock.side_effect = [0, 0, 0, 119]
+            clock.side_effect = [0, 0, 119]
             self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
         self.assertEqual(probe.call_args.kwargs["timeout"], 1)
         self.assertTrue(old.exists())
@@ -352,7 +354,9 @@ class CacheSafety(unittest.TestCase):
         stream = mock.MagicMock()
         stream.__enter__.return_value = iter([
             type("Entry", (), {"name": archive.name, "cookie": cookie + 100})()])
-        with mock.patch.object(pruner, "cache_entries", return_value=stream) as scan:
+        with mock.patch.object(pruner, "discovery", return_value=[
+                (str(self.repo), [".turbo"], [])]), \
+                mock.patch.object(pruner, "cache_entries", return_value=stream) as scan:
             self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True,
                                          state=state, max_cache_entries=1), (1, 12))
         self.assertEqual(scan.call_args.args[1], cookie)
@@ -364,10 +368,54 @@ class CacheSafety(unittest.TestCase):
             "device": identity.st_dev, "inode": identity.st_ino + 1, "cookie": 123}}}
         stream = mock.MagicMock()
         stream.__enter__.return_value = iter([])
-        with mock.patch.object(pruner, "cache_entries", return_value=stream) as scan:
+        with mock.patch.object(pruner, "discovery", return_value=[
+                (str(self.repo), [".turbo"], [])]), \
+                mock.patch.object(pruner, "cache_entries", return_value=stream) as scan:
             pruner.prune(self.projects, now=1000000, state=state)
         self.assertEqual(scan.call_args.args[1], 0)
         self.assertEqual(state["cursors"], {})
+
+    def test_wide_discovery_directory_resumes_without_materializing_entries(self):
+        consumed = []
+        resumes = []
+        state = {}
+
+        def stream(fd, cookie=0):
+            resumes.append(cookie)
+            def entries():
+                for index in range(cookie, 1000000):
+                    consumed.append(index)
+                    yield type("Entry", (), {"name": f"file-{index}", "cookie": index + 1})()
+            result = mock.MagicMock()
+            result.__enter__.return_value = entries()
+            return result
+
+        with mock.patch.object(pruner, "cache_entries", side_effect=stream), \
+                mock.patch.object(pruner.os, "walk", side_effect=AssertionError("eager walk")):
+            for _ in range(2):
+                self.assertEqual(list(pruner.discovery(
+                    self.projects, state, float("inf"), max_entries=3)), [])
+        self.assertEqual(consumed, list(range(6)))
+        self.assertEqual(resumes, [0, 3])
+        self.assertEqual(state["pending"], ["."])
+
+    def test_discovery_checks_deadline_within_directory(self):
+        clock = [0]
+        state = {}
+        consumed = []
+        def entries():
+            consumed.append(1)
+            clock[0] = 121
+            yield type("Entry", (), {"name": "unrelated", "cookie": 88})()
+            self.fail("Discovery read past its deadline")
+        stream = mock.MagicMock()
+        stream.__enter__.return_value = entries()
+        with mock.patch.object(pruner, "cache_entries", return_value=stream), \
+                mock.patch.object(pruner.time, "monotonic", side_effect=lambda: clock[0]):
+            self.assertEqual(list(pruner.discovery(self.projects, state, 120)), [])
+        self.assertEqual(consumed, [1])
+        self.assertEqual(state["discovery_cursors"]["."]["cookie"], 88)
+        stream.__exit__.assert_called_once()
 
 
 if __name__ == "__main__":
