@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.16
+
+### Patch Changes
+
+- 356d011: Bound daily workspace build-cache retention and right-size the software profile CPU reservation while preserving burst capacity.
+
 ## 2.17.15
 
 ### Patch Changes
