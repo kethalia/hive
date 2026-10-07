@@ -302,16 +302,23 @@ export npm_config_prefix="$HOME/.local"
 
 repair_node_shims || true
 
-# Keep verified persistent installs in place. New packages are installed with
-# npm's own replacement handling, so a transient registry failure never starts
-# by deleting working command shims.
-if npm_global_has "@openai/codex" && command_exists codex; then
-  printf '%b[ok] Codex CLI already installed%b\n' "$GREEN" "$RESET"
-else
-  run_step "Codex CLI" '
-    npm install -g --force @openai/codex@latest
-  '
-fi
+# A persistent install is not evidence that it is current. Codex's managed
+# background server can update independently, so refresh the CLI each startup.
+refresh_codex() {
+  printf '%b[install] Refreshing Codex CLI from latest...%b\n' "$BOLD" "$RESET"
+  if timeout --signal=TERM --kill-after=10s 120s \
+    npm install -g @openai/codex@latest \
+      --fetch-retries=2 --fetch-retry-mintimeout=1000 \
+      --fetch-retry-maxtimeout=10000 --fetch-timeout=20000; then
+    printf '%b[ok] Codex CLI refreshed%b\n' "$GREEN" "$RESET"
+  elif command_exists codex && codex --version >/dev/null 2>&1; then
+    printf '%b[warn] Codex refresh failed; keeping the available CLI. Retry codex update when online.%b\n' "$YELLOW" "$RESET"
+  else
+    printf '%b[warn] Codex refresh failed and no working CLI is available.%b\n' "$YELLOW" "$RESET"
+  fi
+}
+
+refresh_codex
 
 hash -r 2>/dev/null || true
 

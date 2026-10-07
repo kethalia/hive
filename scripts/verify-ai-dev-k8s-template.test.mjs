@@ -586,7 +586,8 @@ function verifyAiAgentSelection() {
   const initScript = readTemplateFile("scripts/init.sh");
   const agentInstructions = readTemplateFile("CLAUDE.md");
 
-  assert.ok(script.includes('npm_global_has "@openai/codex" && command_exists codex'));
+  assert.match(script, /npm install -g @openai\/codex@latest/);
+  assert.doesNotMatch(script, /if npm_global_has "@openai\/codex" && command_exists codex/);
   assert.ok(terraform.includes('module "claude-code"'));
   assert.ok(!terraform.includes('resource "coder_app" "gsd"'));
 
@@ -1287,4 +1288,49 @@ test("bundled bubblewrap setup preserves existing commands and handles missing h
   });
   assert.equal(custom.status, 0);
   assert.equal(existsSync(join(fixture, "unused-home/.local/bin/bwrap")), false);
+});
+
+test("Codex refresh runs on every startup and tolerates registry failures", () => {
+  const script = readTemplateFile("scripts/tools-ai.sh");
+  const refresh = script.match(/refresh_codex\(\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(refresh);
+  for (const [failure, installed] of [
+    [false, true],
+    [true, true],
+    [true, false],
+  ]) {
+    const result = spawnSync(
+      "bash",
+      [
+        "-c",
+        `
+set -e
+BOLD= GREEN= YELLOW= RESET=
+command_exists() { [ "$1" = codex ] && ${installed ? "true" : "false"}; }
+codex() { [ "$1" = --version ]; }
+timeout() {
+  [ "$1" = --signal=TERM ] && [ "$2" = --kill-after=10s ] && [ "$3" = 120s ]
+  shift 3
+  "$@"
+}
+npm() {
+  [ "$1" = install ] && [ "$2" = -g ] && [ "$3" = @openai/codex@latest ]
+  echo REFRESH_ATTEMPT
+  ${failure ? "return 1" : "return 0"}
+}
+${refresh}
+refresh_codex
+refresh_codex
+echo STARTUP_CONTINUED
+`,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.match(/REFRESH_ATTEMPT/g)?.length, 2);
+    assert.match(result.stdout, /STARTUP_CONTINUED/);
+    if (failure) {
+      assert.match(result.stdout, installed ? /keeping the available CLI/ : /no working CLI/);
+    }
+  }
 });
