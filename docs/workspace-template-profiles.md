@@ -168,13 +168,14 @@ redirected cache objects or logs. Npm verifies cached objects and removes its ow
 valid package data may remain, so reclaimed space can be zero. Git probe timeouts skip that
 repository while maintenance continues. Discovery skips common generated trees (including
 Unity `Library`, Python virtual environments, and Rust `target`) and stops after 5,000
-directories or a 120-second cooperative time budget, leaving room in the 600-second
-script window for npm verification. Git probes use at most the remaining budget;
-budget checks occur between directories and complete cache entries. The Turborepo file budget is applied between complete
-hash groups. Archive retirement preserves metadata for active readers: sidecar timestamps
-are refreshed before unlinking the archive, and orphan sidecars become eligible only after
-another seven days. Any recent member preserves the whole group. Filesystem errors skip
-the affected entry or cache and allow other repositories and npm verification to continue. It removes at most 2,000 recognized Turborepo cache objects older than seven
+directories or a 120-second cooperative time budget, leaving room in the 900-second
+script window for the full 540-second npm verification allowance and completion reporting. Git probes use at most the remaining budget;
+budget checks occur between directories and cache entries. Top-level project directories are
+preserved even when named `build`, `target`, `dist`, or `Library`. Only archives are removed;
+metadata and manifest sidecars remain untouched, including orphan sidecars, to protect active
+readers and concurrent writers. Small metadata files therefore accumulate, while large archive
+payloads are reclaimed. Filesystem errors skip
+the affected entry or cache and allow other repositories and npm verification to continue. It removes at most 2,000 recognized Turborepo cache archives older than seven
 days per run under `$HOME/projects`. It skips tracked cache directories, follows
 no symlinked paths, and preserves recent or unrecognized files. Source files,
 dependencies, worktrees, agent conversations, and PVCs are outside its scope.

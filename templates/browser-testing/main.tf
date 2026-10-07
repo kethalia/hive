@@ -183,7 +183,7 @@ resource "coder_script" "workspace_cache_maintenance" {
   cron               = "CRON_TZ=UTC 0 45 6 * * *"
   run_on_start       = false
   start_blocks_login = false
-  timeout            = 600
+  timeout            = 900
   script             = "set -e\npython3 - <<'HIVE_CACHE_PY'\n${file("${path.module}/scripts/prune-turbo-cache.py")}\nHIVE_CACHE_PY\n${file("${path.module}/scripts/workspace-cache-maintenance.sh")}"
 }
 

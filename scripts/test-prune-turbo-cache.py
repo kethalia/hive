@@ -110,7 +110,7 @@ class CacheSafety(unittest.TestCase):
         self.assertTrue(archive.exists())
         self.assertTrue(metadata.exists())
 
-    def test_open_reader_keeps_metadata_until_later_pass(self):
+    def test_open_reader_keeps_metadata_across_passes(self):
         archive = self.cache_file()
         metadata = self.cache_file("0123456789abcdef-meta.json")
         with archive.open() as reader:
@@ -120,8 +120,8 @@ class CacheSafety(unittest.TestCase):
             self.assertFalse(archive.exists())
             self.assertEqual(pruner.prune(self.projects, now=1000000 + 86400, apply=True), (0, 0))
             self.assertTrue(metadata.exists())
-        self.assertEqual(pruner.prune(self.projects, now=1000000 + 8 * 86400, apply=True), (1, 12))
-        self.assertFalse(metadata.exists())
+        self.assertEqual(pruner.prune(self.projects, now=1000000 + 8 * 86400, apply=True), (0, 0))
+        self.assertTrue(metadata.exists())
 
     def test_unlink_errors_preserve_group_and_continue_to_next_repository(self):
         archive = self.cache_file()
@@ -151,13 +151,40 @@ class CacheSafety(unittest.TestCase):
                 self.assertTrue(metadata.exists())
                 self.assertFalse(removable.exists())
 
-    def test_failed_sidecar_grace_update_preserves_archive(self):
-        archive = self.cache_file()
+    def test_orphan_sidecars_are_never_modified(self):
         metadata = self.cache_file("0123456789abcdef-meta.json")
-        with mock.patch.object(pruner.os, "utime", side_effect=PermissionError("denied")):
+        manifest = self.cache_file("0123456789abcdef-manifest.json")
+        before = [path.stat().st_mtime_ns for path in [metadata, manifest]]
+        with mock.patch.object(pruner.os, "unlink") as unlink, \
+                mock.patch.object(pruner.os, "utime") as utime:
             self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
-        self.assertTrue(archive.exists())
-        self.assertTrue(metadata.exists())
+        unlink.assert_not_called()
+        utime.assert_not_called()
+        self.assertEqual(before, [path.stat().st_mtime_ns for path in [metadata, manifest]])
+
+    def test_generated_looking_top_level_repository_names(self):
+        for name in ["build", "target", "dist", "Library"]:
+            with self.subTest(name=name):
+                repo = self.projects / name
+                cache = repo / ".turbo/cache"
+                cache.mkdir(parents=True)
+                subprocess.run(["git", "init", "-q", str(repo)], check=True)
+                archive = cache / "0123456789abcdef.tar.zst"
+                archive.write_text("reproducible")
+                os.utime(archive, (1, 1))
+                self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
+                self.assertFalse(archive.exists())
+
+    def test_outer_timeout_preserves_inner_budgets(self):
+        import re
+        template = (ROOT / "templates/ai-dev-k8s/main.tf").read_text()
+        maintenance = template.split('resource "coder_script" "workspace_cache_maintenance"')[1]
+        outer = int(re.search(r"timeout\s*=\s*(\d+)", maintenance).group(1))
+        shell = (ROOT / "templates/ai-dev-k8s/scripts/workspace-cache-maintenance.sh").read_text()
+        npm = int(re.search(r"timeout[^\n]*? (\d+)s nice", shell).group(1))
+        import inspect
+        pruning = inspect.signature(pruner.prune).parameters["time_budget"].default
+        self.assertGreaterEqual(outer, pruning + npm + 60)
 
     def test_generated_directories_are_not_searched(self):
         old = self.cache_file()

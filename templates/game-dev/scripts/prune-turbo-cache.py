@@ -1,4 +1,4 @@
-"""Remove only old, untracked Turborepo cache objects; never project outputs."""
+"""Remove old, untracked Turborepo archives; preserve metadata and project outputs."""
 import os
 from pathlib import Path
 import re
@@ -30,7 +30,8 @@ def prune(projects, now=None, maximum=2000, apply=False,
         if visited >= max_directories or time.monotonic() >= deadline:
             print("Cache discovery budget reached; continuing other maintenance", file=sys.stderr)
             return removed, size
-        children[:] = [n for n in children if n not in GENERATED_DIRECTORIES
+        children[:] = [n for n in children
+                       if (Path(directory) == projects or n not in GENERATED_DIRECTORIES)
                        and not Path(directory, n).is_symlink()]
         if ".turbo" not in children:
             continue
@@ -71,11 +72,12 @@ def prune(projects, now=None, maximum=2000, apply=False,
                 if time.monotonic() >= deadline:
                     return removed, size
                 archive = names[0][:16] + ".tar.zst"
-                retiring_archive = archive in names
-                candidates = [archive] if retiring_archive else names
-                # Archive retirement and orphan-sidecar collection are separate
-                # passes. Never exhaust the file budget within either phase.
-                if removed + len(candidates) > maximum:
+                # Metadata can be read after an archive is opened, or replaced
+                # by a concurrent writer. Leave sidecars untouched permanently;
+                # the large archives are the useful space-reclamation target.
+                if archive not in names:
+                    continue
+                if removed >= maximum:
                     return removed, size
                 try:
                     before = {name: os.stat(name, dir_fd=fd, follow_symlinks=False)
@@ -89,35 +91,10 @@ def prune(projects, now=None, maximum=2000, apply=False,
                             current[name].st_ino, current[name].st_mtime_ns,
                             current[name].st_size) for name, s in before.items()):
                         continue
-                    if retiring_archive and apply:
-                        # A reader can keep the unlinked archive open and only
-                        # read metadata after restoring it. Start a fresh grace
-                        # period BEFORE unlinking; interruption remains safe.
-                        for name in names:
-                            if name == archive:
-                                continue
-                            sidecar = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
-                            try:
-                                actual = os.fstat(sidecar)
-                                expected = before[name]
-                                if (actual.st_ino, actual.st_mtime_ns, actual.st_size) != (
-                                        expected.st_ino, expected.st_mtime_ns, expected.st_size):
-                                    raise OSError("Sidecar changed during inspection")
-                                os.utime(sidecar, (now, now))
-                            finally:
-                                os.close(sidecar)
-                    if not retiring_archive:
-                        try:
-                            os.stat(archive, dir_fd=fd, follow_symlinks=False)
-                        except FileNotFoundError:
-                            pass
-                        else:
-                            continue  # A build recreated this cache entry.
-                    for name in candidates:
-                        if apply:
-                            os.unlink(name, dir_fd=fd)
-                        removed += 1
-                        size += before[name].st_size
+                    if apply:
+                        os.unlink(archive, dir_fd=fd)
+                    removed += 1
+                    size += before[archive].st_size
                 except OSError as error:
                     print(f"Skipping cache entry in {cache}: {error}", file=sys.stderr)
                     continue
