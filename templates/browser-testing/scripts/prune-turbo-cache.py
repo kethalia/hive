@@ -101,6 +101,21 @@ def cache_entries(fd, cookie=0):
     yield entries()
 
 
+def is_repository_root(parent_fd, name):
+    # Both ordinary clones (.git directory) and linked/separate worktrees
+    # (.git file) must survive generated-directory basename exclusions.
+    try:
+        child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=parent_fd)
+        try:
+            mode = os.stat(".git", dir_fd=child, follow_symlinks=False).st_mode
+            return stat.S_ISDIR(mode) or stat.S_ISREG(mode)
+        finally:
+            os.close(child)
+    except OSError:
+        return False
+
+
 def discovery(projects, state, deadline, max_directories=5000, max_entries=50000):
     # Depth-first streaming keeps only ancestors on the frontier. Each parent
     # resumes at its own cookie, without materializing its children or files.
@@ -161,7 +176,8 @@ def discovery(projects, state, deadline, max_directories=5000, max_entries=50000
                         # budget return leaves this entry pending for resumption.
                         yield str(directory), [".turbo"], []
                         cursors[relative] = checkpoint
-                    elif directory == projects or name not in GENERATED_DIRECTORIES:
+                    elif (directory == projects or name not in GENERATED_DIRECTORIES
+                          or is_repository_root(fd, name)):
                         cursors[relative] = checkpoint
                         pending.insert(0, str((directory / name).relative_to(projects)))
                         break

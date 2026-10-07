@@ -475,6 +475,33 @@ class CacheSafety(unittest.TestCase):
         self.assertEqual(len(preserved), 1)
         self.assertEqual(preserved[0].read_text(), "changed before quarantine")
 
+    def test_generated_looking_repositories_under_owner_directories(self):
+        for name in ["build", "target", "dist", "Library", ".venv"]:
+            with self.subTest(name=name):
+                repo = self.projects / "owner" / name
+                cache = repo / ".turbo/cache"
+                cache.mkdir(parents=True)
+                subprocess.run(["git", "init", "-q", str(repo)], check=True)
+                archive = cache / "0123456789abcdef.tar.zst"
+                archive.write_text("reproducible")
+                os.utime(archive, (1, 1))
+                self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
+                self.assertFalse(archive.exists())
+
+    def test_generated_looking_repository_with_git_file(self):
+        repo = self.projects / "owner/group/target"
+        cache = repo / ".turbo/cache"
+        cache.mkdir(parents=True)
+        git_dir = Path(self.tmp.name) / "separate-git-dir"
+        subprocess.run(["git", "init", "-q", "--separate-git-dir", str(git_dir), str(repo)],
+                       check=True)
+        self.assertTrue((repo / ".git").is_file())
+        archive = cache / "0123456789abcdef.tar.zst"
+        archive.write_text("reproducible")
+        os.utime(archive, (1, 1))
+        self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
+        self.assertFalse(archive.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

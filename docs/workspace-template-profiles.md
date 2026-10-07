@@ -179,8 +179,9 @@ Linux directory cookies, so following runs seek directly past inspected entries 
 replaying the prefix. Cookies are bound to the directory device/inode and reset when that
 identity changes, on read errors, or at end of directory. Old entry-count checkpoints are
 discarded. Completing discovery starts a fresh cycle to revisit entries affected by churn.
-This uses the Linux/glibc workspace images; unsupported directory seeking skips that cache. Top-level project directories are
-preserved even when named `build`, `target`, `dist`, or `Library`. Both `<hash>.tar` and `<hash>.tar.zst` archives are eligible. Candidates move into a private
+This uses the Linux/glibc workspace images; unsupported directory seeking skips that cache. Top-level project directories and detected Git roots at any depth are preserved even
+when named `build`, `target`, `dist`, or `Library`, including the usual
+`projects/<owner>/<repo>` layout and worktrees with a `.git` file. Both `<hash>.tar` and `<hash>.tar.zst` archives are eligible. Candidates move into a private
 quarantine directory and are checked against the validated inode, modification time, and size
 before deletion. Changed candidates are restored without overwriting a newly published
 archive; if restoration conflicts or fails, the quarantine copy is retained and reported.
