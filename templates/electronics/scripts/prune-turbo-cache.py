@@ -1,5 +1,10 @@
 """Remove old, untracked Turborepo archives; preserve metadata and project outputs."""
+from contextlib import contextmanager
+import ctypes
+import errno
 import json
+import struct
+from types import SimpleNamespace
 import os
 import tempfile
 from pathlib import Path
@@ -17,6 +22,44 @@ GENERATED_DIRECTORIES = {
     ".git", "node_modules", ".next", ".venv", "venv", "__pycache__",
     "target", "Library", "Temp", "obj", "build", "dist",
 }
+
+
+@contextmanager
+def cache_entries(fd, cookie=0):
+    # Linux/glibc workspace images only. d_off is an opaque filesystem cookie,
+    # not an entry count: seek directly rather than replaying a growing prefix.
+    # ABI: https://man7.org/linux/man-pages/man2/getdents.2.html
+    libc = ctypes.CDLL(None, use_errno=True)
+    try:
+        read_entries = libc.getdents64
+    except AttributeError as error:
+        raise OSError(errno.ENOSYS, "getdents64 unavailable") from error
+    read_entries.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_size_t]
+    read_entries.restype = ctypes.c_ssize_t
+    os.lseek(fd, cookie, os.SEEK_SET)
+
+    def entries():
+        buffer = ctypes.create_string_buffer(32768)
+        while True:
+            count = read_entries(fd, buffer, len(buffer))
+            if count < 0:
+                code = ctypes.get_errno()
+                raise OSError(code, os.strerror(code))
+            if count == 0:
+                return
+            raw = buffer.raw[:count]
+            position = 0
+            while position < count:
+                if count - position < 20:
+                    raise OSError(errno.EIO, "Truncated directory entry")
+                _, next_cookie, length = struct.unpack_from("=QqH", raw, position)
+                if length < 20 or position + length > count or next_cookie < 0:
+                    raise OSError(errno.EIO, "Invalid directory entry")
+                name = os.fsdecode(raw[position + 19:position + length].split(b"\0", 1)[0])
+                position += length
+                yield SimpleNamespace(name=name, cookie=next_cookie)
+
+    yield entries()
 
 
 def discovery(projects, state):
@@ -59,9 +102,12 @@ def scheduled_prune(projects, state_path):
         if (not isinstance(state, dict)
                 or not isinstance(state.get("pending", []), list)
                 or not all(isinstance(p, str) for p in state.get("pending", []))
-                or not isinstance(state.get("offsets", {}), dict)
-                or not all(isinstance(k, str) and type(v) is int and v >= 0
-                           for k, v in state.get("offsets", {}).items())):
+                or not isinstance(state.get("cursors", {}), dict)
+                or not all(isinstance(k, str) and isinstance(v, dict)
+                           and all(type(v.get(field)) is int and v[field] >= 0
+                                   for field in ["device", "inode", "cookie"])
+                           and v["cookie"] <= 2**63 - 1
+                           for k, v in state.get("cursors", {}).items())):
             raise ValueError("Invalid maintenance state")
     except (FileNotFoundError, ValueError):
         state = {}
@@ -82,7 +128,8 @@ def prune(projects, now=None, maximum=2000, apply=False,
           max_directories=5000, time_budget=120, max_cache_entries=50000, state=None):
     projects = Path(projects)
     state = {} if state is None else state
-    offsets = state.setdefault("offsets", {})
+    state.pop("offsets", None)  # Discard entry-count checkpoints from older versions.
+    cursors = state.setdefault("cursors", {})
     now = time.time() if now is None else now
     deadline = time.monotonic() + time_budget
     removed = size = scanned = 0
@@ -130,29 +177,22 @@ def prune(projects, now=None, maximum=2000, apply=False,
             # Stream entries: memory stays constant even for a huge directory.
             # Count sidecars and unrelated files too, not just eligible archives.
             key = str(cache.relative_to(projects))
-            position = 0
-            resume = offsets.get(key, 0)
-            with os.scandir(fd) as entries:
-                # Replay the directory stream to its saved position without
-                # charging already inspected entries against the work budget.
-                # The time limit still applies, including during replay.
-                while position < resume:
-                    if time.monotonic() >= deadline:
-                        return removed, size
-                    if next(entries, None) is None:
-                        offsets.pop(key, None)
-                        break
-                    position += 1
+            identity = os.fstat(fd)
+            saved = cursors.get(key, {})
+            same_directory = (saved.get("device"), saved.get("inode")) == (
+                identity.st_dev, identity.st_ino)
+            resume = saved.get("cookie", 0) if same_directory else 0
+            with cache_entries(fd, resume) as entries:
                 while True:
                     if (time.monotonic() >= deadline or removed >= maximum
                             or scanned >= max_cache_entries):
                         return removed, size
                     entry = next(entries, None)
                     if entry is None:
-                        offsets.pop(key, None)
+                        cursors.pop(key, None)
                         break
-                    position += 1
-                    offsets[key] = position
+                    cursors[key] = {"device": identity.st_dev, "inode": identity.st_ino,
+                                    "cookie": entry.cookie}
                     scanned += 1
                     archive = entry.name
                     if not ARCHIVE.fullmatch(archive):
@@ -184,6 +224,7 @@ def prune(projects, now=None, maximum=2000, apply=False,
                         print(f"Skipping cache entry in {cache}: {error}", file=sys.stderr)
                         continue
         except OSError as error:
+            cursors.pop(str(cache.relative_to(projects)), None)
             print(f"Skipping unreadable cache {cache}: {error}", file=sys.stderr)
         finally:
             os.close(fd)

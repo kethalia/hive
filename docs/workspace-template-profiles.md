@@ -174,10 +174,11 @@ budget checks occur between directories and cache entries. Cache directories are
 without sorting or collecting all entries, with a shared limit of 50,000 inspected entries
 (including metadata and unrelated files) per pass. A checkpoint in
 `~/.cache/hive/turbo-prune-state.json` retains the breadth-first directory frontier and
-cache stream offsets, so following runs continue beyond bounded prefixes. Cache offsets
-are replayed under the time limit but do not consume the new-entry budget; completing a
-scan resets its offset, and completing discovery starts a fresh cycle. Directory changes
-can shift offsets, so subsequent complete cycles revisit entries missed during churn. Top-level project directories are
+Linux directory cookies, so following runs seek directly past inspected entries without
+replaying the prefix. Cookies are bound to the directory device/inode and reset when that
+identity changes, on read errors, or at end of directory. Old entry-count checkpoints are
+discarded. Completing discovery starts a fresh cycle to revisit entries affected by churn.
+This uses the Linux/glibc workspace images; unsupported directory seeking skips that cache. Top-level project directories are
 preserved even when named `build`, `target`, `dist`, or `Library`. Only archives are removed;
 metadata and manifest sidecars remain untouched, including orphan sidecars, to protect active
 readers and concurrent writers. Small metadata files therefore accumulate, while large archive

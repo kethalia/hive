@@ -238,14 +238,14 @@ class CacheSafety(unittest.TestCase):
         def entries():
             for index in range(100):
                 consumed.append(index)
-                yield type("Entry", (), {"name": f"unrelated-{index}"})()
+                yield type("Entry", (), {"name": f"unrelated-{index}", "cookie": index + 1})()
             self.fail("Cache enumeration was not bounded")
 
         stream = mock.MagicMock()
         stream.__enter__.return_value = entries()
         with mock.patch.object(pruner, "discovery", return_value=[
                 (str(self.repo), [".turbo"], [])]), \
-                mock.patch.object(pruner.os, "scandir", return_value=stream), \
+                mock.patch.object(pruner, "cache_entries", return_value=stream), \
                 mock.patch.object(pruner.os, "listdir", side_effect=AssertionError("eager listing")):
             self.assertEqual(pruner.prune(self.projects, now=1000000,
                                          max_cache_entries=3, apply=True), (0, 0))
@@ -259,14 +259,14 @@ class CacheSafety(unittest.TestCase):
         def entries():
             consumed.append(1)
             clock[0] = 121
-            yield type("Entry", (), {"name": "unrelated"})()
+            yield type("Entry", (), {"name": "unrelated", "cookie": 1})()
             self.fail("Enumeration continued beyond the deadline")
 
         stream = mock.MagicMock()
         stream.__enter__.return_value = entries()
         with mock.patch.object(pruner, "discovery", return_value=[
                 (str(self.repo), [".turbo"], [])]), \
-                mock.patch.object(pruner.os, "scandir", return_value=stream), \
+                mock.patch.object(pruner, "cache_entries", return_value=stream), \
                 mock.patch.object(pruner.time, "monotonic", side_effect=lambda: clock[0]):
             self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
         self.assertEqual(consumed, [1])
@@ -295,35 +295,79 @@ class CacheSafety(unittest.TestCase):
         names = ["unrelated-0", "unrelated-1", "unrelated-2", archive.name]
         state = {}
 
-        def stream(fd):
+        def stream(fd, cookie=0):
             result = mock.MagicMock()
             result.__enter__.return_value = iter([
-                type("Entry", (), {"name": name})() for name in names])
+                type("Entry", (), {"name": name, "cookie": index + 1})()
+                for index, name in enumerate(names) if index >= cookie])
             return result
 
         for _ in range(3):
             with mock.patch.object(pruner, "discovery", return_value=[
                     (str(self.repo), [".turbo"], [])]), \
-                    mock.patch.object(pruner.os, "scandir", side_effect=stream):
+                    mock.patch.object(pruner, "cache_entries", side_effect=stream):
                 pruner.prune(self.projects, now=1000000, max_cache_entries=2,
                              apply=True, state=state)
             import json
             state = json.loads(json.dumps(state))
         self.assertFalse(archive.exists())
-        self.assertEqual(state["offsets"], {})
+        self.assertEqual(state["cursors"], {})
 
     def test_scheduled_run_persists_progress(self):
         state_path = Path(self.tmp.name) / "state/checkpoint.json"
         def run(projects, **kwargs):
             kwargs["state"]["pending"] = ["repo/next"]
-            kwargs["state"]["offsets"] = {"repo/.turbo/cache": 42}
+            kwargs["state"]["cursors"] = {"repo/.turbo/cache": {"device": 1, "inode": 2, "cookie": 42}}
             return 0, 0
         with mock.patch.object(pruner, "prune", side_effect=run):
             pruner.scheduled_prune(self.projects, state_path)
         with mock.patch.object(pruner, "prune", return_value=(0, 0)) as run:
             pruner.scheduled_prune(self.projects, state_path)
             self.assertEqual(run.call_args.kwargs["state"], {
-                "pending": ["repo/next"], "offsets": {"repo/.turbo/cache": 42}})
+                "pending": ["repo/next"], "cursors": {"repo/.turbo/cache": {"device": 1, "inode": 2, "cookie": 42}}})
+
+    def test_real_cookie_resumes_after_reopening_directory(self):
+        for index in range(20):
+            self.cache_file(f"{index:016x}.tar.zst")
+        fd = os.open(self.cache, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            with pruner.cache_entries(fd) as entries:
+                prefix = [next(entries) for _ in range(5)]
+                expected = [entry.name for entry in entries]
+        finally:
+            os.close(fd)
+        fd = os.open(self.cache, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            with pruner.cache_entries(fd, prefix[-1].cookie) as entries:
+                self.assertEqual([entry.name for entry in entries], expected)
+        finally:
+            os.close(fd)
+
+    def test_large_cookie_is_sought_without_replay(self):
+        archive = self.cache_file()
+        identity = self.cache.stat()
+        cookie = 2**50
+        state = {"cursors": {"repo/.turbo/cache": {
+            "device": identity.st_dev, "inode": identity.st_ino, "cookie": cookie}}}
+        stream = mock.MagicMock()
+        stream.__enter__.return_value = iter([
+            type("Entry", (), {"name": archive.name, "cookie": cookie + 100})()])
+        with mock.patch.object(pruner, "cache_entries", return_value=stream) as scan:
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True,
+                                         state=state, max_cache_entries=1), (1, 12))
+        self.assertEqual(scan.call_args.args[1], cookie)
+        self.assertFalse(archive.exists())
+
+    def test_replaced_directory_resets_cookie(self):
+        identity = self.cache.stat()
+        state = {"cursors": {"repo/.turbo/cache": {
+            "device": identity.st_dev, "inode": identity.st_ino + 1, "cookie": 123}}}
+        stream = mock.MagicMock()
+        stream.__enter__.return_value = iter([])
+        with mock.patch.object(pruner, "cache_entries", return_value=stream) as scan:
+            pruner.prune(self.projects, now=1000000, state=state)
+        self.assertEqual(scan.call_args.args[1], 0)
+        self.assertEqual(state["cursors"], {})
 
 
 if __name__ == "__main__":
