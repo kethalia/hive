@@ -87,7 +87,7 @@ class CacheSafety(unittest.TestCase):
             self.assertTrue(old.exists())
             return real_run(args, **kwargs)
 
-        with mock.patch.object(pruner.os, "walk", return_value=[
+        with mock.patch.object(pruner, "discovery", return_value=[
                 (str(self.repo), [".turbo"], []), (str(other), [".turbo"], [])]), \
                 mock.patch.object(pruner.subprocess, "run", side_effect=probe):
             self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
@@ -142,7 +142,7 @@ class CacheSafety(unittest.TestCase):
                         raise OSError(code, "Protected cache entry")
                     return real_unlink(name, **kwargs)
 
-                with mock.patch.object(pruner.os, "walk", return_value=[
+                with mock.patch.object(pruner, "discovery", return_value=[
                         (str(self.repo), [".turbo"], []), (str(other), [".turbo"], [])]), \
                         mock.patch.object(pruner.os, "unlink", side_effect=unlink):
                     self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
@@ -208,7 +208,7 @@ class CacheSafety(unittest.TestCase):
                 yield str(self.repo), [], []
             self.fail("Discovery exhausted its budget without stopping")
 
-        with mock.patch.object(pruner.os, "walk", side_effect=walk):
+        with mock.patch.object(pruner, "discovery", side_effect=walk):
             self.assertEqual(pruner.prune(self.projects, now=1000000,
                                          max_directories=2, apply=True), (0, 0))
         self.assertEqual(visited, [0, 1, 2])
@@ -243,7 +243,7 @@ class CacheSafety(unittest.TestCase):
 
         stream = mock.MagicMock()
         stream.__enter__.return_value = entries()
-        with mock.patch.object(pruner.os, "walk", return_value=[
+        with mock.patch.object(pruner, "discovery", return_value=[
                 (str(self.repo), [".turbo"], [])]), \
                 mock.patch.object(pruner.os, "scandir", return_value=stream), \
                 mock.patch.object(pruner.os, "listdir", side_effect=AssertionError("eager listing")):
@@ -264,13 +264,66 @@ class CacheSafety(unittest.TestCase):
 
         stream = mock.MagicMock()
         stream.__enter__.return_value = entries()
-        with mock.patch.object(pruner.os, "walk", return_value=[
+        with mock.patch.object(pruner, "discovery", return_value=[
                 (str(self.repo), [".turbo"], [])]), \
                 mock.patch.object(pruner.os, "scandir", return_value=stream), \
                 mock.patch.object(pruner.time, "monotonic", side_effect=lambda: clock[0]):
             self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
         self.assertEqual(consumed, [1])
         stream.__exit__.assert_called_once()
+
+    def test_discovery_resumes_past_large_early_tree(self):
+        for index in range(8):
+            (self.repo / f"source-{index}" / "nested").mkdir(parents=True)
+        later = self.repo / "source-7/nested/.turbo/cache"
+        later.mkdir(parents=True)
+        archive = later / "0123456789abcdef.tar.zst"
+        archive.write_text("reproducible")
+        os.utime(archive, (1, 1))
+        state = {}
+        for _ in range(20):
+            pruner.prune(self.projects, now=1000000, max_directories=2, apply=True, state=state)
+            # Model separate invocations, including JSON checkpoint round-trip.
+            import json
+            state = json.loads(json.dumps(state))
+            if not archive.exists():
+                break
+        self.assertFalse(archive.exists())
+
+    def test_cache_cursor_passes_preserved_prefix(self):
+        archive = self.cache_file()
+        names = ["unrelated-0", "unrelated-1", "unrelated-2", archive.name]
+        state = {}
+
+        def stream(fd):
+            result = mock.MagicMock()
+            result.__enter__.return_value = iter([
+                type("Entry", (), {"name": name})() for name in names])
+            return result
+
+        for _ in range(3):
+            with mock.patch.object(pruner, "discovery", return_value=[
+                    (str(self.repo), [".turbo"], [])]), \
+                    mock.patch.object(pruner.os, "scandir", side_effect=stream):
+                pruner.prune(self.projects, now=1000000, max_cache_entries=2,
+                             apply=True, state=state)
+            import json
+            state = json.loads(json.dumps(state))
+        self.assertFalse(archive.exists())
+        self.assertEqual(state["offsets"], {})
+
+    def test_scheduled_run_persists_progress(self):
+        state_path = Path(self.tmp.name) / "state/checkpoint.json"
+        def run(projects, **kwargs):
+            kwargs["state"]["pending"] = ["repo/next"]
+            kwargs["state"]["offsets"] = {"repo/.turbo/cache": 42}
+            return 0, 0
+        with mock.patch.object(pruner, "prune", side_effect=run):
+            pruner.scheduled_prune(self.projects, state_path)
+        with mock.patch.object(pruner, "prune", return_value=(0, 0)) as run:
+            pruner.scheduled_prune(self.projects, state_path)
+            self.assertEqual(run.call_args.kwargs["state"], {
+                "pending": ["repo/next"], "offsets": {"repo/.turbo/cache": 42}})
 
 
 if __name__ == "__main__":

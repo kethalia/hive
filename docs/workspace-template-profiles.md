@@ -8,7 +8,7 @@ inside each workspace.
 
 | Template | Profile | Image variant | Surface | Default resources |
 | --- | --- | --- | --- | --- |
-| `ai-dev-k8s` | Development & orchestration | `cli` | TUI, VS Code, files | 6 CPU, 16 GiB RAM, 100 GiB home |
+| `ai-dev-k8s` | Development & orchestration | `cli` | TUI, VS Code, files | 2 CPU, 16 GiB RAM, 100 GiB home |
 | `browser-testing` | Browser testing | `browser` | Chrome, Playwright, desktop | 4 CPU, 8 GiB RAM, 50 GiB home |
 | `game-dev` | Game development | `game` | Unity, Blender, desktop | 6 CPU, 16 GiB RAM, 150 GiB home |
 | `electronics` | Electronics | `electronics` | KiCad, desktop | 4 CPU, 8 GiB RAM, 100 GiB home |
@@ -172,7 +172,12 @@ directories or a 120-second cooperative time budget, leaving room in the 900-sec
 script window for the full 540-second npm verification allowance and completion reporting. Git probes use at most the remaining budget;
 budget checks occur between directories and cache entries. Cache directories are streamed
 without sorting or collecting all entries, with a shared limit of 50,000 inspected entries
-(including metadata and unrelated files) per pass. Top-level project directories are
+(including metadata and unrelated files) per pass. A checkpoint in
+`~/.cache/hive/turbo-prune-state.json` retains the breadth-first directory frontier and
+cache stream offsets, so following runs continue beyond bounded prefixes. Cache offsets
+are replayed under the time limit but do not consume the new-entry budget; completing a
+scan resets its offset, and completing discovery starts a fresh cycle. Directory changes
+can shift offsets, so subsequent complete cycles revisit entries missed during churn. Top-level project directories are
 preserved even when named `build`, `target`, `dist`, or `Library`. Only archives are removed;
 metadata and manifest sidecars remain untouched, including orphan sidecars, to protect active
 readers and concurrent writers. Small metadata files therefore accumulate, while large archive
