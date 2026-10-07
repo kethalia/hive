@@ -8,7 +8,7 @@ import sys
 import time
 
 
-OBJECT = re.compile(r"[0-9a-f]{16}(?:\.tar\.zst|-(?:meta|manifest)\.json)")
+ARCHIVE = re.compile(r"[0-9a-f]{16}\.tar\.zst")
 
 
 GENERATED_DIRECTORIES = {
@@ -18,11 +18,11 @@ GENERATED_DIRECTORIES = {
 
 
 def prune(projects, now=None, maximum=2000, apply=False,
-          max_directories=5000, time_budget=120):
+          max_directories=5000, time_budget=120, max_cache_entries=50000):
     projects = Path(projects)
     now = time.time() if now is None else now
     deadline = time.monotonic() + time_budget
-    removed = size = 0
+    removed = size = scanned = 0
     if projects.is_symlink() or not projects.is_dir():
         return removed, size
     for visited, (directory, children, _) in enumerate(
@@ -64,40 +64,46 @@ def prune(projects, now=None, maximum=2000, apply=False,
             print(f"Skipping inaccessible cache {cache}: {error}", file=sys.stderr)
             continue
         try:
-            groups = {}
-            for name in sorted(os.listdir(fd)):
-                if OBJECT.fullmatch(name):
-                    groups.setdefault(name[:16], []).append(name)
-            for names in groups.values():
-                if time.monotonic() >= deadline:
-                    return removed, size
-                archive = names[0][:16] + ".tar.zst"
-                # Metadata can be read after an archive is opened, or replaced
-                # by a concurrent writer. Leave sidecars untouched permanently;
-                # the large archives are the useful space-reclamation target.
-                if archive not in names:
-                    continue
-                if removed >= maximum:
-                    return removed, size
-                try:
-                    before = {name: os.stat(name, dir_fd=fd, follow_symlinks=False)
-                              for name in names}
-                    if any(not stat.S_ISREG(s.st_mode) or now - s.st_mtime <= 7 * 86400
-                           for s in before.values()):
+            # Stream entries: memory stays constant even for a huge directory.
+            # Count sidecars and unrelated files too, not just eligible archives.
+            with os.scandir(fd) as entries:
+                while True:
+                    if (time.monotonic() >= deadline or removed >= maximum
+                            or scanned >= max_cache_entries):
+                        return removed, size
+                    entry = next(entries, None)
+                    if entry is None:
+                        break
+                    scanned += 1
+                    archive = entry.name
+                    if not ARCHIVE.fullmatch(archive):
                         continue
-                    current = {name: os.stat(name, dir_fd=fd, follow_symlinks=False)
-                               for name in names}
-                    if any((s.st_ino, s.st_mtime_ns, s.st_size) != (
-                            current[name].st_ino, current[name].st_mtime_ns,
-                            current[name].st_size) for name, s in before.items()):
+                    try:
+                        before = {archive: os.stat(archive, dir_fd=fd, follow_symlinks=False)}
+                        # Only inspect this archive's two possible sidecars.
+                        # Metadata is never modified or removed.
+                        for suffix in ["-meta.json", "-manifest.json"]:
+                            name = archive[:16] + suffix
+                            try:
+                                before[name] = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                            except FileNotFoundError:
+                                pass
+                        if any(not stat.S_ISREG(s.st_mode) or now - s.st_mtime <= 7 * 86400
+                               for s in before.values()):
+                            continue
+                        current = {name: os.stat(name, dir_fd=fd, follow_symlinks=False)
+                                   for name in before}
+                        if any((s.st_ino, s.st_mtime_ns, s.st_size) != (
+                                current[name].st_ino, current[name].st_mtime_ns,
+                                current[name].st_size) for name, s in before.items()):
+                            continue
+                        if apply:
+                            os.unlink(archive, dir_fd=fd)
+                        removed += 1
+                        size += before[archive].st_size
+                    except OSError as error:
+                        print(f"Skipping cache entry in {cache}: {error}", file=sys.stderr)
                         continue
-                    if apply:
-                        os.unlink(archive, dir_fd=fd)
-                    removed += 1
-                    size += before[archive].st_size
-                except OSError as error:
-                    print(f"Skipping cache entry in {cache}: {error}", file=sys.stderr)
-                    continue
         except OSError as error:
             print(f"Skipping unreadable cache {cache}: {error}", file=sys.stderr)
         finally:

@@ -100,8 +100,7 @@ class CacheSafety(unittest.TestCase):
                 self.cache_file(f"{index:016x}{suffix}")
         self.assertEqual(pruner.prune(self.projects, now=1000000, maximum=2, apply=True), (2, 24))
         self.assertEqual(len(list(self.cache.glob("*.json"))), 6)
-        self.assertEqual([p.name for p in self.cache.glob("*.tar.zst")],
-                         [f"{2:016x}.tar.zst"])
+        self.assertEqual(len(list(self.cache.glob("*.tar.zst"))), 1)
 
     def test_recent_sidecar_preserves_whole_group(self):
         archive = self.cache_file()
@@ -232,6 +231,46 @@ class CacheSafety(unittest.TestCase):
             self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
         self.assertEqual(probe.call_args.kwargs["timeout"], 1)
         self.assertTrue(old.exists())
+
+    def test_cache_enumeration_stops_at_entry_limit(self):
+        consumed = []
+
+        def entries():
+            for index in range(100):
+                consumed.append(index)
+                yield type("Entry", (), {"name": f"unrelated-{index}"})()
+            self.fail("Cache enumeration was not bounded")
+
+        stream = mock.MagicMock()
+        stream.__enter__.return_value = entries()
+        with mock.patch.object(pruner.os, "walk", return_value=[
+                (str(self.repo), [".turbo"], [])]), \
+                mock.patch.object(pruner.os, "scandir", return_value=stream), \
+                mock.patch.object(pruner.os, "listdir", side_effect=AssertionError("eager listing")):
+            self.assertEqual(pruner.prune(self.projects, now=1000000,
+                                         max_cache_entries=3, apply=True), (0, 0))
+        self.assertEqual(consumed, [0, 1, 2])
+        stream.__exit__.assert_called_once()
+
+    def test_cache_enumeration_checks_deadline_between_entries(self):
+        clock = [0]
+        consumed = []
+
+        def entries():
+            consumed.append(1)
+            clock[0] = 121
+            yield type("Entry", (), {"name": "unrelated"})()
+            self.fail("Enumeration continued beyond the deadline")
+
+        stream = mock.MagicMock()
+        stream.__enter__.return_value = entries()
+        with mock.patch.object(pruner.os, "walk", return_value=[
+                (str(self.repo), [".turbo"], [])]), \
+                mock.patch.object(pruner.os, "scandir", return_value=stream), \
+                mock.patch.object(pruner.time, "monotonic", side_effect=lambda: clock[0]):
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
+        self.assertEqual(consumed, [1])
+        stream.__exit__.assert_called_once()
 
 
 if __name__ == "__main__":

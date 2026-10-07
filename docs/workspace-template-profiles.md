@@ -170,7 +170,9 @@ repository while maintenance continues. Discovery skips common generated trees (
 Unity `Library`, Python virtual environments, and Rust `target`) and stops after 5,000
 directories or a 120-second cooperative time budget, leaving room in the 900-second
 script window for the full 540-second npm verification allowance and completion reporting. Git probes use at most the remaining budget;
-budget checks occur between directories and cache entries. Top-level project directories are
+budget checks occur between directories and cache entries. Cache directories are streamed
+without sorting or collecting all entries, with a shared limit of 50,000 inspected entries
+(including metadata and unrelated files) per pass. Top-level project directories are
 preserved even when named `build`, `target`, `dist`, or `Library`. Only archives are removed;
 metadata and manifest sidecars remain untouched, including orphan sidecars, to protect active
 readers and concurrent writers. Small metadata files therefore accumulate, while large archive
