@@ -417,6 +417,64 @@ class CacheSafety(unittest.TestCase):
         self.assertEqual(state["discovery_cursors"]["."]["cookie"], 88)
         stream.__exit__.assert_called_once()
 
+    def test_uncompressed_archives_follow_retention_policy(self):
+        old = self.cache_file("0123456789abcdef.tar")
+        recent = self.cache_file("abcdef0123456789.tar", age=3600)
+        metadata = self.cache_file("0123456789abcdef-meta.json")
+        self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
+        self.assertFalse(old.exists())
+        self.assertTrue(recent.exists())
+        self.assertTrue(metadata.exists())
+
+    def test_replacement_between_validation_and_rename_is_restored(self):
+        archive = self.cache_file()
+        real_rename = os.rename
+        def replace_then_rename(src, dst, **kwargs):
+            replacement = archive.with_name("replacement")
+            replacement.write_text("new producer archive")
+            os.replace(replacement, archive)
+            return real_rename(src, dst, **kwargs)
+        with mock.patch.object(pruner.os, "rename", side_effect=replace_then_rename):
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
+        self.assertEqual(archive.read_text(), "new producer archive")
+        self.assertEqual(list(self.cache.glob(".hive-prune-*")), [])
+
+    def test_truncation_between_validation_and_rename_is_restored(self):
+        archive = self.cache_file()
+        real_rename = os.rename
+        def truncate_then_rename(src, dst, **kwargs):
+            archive.write_text("changed")
+            return real_rename(src, dst, **kwargs)
+        with mock.patch.object(pruner.os, "rename", side_effect=truncate_then_rename):
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
+        self.assertEqual(archive.read_text(), "changed")
+
+    def test_publication_after_quarantine_is_preserved(self):
+        archive = self.cache_file()
+        real_rename = os.rename
+        def rename_then_publish(src, dst, **kwargs):
+            result = real_rename(src, dst, **kwargs)
+            archive.write_text("fresh publication")
+            return result
+        with mock.patch.object(pruner.os, "rename", side_effect=rename_then_publish):
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
+        self.assertEqual(archive.read_text(), "fresh publication")
+
+    def test_restore_does_not_overwrite_new_publication(self):
+        archive = self.cache_file()
+        real_rename = os.rename
+        def race(src, dst, **kwargs):
+            archive.write_text("changed before quarantine")
+            result = real_rename(src, dst, **kwargs)
+            archive.write_text("newer publication")
+            return result
+        with mock.patch.object(pruner.os, "rename", side_effect=race):
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
+        self.assertEqual(archive.read_text(), "newer publication")
+        preserved = list(self.cache.glob(".hive-prune-*/" + archive.name))
+        self.assertEqual(len(preserved), 1)
+        self.assertEqual(preserved[0].read_text(), "changed before quarantine")
+
 
 if __name__ == "__main__":
     unittest.main()

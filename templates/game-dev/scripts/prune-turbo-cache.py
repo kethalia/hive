@@ -13,15 +13,54 @@ import stat
 import subprocess
 import sys
 import time
+import uuid
 
 
-ARCHIVE = re.compile(r"[0-9a-f]{16}\.tar\.zst")
+ARCHIVE = re.compile(r"[0-9a-f]{16}\.tar(?:\.zst)?")
 
 
 GENERATED_DIRECTORIES = {
     ".git", "node_modules", ".next", ".venv", "venv", "__pycache__",
     "target", "Library", "Temp", "obj", "build", "dist",
 }
+
+
+def retire_archive(fd, archive, expected):
+    # Rename first: verifying an ordinary pathname before unlinking it leaves
+    # a window in which a writer can replace that name with a fresh archive.
+    quarantine = ".hive-prune-" + uuid.uuid4().hex
+    os.mkdir(quarantine, mode=0o700, dir_fd=fd)
+    held = None
+    moved = removed = False
+    try:
+        held = os.open(quarantine, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+        os.rename(archive, archive, src_dir_fd=fd, dst_dir_fd=held)
+        moved = True
+        actual = os.stat(archive, dir_fd=held, follow_symlinks=False)
+        if (actual.st_dev, actual.st_ino, actual.st_mtime_ns, actual.st_size) != (
+                expected.st_dev, expected.st_ino, expected.st_mtime_ns, expected.st_size):
+            return False
+        os.unlink(archive, dir_fd=held)
+        removed = True
+        return True
+    finally:
+        if moved and not removed:
+            try:
+                # link is no-clobber: never overwrite a newer archive that a
+                # producer published while the candidate was quarantined.
+                os.link(archive, archive, src_dir_fd=held, dst_dir_fd=fd,
+                        follow_symlinks=False)
+                os.unlink(archive, dir_fd=held)
+            except OSError as error:
+                print(f"Preserved cache candidate in {quarantine}/{archive}: {error}",
+                      file=sys.stderr)
+        if held is not None:
+            os.close(held)
+        try:
+            os.rmdir(quarantine, dir_fd=fd)
+        except OSError as error:
+            if error.errno != errno.ENOTEMPTY:
+                print(f"Could not remove empty quarantine {quarantine}: {error}", file=sys.stderr)
 
 
 @contextmanager
@@ -262,8 +301,8 @@ def prune(projects, now=None, maximum=2000, apply=False,
                                 current[name].st_ino, current[name].st_mtime_ns,
                                 current[name].st_size) for name, s in before.items()):
                             continue
-                        if apply:
-                            os.unlink(archive, dir_fd=fd)
+                        if apply and not retire_archive(fd, archive, before[archive]):
+                            continue
                         removed += 1
                         size += before[archive].st_size
                     except OSError as error:

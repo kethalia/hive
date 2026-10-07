@@ -180,7 +180,11 @@ replaying the prefix. Cookies are bound to the directory device/inode and reset 
 identity changes, on read errors, or at end of directory. Old entry-count checkpoints are
 discarded. Completing discovery starts a fresh cycle to revisit entries affected by churn.
 This uses the Linux/glibc workspace images; unsupported directory seeking skips that cache. Top-level project directories are
-preserved even when named `build`, `target`, `dist`, or `Library`. Only archives are removed;
+preserved even when named `build`, `target`, `dist`, or `Library`. Both `<hash>.tar` and `<hash>.tar.zst` archives are eligible. Candidates move into a private
+quarantine directory and are checked against the validated inode, modification time, and size
+before deletion. Changed candidates are restored without overwriting a newly published
+archive; if restoration conflicts or fails, the quarantine copy is retained and reported.
+Only archives are removed;
 metadata and manifest sidecars remain untouched, including orphan sidecars, to protect active
 readers and concurrent writers. Small metadata files therefore accumulate, while large archive
 payloads are reclaimed. Filesystem errors skip
