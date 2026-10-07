@@ -11,14 +11,26 @@ import time
 OBJECT = re.compile(r"[0-9a-f]{16}(?:\.tar\.zst|-(?:meta|manifest)\.json)")
 
 
-def prune(projects, now=None, maximum=2000, apply=False):
+GENERATED_DIRECTORIES = {
+    ".git", "node_modules", ".next", ".venv", "venv", "__pycache__",
+    "target", "Library", "Temp", "obj", "build", "dist",
+}
+
+
+def prune(projects, now=None, maximum=2000, apply=False,
+          max_directories=5000, time_budget=120):
     projects = Path(projects)
     now = time.time() if now is None else now
+    deadline = time.monotonic() + time_budget
     removed = size = 0
     if projects.is_symlink() or not projects.is_dir():
         return removed, size
-    for directory, children, _ in os.walk(projects, followlinks=False):
-        children[:] = [n for n in children if n not in {".git", "node_modules", ".next"}
+    for visited, (directory, children, _) in enumerate(
+            os.walk(projects, followlinks=False)):
+        if visited >= max_directories or time.monotonic() >= deadline:
+            print("Cache discovery budget reached; continuing other maintenance", file=sys.stderr)
+            return removed, size
+        children[:] = [n for n in children if n not in GENERATED_DIRECTORIES
                        and not Path(directory, n).is_symlink()]
         if ".turbo" not in children:
             continue
@@ -28,7 +40,9 @@ def prune(projects, now=None, maximum=2000, apply=False):
             continue
         try:
             tracked = subprocess.run(["git", "-C", directory, "ls-files", "--", ".turbo"],
-                                     capture_output=True, timeout=10, check=False)
+                                     capture_output=True,
+                                     timeout=max(0.001, min(10, deadline - time.monotonic())),
+                                     check=False)
         except subprocess.TimeoutExpired:
             print(f"Skipping cache: Git probe timed out in {directory}", file=sys.stderr)
             continue
@@ -51,6 +65,8 @@ def prune(projects, now=None, maximum=2000, apply=False):
                 if OBJECT.fullmatch(name):
                     groups.setdefault(name[:16], []).append(name)
             for names in groups.values():
+                if time.monotonic() >= deadline:
+                    return removed, size
                 # Keep the file budget, but never split an archive from its
                 # sidecars at the boundary. Remove the archive first so an
                 # interrupted pass does not leave a hit with missing metadata.

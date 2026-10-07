@@ -166,7 +166,11 @@ and a nine-minute execution limit (ten minutes for the whole Coder script). It
 accepts only the standard `$HOME/.npm` directory and refuses symlinked caches or
 redirected cache objects or logs. Npm verifies cached objects and removes its own garbage;
 valid package data may remain, so reclaimed space can be zero. Git probe timeouts skip that
-repository while maintenance continues. The Turborepo file budget is applied between complete
+repository while maintenance continues. Discovery skips common generated trees (including
+Unity `Library`, Python virtual environments, and Rust `target`) and stops after 5,000
+directories or a 120-second cooperative time budget, leaving room in the 600-second
+script window for npm verification. Git probes use at most the remaining budget;
+budget checks occur between directories and complete cache entries. The Turborepo file budget is applied between complete
 hash groups, with archives removed before their sidecars; any recent member preserves the
 whole group. It removes at most 2,000 recognized Turborepo cache objects older than seven
 days per run under `$HOME/projects`. It skips tracked cache directories, follows

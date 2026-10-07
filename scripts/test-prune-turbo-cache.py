@@ -123,6 +123,53 @@ class CacheSafety(unittest.TestCase):
             self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (2, 24))
         self.assertEqual(order, [archive.name, metadata.name])
 
+    def test_generated_directories_are_not_searched(self):
+        old = self.cache_file()
+        preserved = []
+        for name in ["Library", ".venv", "venv", "target", "build", "dist"]:
+            cache = self.repo / name / "nested/.turbo/cache"
+            cache.mkdir(parents=True)
+            path = cache / old.name
+            path.write_bytes(old.read_bytes())
+            os.utime(path, (1, 1))
+            preserved.append(path)
+        self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
+        self.assertTrue(all(path.exists() for path in preserved))
+
+    def test_directory_budget_stops_discovery(self):
+        old = self.cache_file()
+        visited = []
+
+        def walk(*args, **kwargs):
+            for index in range(10):
+                visited.append(index)
+                yield str(self.repo), [], []
+            self.fail("Discovery exhausted its budget without stopping")
+
+        with mock.patch.object(pruner.os, "walk", side_effect=walk):
+            self.assertEqual(pruner.prune(self.projects, now=1000000,
+                                         max_directories=2, apply=True), (0, 0))
+        self.assertEqual(visited, [0, 1, 2])
+        self.assertTrue(old.exists())
+
+    def test_elapsed_budget_returns_without_probing_git(self):
+        old = self.cache_file()
+        with mock.patch.object(pruner.time, "monotonic", side_effect=[0, 121]), \
+                mock.patch.object(pruner.subprocess, "run") as probe:
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
+        probe.assert_not_called()
+        self.assertTrue(old.exists())
+
+    def test_git_probe_timeout_uses_remaining_budget(self):
+        old = self.cache_file()
+        with mock.patch.object(pruner.time, "monotonic", return_value=0) as clock, \
+                mock.patch.object(pruner.subprocess, "run",
+                                  side_effect=subprocess.TimeoutExpired("git", 1)) as probe:
+            clock.side_effect = [0, 0, 0, 119]
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
+        self.assertEqual(probe.call_args.kwargs["timeout"], 1)
+        self.assertTrue(old.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
