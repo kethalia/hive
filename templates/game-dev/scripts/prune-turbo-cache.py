@@ -50,14 +50,17 @@ def prune(projects, now=None, maximum=2000, apply=False,
             continue
         # Open every component without following symlinks, including if a
         # directory changes after os.walk inspected it.
-        fd = os.open(projects, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        fd = None
         try:
+            fd = os.open(projects, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             for part in cache.relative_to(projects).parts:
                 child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
                 os.close(fd)
                 fd = child
-        except OSError:
-            os.close(fd)
+        except OSError as error:
+            if fd is not None:
+                os.close(fd)
+            print(f"Skipping inaccessible cache {cache}: {error}", file=sys.stderr)
             continue
         try:
             groups = {}
@@ -67,12 +70,13 @@ def prune(projects, now=None, maximum=2000, apply=False,
             for names in groups.values():
                 if time.monotonic() >= deadline:
                     return removed, size
-                # Keep the file budget, but never split an archive from its
-                # sidecars at the boundary. Remove the archive first so an
-                # interrupted pass does not leave a hit with missing metadata.
-                if removed + len(names) > maximum:
+                archive = names[0][:16] + ".tar.zst"
+                retiring_archive = archive in names
+                candidates = [archive] if retiring_archive else names
+                # Archive retirement and orphan-sidecar collection are separate
+                # passes. Never exhaust the file budget within either phase.
+                if removed + len(candidates) > maximum:
                     return removed, size
-                names.sort(key=lambda name: (not name.endswith(".tar.zst"), name))
                 try:
                     before = {name: os.stat(name, dir_fd=fd, follow_symlinks=False)
                               for name in names}
@@ -85,13 +89,40 @@ def prune(projects, now=None, maximum=2000, apply=False,
                             current[name].st_ino, current[name].st_mtime_ns,
                             current[name].st_size) for name, s in before.items()):
                         continue
-                    for name in names:
+                    if retiring_archive and apply:
+                        # A reader can keep the unlinked archive open and only
+                        # read metadata after restoring it. Start a fresh grace
+                        # period BEFORE unlinking; interruption remains safe.
+                        for name in names:
+                            if name == archive:
+                                continue
+                            sidecar = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+                            try:
+                                actual = os.fstat(sidecar)
+                                expected = before[name]
+                                if (actual.st_ino, actual.st_mtime_ns, actual.st_size) != (
+                                        expected.st_ino, expected.st_mtime_ns, expected.st_size):
+                                    raise OSError("Sidecar changed during inspection")
+                                os.utime(sidecar, (now, now))
+                            finally:
+                                os.close(sidecar)
+                    if not retiring_archive:
+                        try:
+                            os.stat(archive, dir_fd=fd, follow_symlinks=False)
+                        except FileNotFoundError:
+                            pass
+                        else:
+                            continue  # A build recreated this cache entry.
+                    for name in candidates:
                         if apply:
                             os.unlink(name, dir_fd=fd)
                         removed += 1
                         size += before[name].st_size
-                except FileNotFoundError:
-                    continue  # A build or another maintenance pass won the race.
+                except OSError as error:
+                    print(f"Skipping cache entry in {cache}: {error}", file=sys.stderr)
+                    continue
+        except OSError as error:
+            print(f"Skipping unreadable cache {cache}: {error}", file=sys.stderr)
         finally:
             os.close(fd)
     return removed, size

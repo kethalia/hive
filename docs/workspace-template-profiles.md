@@ -171,8 +171,10 @@ Unity `Library`, Python virtual environments, and Rust `target`) and stops after
 directories or a 120-second cooperative time budget, leaving room in the 600-second
 script window for npm verification. Git probes use at most the remaining budget;
 budget checks occur between directories and complete cache entries. The Turborepo file budget is applied between complete
-hash groups, with archives removed before their sidecars; any recent member preserves the
-whole group. It removes at most 2,000 recognized Turborepo cache objects older than seven
+hash groups. Archive retirement preserves metadata for active readers: sidecar timestamps
+are refreshed before unlinking the archive, and orphan sidecars become eligible only after
+another seven days. Any recent member preserves the whole group. Filesystem errors skip
+the affected entry or cache and allow other repositories and npm verification to continue. It removes at most 2,000 recognized Turborepo cache objects older than seven
 days per run under `$HOME/projects`. It skips tracked cache directories, follows
 no symlinked paths, and preserves recent or unrecognized files. Source files,
 dependencies, worktrees, agent conversations, and PVCs are outside its scope.

@@ -1,3 +1,4 @@
+import errno
 import importlib.util
 import os
 from pathlib import Path
@@ -93,14 +94,14 @@ class CacheSafety(unittest.TestCase):
         self.assertTrue(old.exists())
         self.assertFalse(removable.exists())
 
-    def test_budget_never_splits_hash_group(self):
-        for index in range(667):
+    def test_budget_preserves_sidecars_and_untouched_entries(self):
+        for index in range(3):
             for suffix in [".tar.zst", "-meta.json", "-manifest.json"]:
                 self.cache_file(f"{index:016x}{suffix}")
-        self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1998, 1998 * 12))
-        self.assertEqual(sorted(p.name for p in self.cache.iterdir()),
-                         sorted(f"{666:016x}{suffix}" for suffix in
-                                [".tar.zst", "-meta.json", "-manifest.json"]))
+        self.assertEqual(pruner.prune(self.projects, now=1000000, maximum=2, apply=True), (2, 24))
+        self.assertEqual(len(list(self.cache.glob("*.json"))), 6)
+        self.assertEqual([p.name for p in self.cache.glob("*.tar.zst")],
+                         [f"{2:016x}.tar.zst"])
 
     def test_recent_sidecar_preserves_whole_group(self):
         archive = self.cache_file()
@@ -109,19 +110,54 @@ class CacheSafety(unittest.TestCase):
         self.assertTrue(archive.exists())
         self.assertTrue(metadata.exists())
 
-    def test_archive_is_removed_before_sidecars(self):
+    def test_open_reader_keeps_metadata_until_later_pass(self):
         archive = self.cache_file()
         metadata = self.cache_file("0123456789abcdef-meta.json")
+        with archive.open() as reader:
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
+            self.assertEqual(reader.read(), "reproducible")
+            self.assertEqual(metadata.read_text(), "reproducible")
+            self.assertFalse(archive.exists())
+            self.assertEqual(pruner.prune(self.projects, now=1000000 + 86400, apply=True), (0, 0))
+            self.assertTrue(metadata.exists())
+        self.assertEqual(pruner.prune(self.projects, now=1000000 + 8 * 86400, apply=True), (1, 12))
+        self.assertFalse(metadata.exists())
+
+    def test_unlink_errors_preserve_group_and_continue_to_next_repository(self):
+        archive = self.cache_file()
+        metadata = self.cache_file("0123456789abcdef-meta.json")
+        other = self.projects / "other"
+        cache = other / ".turbo/cache"
+        cache.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        removable = cache / "abcdef0123456789.tar.zst"
         real_unlink = os.unlink
-        order = []
+        for code in [errno.EACCES, errno.EPERM, errno.EROFS]:
+            with self.subTest(errno=code):
+                os.utime(metadata, (1, 1))
+                removable.write_text("reproducible")
+                os.utime(removable, (1, 1))
 
-        def unlink(name, **kwargs):
-            order.append(name)
-            return real_unlink(name, **kwargs)
+                def unlink(name, **kwargs):
+                    if name == archive.name:
+                        raise OSError(code, "Protected cache entry")
+                    return real_unlink(name, **kwargs)
 
-        with mock.patch.object(pruner.os, "unlink", side_effect=unlink):
-            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (2, 24))
-        self.assertEqual(order, [archive.name, metadata.name])
+                with mock.patch.object(pruner.os, "walk", return_value=[
+                        (str(self.repo), [".turbo"], []), (str(other), [".turbo"], [])]), \
+                        mock.patch.object(pruner.os, "unlink", side_effect=unlink):
+                    self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (1, 12))
+                self.assertTrue(archive.exists())
+                self.assertTrue(metadata.exists())
+                self.assertFalse(removable.exists())
+
+    def test_failed_sidecar_grace_update_preserves_archive(self):
+        archive = self.cache_file()
+        metadata = self.cache_file("0123456789abcdef-meta.json")
+        with mock.patch.object(pruner.os, "utime", side_effect=PermissionError("denied")):
+            self.assertEqual(pruner.prune(self.projects, now=1000000, apply=True), (0, 0))
+        self.assertTrue(archive.exists())
+        self.assertTrue(metadata.exists())
 
     def test_generated_directories_are_not_searched(self):
         old = self.cache_file()
