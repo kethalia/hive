@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.17.17
+
+### Patch Changes
+
+- 17e09ea: Refresh the Codex CLI from latest on workspace startup so persistent installations do not silently stay behind the independently updated background server.
+
 ## 2.17.16
 
 ### Patch Changes
