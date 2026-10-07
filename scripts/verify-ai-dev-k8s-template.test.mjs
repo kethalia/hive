@@ -21,6 +21,50 @@ const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
 const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 const INFRASTRUCTURE_TEMPLATE_ROOT = join(process.cwd(), "templates/infrastructure");
 
+test("startup aliases tolerate transient Git locks but fail on persistent errors", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "hive-git-lock-"));
+  const config = join(fixture, "gitconfig");
+  const helper = readFileSync(join(TEMPLATE_ROOT, "scripts/init.sh"), "utf8").split(
+    'if [ ! -f "$HOME/.workspace_initialized" ]; then',
+  )[0];
+  const run = (script, extraEnv = {}) =>
+    spawnSync("bash", ["-c", helper + script], {
+      encoding: "utf8",
+      timeout: 10000,
+      env: { ...process.env, GIT_CONFIG_GLOBAL: config, ...extraEnv },
+    });
+  writeFileSync(config, "[user]\n\tname = Preserve Me\n");
+  writeFileSync(`${config}.lock`, "another writer");
+  const transient = run(`
+    (sleep 0.1; rm "$GIT_CONFIG_GLOBAL.lock") &
+    configure_git_alias alias.st status
+    wait
+    git config --global --get user.name
+    git config --global --get alias.st
+  `);
+  assert.equal(transient.status, 0, transient.stderr);
+  assert.match(transient.stdout, /Preserve Me\nstatus/);
+
+  writeFileSync(`${config}.lock`, "do not delete");
+  const persistent = run(
+    `
+    sleep() { printf '%s\\n' "$1" >> "$RETRY_LOG"; }
+    configure_git_alias alias.co checkout
+  `,
+    { RETRY_LOG: join(fixture, "retries") },
+  );
+  assert.notEqual(persistent.status, 0);
+  assert.equal(readFileSync(`${config}.lock`, "utf8"), "do not delete");
+  assert.equal(readFileSync(join(fixture, "retries"), "utf8"), "1\n2\n4\n8\n16\n");
+
+  const invalid = run(`
+    sleep() { echo unexpected-retry >&2; return 99; }
+    configure_git_alias invalid-key value
+  `);
+  assert.notEqual(invalid.status, 0);
+  assert.doesNotMatch(invalid.stderr, /unexpected-retry/);
+});
+
 test("sandbox evidence rejects startup failures and inconclusive denial results", () => {
   const result = spawnSync("python3", ["-B", "scripts/codex-sandbox-readiness.test.py"], {
     encoding: "utf8",

@@ -1,14 +1,37 @@
 #!/bin/bash
 set -euo pipefail
 
+# Coder runs startup and module scripts concurrently; another writer may hold
+# Git's global-config lock briefly. Retry only lock contention, never delete it.
+configure_git_alias() {
+  local attempt delay=1 output status
+  for attempt in 1 2 3 4 5 6; do
+    if output=$(LC_ALL=C git config --global "$@" 2>&1); then
+      return 0
+    else
+      status=$?
+    fi
+    if [[ "$output" != *"could not lock config file"* || "$output" != *"File exists"* ]]; then
+      printf '%s\n' "$output" >&2
+      return "$status"
+    fi
+    if [ "$attempt" -eq 6 ]; then
+      printf '%s\n' "$output" >&2
+      return "$status"
+    fi
+    sleep "$delay"
+    delay=$((delay * 2))
+  done
+}
+
 if [ ! -f "$HOME/.workspace_initialized" ]; then
   echo "First-time workspace setup..."
   mkdir -p "$HOME/projects" "$HOME/bin" "$HOME/.config" "$HOME/.local/bin"
-  git config --global alias.st status
-  git config --global alias.co checkout
-  git config --global alias.br branch
-  git config --global alias.cm commit
-  git config --global alias.lg "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+  configure_git_alias alias.st status
+  configure_git_alias alias.co checkout
+  configure_git_alias alias.br branch
+  configure_git_alias alias.cm commit
+  configure_git_alias alias.lg "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 
   if [ ! -f "$HOME/README.md" ]; then
     cat > "$HOME/README.md" << 'EOFREADME'
