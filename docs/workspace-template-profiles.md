@@ -75,6 +75,19 @@ On every workspace start, Hive refreshes the template-managed global agent conte
 their repositories and layer on top of that workspace context. If an agent configuration directory
 is itself a symlink, Hive warns and preserves it instead of writing through to the linked target.
 
+## Codex updates
+
+Every workspace startup refreshes the user-installed Codex CLI from npm's `latest` tag.
+Hive does not pin a Codex release or set shared daemon feature flags. Registry retries
+and a 120-second command limit bound the attempt; an offline refresh reports a warning
+and leaves an available CLI in use rather than deleting its installation first.
+
+Codex's background server can update independently while a workspace remains running.
+If its version differs from the CLI, run `codex update` and start a fresh session.
+A feature-settings prompt can still occur between clients with different configurations;
+use the prompt's run-without-daemon option while other sessions are active. Hive does not
+restart the shared server automatically because doing so can interrupt other work.
+
 ## Codex Cloudflare authentication
 
 On every workspace start, all five templates register `cloudflare-api` in
