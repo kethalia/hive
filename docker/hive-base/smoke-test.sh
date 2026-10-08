@@ -49,6 +49,20 @@ run notesmd-cli --version
 run act --version
 expect_command node
 expect_command npx
+expect_command hive-audio
+expect_command pulseaudio
+expect_command pacat
+expect_command pactl
+run bash -lc 'export PULSE_SERVER="$(hive-audio prepare smoke)"; pactl info >/dev/null; python3 - <<"PY"
+import ctypes
+library = ctypes.CDLL("libasound.so.2")
+for direction in (0, 1):
+    handle = ctypes.c_void_p()
+    result = library.snd_pcm_open(ctypes.byref(handle), b"default", direction, 0)
+    assert result == 0, (direction, result)
+    library.snd_pcm_close(handle)
+print("Default virtual microphone and speaker opened without /dev/snd")
+PY'
 expect_absent obsidian
 
 case "$variant" in

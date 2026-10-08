@@ -3,6 +3,8 @@ import { buildPtyUrl } from "../src/protocol.js";
 
 const EXPECTED_TMUX_MENU_BINDING =
   "bind-key -n F12 display-menu -T '#S:#W' 'Copy mode' c 'copy-mode' 'Choose tree' t 'choose-tree -Zw' '' 'Split horizontal' h 'split-window -h' 'Split vertical' v 'split-window -v' 'New window' n 'new-window' 'Rename window' r 'command-prompt -I \"#W\" \"rename-window -- %%\"' '' 'Kill pane' x 'confirm-before -p \"kill-pane #P? (y/n)\" kill-pane'";
+const EXPECTED_AUDIO_ENV = (session: string) =>
+  `if command -v hive-audio >/dev/null 2>&1 && hive_audio_server="$(hive-audio prepare '${session}')"; then export PULSE_SERVER="$hive_audio_server"; fi; `;
 const EXPECTED_TMUX_PREFIX = `tmux -L web -T clipboard,hyperlinks,RGB,extkeys set -s set-clipboard on \\; set -s extended-keys on \\; ${EXPECTED_TMUX_MENU_BINDING}`;
 
 describe("buildPtyUrl", () => {
@@ -22,7 +24,7 @@ describe("buildPtyUrl", () => {
     expect(parsed.searchParams.get("width")).toBe("80");
     expect(parsed.searchParams.get("height")).toBe("24");
     expect(parsed.searchParams.get("command")).toBe(
-      `${EXPECTED_TMUX_PREFIX} \\; new-session -A -s my-session \\; set status off \\; set mouse on`,
+      `${EXPECTED_AUDIO_ENV("my-session")}${EXPECTED_TMUX_PREFIX} \\; new-session -A -e "PULSE_SERVER=\${PULSE_SERVER:-}" -s my-session \\; set status off \\; set mouse on`,
     );
   });
 
@@ -55,7 +57,7 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      `${EXPECTED_TMUX_PREFIX} \\; new-session -A -s dev-shell \\; set status off \\; set mouse on`,
+      `${EXPECTED_AUDIO_ENV("dev-shell")}${EXPECTED_TMUX_PREFIX} \\; new-session -A -e "PULSE_SERVER=\${PULSE_SERVER:-}" -s dev-shell \\; set status off \\; set mouse on`,
     );
   });
 
@@ -65,7 +67,7 @@ describe("buildPtyUrl", () => {
     const command = parsed.searchParams.get("command");
 
     expect(command).toContain(EXPECTED_TMUX_MENU_BINDING);
-    expect(command).toContain("\\; new-session -A -s my-session");
+    expect(command).toContain(`new-session -A -e "PULSE_SERVER=\${PULSE_SERVER:-}" -s my-session`);
     expect(command).toContain("\\; set mouse on");
     expect(command).not.toContain("mouse off");
     expect(command).not.toContain("set-option -t");
@@ -82,7 +84,7 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      `${EXPECTED_TMUX_PREFIX} \\; new-session -A -s git-clone-deadbeef -c '/home/coder/projects/kethalia/hive' \\; set status off \\; set mouse on`,
+      `${EXPECTED_AUDIO_ENV("git-clone-deadbeef")}${EXPECTED_TMUX_PREFIX} \\; new-session -A -e "PULSE_SERVER=\${PULSE_SERVER:-}" -s git-clone-deadbeef -c '/home/coder/projects/kethalia/hive' \\; set status off \\; set mouse on`,
     );
   });
 
@@ -94,7 +96,7 @@ describe("buildPtyUrl", () => {
     });
     const parsed = new URL(url);
     expect(parsed.searchParams.get("command")).toBe(
-      `${EXPECTED_TMUX_PREFIX} \\; new-session -A -s git-clone-deadbeef -c '/home/coder/projects/acme/bob'\\''s repo' \\; set status off \\; set mouse on`,
+      `${EXPECTED_AUDIO_ENV("git-clone-deadbeef")}${EXPECTED_TMUX_PREFIX} \\; new-session -A -e "PULSE_SERVER=\${PULSE_SERVER:-}" -s git-clone-deadbeef -c '/home/coder/projects/acme/bob'\\''s repo' \\; set status off \\; set mouse on`,
     );
   });
 
