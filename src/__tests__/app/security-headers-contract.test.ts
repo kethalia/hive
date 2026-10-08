@@ -1,9 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-
+import { buildPermissionsPolicy } from "@/lib/security/content-security-policy";
 import { contentSecurityPolicy } from "../../../next.config";
 
 describe("security headers contract", () => {
+  it("allows the Hive microphone without delegating it to workspace frames", () => {
+    const policy = buildPermissionsPolicy(["https://coder.example"]);
+    expect(policy).toContain("microphone=(self)");
+    expect(policy).toContain("camera=()");
+    expect(contentSecurityPolicy).toContain("media-src 'self' blob:");
+  });
   it("does not allow arbitrary HTTPS origins in workspace frames", () => {
     expect(contentSecurityPolicy).toContain("frame-src 'self'");
     expect(contentSecurityPolicy).not.toContain("frame-src 'self' https:");

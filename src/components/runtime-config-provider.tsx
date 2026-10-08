@@ -31,5 +31,11 @@ export function useRuntimeConfig(): RuntimeConfig {
     () => resolveTerminalWsUrl(configuredUrl ?? getClientRuntimeConfig().terminalWsUrl),
   );
 
-  return useMemo(() => ({ terminalWsUrl }), [terminalWsUrl]);
+  const codexVoiceEnabled = providedConfig
+    ? providedConfig.codexVoiceEnabled
+    : getClientRuntimeConfig().codexVoiceEnabled;
+  return useMemo(
+    () => ({ terminalWsUrl, ...(codexVoiceEnabled ? { codexVoiceEnabled } : {}) }),
+    [terminalWsUrl, codexVoiceEnabled],
+  );
 }

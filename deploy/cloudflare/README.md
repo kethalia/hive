@@ -22,6 +22,12 @@ Worker or custom domain instead of leaking the private GitOps hostname into brow
    parent domain (for example `.hive.example.com`) so authenticated WebSocket upgrades receive the
    session cookie.
 
+   For browser voice, configure `HIVE_PUBLIC_ORIGIN` on the Hive web service to
+   the exact public Worker/custom-domain origin (for example
+   `https://hive.example.com`). The voice route checks this value against `Origin`
+   and the Worker's forwarded host/protocol. Set `HIVE_CODEX_VOICE_ENABLED=true`
+   on the web service as well; neither setting belongs in the Worker environment.
+
 3. Upload a preview version:
 
    ```sh

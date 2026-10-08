@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getClientRuntimeConfig,
   getServerRuntimeConfig,
+  parseRuntimeConfig,
   RUNTIME_CONFIG_ELEMENT_ID,
   resolveTerminalWsUrl,
   serializeRuntimeConfig,
@@ -19,6 +20,17 @@ describe("runtime-config", () => {
   });
 
   describe("getServerRuntimeConfig", () => {
+    it("exposes voice only when explicitly enabled and preserves it through serialization", () => {
+      vi.stubEnv("HIVE_CODEX_VOICE_ENABLED", "true");
+      const config = getServerRuntimeConfig();
+      expect(config.codexVoiceEnabled).toBe(true);
+      expect(parseRuntimeConfig(serializeRuntimeConfig(config))?.codexVoiceEnabled).toBe(true);
+      vi.stubEnv("HIVE_CODEX_VOICE_ENABLED", "false");
+      expect(getServerRuntimeConfig().codexVoiceEnabled).toBeUndefined();
+      expect(
+        parseRuntimeConfig('{"terminalWsUrl":"","codexVoiceEnabled":"true"}')?.codexVoiceEnabled,
+      ).toBeUndefined();
+    });
     it("reads terminalWsUrl from NEXT_PUBLIC_TERMINAL_WS_URL", () => {
       vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "wss://terminal.example.com/ws");
       expect(getServerRuntimeConfig()).toEqual({

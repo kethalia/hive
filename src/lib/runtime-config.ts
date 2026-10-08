@@ -1,5 +1,6 @@
 export interface RuntimeConfig {
   terminalWsUrl: string;
+  codexVoiceEnabled?: true;
 }
 
 export const RUNTIME_CONFIG_ELEMENT_ID = "hive-runtime-config";
@@ -18,6 +19,9 @@ declare global {
 export function getServerRuntimeConfig(): RuntimeConfig {
   return {
     terminalWsUrl: process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "",
+    ...(process.env.HIVE_CODEX_VOICE_ENABLED === "true"
+      ? { codexVoiceEnabled: true as const }
+      : {}),
   };
 }
 
@@ -43,7 +47,12 @@ export function parseRuntimeConfig(value: string | null | undefined): RuntimeCon
       "terminalWsUrl" in parsed &&
       typeof parsed.terminalWsUrl === "string"
     ) {
-      return { terminalWsUrl: parsed.terminalWsUrl };
+      return {
+        terminalWsUrl: parsed.terminalWsUrl,
+        ...("codexVoiceEnabled" in parsed && parsed.codexVoiceEnabled === true
+          ? { codexVoiceEnabled: true as const }
+          : {}),
+      };
     }
   } catch {
     // Invalid runtime data falls through to the build-time development fallback.
@@ -83,5 +92,6 @@ export function getClientRuntimeConfig(): RuntimeConfig {
 
   return {
     terminalWsUrl: resolveTerminalWsUrl(runtimeConfig.terminalWsUrl, browserLocation),
+    ...(runtimeConfig.codexVoiceEnabled ? { codexVoiceEnabled: true as const } : {}),
   };
 }

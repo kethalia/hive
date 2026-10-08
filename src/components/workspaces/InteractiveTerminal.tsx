@@ -3,6 +3,7 @@
 import type { FitAddon } from "@xterm/addon-fit";
 import type { Terminal } from "@xterm/xterm";
 import { AlertCircle } from "lucide-react";
+import dynamic from "next/dynamic";
 import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -58,6 +59,12 @@ import { encodeInput } from "@/lib/terminal/protocol";
 import { createSelectionOutput } from "@/lib/terminal/selection-output";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
+
+const CodexVoiceControls = dynamic(
+  () =>
+    import("@/components/terminal/CodexVoiceControls").then((module) => module.CodexVoiceControls),
+  { ssr: false },
+);
 
 export interface RefreshedCloneTerminalIdentity {
   sessionName: string;
@@ -417,7 +424,7 @@ function TerminalRuntime({
   pinToBottomOnResize = false,
   selectionModeEnabled = false,
 }: InteractiveTerminalProps) {
-  const { terminalWsUrl } = useRuntimeConfig();
+  const { terminalWsUrl, codexVoiceEnabled } = useRuntimeConfig();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -1255,6 +1262,9 @@ function TerminalRuntime({
       data-connection-state={connectionState}
       data-terminal-surface="true"
     >
+      {codexVoiceEnabled ? (
+        <CodexVoiceControls key={workspaceId} workspaceId={workspaceId} />
+      ) : null}
       {connectionState === "workspace-offline" && (
         <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
           <AlertCircle />
