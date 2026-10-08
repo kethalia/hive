@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.18.1
+
+### Patch Changes
+
+- a284cd7: Allow explicit browser voice origins for deployments with multiple proxy hostnames while retaining strict forwarded-origin validation.
+
 ## 2.18.0
 
 ### Minor Changes
