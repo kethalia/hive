@@ -1,5 +1,15 @@
 # hive-orchestrator
 
+## 2.18.0
+
+### Minor Changes
+
+- 13f5e45: Add opt-in Codex browser voice with session selection, WebRTC microphone and spoken audio, mute/end controls, and authenticated workspace signaling. Enable the experimental prototype with HIVE_CODEX_VOICE_ENABLED=true.
+
+### Patch Changes
+
+- 9cc9bfb: Retry transient Git configuration lock contention during workspace alias and credential-helper initialization so concurrent startup scripts do not leave a working workspace marked unhealthy.
+
 ## 2.17.17
 
 ### Patch Changes
