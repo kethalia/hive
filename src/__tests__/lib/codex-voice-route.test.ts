@@ -32,6 +32,7 @@ const request = (
 beforeEach(() => {
   vi.stubEnv("HIVE_CODEX_VOICE_ENABLED", "true");
   vi.stubEnv("HIVE_PUBLIC_ORIGIN", "");
+  vi.stubEnv("HIVE_VOICE_ALLOWED_ORIGINS", "");
   mocks.session.mockResolvedValue({ user: { id: "hive-user" } });
   mocks.connect.mockResolvedValue({ close });
   mocks.list.mockResolvedValue([{ id: threadId }]);
@@ -69,6 +70,54 @@ describe("voice route boundary", () => {
     const req = forwardedRequest();
     expect((await POST(req, context)).status).toBe(200);
     expect(mocks.stream).toHaveBeenCalledWith({ close }, threadId, "v=0\r\nm=audio", req.signal);
+  });
+
+  it.each([
+    "https://hive.kethalia.com",
+    "https://hive.local.kethalia.com",
+  ])("accepts the production alias %s behind a proxy", async (origin) => {
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.kethalia.com");
+    vi.stubEnv(
+      "HIVE_VOICE_ALLOWED_ORIGINS",
+      " https://hive.kethalia.com, https://hive.local.kethalia.com ",
+    );
+    expect((await POST(forwardedRequest(origin), context)).status).toBe(200);
+  });
+
+  it("supports an explicit origin list without a public-origin setting", async () => {
+    vi.stubEnv("HIVE_VOICE_ALLOWED_ORIGINS", "https://hive.example, https://local.example");
+    expect((await POST(forwardedRequest("https://local.example"), context)).status).toBe(200);
+  });
+
+  it.each([
+    ["origin", "https://attacker.example"],
+    ["origin", "https://hive.local.kethalia.com.attacker.example"],
+    ["x-forwarded-host", "hive.kethalia.com"],
+    ["x-forwarded-host", "hive.local.kethalia.com, hive.kethalia.com"],
+    ["x-forwarded-proto", "http"],
+    ["sec-fetch-site", "cross-site"],
+  ])("rejects mismatched alias metadata: %s=%s", async (header, value) => {
+    vi.stubEnv(
+      "HIVE_VOICE_ALLOWED_ORIGINS",
+      "https://hive.kethalia.com,https://hive.local.kethalia.com",
+    );
+    const req = forwardedRequest("https://hive.local.kethalia.com");
+    req.headers.set(header, value);
+    expect((await POST(req, context)).status).toBe(403);
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "not a URL",
+    "https://local.example/path",
+    "https://user@local.example",
+    "https://local.example/?q=1",
+    "https://local.example/#fragment",
+    "ftp://local.example",
+  ])("fails closed on malformed allowlist entry: %s", async (entry) => {
+    vi.stubEnv("HIVE_VOICE_ALLOWED_ORIGINS", `https://hive.example,${entry}`);
+    expect((await POST(forwardedRequest(), context)).status).toBe(403);
+    expect(mocks.connect).not.toHaveBeenCalled();
   });
 
   it("does not trust forwarded headers without a configured matching public origin", async () => {

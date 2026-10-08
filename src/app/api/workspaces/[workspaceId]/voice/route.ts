@@ -12,23 +12,34 @@ function hasAllowedOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (origin === new URL(request.url).origin) return true;
 
-  // The Cloudflare Worker changes the request URL to HIVE_ORIGIN. Only accept
-  // its forwarded host/protocol when they match an explicitly configured public
-  // origin; arbitrary X-Forwarded-* headers must not authorize cross-site POSTs.
-  const configured = process.env.HIVE_PUBLIC_ORIGIN?.trim();
-  if (!configured) return false;
+  // Reverse proxies can replace the request URL's hostname. Forwarded headers
+  // authorize signaling only when they match an explicitly configured origin.
+  const configured = [
+    process.env.HIVE_PUBLIC_ORIGIN ?? "",
+    ...(process.env.HIVE_VOICE_ALLOWED_ORIGINS ?? "").split(","),
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!configured.length) return false;
   try {
-    const publicUrl = new URL(configured);
-    return (
-      ["https:", "http:"].includes(publicUrl.protocol) &&
-      !publicUrl.username &&
-      !publicUrl.password &&
-      publicUrl.pathname === "/" &&
-      !publicUrl.search &&
-      !publicUrl.hash &&
-      origin === publicUrl.origin &&
-      request.headers.get("x-forwarded-host") === publicUrl.host &&
-      request.headers.get("x-forwarded-proto") === publicUrl.protocol.slice(0, -1)
+    const allowed = configured.map((value) => new URL(value));
+    if (
+      allowed.some(
+        (url) =>
+          !["https:", "http:"].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          url.pathname !== "/" ||
+          url.search ||
+          url.hash,
+      )
+    )
+      return false;
+    return allowed.some(
+      (url) =>
+        origin === url.origin &&
+        request.headers.get("x-forwarded-host") === url.host &&
+        request.headers.get("x-forwarded-proto") === url.protocol.slice(0, -1),
     );
   } catch {
     return false;
