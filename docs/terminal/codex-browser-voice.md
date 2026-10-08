@@ -26,6 +26,15 @@ scheme, host, and optional port without a path. The route accepts the forwarded
 host/protocol only when both match this configured origin. Direct same-origin
 requests do not need this setting.
 
+For multiple browser hostnames behind a reverse proxy, set
+`HIVE_VOICE_ALLOWED_ORIGINS=https://hive.example.com,https://hive.local.example.com`
+on the web service (`hive-web.config.HIVE_VOICE_ALLOWED_ORIGINS` in Helm). Each
+entry must be an exact HTTP(S) origin without credentials, path, query, or
+fragment. `HIVE_PUBLIC_ORIGIN` remains accepted alongside this list. Forwarded
+host and protocol must match the requesting origin; cross-site requests remain
+rejected. Set this list only with an image that supports it; older releases
+ignore it.
+
 1. Open Codex normally in the workspace terminal, using its shared app-server daemon.
 2. Expand **Codex Voice (experimental)** above the terminal.
 3. Select the Codex session that is open in the terminal. The picker shows its
