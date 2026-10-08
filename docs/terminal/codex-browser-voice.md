@@ -17,6 +17,15 @@ hive-web:
     HIVE_CODEX_VOICE_ENABLED: "true"
 ```
 
+For Docker Compose, set the flag in `.env` and recreate the `app` container;
+both local and production Compose configurations pass it into the web service.
+If Cloudflare or another reverse proxy forwards a public hostname to a different
+origin hostname, also set `HIVE_PUBLIC_ORIGIN=https://hive.example.com` on the web
+service (`hive-web.config.HIVE_PUBLIC_ORIGIN` in Helm). Use the exact public
+scheme, host, and optional port without a path. The route accepts the forwarded
+host/protocol only when both match this configured origin. Direct same-origin
+requests do not need this setting.
+
 1. Open Codex normally in the workspace terminal, using its shared app-server daemon.
 2. Expand **Codex Voice (experimental)** above the terminal.
 3. Select the Codex session that is open in the terminal. The picker shows its
@@ -53,7 +62,10 @@ chunks. Only the small voice-specific operation set is exposed to the browser.
 A workspace-local `flock` prevents overlapping Hive voice connections to the
 same thread across web replicas. One page can own one microphone call. End,
 component unmount, browser tab hiding, permission failure, failed WebRTC, and
-stalled signaling release browser media. Browser cancellation requests
+stalled signaling release browser media.
+Transient WebRTC disconnects get ten seconds to recover before teardown;
+reconnection cancels that timer, while failed or closed peers end immediately.
+Browser cancellation requests
 `thread/realtime/stop` before closing SSH. Startup and RPC calls have deadlines,
 and calls have a 30-minute prototype limit. Cleanup is best effort if the web
 service or workspace dies abruptly; the browser still closes its media tracks.

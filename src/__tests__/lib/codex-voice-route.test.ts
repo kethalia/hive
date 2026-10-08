@@ -31,6 +31,7 @@ const request = (
   });
 beforeEach(() => {
   vi.stubEnv("HIVE_CODEX_VOICE_ENABLED", "true");
+  vi.stubEnv("HIVE_PUBLIC_ORIGIN", "");
   mocks.session.mockResolvedValue({ user: { id: "hive-user" } });
   mocks.connect.mockResolvedValue({ close });
   mocks.list.mockResolvedValue([{ id: threadId }]);
@@ -48,6 +49,78 @@ afterEach(() => {
 });
 
 describe("voice route boundary", () => {
+  function forwardedRequest(origin = "https://hive.example") {
+    const req = new Request(`https://gitops-origin.example/api/workspaces/${workspaceId}/voice`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        origin,
+        "x-forwarded-host": new URL(origin).host,
+        "x-forwarded-proto": new URL(origin).protocol.slice(0, -1),
+        "sec-fetch-site": "same-origin",
+      },
+      body: JSON.stringify({ threadId, sdp: "v=0\r\nm=audio" }),
+    });
+    return req;
+  }
+
+  it("accepts the configured public origin through the Cloudflare hostname rewrite", async () => {
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example");
+    const req = forwardedRequest();
+    expect((await POST(req, context)).status).toBe(200);
+    expect(mocks.stream).toHaveBeenCalledWith({ close }, threadId, "v=0\r\nm=audio", req.signal);
+  });
+
+  it("does not trust forwarded headers without a configured matching public origin", async () => {
+    expect((await POST(forwardedRequest(), context)).status).toBe(403);
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example");
+    expect((await POST(forwardedRequest("https://attacker.example"), context)).status).toBe(403);
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["x-forwarded-host", "attacker.example"],
+    ["x-forwarded-host", "hive.example, attacker.example"],
+    ["x-forwarded-proto", "http"],
+    ["x-forwarded-proto", "https, http"],
+    ["origin", "null"],
+    ["sec-fetch-site", "cross-site"],
+  ])("rejects mismatching forwarded origin metadata: %s=%s", async (header, value) => {
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example");
+    const req = forwardedRequest();
+    req.headers.set(header, value);
+    expect((await POST(req, context)).status).toBe(403);
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "origin",
+    "x-forwarded-host",
+    "x-forwarded-proto",
+  ])("requires %s on forwarded requests", async (header) => {
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example");
+    const req = forwardedRequest();
+    req.headers.delete(header);
+    expect((await POST(req, context)).status).toBe(403);
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "not a URL",
+    "https://hive.example/path",
+    "https://user@hive.example",
+    "https://hive.example/?query=1",
+  ])("fails closed on invalid public-origin configuration: %s", async (configured) => {
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", configured);
+    expect((await POST(forwardedRequest(), context)).status).toBe(403);
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it("preserves direct same-origin access when a public origin is configured", async () => {
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://public.example");
+    expect((await POST(request(), context)).status).toBe(200);
+  });
+
   it("is disabled by default and rejects unauthenticated and cross-site requests before connecting", async () => {
     vi.stubEnv("HIVE_CODEX_VOICE_ENABLED", "false");
     expect((await POST(request(), context)).status).toBe(404);

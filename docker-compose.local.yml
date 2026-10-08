@@ -41,6 +41,8 @@ services:
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
       - NEXT_PUBLIC_TERMINAL_WS_URL=${NEXT_PUBLIC_TERMINAL_WS_URL:-}
+      - HIVE_CODEX_VOICE_ENABLED=${HIVE_CODEX_VOICE_ENABLED:-false}
+      - HIVE_PUBLIC_ORIGIN=${HIVE_PUBLIC_ORIGIN:-}
 
   terminal-proxy:
     build:

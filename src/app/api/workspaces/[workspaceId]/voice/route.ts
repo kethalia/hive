@@ -8,6 +8,33 @@ export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Context = { params: Promise<{ workspaceId: string }> };
 
+function hasAllowedOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (origin === new URL(request.url).origin) return true;
+
+  // The Cloudflare Worker changes the request URL to HIVE_ORIGIN. Only accept
+  // its forwarded host/protocol when they match an explicitly configured public
+  // origin; arbitrary X-Forwarded-* headers must not authorize cross-site POSTs.
+  const configured = process.env.HIVE_PUBLIC_ORIGIN?.trim();
+  if (!configured) return false;
+  try {
+    const publicUrl = new URL(configured);
+    return (
+      ["https:", "http:"].includes(publicUrl.protocol) &&
+      !publicUrl.username &&
+      !publicUrl.password &&
+      publicUrl.pathname === "/" &&
+      !publicUrl.search &&
+      !publicUrl.hash &&
+      origin === publicUrl.origin &&
+      request.headers.get("x-forwarded-host") === publicUrl.host &&
+      request.headers.get("x-forwarded-proto") === publicUrl.protocol.slice(0, -1)
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function authorize(request: Request, context: Context) {
   if (process.env.HIVE_CODEX_VOICE_ENABLED !== "true")
     return new Response("Voice prototype is disabled", { status: 404 });
@@ -16,7 +43,7 @@ async function authorize(request: Request, context: Context) {
   // Reject cross-site signaling even when cookies could be sent by the browser.
   if (
     request.headers.get("sec-fetch-site") === "cross-site" ||
-    (request.method === "POST" && request.headers.get("origin") !== new URL(request.url).origin)
+    (request.method === "POST" && !hasAllowedOrigin(request))
   ) {
     return new Response("Invalid origin", { status: 403 });
   }

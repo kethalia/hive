@@ -43,10 +43,89 @@ beforeEach(() => {
 });
 afterEach(() => {
   current?.stop();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe("browser voice resource ownership", () => {
+  async function connectedCall() {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url, options) =>
+        Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              options.signal.addEventListener("abort", () => controller.close(), { once: true });
+            },
+          }),
+        }),
+      ),
+    );
+    const error = vi.fn();
+    current = new BrowserVoice(vi.fn(), error);
+    const running = current.start("workspace", "thread");
+    await vi.advanceTimersByTimeAsync(0);
+    const peer = peers[0];
+    const change = (state: string) => {
+      peer.connectionState = state;
+      peer.onconnectionstatechange?.();
+    };
+    change("connected");
+    return { error, running, peer, change };
+  }
+
+  it("keeps media alive through a transient disconnect and cancels the recovery deadline", async () => {
+    const { error, peer, running, change } = await connectedCall();
+    change("disconnected");
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(track.stop).not.toHaveBeenCalled();
+    expect(peer.close).not.toHaveBeenCalled();
+    change("connected");
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(track.stop).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    current.stop();
+    await running;
+  });
+
+  it("ends a persistent disconnect after ten seconds without extending on duplicate events", async () => {
+    const { error, peer, running, change } = await connectedCall();
+    change("disconnected");
+    await vi.advanceTimersByTimeAsync(5_000);
+    change("disconnected");
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(track.stop).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await running;
+    expect(error).toHaveBeenCalledOnce();
+    expect(track.stop).toHaveBeenCalledOnce();
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(["failed", "closed"])("ends immediately on a terminal peer state: %s", async (state) => {
+    const { peer, running, change } = await connectedCall();
+    change("disconnected");
+    change(state);
+    await running;
+    expect(track.stop).toHaveBeenCalledOnce();
+    expect(peer.close).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("cancels a pending recovery timer when the user ends the call", async () => {
+    const { error, running, change } = await connectedCall();
+    change("disconnected");
+    current.stop();
+    await running;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(error).not.toHaveBeenCalled();
+    expect(track.stop).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("stops a late microphone permission grant after the user cancels", async () => {
     let grant: (value: unknown) => void = () => {};
     getUserMedia.mockReturnValue(

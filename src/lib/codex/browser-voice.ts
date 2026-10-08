@@ -10,6 +10,7 @@ export class BrowserVoice {
   private stopped = false;
   private timeout: ReturnType<typeof setTimeout> | undefined;
   private signalingTimeout: ReturnType<typeof setTimeout> | undefined;
+  private disconnectTimeout: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private onState: (state: VoiceState) => void,
@@ -58,8 +59,17 @@ export class BrowserVoice {
         if (this.stopped) return;
         if (peer.connectionState === "connected") {
           clearTimeout(this.timeout);
+          clearTimeout(this.disconnectTimeout);
+          this.disconnectTimeout = undefined;
           this.onState("connected");
-        } else if (["failed", "disconnected", "closed"].includes(peer.connectionState)) {
+        } else if (peer.connectionState === "disconnected") {
+          // ICE can recover after packet loss or an interface handoff. Repeated
+          // disconnected events must not extend the original recovery deadline.
+          this.disconnectTimeout ??= setTimeout(
+            () => this.fail("Voice disconnected. Start again to reconnect."),
+            10_000,
+          );
+        } else if (["failed", "closed"].includes(peer.connectionState)) {
           this.fail("Voice disconnected. Start again to reconnect.");
         }
       };
@@ -142,6 +152,7 @@ export class BrowserVoice {
     this.stopped = true;
     clearTimeout(this.timeout);
     clearTimeout(this.signalingTimeout);
+    clearTimeout(this.disconnectTimeout);
     this.abort.abort();
     for (const track of this.microphone?.getTracks() ?? []) {
       track.onended = null;
