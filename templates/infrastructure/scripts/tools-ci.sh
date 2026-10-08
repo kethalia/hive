@@ -2,6 +2,8 @@
 # shellcheck disable=SC2034,SC2154 # Variables are referenced or populated after Terraform rendering.
 set -e
 
+${git_config_retry_script}
+
 BOLD='\033[0;1m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -52,7 +54,7 @@ printf '%s' "${github_cli_script_b64}" | base64 -d > "$HOME/.local/bin/gh"
 chmod +x "$HOME/.local/bin/gh"
 printf '%s' "${github_credential_script_b64}" | base64 -d > "$HOME/.local/bin/coder-github-credential"
 chmod +x "$HOME/.local/bin/coder-github-credential"
-git config --global --replace-all credential.https://github.com.helper "$HOME/.local/bin/coder-github-credential"
+configure_git_global --replace-all credential.https://github.com.helper "$HOME/.local/bin/coder-github-credential"
 
 printf '%s' "${clone_repositories_script_b64}" | base64 -d > "$HOME/clone-repositories.sh"
 chmod +x "$HOME/clone-repositories.sh"

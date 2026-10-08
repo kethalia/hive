@@ -47,6 +47,7 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
+    git_config_retry_script       = file("${path.module}/scripts/git-config-retry.sh")
     workspace_name = data.coder_workspace.me.name
     owner_name     = data.coder_workspace_owner.me.name
     owner_email    = data.coder_workspace_owner.me.email
@@ -204,6 +205,7 @@ resource "coder_script" "tools_ci" {
   run_on_start       = true
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
+    git_config_retry_script       = file("${path.module}/scripts/git-config-retry.sh")
     github_token                  = data.coder_external_auth.github.access_token
     github_cli_script_b64         = base64encode(file("${path.module}/scripts/github-cli.sh"))
     github_credential_script_b64  = base64encode(file("${path.module}/scripts/github-credential.sh"))
