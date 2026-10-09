@@ -15,6 +15,13 @@ function getKeyboardLock() {
     : undefined;
 }
 
+function exitRootFullscreen() {
+  if (document.fullscreenElement === document.documentElement) {
+    // Cleanup has no mounted controller to report errors to.
+    void document.exitFullscreen().catch(() => undefined);
+  }
+}
+
 export function useDashboardFullscreen() {
   const [fullscreen, setFullscreen] = useState(false);
   const fullscreenRef = useRef(false);
@@ -39,6 +46,7 @@ export function useDashboardFullscreen() {
       mountedRef.current = false;
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       getKeyboardLock()?.unlock();
+      exitRootFullscreen();
     };
   }, []);
 
@@ -84,7 +92,11 @@ export function useDashboardFullscreen() {
     void root
       .requestFullscreen()
       .then(() => {
-        if (!mountedRef.current || document.fullscreenElement !== root) return;
+        if (!mountedRef.current) {
+          exitRootFullscreen();
+          return;
+        }
+        if (document.fullscreenElement !== root) return;
         // Lock only Escape, preserving browser shortcuts and terminal key handling.
         // Permission denial must not undo a successful fullscreen request.
         const keyboard = getKeyboardLock();

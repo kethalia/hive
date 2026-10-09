@@ -454,7 +454,7 @@ describe("DashboardKeyboardController", () => {
     expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
   });
 
-  it("releases keyboard lock when the controller unmounts", async () => {
+  it("exits native fullscreen and releases keyboard lock when the controller unmounts", async () => {
     Object.defineProperty(navigator, "keyboard", { configurable: true, value: keyboard });
     const { unmount } = render(<DashboardKeyboardController />);
     await act(async () => {
@@ -463,6 +463,59 @@ describe("DashboardKeyboardController", () => {
     keyboard.unlock.mockClear();
     unmount();
     expect(keyboard.unlock).toHaveBeenCalledOnce();
+    expect(document.exitFullscreen).toHaveBeenCalledOnce();
+    expect(document.fullscreenElement).toBeNull();
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+  });
+
+  it("exits a fullscreen request that completes after the controller unmounts", async () => {
+    Object.defineProperty(navigator, "keyboard", { configurable: true, value: keyboard });
+    let completeRequest: (() => void) | undefined;
+    vi.mocked(document.documentElement.requestFullscreen).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          completeRequest = () => {
+            fullscreenElement = document.documentElement;
+            document.dispatchEvent(new Event("fullscreenchange"));
+            resolve();
+          };
+        }),
+    );
+    const { unmount } = render(<DashboardKeyboardController />);
+    act(() => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    unmount();
+    expect(document.exitFullscreen).not.toHaveBeenCalled();
+    await act(async () => {
+      completeRequest?.();
+    });
+    expect(document.exitFullscreen).toHaveBeenCalledOnce();
+    expect(document.fullscreenElement).toBeNull();
+    expect(keyboard.lock).not.toHaveBeenCalled();
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+  });
+
+  it("leaves fullscreen owned by another element alone on unmount", () => {
+    const { unmount } = render(<DashboardKeyboardController />);
+    fullscreenElement = document.createElement("video");
+    unmount();
+    expect(document.exitFullscreen).not.toHaveBeenCalled();
+  });
+
+  it("handles a rejected fullscreen exit during unmount without a stale toast", async () => {
+    const { unmount } = render(<DashboardKeyboardController />);
+    await act(async () => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    vi.mocked(document.exitFullscreen).mockRejectedValueOnce(
+      new DOMException("Denied", "NotAllowedError"),
+    );
+    await act(async () => {
+      unmount();
+    });
+    expect(document.exitFullscreen).toHaveBeenCalledOnce();
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
   });
 
