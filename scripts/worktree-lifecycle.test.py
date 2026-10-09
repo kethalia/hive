@@ -31,6 +31,19 @@ class LifecycleTests(unittest.TestCase):
         self.git(self.repo, "add", ".")
         self.git(self.repo, "commit", "-m", "test: initial fixture")
         self.manager = module.Worktrees(self.home)
+        # Inspect real test-owned processes without depending on unrelated runner
+        # services, which can share our UID but forbid reading their /proc links.
+        self.process_ids = {str(os.getpid())}
+        original_iterdir = Path.iterdir
+
+        def controlled_processes(path):
+            if path == Path("/proc"):
+                return iter(Path("/proc") / pid for pid in self.process_ids)
+            return original_iterdir(path)
+
+        process_namespace = patch.object(Path, "iterdir", controlled_processes)
+        process_namespace.start()
+        self.addCleanup(process_namespace.stop)
 
     def git(self, repo, *args):
         result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True,
@@ -120,6 +133,7 @@ class LifecycleTests(unittest.TestCase):
             ["python3", "-c", "import sys; f=open(sys.argv[1]); print('ready',flush=True); sys.stdin.read()",
              str(path / "source.txt")], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
         )
+        self.process_ids.add(str(process.pid))
         try:
             self.assertEqual(process.stdout.readline().strip(), "ready")
             self.assertEqual(self.manager.complete(path)["status"], "deferred")
@@ -127,6 +141,20 @@ class LifecycleTests(unittest.TestCase):
         finally:
             process.communicate("", timeout=5)
         self.assertEqual(self.manager.prune()[0]["status"], "removed")
+
+    def test_uninspectable_owner_process_blocks_cleanup(self):
+        path = self.create()
+        original_readlink = os.readlink
+
+        def restricted_readlink(link, *args, **kwargs):
+            if Path(link) == Path("/proc") / str(os.getpid()) / "cwd":
+                raise PermissionError("runner process is not inspectable")
+            return original_readlink(link, *args, **kwargs)
+
+        with patch.object(module.os, "readlink", restricted_readlink):
+            with self.assertRaisesRegex(ValueError, "Cannot inspect a workspace-owner process"):
+                self.manager.complete(path)
+        self.assertTrue(path.exists())
 
     def test_primary_paths_and_symlinked_state_cannot_be_deleted(self):
         with self.assertRaises(ValueError):
