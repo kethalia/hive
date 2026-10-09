@@ -171,12 +171,26 @@ class Worktrees:
                     raise ValueError("Cannot inspect a workspace-owner process")
         return False
 
+    def mounted_paths(self):
+        # st_dev alone misses bind mounts on the same filesystem. Linux mountinfo
+        # encodes whitespace/backslashes using octal escapes in field five.
+        mounted = set()
+        for line in Path("/proc/self/mountinfo").read_text().splitlines():
+            value = line.split()[4]
+            value = re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), value)
+            mounted.add(Path(value))
+        return mounted
+
     def remove_completed(self, record):
         repo, path = self.validate(record["repo"], record["path"])
         if record["status"] != "completed":
             return {"path": str(path), "status": "active"}
         if self.process_references(path):
             return {"path": str(path), "status": "deferred", "reason": "Process still references checkout"}
+        if any(mount == path or mount.is_relative_to(path) for mount in self.mounted_paths()):
+            raise ValueError("Mounted checkout or nested mount requires manual cleanup")
+        if path.stat().st_dev != repo.stat().st_dev:
+            raise ValueError("Checkout filesystem differs from the primary clone")
         if self.git(path, "branch", "--show-current") != record["branch"]:
             raise ValueError("Branch changed after registration")
         if self.git(path, "rev-parse", "HEAD") != record["completed_head"]:

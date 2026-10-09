@@ -150,6 +150,15 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(self.manager.prune()[0]["status"], "skipped")
         self.assertTrue(path.exists())
 
+    def test_checkout_and_nested_bind_mounts_are_preserved(self):
+        path = self.create()
+        self.mark(path)
+        for mounted in [path, path / "node_modules/mounted"]:
+            with self.subTest(mounted=mounted):
+                with patch.object(self.manager, "mounted_paths", return_value={mounted}):
+                    self.assertEqual(self.manager.prune()[0]["status"], "skipped")
+                self.assertTrue(path.exists())
+
     def test_detached_unique_commit_keeps_a_recovery_branch(self):
         path = self.repo.parent / "repo-validation"
         self.git(self.repo, "worktree", "add", "--detach", str(path), "HEAD")
