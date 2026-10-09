@@ -29,6 +29,32 @@ afterEach(() => {
 });
 
 describe("terminal audio boundaries", () => {
+  it("forwards only the known recoverable workspace error code", () => {
+    expect(
+      JSON.parse(
+        parseWorkspaceAudio(
+          '{"type":"error","code":"session_busy","message":"Already connected"}',
+        ) as string,
+      ),
+    ).toEqual({
+      type: "error",
+      code: "session_busy",
+      message: "Already connected",
+    });
+    for (const code of ["incompatible", "unknown", true]) {
+      expect(
+        JSON.parse(
+          parseWorkspaceAudio(
+            JSON.stringify({ type: "error", code, retry: true, message: "Update workspace" }),
+          ) as string,
+        ),
+      ).toEqual({
+        type: "error",
+        message: "Update workspace",
+      });
+    }
+  });
+
   it("accepts bounded PCM and rejects malformed samples and arbitrary controls", () => {
     const pcm = Buffer.alloc(960).toString("base64");
     expect(parseBrowserAudio(JSON.stringify({ type: "microphone", pcm }))).not.toBeNull();

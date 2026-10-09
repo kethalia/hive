@@ -328,7 +328,7 @@ def relay(session):
                 if packet == b"R":
                     emit({"type": "ready"})
                 elif packet == b"N":
-                    emit({"type": "error", "message": "Audio is already connected in another view of this terminal."})
+                    emit({"type": "error", "code": "session_busy", "message": "Audio is already connected in another view of this terminal."})
                     return
                 elif packet in (b"A", b"Z"):
                     emit({"type": "active", "active": packet == b"A"})

@@ -64,7 +64,7 @@ export class TerminalAudio {
     };
     socket.onmessage = ({ data }) => {
       if (this.socket !== socket || typeof data !== "string" || data.length > 2048) return;
-      let value: { type?: string; active?: boolean; pcm?: string; message?: string };
+      let value: { type?: string; active?: boolean; pcm?: string; message?: string; code?: string };
       try {
         value = JSON.parse(data);
       } catch {
@@ -89,8 +89,8 @@ export class TerminalAudio {
           /* Reject malformed media without retaining it. */
         }
       } else if (value?.type === "error") {
-        retry = false;
-        this.fail(value.message ?? "Terminal audio is unavailable.", false);
+        retry = value.code === "session_busy";
+        this.fail(value.message ?? "Terminal audio is unavailable.", retry);
       }
     };
     socket.onclose = () => {

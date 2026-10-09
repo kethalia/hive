@@ -61,7 +61,11 @@ export function parseWorkspaceAudio(line: string): string | null {
       if (microphone) return microphone.replace('"microphone"', '"speaker"');
     }
     if (value?.type === "error" && typeof value.message === "string")
-      return JSON.stringify({ type: "error", message: value.message.slice(0, 200) });
+      return JSON.stringify({
+        type: "error",
+        message: value.message.slice(0, 200),
+        ...(value.code === "session_busy" ? { code: "session_busy" } : {}),
+      });
   } catch {
     /* PTY diagnostics cannot impersonate audio frames. */
   }

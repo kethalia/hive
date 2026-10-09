@@ -73,6 +73,48 @@ function session() {
 }
 
 describe("native terminal browser audio", () => {
+  it("retries a busy session until its owner releases it and a native call can start", async () => {
+    const { socket, status } = session();
+    const busy = {
+      type: "error",
+      code: "session_busy",
+      message: "Audio is already connected in another view of this terminal.",
+    };
+    socket.emit(busy);
+    expect(socket.close).toHaveBeenCalledOnce();
+    expect(getUserMedia).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(Socket.instances).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    const retry = Socket.instances.at(-1) as Socket;
+    retry.emit(busy);
+    await vi.advanceTimersByTimeAsync(3000);
+    const available = Socket.instances.at(-1) as Socket;
+    available.emit({ type: "ready" });
+    available.emit({ type: "active", active: false });
+    available.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(Socket.instances).toHaveLength(3);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+  });
+
+  it("does not retry permanent workspace errors and cancels ownership retries when hidden", async () => {
+    const permanent = session();
+    permanent.socket.emit({
+      type: "error",
+      message: "Update the workspace image and open a new terminal.",
+    });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(Socket.instances).toHaveLength(1);
+    const transient = session();
+    transient.socket.emit({ type: "error", code: "session_busy", message: "Session is busy." });
+    transient.audio.setVisible(false);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(Socket.instances).toHaveLength(2);
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
   it("does not request microphone when another Hive window owns the origin lock", async () => {
     const request = vi.fn(async (_name, _options, callback) => callback(null));
     Object.defineProperty(navigator, "locks", { configurable: true, value: { request } });
