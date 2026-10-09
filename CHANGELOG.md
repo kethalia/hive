@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.19.1
+
+### Patch Changes
+
+- f5719f1: Release the updated Kubernetes workspace image digests with the bundled Coder templates.
+
 ## 2.19.0
 
 ### Minor Changes
