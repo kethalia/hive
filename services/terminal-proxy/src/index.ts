@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
+import { drainAudioConnections, handleAudioUpgrade } from "./audio.js";
 import { type AuthResult, type AuthSuccess, authenticateUpgrade } from "./auth.js";
 import { resolveAuthorizedWorkspaceIds } from "./authorized-workspaces.js";
 import {
@@ -301,6 +302,13 @@ function attachUpgradeRouting(
 ) {
   server.on("upgrade", (req, socket, head) => {
     const pathname = req.url?.split("?")[0] ?? "";
+    if (pathname === "/ws/audio") {
+      handleAudioUpgrade(req, socket, head).catch(() => {
+        logUpgradeFallbackFailure();
+        writeUpgradeFallbackResponse(socket);
+      });
+      return;
+    }
     if (pathname === "/ws") {
       upgradeHandler(req, socket, head).catch(() => {
         logUpgradeFallbackFailure();
@@ -376,11 +384,13 @@ if (isEntrypoint) {
     if (stopping) return;
     stopping = true;
     const terminate = drainTerminalConnections();
+    const terminateAudio = drainAudioConnections();
     server.close();
     // Upgraded sockets are not closed by http.Server.close(). Bound draining
     // below Kubernetes' default 30-second termination grace period.
     const timer = setTimeout(() => {
       terminate();
+      terminateAudio();
       server.closeAllConnections();
     }, 25_000);
     timer.unref();

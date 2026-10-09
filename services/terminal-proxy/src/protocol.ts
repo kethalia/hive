@@ -8,6 +8,7 @@ export interface PtyConnectionOptions {
   height: number;
   sessionName: string;
   cwd?: string;
+  audioRelay?: boolean;
 }
 
 function shellQuote(value: string): string {
@@ -59,7 +60,13 @@ export function buildPtyUrl(
   // Advertise the browser terminal's actual capabilities to this client. Forward
   // application OSC 52 copies and negotiated modified keys through the web server.
   const cwdArg = cwd ? ` -c ${shellQuote(cwd)}` : "";
-  const command = `tmux -L web -T clipboard,hyperlinks,RGB,extkeys set -s set-clipboard on \\; set -s extended-keys on \\; ${TMUX_MENU_BINDING_COMMAND} \\; new-session -A -s ${sessionName}${cwdArg} \\; set status off \\; set mouse on`;
+  // New sessions inherit their own virtual devices even when the tmux server
+  // predates this attachment. Existing shells keep their environment until
+  // restarted. Older images remain usable without the audio helper.
+  const audioEnvironment = `if command -v hive-audio >/dev/null 2>&1 && hive_audio_server="$(hive-audio prepare -- ${shellQuote(sessionName)})"; then export PULSE_SERVER="$hive_audio_server"; fi; `;
+  const command = options.audioRelay
+    ? `if command -v hive-audio >/dev/null 2>&1; then exec hive-audio relay -- ${shellQuote(sessionName)}; else printf '%s\\n' '{"type":"error","message":"Workspace audio is unavailable. Update the workspace image and open a new terminal."}'; fi`
+    : `${audioEnvironment}tmux -L web -T clipboard,hyperlinks,RGB,extkeys set -s set-clipboard on \\; set -s extended-keys on \\; ${TMUX_MENU_BINDING_COMMAND} \\; new-session -A -e "PULSE_SERVER=\${PULSE_SERVER:-}" -s ${sessionName}${cwdArg} \\; set status off \\; set mouse on`;
 
   const params = new URLSearchParams({
     reconnect: reconnectId,

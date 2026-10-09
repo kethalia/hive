@@ -1,101 +1,100 @@
-# Codex browser voice prototype
+# Native Codex voice through the browser
 
-Hive can attach browser microphone and speaker audio to a running Codex thread.
-The terminal remains available for text, tool output, and approvals. This is an
-experimental integration, tested with Codex CLI/app-server **0.161.0**.
+Hive forwards browser microphone and speaker audio to the virtual audio devices
+of each workspace terminal. Codex uses its own native `/voice` command and its
+current session. There is no session picker or separate Start voice bar.
 
-## Enable and use
+## Use
 
-Set `HIVE_CODEX_VOICE_ENABLED=true` in the Hive **web service** environment and
-restart that service. It defaults to disabled. The flag is delivered through
-Hive's runtime configuration; it does not require a separate frontend rebuild.
-For the umbrella Helm chart, the override is:
+1. Open Codex in a Hive terminal and type `/voice`.
+2. Allow microphone access to the Hive website or installed PWA when prompted.
+3. Speak normally. Codex replies play through the browser. Use Codex's `/voice`
+   command to end voice.
 
-```yaml
-hive-web:
-  config:
-    HIVE_CODEX_VOICE_ENABLED: "true"
-```
+The bridge is enabled by default. Microphone access starts only when the native
+application opens its capture stream. An idle terminal does not request or hold
+the microphone. A small status message appears during connection, an active call,
+or an error. Browser permission settings determine whether future calls prompt
+again. HTTPS (or localhost) and Web Audio/AudioWorklet support are required.
+Pressing Enter in the terminal enables playback under browser autoplay rules.
 
-For Docker Compose, set the flag in `.env` and recreate the `app` container;
-both local and production Compose configurations pass it into the web service.
-If Cloudflare or another reverse proxy forwards a public hostname to a different
-origin hostname, also set `HIVE_PUBLIC_ORIGIN=https://hive.example.com` on the web
-service (`hive-web.config.HIVE_PUBLIC_ORIGIN` in Helm). Use the exact public
-scheme, host, and optional port without a path. The route accepts the forwarded
-host/protocol only when both match this configured origin. Direct same-origin
-requests do not need this setting.
+Hiding the browser tab, parking the terminal, losing the connection, denying or
+revoking permission, and closing the terminal release browser audio and disconnect
+the native audio streams. Keep the terminal visible during a call. One terminal
+view owns a session's audio, and one call owns a page's microphone. Browsers with
+Web Locks also enforce one microphone owner across Hive tabs and PWA windows at
+the same origin. End the first call before starting voice in another session;
+other sessions can keep running text and tools. After fixing
+permission or connection errors, wait for reconnection and run `/voice` again.
 
-For multiple browser hostnames behind a reverse proxy, set
-`HIVE_VOICE_ALLOWED_ORIGINS=https://hive.example.com,https://hive.local.example.com`
-on the web service (`hive-web.config.HIVE_VOICE_ALLOWED_ORIGINS` in Helm). Each
-entry must be an exact HTTP(S) origin without credentials, path, query, or
-fragment. `HIVE_PUBLIC_ORIGIN` remains accepted alongside this list. Forwarded
-host and protocol must match the requesting origin; cross-site requests remain
-rejected. Set this list only with an image that supports it; older releases
-ignore it.
+## Rollout
 
-1. Open Codex normally in the workspace terminal, using its shared app-server daemon.
-2. Expand **Codex Voice (experimental)** above the terminal.
-3. Select the Codex session that is open in the terminal. The picker shows its
-   title, working directory, and ID suffix. Use Codex's `/status` to compare IDs
-   when several sessions have similar names.
-4. Click **Start voice**, grant microphone access, and speak. Replies play through
-   the browser. **Mute** disables microphone tracks; **End voice** ends the call.
+Deploy matching versions of **hive-web**, **hive-terminal**, and the **hive-base
+workspace image**. The base image installs `hive-audio`, PulseAudio, and the ALSA
+Pulse plugin in every profile. These are virtual audio devices; no `/dev/snd`,
+privileged container, desktop, SSH listener, or extra OpenAI API key is needed.
+Image smoke tests open the default ALSA capture and playback devices.
 
-Use the Hive control to start browser audio. Typing the literal `/voice` command
-in the remote terminal still selects Codex's native audio path. Do not start that
-native call concurrently with a Hive call on the same thread.
+Update the templates' pinned workspace image digest through the normal image
+rollout, restart the workspace, and open a **new terminal session**. Existing tmux
+shells and Codex processes retain their old environment; reconnecting an existing
+terminal does not change that environment. Older workspace images still support
+ordinary terminal use and report that their audio helper is unavailable.
 
-## Connection and lifecycle
+The terminal proxy's existing `ALLOWED_ORIGINS`, Hive cookie authentication, Coder
+credentials, and workspace/agent authorization also protect `/ws/audio`. Ensure
+the ingress forwards this WebSocket route to the terminal proxy just as it does
+`/ws`. No new public workspace port is required.
 
-The authenticated Next.js route resolves the workspace and connected agent using
-the requesting user's Coder credentials. SSH carries a WebSocket connection to
-`codex app-server proxy`. Codex credentials remain in the workspace; no public
-app-server listener or additional OpenAI API key is required by Hive.
+`HIVE_CODEX_VOICE_ENABLED` and the old web voice route's origin settings belong to
+the retained prototype API. They do not enable or configure this native bridge,
+and the old control bar is no longer rendered.
 
-Discovery reads metadata for up to 100 loaded threads, excludes subagents and
-threads that reject direct input, and never resumes saved sessions or changes
-their settings. Selection is explicit because a terminal pane does not expose
-its current Codex thread ID to Hive. The default workspace user and `CODEX_HOME`
-must match those used by the Codex terminal session; standalone `--no-daemon`
-sessions and custom remote servers are outside this prototype.
+## Transport and lifecycle
 
-The browser sends its WebRTC offer to `thread/realtime/start` with audio output
-and protocol V3. Codex supplies the answer through `thread/realtime/sdp`. V3 is
-required for the tested AVAS endpoint: the default protocol was rejected with
-`invalid_quicksilver_alpha_header`. Media travels over WebRTC; the Hive HTTP
-stream carries signaling and ten-second heartbeats, not recordings or audio
-chunks. Only the small voice-specific operation set is exposed to the browser.
+The terminal's launch command prepares a private PulseAudio server and passes its
+`PULSE_SERVER` to the new tmux session. This environment variable is preserved by
+Codex's native voice helper. The system ALSA default points to the Pulse plugin.
+Each terminal gets separate microphone and speaker null sinks, so audio cannot
+cross terminal sessions. The broker follows the session's recorded `PULSE_SERVER`
+across tmux renames; reusing the old name allocates separate devices. Session names
+follow the same validation as ordinary terminals and are hashed into fixed-length
+device paths. Nothing alters Codex's binary, thread selection, voice
+protocol, or account credentials.
 
-A workspace-local `flock` prevents overlapping Hive voice connections to the
-same thread across web replicas. One page can own one microphone call. End,
-component unmount, browser tab hiding, permission failure, failed WebRTC, and
-stalled signaling release browser media.
-Transient WebRTC disconnects get ten seconds to recover before teardown;
-reconnection cancels that timer, while failed or closed peers end immediately.
-Browser cancellation requests
-`thread/realtime/stop` before closing SSH. Startup and RPC calls have deadlines,
-and calls have a 30-minute prototype limit. Cleanup is best effort if the web
-service or workspace dies abruptly; the browser still closes its media tracks.
+The browser opens an authenticated audio WebSocket while the terminal is visible.
+The proxy starts `hive-audio relay -- <session>` through the existing Coder PTY API.
+That relay claims the session broker; a second view is rejected. Native capture
+activity triggers the browser microphone request automatically. Audio uses 48 kHz
+mono signed 16-bit PCM in bounded ten-millisecond frames. The AudioWorklet and
+workspace broker discard stale samples when consumers stall. Audio is not stored
+in files or logs. Heartbeats and deadlines release abandoned connections.
 
-## Verification and limits
+Ending native capture releases the browser microphone and playback context.
+Browser release stops the session audio server if native streams are open,
+disconnecting capture/playback. A subsequent relay recreates the same devices.
+Brokers retain
+devices while a tmux session references them, and exit after five idle minutes once
+that session is gone. Workspace shutdown terminates these processes normally.
 
-- Unit/integration coverage includes authenticated route boundaries, bounded
-  offers, selected-thread filtering, RPC failures, cancellation, late microphone
-  grants, mute, and preventing concurrent microphone use.
-- `e2e/codex-voice.spec.mjs` exercises real Chrome microphone/WebRTC APIs with
-  synthetic audio, incoming playback, denial, mute/unmute, and cleanup. It uses
-  the production stylesheet and checks desktop and mobile viewport overflow.
-- Live verification used an isolated ephemeral thread on the 0.161.0 daemon,
-  Chrome in Browser Testing, and silent microphone input. WebRTC connected;
-  `thread/realtime/appendSpeech` produced measurable incoming audio for “Ready.”
-  Existing work threads were not used for this probe.
-- This proves the transport and spoken output. Physical microphone acoustics,
-  Safari/iOS, sustained conversation, and live tool-approval interactions still
-  need interactive user testing. Availability also depends on Codex account
-  access to voice and its experimental protocol remaining compatible.
+## Verification
 
-Browser checks belong to the `browser-testing` profile. During implementation,
-the disposable `voice-browser-test` workspace supplied Chrome; evidence is
-preserved in the primary checkout under `.artifacts/voice/` before cleanup.
+- Python broker tests cover ownership, malformed PCM, release, and owner expiry.
+- Terminal proxy tests cover authorization, bounded frames, fragmented PTY output,
+  startup heartbeats, backpressure, and disconnect cleanup.
+- Browser unit tests cover late grants, concurrent calls, denial, and cleanup.
+- `e2e/terminal-audio.spec.mjs` uses real Chrome microphone and AudioWorklet APIs
+  with synthetic input and an emulated workspace relay. All twelve desktop, tablet,
+  and mobile viewport tests cover PCM in both directions, denial, parking, and
+  microphone ownership across windows.
+- A separate live probe used the unmodified Codex **0.161.0** native voice helper,
+  an isolated ephemeral Codex thread, and the production PulseAudio broker. Spoken
+  output produced measurable speaker samples; a synthetic tone reached native
+  capture. Browser release disconnected the native capture stream.
+
+Browser validation runs in the `browser-testing` profile. Evidence is preserved
+in the primary checkout under `.artifacts/voice-bridge/`. These checks do not cover
+physical microphone acoustics, Safari/iOS, long conversations, or live approval
+interactions. Codex account access and compatibility with its experimental native
+voice feature remain necessary. The container image build and image smoke tests
+run in CI; they cannot run in the primary workspace without a Docker runtime.

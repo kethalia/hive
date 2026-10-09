@@ -114,6 +114,16 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
+# Native Codex voice uses these per-terminal user-space devices. They require
+# no /dev/snd, host sound server, desktop, or privileged kernel modules.
+COPY audio/ /tmp/hive-audio/
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends pulseaudio libasound2-plugins \
+    && install -m 0644 /tmp/hive-audio/alsa.conf /etc/alsa/conf.d/99-hive-audio.conf \
+    && install -m 0755 /tmp/hive-audio/hive-audio.py /usr/local/bin/hive-audio \
+    && python3 -m unittest discover -s /tmp/hive-audio -p 'test_*.py' \
+    && rm -rf /tmp/hive-audio /var/lib/apt/lists/*
+
 # ── Infrastructure capability ───────────────────────────────────────────────
 
 # Versions align with the platform repository where one exists. Every archive
