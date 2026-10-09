@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.20.1
+
+### Patch Changes
+
+- 8d74cb0: Restore browser fullscreen on Ctrl/Cmd+Enter and lock Escape when the browser supports keyboard locking.
+
 ## 2.20.0
 
 ### Minor Changes
