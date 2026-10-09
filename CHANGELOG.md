@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.20.0
+
+### Minor Changes
+
+- 4232820: Add a mobile file picker for uploading PDFs and other files to the active terminal workspace. Show clipboard and upload progress, success, and failure feedback with loading controls and toasts. Keep Escape available to terminal programs while Ctrl/Cmd+Enter toggles app fullscreen.
+
 ## 2.19.1
 
 ### Patch Changes
