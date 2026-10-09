@@ -165,6 +165,36 @@ Before publishing:
 6. Perform domain checks in the matching profile. GPU, physical electronics, and live infrastructure
    access remain explicit external capabilities rather than template assumptions.
 
+## Repository bootstrap and task checkouts
+
+Startup seeds `~/repositories.txt` only when absent. Existing files, including empty manifests and
+symlinks, remain user-owned, so workspace updates no longer restore retired repositories. New
+template defaults are not appended to existing manifests; desired additions are explicit local edits.
+The clone helper recognizes both `.git` directories and worktree `.git` files as existing checkouts.
+
+The shared agent context requires a primary clone at `projects/<owner>/<repo>`, reuse of existing
+checkouts when isolation permits, and grouped task worktrees at
+`projects/<owner>/.worktrees/<repo>/<task>`. Dependencies and generated outputs are created only when
+needed, using each repo's package manager and lockfile; no shared mutable `node_modules` directory is
+introduced. Package data can continue to share the pnpm store on the home filesystem.
+
+`hive-worktree` is installed at startup. Only the software profile performs repository lifecycle
+operations. `create <primary> <task> --branch <branch>` reuses a task checkout or creates a grouped
+worktree. `adopt <primary> <existing-task-path>` records an existing registered worktree without
+changing it. `complete <task-path>` marks a clean task completed and removes its checkout when idle;
+`prune` retries cleanup. Completion and adoption are explicit, never inferred from a directory date.
+
+The software template schedules **Completed task worktree cleanup** daily at 06:55 UTC, separately
+from cache maintenance. It examines at most 200 lifecycle records within an 80-second cooperative
+budget and a 110-second outer limit. A nonblocking owner lock serializes lifecycle writers. Active
+process working directories and open files defer removal, including idle terminals rooted in a task
+checkout. Source changes, untracked files, ignored files outside recognized generated directories,
+changed branches or completed HEADs, locked worktrees, nested repositories, and filesystem mounts
+also prevent removal. Git performs a final clean/locked check without force. Branches remain in the
+primary repo; a unique detached commit receives a recovery branch before its worktree is removed.
+The cleanup never discovers candidates by age or deletes primary/unmanaged checkouts. Existing
+accumulated checkouts therefore need explicit task ownership review and adoption before completion.
+
 ## Scheduled workspace cache maintenance
 
 Every profile includes a Coder agent script named **Daily development cache maintenance**.

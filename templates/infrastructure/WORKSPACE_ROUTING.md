@@ -73,6 +73,41 @@ Use the specialist workspace for its bounded validation or tool step, then carry
 evidence or changes back through the repository and the live TUI conversation. Do not use retired
 Hive Tasks or New Task workflows for handoffs.
 
+## Repository and task storage lifecycle
+
+Keep one primary clone at `~/projects/<owner>/<repo>`. Reuse the primary checkout for sequential
+work when no other task is using it, or reuse the existing checkout for the same task. Create a
+worktree only when concurrent work or a clean validation requires isolation. Do not create a fresh
+clone or a second worktree just to resume a task. In the software workspace, use:
+
+```bash
+hive-worktree create ~/projects/<owner>/<repo> <task> --branch <branch>
+```
+
+This groups task checkouts at `~/projects/<owner>/.worktrees/<repo>/<task>`. Install dependencies
+only when the task needs them, using the repository's pinned package manager and lockfile. Keep
+pnpm's store on the home filesystem so package files can be shared. Do not copy `node_modules`,
+build caches, or generated assets into new task checkouts. For code-only validation, avoid checking
+out large unrelated assets where the repository supports sparse checkouts.
+Keep scratch output inside the task checkout or `/tmp`, rather than creating per-session folders
+directly under the home directory. Move required evidence into the repository before task cleanup.
+
+After the task is finished and required work is committed, return to the primary directory and run
+`hive-worktree complete <task-path>`. This removes the task checkout and its recognized generated
+directories when no process references it; committed branches remain in the primary repository.
+Close or move idle terminals whose working directory is the finished checkout. If cleanup is
+deferred, the software workspace retries explicitly completed tasks daily at 06:55 UTC.
+
+Existing worktrees can be enrolled with `hive-worktree adopt <primary-repo> <task-path>` after
+checking task ownership. Adoption alone does not authorize deletion. Never mark an ongoing task
+completed. Cleanup skips source changes, untracked files, ignored files outside recognized generated
+directories, changed branches or HEADs, locked worktrees, nested repositories, and filesystem mounts.
+It never deletes primary clones, unmanaged worktrees, or committed branches based on age.
+
+`~/repositories.txt` is seeded only when absent and remains user-owned afterward. Removing an entry
+prevents startup from recreating that clone. Template updates do not append newly configured default
+repositories to an existing manifest; add desired repositories explicitly.
+
 ## Git And PR Workflow
 
 - Use Conventional Commits for every commit title and every PR title, for example

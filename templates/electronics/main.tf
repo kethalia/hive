@@ -188,6 +188,19 @@ resource "coder_script" "workspace_cache_maintenance" {
   script             = "set -e\npython3 - <<'HIVE_CACHE_PY'\n${file("${path.module}/scripts/prune-turbo-cache.py")}\nHIVE_CACHE_PY\n${file("${path.module}/scripts/workspace-cache-maintenance.sh")}"
 }
 
+# Task completion is explicit. Existing/unmanaged or active worktrees are never age-pruned.
+resource "coder_script" "completed_worktree_maintenance" {
+  count              = local.profile.id == "software" ? 1 : 0
+  agent_id           = coder_agent.main.id
+  display_name       = "Completed task worktree cleanup"
+  icon               = "/icon/git.svg"
+  cron               = "CRON_TZ=UTC 0 55 6 * * *"
+  run_on_start       = false
+  start_blocks_login = false
+  timeout            = 120
+  script             = "timeout 110s python3 - prune <<'HIVE_WORKTREE_PY'\n${file("${path.module}/scripts/worktree-lifecycle.py")}\nHIVE_WORKTREE_PY\n"
+}
+
 resource "coder_script" "tools_web3" {
   count              = local.profile.capabilities.web3 ? 1 : 0
   agent_id           = coder_agent.main.id
@@ -211,6 +224,7 @@ resource "coder_script" "tools_ci" {
     github_credential_script_b64  = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
+    worktree_lifecycle_script_b64  = base64encode(file("${path.module}/scripts/worktree-lifecycle.py"))
   })
 }
 
