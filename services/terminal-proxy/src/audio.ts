@@ -183,8 +183,7 @@ export async function handleAudioUpgrade(req: IncomingMessage, socket: Duplex, h
   if (
     !UUID_RE.test(workspaceId) ||
     !UUID_RE.test(agentId) ||
-    !SAFE_IDENTIFIER_RE.test(sessionName) ||
-    sessionName.length > 128
+    !SAFE_IDENTIFIER_RE.test(sessionName)
   ) {
     reject("400 Bad Request");
     return;

@@ -20,13 +20,55 @@ import tty
 
 PACKET = 960
 OWNER_TIMEOUT = 15
+TMUX_SOCKET = "web"
 
 
-def state_directory(session):
-    if not re.fullmatch(r"[a-zA-Z0-9._-]{1,128}", session):
+def tmux_output(*arguments):
+    try:
+        result = subprocess.run(["tmux", "-L", TMUX_SOCKET, *arguments],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                text=True, timeout=2)
+        return result.stdout.rstrip("\n") if result.returncode == 0 else ""
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def session_servers():
+    return set(tmux_output("list-sessions", "-F", "#{PULSE_SERVER}").splitlines())
+
+
+def session_uses_directory(directory):
+    return "unix:" + str(directory / "pulse.sock") in session_servers()
+
+
+def state_directory(session, identity=None):
+    if not re.fullmatch(r"[a-zA-Z0-9._-]+", session):
         raise ValueError("Invalid terminal session")
     root = Path(os.environ.get("HIVE_AUDIO_ROOT", str(Path.home() / ".local/state/hive/audio")))
     directory = root / hashlib.sha256(session.encode()).hexdigest()[:24]
+    if identity is not None:
+        if not re.fullmatch(r"[0-9a-f]{24}", identity):
+            raise ValueError("Invalid audio identity")
+        directory = root / identity
+    environment = "" if identity is not None else tmux_output("show-environment", "-t", f"={session}", "PULSE_SERVER")
+    # tmux retains this environment across renames, as do running Codex processes.
+    if environment.startswith("PULSE_SERVER=unix:"):
+        existing = Path(environment.removeprefix("PULSE_SERVER=unix:"))
+        if (existing.name == "pulse.sock" and existing.parent.parent == root
+                and re.fullmatch(r"[0-9a-f]{24}", existing.parent.name)):
+            directory = existing.parent
+        else:
+            environment = ""
+    else:
+        environment = ""
+    if identity is None and not environment:
+        # A renamed session may still own the directory for a reused old name.
+        occupied = session_servers()
+        generation = 0
+        while "unix:" + str(directory / "pulse.sock") in occupied:
+            generation += 1
+            identity = f"{session}\0{generation}"
+            directory = root / hashlib.sha256(identity.encode()).hexdigest()[:24]
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     if directory.is_symlink() or directory.stat().st_uid != os.getuid():
         raise ValueError("Invalid audio directory")
@@ -49,7 +91,8 @@ def prepare(session):
                 start_broker = False
         if start_broker:
             (directory / "bridge.sock").unlink(missing_ok=True)
-            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "serve", "--", session],
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "serve",
+                              "--identity", directory.name, "--", session],
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, start_new_session=True)
         deadline = time.monotonic() + 6
@@ -216,9 +259,9 @@ class PulseDevices:
                 process.wait()
 
 
-def serve(session):
+def serve(session, identity=None):
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    directory = state_directory(session)
+    directory = state_directory(session, identity)
     with (directory / "broker.lock").open("w") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -284,9 +327,7 @@ def serve(session):
                     idle_at = now
                 # Retain devices for a surviving tmux session, including reloads.
                 if now - idle_at > 300:
-                    result = subprocess.run(["tmux", "-L", "web", "has-session", "-t", f"={session}"],
-                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    if result.returncode:
+                    if not session_uses_directory(directory):
                         return
                     idle_at = now
         finally:
@@ -308,11 +349,12 @@ def relay(session):
     # PTY transports must not echo microphone frames or translate PCM framing.
     if os.isatty(sys.stdin.fileno()):
         tty.setraw(sys.stdin.fileno())
-    prepare(session)
+    server = prepare(session)
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, PACKET * 10)
     sock.bind("")  # Linux autobinding assigns each relay a unique abstract address.
-    sock.connect(str(state_directory(session) / "bridge.sock"))
+    # Connect to the identity selected by prepare, even if tmux changes meanwhile.
+    sock.connect(str(Path(server.removeprefix("unix:")).with_name("bridge.sock")))
     sock.setblocking(False)
     sock.send(b"B")
     buffer = b""
@@ -371,13 +413,19 @@ def relay(session):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["prepare", "serve", "relay"])
+    parser.add_argument("--identity", help="Private broker identity (serve only)")
     parser.add_argument("session")
     args = parser.parse_args()
+    if args.identity is not None and args.command != "serve":
+        parser.error("--identity is only supported with serve")
     try:
         if args.command == "prepare":
             print(prepare(args.session))
         elif args.command == "serve":
-            serve(args.session)
+            if args.identity is not None:
+                serve(args.session, args.identity)
+            else:
+                serve(args.session)
         else:
             relay(args.session)
     except (OSError, ValueError):

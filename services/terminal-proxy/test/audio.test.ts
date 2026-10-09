@@ -29,6 +29,31 @@ afterEach(() => {
 });
 
 describe("terminal audio boundaries", () => {
+  it("authorizes long session names accepted by ordinary terminals", async () => {
+    vi.stubEnv("ALLOWED_ORIGINS", "https://hive.example.com");
+    vi.mocked(authenticateUpgrade).mockResolvedValue({
+      ok: true,
+      value: {
+        token: "private",
+        coderUrl: "https://coder.example.com",
+        sessionId: "session",
+        username: "user",
+      },
+    });
+    vi.mocked(verifyWorkspaceAgentAccess).mockResolvedValue({ ok: false, status: 403 });
+    const sessionName = `voice-${"a".repeat(256)}`;
+    const request = {
+      url: `/ws/audio?workspaceId=550e8400-e29b-41d4-a716-446655440000&agentId=550e8400-e29b-41d4-a716-446655440001&sessionName=${sessionName}`,
+      headers: { origin: "https://hive.example.com", "sec-websocket-protocol": "hive-audio-v1" },
+    } as unknown as IncomingMessage;
+    const socket = new PassThrough();
+    const write = vi.spyOn(socket, "write");
+    await handleAudioUpgrade(request, socket, Buffer.alloc(0));
+    expect(authenticateUpgrade).toHaveBeenCalledOnce();
+    expect(verifyWorkspaceAgentAccess).toHaveBeenCalledOnce();
+    expect(write).toHaveBeenCalledWith("HTTP/1.1 403 Forbidden\r\n\r\n");
+  });
+
   it.each([
     [
       "https://auth.example.com",

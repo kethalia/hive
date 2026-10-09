@@ -56,7 +56,10 @@ The terminal's launch command prepares a private PulseAudio server and passes it
 `PULSE_SERVER` to the new tmux session. This environment variable is preserved by
 Codex's native voice helper. The system ALSA default points to the Pulse plugin.
 Each terminal gets separate microphone and speaker null sinks, so audio cannot
-cross terminal sessions. Nothing alters Codex's binary, thread selection, voice
+cross terminal sessions. The broker follows the session's recorded `PULSE_SERVER`
+across tmux renames; reusing the old name allocates separate devices. Session names
+follow the same validation as ordinary terminals and are hashed into fixed-length
+device paths. Nothing alters Codex's binary, thread selection, voice
 protocol, or account credentials.
 
 The browser opens an authenticated audio WebSocket while the terminal is visible.
@@ -71,7 +74,7 @@ Ending native capture releases the browser microphone and playback context.
 Browser release stops the session audio server if native streams are open,
 disconnecting capture/playback. A subsequent relay recreates the same devices.
 Brokers retain
-devices while their tmux session exists, and exit after five idle minutes once
+devices while a tmux session references them, and exit after five idle minutes once
 that session is gone. Workspace shutdown terminates these processes normally.
 
 ## Verification

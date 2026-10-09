@@ -3,12 +3,14 @@ import json
 import os
 from pathlib import Path
 import select
+import shutil
 import socket
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+import uuid
 from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location("hive_audio", Path(__file__).with_name("hive-audio.py"))
@@ -19,7 +21,9 @@ RELAY_BOOTSTRAP = """
 import runpy, sys
 scope = runpy.run_path(sys.argv[1])
 # Exercise the production relay without launching PulseAudio in this test.
-scope['relay'].__globals__['prepare'] = lambda session: None
+scope['relay'].__globals__['TMUX_SOCKET'] = sys.argv[3]
+prepared = sys.argv[4] if len(sys.argv) > 4 else None
+scope['relay'].__globals__['prepare'] = lambda session: prepared or 'unix:' + str(scope['state_directory'](session) / 'pulse.sock')
 scope['relay'](sys.argv[2])
 """
 
@@ -120,9 +124,12 @@ class AudioRelayTest(unittest.TestCase):
         sock.settimeout(3)
         return sock, audio.Broker(sock)
 
-    def start_relay(self, session):
+    def start_relay(self, session, prepared_server=None):
+        arguments = [sys.executable, "-c", RELAY_BOOTSTRAP, str(Path(audio.__file__).resolve()), session, audio.TMUX_SOCKET]
+        if prepared_server is not None:
+            arguments.append(prepared_server)
         process = subprocess.Popen(
-            [sys.executable, "-c", RELAY_BOOTSTRAP, str(Path(audio.__file__).resolve()), session],
+            arguments,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
         def cleanup():
             if process.poll() is None:
@@ -183,9 +190,77 @@ class AudioRelayTest(unittest.TestCase):
     def test_prepare_passes_option_terminator_to_spawned_server(self):
         directory = audio.state_directory("-voice")
         with patch.object(audio.shutil, "which", return_value="tool"), \
+                patch.object(audio, "tmux_output", return_value=""), \
                 patch.object(audio.subprocess, "Popen", side_effect=lambda *args, **kwargs: (directory / "bridge.sock").touch()) as spawn:
             audio.prepare("-voice")
-        self.assertEqual(spawn.call_args.args[0][-3:], ["serve", "--", "-voice"])
+        command = spawn.call_args.args[0]
+        self.assertEqual(command[2:5], ["serve", "--identity", directory.name])
+        self.assertEqual(command[-2:], ["--", "-voice"])
+
+    def test_long_session_names_use_bounded_paths_and_connect_to_the_broker(self):
+        session = "voice-" + "a" * 256
+        directory = audio.state_directory(session)
+        self.assertEqual(len(directory.name), 24)
+        sock, broker = self.broker(session)
+        relay = self.start_relay(session)
+        self.receive(sock, broker)
+        self.assertEqual(self.read(relay), {"type": "ready"})
+
+    def test_relay_connects_to_the_prepared_identity_after_the_name_changes(self):
+        sock, broker = self.broker("original")
+        server = "unix:" + str(audio.state_directory("original") / "pulse.sock")
+        relay = self.start_relay("renamed", server)
+        self.receive(sock, broker)
+        self.assertEqual(self.read(relay), {"type": "ready"})
+
+    def test_spawned_identity_is_independent_of_session_lookup(self):
+        original = audio.state_directory("original")
+        with patch.object(audio, "tmux_output", side_effect=AssertionError("Identity must not use tmux lookup")):
+            self.assertEqual(audio.state_directory("renamed", original.name), original)
+        with self.assertRaises(ValueError):
+            audio.state_directory("renamed", "../outside")
+        with patch.object(sys, "argv", ["hive-audio", "serve", "--identity", original.name, "--", "-voice"]), \
+                patch.object(audio, "serve") as handler:
+            audio.main()
+        handler.assert_called_once_with("-voice", original.name)
+
+    @unittest.skipUnless(shutil.which("tmux"), "tmux is required for rename verification")
+    def test_rename_preserves_devices_and_reusing_the_old_name_allocates_separate_devices(self):
+        socket_name = "hive-audio-test-" + uuid.uuid4().hex
+        configuration = patch.object(audio, "TMUX_SOCKET", socket_name)
+        configuration.start()
+        self.addCleanup(configuration.stop)
+        self.addCleanup(lambda: subprocess.run(["tmux", "-L", socket_name, "kill-server"],
+                                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+        def tmux(*arguments):
+            environment = dict(os.environ)
+            environment.pop("TMUX", None)
+            return subprocess.check_output(["tmux", "-f", "/dev/null", "-L", socket_name, *arguments],
+                                           env=environment, text=True).strip()
+
+        sock, broker = self.broker("original")
+        original = audio.state_directory("original")
+        server = "unix:" + str(original / "pulse.sock")
+        tmux("new-session", "-d", "-s", "original", "-e", "PULSE_SERVER=" + server, "sleep 60")
+        tmux("rename-session", "-t", "=original", "renamed")
+        self.assertEqual(audio.state_directory("renamed"), original)
+        with (original / "broker.lock").open("w") as lock, patch.object(audio.shutil, "which", return_value="tool"):
+            audio.fcntl.flock(lock, audio.fcntl.LOCK_EX)
+            self.assertEqual(audio.prepare("renamed"), server)
+        relay = self.start_relay("renamed")
+        self.receive(sock, broker)
+        self.assertEqual(self.read(relay), {"type": "ready"})
+        self.assertTrue(audio.session_uses_directory(original))
+
+        reused = audio.state_directory("original")
+        self.assertNotEqual(reused, original)
+        tmux("new-session", "-d", "-s", "original", "-e",
+             "PULSE_SERVER=unix:" + str(reused / "pulse.sock"), "sleep 60")
+        self.assertEqual(audio.state_directory("original"), reused)
+        self.assertEqual(audio.state_directory("renamed"), original)
+        tmux("kill-session", "-t", "=renamed")
+        self.assertFalse(audio.session_uses_directory(original))
+        self.assertTrue(audio.session_uses_directory(reused))
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ export class TerminalAudio {
   private heartbeat: ReturnType<typeof setInterval> | undefined;
   private lastPong = 0;
   private failed = false;
+  private ownerRejected = false;
   private releaseMicrophoneLock: (() => void) | null = null;
 
   constructor(
@@ -70,8 +71,14 @@ export class TerminalAudio {
       } catch {
         return;
       }
-      if (value?.type === "ready" || value?.type === "pong") this.lastPong = Date.now();
-      else if (value?.type === "active" && typeof value.active === "boolean") {
+      if (value?.type === "ready" || value?.type === "pong") {
+        this.lastPong = Date.now();
+        if (value.type === "ready" && this.ownerRejected) {
+          this.ownerRejected = false;
+          this.failed = false;
+          if (!this.nativeActive) this.onStatus({ phase: "standby" });
+        }
+      } else if (value?.type === "active" && typeof value.active === "boolean") {
         if (this.nativeActive === value.active) return;
         this.nativeActive = value.active;
         if (value.active) void this.activate();
@@ -90,7 +97,7 @@ export class TerminalAudio {
         }
       } else if (value?.type === "error") {
         retry = value.code === "session_busy";
-        this.fail(value.message ?? "Terminal audio is unavailable.", retry);
+        this.fail(value.message ?? "Terminal audio is unavailable.", retry, value.code);
       }
     };
     socket.onclose = () => {
@@ -228,8 +235,9 @@ export class TerminalAudio {
     this.socket.send(JSON.stringify(message));
   }
 
-  private fail(message: string, retry = true) {
+  private fail(message: string, retry = true, code?: string) {
     this.failed = true;
+    this.ownerRejected = code === "session_busy";
     this.onStatus({ phase: "error", message });
     this.disconnect();
     // Permission denial ends native capture; later /voice attempts can retry.

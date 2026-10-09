@@ -90,8 +90,11 @@ describe("native terminal browser audio", () => {
     retry.emit(busy);
     await vi.advanceTimersByTimeAsync(3000);
     const available = Socket.instances.at(-1) as Socket;
+    expect(status).toHaveBeenLastCalledWith({ phase: "error", message: busy.message });
     available.emit({ type: "ready" });
     available.emit({ type: "active", active: false });
+    expect(status).toHaveBeenLastCalledWith({ phase: "standby" });
+    expect(getUserMedia).not.toHaveBeenCalled();
     available.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
     expect(Socket.instances).toHaveLength(3);
@@ -113,6 +116,21 @@ describe("native terminal browser audio", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect(Socket.instances).toHaveLength(2);
     expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("keeps permission errors visible after the relay reconnects", async () => {
+    getUserMedia.mockRejectedValue(new DOMException("denied", "NotAllowedError"));
+    const { socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(3000);
+    const retry = Socket.instances.at(-1) as Socket;
+    retry.emit({ type: "ready" });
+    retry.emit({ type: "active", active: false });
+    expect(status).toHaveBeenLastCalledWith({
+      phase: "error",
+      message: expect.stringContaining("denied"),
+    });
   });
 
   it("does not request microphone when another Hive window owns the origin lock", async () => {
