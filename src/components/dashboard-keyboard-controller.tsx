@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useDashboardFullscreen } from "@/hooks/useDashboardFullscreen";
 import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
@@ -82,11 +83,9 @@ export function DashboardKeyboardController() {
   const [workspaces, setWorkspaces] = useState<DashboardWorkspace[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [appFullscreen, setAppFullscreen] = useState(false);
+  const { fullscreen: appFullscreen, toggleFullscreen } = useDashboardFullscreen();
   const [paletteSources, setPaletteSources] = useState(getGlobalCommandPaletteSources);
-  const appFullscreenRef = useRef(appFullscreen);
   const previousIsMobileRef = useRef(isMobile);
-  appFullscreenRef.current = appFullscreen;
   const activePaletteSource = paletteSources.at(-1) ?? null;
 
   const openGlobalCommandPalette = useCallback(() => {
@@ -133,29 +132,13 @@ export function DashboardKeyboardController() {
   });
 
   const toggleDashboardFullscreen = useCallback(() => {
-    const nextFullscreen = !appFullscreenRef.current;
-    setAppFullscreen(nextFullscreen);
-
-    // Keep fullscreen in the app so Escape remains available to terminal programs.
-    // Native browser fullscreen reserves Escape for exiting fullscreen.
-    if (nextFullscreen) {
+    toggleFullscreen();
+    if (!appFullscreen) {
       setOpen(false);
       setOpenMobile(false);
       setOpenMobileRight(false);
     }
-  }, [setOpen, setOpenMobile, setOpenMobileRight]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (appFullscreen) {
-      root.dataset.dashboardFullscreen = "true";
-    } else {
-      delete root.dataset.dashboardFullscreen;
-    }
-    return () => {
-      delete root.dataset.dashboardFullscreen;
-    };
-  }, [appFullscreen]);
+  }, [appFullscreen, toggleFullscreen, setOpen, setOpenMobile, setOpenMobileRight]);
 
   useEffect(() => {
     if (!commandPaletteOpen) return;

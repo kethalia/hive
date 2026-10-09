@@ -18,6 +18,9 @@ const mobileState = vi.hoisted(() => ({
 }));
 const mockListWorkspaces = vi.hoisted(() => vi.fn());
 const registeredBindings = vi.hoisted(() => new Map<string, KeybindingEntry>());
+const mockToastError = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({ toast: { error: mockToastError } }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush }),
@@ -42,11 +45,16 @@ vi.mock("@/hooks/use-mobile", () => ({
   useIsMobile: () => mobileState.isMobile,
 }));
 
-vi.mock("@/hooks/useKeybindings", () => ({
-  useRegisterKeybinding: (entry: KeybindingEntry) => {
-    registeredBindings.set(entry.id, entry);
-  },
-}));
+vi.mock("@/hooks/useKeybindings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useKeybindings")>();
+  return {
+    ...actual,
+    useRegisterKeybinding: (entry: KeybindingEntry) => {
+      registeredBindings.set(entry.id, entry);
+      actual.useRegisterKeybinding(entry);
+    },
+  };
+});
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: () => mockListWorkspaces(),
@@ -112,6 +120,7 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
 }));
 
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
+import KeybindingProvider from "@/components/terminal/KeybindingProvider";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 
@@ -129,16 +138,36 @@ function workspacePayload() {
 }
 
 describe("DashboardKeyboardController", () => {
+  let fullscreenElement: Element | null;
+  const keyboard = { lock: vi.fn(), unlock: vi.fn() };
+
   beforeEach(() => {
     vi.clearAllMocks();
     mobileState.isMobile = false;
     mobileState.openMobile = false;
     mobileState.openMobileRight = false;
     registeredBindings.clear();
+    fullscreenElement = null;
+    keyboard.lock.mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "keyboard", { configurable: true, value: undefined });
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      get: () => fullscreenElement,
+    });
+    Object.defineProperty(document, "exitFullscreen", {
+      configurable: true,
+      value: vi.fn(async () => {
+        fullscreenElement = null;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      }),
+    });
     mockListWorkspaces.mockResolvedValue(workspacePayload());
     Object.defineProperty(document.documentElement, "requestFullscreen", {
       configurable: true,
-      value: vi.fn(() => Promise.resolve()),
+      value: vi.fn(async () => {
+        fullscreenElement = document.documentElement;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      }),
     });
   });
 
@@ -273,15 +302,15 @@ describe("DashboardKeyboardController", () => {
     window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, composeListener);
   });
 
-  it("keeps app fullscreen on Escape and browser fullscreen changes until the shortcut toggles it", () => {
+  it("enters browser fullscreen and keeps the app layout on a dispatched Escape", async () => {
     render(<DashboardKeyboardController />);
 
-    act(() => {
+    await act(async () => {
       registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
     });
 
     expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
-    expect(document.documentElement.requestFullscreen).not.toHaveBeenCalled();
+    expect(document.documentElement.requestFullscreen).toHaveBeenCalledOnce();
 
     const escapeEvent = new KeyboardEvent("keydown", {
       key: "Escape",
@@ -296,10 +325,144 @@ describe("DashboardKeyboardController", () => {
     expect(escapeEvent.defaultPrevented).toBe(false);
     expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
 
-    act(() => {
+    await act(async () => {
       registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
     });
 
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+    expect(document.exitFullscreen).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    "ctrlKey",
+    "metaKey",
+  ] as const)("toggles native fullscreen with %s+Enter while a terminal textarea is focused", async (modifier) => {
+    Object.defineProperty(navigator, "keyboard", { configurable: true, value: keyboard });
+    const receivedKeys = vi.fn();
+    render(
+      <KeybindingProvider>
+        <DashboardKeyboardController />
+        <textarea
+          className="xterm-helper-textarea"
+          aria-label="Terminal"
+          onKeyDown={receivedKeys}
+        />
+      </KeybindingProvider>,
+    );
+    const input = screen.getByRole("textbox", { name: "Terminal" });
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter", [modifier]: true });
+
+    await waitFor(() => expect(keyboard.lock).toHaveBeenCalledWith(["Escape"]));
+    expect(document.fullscreenElement).toBe(document.documentElement);
+    expect(receivedKeys).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(receivedKeys).toHaveBeenCalledOnce();
+    expect(document.exitFullscreen).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter", [modifier]: true });
+    await waitFor(() => expect(document.fullscreenElement).toBeNull());
+    expect(document.exitFullscreen).toHaveBeenCalledOnce();
+    expect(keyboard.unlock).toHaveBeenCalled();
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+  });
+
+  it("keeps fullscreen when keyboard lock permission is denied", async () => {
+    Object.defineProperty(navigator, "keyboard", { configurable: true, value: keyboard });
+    keyboard.lock.mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"));
+    render(<DashboardKeyboardController />);
+    await act(async () => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    expect(keyboard.lock).toHaveBeenCalledWith(["Escape"]);
+    expect(document.fullscreenElement).toBe(document.documentElement);
+    expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
+  });
+
+  it("resets the app layout when the browser forces fullscreen exit", async () => {
+    render(<DashboardKeyboardController />);
+    await act(async () => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    act(() => {
+      fullscreenElement = null;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+    await act(async () => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    expect(document.documentElement.requestFullscreen).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports blocked fullscreen and allows the expanded layout to toggle off", async () => {
+    vi.mocked(document.documentElement.requestFullscreen).mockRejectedValueOnce(
+      new DOMException("Denied", "NotAllowedError"),
+    );
+    render(<DashboardKeyboardController />);
+    await act(async () => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    expect(mockToastError).toHaveBeenCalledWith(
+      "Browser fullscreen was blocked. The expanded layout is still available.",
+    );
+    expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
+    act(() => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+  });
+
+  it("uses the expanded layout when the native API is unavailable", () => {
+    Object.defineProperty(document.documentElement, "requestFullscreen", {
+      configurable: true,
+      value: undefined,
+    });
+    render(<DashboardKeyboardController />);
+    act(() => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
+    act(() => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+  });
+
+  it("ignores duplicate toggles while a fullscreen request is pending", async () => {
+    let resolveRequest: (() => void) | undefined;
+    vi.mocked(document.documentElement.requestFullscreen).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
+    render(<DashboardKeyboardController />);
+    act(() => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    expect(document.documentElement.requestFullscreen).toHaveBeenCalledOnce();
+    expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
+    await act(async () => {
+      resolveRequest?.();
+    });
+    act(() => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+  });
+
+  it("releases keyboard lock when the controller unmounts", async () => {
+    Object.defineProperty(navigator, "keyboard", { configurable: true, value: keyboard });
+    const { unmount } = render(<DashboardKeyboardController />);
+    await act(async () => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+    keyboard.unlock.mockClear();
+    unmount();
+    expect(keyboard.unlock).toHaveBeenCalledOnce();
     expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
   });
 
