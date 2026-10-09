@@ -782,6 +782,7 @@ type RenderTerminalOptions = {
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
   onComposeRequest?: (request: unknown) => void;
+  onClipboardStatus?: (status: import("@/lib/terminal/actions").ClipboardActionStatus) => void;
   onConnectionStateChange?: (state: ConnectionState) => void;
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   onUserFocusRequest?: () => void;
@@ -1929,7 +1930,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
       activeTerminal,
       expect.objectContaining({ onStatus: expect.any(Function) }),
     );
-    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Copy complete");
+    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Selection copied");
     expect(getByTestId("terminal-clipboard-status")).not.toHaveTextContent("non-empty-selection");
 
     fireEvent.click(getByTestId("terminal-paste-clipboard"));
@@ -2906,6 +2907,47 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       );
       expect(mockSend).toHaveBeenCalledWith("/tmp/hive-terminal-paste/pasted.txt");
     });
+    unmount();
+  });
+
+  it.each([
+    false,
+    true,
+  ])("reports empty clipboard after pending keyboard paste (native event: %s)", async (nativeEvent) => {
+    const onClipboardStatus = vi.fn();
+    mockPasteClipboardApiToTerminal.mockImplementation((_term, _send, options) => {
+      options.onStatus({ action: "paste", outcome: "reading", method: "clipboard-api" });
+      return false;
+    });
+    const { unmount } = await renderTerminal({ onComposeRequest: vi.fn(), onClipboardStatus });
+    const timer = vi.spyOn(window, "setTimeout");
+    const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
+    act(() =>
+      keyHandler?.({ type: "keydown", key: "v", ctrlKey: true, metaKey: false, altKey: false }),
+    );
+    expect(onClipboardStatus).toHaveBeenCalledWith({
+      action: "paste",
+      outcome: "reading",
+      method: "clipboard-api",
+    });
+    const options = mockPasteClipboardApiToTerminal.mock.calls.at(-1)?.[2];
+    act(() => options?.onPasteOutcome?.({ kind: "empty" }));
+
+    if (nativeEvent) {
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", { value: { items: [], getData: () => "" } });
+      act(() => document.querySelector(".xterm")?.dispatchEvent(event));
+    } else {
+      const finishAttempt = timer.mock.calls.find(([, delay]) => delay === 750)?.[0];
+      expect(finishAttempt).toBeTypeOf("function");
+      act(() => (finishAttempt as () => void)());
+    }
+    expect(onClipboardStatus).toHaveBeenLastCalledWith({
+      action: "paste",
+      outcome: "empty",
+      method: "clipboard-api",
+    });
+    expect(mockSend).not.toHaveBeenCalled();
     unmount();
   });
 

@@ -21,6 +21,11 @@ export type TerminalPasteOutcome =
 export type TerminalPasteStatus =
   | {
       action: "paste";
+      outcome: "reading";
+      method: "clipboard-api";
+    }
+  | {
+      action: "paste";
       outcome: "uploading";
       method: "clipboard-api";
     }

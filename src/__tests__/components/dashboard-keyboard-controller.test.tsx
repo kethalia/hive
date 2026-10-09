@@ -273,6 +273,36 @@ describe("DashboardKeyboardController", () => {
     window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, composeListener);
   });
 
+  it("keeps app fullscreen on Escape and browser fullscreen changes until the shortcut toggles it", () => {
+    render(<DashboardKeyboardController />);
+
+    act(() => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+
+    expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
+    expect(document.documentElement.requestFullscreen).not.toHaveBeenCalled();
+
+    const escapeEvent = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      document.dispatchEvent(escapeEvent);
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+
+    expect(escapeEvent.defaultPrevented).toBe(false);
+    expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
+
+    act(() => {
+      registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null);
+    });
+
+    expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
+  });
+
   it("opens the coordinated right sidebar on mobile", () => {
     mobileState.isMobile = true;
     render(<DashboardKeyboardController />);

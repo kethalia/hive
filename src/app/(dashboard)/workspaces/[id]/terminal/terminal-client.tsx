@@ -4,7 +4,6 @@ import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
@@ -18,6 +17,7 @@ import {
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useFavoriteWindowNavigation } from "@/hooks/useFavoriteWindowNavigation";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { useTerminalClipboardFeedback } from "@/hooks/useTerminalClipboardFeedback";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
@@ -29,12 +29,15 @@ import {
   isSafeCloneRelativePath,
 } from "@/lib/git/clone-public-identifiers";
 import {
-  type ClipboardActionStatus,
   copyTerminalSelection,
   getTerminalSelectionText,
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
-import { submitTerminalComposeDraft, type TerminalComposeRequest } from "@/lib/terminal/clipboard";
+import {
+  handleTerminalPasteOutcome,
+  submitTerminalComposeDraft,
+  type TerminalComposeRequest,
+} from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_OPEN_EVENT, TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 
 const InteractiveTerminal = dynamic(
@@ -52,17 +55,6 @@ function terminalSessionHref(
 ): string {
   const href = `/workspaces/${workspaceId}/terminal?session=${encodeURIComponent(sessionName)}`;
   return debugViewport ? `${href}&debugViewport=1` : href;
-}
-
-function clipboardFallbackText(reason: string): string {
-  switch (reason) {
-    case "clipboard-api-denied":
-      return "Clipboard permission was denied. Long-press terminal text to select and copy, or use the browser paste control.";
-    case "clipboard-api-unavailable":
-      return "Clipboard API is unavailable. Long-press terminal text to select and copy, or use the browser paste control.";
-    default:
-      return "Clipboard API failed. Long-press terminal text to select and copy, or use the browser paste control.";
-  }
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -93,49 +85,6 @@ function isTextEntryElement(element: Element | null): boolean {
   return tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
-function clipboardStatusText(
-  status: ClipboardActionStatus | null,
-  { canPaste, hasTerminal }: { canPaste: boolean; hasTerminal: boolean },
-): string {
-  if (status) {
-    switch (status.action) {
-      case "copy":
-        if (status.outcome === "copied") {
-          return status.method === "exec-command"
-            ? "Copy complete using clipboard fallback."
-            : "Copy complete.";
-        }
-        if (status.outcome === "failed") {
-          return clipboardFallbackText(status.reason);
-        }
-        return "No terminal selection. Terminal interrupt shortcuts remain available.";
-      case "paste":
-        if (status.outcome === "pasted") return "Paste complete.";
-        if (status.outcome === "uploading") return "Uploading pasted files...";
-        if (status.outcome === "empty") return "Clipboard was empty.";
-        if (status.outcome === "failed") return status.message;
-        if (status.reason === "clipboard-api-unavailable") {
-          return clipboardFallbackText(status.reason);
-        }
-        return status.fallbackSucceeded
-          ? "Paste fallback was attempted."
-          : clipboardFallbackText(status.reason);
-    }
-  }
-
-  if (!hasTerminal)
-    return "Terminal is not ready. Clipboard controls will enable after connection.";
-  if (!canPaste) {
-    return "Terminal ready. Select terminal text to copy; paste will enable after connection.";
-  }
-  return "Terminal ready. Long-press text to select, then copy.";
-}
-
-function toastPasteError(status: ClipboardActionStatus): void {
-  if (status.action !== "paste" || status.outcome !== "failed") return;
-  toast.error(status.message ?? "Paste failed.");
-}
-
 function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -160,9 +109,13 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
-  const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
-    null,
-  );
+  const {
+    status: clipboardActionStatus,
+    onStatus: handleClipboardActionStatus,
+    reset: resetClipboardStatus,
+    message: clipboardMessage,
+    busyAction: clipboardBusyAction,
+  } = useTerminalClipboardFeedback();
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapRetryKey, setBootstrapRetryKey] = useState(0);
   const [cloneIdentity, setCloneIdentity] = useState<{
@@ -200,10 +153,8 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     : `lift:${keyboardLiftPx}`;
   const hasActiveTerminal = Boolean(activeTerminal);
   const hasActiveSender = Boolean(activeSend);
-  const clipboardStatus = clipboardStatusText(clipboardActionStatus, {
-    canPaste: hasActiveSender,
-    hasTerminal: hasActiveTerminal,
-  });
+  const clipboardStatus =
+    clipboardMessage ?? (hasActiveSender ? "Terminal controls ready" : "Terminal is not ready");
   const cloneIdentityMatchesRoute = cloneIdentity.sessionName === session;
   const clonePath = cloneIdentityMatchesRoute ? cloneIdentity.clonePath : routeClonePath;
   const cloneProof = cloneIdentityMatchesRoute ? cloneIdentity.cloneProof : routeCloneProof;
@@ -271,11 +222,6 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     setActiveTerminal(null, null);
   }, [setActiveTerminal]);
 
-  const handleClipboardActionStatus = useCallback((status: ClipboardActionStatus) => {
-    setClipboardActionStatus(status);
-    toastPasteError(status);
-  }, []);
-
   const handleMobileCopy = useCallback(() => {
     if (!activeTerminal) return;
     copyTerminalSelection(activeTerminal, { onStatus: handleClipboardActionStatus });
@@ -315,6 +261,31 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     workspaceId,
   ]);
 
+  const handleMobileUpload = useCallback(
+    async (files: File[]) => {
+      if (!activeSend) return;
+      await handleTerminalPasteOutcome(
+        { kind: "asset-files", files },
+        {
+          term: activeTerminal,
+          send: activeSend,
+          openCompose: openComposeWithDraft,
+          workspaceId,
+          targetLabel: session ?? undefined,
+          onStatus: handleClipboardActionStatus,
+        },
+      );
+    },
+    [
+      activeSend,
+      activeTerminal,
+      handleClipboardActionStatus,
+      openComposeWithDraft,
+      session,
+      workspaceId,
+    ],
+  );
+
   useEffect(() => {
     if (!session || isComposeSheet || composeOpen || !activeTerminal) {
       return;
@@ -340,8 +311,8 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     if (previousSessionRef.current === session) return;
 
     previousSessionRef.current = session;
-    setClipboardActionStatus(null);
-  }, [session]);
+    resetClipboardStatus();
+  }, [resetClipboardStatus, session]);
 
   useEffect(() => {
     if (!activeTerminal) {
@@ -527,10 +498,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
       hasSelection={hasTerminalSelection}
       onCopy={handleMobileCopy}
       onPaste={handleMobilePaste}
+      onUploadFiles={handleMobileUpload}
       clipboardStatusText={clipboardStatus}
-      showClipboardStatus={
-        clipboardActionStatus?.outcome === "failed" || clipboardActionStatus?.outcome === "fallback"
-      }
+      clipboardBusyAction={clipboardBusyAction}
+      showClipboardStatus={Boolean(clipboardActionStatus)}
       copyDisabledReason={
         hasActiveTerminal
           ? hasTerminalSelection
@@ -541,6 +512,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
       pasteDisabledReason={
         hasActiveSender ? undefined : "Paste is unavailable until the terminal sender is ready"
       }
+      uploadDisabledReason={hasActiveSender ? undefined : "Terminal is not ready"}
       windowNavigation={{
         ...favoriteWindowNavigation,
         onOpenSwitcher: () => setWindowSwitcherOpen(true),

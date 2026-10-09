@@ -32,6 +32,9 @@ const mockUnregister = vi.fn();
 const mockRouterPush = vi.fn();
 const mockToastInfo = vi.hoisted(() => vi.fn());
 const mockToastError = vi.hoisted(() => vi.fn());
+const mockToastLoading = vi.hoisted(() => vi.fn(() => "clipboard-pending"));
+const mockToastSuccess = vi.hoisted(() => vi.fn());
+const mockToastDismiss = vi.hoisted(() => vi.fn());
 const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
 const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
@@ -128,6 +131,9 @@ vi.mock("sonner", () => ({
   toast: {
     error: mockToastError,
     info: mockToastInfo,
+    loading: mockToastLoading,
+    success: mockToastSuccess,
+    dismiss: mockToastDismiss,
   },
 }));
 
@@ -321,6 +327,7 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
     isKeyboardVisible,
     onCopy,
     onPaste,
+    onUploadFiles,
     onToggleSelectionMode,
     pasteDisabledReason,
     selectionModeDisabledReason,
@@ -333,6 +340,7 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
     isKeyboardVisible?: boolean;
     onCopy?: () => void;
     onPaste?: () => void;
+    onUploadFiles?: (files: File[]) => Promise<void>;
     onToggleSelectionMode?: (enabled: boolean) => void;
     pasteDisabledReason?: string;
     selectionModeDisabledReason?: string;
@@ -366,6 +374,11 @@ vi.mock("@/components/terminal/MobileTerminalControls", () => ({
       <button type="button" data-testid="terminal-paste-clipboard" onClick={onPaste}>
         Paste
       </button>
+      <input
+        type="file"
+        data-testid="terminal-upload-files"
+        onChange={(event) => void onUploadFiles?.(Array.from(event.currentTarget.files ?? []))}
+      />
       <button
         type="button"
         data-testid="terminal-selection-toggle"
@@ -1759,6 +1772,89 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("multi-session-command-palette")).not.toBeInTheDocument();
   });
 
+  it("uploads a mobile PDF to the workspace and pastes its path to the original session without submitting", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+    const mainTerm = makeTerminal("main-session");
+    const mainSend = makeSender("main-session");
+    const devTerm = makeTerminal("dev-server");
+    act(() => {
+      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
+      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, makeSender("dev-server"));
+    });
+
+    let finishRequest: ((response: Response) => void) | undefined;
+    const fetchUpload = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          finishRequest = resolve;
+        }),
+    );
+    const pdf = new File([new Uint8Array(2.5 * 1024 * 1024)], "document.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByTestId("terminal-upload-files"), { target: { files: [pdf] } });
+
+    expect(fetchUpload).toHaveBeenCalledExactlyOnceWith(
+      "/api/workspaces/ws-1/terminal/paste-assets",
+      { method: "POST", body: expect.any(FormData) },
+    );
+    const body = fetchUpload.mock.calls[0][1]?.body as FormData;
+    const uploadedFile = body.get("files") as File;
+    expect(uploadedFile.name).toBe("document.pdf");
+    expect(uploadedFile.type).toBe("application/pdf");
+    expect(uploadedFile.size).toBe(2.5 * 1024 * 1024);
+    expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent("Uploading files...");
+    expect(mockToastLoading).toHaveBeenCalledWith("Uploading files...", {
+      id: undefined,
+      position: "top-center",
+    });
+
+    fireEvent.click(screen.getByTestId("terminal-window-next"));
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    await act(async () => {
+      finishRequest?.(
+        new Response(JSON.stringify({ paths: ["/tmp/hive-terminal-paste/document.pdf"] })),
+      );
+    });
+
+    expect(mainTerm.paste).toHaveBeenCalledExactlyOnceWith("/tmp/hive-terminal-paste/document.pdf");
+    expect(devTerm.paste).not.toHaveBeenCalled();
+    expect(mainSend).not.toHaveBeenCalled();
+    expect(mockPasteClipboardApiToTerminal).not.toHaveBeenCalled();
+    expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste complete");
+    expect(mockToastSuccess).toHaveBeenCalledWith("Paste complete", {
+      id: "clipboard-pending",
+      position: "top-center",
+    });
+  });
+
+  it("shows mobile file upload failures without sending terminal input", async () => {
+    mockUseIsComposeSheet.mockReturnValue(true);
+    await renderTwoSessionWorkspace();
+    const term = makeTerminal("main-session");
+    const send = makeSender("main-session");
+    act(() => terminalProps.get("main-session")?.onTerminalReady?.(term, send));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Failed to store pasted file in workspace" }), {
+        status: 400,
+      }),
+    );
+
+    fireEvent.change(screen.getByTestId("terminal-upload-files"), {
+      target: { files: [new File(["%PDF-1.7"], "document.pdf", { type: "application/pdf" })] },
+    });
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "File paste failed: Failed to store pasted file in workspace",
+        { id: "clipboard-pending", position: "top-center" },
+      ),
+    );
+    expect(term.paste).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("opens the integrated right sidebar instead of a local mobile Add session drawer", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
@@ -1878,7 +1974,10 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent(
       "Each pasted file must be 10 MiB or smaller.",
     );
-    expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 10 MiB or smaller.");
+    expect(mockToastError).toHaveBeenCalledWith("Each pasted file must be 10 MiB or smaller.", {
+      id: undefined,
+      position: "top-center",
+    });
   });
 
   it("stages multiple pasted file paths in the mobile compose sheet for the active multi-session pane", async () => {

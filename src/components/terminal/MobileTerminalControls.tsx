@@ -1,7 +1,15 @@
 "use client";
 
-import { ClipboardPaste, Copy, MessageSquareText, Minus, Plus } from "lucide-react";
-import { useEffect, useSyncExternalStore } from "react";
+import {
+  ClipboardPaste,
+  Copy,
+  FileUp,
+  Loader2,
+  MessageSquareText,
+  Minus,
+  Plus,
+} from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
@@ -46,10 +54,13 @@ export interface MobileTerminalControlsProps {
   hasSelection?: boolean;
   onCopy?: () => void;
   onPaste?: () => void;
+  onUploadFiles?: (files: File[]) => Promise<void>;
   clipboardStatusText?: string;
+  clipboardBusyAction?: "copy" | "paste";
   showClipboardStatus?: boolean;
   copyDisabledReason?: string;
   pasteDisabledReason?: string;
+  uploadDisabledReason?: string;
 }
 
 export function MobileTerminalControls({
@@ -58,12 +69,19 @@ export function MobileTerminalControls({
   hasSelection = false,
   onCopy,
   onPaste,
+  onUploadFiles,
   clipboardStatusText,
+  clipboardBusyAction,
   showClipboardStatus = false,
   copyDisabledReason,
   pasteDisabledReason,
+  uploadDisabledReason,
 }: MobileTerminalControlsProps = {}) {
   const { activeSend, activeTerminal } = useKeybindings();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const clipboardBusy = Boolean(clipboardBusyAction) || uploading;
+  const uploadDisabled = !onUploadFiles || Boolean(uploadDisabledReason) || clipboardBusy;
   const modifiers = useSyncExternalStore(
     subscribeMobileModifiers,
     () => getMobileModifiers(activeTerminal),
@@ -91,6 +109,26 @@ export function MobileTerminalControls({
       )}
       data-sidebar-gesture-ignore="true"
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        aria-label="Choose files to upload"
+        disabled={uploadDisabled}
+        onChange={async (event) => {
+          const files = Array.from(event.currentTarget.files ?? []);
+          // Allow choosing the same file again after completion or a failed upload.
+          event.currentTarget.value = "";
+          if (files.length === 0 || uploadDisabled || !onUploadFiles) return;
+          setUploading(true);
+          try {
+            await onUploadFiles(files);
+          } finally {
+            setUploading(false);
+          }
+        }}
+      />
       <fieldset
         aria-label="Terminal keys"
         data-mobile-scroll-allow="true"
@@ -141,14 +179,23 @@ export function MobileTerminalControls({
             label: "Copy terminal selection",
             Icon: Copy,
             preservesSelection: true,
+            busy: clipboardBusyAction === "copy",
             action: () => onCopy?.(),
-            disabled: !onCopy || !hasSelection || Boolean(copyDisabledReason),
+            disabled: !onCopy || !hasSelection || Boolean(copyDisabledReason) || clipboardBusy,
           },
           {
             label: "Paste from clipboard",
             Icon: ClipboardPaste,
+            busy: clipboardBusyAction === "paste" && !uploading,
             action: () => onPaste?.(),
-            disabled: !onPaste || Boolean(pasteDisabledReason),
+            disabled: !onPaste || Boolean(pasteDisabledReason) || clipboardBusy,
+          },
+          {
+            label: "Upload files",
+            Icon: FileUp,
+            busy: uploading,
+            action: () => fileInputRef.current?.click(),
+            disabled: uploadDisabled,
           },
           {
             label: "Compose",
@@ -157,19 +204,24 @@ export function MobileTerminalControls({
           },
           { label: "Decrease font size", Icon: Minus, action: decrease, disabled: !canDecrease },
           { label: "Increase font size", Icon: Plus, action: increase, disabled: !canIncrease },
-        ].map(({ label, Icon, action, disabled, preservesSelection }) => (
+        ].map(({ label, Icon, action, disabled, preservesSelection, busy }) => (
           <Button
             key={label}
             type="button"
             variant="outline"
             className={BUTTON_CLASS}
             aria-label={label}
+            aria-busy={busy || undefined}
             title={label}
             data-terminal-selection-copy={preservesSelection ? "true" : undefined}
             disabled={disabled}
             onClick={() => press(action)}
           >
-            <Icon aria-hidden="true" className="size-4" />
+            {busy ? (
+              <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+            ) : (
+              <Icon aria-hidden="true" className="size-4" />
+            )}
           </Button>
         ))}
       </fieldset>

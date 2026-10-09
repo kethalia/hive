@@ -136,19 +136,12 @@ export function DashboardKeyboardController() {
     const nextFullscreen = !appFullscreenRef.current;
     setAppFullscreen(nextFullscreen);
 
+    // Keep fullscreen in the app so Escape remains available to terminal programs.
+    // Native browser fullscreen reserves Escape for exiting fullscreen.
     if (nextFullscreen) {
       setOpen(false);
       setOpenMobile(false);
       setOpenMobileRight(false);
-      const root = document.documentElement;
-      if (typeof root.requestFullscreen === "function" && !document.fullscreenElement) {
-        root.requestFullscreen().catch(() => undefined);
-      }
-      return;
-    }
-
-    if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
-      document.exitFullscreen().catch(() => undefined);
     }
   }, [setOpen, setOpenMobile, setOpenMobileRight]);
 
@@ -163,18 +156,6 @@ export function DashboardKeyboardController() {
       delete root.dataset.dashboardFullscreen;
     };
   }, [appFullscreen]);
-
-  useEffect(() => {
-    const syncNativeFullscreen = () => {
-      if (!document.fullscreenElement) {
-        setAppFullscreen(false);
-      }
-    };
-    document.addEventListener("fullscreenchange", syncNativeFullscreen);
-    return () => {
-      document.removeEventListener("fullscreenchange", syncNativeFullscreen);
-    };
-  }, []);
 
   useEffect(() => {
     if (!commandPaletteOpen) return;
