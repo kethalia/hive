@@ -18,6 +18,11 @@ export type ClipboardFallbackReason =
 export type ClipboardActionStatus =
   | {
       action: "copy";
+      outcome: "copying";
+      method: "clipboard-api";
+    }
+  | {
+      action: "copy";
       outcome: "passthrough";
       reason: "no-selection";
     }
@@ -268,6 +273,8 @@ export function copyTerminalSelection(
     return true;
   }
 
+  emitStatus(options, { action: "copy", outcome: "copying", method: "clipboard-api" });
+
   const native = typeof window === "undefined" ? null : window.getSelection();
   const nativeSnapshot =
     native &&
@@ -347,6 +354,7 @@ export function pasteToTerminal(
     return true;
   }
 
+  emitStatus(options, { action: "paste", outcome: "reading", method: "clipboard-api" });
   try {
     const readResult = clipboard.readText();
     void readResult
@@ -385,6 +393,7 @@ export function pasteClipboardApiToTerminal(
     return true;
   }
 
+  emitStatus(options, { action: "paste", outcome: "reading", method: "clipboard-api" });
   void readClipboardApiOutcome(clipboard)
     .then((outcome) => {
       if (notifyPasteOutcome(options, outcome)) return;

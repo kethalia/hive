@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
@@ -100,9 +100,116 @@ it("disables unavailable actions and respects font limits", () => {
   expect(screen.getByRole("button", { name: "Enter" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Copy terminal selection" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Paste from clipboard" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Upload files" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Decrease font size" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Increase font size" }));
   expect(increase).toHaveBeenCalledTimes(1);
+});
+
+it("opens the native file picker and accepts PDFs and multiple files without clipboard access", async () => {
+  const upload = vi.fn().mockResolvedValue(undefined);
+  const haptic = vi.fn();
+  render(<MobileTerminalControls onUploadFiles={upload} onHapticFeedback={haptic} />);
+  const input = screen.getByLabelText("Choose files to upload") as HTMLInputElement;
+  const openPicker = vi.spyOn(input, "click").mockImplementation(() => {});
+
+  fireEvent.click(screen.getByRole("button", { name: "Upload files" }));
+  expect(openPicker).toHaveBeenCalledOnce();
+  expect(haptic).toHaveBeenCalledOnce();
+  expect(input).toHaveAttribute("type", "file");
+  expect(input).toHaveAttribute("multiple");
+  expect(input).not.toHaveAttribute("accept");
+
+  const pdf = new File(["%PDF-1.7"], "document.pdf", { type: "application/pdf" });
+  const text = new File(["notes"], "notes.txt", { type: "text/plain" });
+  fireEvent.change(input, { target: { files: [pdf, text] } });
+  expect(upload).toHaveBeenCalledExactlyOnceWith([pdf, text]);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Upload files" })).toBeEnabled());
+  expect(input.value).toBe("");
+
+  fireEvent.change(input, { target: { files: [pdf] } });
+  await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Upload files" })).toBeEnabled());
+  expect(upload).toHaveBeenLastCalledWith([pdf]);
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("ignores picker cancellation and disables additional uploads while one is pending", async () => {
+  let finishUpload: (() => void) | undefined;
+  const upload = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finishUpload = resolve;
+      }),
+  );
+  render(<MobileTerminalControls onUploadFiles={upload} />);
+  const input = screen.getByLabelText("Choose files to upload");
+  const button = screen.getByRole("button", { name: "Upload files" });
+  fireEvent.change(input, { target: { files: [] } });
+  expect(upload).not.toHaveBeenCalled();
+
+  fireEvent.change(input, { target: { files: [new File(["pdf"], "document.pdf")] } });
+  expect(button).toBeDisabled();
+  expect(button).toHaveAttribute("aria-busy", "true");
+  expect(button.querySelector(".animate-spin")).not.toBeNull();
+  expect(input).toBeDisabled();
+  fireEvent.click(button);
+  expect(upload).toHaveBeenCalledOnce();
+  await act(async () => finishUpload?.());
+  expect(button).toBeEnabled();
+  expect(button).not.toHaveAttribute("aria-busy");
+});
+
+it.each([
+  "copy",
+  "paste",
+] as const)("shows a spinner for pending %s and blocks duplicate clipboard actions", (action) => {
+  const copy = vi.fn();
+  const paste = vi.fn();
+  const { rerender } = render(
+    <MobileTerminalControls
+      hasSelection
+      onCopy={copy}
+      onPaste={paste}
+      onUploadFiles={vi.fn()}
+      clipboardBusyAction={action}
+      clipboardStatusText="Working..."
+      showClipboardStatus
+    />,
+  );
+  const busy = screen.getByRole("button", {
+    name: action === "copy" ? "Copy terminal selection" : "Paste from clipboard",
+  });
+  expect(busy).toHaveAttribute("aria-busy", "true");
+  expect(busy.querySelector(".animate-spin")).not.toBeNull();
+  for (const label of ["Copy terminal selection", "Paste from clipboard", "Upload files"]) {
+    const button = screen.getByRole("button", { name: label });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+  }
+  expect(copy).not.toHaveBeenCalled();
+  expect(paste).not.toHaveBeenCalled();
+
+  rerender(
+    <MobileTerminalControls
+      hasSelection
+      onCopy={copy}
+      onPaste={paste}
+      clipboardStatusText="Paste complete"
+      showClipboardStatus
+    />,
+  );
+  expect(busy).toBeEnabled();
+  expect(busy).not.toHaveAttribute("aria-busy");
+  expect(screen.getByText("Paste complete")).not.toHaveClass("sr-only");
+});
+
+it("disables file selection when the terminal target is unavailable", () => {
+  render(
+    <MobileTerminalControls onUploadFiles={vi.fn()} uploadDisabledReason="Terminal is not ready" />,
+  );
+  expect(screen.getByRole("button", { name: "Upload files" })).toBeDisabled();
+  expect(screen.getByLabelText("Choose files to upload")).toBeDisabled();
 });
 
 it("keeps ordinary keyboard keys out of the helper and renders direction symbols", () => {

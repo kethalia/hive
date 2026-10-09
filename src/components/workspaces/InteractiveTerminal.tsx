@@ -38,7 +38,6 @@ import {
   readNativePasteOutcome,
   type TerminalComposeRequest,
   type TerminalPasteOutcome,
-  type TerminalPasteStatus,
 } from "@/lib/terminal/clipboard";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import {
@@ -106,7 +105,7 @@ export interface InteractiveTerminalProps {
   onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
   onFileAction?: TerminalFileActionHandler;
-  onClipboardStatus?: (status: TerminalPasteStatus) => void;
+  onClipboardStatus?: (status: ClipboardActionStatus) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
@@ -133,16 +132,6 @@ const ESC = String.fromCharCode(27);
 const XTERM_PRIMARY_DEVICE_ANSWERBACK = `${ESC}[?1;2c`;
 const XTERM_SECONDARY_DEVICE_ANSWERBACK_PREFIX = `${ESC}[>0;`;
 const XTERM_SECONDARY_DEVICE_ANSWERBACK_SUFFIX = ";0c";
-
-function isTerminalPasteStatus(status: ClipboardActionStatus): status is TerminalPasteStatus {
-  return (
-    status.action === "paste" &&
-    (status.outcome === "empty" ||
-      status.outcome === "failed" ||
-      status.outcome === "pasted" ||
-      status.outcome === "uploading")
-  );
-}
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -998,7 +987,7 @@ function TerminalRuntime({
       const sendRaw = (text: string) => sendRef.current(encodeInput(text));
       onTerminalReadyRef.current?.(term, sendRaw);
       const handleCapturedNativePaste = (outcome: TerminalPasteOutcome) => {
-        if (outcome.kind === "empty" || !onComposeRequestRef.current) return;
+        if (!onComposeRequestRef.current) return;
         void handleTerminalPasteOutcome(outcome, {
           term,
           send: sendRaw,
@@ -1038,10 +1027,13 @@ function TerminalRuntime({
           nativeReplacesApi || !apiOutcome || apiOutcome.kind === "empty"
             ? nativeOutcome
             : apiOutcome;
-        if (!chosenOutcome || chosenOutcome.kind === "empty") return false;
+        if (!chosenOutcome) return false;
 
         handleCapturedNativePaste(chosenOutcome);
-        finishNativePasteAttempt(attempt, chosenOutcome === nativeOutcome);
+        finishNativePasteAttempt(
+          attempt,
+          chosenOutcome === nativeOutcome && chosenOutcome.kind !== "empty",
+        );
         return true;
       };
       const preferCapturedNativePaste = (attempt: NativePasteAttempt): boolean => {
@@ -1096,7 +1088,7 @@ function TerminalRuntime({
             }
           },
           onStatus: (status) => {
-            if (isTerminalPasteStatus(status)) onClipboardStatusRef.current?.(status);
+            onClipboardStatusRef.current?.(status);
           },
         });
         if (shouldContinue) {
@@ -1110,7 +1102,7 @@ function TerminalRuntime({
               finishNativePasteAttempt(attempt, true);
               return;
             }
-            if (attempt.apiOutcome && attempt.apiOutcome.kind !== "empty") {
+            if (attempt.apiOutcome) {
               handleCapturedNativePaste(attempt.apiOutcome);
             }
             finishNativePasteAttempt(attempt);

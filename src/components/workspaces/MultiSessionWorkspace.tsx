@@ -69,6 +69,7 @@ import {
 import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { useTerminalClipboardFeedback } from "@/hooks/useTerminalClipboardFeedback";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
@@ -102,9 +103,9 @@ import {
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import {
+  handleTerminalPasteOutcome,
   submitTerminalComposeDraft,
   type TerminalComposeRequest,
-  type TerminalPasteStatus,
 } from "@/lib/terminal/clipboard";
 import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
@@ -200,7 +201,7 @@ interface InteractiveTerminalComponentProps {
   onTerminalDestroy?: () => void;
   onUserFocusRequest?: () => void;
   onComposeRequest?: (request: TerminalComposeRequest) => void;
-  onClipboardStatus?: (status: TerminalPasteStatus) => void;
+  onClipboardStatus?: (status: ClipboardActionStatus) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
@@ -503,34 +504,6 @@ function isGitCloneTerminalIdentity(value: unknown): value is GitCloneTerminalId
     typeof value.cloneProof === "string" &&
     value.cloneProof.length > 0
   );
-}
-
-function clipboardStatusText(
-  status: ClipboardActionStatus | null,
-  { canPaste, hasTerminal }: { canPaste: boolean; hasTerminal: boolean },
-): string {
-  if (status) {
-    switch (status.action) {
-      case "copy":
-        return status.outcome === "copied" ? "Selection copied" : "Select terminal text to copy";
-      case "paste":
-        if (status.outcome === "uploading") return "Uploading pasted files...";
-        if (status.outcome === "empty") return "Clipboard is empty";
-        if (status.outcome === "failed") return status.message;
-        if (status.outcome === "fallback") return "Use the browser paste control";
-        return "Paste complete";
-      default:
-        return "Terminal controls ready";
-    }
-  }
-  if (!hasTerminal) return "Terminal is not ready";
-  if (!canPaste) return "Paste is unavailable until the terminal sender is ready";
-  return "Terminal controls ready";
-}
-
-function toastPasteError(status: ClipboardActionStatus): void {
-  if (status.action !== "paste" || status.outcome !== "failed") return;
-  toast.error(status.message ?? "Paste failed.");
 }
 
 function isPublicCloneTree(value: unknown): value is PublicCloneTree {
@@ -1212,9 +1185,12 @@ export function MultiSessionWorkspace({
   const [composeTargetSessionName, setComposeTargetSessionName] = useState<string | null>(null);
   const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
-  const [clipboardActionStatus, setClipboardActionStatus] = useState<ClipboardActionStatus | null>(
-    null,
-  );
+  const {
+    status: clipboardActionStatus,
+    onStatus: handleClipboardActionStatus,
+    message: clipboardMessage,
+    busyAction: clipboardBusyAction,
+  } = useTerminalClipboardFeedback();
   const [terminalStateVersion, setTerminalStateVersion] = useState(0);
   const [gitSearchQuery, setGitSearchQuery] = useState("");
   const [addingCloneKey, setAddingCloneKey] = useState<string | null>(null);
@@ -2040,11 +2016,6 @@ export function MultiSessionWorkspace({
     };
   }, [activeLabel]);
 
-  const handleClipboardActionStatus = useCallback((status: ClipboardActionStatus) => {
-    setClipboardActionStatus(status);
-    toastPasteError(status);
-  }, []);
-
   const handleMobileCopy = useCallback(() => {
     const term = activeTerminalEntry?.term;
     if (!term) return;
@@ -2067,6 +2038,31 @@ export function MultiSessionWorkspace({
     openComposeWithDraft,
     workspaceId,
   ]);
+
+  const handleMobileUpload = useCallback(
+    async (files: File[]) => {
+      const entry = activeTerminalEntry;
+      if (!entry) return;
+      await handleTerminalPasteOutcome(
+        { kind: "asset-files", files },
+        {
+          term: entry.term,
+          send: entry.send,
+          openCompose: openComposeWithDraft,
+          workspaceId,
+          targetLabel: activeLabel,
+          onStatus: handleClipboardActionStatus,
+        },
+      );
+    },
+    [
+      activeLabel,
+      activeTerminalEntry,
+      handleClipboardActionStatus,
+      openComposeWithDraft,
+      workspaceId,
+    ],
+  );
 
   useEffect(() => {
     if (!activeTerminalEntry) {
@@ -4066,10 +4062,8 @@ export function MultiSessionWorkspace({
 
   const hasActiveTerminal = Boolean(activeTerminalEntry?.term);
   const hasActiveSender = Boolean(activeTerminalEntry?.send);
-  const mobileClipboardStatus = clipboardStatusText(clipboardActionStatus, {
-    canPaste: hasActiveSender,
-    hasTerminal: hasActiveTerminal,
-  });
+  const mobileClipboardStatus =
+    clipboardMessage ?? (hasActiveSender ? "Terminal controls ready" : "Terminal is not ready");
   const mobileTerminalControls = isComposeSheet ? (
     <MobileTerminalControls
       isKeyboardVisible={isMobileKeyboardVisible}
@@ -4078,10 +4072,10 @@ export function MultiSessionWorkspace({
       hasSelection={hasTerminalSelection}
       onCopy={handleMobileCopy}
       onPaste={handleMobilePaste}
+      onUploadFiles={handleMobileUpload}
       clipboardStatusText={mobileClipboardStatus}
-      showClipboardStatus={
-        clipboardActionStatus?.outcome === "failed" || clipboardActionStatus?.outcome === "fallback"
-      }
+      clipboardBusyAction={clipboardBusyAction}
+      showClipboardStatus={Boolean(clipboardActionStatus)}
       copyDisabledReason={
         hasActiveTerminal
           ? hasTerminalSelection
@@ -4092,6 +4086,7 @@ export function MultiSessionWorkspace({
       pasteDisabledReason={
         hasActiveSender ? undefined : "Paste is unavailable until the terminal sender is ready"
       }
+      uploadDisabledReason={hasActiveSender ? undefined : "Terminal is not ready"}
     />
   ) : null;
   const desktopComposePanel =
