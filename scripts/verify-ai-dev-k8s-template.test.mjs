@@ -28,7 +28,9 @@ test("task worktree lifecycle preserves active work and user-owned bootstrap cho
   });
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   const terraform = readFileSync(join(TEMPLATE_ROOT, "main.tf"), "utf8");
-  const block = terraform.split('resource "coder_script" "completed_worktree_maintenance" {')[1]?.split("\n}")[0];
+  const block = terraform
+    .split('resource "coder_script" "completed_worktree_maintenance" {')[1]
+    ?.split("\n}")[0];
   assert.ok(block);
   assert.match(block, /local\.profile\.id == "software" \? 1 : 0/);
   assert.match(block, /run_on_start\s*=\s*false/);
