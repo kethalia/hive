@@ -63,9 +63,9 @@ export function buildPtyUrl(
   // New sessions inherit their own virtual devices even when the tmux server
   // predates this attachment. Existing shells keep their environment until
   // restarted. Older images remain usable without the audio helper.
-  const audioEnvironment = `if command -v hive-audio >/dev/null 2>&1 && hive_audio_server="$(hive-audio prepare ${shellQuote(sessionName)})"; then export PULSE_SERVER="$hive_audio_server"; fi; `;
+  const audioEnvironment = `if command -v hive-audio >/dev/null 2>&1 && hive_audio_server="$(hive-audio prepare -- ${shellQuote(sessionName)})"; then export PULSE_SERVER="$hive_audio_server"; fi; `;
   const command = options.audioRelay
-    ? `if command -v hive-audio >/dev/null 2>&1; then exec hive-audio relay ${shellQuote(sessionName)}; else printf '%s\\n' '{"type":"error","message":"Workspace audio is unavailable. Update the workspace image and open a new terminal."}'; fi`
+    ? `if command -v hive-audio >/dev/null 2>&1; then exec hive-audio relay -- ${shellQuote(sessionName)}; else printf '%s\\n' '{"type":"error","message":"Workspace audio is unavailable. Update the workspace image and open a new terminal."}'; fi`
     : `${audioEnvironment}tmux -L web -T clipboard,hyperlinks,RGB,extkeys set -s set-clipboard on \\; set -s extended-keys on \\; ${TMUX_MENU_BINDING_COMMAND} \\; new-session -A -e "PULSE_SERVER=\${PULSE_SERVER:-}" -s ${sessionName}${cwdArg} \\; set status off \\; set mouse on`;
 
   const params = new URLSearchParams({

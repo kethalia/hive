@@ -60,7 +60,7 @@ cross terminal sessions. Nothing alters Codex's binary, thread selection, voice
 protocol, or account credentials.
 
 The browser opens an authenticated audio WebSocket while the terminal is visible.
-The proxy starts `hive-audio relay <session>` through the existing Coder PTY API.
+The proxy starts `hive-audio relay -- <session>` through the existing Coder PTY API.
 That relay claims the session broker; a second view is rejected. Native capture
 activity triggers the browser microphone request automatically. Audio uses 48 kHz
 mono signed 16-bit PCM in bounded ten-millisecond frames. The AudioWorklet and

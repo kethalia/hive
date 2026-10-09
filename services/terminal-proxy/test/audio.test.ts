@@ -29,6 +29,48 @@ afterEach(() => {
 });
 
 describe("terminal audio boundaries", () => {
+  it.each([
+    [
+      "https://auth.example.com",
+      "https://configured.example.com",
+      "https://agent.example.com",
+      "https://auth.example.com",
+    ],
+    [
+      "",
+      "https://configured.example.com",
+      "https://agent.example.com",
+      "https://configured.example.com",
+    ],
+    ["", "", "https://agent.example.com", "https://agent.example.com"],
+    ["", "", "", ""],
+  ])("resolves Coder URL using auth=%s, server=%s, agent=%s", async (authUrl, serverUrl, agentUrl, expectedUrl) => {
+    vi.stubEnv("ALLOWED_ORIGINS", "https://hive.example.com");
+    vi.stubEnv("CODER_URL", serverUrl);
+    vi.stubEnv("CODER_AGENT_URL", agentUrl);
+    vi.mocked(authenticateUpgrade).mockResolvedValue({
+      ok: true,
+      value: { token: "private", coderUrl: authUrl, sessionId: "session", username: "user" },
+    });
+    vi.mocked(verifyWorkspaceAgentAccess).mockResolvedValue({ ok: false, status: 403 });
+    const request = {
+      url: "/ws/audio?workspaceId=550e8400-e29b-41d4-a716-446655440000&agentId=550e8400-e29b-41d4-a716-446655440001&sessionName=dev",
+      headers: { origin: "https://hive.example.com", "sec-websocket-protocol": "hive-audio-v1" },
+    } as unknown as IncomingMessage;
+    const socket = new PassThrough();
+    const write = vi.spyOn(socket, "write");
+    await handleAudioUpgrade(request, socket, Buffer.alloc(0));
+    if (expectedUrl) {
+      expect(verifyWorkspaceAgentAccess).toHaveBeenCalledWith(
+        expect.objectContaining({ coderUrl: expectedUrl }),
+      );
+      expect(write).toHaveBeenCalledWith("HTTP/1.1 403 Forbidden\r\n\r\n");
+    } else {
+      expect(verifyWorkspaceAgentAccess).not.toHaveBeenCalled();
+      expect(write).toHaveBeenCalledWith("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+    }
+  });
+
   it("forwards only the known recoverable workspace error code", () => {
     expect(
       JSON.parse(

@@ -4,7 +4,7 @@ import { buildPtyUrl } from "../src/protocol.js";
 const EXPECTED_TMUX_MENU_BINDING =
   "bind-key -n F12 display-menu -T '#S:#W' 'Copy mode' c 'copy-mode' 'Choose tree' t 'choose-tree -Zw' '' 'Split horizontal' h 'split-window -h' 'Split vertical' v 'split-window -v' 'New window' n 'new-window' 'Rename window' r 'command-prompt -I \"#W\" \"rename-window -- %%\"' '' 'Kill pane' x 'confirm-before -p \"kill-pane #P? (y/n)\" kill-pane'";
 const EXPECTED_AUDIO_ENV = (session: string) =>
-  `if command -v hive-audio >/dev/null 2>&1 && hive_audio_server="$(hive-audio prepare '${session}')"; then export PULSE_SERVER="$hive_audio_server"; fi; `;
+  `if command -v hive-audio >/dev/null 2>&1 && hive_audio_server="$(hive-audio prepare -- '${session}')"; then export PULSE_SERVER="$hive_audio_server"; fi; `;
 const EXPECTED_TMUX_PREFIX = `tmux -L web -T clipboard,hyperlinks,RGB,extkeys set -s set-clipboard on \\; set -s extended-keys on \\; ${EXPECTED_TMUX_MENU_BINDING}`;
 
 describe("buildPtyUrl", () => {
@@ -15,6 +15,20 @@ describe("buildPtyUrl", () => {
     sessionName: "my-session",
   };
   const agentId = "agent-123";
+
+  it.each([
+    false,
+    true,
+  ])("preserves leading-dash session names with audioRelay=%s", (audioRelay) => {
+    const url = buildPtyUrl("https://coder.dev", agentId, {
+      ...defaults,
+      sessionName: "-voice",
+      audioRelay,
+    });
+    expect(new URL(url).searchParams.get("command")).toContain(
+      `hive-audio ${audioRelay ? "relay" : "prepare"} -- '-voice'`,
+    );
+  });
 
   it("constructs correct URL with all parameters including tmux command", () => {
     const url = buildPtyUrl("https://coder.example.com", agentId, defaults);

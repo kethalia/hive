@@ -49,7 +49,7 @@ def prepare(session):
                 start_broker = False
         if start_broker:
             (directory / "bridge.sock").unlink(missing_ok=True)
-            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "serve", session],
+            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "serve", "--", session],
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, start_new_session=True)
         deadline = time.monotonic() + 6
@@ -311,7 +311,7 @@ def relay(session):
     prepare(session)
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, PACKET * 10)
-    sock.bind(b"\0")
+    sock.bind("")  # Linux autobinding assigns each relay a unique abstract address.
     sock.connect(str(state_directory(session) / "bridge.sock"))
     sock.setblocking(False)
     sock.send(b"B")

@@ -194,7 +194,12 @@ export async function handleAudioUpgrade(req: IncomingMessage, socket: Duplex, h
     reject(auth.value.status === 401 ? "401 Unauthorized" : "502 Bad Gateway");
     return;
   }
-  const { token, coderUrl } = auth.value;
+  const { token, coderUrl: authCoderUrl } = auth.value;
+  const coderUrl = authCoderUrl || process.env.CODER_URL || process.env.CODER_AGENT_URL || "";
+  if (!coderUrl) {
+    reject("502 Bad Gateway");
+    return;
+  }
   const access = await verifyWorkspaceAgentAccess({ token, coderUrl, workspaceId, agentId });
   if (!access.ok) {
     reject(access.status === 403 ? "403 Forbidden" : "502 Bad Gateway");
