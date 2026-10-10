@@ -33,7 +33,10 @@ Deploy matching versions of **hive-web**, **hive-terminal**, and the **hive-base
 workspace image**. The base image installs `hive-audio`, PulseAudio, and the ALSA
 Pulse plugin in every profile. These are virtual audio devices; no `/dev/snd`,
 privileged container, desktop, SSH listener, or extra OpenAI API key is needed.
-Image smoke tests open the default ALSA capture and playback devices.
+The image also exposes Debian's ALSA plugins at `/usr/lib/alsa-lib`, the upstream
+path used by Codex's bundled ALSA. Image smoke tests force this plugin path when
+opening the default capture and playback devices, so the system ALSA library's
+Debian-specific lookup cannot conceal a missing compatibility path.
 
 Update the templates' pinned workspace image digest through the normal image
 rollout, restart the workspace, and open a **new terminal session**. Existing tmux
@@ -91,6 +94,11 @@ that session is gone. Workspace shutdown terminates these processes normally.
   an isolated ephemeral Codex thread, and the production PulseAudio broker. Spoken
   output produced measurable speaker samples; a synthetic tone reached native
   capture. Browser release disconnected the native capture stream.
+- A Codex **0.162.1** regression probe reproduced missing ALSA plugins at
+  `/usr/lib/alsa-lib`. Selecting the installed Debian plugin directory let the
+  unmodified helper stay active for sixteen seconds, deliver nonzero speaker
+  samples, receive an injected microphone tone, and reconnect after release.
+  The updated image smoke test rejects the missing upstream plugin directory.
 
 Browser validation runs in the `browser-testing` profile. Evidence is preserved
 in the primary checkout under `.artifacts/voice-bridge/`. These checks do not cover
