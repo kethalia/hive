@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.20.2
+
+### Patch Changes
+
+- 2ba2e28: Preserve local repository manifests across workspace starts and add an explicit task worktree lifecycle
+  with grouped checkouts, committed-history retention, and daily cleanup of completed idle tasks.
+
 ## 2.20.1
 
 ### Patch Changes
