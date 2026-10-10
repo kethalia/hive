@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -83,6 +84,20 @@ class LifecycleTests(unittest.TestCase):
         self.assertTrue(self.repo.exists())
         self.assertEqual(self.git(self.repo, "rev-parse", "fix/task"), head)
 
+    def test_recreated_checkout_replaces_stale_completed_record(self):
+        path = self.create()
+        self.mark(path)
+        stale = self.manager.load(path)
+        self.git(self.repo, "worktree", "remove", str(path))
+        self.assertEqual(self.create(), path)
+        record = self.manager.load(path)
+        self.assertEqual(record["status"], "active")
+        self.assertGreater(record["created_at"], stale["created_at"])
+        self.assertNotIn("completed_head", record)
+        self.assertNotIn("completed_at", record)
+        self.assertEqual(module.Worktrees(self.home).prune(), [])
+        self.assertTrue(path.exists())
+
     def test_dirty_untracked_and_unknown_ignored_files_are_preserved(self):
         for name in ["source.txt", "new-source.txt", ".local-only"]:
             with self.subTest(name=name):
@@ -127,6 +142,18 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(self.manager.prune()[0]["status"], "skipped")
         self.assertTrue((nested / ".git").exists())
 
+    def test_nested_bare_repository_and_its_commits_are_preserved(self):
+        path = self.create()
+        nested = path / "node_modules/important.git"
+        nested.mkdir(parents=True)
+        self.git(nested, "init", "--bare")
+        self.git(nested, "fetch", str(self.repo), "main:refs/heads/main")
+        head = self.git(nested, "rev-parse", "refs/heads/main")
+        with self.assertRaisesRegex(ValueError, "bare repository"):
+            self.manager.complete(path)
+        self.assertTrue(path.exists())
+        self.assertEqual(self.git(nested, "rev-parse", "refs/heads/main"), head)
+
     def test_active_process_defers_and_later_prune_retires_task(self):
         path = self.create()
         process = subprocess.Popen(
@@ -155,6 +182,35 @@ class LifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Cannot inspect a workspace-owner process"):
                 self.manager.complete(path)
         self.assertTrue(path.exists())
+
+    def test_live_socket_outside_service_cwd_blocks_cleanup(self):
+        path = self.create()
+        socket_path = path / "service.sock"
+        process = subprocess.Popen(
+            ["python3", "-c", "import socket,sys; s=socket.socket(socket.AF_UNIX); "
+             "s.bind(sys.argv[1]); print('ready',flush=True); sys.stdin.read()", str(socket_path)],
+            cwd=self.repo, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+        )
+        self.process_ids.add(str(process.pid))
+        try:
+            self.assertEqual(process.stdout.readline().strip(), "ready")
+            self.assertEqual(self.git(path, "status", "--porcelain", "--untracked-files=all"), "")
+            with self.assertRaisesRegex(ValueError, "special filesystem node"):
+                self.manager.complete(path)
+            self.assertTrue(socket_path.exists())
+        finally:
+            process.communicate("", timeout=5)
+        socket_path.unlink()
+        self.assertEqual(self.manager.prune()[0]["status"], "removed")
+
+    def test_fifo_in_generated_directory_blocks_cleanup(self):
+        path = self.create()
+        (path / "node_modules").mkdir()
+        fifo = path / "node_modules/service.pipe"
+        os.mkfifo(fifo)
+        with self.assertRaisesRegex(ValueError, "special filesystem node"):
+            self.manager.complete(path)
+        self.assertTrue(fifo.exists())
 
     def test_primary_paths_and_symlinked_state_cannot_be_deleted(self):
         with self.assertRaises(ValueError):
@@ -197,6 +253,84 @@ class LifecycleTests(unittest.TestCase):
         result = self.manager.complete(path)
         self.assertEqual(result["status"], "removed")
         self.assertEqual(self.git(self.repo, "rev-parse", result["branch_retained"]), head)
+
+    def test_reused_detached_path_retains_both_unique_commits_without_overwriting_refs(self):
+        path = self.repo.parent / "repo-validation"
+        retained = []
+        for index in range(2):
+            self.git(self.repo, "worktree", "add", "--detach", str(path), "main")
+            (path / "source.txt").write_text(f"validation commit {index}\n")
+            self.git(path, "commit", "-am", f"test: validation fixture {index}")
+            head = self.git(path, "rev-parse", "HEAD")
+            # An unrelated pre-existing ref must never be overwritten either.
+            import hashlib
+            occupied = "hive/retained/" + hashlib.sha256(str(path).encode()).hexdigest()[:12] + "-" + head
+            self.git(self.repo, "branch", occupied, "main")
+            self.manager.adopt(self.repo, path)
+            result = self.manager.complete(path)
+            self.assertEqual(result["status"], "removed")
+            self.assertNotEqual(result["branch_retained"], occupied)
+            self.assertEqual(self.git(self.repo, "rev-parse", occupied), self.git(self.repo, "rev-parse", "main"))
+            retained.append((result["branch_retained"], head))
+        self.assertNotEqual(retained[0][0], retained[1][0])
+        for branch, head in retained:
+            self.assertEqual(self.git(self.repo, "rev-parse", branch), head)
+
+    def test_bounded_scan_rotates_past_active_malformed_and_unremovable_records(self):
+        path = self.create()
+        self.mark(path)
+        target_name = self.manager.record_path(path).name
+        for index in range(50):
+            name = f"{index:064x}.json"
+            self.assertLess(name, target_name)
+            (self.manager.state / name).write_text("not JSON")
+        count = 0
+        candidate = 0
+        while count < 150:
+            other = self.repo.parent / f"missing-{candidate}"
+            candidate += 1
+            if self.manager.record_path(other).name >= target_name:
+                continue
+            self.manager.save({"version": 1, "path": str(other), "repo": str(self.repo),
+                               "status": "active" if count < 100 else "completed"})
+            count += 1
+        original_iterdir = Path.iterdir
+
+        def ordered_iterdir(directory):
+            entries = original_iterdir(directory)
+            return iter(sorted(entries, key=lambda entry: entry.name)) if directory == self.manager.state else entries
+
+        with patch.object(Path, "iterdir", ordered_iterdir):
+            first = self.manager.prune()
+            self.assertTrue(path.exists())
+            self.assertTrue(any(item["status"] == "deferred" for item in first))
+            # A separate daily invocation must pick up where the bounded scan stopped.
+            second = module.Worktrees(self.home).prune()
+        self.assertTrue(any(item.get("path") == str(path) and item["status"] == "removed" for item in second))
+        self.assertFalse(path.exists())
+
+    def test_scan_checkpoints_before_a_record_exhausts_time_budget(self):
+        paths = [self.create(), Path(self.manager.create(self.repo, "other", "fix/other", "HEAD")["path"])]
+        for path in paths:
+            self.mark(path)
+        ordered = sorted(paths, key=lambda path: self.manager.record_path(path).name)
+
+        def expire(record):
+            self.manager.deadline = time.monotonic() - 1
+            raise TimeoutError("Maintenance budget reached")
+
+        original_iterdir = Path.iterdir
+
+        def ordered_iterdir(directory):
+            entries = original_iterdir(directory)
+            return iter(sorted(entries, key=lambda entry: entry.name)) if directory == self.manager.state else entries
+
+        with patch.object(Path, "iterdir", ordered_iterdir):
+            with patch.object(self.manager, "remove_completed", side_effect=expire):
+                self.manager.prune()
+            results = module.Worktrees(self.home).prune()
+        self.assertEqual([item["path"] for item in results], list(map(str, ordered[::-1])))
+        self.assertTrue(all(item["status"] == "removed" for item in results))
 
     def test_forged_record_cannot_remove_another_checkout(self):
         path = self.create()

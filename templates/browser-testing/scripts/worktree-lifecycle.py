@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import tempfile
 import time
@@ -82,18 +83,21 @@ class Worktrees:
     def record_path(self, path):
         return self.state / (hashlib.sha256(str(path).encode()).hexdigest() + ".json")
 
-    def save(self, record):
+    def write_state(self, file, value):
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
         plain_path(self.state, self.home)
         fd, temporary = tempfile.mkstemp(dir=self.state)
         try:
             with os.fdopen(fd, "w") as stream:
-                json.dump(record, stream, indent=2)
+                json.dump(value, stream, indent=2)
                 stream.write("\n")
-            os.replace(temporary, self.record_path(record["path"]))
+            os.replace(temporary, file)
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
+
+    def save(self, record):
+        self.write_state(self.record_path(record["path"]), record)
 
     def load(self, path):
         file = self.record_path(path)
@@ -104,9 +108,9 @@ class Worktrees:
             raise ValueError("Invalid worktree record")
         return record
 
-    def adopt(self, repo, path):
+    def adopt(self, repo, path, fresh=False):
         repo, path = self.validate(repo, path)
-        if self.record_path(path).exists():
+        if not fresh and self.record_path(path).exists():
             return self.load(path)
         branch = self.git(path, "branch", "--show-current")
         record = {"version": 1, "repo": str(repo), "path": str(path), "branch": branch,
@@ -137,7 +141,9 @@ class Worktrees:
             else:
                 args += ["-b", branch, str(path), base]
             self.git(repo, *args)
-            self.adopt(repo, path)
+            # A previous checkout may have been removed outside this helper.
+            # A successful add starts a new active task, even if its record remains.
+            self.adopt(repo, path, fresh=True)
         return {"path": str(path), "status": "active"}
 
     def clean_source(self, path):
@@ -198,17 +204,34 @@ class Worktrees:
         self.clean_source(path)
         # Mount points and nested repositories require separate handling.
         device = path.stat().st_dev
-        for root, directories, files in os.walk(path, followlinks=False):
+        def fail_walk(error):
+            raise error
+
+        for root, directories, files in os.walk(path, followlinks=False, onerror=fail_walk):
             if time.monotonic() >= self.deadline:
                 raise TimeoutError("Worktree maintenance budget reached")
             if Path(root).stat().st_dev != device or (root != str(path) and ".git" in directories + files):
                 raise ValueError("Nested repository or filesystem requires manual cleanup")
+            if "HEAD" in files and "objects" in directories and ("refs" in directories or "packed-refs" in files):
+                raise ValueError("Nested bare repository requires manual cleanup")
+            for name in directories + files:
+                if time.monotonic() >= self.deadline:
+                    raise TimeoutError("Worktree maintenance budget reached")
+                mode = (Path(root) / name).lstat().st_mode
+                if not (stat.S_ISREG(mode) or stat.S_ISDIR(mode) or stat.S_ISLNK(mode)):
+                    raise ValueError("Socket or other special filesystem node requires manual cleanup")
         # Detached validation checkouts may contain a unique commit. Keep a branch
         # before removing their registration so committed history stays recoverable.
         retained = record["branch"]
         if not retained and not self.git(repo, "for-each-ref", "--contains", record["completed_head"],
                                          "--format=%(refname)", "refs/heads", "refs/remotes"):
-            retained = "hive/retained/" + hashlib.sha256(str(path).encode()).hexdigest()[:12]
+            base = "hive/retained/" + hashlib.sha256(str(path).encode()).hexdigest()[:12] + "-" + record["completed_head"]
+            retained = base
+            branches = set(self.git(repo, "for-each-ref", "--format=%(refname)", "refs/heads").splitlines())
+            suffix = 1
+            while "refs/heads/" + retained in branches:
+                retained = f"{base}-{suffix}"
+                suffix += 1
             self.git(repo, "branch", retained, record["completed_head"])
         # Git performs its own final dirty/locked checks; never force removal or delete a branch.
         self.git(repo, "worktree", "remove", str(path))
@@ -239,12 +262,22 @@ class Worktrees:
         results = []
         if not self.state.exists():
             return results
-        for index, file in enumerate(self.state.iterdir()):
+        cursor_file = self.state / ".prune-cursor"
+        if cursor_file.is_symlink():
+            raise ValueError("Symlinked prune cursor is not managed")
+        cursor = json.loads(cursor_file.read_text()) if cursor_file.exists() else ""
+        if not isinstance(cursor, str) or (cursor and (Path(cursor).name != cursor or not cursor.endswith(".json"))):
+            raise ValueError("Invalid prune cursor")
+        files = sorted((file for file in self.state.iterdir() if file.suffix == ".json"),
+                       key=lambda file: file.name)
+        files = [file for file in files if file.name > cursor] + [file for file in files if file.name <= cursor]
+        for index, file in enumerate(files):
             if index >= 200 or time.monotonic() >= self.deadline:
                 results.append({"status": "deferred", "reason": "Maintenance budget reached"})
                 break
-            if file.suffix != ".json":
-                continue
+            # Checkpoint before inspecting the record so malformed, active, slow,
+            # or unremovable records cannot monopolize future bounded scans.
+            self.write_state(cursor_file, file.name)
             try:
                 if file.is_symlink():
                     raise ValueError("Symlinked record")

@@ -186,12 +186,17 @@ changing it. `complete <task-path>` marks a clean task completed and removes its
 
 The software template schedules **Completed task worktree cleanup** daily at 06:55 UTC, separately
 from cache maintenance. It examines at most 200 lifecycle records within an 80-second cooperative
-budget and a 110-second outer limit. A nonblocking owner lock serializes lifecycle writers. Active
+budget and a 110-second outer limit. A persisted cursor rotates this bounded scan so later completed
+records are retried even when earlier records remain active, malformed, or unremovable. A nonblocking
+owner lock serializes lifecycle writers. Active
 process working directories and open files defer removal, including idle terminals rooted in a task
 checkout. Source changes, untracked files, ignored files outside recognized generated directories,
-changed branches or completed HEADs, locked worktrees, nested repositories, and filesystem mounts
+changed branches or completed HEADs, locked worktrees, nested repositories (including bare repositories),
+sockets and other special filesystem nodes, and filesystem mounts
 also prevent removal. Git performs a final clean/locked check without force. Branches remain in the
 primary repo; a unique detached commit receives a recovery branch before its worktree is removed.
+Recovery names include the commit and avoid existing refs when a task path is reused. Successfully
+recreating a missing checkout replaces its stale lifecycle record with an active record.
 The cleanup never discovers candidates by age or deletes primary/unmanaged checkouts. Existing
 accumulated checkouts therefore need explicit task ownership review and adoption before completion.
 
