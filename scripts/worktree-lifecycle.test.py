@@ -98,6 +98,59 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(module.Worktrees(self.home).prune(), [])
         self.assertTrue(path.exists())
 
+    def test_public_adopt_reactivates_manually_recreated_checkouts(self):
+        for mode in ["same-branch", "new-branch", "detached"]:
+            with self.subTest(mode=mode):
+                path = self.create()
+                self.mark(path)
+                stale = self.manager.load(path)
+                self.git(self.repo, "worktree", "remove", str(path))
+                if mode == "same-branch":
+                    self.git(self.repo, "worktree", "add", str(path), "fix/task")
+                elif mode == "new-branch":
+                    self.git(self.repo, "worktree", "add", "-b", "fix/manual", str(path), "HEAD")
+                else:
+                    self.git(self.repo, "worktree", "add", "--detach", str(path), "HEAD")
+                branch = self.git(path, "branch", "--show-current")
+                head = self.git(path, "rev-parse", "HEAD")
+                result = subprocess.run(
+                    ["python3", "-B", str(SCRIPT), "--home", str(self.home), "adopt", str(self.repo), str(path)],
+                    capture_output=True, text=True, timeout=10,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                record = json.loads(result.stdout)
+                self.assertEqual(record["status"], "active")
+                self.assertEqual(record["branch"], branch)
+                self.assertGreater(record["created_at"], stale["created_at"])
+                self.assertNotIn("completed_head", record)
+                self.assertNotIn("completed_at", record)
+                self.assertEqual(module.Worktrees(self.home).prune(), [])
+                self.assertTrue(path.exists())
+                self.assertEqual(self.git(path, "rev-parse", "HEAD"), head)
+                self.assertEqual((path / "source.txt").read_text(), "original\n")
+                self.git(self.repo, "worktree", "remove", str(path))
+
+    def test_adoption_cancels_completion_without_changing_checkout_files(self):
+        path = self.create()
+        self.mark(path)
+        (path / "source.txt").write_text("resumed source\n")
+        (path / "new-source.txt").write_text("new work\n")
+        record = self.manager.adopt(self.repo, path)
+        self.assertEqual(record["status"], "active")
+        self.assertNotIn("completed_head", record)
+        self.assertEqual(module.Worktrees(self.home).prune(), [])
+        self.assertEqual((path / "source.txt").read_text(), "resumed source\n")
+        self.assertEqual((path / "new-source.txt").read_text(), "new work\n")
+
+    def test_create_with_wrong_branch_preserves_existing_lifecycle_record(self):
+        path = self.create()
+        self.mark(path)
+        before = self.manager.record_path(path).read_bytes()
+        with self.assertRaisesRegex(ValueError, "different branch"):
+            self.manager.create(self.repo, "task", "fix/wrong", "HEAD")
+        self.assertEqual(self.manager.record_path(path).read_bytes(), before)
+        self.assertEqual(self.git(path, "branch", "--show-current"), "fix/task")
+
     def test_dirty_untracked_and_unknown_ignored_files_are_preserved(self):
         for name in ["source.txt", "new-source.txt", ".local-only"]:
             with self.subTest(name=name):

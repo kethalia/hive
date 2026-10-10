@@ -108,10 +108,10 @@ class Worktrees:
             raise ValueError("Invalid worktree record")
         return record
 
-    def adopt(self, repo, path, fresh=False):
+    def adopt(self, repo, path):
         repo, path = self.validate(repo, path)
-        if not fresh and self.record_path(path).exists():
-            return self.load(path)
+        # Explicit adoption starts an active lifecycle for the checkout validated
+        # now. A record from an earlier checkout must never authorize its removal.
         branch = self.git(path, "branch", "--show-current")
         record = {"version": 1, "repo": str(repo), "path": str(path), "branch": branch,
                   "status": "active", "created_at": time.time()}
@@ -125,13 +125,9 @@ class Worktrees:
         self.git(repo, "check-ref-format", "--branch", branch)
         path = plain_path(repo.parent / ".worktrees" / repo.name / task, repo.parent)
         if path.exists():
-            record = self.adopt(repo, path)
-            if record["branch"] != branch or self.git(path, "branch", "--show-current") != branch:
+            self.validate(repo, path)
+            if self.git(path, "branch", "--show-current") != branch:
                 raise ValueError("Existing task checkout uses a different branch")
-            record["status"] = "active"
-            record.pop("completed_head", None)
-            record.pop("completed_at", None)
-            self.save(record)
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
             branches = self.git(repo, "for-each-ref", "--format=%(refname)", "refs/heads").splitlines()
@@ -141,9 +137,7 @@ class Worktrees:
             else:
                 args += ["-b", branch, str(path), base]
             self.git(repo, *args)
-            # A previous checkout may have been removed outside this helper.
-            # A successful add starts a new active task, even if its record remains.
-            self.adopt(repo, path, fresh=True)
+        self.adopt(repo, path)
         return {"path": str(path), "status": "active"}
 
     def clean_source(self, path):

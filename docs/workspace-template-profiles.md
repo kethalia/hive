@@ -180,8 +180,10 @@ introduced. Package data can continue to share the pnpm store on the home filesy
 
 `hive-worktree` is installed at startup. Only the software profile performs repository lifecycle
 operations. `create <primary> <task> --branch <branch>` reuses a task checkout or creates a grouped
-worktree. `adopt <primary> <existing-task-path>` records an existing registered worktree without
-changing it. `complete <task-path>` marks a clean task completed and removes its checkout when idle;
+worktree. `adopt <primary> <existing-task-path>` registers the validated checkout as active without
+changing its files. Re-adoption clears earlier completion markers, including when a checkout was
+recreated manually at the same path. `complete <task-path>` marks a clean task completed and removes
+its checkout when idle;
 `prune` retries cleanup. Completion and adoption are explicit, never inferred from a directory date.
 
 The software template schedules **Completed task worktree cleanup** daily at 06:55 UTC, separately
