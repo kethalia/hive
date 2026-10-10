@@ -53,7 +53,9 @@ expect_command hive-audio
 expect_command pulseaudio
 expect_command pacat
 expect_command pactl
-run bash -lc 'export PULSE_SERVER="$(hive-audio prepare -- smoke)"; pactl info >/dev/null; python3 - <<"PY"
+# Match the plugin directory baked into Codex's bundled ALSA, rather than letting
+# Debian's system library find plugins through its different multiarch default.
+run bash -lc 'export PULSE_SERVER="$(hive-audio prepare -- smoke)"; pactl info >/dev/null; ALSA_PLUGIN_DIR=/usr/lib/alsa-lib python3 - <<"PY"
 import ctypes
 library = ctypes.CDLL("libasound.so.2")
 for direction in (0, 1):
@@ -61,7 +63,7 @@ for direction in (0, 1):
     result = library.snd_pcm_open(ctypes.byref(handle), b"default", direction, 0)
     assert result == 0, (direction, result)
     library.snd_pcm_close(handle)
-print("Default virtual microphone and speaker opened without /dev/snd")
+print("Default virtual microphone and speaker opened through the native Codex ALSA plugin path without /dev/snd")
 PY'
 expect_absent obsidian
 
