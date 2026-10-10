@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { TerminalAudioBridge } from "../../src/components/terminal/TerminalAudioBridge";
-import { TERMINAL_AUDIO_PRIME_EVENT } from "../../src/lib/terminal/events";
+import { primeTerminalAudio } from "../../src/lib/terminal/audio-interaction";
 
 const probe = {
   contexts: [] as AudioContext[],
@@ -48,9 +48,7 @@ function Fixture() {
           <button
             type="button"
             onClick={() => {
-              document
-                .querySelector(`[data-session="${selected}"]`)
-                ?.dispatchEvent(new Event(TERMINAL_AUDIO_PRIME_EVENT, { bubbles: true }));
+              primeTerminalAudio(document.querySelector(`[data-session="${selected}"]`));
               void fetch(`/native?sessionName=${duplicate ? "test" : selected}`, {
                 method: "POST",
                 body: "/voice",
@@ -92,6 +90,9 @@ function Pane({
   return (
     <div
       data-terminal-surface="true"
+      onKeyDownCapture={(event) => {
+        if (event.key === "Enter") primeTerminalAudio(event.currentTarget);
+      }}
       data-session={name}
       className="relative flex min-h-0 flex-1 flex-col rounded border p-4"
     >

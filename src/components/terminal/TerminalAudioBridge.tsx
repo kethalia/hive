@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { consumeTerminalAudioInteraction } from "@/lib/terminal/audio-interaction";
 import { TerminalAudio, type TerminalAudioStatus } from "@/lib/terminal/browser-audio";
 import { TERMINAL_AUDIO_PRIME_EVENT } from "@/lib/terminal/events";
 
@@ -22,7 +23,6 @@ export function TerminalAudioBridge({
     const terminal = element.current.closest<HTMLElement>('[data-terminal-surface="true"]');
     if (!terminal) return;
     const params = new URLSearchParams({ workspaceId, agentId, sessionName });
-    let lastInteractionAt = Number.NEGATIVE_INFINITY;
     const audio = new TerminalAudio(
       `${proxyUrl}/ws/audio?${params}`,
       setStatus,
@@ -33,7 +33,7 @@ export function TerminalAudioBridge({
         // Touch/Compose input may live outside xterm; use the selected pane then.
         return terminal.closest("[data-pane-mode]")?.getAttribute("data-active") !== "false";
       },
-      () => Date.now() - lastInteractionAt < 15_000,
+      () => consumeTerminalAudioInteraction(terminal),
     );
     let inView = false;
     const update = () => {
@@ -57,14 +57,7 @@ export function TerminalAudioBridge({
       attributes: true,
       attributeFilter: ["inert", "data-active"],
     });
-    const prime = () => {
-      lastInteractionAt = Date.now();
-      audio.prime();
-    };
-    const keydown = (event: KeyboardEvent) => {
-      if (event.key === "Enter") prime();
-    };
-    terminal.addEventListener("keydown", keydown, { capture: true });
+    const prime = () => audio.prime();
     terminal.addEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
     document.addEventListener("visibilitychange", update);
     document.addEventListener("focusin", focus);
@@ -74,7 +67,6 @@ export function TerminalAudioBridge({
     return () => {
       observer.disconnect();
       parking.disconnect();
-      terminal.removeEventListener("keydown", keydown, { capture: true });
       terminal.removeEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
       document.removeEventListener("visibilitychange", update);
       document.removeEventListener("focusin", focus);

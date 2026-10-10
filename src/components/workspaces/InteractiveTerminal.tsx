@@ -33,13 +33,13 @@ import {
   pasteClipboardApiToTerminal,
   pasteNativeClipboardEventToTerminal,
 } from "@/lib/terminal/actions";
+import { primeTerminalAudio } from "@/lib/terminal/audio-interaction";
 import {
   handleTerminalPasteOutcome,
   readNativePasteOutcome,
   type TerminalComposeRequest,
   type TerminalPasteOutcome,
 } from "@/lib/terminal/clipboard";
-import { TERMINAL_AUDIO_PRIME_EVENT } from "@/lib/terminal/events";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import {
   blurXtermMobileInput,
@@ -987,10 +987,7 @@ function TerminalRuntime({
 
       const sendRaw = (text: string) => {
         // Compose and touch Enter send outside xterm's keyboard event surface.
-        if (text.includes("\r"))
-          containerRef.current?.dispatchEvent(
-            new Event(TERMINAL_AUDIO_PRIME_EVENT, { bubbles: true }),
-          );
+        if (text.includes("\r")) primeTerminalAudio(containerRef.current);
         sendRef.current(encodeInput(text));
       };
       onTerminalReadyRef.current?.(term, sendRaw);
@@ -1263,6 +1260,9 @@ function TerminalRuntime({
       className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}
       data-connection-state={connectionState}
       data-terminal-surface="true"
+      onKeyDownCapture={(event) => {
+        if (event.key === "Enter") primeTerminalAudio(event.currentTarget);
+      }}
     >
       {connectionState === "connected" ? (
         <TerminalAudioBridge

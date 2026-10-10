@@ -21,8 +21,10 @@ Pressing Enter in the terminal enables playback under browser autoplay rules.
 The focused terminal can start a new call. When Compose or another control has
 focus outside the terminal, the selected pane can start it instead. Changing pane
 or window focus during a call keeps audio attached to the terminal that started
-it. Enter, Compose send, or touch Enter briefly arms that terminal to claim native
-capture. A view left open on an unused device cannot claim a call solely because
+it. Enter, Compose send, or touch Enter arms that terminal for one claim attempt
+within 15 seconds, even if the audio bridge is still loading. Successful, rejected,
+and failed attempts consume the interaction; a later call needs a fresh gesture.
+A view left open on an unused device cannot claim a call solely because
 its browser still reports focus. Background views do not reserve an idle relay.
 
 Hiding the browser tab, parking the terminal, losing the connection, denying or

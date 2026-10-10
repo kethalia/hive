@@ -31,6 +31,7 @@ export class TerminalAudio {
     private url: string,
     private onStatus: (status: TerminalAudioStatus) => void,
     private canStart: () => boolean = () => true,
+    // A single-use interaction arm is consumed at the first activation attempt.
     private canClaim: () => boolean = canStart,
   ) {}
 
@@ -40,7 +41,12 @@ export class TerminalAudio {
     try {
       this.context ??= new AudioContext({ sampleRate: 48_000 });
       void this.context.resume().catch(() => {});
-      if (this.nativeActive && !this.ownsCall) void this.activate();
+      if (this.nativeActive) {
+        // Enter used during an owned call (including /voice stop) must not arm
+        // this observer to claim the next call started on a different device.
+        if (this.ownsCall && this.claimRequired) this.canClaim();
+        else if (!this.ownsCall) void this.activate();
+      }
     } catch {
       /* Report unsupported audio only if native voice actually starts. */
     }
