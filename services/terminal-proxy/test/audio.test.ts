@@ -29,6 +29,25 @@ afterEach(() => {
 });
 
 describe("terminal audio boundaries", () => {
+  it("preserves call claiming capabilities and permits the bounded claim control", () => {
+    expect(parseWorkspaceAudio('{"type":"ready","claimRequired":true,"extra":1}')).toBe(
+      '{"type":"ready","claimRequired":true}',
+    );
+    expect(parseWorkspaceAudio('{"type":"claimed"}')).toBe('{"type":"claimed"}');
+    expect(parseBrowserAudio('{"type":"claim","extra":1}')).toBe('{"type":"claim"}');
+  });
+
+  it("a watcher readiness frame clears startup timeout without losing its capability", () => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    upstream.emit("message", Buffer.from('{"type":"ready","claimRequired":true}\n'));
+    vi.advanceTimersByTime(10_000);
+    expect(browser.close).not.toHaveBeenCalled();
+    expect(browser.send).toHaveBeenCalledWith('{"type":"ready","claimRequired":true}');
+    browser.emit("close");
+  });
   it("authorizes long session names accepted by ordinary terminals", async () => {
     vi.stubEnv("ALLOWED_ORIGINS", "https://hive.example.com");
     vi.mocked(authenticateUpgrade).mockResolvedValue({

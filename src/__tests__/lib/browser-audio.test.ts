@@ -74,9 +74,9 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   Object.defineProperty(navigator, "locks", { configurable: true, value: originalLocks });
 });
-function session(canStart = () => true) {
+function session(canStart = () => true, url = "wss://hive/ws/audio", canClaim = canStart) {
   const status = vi.fn();
-  const audio = new TerminalAudio("wss://hive/ws/audio", status, canStart);
+  const audio = new TerminalAudio(url, status, canStart, canClaim);
   sessions.push(audio);
   audio.setVisible(true);
   return { audio, status, socket: Socket.instances.at(-1) as Socket };
@@ -92,9 +92,123 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it("keeps a rejected call observer connected until the owner finishes", async () => {
+    const first = session();
+    first.socket.emit({ type: "ready", claimRequired: true });
+    first.socket.emit({ type: "active", active: true });
+    first.socket.emit({ type: "error", code: "session_busy", message: "Already connected." });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(first.socket.close).not.toHaveBeenCalled();
+    expect(Socket.instances).toHaveLength(1);
+    first.socket.emit({ type: "active", active: false });
+    expect(first.status).toHaveBeenLastCalledWith({ phase: "standby" });
+    first.socket.emit({ type: "active", active: true });
+    first.socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+  it("allows separate terminals to exchange microphone audio at the same time", async () => {
+    const first = session();
+    const second = session(() => true, "wss://hive/ws/audio?sessionName=other");
+    first.socket.emit({ type: "active", active: true });
+    second.socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    for (const call of [first, second])
+      expect(call.status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    first.socket.emit({ type: "active", active: false });
+    expect(second.socket.close).not.toHaveBeenCalled();
+    expect(Context.instances[1].close).not.toHaveBeenCalled();
+  });
+
+  it("claims a workspace call before requesting microphone permission", async () => {
+    const first = session();
+    first.socket.emit({ type: "ready", claimRequired: true });
+    first.socket.emit({ type: "active", active: true });
+    expect(first.socket.send).toHaveBeenCalledWith('{"type":"claim"}');
+    expect(getUserMedia).not.toHaveBeenCalled();
+    first.socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("an unused device observes native capture without reserving the call or prompting", async () => {
+    const unused = session(
+      () => true,
+      "wss://hive/ws/audio",
+      () => false,
+    );
+    unused.socket.emit({ type: "ready", claimRequired: true });
+    unused.socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unused.socket.send).not.toHaveBeenCalledWith('{"type":"claim"}');
+    expect(getUserMedia).not.toHaveBeenCalled();
+    const current = session();
+    current.socket.emit({ type: "ready", claimRequired: true });
+    current.socket.emit({ type: "active", active: true });
+    current.socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(current.status).toHaveBeenLastCalledWith({
+      phase: "active",
+      message: "Voice connected",
+    });
+  });
+
+  it("does not use a late claim confirmation after native capture ends", async () => {
+    const first = session();
+    first.socket.emit({ type: "ready", claimRequired: true });
+    first.socket.emit({ type: "active", active: true });
+    first.socket.emit({ type: "active", active: false });
+    first.socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+  it("does not claim an idle session relay from a background view", () => {
+    session(() => false);
+    expect(Socket.instances).toHaveLength(0);
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("hands an idle relay to the focused view without disturbing a live call", async () => {
+    let focused = true;
+    const first = session(() => focused);
+    focused = false;
+    first.audio.refreshFocus();
+    expect(first.socket.close).toHaveBeenCalledOnce();
+    focused = true;
+    first.audio.refreshFocus();
+    const replacement = Socket.instances.at(-1) as Socket;
+    replacement.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    focused = false;
+    first.audio.refreshFocus();
+    expect(replacement.close).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
+    replacement.emit({ type: "active", active: false });
+    expect(replacement.close).toHaveBeenCalledOnce();
+    expect(stop).toHaveBeenCalledOnce();
+    first.audio.refreshFocus();
+    expect(Socket.instances).toHaveLength(2);
+  });
+
+  it("does not retry session ownership from an unfocused view", async () => {
+    let focused = true;
+    const first = session(() => focused);
+    first.socket.emit({ type: "error", code: "session_busy", message: "Session is busy." });
+    focused = false;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(Socket.instances).toHaveLength(1);
+    focused = true;
+    first.audio.refreshFocus();
+    expect(Socket.instances).toHaveLength(2);
+  });
+
   it("rejects background capture and keeps an existing call pinned after focus changes", async () => {
-    let focused = false;
+    let focused = true;
     const background = session(() => focused);
+    // Native activity may arrive just before the DOM focus update runs.
+    focused = false;
     background.socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).not.toHaveBeenCalled();
@@ -313,7 +427,7 @@ describe("native terminal browser audio", () => {
     expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
   });
 
-  it("prevents simultaneous microphone calls and releases native capture on denial", async () => {
+  it("prevents duplicate views of one call and releases native capture on denial", async () => {
     const first = session();
     first.socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
@@ -323,7 +437,7 @@ describe("native terminal browser audio", () => {
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(second.status).toHaveBeenLastCalledWith({
       phase: "error",
-      message: expect.stringContaining("other terminal"),
+      message: expect.stringContaining("another view"),
     });
     first.audio.dispose();
     getUserMedia.mockRejectedValue(new DOMException("denied", "NotAllowedError"));

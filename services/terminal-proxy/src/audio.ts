@@ -29,7 +29,7 @@ export function parseBrowserAudio(data: string): string | null {
   if (data.length > 2048) return null;
   try {
     const value = JSON.parse(data);
-    if (value?.type === "ping" || value?.type === "release")
+    if (value?.type === "ping" || value?.type === "release" || value?.type === "claim")
       return JSON.stringify({ type: value.type });
     if (
       value?.type === "microphone" &&
@@ -52,7 +52,12 @@ export function parseWorkspaceAudio(line: string): string | null {
   if (line.length > 2048) return null;
   try {
     const value = JSON.parse(line);
-    if (value?.type === "ready" || value?.type === "pong")
+    if (value?.type === "ready")
+      return JSON.stringify({
+        type: "ready",
+        ...(value.claimRequired === true ? { claimRequired: true } : {}),
+      });
+    if (value?.type === "pong" || value?.type === "claimed")
       return JSON.stringify({ type: value.type });
     if (value?.type === "active" && typeof value.active === "boolean")
       return JSON.stringify({ type: "active", active: value.active });
@@ -136,9 +141,9 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
       const message = parseWorkspaceAudio(buffer.slice(0, newline).trim());
       buffer = buffer.slice(newline + 1);
       if (message && browser.readyState === WebSocket.OPEN) {
-        if (message === '{"type":"ready"}' || message === '{"type":"pong"}')
-          lastWorkspacePong = Date.now();
-        if (message === '{"type":"ready"}') clearTimeout(startup);
+        const control = JSON.parse(message);
+        if (control.type === "ready" || control.type === "pong") lastWorkspacePong = Date.now();
+        if (control.type === "ready") clearTimeout(startup);
         if (browser.bufferedAmount > MAX_QUEUE) {
           close(1013, "audio connection stalled");
           return;

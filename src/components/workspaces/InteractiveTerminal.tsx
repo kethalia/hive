@@ -39,6 +39,7 @@ import {
   type TerminalComposeRequest,
   type TerminalPasteOutcome,
 } from "@/lib/terminal/clipboard";
+import { TERMINAL_AUDIO_PRIME_EVENT } from "@/lib/terminal/events";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
 import {
   blurXtermMobileInput,
@@ -984,7 +985,14 @@ function TerminalRuntime({
         recordFitDiagnostics(term, "initial-open-fit");
       }
 
-      const sendRaw = (text: string) => sendRef.current(encodeInput(text));
+      const sendRaw = (text: string) => {
+        // Compose and touch Enter send outside xterm's keyboard event surface.
+        if (text.includes("\r"))
+          containerRef.current?.dispatchEvent(
+            new Event(TERMINAL_AUDIO_PRIME_EVENT, { bubbles: true }),
+          );
+        sendRef.current(encodeInput(text));
+      };
       onTerminalReadyRef.current?.(term, sendRaw);
       const handleCapturedNativePaste = (outcome: TerminalPasteOutcome) => {
         if (!onComposeRequestRef.current) return;

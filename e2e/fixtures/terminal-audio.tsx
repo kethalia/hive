@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { TerminalAudioBridge } from "../../src/components/terminal/TerminalAudioBridge";
+import { TERMINAL_AUDIO_PRIME_EVENT } from "../../src/lib/terminal/events";
 
 const probe = {
   contexts: [] as AudioContext[],
@@ -32,7 +33,8 @@ navigator.mediaDevices.getUserMedia = async (constraints) => {
 };
 
 function Fixture() {
-  const sessions = location.pathname === "/panes" ? ["first", "second"] : ["test"];
+  const duplicate = location.pathname === "/duplicate";
+  const sessions = location.pathname === "/panes" || duplicate ? ["first", "second"] : ["test"];
   const [selected, setSelected] = useState(sessions[0]);
   return (
     <main className="flex h-dvh flex-col bg-background p-4 text-foreground">
@@ -43,6 +45,20 @@ function Fixture() {
               Select {name} pane
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => {
+              document
+                .querySelector(`[data-session="${selected}"]`)
+                ?.dispatchEvent(new Event(TERMINAL_AUDIO_PRIME_EVENT, { bubbles: true }));
+              void fetch(`/native?sessionName=${duplicate ? "test" : selected}`, {
+                method: "POST",
+                body: "/voice",
+              });
+            }}
+          >
+            Send voice to selected pane
+          </button>
         </nav>
       ) : null}
       {sessions.map((name) => (
@@ -52,14 +68,26 @@ function Fixture() {
           data-active={selected === name ? "true" : "false"}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <Pane name={name} select={() => setSelected(name)} />
+          <Pane
+            name={name}
+            sessionName={duplicate ? "test" : name}
+            select={() => setSelected(name)}
+          />
         </section>
       ))}
     </main>
   );
 }
 
-function Pane({ name, select }: { name: string; select: () => void }) {
+function Pane({
+  name,
+  sessionName,
+  select,
+}: {
+  name: string;
+  sessionName: string;
+  select: () => void;
+}) {
   const [value, setValue] = useState("");
   return (
     <div
@@ -71,7 +99,7 @@ function Pane({ name, select }: { name: string; select: () => void }) {
         proxyUrl={location.origin.replace(/^http/, "ws")}
         workspaceId="workspace"
         agentId="agent"
-        sessionName={name}
+        sessionName={sessionName}
       />
       <p>Codex terminal</p>
       <textarea
@@ -83,7 +111,7 @@ function Pane({ name, select }: { name: string; select: () => void }) {
         onKeyDown={(event) => {
           if (event.key !== "Enter") return;
           event.preventDefault();
-          void fetch(`/native?sessionName=${name}`, { method: "POST", body: value });
+          void fetch(`/native?sessionName=${sessionName}`, { method: "POST", body: value });
           setValue("");
         }}
       />

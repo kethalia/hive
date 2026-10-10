@@ -108,6 +108,7 @@ class Broker:
         self.sock = sock
         self.owner = None
         self.owner_at = 0
+        self.views = {}
         self.capturing = False
         self.microphone = microphone
         self.stop_devices = stop_devices
@@ -121,31 +122,58 @@ class Broker:
             pass  # Stalled consumers lose samples; queues never grow.
 
     def active(self):
-        self.send(b"A" if self.capturing else b"Z", self.owner)
+        if not self.capturing and self.owner in self.views:
+            self.owner = None
+        for address in set(self.views) | ({self.owner} if self.owner is not None else set()):
+            self.send(b"A" if self.capturing else b"Z", address)
 
     def release(self):
+        was_capturing = self.capturing
         self.capturing = False
         self.owner = None
+        if was_capturing:
+            self.active()
         if self.stop_devices:
             self.stop_devices()
 
     def handle(self, data, address, now):
-        if data == b"B":
+        if data == b"W":
+            self.views[address] = now
+            self.send(b"V", address)
+            self.send(b"A" if self.capturing else b"Z", address)
+        elif data == b"C" and address in self.views:
+            if self.owner is not None and self.owner != address:
+                self.send(b"N", address)
+            elif self.capturing:
+                self.owner, self.owner_at = address, now
+                self.send(b"C", address)
+            else:
+                self.send(b"Z", address)
+        elif data == b"B":
+            # Compatibility for relays from older workspace images.
             if self.owner is not None and self.owner != address:
                 self.send(b"N", address)
                 return
             self.owner, self.owner_at = address, now
             self.send(b"R", address)
             self.active()
-        elif data == b"K" and address == self.owner:
-            self.owner_at = now
-        elif data == b"Q" and address == self.owner:
-            self.release()
+        elif data == b"K":
+            if address in self.views:
+                self.views[address] = now
+            if address == self.owner:
+                self.owner_at = now
+        elif data == b"Q":
+            self.views.pop(address, None)
+            if address == self.owner:
+                self.release()
         elif data[:1] == b"M" and address == self.owner and self.capturing:
             if 1 < len(data) <= PACKET + 1 and (len(data) - 1) % 2 == 0 and self.microphone:
                 self.microphone(data[1:])
 
     def expire(self, now):
+        for address, last_seen in list(self.views.items()):
+            if now - last_seen > OWNER_TIMEOUT:
+                self.views.pop(address)
         if self.owner and now - self.owner_at > OWNER_TIMEOUT:
             self.release()
 
@@ -358,7 +386,7 @@ def relay(session):
     # Connect to the identity selected by prepare, even if tmux changes meanwhile.
     sock.connect(str(Path(server.removeprefix("unix:")).with_name("bridge.sock")))
     sock.setblocking(False)
-    sock.send(b"B")
+    sock.send(b"W")
     buffer = b""
     last_browser = last_ping = time.monotonic()
     try:
@@ -371,9 +399,12 @@ def relay(session):
                 packet = sock.recv(PACKET + 1)
                 if packet == b"R":
                     emit({"type": "ready"})
+                elif packet == b"V":
+                    emit({"type": "ready", "claimRequired": True})
+                elif packet == b"C":
+                    emit({"type": "claimed"})
                 elif packet == b"N":
                     emit({"type": "error", "code": "session_busy", "message": "Audio is already connected in another view of this terminal."})
-                    return
                 elif packet in (b"A", b"Z"):
                     emit({"type": "active", "active": packet == b"A"})
                 elif packet[:1] == b"P":
@@ -394,6 +425,8 @@ def relay(session):
                             emit({"type": "pong"})
                         elif value == {"type": "release"}:
                             return
+                        elif value == {"type": "claim"}:
+                            sock.send(b"C")
                         elif value.get("type") == "microphone" and isinstance(value.get("pcm"), str):
                             pcm = base64.b64decode(value["pcm"], validate=True)
                             if not 0 < len(pcm) <= PACKET or len(pcm) % 2:
