@@ -21,6 +21,24 @@ const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
 const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 const INFRASTRUCTURE_TEMPLATE_ROOT = join(process.cwd(), "templates/infrastructure");
 
+test("task worktree lifecycle preserves active work and user-owned bootstrap choices", () => {
+  const result = spawnSync("python3", ["-B", "scripts/worktree-lifecycle.test.py"], {
+    encoding: "utf8",
+    timeout: 60000,
+  });
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  const terraform = readFileSync(join(TEMPLATE_ROOT, "main.tf"), "utf8");
+  const block = terraform
+    .split('resource "coder_script" "completed_worktree_maintenance" {')[1]
+    ?.split("\n}")[0];
+  assert.ok(block);
+  assert.match(block, /local\.profile\.id == "software" \? 1 : 0/);
+  assert.match(block, /run_on_start\s*=\s*false/);
+  assert.match(block, /cron\s*=\s*"CRON_TZ=UTC 0 55 6 \* \* \*"/);
+  assert.match(block, /worktree-lifecycle\.py/);
+  assert.match(terraform, /worktree_lifecycle_script_b64\s*=\s*base64encode/);
+});
+
 test("startup Git writers tolerate transient locks but fail on persistent errors", () => {
   const fixture = mkdtempSync(join(tmpdir(), "hive-git-lock-"));
   const config = join(fixture, "gitconfig");

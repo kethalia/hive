@@ -58,7 +58,25 @@ configure_git_global --replace-all credential.https://github.com.helper "$HOME/.
 
 printf '%s' "${clone_repositories_script_b64}" | base64 -d > "$HOME/clone-repositories.sh"
 chmod +x "$HOME/clone-repositories.sh"
-printf '%s' "${repositories_manifest_b64}" | base64 -d > "$HOME/repositories.txt"
-chmod 600 "$HOME/repositories.txt"
+# Seed once: local edits, including an intentionally empty manifest, are user-owned.
+# Linking a private temporary file publishes it without replacing an existing file or symlink.
+manifest_seed=$(mktemp "$HOME/.hive-repositories.XXXXXX")
+printf '%s' "${repositories_manifest_b64}" | base64 -d > "$manifest_seed"
+chmod 600 "$manifest_seed"
+if ln "$manifest_seed" "$HOME/repositories.txt" 2>/dev/null; then
+  printf '[ok] seeded repository manifest\n'
+elif [ -e "$HOME/repositories.txt" ] || [ -L "$HOME/repositories.txt" ]; then
+  printf '[ok] preserving local repository manifest\n'
+else
+  rm -f -- "$manifest_seed"
+  printf '[error] could not seed repository manifest\n' >&2
+  exit 1
+fi
+rm -f -- "$manifest_seed"
+
+worktree_helper=$(mktemp "$HOME/.local/bin/.hive-worktree.XXXXXX")
+printf '%s' "${worktree_lifecycle_script_b64}" | base64 -d > "$worktree_helper"
+chmod 755 "$worktree_helper"
+mv -fT -- "$worktree_helper" "$HOME/.local/bin/hive-worktree"
 export GH_TOKEN="${github_token}"
 "$HOME/clone-repositories.sh"

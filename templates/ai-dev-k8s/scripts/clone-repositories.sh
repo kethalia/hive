@@ -38,7 +38,7 @@ while IFS= read -r entry || [ -n "$entry" ]; do
   repository="${entry%%|*}"
   relative_destination="${entry#*|}"
   destination="$HOME/projects/$relative_destination"
-  if [ -d "$destination/.git" ]; then
+  if [ -e "$destination/.git" ]; then
     printf '[skip] %s already exists\n' "$repository"
     continue
   fi
