@@ -2,7 +2,7 @@ export type TerminalAudioStatus =
   | { phase: "standby" }
   | { phase: "connecting" | "active" | "error"; message: string };
 
-let microphoneOwner: TerminalAudio | null = null;
+const microphoneOwners = new Map<string, TerminalAudio>();
 
 /** A terminal owns its audio transport; native device activity owns microphone access. */
 export class TerminalAudio {
@@ -22,11 +22,17 @@ export class TerminalAudio {
   private ownerRejected = false;
   private releaseMicrophoneLock: (() => void) | null = null;
   private pendingMicrophone = false;
+  private ownsCall = false;
+  private claimRequired = false;
+  private cancelClaim: (() => void) | null = null;
+  private confirmClaim: (() => void) | null = null;
 
   constructor(
     private url: string,
     private onStatus: (status: TerminalAudioStatus) => void,
     private canStart: () => boolean = () => true,
+    // A single-use interaction arm is consumed at the first activation attempt.
+    private canClaim: () => boolean = canStart,
   ) {}
 
   /** Called synchronously from Enter so playback can use the browser's user activation. */
@@ -35,6 +41,12 @@ export class TerminalAudio {
     try {
       this.context ??= new AudioContext({ sampleRate: 48_000 });
       void this.context.resume().catch(() => {});
+      if (this.nativeActive) {
+        // Enter used during an owned call (including /voice stop) must not arm
+        // this observer to claim the next call started on a different device.
+        if (this.ownsCall && this.claimRequired) this.canClaim();
+        else if (!this.ownsCall) void this.activate();
+      }
     } catch {
       /* Report unsupported audio only if native voice actually starts. */
     }
@@ -45,12 +57,20 @@ export class TerminalAudio {
     this.visible = visible;
     if (visible) {
       this.failed = false;
-      this.connect();
+      this.refreshFocus();
     } else this.disconnect();
   }
 
+  /** Idle views yield the session relay; focus never transfers an ongoing call. */
+  refreshFocus() {
+    if (!this.visible || this.disposed || this.ownsCall || this.pendingMicrophone) return;
+    if (this.canStart()) this.connect();
+    else this.disconnect();
+  }
+
   private connect() {
-    if (!this.visible || this.disposed || this.socket) return;
+    if (!this.visible || this.disposed || this.socket || !this.canStart()) return;
+    clearTimeout(this.reconnect);
     const socket = new WebSocket(this.url, "hive-audio-v1");
     this.socket = socket;
     let retry = true;
@@ -67,7 +87,14 @@ export class TerminalAudio {
     };
     socket.onmessage = ({ data }) => {
       if (this.socket !== socket || typeof data !== "string" || data.length > 2048) return;
-      let value: { type?: string; active?: boolean; pcm?: string; message?: string; code?: string };
+      let value: {
+        type?: string;
+        active?: boolean;
+        pcm?: string;
+        message?: string;
+        code?: string;
+        claimRequired?: boolean;
+      };
       try {
         value = JSON.parse(data);
       } catch {
@@ -75,18 +102,26 @@ export class TerminalAudio {
       }
       if (value?.type === "ready" || value?.type === "pong") {
         this.lastPong = Date.now();
+        if (value.type === "ready") this.claimRequired = value.claimRequired === true;
         if (value.type === "ready" && this.ownerRejected) {
           this.ownerRejected = false;
           this.failed = false;
           if (!this.nativeActive) this.onStatus({ phase: "standby" });
         }
+      } else if (value?.type === "claimed") {
+        this.confirmClaim?.();
       } else if (value?.type === "active" && typeof value.active === "boolean") {
         if (this.nativeActive === value.active) return;
         this.nativeActive = value.active;
         if (value.active) void this.activate();
         else {
           this.releaseMedia();
+          if (this.claimRequired && this.ownerRejected) {
+            this.ownerRejected = false;
+            this.failed = false;
+          }
           if (!this.failed) this.onStatus({ phase: "standby" });
+          this.refreshFocus();
         }
       } else if (value?.type === "speaker" && typeof value.pcm === "string" && this.worklet) {
         if (value.pcm.length > 1280) return;
@@ -98,6 +133,17 @@ export class TerminalAudio {
           /* Reject malformed media without retaining it. */
         }
       } else if (value?.type === "error") {
+        if (this.claimRequired && value.code === "session_busy") {
+          // Keep watching the existing call instead of repeatedly reconnecting
+          // and flashing its ownership warning. An observer never stops its owner.
+          this.failed = this.ownerRejected = true;
+          this.releaseMedia();
+          this.onStatus({
+            phase: "error",
+            message: value.message ?? "This terminal's voice call is in use.",
+          });
+          return;
+        }
         retry = value.code === "session_busy";
         this.fail(value.message ?? "Terminal audio is unavailable.", retry, value.code);
       }
@@ -106,7 +152,7 @@ export class TerminalAudio {
       if (this.socket !== socket) return;
       this.socket = null;
       clearInterval(this.heartbeat);
-      if (this.nativeActive && !this.failed)
+      if (this.ownsCall && !this.failed)
         this.onStatus({
           phase: "error",
           message: "Voice disconnected. Run /voice again after reconnecting.",
@@ -122,6 +168,9 @@ export class TerminalAudio {
   }
 
   private async activate() {
+    // A view left open on another device must not answer native activity merely
+    // because that browser still reports focus. Enter arms a new call briefly.
+    if (this.claimRequired && !this.canClaim()) return;
     if (this.pendingMicrophone) {
       this.fail("Finish the microphone permission request, then run /voice again.");
       return;
@@ -133,20 +182,22 @@ export class TerminalAudio {
       // Focus chooses a new call; it never moves an existing call to another pane.
       if (!this.canStart())
         throw new Error("Select this terminal and run /voice again to start voice.");
-      if (microphoneOwner && microphoneOwner !== this)
-        throw new Error("End voice in the other terminal before using /voice here.");
+      const owner = microphoneOwners.get(this.url);
+      if (owner && owner !== this)
+        throw new Error("Voice is already connected in another view of this terminal.");
       if (
         !window.isSecureContext ||
         !navigator.mediaDevices?.getUserMedia ||
         !window.AudioWorkletNode
       )
         throw new Error("Voice needs HTTPS and a browser with microphone and Web Audio support.");
-      microphoneOwner = this;
+      this.ownsCall = true;
+      microphoneOwners.set(this.url, this);
       // The same origin's tabs and installed PWA windows share this lock.
       if (navigator.locks) {
         const claimed = await new Promise<boolean>((resolve, reject) => {
           void navigator.locks
-            .request("hive-terminal-microphone", { ifAvailable: true }, (lock) => {
+            .request(`hive-terminal-microphone:${this.url}`, { ifAvailable: true }, (lock) => {
               if (!lock || !current()) {
                 resolve(false);
                 return;
@@ -160,7 +211,27 @@ export class TerminalAudio {
         });
         if (!current()) return;
         if (!claimed)
-          throw new Error("End voice in the other Hive tab or window before using /voice here.");
+          throw new Error(
+            "Voice for this terminal is already connected in another Hive tab or window.",
+          );
+      }
+      if (this.claimRequired) {
+        await new Promise<void>((resolve, reject) => {
+          const finish = (error?: Error) => {
+            clearTimeout(deadline);
+            this.cancelClaim = this.confirmClaim = null;
+            if (error) reject(error);
+            else resolve();
+          };
+          const deadline = setTimeout(
+            () => finish(new Error("Voice ownership timed out. Run /voice again.")),
+            8000,
+          );
+          this.cancelClaim = () => finish(new Error("Voice ended."));
+          this.confirmClaim = () => finish();
+          this.send({ type: "claim" });
+        });
+        if (!current()) return;
       }
       this.failed = false;
       this.onStatus({
@@ -178,7 +249,10 @@ export class TerminalAudio {
         this.pendingMicrophone = false;
         // getUserMedia cannot be canceled. Keep its reservation until it settles,
         // even when the terminal was hidden or native capture ended meanwhile.
-        if (!current()) this.releaseOwnership();
+        if (!current()) {
+          this.releaseOwnership();
+          this.refreshFocus();
+        }
       }
       if (!current()) {
         for (const track of stream.getTracks()) track.stop();
@@ -268,6 +342,8 @@ export class TerminalAudio {
 
   private releaseMedia() {
     this.generation++;
+    this.ownsCall = false;
+    this.cancelClaim?.();
     for (const track of this.stream?.getTracks() ?? []) {
       track.onended = null;
       track.stop();
@@ -291,7 +367,7 @@ export class TerminalAudio {
 
   private releaseOwnership() {
     if (this.pendingMicrophone) return;
-    if (microphoneOwner === this) microphoneOwner = null;
+    if (microphoneOwners.get(this.url) === this) microphoneOwners.delete(this.url);
     this.releaseMicrophoneLock?.();
     this.releaseMicrophoneLock = null;
   }

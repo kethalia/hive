@@ -33,6 +33,7 @@ import {
   pasteClipboardApiToTerminal,
   pasteNativeClipboardEventToTerminal,
 } from "@/lib/terminal/actions";
+import { primeTerminalAudio } from "@/lib/terminal/audio-interaction";
 import {
   handleTerminalPasteOutcome,
   readNativePasteOutcome,
@@ -984,7 +985,11 @@ function TerminalRuntime({
         recordFitDiagnostics(term, "initial-open-fit");
       }
 
-      const sendRaw = (text: string) => sendRef.current(encodeInput(text));
+      const sendRaw = (text: string) => {
+        // Compose and touch Enter send outside xterm's keyboard event surface.
+        if (text.includes("\r")) primeTerminalAudio(containerRef.current);
+        sendRef.current(encodeInput(text));
+      };
       onTerminalReadyRef.current?.(term, sendRaw);
       const handleCapturedNativePaste = (outcome: TerminalPasteOutcome) => {
         if (!onComposeRequestRef.current) return;
@@ -1255,6 +1260,9 @@ function TerminalRuntime({
       className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}
       data-connection-state={connectionState}
       data-terminal-surface="true"
+      onKeyDownCapture={(event) => {
+        if (event.key === "Enter") primeTerminalAudio(event.currentTarget);
+      }}
     >
       {connectionState === "connected" ? (
         <TerminalAudioBridge

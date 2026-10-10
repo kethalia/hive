@@ -48,6 +48,43 @@ class AudioBrokerTest(unittest.TestCase):
         self.assertEqual(self.socket.sent[-1], (b"N", "other"))
         self.assertEqual(self.broker.owner, "browser")
 
+    def test_idle_views_on_other_devices_do_not_reserve_or_stop_audio(self):
+        stopped = []
+        self.broker.stop_devices = lambda: stopped.append(True)
+        for address in ("unused-device", "current-device"):
+            self.broker.handle(b"W", address, 0)
+        self.assertIsNone(self.broker.owner)
+        self.broker.capturing = True
+        self.broker.active()
+        self.broker.handle(b"C", "current-device", 1)
+        self.assertEqual(self.broker.owner, "current-device")
+        self.assertEqual(self.socket.sent[-1], (b"C", "current-device"))
+        self.broker.handle(b"Q", "unused-device", 2)
+        self.assertTrue(self.broker.capturing)
+        self.assertEqual(stopped, [])
+        self.broker.handle(b"W", "competitor", 3)
+        self.broker.handle(b"C", "competitor", 3)
+        self.assertEqual(self.socket.sent[-1], (b"N", "competitor"))
+        self.broker.handle(b"Q", "competitor", 3)
+        self.assertEqual(self.broker.owner, "current-device")
+        self.assertEqual(stopped, [])
+        self.broker.handle(b"Q", "current-device", 4)
+        self.assertEqual(stopped, [True])
+
+    def test_idle_expiry_and_call_end_leave_watchers_free_for_the_next_call(self):
+        self.broker.handle(b"W", "idle", 0)
+        self.broker.handle(b"W", "current", 0)
+        self.broker.capturing = True
+        self.broker.handle(b"C", "current", 1)
+        self.broker.handle(b"K", "current", 10)
+        self.broker.expire(16)
+        self.assertNotIn("idle", self.broker.views)
+        self.assertEqual(self.broker.owner, "current")
+        self.broker.capturing = False
+        self.broker.active()
+        self.assertIsNone(self.broker.owner)
+        self.assertIn("current", self.broker.views)
+
     def test_pcm_is_routed_only_from_the_owner_while_capture_is_active(self):
         samples = []
         self.broker.microphone = samples.append
@@ -169,23 +206,36 @@ class AudioRelayTest(unittest.TestCase):
         self.assertTrue(select.select([process.stdout], [], [], 3)[0], "Relay did not respond")
         return json.loads(process.stdout.readline())
 
-    def test_parallel_relays_have_unique_addresses_and_reach_session_ownership(self):
+    def test_parallel_relays_watch_idle_sessions_and_claim_only_a_live_call(self):
         shared_socket, shared_broker = self.broker("-voice")
         other_socket, other_broker = self.broker("other")
         first = self.start_relay("-voice")
         first_address = self.receive(shared_socket, shared_broker)
-        self.assertEqual(self.read(first), {"type": "ready"})
+        self.assertEqual(self.read(first), {"type": "ready", "claimRequired": True})
         self.assertEqual(self.read(first), {"type": "active", "active": False})
+        self.assertIsNone(shared_broker.owner)
+        shared_broker.capturing = True
+        shared_broker.active()
+        self.assertEqual(self.read(first), {"type": "active", "active": True})
+        first.stdin.write(b'{"type":"claim"}\n')
+        self.receive(shared_socket, shared_broker)
+        self.assertEqual(self.read(first), {"type": "claimed"})
 
         other = self.start_relay("other")
         other_address = self.receive(other_socket, other_broker)
         self.assertNotEqual(first_address, other_address)
-        self.assertEqual(self.read(other), {"type": "ready"})
+        self.assertEqual(self.read(other), {"type": "ready", "claimRequired": True})
 
         duplicate = self.start_relay("-voice")
         duplicate_address = self.receive(shared_socket, shared_broker)
         self.assertNotEqual(first_address, duplicate_address)
+        self.assertEqual(self.read(duplicate), {"type": "ready", "claimRequired": True})
+        self.assertEqual(self.read(duplicate), {"type": "active", "active": True})
+        duplicate.stdin.write(b'{"type":"claim"}\n')
+        self.receive(shared_socket, shared_broker)
         self.assertEqual(self.read(duplicate)["code"], "session_busy")
+        self.assertIsNone(duplicate.poll())
+        duplicate.stdin.write(b'{"type":"release"}\n')
         self.assertEqual(duplicate.wait(timeout=3), 0)
 
         first.stdin.write(b'{"type":"release"}\n')
@@ -194,7 +244,7 @@ class AudioRelayTest(unittest.TestCase):
             self.receive(shared_socket, shared_broker)
         replacement = self.start_relay("-voice")
         self.receive(shared_socket, shared_broker)
-        self.assertEqual(self.read(replacement), {"type": "ready"})
+        self.assertEqual(self.read(replacement), {"type": "ready", "claimRequired": True})
 
     def test_all_commands_parse_leading_dash_session_names(self):
         for command in ("prepare", "serve", "relay"):
@@ -220,14 +270,14 @@ class AudioRelayTest(unittest.TestCase):
         sock, broker = self.broker(session)
         relay = self.start_relay(session)
         self.receive(sock, broker)
-        self.assertEqual(self.read(relay), {"type": "ready"})
+        self.assertEqual(self.read(relay), {"type": "ready", "claimRequired": True})
 
     def test_relay_connects_to_the_prepared_identity_after_the_name_changes(self):
         sock, broker = self.broker("original")
         server = "unix:" + str(audio.state_directory("original") / "pulse.sock")
         relay = self.start_relay("renamed", server)
         self.receive(sock, broker)
-        self.assertEqual(self.read(relay), {"type": "ready"})
+        self.assertEqual(self.read(relay), {"type": "ready", "claimRequired": True})
 
     def test_spawned_identity_is_independent_of_session_lookup(self):
         original = audio.state_directory("original")
@@ -265,7 +315,7 @@ class AudioRelayTest(unittest.TestCase):
             self.assertEqual(audio.prepare("renamed"), server)
         relay = self.start_relay("renamed")
         self.receive(sock, broker)
-        self.assertEqual(self.read(relay), {"type": "ready"})
+        self.assertEqual(self.read(relay), {"type": "ready", "claimRequired": True})
         self.assertTrue(audio.session_uses_directory(original))
 
         reused = audio.state_directory("original")

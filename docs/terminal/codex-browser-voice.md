@@ -21,18 +21,24 @@ Pressing Enter in the terminal enables playback under browser autoplay rules.
 The focused terminal can start a new call. When Compose or another control has
 focus outside the terminal, the selected pane can start it instead. Changing pane
 or window focus during a call keeps audio attached to the terminal that started
-it. A background terminal cannot claim the microphone automatically.
+it. Enter, Compose send, or touch Enter arms that terminal for one claim attempt
+within 15 seconds, even if the audio bridge is still loading. Successful, rejected,
+and failed attempts consume the interaction; a later call needs a fresh gesture.
+A view left open on an unused device cannot claim a call solely because
+its browser still reports focus. Background views do not reserve an idle relay.
 
 Hiding the browser tab, parking the terminal, losing the connection, denying or
 revoking permission, and closing the terminal release browser audio and disconnect
 the native audio streams. Keep the terminal visible during a call. One terminal
-view owns a session's audio, and one call owns a page's microphone. Browsers with
-Web Locks also enforce one microphone owner across Hive tabs and PWA windows at
-the same origin. End the first call before starting voice in another session;
-other sessions can keep running text and tools. After fixing
+view owns a session's audio. Different terminal sessions can run voice calls
+simultaneously, each using its own virtual microphone and speaker devices. The
+physical microphone feeds every active call, and their replies play through the
+browser together. Browsers with Web Locks prevent duplicate calls for the same
+terminal across Hive tabs and PWA windows at the same origin. The workspace broker
+also enforces one active view per terminal across devices. After fixing
 permission or connection errors, wait for reconnection and run `/voice` again.
 If a call ends while its browser permission prompt is open, finish that prompt
-before starting another call. Its microphone reservation remains held until the
+before retrying that terminal's call. Its microphone reservation remains held until the
 request settles; a late grant is stopped without sending audio.
 
 ## Rollout
@@ -51,6 +57,12 @@ rollout, restart the workspace, and open a **new terminal session**. Existing tm
 shells and Codex processes retain their old environment; reconnecting an existing
 terminal does not change that environment. Older workspace images still support
 ordinary terminal use and report that their audio helper is unavailable.
+
+The new broker lets idle views observe capture activity without owning audio.
+Deploy the matching terminal proxy and web application before restarting onto the
+new workspace image. Refresh older Hive views on all devices after deployment.
+The web client retains compatibility with the old relay handshake, whose idle
+ownership behavior remains until the workspace is upgraded.
 
 The terminal proxy's existing `ALLOWED_ORIGINS`, Hive cookie authentication, Coder
 credentials, and workspace/agent authorization also protect `/ws/audio`. Ensure
@@ -73,10 +85,13 @@ follow the same validation as ordinary terminals and are hashed into fixed-lengt
 device paths. Nothing alters Codex's binary, thread selection, voice
 protocol, or account credentials.
 
-The browser opens an authenticated audio WebSocket while the terminal is visible.
+The browser opens an authenticated audio WebSocket for a visible, focused terminal.
+An ongoing call retains its connection when focus moves to another visible pane.
 The proxy starts `hive-audio relay -- <session>` through the existing Coder PTY API.
-That relay claims the session broker; a second view is rejected. Native capture
-activity triggers the browser microphone request automatically. Audio uses 48 kHz
+That relay observes the session broker without claiming its devices. Native
+capture notifies observers; a recently armed, focused view claims the call before
+requesting microphone permission. Only the owner sends capture PCM or receives
+speaker PCM. Other observers cannot stop or take over an active call. Audio uses 48 kHz
 mono signed 16-bit PCM in bounded ten-millisecond frames. The AudioWorklet and
 workspace broker discard stale samples when consumers stall. Audio is not stored
 in files or logs. Heartbeats and deadlines release abandoned connections.
@@ -93,17 +108,19 @@ that session is gone. Workspace shutdown terminates these processes normally.
 
 ## Verification
 
-- Python broker tests cover ownership, capture pause/resume, malformed PCM,
+- Python broker tests cover idle observers, cross-device call ownership,
+  capture pause/resume, malformed PCM,
   release, and owner expiry.
 - Terminal proxy tests cover authorization, bounded frames, fragmented PTY output,
   startup heartbeats, backpressure, and disconnect cleanup.
 - Browser unit tests cover focus gating, late grants, pending permission
   reservations, concurrent calls, stale media callbacks, denial, and cleanup.
 - `e2e/terminal-audio.spec.mjs` uses real Chrome microphone and AudioWorklet APIs
-  with synthetic input and an emulated workspace relay. All twenty-four desktop,
+  with synthetic input and an emulated workspace relay. All thirty desktop,
   tablet, and mobile viewport tests cover PCM in both directions, denial, parking,
-  microphone ownership across windows, focus gating, pinned pane ownership,
-  pending permission cancellation, and Compose-style external focus.
+  per-terminal microphone ownership across windows, concurrent terminal calls,
+  unused-device observers, takeover rejection, focus gating, pinned pane ownership,
+  pending permission cancellation, and Compose send outside xterm.
 - A separate live probe used the unmodified Codex **0.161.0** native voice helper,
   an isolated ephemeral Codex thread, and the production PulseAudio broker. Spoken
   output produced measurable speaker samples; a synthetic tone reached native
@@ -120,7 +137,7 @@ that session is gone. Workspace shutdown terminates these processes normally.
 
 Browser validation runs in the `browser-testing` profile. Evidence is preserved
 in the primary checkout under `.artifacts/voice-bridge/` and
-`.artifacts/voice-ownership/`. These checks do not cover
+`.artifacts/voice-ownership/` and `.artifacts/per-terminal-voice/`. These checks do not cover
 physical microphone acoustics, Safari/iOS, long conversations, or live approval
 interactions. Codex account access and compatibility with its experimental native
 voice feature remain necessary. The container image build and image smoke tests

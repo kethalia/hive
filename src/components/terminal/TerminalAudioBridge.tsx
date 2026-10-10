@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { consumeTerminalAudioInteraction } from "@/lib/terminal/audio-interaction";
 import { TerminalAudio, type TerminalAudioStatus } from "@/lib/terminal/browser-audio";
+import { TERMINAL_AUDIO_PRIME_EVENT } from "@/lib/terminal/events";
 
 export function TerminalAudioBridge({
   proxyUrl,
@@ -21,18 +23,28 @@ export function TerminalAudioBridge({
     const terminal = element.current.closest<HTMLElement>('[data-terminal-surface="true"]');
     if (!terminal) return;
     const params = new URLSearchParams({ workspaceId, agentId, sessionName });
-    const audio = new TerminalAudio(`${proxyUrl}/ws/audio?${params}`, setStatus, () => {
-      if (!document.hasFocus()) return false;
-      const focusedTerminal = document.activeElement?.closest('[data-terminal-surface="true"]');
-      if (focusedTerminal) return focusedTerminal === terminal;
-      // Touch/Compose input may live outside xterm; use the selected pane then.
-      return terminal.closest("[data-pane-mode]")?.getAttribute("data-active") !== "false";
-    });
+    const audio = new TerminalAudio(
+      `${proxyUrl}/ws/audio?${params}`,
+      setStatus,
+      () => {
+        if (!document.hasFocus()) return false;
+        const focusedTerminal = document.activeElement?.closest('[data-terminal-surface="true"]');
+        if (focusedTerminal) return focusedTerminal === terminal;
+        // Touch/Compose input may live outside xterm; use the selected pane then.
+        return terminal.closest("[data-pane-mode]")?.getAttribute("data-active") !== "false";
+      },
+      () => consumeTerminalAudioInteraction(terminal),
+    );
     let inView = false;
-    const update = () =>
+    const update = () => {
       audio.setVisible(
         inView && document.visibilityState === "visible" && !terminal.closest("[inert]"),
       );
+      audio.refreshFocus();
+    };
+    // focusout briefly exposes body as activeElement. Read the settled focus so
+    // selecting another pane does not claim/release relays midway through focus.
+    const focus = () => queueMicrotask(update);
     const observer = new IntersectionObserver(([entry]) => {
       inView = entry.isIntersecting;
       update();
@@ -40,17 +52,27 @@ export function TerminalAudioBridge({
     observer.observe(terminal);
     // Persistent terminal surfaces can be parked without unmounting.
     const parking = new MutationObserver(update);
-    parking.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["inert"] });
-    const prime = (event: KeyboardEvent) => {
-      if (event.key === "Enter") audio.prime();
-    };
-    terminal.addEventListener("keydown", prime, { capture: true });
+    parking.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["inert", "data-active"],
+    });
+    const prime = () => audio.prime();
+    terminal.addEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
     document.addEventListener("visibilitychange", update);
+    document.addEventListener("focusin", focus);
+    document.addEventListener("focusout", focus);
+    window.addEventListener("focus", focus);
+    window.addEventListener("blur", focus);
     return () => {
       observer.disconnect();
       parking.disconnect();
-      terminal.removeEventListener("keydown", prime, { capture: true });
+      terminal.removeEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
       document.removeEventListener("visibilitychange", update);
+      document.removeEventListener("focusin", focus);
+      document.removeEventListener("focusout", focus);
+      window.removeEventListener("focus", focus);
+      window.removeEventListener("blur", focus);
       audio.dispose();
     };
   }, [proxyUrl, workspaceId, agentId, sessionName]);
