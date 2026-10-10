@@ -1,5 +1,17 @@
 # hive-orchestrator
 
+## 2.20.3
+
+### Patch Changes
+
+- 0a157c3: Fix native Codex voice in workspace images by exposing Debian's ALSA plugins at the
+  path used by Codex's bundled audio library. Requires the rebuilt workspace image
+  and a workspace restart.
+- a7a6c44: Keep terminal voice calls attached to the pane that started them. Prevent background
+  panes and overlapping permission requests from competing for the microphone, ignore
+  retired audio callbacks, and retain call ownership while native capture is paused.
+  The native capture lifecycle fix requires the rebuilt workspace image and a restart.
+
 ## 2.20.2
 
 ### Patch Changes
