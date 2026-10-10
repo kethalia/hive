@@ -13,7 +13,9 @@ let server, wss, url;
 let connections = new Set();
 let microphoneFrames = 0;
 let speakerTimer;
-let active = false;
+const activeCalls = new Map();
+const sessionNames = new WeakMap();
+const sessionFrames = new Map();
 
 test.use({
   channel: "chrome",
@@ -54,12 +56,16 @@ test.beforeAll(async () => {
     } else if (req.url === "/hive-audio-worklet.js") {
       res.setHeader("Content-Type", "text/javascript");
       res.end(worklet);
-    } else if (req.url === "/native") {
+    } else if (req.url.startsWith("/native?")) {
       let command = "";
       for await (const part of req) command += part;
       if (command === "/voice") {
-        active = !active;
-        for (const socket of connections) socket.send(JSON.stringify({ type: "active", active }));
+        const sessionName = new URL(req.url, "http://localhost").searchParams.get("sessionName");
+        const active = !activeCalls.get(sessionName);
+        activeCalls.set(sessionName, active);
+        for (const socket of connections)
+          if (sessionNames.get(socket) === sessionName)
+            socket.send(JSON.stringify({ type: "active", active }));
       }
       res.end("ok");
     } else if (req.url === "/lock-page") {
@@ -73,29 +79,35 @@ test.beforeAll(async () => {
     }
   });
   wss = new WebSocketServer({ server });
-  wss.on("connection", (socket) => {
+  wss.on("connection", (socket, req) => {
+    const sessionName = new URL(req.url, "http://localhost").searchParams.get("sessionName");
+    sessionNames.set(socket, sessionName);
     connections.add(socket);
     socket.send('{"type":"ready"}');
-    socket.send('{"type":"active","active":false}');
+    socket.send(JSON.stringify({ type: "active", active: !!activeCalls.get(sessionName) }));
     socket.on("message", (raw) => {
       const value = JSON.parse(raw.toString());
       if (value.type === "microphone") {
         expect(Buffer.from(value.pcm, "base64").length).toBe(960);
         microphoneFrames++;
+        sessionFrames.set(sessionName, (sessionFrames.get(sessionName) ?? 0) + 1);
       }
       if (value.type === "ping") socket.send('{"type":"pong"}');
-      if (value.type === "release") socket.close();
+      if (value.type === "release") {
+        activeCalls.set(sessionName, false); // Releasing the real broker ends native capture.
+        socket.close();
+      }
     });
     socket.on("close", () => connections.delete(socket));
   });
   let sample = 0;
   speakerTimer = setInterval(() => {
-    if (!active) return;
     const pcm = Buffer.alloc(960);
     for (let i = 0; i < 480; i++)
       pcm.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * 440 * sample++) / 48_000)), i * 2);
     for (const socket of connections)
-      socket.send(JSON.stringify({ type: "speaker", pcm: pcm.toString("base64") }));
+      if (activeCalls.get(sessionNames.get(socket)))
+        socket.send(JSON.stringify({ type: "speaker", pcm: pcm.toString("base64") }));
   }, 10);
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -103,7 +115,8 @@ test.beforeAll(async () => {
 });
 test.beforeEach(() => {
   microphoneFrames = 0;
-  active = false;
+  activeCalls.clear();
+  sessionFrames.clear();
 });
 test.afterEach(() => {
   for (const socket of connections) socket.close();
@@ -114,8 +127,11 @@ test.afterAll(async () => {
   wss.close();
   await new Promise((resolve) => server.close(resolve));
 });
-async function voice(page) {
-  const terminal = page.getByRole("textbox", { name: "Terminal input" });
+async function voice(page, sessionName = "test") {
+  await page.bringToFront();
+  const terminal = page.getByRole("textbox", {
+    name: sessionName === "test" ? "Terminal input" : `${sessionName} terminal input`,
+  });
   await terminal.fill("/voice");
   await terminal.press("Enter");
 }
@@ -217,8 +233,134 @@ test("another Hive window cannot share the microphone and releasing it permits a
   await expect.poll(() => connections.size).toBe(0);
   await other.close();
   await expect.poll(() => connections.size).toBe(1);
-  await voice(page); // End the simulated native call that was disconnected.
   await voice(page);
   await expect(page.getByRole("status")).toHaveText("Voice connected");
   await expect.poll(() => microphoneFrames).toBeGreaterThan(5);
+});
+
+test("background capture cannot claim audio and focus changes do not move an ongoing call", async ({
+  page,
+  request,
+}, testInfo) => {
+  await page.goto(`${url}/panes`);
+  await expect.poll(() => connections.size).toBe(2);
+  await page.getByRole("textbox", { name: "first terminal input" }).focus();
+  await request.post(`${url}/native?sessionName=second`, { data: "/voice" });
+  await expect(page.locator('[data-session="second"]').getByRole("status")).toContainText(
+    "Select this terminal",
+  );
+  expect(await page.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
+  await voice(page, "first");
+  await expect(page.locator('[data-session="first"]').getByRole("status")).toHaveText(
+    "Voice connected",
+  );
+  await expect.poll(() => sessionFrames.get("first") ?? 0).toBeGreaterThan(5);
+  await expect.poll(() => connections.size).toBe(2);
+  await voice(page, "second");
+  await expect(page.locator('[data-session="second"]').getByRole("status")).toContainText(
+    "other terminal",
+  );
+  expect(await page.evaluate(() => window.audioProbe.tracks.length)).toBe(1);
+  expect(sessionFrames.get("second") ?? 0).toBe(0);
+  await expect(page.locator('[data-session="first"]').getByRole("status")).toHaveText(
+    "Voice connected",
+  );
+  await page.screenshot({ path: testInfo.outputPath("voice-stays-with-origin-pane.png") });
+  await voice(page, "first");
+  await expect(page.locator('[data-session="first"]').getByRole("status")).toHaveCount(0);
+  await expect.poll(() => connections.size).toBe(2);
+  await voice(page, "second");
+  await expect(page.locator('[data-session="second"]').getByRole("status")).toHaveText(
+    "Voice connected",
+  );
+  await expect.poll(() => sessionFrames.get("second") ?? 0).toBeGreaterThan(5);
+  expect(
+    await page.evaluate(() => window.audioProbe.tracks.map((track) => track.readyState)),
+  ).toEqual(["ended", "live"]);
+});
+
+test("ending a call during permission cannot open a competing prompt or use a late grant", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const native = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    window.permissionRequests = 0;
+    navigator.mediaDevices.getUserMedia = (constraints) => {
+      window.permissionRequests++;
+      return new Promise((resolve, reject) => {
+        window.grantMicrophone = () => native(constraints).then(resolve, reject);
+      });
+    };
+  });
+  await page.goto(`${url}/panes`);
+  await expect.poll(() => connections.size).toBe(2);
+  await voice(page, "first");
+  await expect(page.locator('[data-session="first"]').getByRole("status")).toContainText(
+    "Connecting voice",
+  );
+  await voice(page, "first");
+  await expect(page.locator('[data-session="first"]').getByRole("status")).toHaveCount(0);
+  await voice(page, "second");
+  await expect(page.locator('[data-session="second"]').getByRole("status")).toContainText(
+    "other terminal",
+  );
+  expect(await page.evaluate(() => window.permissionRequests)).toBe(1);
+  await page.evaluate(() => window.grantMicrophone());
+  await expect
+    .poll(() => page.evaluate(() => window.audioProbe.tracks.map((track) => track.readyState)))
+    .toEqual(["ended"]);
+  expect(microphoneFrames).toBe(0);
+  await expect.poll(() => connections.size).toBe(2);
+  await voice(page, "second");
+  await expect.poll(() => page.evaluate(() => window.permissionRequests)).toBe(2);
+  await page.evaluate(() => window.grantMicrophone());
+  await expect(page.locator('[data-session="second"]').getByRole("status")).toHaveText(
+    "Voice connected",
+  );
+  await expect.poll(() => sessionFrames.get("second") ?? 0).toBeGreaterThan(5);
+});
+
+test("an unfocused Hive window cannot begin a microphone call", async ({
+  page,
+  context,
+  request,
+}) => {
+  await page.goto(url);
+  await expect.poll(() => connections.size).toBe(1);
+  const cdp = await page.context().newCDPSession(page);
+  // Playwright forces every page to report focus, even behind other windows.
+  // Disable that emulation to exercise the browser's unfocused state.
+  await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: false });
+  const other = await context.newPage();
+  await other.goto(`${url}/lock-page`);
+  await other.bringToFront();
+  expect(await page.evaluate(() => document.hasFocus())).toBe(false);
+  await request.post(`${url}/native?sessionName=test`, { data: "/voice" });
+  await expect(page.getByRole("status")).toContainText("Select this terminal");
+  expect(await page.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
+  await other.close();
+  await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+  await expect.poll(() => connections.size).toBe(1);
+  await voice(page);
+  await expect(page.getByRole("status")).toHaveText("Voice connected");
+});
+
+test("external Compose-style focus uses the selected pane to choose a new call", async ({
+  page,
+  request,
+}) => {
+  await page.goto(`${url}/panes`);
+  await expect.poll(() => connections.size).toBe(2);
+  // Unlock playback first, then focus a control outside either terminal.
+  await page.getByRole("textbox", { name: "second terminal input" }).press("Enter");
+  await page.getByRole("button", { name: "Select second pane" }).click();
+  await expect(page.locator('[data-pane-mode][data-active="true"]')).toContainText(
+    "Codex terminal",
+  );
+  await request.post(`${url}/native?sessionName=second`, { data: "/voice" });
+  await expect(page.locator('[data-session="second"]').getByRole("status")).toHaveText(
+    "Voice connected",
+  );
+  expect(await page.evaluate(() => window.audioProbe.tracks.length)).toBe(1);
+  expect(sessionFrames.get("first") ?? 0).toBe(0);
 });

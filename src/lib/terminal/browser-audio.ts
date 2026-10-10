@@ -21,10 +21,12 @@ export class TerminalAudio {
   private failed = false;
   private ownerRejected = false;
   private releaseMicrophoneLock: (() => void) | null = null;
+  private pendingMicrophone = false;
 
   constructor(
     private url: string,
     private onStatus: (status: TerminalAudioStatus) => void,
+    private canStart: () => boolean = () => true,
   ) {}
 
   /** Called synchronously from Enter so playback can use the browser's user activation. */
@@ -120,10 +122,17 @@ export class TerminalAudio {
   }
 
   private async activate() {
+    if (this.pendingMicrophone) {
+      this.fail("Finish the microphone permission request, then run /voice again.");
+      return;
+    }
     const generation = ++this.generation;
     const current = () =>
       !this.disposed && this.visible && this.nativeActive && generation === this.generation;
     try {
+      // Focus chooses a new call; it never moves an existing call to another pane.
+      if (!this.canStart())
+        throw new Error("Select this terminal and run /voice again to start voice.");
       if (microphoneOwner && microphoneOwner !== this)
         throw new Error("End voice in the other terminal before using /voice here.");
       if (
@@ -158,17 +167,28 @@ export class TerminalAudio {
         phase: "connecting",
         message: "Connecting voice… Allow microphone access when prompted.",
       });
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-        video: false,
-      });
+      this.pendingMicrophone = true;
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+          video: false,
+        });
+      } finally {
+        this.pendingMicrophone = false;
+        // getUserMedia cannot be canceled. Keep its reservation until it settles,
+        // even when the terminal was hidden or native capture ended meanwhile.
+        if (!current()) this.releaseOwnership();
+      }
       if (!current()) {
         for (const track of stream.getTracks()) track.stop();
         return;
       }
       this.stream = stream;
       for (const track of stream.getTracks())
-        track.onended = () => this.fail("Microphone access ended. Run /voice again to reconnect.");
+        track.onended = () => {
+          if (current()) this.fail("Microphone access ended. Run /voice again to reconnect.");
+        };
       this.context ??= new AudioContext({ sampleRate: 48_000 });
       const context = this.context;
       if (context.sampleRate !== 48_000)
@@ -208,8 +228,9 @@ export class TerminalAudio {
         if (!current() || !(data instanceof ArrayBuffer) || data.byteLength !== 960) return;
         this.send({ type: "microphone", pcm: btoa(String.fromCharCode(...new Uint8Array(data))) });
       };
-      worklet.onprocessorerror = () =>
-        this.fail("Voice audio stopped. Run /voice again to reconnect.");
+      worklet.onprocessorerror = () => {
+        if (current()) this.fail("Voice audio stopped. Run /voice again to reconnect.");
+      };
       this.source = context.createMediaStreamSource(stream);
       this.source.connect(worklet);
       worklet.connect(context.destination);
@@ -255,6 +276,7 @@ export class TerminalAudio {
     this.source?.disconnect();
     this.source = null;
     if (this.worklet) {
+      this.worklet.onprocessorerror = null;
       this.worklet.port.onmessage = null;
       this.worklet.disconnect();
       this.worklet.port.close();
@@ -264,6 +286,11 @@ export class TerminalAudio {
       void this.context.close().catch(() => {});
       this.context = null;
     }
+    this.releaseOwnership();
+  }
+
+  private releaseOwnership() {
+    if (this.pendingMicrophone) return;
     if (microphoneOwner === this) microphoneOwner = null;
     this.releaseMicrophoneLock?.();
     this.releaseMicrophoneLock = null;

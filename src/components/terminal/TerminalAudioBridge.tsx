@@ -21,7 +21,13 @@ export function TerminalAudioBridge({
     const terminal = element.current.closest<HTMLElement>('[data-terminal-surface="true"]');
     if (!terminal) return;
     const params = new URLSearchParams({ workspaceId, agentId, sessionName });
-    const audio = new TerminalAudio(`${proxyUrl}/ws/audio?${params}`, setStatus);
+    const audio = new TerminalAudio(`${proxyUrl}/ws/audio?${params}`, setStatus, () => {
+      if (!document.hasFocus()) return false;
+      const focusedTerminal = document.activeElement?.closest('[data-terminal-surface="true"]');
+      if (focusedTerminal) return focusedTerminal === terminal;
+      // Touch/Compose input may live outside xterm; use the selected pane then.
+      return terminal.closest("[data-pane-mode]")?.getAttribute("data-active") !== "false";
+    });
     let inView = false;
     const update = () =>
       audio.setVisible(
