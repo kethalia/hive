@@ -209,7 +209,9 @@ class PulseDevices:
     def refresh(self, broker):
         # The server starts empty: null sinks have indexes 0 (mic) and 1 (speaker).
         # Our own recording stream is on source 1 and cannot activate microphone.
-        self.capture_ids = [row["index"] for row in self.list("source-outputs") if row["source"] == 0 and not row.get("corked", False)]
+        # Corking pauses samples, not the call. Releasing ownership on a pause
+        # cancels pending permission and lets another terminal race to claim it.
+        self.capture_ids = [row["index"] for row in self.list("source-outputs") if row["source"] == 0]
         self.speaker_ids = [row["index"] for row in self.list("sink-inputs") if row["sink"] == 1]
         active = bool(self.capture_ids)
         if active and not broker.owner:

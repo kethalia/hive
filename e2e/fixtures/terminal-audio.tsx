@@ -32,34 +32,62 @@ navigator.mediaDevices.getUserMedia = async (constraints) => {
 };
 
 function Fixture() {
-  const [value, setValue] = useState("");
+  const sessions = location.pathname === "/panes" ? ["first", "second"] : ["test"];
+  const [selected, setSelected] = useState(sessions[0]);
   return (
     <main className="flex h-dvh flex-col bg-background p-4 text-foreground">
-      <div
-        data-terminal-surface="true"
-        className="relative flex min-h-0 flex-1 flex-col rounded border p-4"
-      >
-        <TerminalAudioBridge
-          proxyUrl={location.origin.replace(/^http/, "ws")}
-          workspaceId="workspace"
-          agentId="agent"
-          sessionName="test"
-        />
-        <p>Codex terminal</p>
-        <textarea
-          aria-label="Terminal input"
-          className="mt-auto w-full rounded bg-muted p-2"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter") return;
-            event.preventDefault();
-            void fetch("/native", { method: "POST", body: value });
-            setValue("");
-          }}
-        />
-      </div>
+      {sessions.length > 1 ? (
+        <nav>
+          {sessions.map((name) => (
+            <button key={name} type="button" onClick={() => setSelected(name)}>
+              Select {name} pane
+            </button>
+          ))}
+        </nav>
+      ) : null}
+      {sessions.map((name) => (
+        <section
+          key={name}
+          data-pane-mode="split"
+          data-active={selected === name ? "true" : "false"}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <Pane name={name} select={() => setSelected(name)} />
+        </section>
+      ))}
     </main>
+  );
+}
+
+function Pane({ name, select }: { name: string; select: () => void }) {
+  const [value, setValue] = useState("");
+  return (
+    <div
+      data-terminal-surface="true"
+      data-session={name}
+      className="relative flex min-h-0 flex-1 flex-col rounded border p-4"
+    >
+      <TerminalAudioBridge
+        proxyUrl={location.origin.replace(/^http/, "ws")}
+        workspaceId="workspace"
+        agentId="agent"
+        sessionName={name}
+      />
+      <p>Codex terminal</p>
+      <textarea
+        aria-label={name === "test" ? "Terminal input" : `${name} terminal input`}
+        className="mt-auto w-full rounded bg-muted p-2"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onFocus={select}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          void fetch(`/native?sessionName=${name}`, { method: "POST", body: value });
+          setValue("");
+        }}
+      />
+    </div>
   );
 }
 createRoot(document.getElementById("app") as HTMLElement).render(<Fixture />);

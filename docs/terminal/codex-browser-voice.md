@@ -6,7 +6,7 @@ current session. There is no session picker or separate Start voice bar.
 
 ## Use
 
-1. Open Codex in a Hive terminal and type `/voice`.
+1. Focus the Hive window and the terminal containing Codex, then type `/voice`.
 2. Allow microphone access to the Hive website or installed PWA when prompted.
 3. Speak normally. Codex replies play through the browser. Use Codex's `/voice`
    command to end voice.
@@ -18,6 +18,11 @@ or an error. Browser permission settings determine whether future calls prompt
 again. HTTPS (or localhost) and Web Audio/AudioWorklet support are required.
 Pressing Enter in the terminal enables playback under browser autoplay rules.
 
+The focused terminal can start a new call. When Compose or another control has
+focus outside the terminal, the selected pane can start it instead. Changing pane
+or window focus during a call keeps audio attached to the terminal that started
+it. A background terminal cannot claim the microphone automatically.
+
 Hiding the browser tab, parking the terminal, losing the connection, denying or
 revoking permission, and closing the terminal release browser audio and disconnect
 the native audio streams. Keep the terminal visible during a call. One terminal
@@ -26,6 +31,9 @@ Web Locks also enforce one microphone owner across Hive tabs and PWA windows at
 the same origin. End the first call before starting voice in another session;
 other sessions can keep running text and tools. After fixing
 permission or connection errors, wait for reconnection and run `/voice` again.
+If a call ends while its browser permission prompt is open, finish that prompt
+before starting another call. Its microphone reservation remains held until the
+request settles; a late grant is stopped without sending audio.
 
 ## Rollout
 
@@ -73,7 +81,10 @@ mono signed 16-bit PCM in bounded ten-millisecond frames. The AudioWorklet and
 workspace broker discard stale samples when consumers stall. Audio is not stored
 in files or logs. Heartbeats and deadlines release abandoned connections.
 
-Ending native capture releases the browser microphone and playback context.
+Closing the native capture stream releases the browser microphone and playback
+context. A paused (PulseAudio "corked") stream still belongs to the same call and
+retains browser ownership until it closes. Pausing and resuming capture therefore
+does not cancel a permission request or allow another pane to claim the call.
 Browser release stops the session audio server if native streams are open,
 disconnecting capture/playback. A subsequent relay recreates the same devices.
 Brokers retain
@@ -82,14 +93,17 @@ that session is gone. Workspace shutdown terminates these processes normally.
 
 ## Verification
 
-- Python broker tests cover ownership, malformed PCM, release, and owner expiry.
+- Python broker tests cover ownership, capture pause/resume, malformed PCM,
+  release, and owner expiry.
 - Terminal proxy tests cover authorization, bounded frames, fragmented PTY output,
   startup heartbeats, backpressure, and disconnect cleanup.
-- Browser unit tests cover late grants, concurrent calls, denial, and cleanup.
+- Browser unit tests cover focus gating, late grants, pending permission
+  reservations, concurrent calls, stale media callbacks, denial, and cleanup.
 - `e2e/terminal-audio.spec.mjs` uses real Chrome microphone and AudioWorklet APIs
-  with synthetic input and an emulated workspace relay. All twelve desktop, tablet,
-  and mobile viewport tests cover PCM in both directions, denial, parking, and
-  microphone ownership across windows.
+  with synthetic input and an emulated workspace relay. All twenty-four desktop,
+  tablet, and mobile viewport tests cover PCM in both directions, denial, parking,
+  microphone ownership across windows, focus gating, pinned pane ownership,
+  pending permission cancellation, and Compose-style external focus.
 - A separate live probe used the unmodified Codex **0.161.0** native voice helper,
   an isolated ephemeral Codex thread, and the production PulseAudio broker. Spoken
   output produced measurable speaker samples; a synthetic tone reached native
@@ -99,9 +113,14 @@ that session is gone. Workspace shutdown terminates these processes normally.
   unmodified helper stay active for sixteen seconds, deliver nonzero speaker
   samples, receive an injected microphone tone, and reconnect after release.
   The updated image smoke test rejects the missing upstream plugin directory.
+- An isolated ALSA/PulseAudio lifecycle probe reproduced browser ownership being
+  released while the native capture stream remained open but corked. With the
+  updated broker, the same stream retains ownership through pause/resume and
+  releases it when closed.
 
 Browser validation runs in the `browser-testing` profile. Evidence is preserved
-in the primary checkout under `.artifacts/voice-bridge/`. These checks do not cover
+in the primary checkout under `.artifacts/voice-bridge/` and
+`.artifacts/voice-ownership/`. These checks do not cover
 physical microphone acoustics, Safari/iOS, long conversations, or live approval
 interactions. Codex account access and compatibility with its experimental native
 voice feature remain necessary. The container image build and image smoke tests

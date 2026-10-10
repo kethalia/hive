@@ -35,19 +35,27 @@ class Context {
   }
 }
 class Worklet {
+  static instances: Worklet[] = [];
   port = { onmessage: null, postMessage: vi.fn(), close: vi.fn() };
   connect = vi.fn();
   disconnect = vi.fn();
+  onprocessorerror: (() => void) | null = null;
+  constructor() {
+    Worklet.instances.push(this);
+  }
 }
 let sessions: TerminalAudio[];
 let stop: ReturnType<typeof vi.fn>;
 let getUserMedia: ReturnType<typeof vi.fn>;
 let stream: MediaStream;
+let pendingGrants: Array<() => void>;
 beforeEach(() => {
   vi.useFakeTimers();
   sessions = [];
+  pendingGrants = [];
   Socket.instances = [];
   Context.instances = [];
+  Worklet.instances = [];
   stop = vi.fn();
   stream = { getTracks: () => [{ stop, onended: null }] } as unknown as MediaStream;
   getUserMedia = vi.fn().mockResolvedValue(stream);
@@ -58,21 +66,130 @@ beforeEach(() => {
   Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia } });
   Object.defineProperty(navigator, "locks", { configurable: true, value: undefined });
 });
-afterEach(() => {
+afterEach(async () => {
   for (const session of sessions) session.dispose();
+  for (const grant of pendingGrants) grant();
+  await vi.advanceTimersByTimeAsync(0);
   vi.useRealTimers();
   vi.unstubAllGlobals();
   Object.defineProperty(navigator, "locks", { configurable: true, value: originalLocks });
 });
-function session() {
+function session(canStart = () => true) {
   const status = vi.fn();
-  const audio = new TerminalAudio("wss://hive/ws/audio", status);
+  const audio = new TerminalAudio("wss://hive/ws/audio", status, canStart);
   sessions.push(audio);
   audio.setVisible(true);
   return { audio, status, socket: Socket.instances.at(-1) as Socket };
 }
 
+function pendingPermission() {
+  let grant = () => {};
+  const promise = new Promise<MediaStream>((resolve) => {
+    grant = () => resolve(stream);
+  });
+  pendingGrants.push(grant);
+  return { promise, grant };
+}
+
 describe("native terminal browser audio", () => {
+  it("rejects background capture and keeps an existing call pinned after focus changes", async () => {
+    let focused = false;
+    const background = session(() => focused);
+    background.socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(background.socket.send).toHaveBeenCalledWith('{"type":"release"}');
+    focused = true;
+    await vi.advanceTimersByTimeAsync(3000);
+    const socket = Socket.instances.at(-1) as Socket;
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    focused = false;
+    const other = session();
+    other.socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(stop).not.toHaveBeenCalled();
+    expect(background.status).toHaveBeenLastCalledWith({
+      phase: "active",
+      message: "Voice connected",
+    });
+  });
+
+  it("does not open another permission request before a canceled request settles", async () => {
+    const { promise, grant } = pendingPermission();
+    getUserMedia.mockReturnValueOnce(promise);
+    const first = session();
+    first.socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    first.audio.setVisible(false);
+    const other = session();
+    other.socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    grant();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stop).toHaveBeenCalledOnce();
+    expect(Context.instances).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(3000);
+    (Socket.instances.at(-1) as Socket).emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a retired audio processor's error after starting another call", async () => {
+    const { socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    const oldError = Worklet.instances[0].onprocessorerror;
+    socket.emit({ type: "active", active: false });
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    oldError?.();
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+  });
+
+  it("blocks a same-terminal restart while its previous permission request is pending", async () => {
+    const { promise, grant } = pendingPermission();
+    getUserMedia.mockReturnValueOnce(promise);
+    const { socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    socket.emit({ type: "active", active: false });
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(status).toHaveBeenLastCalledWith({
+      phase: "error",
+      message: expect.stringContaining("permission request"),
+    });
+    grant();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stop).toHaveBeenCalledOnce();
+    expect(Context.instances).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(3000);
+    (Socket.instances.at(-1) as Socket).emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+  });
+
+  it("ignores a retired microphone track's end event after starting another call", async () => {
+    const track = { stop, onended: null as (() => void) | null };
+    getUserMedia.mockResolvedValueOnce({ getTracks: () => [track] });
+    const { socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    const oldEnded = track.onended;
+    socket.emit({ type: "active", active: false });
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    oldEnded?.();
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+  });
+
   it("retries a busy session until its owner releases it and a native call can start", async () => {
     const { socket, status } = session();
     const busy = {
@@ -147,14 +264,15 @@ describe("native terminal browser audio", () => {
     expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
   });
 
-  it("holds the origin lock through microphone permission and releases it on hiding", async () => {
+  it("holds the origin lock until a hidden terminal's pending permission settles", async () => {
     let released = false;
     const request = vi.fn(async (_name, _options, callback) => {
       await callback({ name: "hive-terminal-microphone" });
       released = true;
     });
     Object.defineProperty(navigator, "locks", { configurable: true, value: { request } });
-    getUserMedia.mockReturnValue(new Promise(() => {}));
+    const { promise, grant } = pendingPermission();
+    getUserMedia.mockReturnValue(promise);
     const { audio, socket } = session();
     socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
@@ -162,7 +280,11 @@ describe("native terminal browser audio", () => {
     expect(released).toBe(false);
     audio.setVisible(false);
     await vi.advanceTimersByTimeAsync(0);
+    expect(released).toBe(false);
+    grant();
+    await vi.advanceTimersByTimeAsync(0);
     expect(released).toBe(true);
+    expect(stop).toHaveBeenCalledOnce();
   });
 
   it("requests microphone only when native voice starts and releases it when voice ends", async () => {
@@ -179,16 +301,12 @@ describe("native terminal browser audio", () => {
   });
 
   it("stops late microphone grants after hiding or disposing the terminal", async () => {
-    let grant: (stream: MediaStream) => void = () => {};
-    getUserMedia.mockReturnValue(
-      new Promise<MediaStream>((resolve) => {
-        grant = resolve;
-      }),
-    );
+    const { promise, grant } = pendingPermission();
+    getUserMedia.mockReturnValue(promise);
     const { audio, socket } = session();
     socket.emit({ type: "active", active: true });
     audio.setVisible(false);
-    grant(stream);
+    grant();
     await vi.advanceTimersByTimeAsync(0);
     expect(stop).toHaveBeenCalledOnce();
     expect(Context.instances).toHaveLength(0);

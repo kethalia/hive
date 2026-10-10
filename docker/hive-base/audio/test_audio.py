@@ -108,6 +108,22 @@ class AudioBrokerTest(unittest.TestCase):
         devices.stop_native.assert_called_once()
         self.assertFalse(self.broker.capturing)
 
+    def test_corking_a_live_capture_stream_does_not_end_browser_ownership(self):
+        devices = object.__new__(audio.PulseDevices)
+        devices.unclaimed_at = None
+        devices.microphone_buffer = bytearray()
+        devices.speaker_buffer = bytearray()
+        self.broker.handle(b"B", "browser", 0)
+        for corked in (False, True, False):
+            devices.list = lambda kind: [{"index": 5, "source": 0, "corked": corked}] if kind == "source-outputs" else []
+            devices.refresh(self.broker)
+            self.assertTrue(self.broker.capturing)
+        self.assertEqual(self.socket.sent.count((b"A", "browser")), 1)
+        self.assertEqual(self.socket.sent.count((b"Z", "browser")), 1)
+        devices.list = lambda kind: []
+        devices.refresh(self.broker)
+        self.assertFalse(self.broker.capturing)
+
 
 class AudioRelayTest(unittest.TestCase):
     def setUp(self):
