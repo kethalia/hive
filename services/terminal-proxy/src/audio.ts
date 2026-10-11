@@ -98,7 +98,7 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
       close(1013, "audio heartbeat timed out");
       return;
     }
-    if (upstream.readyState === WebSocket.OPEN)
+    if (upstream.readyState === WebSocket.OPEN && upstream.bufferedAmount <= MAX_QUEUE + 2048)
       upstream.send(JSON.stringify({ data: '{"type":"ping"}\n' }), { binary: true });
     if (browser.readyState === WebSocket.OPEN) browser.ping();
   }, 5000);
@@ -125,8 +125,8 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
       return;
     }
     if (upstream.bufferedAmount > MAX_QUEUE) {
-      close(1013, "audio connection stalled");
-      return;
+      if (message.startsWith('{"type":"microphone"') || upstream.bufferedAmount > MAX_QUEUE + 2048)
+        return;
     }
     // Coder's PTY accepts binary WebSocket frames, including JSON input envelopes.
     upstream.send(JSON.stringify({ data: `${message}\n` }), { binary: true });
@@ -145,11 +145,14 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
         const control = JSON.parse(message);
         if (control.type === "ready" || control.type === "pong") lastWorkspacePong = Date.now();
         if (control.type === "ready") clearTimeout(startup);
-        if (browser.bufferedAmount > MAX_QUEUE) {
-          close(1013, "audio connection stalled");
-          return;
-        }
-        browser.send(message);
+        // Discard late speaker samples rather than terminate native capture.
+        // Controls retain a small bounded allowance while heartbeats enforce
+        // the connection's liveness independently of media traffic.
+        if (
+          browser.bufferedAmount <= MAX_QUEUE ||
+          (control.type !== "speaker" && browser.bufferedAmount <= MAX_QUEUE + 2048)
+        )
+          browser.send(message);
       }
       newline = buffer.indexOf("\n");
     }

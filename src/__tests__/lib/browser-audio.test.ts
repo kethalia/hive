@@ -92,6 +92,43 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it("drops microphone frames during a short network stall and resumes the same call", async () => {
+    const { socket, status } = session();
+    socket.onopen?.();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    const port = Worklet.instances[0].port;
+    const transmit = () =>
+      (port.onmessage as unknown as (event: { data: ArrayBuffer }) => void)({
+        data: new ArrayBuffer(960),
+      });
+    socket.send.mockClear();
+    socket.bufferedAmount = 70_000;
+    transmit();
+    expect(socket.send).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
+    socket.bufferedAmount = 0;
+    transmit();
+    expect(JSON.parse(socket.send.mock.calls[0][0]).type).toBe("microphone");
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+  });
+
+  it("keeps heartbeats bounded during congestion and closes a persistently unresponsive connection", async () => {
+    const { socket } = session();
+    socket.onopen?.();
+    socket.bufferedAmount = 66_000;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(socket.send).toHaveBeenCalledWith('{"type":"ping"}');
+    socket.bufferedAmount = 70_000;
+    socket.send.mockClear();
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(socket.send).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(socket.close).toHaveBeenCalledOnce();
+  });
+
   it("keeps a rejected call observer connected until the owner finishes", async () => {
     const first = session();
     first.socket.emit({ type: "ready", claimRequired: true });

@@ -386,12 +386,26 @@ def relay(session):
     # Connect to the identity selected by prepare, even if tmux changes meanwhile.
     sock.connect(str(Path(server.removeprefix("unix:")).with_name("bridge.sock")))
     sock.setblocking(False)
-    sock.send(b"W")
+    controls = [b"W"]
+
+    def control(packet):
+        if packet not in controls:
+            controls.append(packet)
+
+    def flush_controls():
+        while controls:
+            try:
+                sock.send(controls[0])
+            except BlockingIOError:
+                return
+            controls.pop(0)
+
     buffer = b""
     last_browser = last_ping = time.monotonic()
     try:
         while True:
-            ready, _, _ = select.select([sock, sys.stdin], [], [], 1)
+            flush_controls()
+            ready, _, _ = select.select([sock, sys.stdin], [sock] if controls else [], [], 1)
             now = time.monotonic()
             if now - last_browser > OWNER_TIMEOUT:
                 return
@@ -426,16 +440,23 @@ def relay(session):
                         elif value == {"type": "release"}:
                             return
                         elif value == {"type": "claim"}:
-                            sock.send(b"C")
+                            control(b"C")
                         elif value.get("type") == "microphone" and isinstance(value.get("pcm"), str):
                             pcm = base64.b64decode(value["pcm"], validate=True)
                             if not 0 < len(pcm) <= PACKET or len(pcm) % 2:
                                 return
-                            sock.send(b"M" + pcm)
+                            # Browser scheduling and PTY input can deliver PCM
+                            # in bursts. Drop stale samples on a full broker
+                            # queue, reserving delivery for pending controls.
+                            if not controls:
+                                try:
+                                    sock.send(b"M" + pcm)
+                                except BlockingIOError:
+                                    pass
                     except (ValueError, TypeError, AttributeError):
                         return
             if now - last_ping >= 5:
-                sock.send(b"K")
+                control(b"K")
                 last_ping = now
     finally:
         try:

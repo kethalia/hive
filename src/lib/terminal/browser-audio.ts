@@ -324,8 +324,9 @@ export class TerminalAudio {
   private send(message: Record<string, unknown>) {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     if (this.socket.bufferedAmount > 64 * 1024) {
-      this.fail("Voice audio stalled. Run /voice again to reconnect.");
-      return;
+      // Late PCM is disposable. Keep the call and a bounded allowance for
+      // heartbeats; the existing liveness timeout detects a persistent outage.
+      if (message.type === "microphone" || this.socket.bufferedAmount > 64 * 1024 + 2048) return;
     }
     this.socket.send(JSON.stringify(message));
   }
