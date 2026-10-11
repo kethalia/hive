@@ -29,6 +29,57 @@ afterEach(() => {
 });
 
 describe("terminal audio boundaries", () => {
+  it("drops paused playback and tags resumed PCM without forwarding focus controls upstream", () => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    const pcm = Buffer.alloc(960).toString("base64");
+    const speaker = () =>
+      upstream.emit("message", Buffer.from(`${JSON.stringify({ type: "speaker", pcm })}\n`));
+    const focus = (enabled: boolean, generation: number) =>
+      browser.emit(
+        "message",
+        Buffer.from(JSON.stringify({ type: "playback", enabled, generation })),
+        false,
+      );
+    speaker();
+    expect(JSON.parse(browser.send.mock.calls.at(-1)![0])).toEqual({ type: "speaker", pcm });
+    focus(true, 1);
+    speaker();
+    expect(JSON.parse(browser.send.mock.calls.at(-1)![0])).toEqual({
+      type: "speaker",
+      pcm,
+      generation: 1,
+    });
+    focus(false, 2);
+    browser.send.mockClear();
+    speaker();
+    expect(browser.send).not.toHaveBeenCalled();
+    focus(true, 3);
+    focus(false, 2);
+    speaker();
+    expect(JSON.parse(browser.send.mock.calls.at(-1)![0])).toEqual({
+      type: "speaker",
+      pcm,
+      generation: 3,
+    });
+    expect(upstream.send).not.toHaveBeenCalled();
+    expect(browser.close).not.toHaveBeenCalled();
+    browser.emit("close");
+  });
+
+  it.each([
+    0,
+    -1,
+    1.5,
+    "1",
+    Number.MAX_SAFE_INTEGER + 1,
+  ])("rejects invalid playback generation %s", (generation) => {
+    expect(
+      parseBrowserAudio(JSON.stringify({ type: "playback", enabled: true, generation })),
+    ).toBeNull();
+  });
   it("bounds pending controls and cancels retries when congestion persists", () => {
     vi.useFakeTimers();
     const browser = new Socket(),
@@ -119,7 +170,9 @@ describe("terminal audio boundaries", () => {
       connectAudioRelay(browser as unknown as WebSocket, upstream);
       workspace?.send('{"type":"ready","claimRequired":true}\n');
       await vi.waitFor(() =>
-        expect(browser.send).toHaveBeenCalledWith('{"type":"ready","claimRequired":true}'),
+        expect(browser.send).toHaveBeenCalledWith(
+          '{"type":"ready","claimRequired":true,"playbackGeneration":true}',
+        ),
       );
       browser.emit("message", Buffer.from('{"type":"claim"}'), false);
       await vi.waitFor(() => expect(browser.send).toHaveBeenCalledWith('{"type":"claimed"}'));
@@ -162,7 +215,9 @@ describe("terminal audio boundaries", () => {
     upstream.emit("message", Buffer.from('{"type":"ready","claimRequired":true}\n'));
     vi.advanceTimersByTime(10_000);
     expect(browser.close).not.toHaveBeenCalled();
-    expect(browser.send).toHaveBeenCalledWith('{"type":"ready","claimRequired":true}');
+    expect(browser.send).toHaveBeenCalledWith(
+      '{"type":"ready","claimRequired":true,"playbackGeneration":true}',
+    );
     browser.emit("close");
   });
   it("authorizes long session names accepted by ordinary terminals", async () => {
@@ -278,7 +333,7 @@ describe("terminal audio boundaries", () => {
     upstream.emit("message", Buffer.from('{"type":"rea'));
     upstream.emit("message", Buffer.from('dy"}\r\n{"type":"active","active":true}\n'));
     expect(browser.send.mock.calls).toEqual([
-      [JSON.stringify({ type: "ready" })],
+      [JSON.stringify({ type: "ready", playbackGeneration: true })],
       [JSON.stringify({ type: "active", active: true })],
     ]);
     browser.emit("close");

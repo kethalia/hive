@@ -25,6 +25,7 @@ class Context {
   static instances: Context[] = [];
   sampleRate = 48_000;
   state = "running";
+  onstatechange: (() => void) | null = null;
   audioWorklet = { addModule: vi.fn().mockResolvedValue(undefined) };
   destination = {};
   close = vi.fn().mockResolvedValue(undefined);
@@ -92,6 +93,167 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it("keeps backgrounded playback initialization alive beyond the autoplay deadline", async () => {
+    vi.stubGlobal(
+      "AudioContext",
+      class extends Context {
+        state = "suspended";
+        resume = vi.fn(() => new Promise<void>(() => {}));
+      },
+    );
+    const { audio, socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    audio.setVisible(false);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
+    const context = Context.instances[0];
+    context.resume.mockImplementation(async () => {
+      context.state = "running";
+    });
+    audio.setVisible(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("still ends playback initialization if autoplay stays blocked while focused", async () => {
+    vi.stubGlobal(
+      "AudioContext",
+      class extends Context {
+        state = "suspended";
+        resume = vi.fn(() => new Promise<void>(() => {}));
+      },
+    );
+    const { socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(8000);
+    expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
+    expect(stop).toHaveBeenCalled();
+    expect(status).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "error" }));
+  });
+
+  it("resumes a suspended call before enabling tracks or reporting connected", async () => {
+    const track = { enabled: true, stop, onended: null };
+    getUserMedia.mockResolvedValue({ getTracks: () => [track] });
+    const { audio, socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    audio.setVisible(false);
+    const context = Context.instances[0];
+    context.state = "suspended";
+    context.onstatechange?.();
+    let resume = () => {};
+    context.resume.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resume = resolve;
+      }),
+    );
+    audio.setVisible(true);
+    expect(track.enabled).toBe(false);
+    expect(status).toHaveBeenLastCalledWith({ phase: "connecting", message: "Resuming voice…" });
+    resume();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(track.enabled).toBe(false);
+    context.state = "running";
+    context.onstatechange?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(track.enabled).toBe(true);
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("re-probes an overdue heartbeat after a frozen tab without releasing the call", async () => {
+    const { audio, socket } = session();
+    socket.onopen?.();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    audio.setFrozen(true);
+    vi.setSystemTime(Date.now() + 60_000);
+    // The overdue timer can run before the page's resume or queued pong handlers.
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(socket.close).not.toHaveBeenCalled();
+    audio.setFrozen(false);
+    expect(socket.send).toHaveBeenCalledWith('{"type":"ping"}');
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(socket.close).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(socket.close).toHaveBeenCalledOnce();
+  });
+
+  it("rejects speaker frames queued before focus resumed even after a queued pong", async () => {
+    const { audio, socket } = session();
+    socket.emit({ type: "ready", playbackGeneration: true });
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    const generation = () =>
+      JSON.parse(
+        socket.send.mock.calls.filter(([data]) => JSON.parse(data).type === "playback").at(-1)![0],
+      ).generation;
+    const oldGeneration = generation();
+    const port = Worklet.instances[0].port;
+    const pcm = btoa(String.fromCharCode(...new Uint8Array(960)));
+    audio.setFrozen(true);
+    audio.setFrozen(false);
+    port.postMessage.mockClear();
+    socket.emit({ type: "pong" });
+    socket.emit({ type: "speaker", pcm, generation: oldGeneration });
+    socket.emit({ type: "speaker", pcm });
+    expect(port.postMessage).not.toHaveBeenCalled();
+    socket.emit({ type: "speaker", pcm, generation: generation() });
+    expect(port.postMessage).toHaveBeenCalledOnce();
+    expect(socket.close).not.toHaveBeenCalled();
+  });
+
+  it("retries the latest playback generation after congestion and cancels it on end", async () => {
+    const { audio, socket } = session();
+    socket.emit({ type: "ready", playbackGeneration: true });
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    socket.send.mockClear();
+    socket.bufferedAmount = 70_000;
+    audio.setVisible(false);
+    audio.setVisible(true);
+    expect(socket.send).not.toHaveBeenCalled();
+    socket.bufferedAmount = 0;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(socket.send.mock.calls.map(([data]) => JSON.parse(data))).toEqual([
+      { type: "playback", enabled: true, generation: 3 },
+    ]);
+    socket.bufferedAmount = 70_000;
+    audio.setVisible(false);
+    socket.emit({ type: "active", active: false });
+    socket.send.mockClear();
+    socket.bufferedAmount = 0;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(socket.send).not.toHaveBeenCalled();
+  });
+
+  it("cancels pending context recovery when native voice ends", async () => {
+    const { audio, socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    audio.setVisible(false);
+    const context = Context.instances[0];
+    context.state = "suspended";
+    let resume = () => {};
+    context.resume.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resume = resolve;
+      }),
+    );
+    audio.setVisible(true);
+    socket.emit({ type: "active", active: false });
+    context.state = "running";
+    resume();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(status).toHaveBeenLastCalledWith({ phase: "standby" });
+    expect(context.close).toHaveBeenCalledOnce();
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
   it.each([
     "module",
     "resume",

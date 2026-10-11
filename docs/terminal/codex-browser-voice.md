@@ -39,6 +39,12 @@ queued audio discarded. Codex tasks keep running. Ending native voice, losing
 the connection, denying or revoking permission, or disposing the terminal
 releases browser audio and disconnects the native audio streams.
 
+When returning, Hive resumes a suspended or interrupted browser audio context
+before enabling audio or showing “Voice connected”. The playback startup deadline
+runs only while the pane is focused. If autoplay still requires a gesture, press
+Enter in the selected pane. Browser freeze/resume events and delayed heartbeat
+timers trigger a fresh liveness probe; actual connection failures still end calls.
+
 One terminal view owns a session's audio. Different terminal sessions can keep
 voice calls connected simultaneously, each using its own virtual microphone and
 speaker devices; focus determines which call exchanges browser audio. Browsers
@@ -97,6 +103,11 @@ protocol, or account credentials.
 The browser opens an authenticated audio WebSocket for a visible, focused terminal.
 An owned call retains its connection across pane, workspace, tab, and window
 focus changes, with browser microphone and playback paused while unfocused.
+The matching terminal proxy advertises support for playback focus generations.
+It suppresses speaker delivery while paused and tags subsequent frames with the
+current generation. The browser rejects older generations, including messages
+queued while its tab was frozen. Older clients retain their previous frame format;
+deploy both the web client and terminal proxy to enable this protection.
 The proxy starts `hive-audio relay -- <session>` through the existing Coder PTY API.
 That relay observes the session broker without claiming its devices. Native
 capture notifies observers; a recently armed, focused view claims the call before

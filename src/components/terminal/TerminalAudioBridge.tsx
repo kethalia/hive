@@ -61,8 +61,15 @@ export function TerminalAudioBridge({
       attributeFilter: ["inert", "data-active"],
     });
     const prime = () => audio.prime();
+    const freeze = () => audio.setFrozen(true);
+    const resume = () => {
+      audio.setFrozen(false);
+      update();
+    };
     terminal.addEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
     document.addEventListener("visibilitychange", update);
+    document.addEventListener("freeze", freeze);
+    document.addEventListener("resume", resume);
     document.addEventListener("focusin", focus);
     document.addEventListener("focusout", focus);
     window.addEventListener("focus", focus);
@@ -72,6 +79,8 @@ export function TerminalAudioBridge({
       parking.disconnect();
       terminal.removeEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
       document.removeEventListener("visibilitychange", update);
+      document.removeEventListener("freeze", freeze);
+      document.removeEventListener("resume", resume);
       document.removeEventListener("focusin", focus);
       document.removeEventListener("focusout", focus);
       window.removeEventListener("focus", focus);

@@ -17,6 +17,7 @@ const activeCalls = new Map();
 const sessionNames = new WeakMap();
 const sessionFrames = new Map();
 const owners = new Map();
+const playback = new WeakMap();
 
 test.use({
   channel: "chrome",
@@ -85,10 +86,11 @@ test.beforeAll(async () => {
     const sessionName = new URL(req.url, "http://localhost").searchParams.get("sessionName");
     sessionNames.set(socket, sessionName);
     connections.add(socket);
-    socket.send('{"type":"ready","claimRequired":true}');
+    socket.send('{"type":"ready","claimRequired":true,"playbackGeneration":true}');
     socket.send(JSON.stringify({ type: "active", active: !!activeCalls.get(sessionName) }));
     socket.on("message", (raw) => {
       const value = JSON.parse(raw.toString());
+      if (value.type === "playback") playback.set(socket, value);
       if (value.type === "claim") {
         if (owners.has(sessionName) && owners.get(sessionName) !== socket)
           socket.send(
@@ -131,9 +133,16 @@ test.beforeAll(async () => {
     for (const socket of connections)
       if (
         activeCalls.get(sessionNames.get(socket)) &&
-        owners.get(sessionNames.get(socket)) === socket
+        owners.get(sessionNames.get(socket)) === socket &&
+        playback.get(socket)?.enabled
       )
-        socket.send(JSON.stringify({ type: "speaker", pcm: pcm.toString("base64") }));
+        socket.send(
+          JSON.stringify({
+            type: "speaker",
+            pcm: pcm.toString("base64"),
+            generation: playback.get(socket).generation,
+          }),
+        );
   }, 10);
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -253,6 +262,48 @@ test("parking the persistent terminal pauses audio and resumes the retained call
       window.audioProbe.tracks.map((track) => [track.enabled, track.readyState]),
     ),
   ).toEqual([[true, "live"]]);
+});
+
+test("a suspended context resumes the retained call after returning to the pane", async ({
+  page,
+}) => {
+  await page.goto(url);
+  await voice(page);
+  await expect(page.getByRole("status")).toHaveText("Voice connected");
+  const owner = owners.get("test");
+  await page.evaluate(async () => {
+    document.querySelector('[data-terminal-surface="true"]').inert = true;
+    await window.audioProbe.contexts.at(-1).suspend();
+  });
+  await expect(page.getByRole("status", { includeHidden: true })).toContainText("Voice paused");
+  await page.evaluate(() => {
+    document.querySelector('[data-terminal-surface="true"]').inert = false;
+  });
+  await expect(page.getByRole("status")).toHaveText("Voice connected");
+  expect(await page.evaluate(() => window.audioProbe.contexts.at(-1).state)).toBe("running");
+  const frames = microphoneFrames;
+  await expect.poll(() => microphoneFrames).toBeGreaterThan(frames + 5);
+  expect(owners.get("test")).toBe(owner);
+  expect(await page.evaluate(() => window.audioProbe.tracks.length)).toBe(1);
+});
+
+test("page freeze and resume events pause audio while retaining the relay", async ({ page }) => {
+  await page.goto(url);
+  await voice(page);
+  await expect(page.getByRole("status")).toHaveText("Voice connected");
+  const owner = owners.get("test");
+  // Chrome may decline to freeze a live audio page via its debugging API.
+  // Dispatch lifecycle events here; the unit test models the frozen timer gap.
+  await page.evaluate(() => document.dispatchEvent(new Event("freeze")));
+  await expect(page.getByRole("status")).toContainText("Voice paused");
+  const frames = microphoneFrames;
+  await page.waitForTimeout(250);
+  expect(microphoneFrames).toBe(frames);
+  await page.evaluate(() => document.dispatchEvent(new Event("resume")));
+  await expect(page.getByRole("status")).toHaveText("Voice connected");
+  await expect.poll(() => microphoneFrames).toBeGreaterThan(frames + 5);
+  expect(owners.get("test")).toBe(owner);
+  expect(connections.size).toBe(1);
 });
 
 test("another Hive window cannot share the microphone and releasing it permits a later call", async ({
