@@ -1,5 +1,14 @@
 # hive-orchestrator
 
+## 2.20.5
+
+### Patch Changes
+
+- 96e09ec: Release the workspace images containing per-terminal voice ownership with the
+  bundled Coder templates. Idle views observe calls without reserving audio, and
+  only an explicitly claimed call owns its virtual devices. Push the updated
+  template and update/restart existing workspaces to install the new helper.
+
 ## 2.20.4
 
 ### Patch Changes
