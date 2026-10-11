@@ -92,6 +92,105 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it("routes microphone and speaker audio only to the focused call without releasing other calls", async () => {
+    let selected = 0;
+    const tracks = [0, 1].map(() => ({ enabled: true, stop: vi.fn(), onended: null }));
+    getUserMedia
+      .mockResolvedValueOnce({ getTracks: () => [tracks[0]] })
+      .mockResolvedValueOnce({ getTracks: () => [tracks[1]] });
+    const first = session(() => selected === 0);
+    first.socket.onopen?.();
+    first.socket.emit({ type: "ready", claimRequired: true });
+    first.socket.emit({ type: "active", active: true });
+    first.socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    selected = 1;
+    first.audio.refreshFocus();
+    const second = session(() => selected === 1, "wss://hive/ws/audio?sessionName=other");
+    second.socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    const pcm = btoa(String.fromCharCode(...new Uint8Array(960)));
+    const transmit = (index: number) =>
+      (
+        Worklet.instances[index].port.onmessage as unknown as (event: { data: ArrayBuffer }) => void
+      )({
+        data: new ArrayBuffer(960),
+      });
+    for (let index = 0; index < 4; index++) {
+      selected = index % 2;
+      first.audio.refreshFocus();
+      second.audio.refreshFocus();
+      for (const [at, call] of [first, second].entries()) {
+        call.socket.send.mockClear();
+        const port = Worklet.instances[at].port;
+        port.postMessage.mockClear();
+        transmit(at);
+        call.socket.emit({ type: "speaker", pcm });
+        expect(tracks[at].enabled).toBe(at === selected);
+        expect(call.socket.send.mock.calls).toHaveLength(at === selected ? 1 : 0);
+        expect(port.postMessage.mock.calls).toHaveLength(at === selected ? 1 : 0);
+        expect(call.socket.close).not.toHaveBeenCalled();
+        expect(tracks[at].stop).not.toHaveBeenCalled();
+      }
+    }
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(first.socket.send).toHaveBeenCalledWith('{"type":"ping"}');
+  });
+
+  it("keeps hidden workspace calls connected and resumes without reclaiming or prompting", async () => {
+    const { audio, socket, status } = session();
+    socket.emit({ type: "ready", claimRequired: true });
+    socket.emit({ type: "active", active: true });
+    socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    audio.setVisible(false);
+    expect(status).toHaveBeenLastCalledWith({
+      phase: "paused",
+      message: "Voice paused — focus this pane to resume",
+    });
+    expect(Worklet.instances[0].port.postMessage).toHaveBeenLastCalledWith({
+      type: "pause",
+      paused: true,
+    });
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+    expect(stop).not.toHaveBeenCalled();
+    audio.setVisible(true);
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(
+      socket.send.mock.calls.filter(([message]) => message === '{"type":"claim"}'),
+    ).toHaveLength(1);
+    socket.emit({ type: "active", active: false });
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
+  it("finishes a pending microphone grant in a paused workspace without transmitting audio", async () => {
+    const track = { enabled: true, stop, onended: null };
+    const { promise, grant } = pendingPermission();
+    stream = { getTracks: () => [track] } as unknown as MediaStream;
+    getUserMedia.mockReturnValueOnce(promise);
+    const { audio, socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    audio.setVisible(false);
+    grant();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(track.enabled).toBe(false);
+    expect(stop).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(status).toHaveBeenLastCalledWith({
+      phase: "paused",
+      message: "Voice paused — focus this pane to resume",
+    });
+    audio.setVisible(true);
+    expect(track.enabled).toBe(true);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    audio.dispose();
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
   it("retries a congested call claim without consuming another interaction", async () => {
     let armed = true;
     const canClaim = vi.fn(() => {
@@ -182,7 +281,7 @@ describe("native terminal browser audio", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
   });
-  it("allows separate terminals to exchange microphone audio at the same time", async () => {
+  it("keeps separate terminal calls connected without ending the other call", async () => {
     const first = session();
     const second = session(() => true, "wss://hive/ws/audio?sessionName=other");
     first.socket.emit({ type: "active", active: true });
@@ -278,7 +377,7 @@ describe("native terminal browser audio", () => {
     expect(Socket.instances).toHaveLength(2);
   });
 
-  it("rejects background capture and keeps an existing call pinned after focus changes", async () => {
+  it("rejects background capture and keeps paused call ownership after focus changes", async () => {
     let focused = true;
     const background = session(() => focused);
     // Native activity may arrive just before the DOM focus update runs.
@@ -294,24 +393,25 @@ describe("native terminal browser audio", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     focused = false;
+    background.audio.refreshFocus();
     const other = session();
     other.socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(stop).not.toHaveBeenCalled();
     expect(background.status).toHaveBeenLastCalledWith({
-      phase: "active",
-      message: "Voice connected",
+      phase: "paused",
+      message: "Voice paused — focus this pane to resume",
     });
   });
 
-  it("does not open another permission request before a canceled request settles", async () => {
+  it("does not open another permission request before a disposed request settles", async () => {
     const { promise, grant } = pendingPermission();
     getUserMedia.mockReturnValueOnce(promise);
     const first = session();
     first.socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
-    first.audio.setVisible(false);
+    first.audio.dispose();
     const other = session();
     other.socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
@@ -452,7 +552,7 @@ describe("native terminal browser audio", () => {
     expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
   });
 
-  it("holds the origin lock until a hidden terminal's pending permission settles", async () => {
+  it("holds the origin lock until a disposed terminal's pending permission settles", async () => {
     let released = false;
     const request = vi.fn(async (_name, _options, callback) => {
       await callback({ name: "hive-terminal-microphone" });
@@ -466,7 +566,7 @@ describe("native terminal browser audio", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(released).toBe(false);
-    audio.setVisible(false);
+    audio.dispose();
     await vi.advanceTimersByTimeAsync(0);
     expect(released).toBe(false);
     grant();
@@ -488,12 +588,12 @@ describe("native terminal browser audio", () => {
     expect(Context.instances[0].close).toHaveBeenCalledOnce();
   });
 
-  it("stops late microphone grants after hiding or disposing the terminal", async () => {
+  it("stops late microphone grants after disposing the terminal", async () => {
     const { promise, grant } = pendingPermission();
     getUserMedia.mockReturnValue(promise);
     const { audio, socket } = session();
     socket.emit({ type: "active", active: true });
-    audio.setVisible(false);
+    audio.dispose();
     grant();
     await vi.advanceTimersByTimeAsync(0);
     expect(stop).toHaveBeenCalledOnce();

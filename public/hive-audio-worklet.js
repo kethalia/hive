@@ -7,7 +7,16 @@ class HiveTerminalAudio extends AudioWorkletProcessor {
     this.playback = new Float32Array(4800);
     this.head = 0;
     this.count = 0;
+    // Older open clients do not send focus controls. New clients send the
+    // initial pause state before connecting their microphone and output.
+    this.paused = false;
     this.port.onmessage = ({ data }) => {
+      if (data?.type === "pause" && typeof data.paused === "boolean") {
+        this.paused = data.paused;
+        this.captureAt = this.head = this.count = 0;
+        return;
+      }
+      if (this.paused) return;
       if (!(data instanceof ArrayBuffer) || data.byteLength > 960 || data.byteLength % 2) return;
       const samples = new DataView(data);
       for (let i = 0; i < samples.byteLength; i += 2) {
@@ -25,6 +34,10 @@ class HiveTerminalAudio extends AudioWorkletProcessor {
     const input = inputs[0]?.[0];
     const output = outputs[0]?.[0];
     if (!output) return true;
+    if (this.paused) {
+      output.fill(0);
+      return true;
+    }
     for (let i = 0; i < output.length; i++) {
       output[i] = this.count ? this.playback[this.head] : 0;
       if (this.count) {

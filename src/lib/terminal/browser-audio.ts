@@ -1,6 +1,6 @@
 export type TerminalAudioStatus =
   | { phase: "standby" }
-  | { phase: "connecting" | "active" | "error"; message: string };
+  | { phase: "connecting" | "active" | "paused" | "error"; message: string };
 
 const microphoneOwners = new Map<string, TerminalAudio>();
 
@@ -28,6 +28,7 @@ export class TerminalAudio {
   private confirmClaim: (() => void) | null = null;
   private pendingClaim = false;
   private claimRetry: ReturnType<typeof setTimeout> | undefined;
+  private mediaPaused: boolean | undefined;
 
   constructor(
     private url: string,
@@ -57,17 +58,36 @@ export class TerminalAudio {
   setVisible(visible: boolean) {
     if (this.disposed || this.visible === visible) return;
     this.visible = visible;
-    if (visible) {
-      this.failed = false;
-      this.refreshFocus();
-    } else this.disconnect();
+    if (visible) this.failed = false;
+    this.refreshFocus();
   }
 
-  /** Idle views yield the session relay; focus never transfers an ongoing call. */
+  /** Idle views yield their relay; owned calls stay connected and follow focus for media. */
   refreshFocus() {
-    if (!this.visible || this.disposed || this.ownsCall || this.pendingMicrophone) return;
-    if (this.canStart()) this.connect();
+    if (this.disposed) return;
+    this.updateMediaFocus();
+    if (this.ownsCall || this.pendingMicrophone) return;
+    if (this.visible && this.canStart()) this.connect();
     else this.disconnect();
+  }
+
+  private mediaFocused() {
+    return this.visible && this.canStart();
+  }
+
+  private updateMediaFocus() {
+    if (!this.worklet) return;
+    const paused = !this.mediaFocused();
+    for (const track of this.stream?.getTracks() ?? []) track.enabled = !paused;
+    if (this.mediaPaused === paused) return;
+    this.mediaPaused = paused;
+    // Clear both audio buffers so resuming cannot replay speech from before pausing.
+    this.worklet.port.postMessage({ type: "pause", paused });
+    this.onStatus(
+      paused
+        ? { phase: "paused", message: "Voice paused — focus this pane to resume" }
+        : { phase: "active", message: "Voice connected" },
+    );
   }
 
   private connect() {
@@ -126,7 +146,7 @@ export class TerminalAudio {
           this.refreshFocus();
         }
       } else if (value?.type === "speaker" && typeof value.pcm === "string" && this.worklet) {
-        if (value.pcm.length > 1280) return;
+        if (!this.mediaFocused() || value.pcm.length > 1280) return;
         try {
           const bytes = Uint8Array.from(atob(value.pcm), (char) => char.charCodeAt(0));
           if (bytes.length <= 960 && bytes.length % 2 === 0)
@@ -178,11 +198,10 @@ export class TerminalAudio {
       return;
     }
     const generation = ++this.generation;
-    const current = () =>
-      !this.disposed && this.visible && this.nativeActive && generation === this.generation;
+    const current = () => !this.disposed && this.nativeActive && generation === this.generation;
     try {
-      // Focus chooses a new call; it never moves an existing call to another pane.
-      if (!this.canStart())
+      // Focus chooses a new call. Later focus changes pause media, not ownership.
+      if (!this.mediaFocused())
         throw new Error("Select this terminal and run /voice again to start voice.");
       const owner = microphoneOwners.get(this.url);
       if (owner && owner !== this)
@@ -301,16 +320,22 @@ export class TerminalAudio {
       });
       this.worklet = worklet;
       worklet.port.onmessage = ({ data }) => {
-        if (!current() || !(data instanceof ArrayBuffer) || data.byteLength !== 960) return;
+        if (
+          !current() ||
+          !this.mediaFocused() ||
+          !(data instanceof ArrayBuffer) ||
+          data.byteLength !== 960
+        )
+          return;
         this.send({ type: "microphone", pcm: btoa(String.fromCharCode(...new Uint8Array(data))) });
       };
       worklet.onprocessorerror = () => {
         if (current()) this.fail("Voice audio stopped. Run /voice again to reconnect.");
       };
       this.source = context.createMediaStreamSource(stream);
+      this.updateMediaFocus();
       this.source.connect(worklet);
       worklet.connect(context.destination);
-      this.onStatus({ phase: "active", message: "Voice connected" });
     } catch (error) {
       if (!current()) return;
       this.fail(
@@ -363,6 +388,7 @@ export class TerminalAudio {
   private releaseMedia() {
     this.generation++;
     this.ownsCall = false;
+    this.mediaPaused = undefined;
     this.pendingClaim = false;
     clearTimeout(this.claimRetry);
     this.claimRetry = undefined;

@@ -28,10 +28,13 @@ export function TerminalAudioBridge({
       setStatus,
       () => {
         if (!document.hasFocus()) return false;
+        // Selection can settle before xterm moves its keyboard focus.
+        if (terminal.closest("[data-pane-mode]")?.getAttribute("data-active") === "false")
+          return false;
         const focusedTerminal = document.activeElement?.closest('[data-terminal-surface="true"]');
         if (focusedTerminal) return focusedTerminal === terminal;
         // Touch/Compose input may live outside xterm; use the selected pane then.
-        return terminal.closest("[data-pane-mode]")?.getAttribute("data-active") !== "false";
+        return true;
       },
       () => consumeTerminalAudioInteraction(terminal),
     );

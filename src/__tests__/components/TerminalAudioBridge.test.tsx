@@ -34,7 +34,7 @@ class Context {
 }
 
 class Worklet {
-  port = { onmessage: null, close() {} };
+  port = { onmessage: null, postMessage() {}, close() {} };
   connect() {}
   disconnect() {}
 }
@@ -109,6 +109,65 @@ async function emit(socket: Socket, value: unknown) {
 }
 
 describe("terminal audio interaction ownership", () => {
+  it("pauses a deselected pane even while xterm temporarily retains keyboard focus", async () => {
+    surface.dataset.paneMode = "tiled";
+    surface.dataset.active = "true";
+    const input = document.createElement("input");
+    surface.append(input);
+    input.focus();
+    const { socket, view } = mount();
+    act(() => primeTerminalAudio(surface));
+    await emit(socket, { type: "active", active: true });
+    await emit(socket, { type: "claimed" });
+    await act(async () => {
+      surface.dataset.active = "false";
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(document.activeElement).toBe(input);
+    expect(view.getByRole("status").textContent).toContain("Voice paused");
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+    await act(async () => {
+      surface.dataset.active = "true";
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.getByRole("status").textContent).toBe("Voice connected");
+    expect(socket.claims()).toBe(1);
+  });
+
+  it("pauses on workspace parking and window blur without releasing the call", async () => {
+    const { socket, view } = mount();
+    act(() => primeTerminalAudio(surface));
+    await emit(socket, { type: "active", active: true });
+    await emit(socket, { type: "claimed" });
+    await act(async () => {
+      surface.setAttribute("inert", "");
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.getByRole("status", { hidden: true }).textContent).toContain("Voice paused");
+    await act(async () => {
+      surface.removeAttribute("inert");
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.getByRole("status").textContent).toBe("Voice connected");
+    vi.mocked(document.hasFocus).mockReturnValue(false);
+    await act(async () => {
+      window.dispatchEvent(new Event("blur"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.getByRole("status").textContent).toContain("Voice paused");
+    vi.mocked(document.hasFocus).mockReturnValue(true);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.getByRole("status").textContent).toBe("Voice connected");
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+    expect(socket.claims()).toBe(1);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
   it("claims already-active capture using a gesture made before the bridge mounted", async () => {
     primeTerminalAudio(surface);
     await vi.advanceTimersByTimeAsync(1000);
