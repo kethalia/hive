@@ -92,6 +92,50 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it.each([
+    "module",
+    "resume",
+  ] as const)("disables microphone tracks while %s initialization is pending in an unfocused pane", async (stage) => {
+    let finish = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    vi.stubGlobal(
+      "AudioContext",
+      class extends Context {
+        constructor() {
+          super();
+          if (stage === "module") this.audioWorklet.addModule.mockReturnValue(pending);
+          else this.resume.mockReturnValue(pending);
+        }
+      },
+    );
+    const track = { enabled: true, stop, onended: null };
+    stream = { getTracks: () => [track] } as unknown as MediaStream;
+    getUserMedia.mockResolvedValue(stream);
+    const { audio, socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(Worklet.instances).toHaveLength(0);
+    audio.setVisible(false);
+    expect(track.enabled).toBe(false);
+    audio.setVisible(true);
+    expect(track.enabled).toBe(true);
+    audio.setVisible(false);
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(track.enabled).toBe(false);
+    expect(status).toHaveBeenLastCalledWith({
+      phase: "paused",
+      message: "Voice paused — focus this pane to resume",
+    });
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
+    audio.setVisible(true);
+    expect(track.enabled).toBe(true);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
   it("routes microphone and speaker audio only to the focused call without releasing other calls", async () => {
     let selected = 0;
     const tracks = [0, 1].map(() => ({ enabled: true, stop: vi.fn(), onended: null }));
@@ -167,6 +211,19 @@ describe("native terminal browser audio", () => {
   });
 
   it("finishes a pending microphone grant in a paused workspace without transmitting audio", async () => {
+    let loadModule = () => {};
+    const module = new Promise<void>((resolve) => {
+      loadModule = resolve;
+    });
+    vi.stubGlobal(
+      "AudioContext",
+      class extends Context {
+        constructor() {
+          super();
+          this.audioWorklet.addModule.mockReturnValue(module);
+        }
+      },
+    );
     const track = { enabled: true, stop, onended: null };
     const { promise, grant } = pendingPermission();
     stream = { getTracks: () => [track] } as unknown as MediaStream;
@@ -178,6 +235,9 @@ describe("native terminal browser audio", () => {
     grant();
     await vi.advanceTimersByTimeAsync(0);
     expect(track.enabled).toBe(false);
+    expect(Worklet.instances).toHaveLength(0);
+    loadModule();
+    await vi.advanceTimersByTimeAsync(0);
     expect(stop).not.toHaveBeenCalled();
     expect(socket.close).not.toHaveBeenCalled();
     expect(status).toHaveBeenLastCalledWith({

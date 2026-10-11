@@ -76,9 +76,9 @@ export class TerminalAudio {
   }
 
   private updateMediaFocus() {
-    if (!this.worklet) return;
     const paused = !this.mediaFocused();
     for (const track of this.stream?.getTracks() ?? []) track.enabled = !paused;
+    if (!this.worklet) return;
     if (this.mediaPaused === paused) return;
     this.mediaPaused = paused;
     // Clear both audio buffers so resuming cannot replay speech from before pausing.
@@ -280,6 +280,7 @@ export class TerminalAudio {
         return;
       }
       this.stream = stream;
+      this.updateMediaFocus();
       for (const track of stream.getTracks())
         track.onended = () => {
           if (current()) this.fail("Microphone access ended. Run /voice again to reconnect.");
