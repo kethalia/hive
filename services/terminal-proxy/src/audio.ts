@@ -29,6 +29,17 @@ export function parseBrowserAudio(data: string): string | null {
   if (data.length > 2048) return null;
   try {
     const value = JSON.parse(data);
+    if (
+      value?.type === "playback" &&
+      typeof value.enabled === "boolean" &&
+      Number.isSafeInteger(value.generation) &&
+      value.generation > 0
+    )
+      return JSON.stringify({
+        type: "playback",
+        enabled: value.enabled,
+        generation: value.generation,
+      });
     if (value?.type === "ping" || value?.type === "release" || value?.type === "claim")
       return JSON.stringify({ type: value.type });
     if (
@@ -82,6 +93,9 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
   let closed = false;
   let lastPong = Date.now();
   let lastWorkspacePong = Date.now();
+  type Playback = { enabled: boolean; generation: number };
+  let playback: Playback | null = null;
+  let bufferPlayback: Playback | null = null;
   const browserControls: string[] = [];
   const workspaceControls: string[] = [];
   let controlRetry: ReturnType<typeof setTimeout> | undefined;
@@ -156,6 +170,12 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
       close();
       return;
     }
+    if (message.startsWith('{"type":"playback"')) {
+      const next = JSON.parse(message);
+      // Focus controls belong to this browser transport, never the native relay.
+      if (!playback || next.generation > playback.generation) playback = next;
+      return;
+    }
     // A browser heartbeat can arrive while Coder is still opening the PTY.
     if (upstream.readyState !== WebSocket.OPEN) {
       if (message !== '{"type":"ping"}') close(1008, "audio is not ready");
@@ -177,6 +197,7 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
   upstream.on("message", (data) => {
     if (closed) return;
     flushControls();
+    if (!buffer.length) bufferPlayback = playback;
     buffer += data.toString();
     if (buffer.length > MAX_QUEUE) {
       close(1008, "invalid workspace audio frame");
@@ -185,16 +206,32 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
     let newline = buffer.indexOf("\n");
     while (newline >= 0) {
       const message = parseWorkspaceAudio(buffer.slice(0, newline).trim());
+      const framePlayback = bufferPlayback;
       buffer = buffer.slice(newline + 1);
+      bufferPlayback = playback;
       if (message && browser.readyState === WebSocket.OPEN) {
         const control = JSON.parse(message);
         if (control.type === "ready" || control.type === "pong") lastWorkspacePong = Date.now();
         if (control.type === "ready") clearTimeout(startup);
         if (control.type !== "speaker")
-          queueControl(browserControls, message, control.type === "pong");
+          queueControl(
+            browserControls,
+            control.type === "ready"
+              ? JSON.stringify({ ...control, playbackGeneration: true })
+              : message,
+            control.type === "pong",
+          );
         // Late PCM is disposable; state-changing controls are delivered first.
-        else if (!browserControls.length && browser.bufferedAmount <= MAX_QUEUE)
-          browser.send(message);
+        else if (
+          !browserControls.length &&
+          browser.bufferedAmount <= MAX_QUEUE &&
+          // A fragmented line belongs to the focus generation of its first bytes.
+          framePlayback === playback &&
+          playback?.enabled !== false
+        )
+          browser.send(
+            playback ? JSON.stringify({ ...control, generation: playback.generation }) : message,
+          );
       }
       newline = buffer.indexOf("\n");
     }

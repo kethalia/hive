@@ -28,10 +28,13 @@ export function TerminalAudioBridge({
       setStatus,
       () => {
         if (!document.hasFocus()) return false;
+        // Selection can settle before xterm moves its keyboard focus.
+        if (terminal.closest("[data-pane-mode]")?.getAttribute("data-active") === "false")
+          return false;
         const focusedTerminal = document.activeElement?.closest('[data-terminal-surface="true"]');
         if (focusedTerminal) return focusedTerminal === terminal;
         // Touch/Compose input may live outside xterm; use the selected pane then.
-        return terminal.closest("[data-pane-mode]")?.getAttribute("data-active") !== "false";
+        return true;
       },
       () => consumeTerminalAudioInteraction(terminal),
     );
@@ -58,8 +61,15 @@ export function TerminalAudioBridge({
       attributeFilter: ["inert", "data-active"],
     });
     const prime = () => audio.prime();
+    const freeze = () => audio.setFrozen(true);
+    const resume = () => {
+      audio.setFrozen(false);
+      update();
+    };
     terminal.addEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
     document.addEventListener("visibilitychange", update);
+    document.addEventListener("freeze", freeze);
+    document.addEventListener("resume", resume);
     document.addEventListener("focusin", focus);
     document.addEventListener("focusout", focus);
     window.addEventListener("focus", focus);
@@ -69,6 +79,8 @@ export function TerminalAudioBridge({
       parking.disconnect();
       terminal.removeEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
       document.removeEventListener("visibilitychange", update);
+      document.removeEventListener("freeze", freeze);
+      document.removeEventListener("resume", resume);
       document.removeEventListener("focusin", focus);
       document.removeEventListener("focusout", focus);
       window.removeEventListener("focus", focus);

@@ -29,6 +29,135 @@ afterEach(() => {
 });
 
 describe("terminal audio boundaries", () => {
+  it.each([
+    "legacy",
+    "playing",
+    "paused",
+  ])("discards fragmented %s speaker frames across focus generations", (mode) => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    const focus = (enabled: boolean, generation: number) =>
+      browser.emit(
+        "message",
+        Buffer.from(JSON.stringify({ type: "playback", enabled, generation })),
+        false,
+      );
+    if (mode !== "legacy") focus(mode === "playing", 1);
+    const pcm = Buffer.alloc(960).toString("base64");
+    const line = JSON.stringify({ type: "speaker", pcm });
+    upstream.emit("message", Buffer.from(line.slice(0, 19)));
+    focus(false, 2);
+    focus(true, 3);
+    // The fresh second line in this same message must still be delivered.
+    upstream.emit("message", Buffer.from(`${line.slice(19)}\n${line}\n`));
+    expect(browser.send.mock.calls).toEqual([
+      [JSON.stringify({ type: "speaker", pcm, generation: 3 })],
+    ]);
+    expect(browser.close).not.toHaveBeenCalled();
+    browser.emit("close");
+  });
+
+  it.each([
+    { type: "ready", claimRequired: true, playbackGeneration: true },
+    { type: "active", active: true },
+    { type: "claimed" },
+    { type: "pong" },
+  ])("preserves fragmented $type controls across focus changes", (control) => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    const line = JSON.stringify(control);
+    upstream.emit("message", Buffer.from(line.slice(0, 9)));
+    browser.emit(
+      "message",
+      Buffer.from('{"type":"playback","enabled":false,"generation":1}'),
+      false,
+    );
+    browser.emit(
+      "message",
+      Buffer.from('{"type":"playback","enabled":true,"generation":2}'),
+      false,
+    );
+    upstream.emit("message", Buffer.from(`${line.slice(9)}\n`));
+    expect(browser.send).toHaveBeenCalledExactlyOnceWith(line);
+    expect(browser.close).not.toHaveBeenCalled();
+    browser.emit("close");
+  });
+
+  it("delivers fragmented speaker frames within the same focus generation", () => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    browser.emit(
+      "message",
+      Buffer.from('{"type":"playback","enabled":true,"generation":1}'),
+      false,
+    );
+    const frame = { type: "speaker", pcm: Buffer.alloc(960).toString("base64") };
+    const line = JSON.stringify(frame);
+    upstream.emit("message", Buffer.from(line.slice(0, 19)));
+    upstream.emit("message", Buffer.from(`${line.slice(19)}\n`));
+    expect(browser.send).toHaveBeenCalledExactlyOnceWith(
+      JSON.stringify({ ...frame, generation: 1 }),
+    );
+    browser.emit("close");
+  });
+
+  it("drops paused playback and tags resumed PCM without forwarding focus controls upstream", () => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    const pcm = Buffer.alloc(960).toString("base64");
+    const speaker = () =>
+      upstream.emit("message", Buffer.from(`${JSON.stringify({ type: "speaker", pcm })}\n`));
+    const focus = (enabled: boolean, generation: number) =>
+      browser.emit(
+        "message",
+        Buffer.from(JSON.stringify({ type: "playback", enabled, generation })),
+        false,
+      );
+    speaker();
+    expect(JSON.parse(browser.send.mock.calls.at(-1)![0])).toEqual({ type: "speaker", pcm });
+    focus(true, 1);
+    speaker();
+    expect(JSON.parse(browser.send.mock.calls.at(-1)![0])).toEqual({
+      type: "speaker",
+      pcm,
+      generation: 1,
+    });
+    focus(false, 2);
+    browser.send.mockClear();
+    speaker();
+    expect(browser.send).not.toHaveBeenCalled();
+    focus(true, 3);
+    focus(false, 2);
+    speaker();
+    expect(JSON.parse(browser.send.mock.calls.at(-1)![0])).toEqual({
+      type: "speaker",
+      pcm,
+      generation: 3,
+    });
+    expect(upstream.send).not.toHaveBeenCalled();
+    expect(browser.close).not.toHaveBeenCalled();
+    browser.emit("close");
+  });
+
+  it.each([
+    0,
+    -1,
+    1.5,
+    "1",
+    Number.MAX_SAFE_INTEGER + 1,
+  ])("rejects invalid playback generation %s", (generation) => {
+    expect(
+      parseBrowserAudio(JSON.stringify({ type: "playback", enabled: true, generation })),
+    ).toBeNull();
+  });
   it("bounds pending controls and cancels retries when congestion persists", () => {
     vi.useFakeTimers();
     const browser = new Socket(),
@@ -119,7 +248,9 @@ describe("terminal audio boundaries", () => {
       connectAudioRelay(browser as unknown as WebSocket, upstream);
       workspace?.send('{"type":"ready","claimRequired":true}\n');
       await vi.waitFor(() =>
-        expect(browser.send).toHaveBeenCalledWith('{"type":"ready","claimRequired":true}'),
+        expect(browser.send).toHaveBeenCalledWith(
+          '{"type":"ready","claimRequired":true,"playbackGeneration":true}',
+        ),
       );
       browser.emit("message", Buffer.from('{"type":"claim"}'), false);
       await vi.waitFor(() => expect(browser.send).toHaveBeenCalledWith('{"type":"claimed"}'));
@@ -162,7 +293,9 @@ describe("terminal audio boundaries", () => {
     upstream.emit("message", Buffer.from('{"type":"ready","claimRequired":true}\n'));
     vi.advanceTimersByTime(10_000);
     expect(browser.close).not.toHaveBeenCalled();
-    expect(browser.send).toHaveBeenCalledWith('{"type":"ready","claimRequired":true}');
+    expect(browser.send).toHaveBeenCalledWith(
+      '{"type":"ready","claimRequired":true,"playbackGeneration":true}',
+    );
     browser.emit("close");
   });
   it("authorizes long session names accepted by ordinary terminals", async () => {
@@ -278,7 +411,7 @@ describe("terminal audio boundaries", () => {
     upstream.emit("message", Buffer.from('{"type":"rea'));
     upstream.emit("message", Buffer.from('dy"}\r\n{"type":"active","active":true}\n'));
     expect(browser.send.mock.calls).toEqual([
-      [JSON.stringify({ type: "ready" })],
+      [JSON.stringify({ type: "ready", playbackGeneration: true })],
       [JSON.stringify({ type: "active", active: true })],
     ]);
     browser.emit("close");

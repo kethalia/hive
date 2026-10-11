@@ -1,6 +1,6 @@
 export type TerminalAudioStatus =
   | { phase: "standby" }
-  | { phase: "connecting" | "active" | "error"; message: string };
+  | { phase: "connecting" | "active" | "paused" | "error"; message: string };
 
 const microphoneOwners = new Map<string, TerminalAudio>();
 
@@ -18,6 +18,9 @@ export class TerminalAudio {
   private reconnect: ReturnType<typeof setTimeout> | undefined;
   private heartbeat: ReturnType<typeof setInterval> | undefined;
   private lastPong = 0;
+  private lastHeartbeat = 0;
+  private frozen = false;
+  private focused = false;
   private failed = false;
   private ownerRejected = false;
   private releaseMicrophoneLock: (() => void) | null = null;
@@ -26,8 +29,22 @@ export class TerminalAudio {
   private claimRequired = false;
   private cancelClaim: (() => void) | null = null;
   private confirmClaim: (() => void) | null = null;
+  private updateClaimFocus: (() => void) | null = null;
   private pendingClaim = false;
   private claimRetry: ReturnType<typeof setTimeout> | undefined;
+  private mediaPaused: boolean | undefined;
+  private mediaFocus: boolean | undefined;
+  private pendingPlayback: Record<string, unknown> | null = null;
+  private playbackRetry: ReturnType<typeof setTimeout> | undefined;
+  private mediaGeneration = 0;
+  private generationSupported = false;
+  private resumePending: {
+    context: AudioContext;
+    promise: Promise<void>;
+    updateFocus: () => void;
+    cancel: () => void;
+    checkRunning: () => void;
+  } | null = null;
 
   constructor(
     private url: string,
@@ -57,29 +74,153 @@ export class TerminalAudio {
   setVisible(visible: boolean) {
     if (this.disposed || this.visible === visible) return;
     this.visible = visible;
-    if (visible) {
-      this.failed = false;
-      this.refreshFocus();
-    } else this.disconnect();
+    if (visible) this.failed = false;
+    this.refreshFocus();
   }
 
-  /** Idle views yield the session relay; focus never transfers an ongoing call. */
+  setFrozen(frozen: boolean) {
+    this.frozen = frozen;
+    if (!frozen) this.probeHeartbeat();
+    this.refreshFocus();
+  }
+
+  /** Idle views yield their relay; owned calls stay connected and follow focus for media. */
   refreshFocus() {
-    if (!this.visible || this.disposed || this.ownsCall || this.pendingMicrophone) return;
-    if (this.canStart()) this.connect();
+    if (this.disposed) return;
+    const focused = this.mediaFocused();
+    if (focused && !this.focused && this.ownsCall) this.probeHeartbeat();
+    this.focused = focused;
+    this.updateMediaFocus();
+    if (this.ownsCall || this.pendingMicrophone) return;
+    if (focused) this.connect();
     else this.disconnect();
   }
 
+  private mediaFocused() {
+    return this.visible && !this.frozen && this.canStart();
+  }
+
+  private updateMediaFocus() {
+    this.updateClaimFocus?.();
+    this.resumePending?.updateFocus();
+    const focused = this.mediaFocused();
+    const paused = !focused || (this.context !== null && this.context.state !== "running");
+    for (const track of this.stream?.getTracks() ?? []) track.enabled = !paused;
+    if (!this.worklet) return;
+    if (focused && this.context && this.context.state !== "running" && !this.resumePending) {
+      const context = this.context;
+      void this.resumeContext(context).then(
+        () => {
+          if (this.context === context) this.updateMediaFocus();
+        },
+        () => {
+          if (this.context === context)
+            this.onStatus({ phase: "error", message: "Press Enter in this pane to resume voice." });
+        },
+      );
+    }
+    if (this.mediaPaused === paused && this.mediaFocus === focused) return;
+    this.mediaFocus = focused;
+    if (this.mediaPaused !== paused) {
+      this.mediaPaused = paused;
+      this.mediaGeneration++;
+      if (this.generationSupported)
+        this.send({ type: "playback", enabled: !paused, generation: this.mediaGeneration });
+      // Clear both audio buffers so resuming cannot replay speech from before pausing.
+      this.worklet.port.postMessage({ type: "pause", paused, generation: this.mediaGeneration });
+    }
+    this.onStatus(
+      paused
+        ? focused
+          ? { phase: "connecting", message: "Resuming voice…" }
+          : { phase: "paused", message: "Voice paused — focus this pane to resume" }
+        : { phase: "active", message: "Voice connected" },
+    );
+  }
+
+  private probeHeartbeat() {
+    this.lastPong = this.lastHeartbeat = Date.now();
+    this.send({ type: "ping" });
+  }
+
+  private resumeContext(context: AudioContext): Promise<void> {
+    if (this.resumePending?.context === context) return this.resumePending.promise;
+    let resolve = () => {};
+    let reject = (_error: Error) => {};
+    const promise = new Promise<void>((yes, no) => {
+      resolve = yes;
+      reject = no;
+    });
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    let focused = false;
+    let settled = false;
+    let resumeAttempt = 0;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      if (this.resumePending?.context === context) this.resumePending = null;
+      if (error) reject(error);
+      else resolve();
+    };
+    const checkRunning = () => {
+      if (context.state === "running") finish();
+    };
+    const updateFocus = () => {
+      if (settled) return;
+      if (!this.mediaFocused()) {
+        focused = false;
+        resumeAttempt++;
+        clearTimeout(deadline);
+        deadline = undefined;
+        // A running context needs no autoplay recovery while the pane is paused.
+        checkRunning();
+        return;
+      }
+      if (focused) return;
+      focused = true;
+      const attempt = ++resumeAttempt;
+      deadline = setTimeout(() => {
+        if (!this.mediaFocused()) {
+          focused = false;
+          deadline = undefined;
+          return;
+        }
+        finish(
+          new Error("Press Enter in the terminal to enable spoken replies, then run /voice again."),
+        );
+      }, 8000);
+      void context.resume().then(
+        () => {
+          if (attempt === resumeAttempt) checkRunning();
+        },
+        (error) => {
+          // Losing focus supersedes pending attempts, even if focus has since returned.
+          if (attempt === resumeAttempt && this.mediaFocused())
+            finish(error instanceof Error ? error : new Error("Could not resume voice audio."));
+        },
+      );
+    };
+    this.resumePending = { context, promise, updateFocus, cancel: () => finish(), checkRunning };
+    updateFocus();
+    return promise;
+  }
+
   private connect() {
-    if (!this.visible || this.disposed || this.socket || !this.canStart()) return;
+    if (!this.mediaFocused() || this.disposed || this.socket) return;
     clearTimeout(this.reconnect);
     const socket = new WebSocket(this.url, "hive-audio-v1");
     this.socket = socket;
     let retry = true;
     this.lastPong = Date.now();
+    this.lastHeartbeat = Date.now();
     socket.onopen = () => {
       if (this.socket !== socket) return;
       this.heartbeat = setInterval(() => {
+        const now = Date.now();
+        // A frozen page can run an overdue timer before queued pong events.
+        if (now - this.lastHeartbeat > 10_000) this.lastPong = now;
+        this.lastHeartbeat = now;
         if (Date.now() - this.lastPong > 20_000) {
           socket.close();
           return;
@@ -96,6 +237,8 @@ export class TerminalAudio {
         message?: string;
         code?: string;
         claimRequired?: boolean;
+        playbackGeneration?: boolean;
+        generation?: number;
       };
       try {
         value = JSON.parse(data);
@@ -104,7 +247,10 @@ export class TerminalAudio {
       }
       if (value?.type === "ready" || value?.type === "pong") {
         this.lastPong = Date.now();
-        if (value.type === "ready") this.claimRequired = value.claimRequired === true;
+        if (value.type === "ready") {
+          this.claimRequired = value.claimRequired === true;
+          this.generationSupported = value.playbackGeneration === true;
+        }
         if (value.type === "ready" && this.ownerRejected) {
           this.ownerRejected = false;
           this.failed = false;
@@ -126,7 +272,13 @@ export class TerminalAudio {
           this.refreshFocus();
         }
       } else if (value?.type === "speaker" && typeof value.pcm === "string" && this.worklet) {
-        if (value.pcm.length > 1280) return;
+        if (
+          !this.mediaFocused() ||
+          this.mediaPaused ||
+          value.pcm.length > 1280 ||
+          (this.generationSupported && value.generation !== this.mediaGeneration)
+        )
+          return;
         try {
           const bytes = Uint8Array.from(atob(value.pcm), (char) => char.charCodeAt(0));
           if (bytes.length <= 960 && bytes.length % 2 === 0)
@@ -178,11 +330,10 @@ export class TerminalAudio {
       return;
     }
     const generation = ++this.generation;
-    const current = () =>
-      !this.disposed && this.visible && this.nativeActive && generation === this.generation;
+    const current = () => !this.disposed && this.nativeActive && generation === this.generation;
     try {
-      // Focus chooses a new call; it never moves an existing call to another pane.
-      if (!this.canStart())
+      // Focus chooses a new call. Later focus changes pause media, not ownership.
+      if (!this.mediaFocused())
         throw new Error("Select this terminal and run /voice again to start voice.");
       const owner = microphoneOwners.get(this.url);
       if (owner && owner !== this)
@@ -219,18 +370,35 @@ export class TerminalAudio {
       }
       if (this.claimRequired) {
         await new Promise<void>((resolve, reject) => {
+          let deadline: ReturnType<typeof setTimeout> | undefined;
+          let settled = false;
           const finish = (error?: Error) => {
+            if (settled) return;
+            settled = true;
             clearTimeout(deadline);
             this.cancelClaim = this.confirmClaim = null;
+            this.updateClaimFocus = null;
             if (error) reject(error);
             else resolve();
           };
-          const deadline = setTimeout(
-            () => finish(new Error("Voice ownership timed out. Run /voice again.")),
-            8000,
-          );
+          const updateFocus = () => {
+            if (settled) return;
+            if (!this.mediaFocused()) {
+              clearTimeout(deadline);
+              deadline = undefined;
+              return;
+            }
+            if (deadline !== undefined) return;
+            // On return, give queued claimed events a fresh deadline to dispatch.
+            deadline = setTimeout(() => {
+              if (!this.mediaFocused()) updateFocus();
+              else finish(new Error("Voice ownership timed out. Run /voice again."));
+            }, 8000);
+          };
           this.cancelClaim = () => finish(new Error("Voice ended."));
           this.confirmClaim = () => finish();
+          this.updateClaimFocus = updateFocus;
+          updateFocus();
           this.send({ type: "claim" });
         });
         if (!current()) return;
@@ -261,36 +429,24 @@ export class TerminalAudio {
         return;
       }
       this.stream = stream;
+      this.updateMediaFocus();
       for (const track of stream.getTracks())
         track.onended = () => {
           if (current()) this.fail("Microphone access ended. Run /voice again to reconnect.");
         };
       this.context ??= new AudioContext({ sampleRate: 48_000 });
       const context = this.context;
+      context.onstatechange = () => {
+        if (this.context !== context) return;
+        this.resumePending?.checkRunning();
+        this.updateMediaFocus();
+      };
       if (context.sampleRate !== 48_000)
         throw new Error("This browser does not support the voice audio format.");
-      await context.audioWorklet.addModule("/hive-audio-worklet.js");
+      // A distinct URL prevents cached older worklets from using untagged capture.
+      await context.audioWorklet.addModule("/hive-audio-worklet.js?capture-generation=1");
       if (!current()) return;
-      // resume() can remain pending when playback lacks a user gesture.
-      let resumeDeadline: ReturnType<typeof setTimeout> | undefined;
-      try {
-        await Promise.race([
-          context.resume(),
-          new Promise<never>((_, reject) => {
-            resumeDeadline = setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    "Press Enter in the terminal to enable spoken replies, then run /voice again.",
-                  ),
-                ),
-              8000,
-            );
-          }),
-        ]);
-      } finally {
-        clearTimeout(resumeDeadline);
-      }
+      await this.resumeContext(context);
       if (!current()) return;
       if (context.state !== "running")
         throw new Error(
@@ -301,16 +457,27 @@ export class TerminalAudio {
       });
       this.worklet = worklet;
       worklet.port.onmessage = ({ data }) => {
-        if (!current() || !(data instanceof ArrayBuffer) || data.byteLength !== 960) return;
-        this.send({ type: "microphone", pcm: btoa(String.fromCharCode(...new Uint8Array(data))) });
+        if (
+          !current() ||
+          !this.mediaFocused() ||
+          this.mediaPaused ||
+          data?.generation !== this.mediaGeneration ||
+          !(data?.pcm instanceof ArrayBuffer) ||
+          data.pcm.byteLength !== 960
+        )
+          return;
+        this.send({
+          type: "microphone",
+          pcm: btoa(String.fromCharCode(...new Uint8Array(data.pcm))),
+        });
       };
       worklet.onprocessorerror = () => {
         if (current()) this.fail("Voice audio stopped. Run /voice again to reconnect.");
       };
       this.source = context.createMediaStreamSource(stream);
+      this.updateMediaFocus();
       this.source.connect(worklet);
       worklet.connect(context.destination);
-      this.onStatus({ phase: "active", message: "Voice connected" });
     } catch (error) {
       if (!current()) return;
       this.fail(
@@ -325,6 +492,11 @@ export class TerminalAudio {
 
   private send(message: Record<string, unknown>) {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
+    if (message.type === "playback") {
+      this.pendingPlayback = message;
+      this.flushPlayback();
+      return;
+    }
     if (message.type === "claim") {
       this.pendingClaim = true;
       this.flushClaim();
@@ -336,6 +508,18 @@ export class TerminalAudio {
       if (message.type === "microphone" || this.socket.bufferedAmount > 64 * 1024 + 2048) return;
     }
     this.socket.send(JSON.stringify(message));
+  }
+
+  private flushPlayback() {
+    clearTimeout(this.playbackRetry);
+    this.playbackRetry = undefined;
+    if (!this.pendingPlayback || this.socket?.readyState !== WebSocket.OPEN) return;
+    if (this.socket.bufferedAmount > 64 * 1024 + 2048) {
+      this.playbackRetry = setTimeout(() => this.flushPlayback(), 50);
+      return;
+    }
+    this.socket.send(JSON.stringify(this.pendingPlayback));
+    this.pendingPlayback = null;
   }
 
   private flushClaim() {
@@ -363,6 +547,12 @@ export class TerminalAudio {
   private releaseMedia() {
     this.generation++;
     this.ownsCall = false;
+    this.mediaPaused = undefined;
+    this.mediaFocus = undefined;
+    this.pendingPlayback = null;
+    clearTimeout(this.playbackRetry);
+    this.playbackRetry = undefined;
+    this.resumePending?.cancel();
     this.pendingClaim = false;
     clearTimeout(this.claimRetry);
     this.claimRetry = undefined;
@@ -382,6 +572,7 @@ export class TerminalAudio {
     }
     this.worklet = null;
     if (this.context) {
+      this.context.onstatechange = null;
       void this.context.close().catch(() => {});
       this.context = null;
     }

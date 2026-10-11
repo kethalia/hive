@@ -13,33 +13,48 @@ current session. There is no session picker or separate Start voice bar.
 
 The bridge is enabled by default. Microphone access starts only when the native
 application opens its capture stream. An idle terminal does not request or hold
-the microphone. A small status message appears during connection, an active call,
-or an error. Browser permission settings determine whether future calls prompt
-again. HTTPS (or localhost) and Web Audio/AudioWorklet support are required.
-Pressing Enter in the terminal enables playback under browser autoplay rules.
+the microphone. A small status message appears during connection, an active
+call, a paused call, or an error. Browser permission settings determine whether
+future calls prompt again. HTTPS (or localhost) and Web Audio/AudioWorklet
+support are required. Pressing Enter in the terminal enables playback under
+browser autoplay rules.
 
 The focused terminal can start a new call. When Compose or another control has
-focus outside the terminal, the selected pane can start it instead. Changing pane
-or window focus during a call keeps audio attached to the terminal that started
-it. Enter, Compose send, or touch Enter arms that terminal for one claim attempt
-within 15 seconds, even if the audio bridge is still loading. Successful, rejected,
-and failed attempts consume the interaction; a later call needs a fresh gesture.
-A view left open on an unused device cannot claim a call solely because
-its browser still reports focus. Background views do not reserve an idle relay.
+focus outside the terminal, the selected pane can start it instead. Changing
+pane, workspace, tab, or window focus keeps existing calls connected and pauses
+microphone input and speaker playback in every unfocused pane. Only the focused,
+selected pane sends your voice and plays replies. Returning to a paused pane
+resumes the same call without another claim or microphone permission request.
+Enter, Compose send, or touch Enter arms that terminal for one claim attempt
+within 15 seconds, even if the audio bridge is still loading. Successful,
+rejected, and failed attempts consume the interaction; a later call needs a
+fresh gesture. A view left open on an unused device cannot claim a call solely
+because its browser still reports focus. Background views do not reserve an idle
+relay.
 
-Hiding the browser tab, parking the terminal, losing the connection, denying or
-revoking permission, and closing the terminal release browser audio and disconnect
-the native audio streams. Keep the terminal visible during a call. One terminal
-view owns a session's audio. Different terminal sessions can run voice calls
-simultaneously, each using its own virtual microphone and speaker devices. The
-physical microphone feeds every active call, and their replies play through the
-browser together. Browsers with Web Locks prevent duplicate calls for the same
-terminal across Hive tabs and PWA windows at the same origin. The workspace broker
-also enforces one active view per terminal across devices. After fixing
-permission or connection errors, wait for reconnection and run `/voice` again.
-If a call ends while its browser permission prompt is open, finish that prompt
-before retrying that terminal's call. Its microphone reservation remains held until the
-request settles; a late grant is stopped without sending audio.
+Hiding the browser tab or parking the terminal pauses its audio and shows “Voice
+paused — focus this pane to resume” when its status is visible. Paused calls
+retain their relay and microphone stream, with microphone tracks disabled and
+queued audio discarded. Codex tasks keep running. Ending native voice, losing
+the connection, denying or revoking permission, or disposing the terminal
+releases browser audio and disconnects the native audio streams.
+
+When returning, Hive resumes a suspended or interrupted browser audio context
+before enabling audio or showing “Voice connected”. The playback startup deadline
+runs only while the pane is focused. If autoplay still requires a gesture, press
+Enter in the selected pane. Browser freeze/resume events and delayed heartbeat
+timers trigger a fresh liveness probe; actual connection failures still end calls.
+
+One terminal view owns a session's audio. Different terminal sessions can keep
+voice calls connected simultaneously, each using its own virtual microphone and
+speaker devices; focus determines which call exchanges browser audio. Browsers
+with Web Locks prevent duplicate calls for the same terminal across Hive tabs
+and PWA windows at the same origin. The workspace broker also enforces one
+active view per terminal across devices. After fixing permission or connection
+errors, wait for reconnection and run `/voice` again. If a call ends while its
+browser permission prompt is open, finish that prompt before retrying that
+terminal's call. Its microphone reservation remains held until the request
+settles; a late grant is stopped without sending audio.
 
 ## Rollout
 
@@ -86,7 +101,17 @@ device paths. Nothing alters Codex's binary, thread selection, voice
 protocol, or account credentials.
 
 The browser opens an authenticated audio WebSocket for a visible, focused terminal.
-An ongoing call retains its connection when focus moves to another visible pane.
+An owned call retains its connection across pane, workspace, tab, and window
+focus changes, with browser microphone and playback paused while unfocused.
+The matching terminal proxy advertises support for playback focus generations.
+It suppresses speaker delivery while paused and tags subsequent frames with the
+current generation. The browser rejects older generations, including messages
+queued while its tab was frozen. Older clients retain their previous frame format;
+deploy both the web client and terminal proxy to enable this protection.
+The AudioWorklet also tags microphone packets with their capture generation, so
+packets already queued on its MessagePort before pausing cannot be sent when
+focus resumes. This metadata stays inside the browser; upstream microphone PCM
+keeps its existing format.
 The proxy starts `hive-audio relay -- <session>` through the existing Coder PTY API.
 That relay observes the session broker without claiming its devices. Native
 capture notifies observers; a recently armed, focused view claims the call before
@@ -116,11 +141,11 @@ that session is gone. Workspace shutdown terminates these processes normally.
 - Browser unit tests cover focus gating, late grants, pending permission
   reservations, concurrent calls, stale media callbacks, denial, and cleanup.
 - `e2e/terminal-audio.spec.mjs` uses real Chrome microphone and AudioWorklet APIs
-  with synthetic input and an emulated workspace relay. All thirty desktop,
-  tablet, and mobile viewport tests cover PCM in both directions, denial, parking,
+  with synthetic input and an emulated workspace relay. Desktop, tablet, and mobile
+  viewport tests cover PCM in both directions, denial, parking without disconnecting,
   per-terminal microphone ownership across windows, concurrent terminal calls,
-  unused-device observers, takeover rejection, focus gating, pinned pane ownership,
-  pending permission cancellation, and Compose send outside xterm.
+  unused-device observers, takeover rejection, focus gating, focused microphone and
+  speaker routing, pending permission cancellation, and Compose send outside xterm.
 - A separate live probe used the unmodified Codex **0.161.0** native voice helper,
   an isolated ephemeral Codex thread, and the production PulseAudio broker. Spoken
   output produced measurable speaker samples; a synthetic tone reached native
