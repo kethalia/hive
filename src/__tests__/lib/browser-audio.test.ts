@@ -92,6 +92,43 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it("retries a congested call claim without consuming another interaction", async () => {
+    let armed = true;
+    const canClaim = vi.fn(() => {
+      const value = armed;
+      armed = false;
+      return value;
+    });
+    const { socket, status } = session(() => true, "wss://hive/ws/audio", canClaim);
+    socket.emit({ type: "ready", claimRequired: true });
+    socket.bufferedAmount = 70_000;
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(socket.send).not.toHaveBeenCalled();
+    expect(canClaim).toHaveBeenCalledOnce();
+    socket.bufferedAmount = 0;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(socket.send).toHaveBeenCalledWith('{"type":"claim"}');
+    socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    expect(canClaim).toHaveBeenCalledOnce();
+  });
+
+  it("cancels a queued claim when native capture ends", async () => {
+    const { socket } = session();
+    socket.emit({ type: "ready", claimRequired: true });
+    socket.bufferedAmount = 70_000;
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(100);
+    socket.emit({ type: "active", active: false });
+    socket.bufferedAmount = 0;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"claim"}');
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
   it("drops microphone frames during a short network stall and resumes the same call", async () => {
     const { socket, status } = session();
     socket.onopen?.();

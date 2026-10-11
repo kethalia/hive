@@ -26,6 +26,8 @@ export class TerminalAudio {
   private claimRequired = false;
   private cancelClaim: (() => void) | null = null;
   private confirmClaim: (() => void) | null = null;
+  private pendingClaim = false;
+  private claimRetry: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private url: string,
@@ -323,12 +325,29 @@ export class TerminalAudio {
 
   private send(message: Record<string, unknown>) {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
+    if (message.type === "claim") {
+      this.pendingClaim = true;
+      this.flushClaim();
+      return;
+    }
     if (this.socket.bufferedAmount > 64 * 1024) {
       // Late PCM is disposable. Keep the call and a bounded allowance for
       // heartbeats; the existing liveness timeout detects a persistent outage.
       if (message.type === "microphone" || this.socket.bufferedAmount > 64 * 1024 + 2048) return;
     }
     this.socket.send(JSON.stringify(message));
+  }
+
+  private flushClaim() {
+    clearTimeout(this.claimRetry);
+    this.claimRetry = undefined;
+    if (!this.pendingClaim || this.socket?.readyState !== WebSocket.OPEN) return;
+    if (this.socket.bufferedAmount > 64 * 1024 + 2048) {
+      this.claimRetry = setTimeout(() => this.flushClaim(), 50);
+      return;
+    }
+    this.pendingClaim = false;
+    this.socket.send(JSON.stringify({ type: "claim" }));
   }
 
   private fail(message: string, retry = true, code?: string) {
@@ -344,6 +363,9 @@ export class TerminalAudio {
   private releaseMedia() {
     this.generation++;
     this.ownsCall = false;
+    this.pendingClaim = false;
+    clearTimeout(this.claimRetry);
+    this.claimRetry = undefined;
     this.cancelClaim?.();
     for (const track of this.stream?.getTracks() ?? []) {
       track.onended = null;

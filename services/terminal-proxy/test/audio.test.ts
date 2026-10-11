@@ -29,6 +29,67 @@ afterEach(() => {
 });
 
 describe("terminal audio boundaries", () => {
+  it("bounds pending controls and cancels retries when congestion persists", () => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    browser.bufferedAmount = 70_000;
+    for (let index = 0; index < 33; index++)
+      upstream.emit(
+        "message",
+        Buffer.from(`${JSON.stringify({ type: "active", active: index % 2 === 0 })}\n`),
+      );
+    expect(browser.close).toHaveBeenCalledExactlyOnceWith(1013, "audio controls stalled");
+    expect(upstream.close).toHaveBeenCalledTimes(1);
+    browser.bufferedAmount = 0;
+    vi.advanceTimersByTime(30_000);
+    expect(browser.send).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("delivers call-end and subsequent call-start controls in order after congestion", () => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    browser.bufferedAmount = 70_000;
+    upstream.emit(
+      "message",
+      Buffer.from('{"type":"active","active":false}\n{"type":"active","active":true}\n'),
+    );
+    expect(browser.send).not.toHaveBeenCalled();
+    browser.bufferedAmount = 0;
+    vi.advanceTimersByTime(100);
+    expect(browser.send.mock.calls).toEqual([
+      ['{"type":"active","active":false}'],
+      ['{"type":"active","active":true}'],
+    ]);
+    expect(browser.close).not.toHaveBeenCalled();
+    browser.emit("close");
+  });
+
+  it("retries an upstream claim and clears pending controls when the connection closes", () => {
+    vi.useFakeTimers();
+    const browser = new Socket(),
+      upstream = new Socket();
+    connectAudioRelay(browser as unknown as WebSocket, upstream as unknown as WebSocket);
+    upstream.bufferedAmount = 70_000;
+    browser.emit("message", Buffer.from('{"type":"claim"}'), false);
+    expect(upstream.send).not.toHaveBeenCalled();
+    upstream.bufferedAmount = 0;
+    vi.advanceTimersByTime(100);
+    expect(upstream.send).toHaveBeenCalledWith(JSON.stringify({ data: '{"type":"claim"}\n' }), {
+      binary: true,
+    });
+    browser.bufferedAmount = 70_000;
+    upstream.emit("message", Buffer.from('{"type":"active","active":false}\n'));
+    browser.emit("close");
+    browser.bufferedAmount = 0;
+    vi.advanceTimersByTime(100);
+    expect(browser.send).not.toHaveBeenCalled();
+  });
+
   it("keeps the Coder PTY connected through claims, PCM, heartbeats and release", async () => {
     const server = new WebSocketServer({ port: 0 });
     const frames: Array<{ type: string; pcm?: string }> = [];
