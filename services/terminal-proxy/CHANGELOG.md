@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.3.2
+
+### Patch Changes
+
+- e384bbf: Send audio PTY input as binary WebSocket frames so Coder keeps voice calls and idle audio connections open through microphone input, heartbeats, and release.
+
 ## 2.3.1
 
 ### Patch Changes
