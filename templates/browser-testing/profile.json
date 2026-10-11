@@ -2,7 +2,7 @@
   "id": "browser",
   "label": "Browser testing",
   "description": "Dedicated Chrome and Playwright workspace for browser automation and visual inspection.",
-  "image": "ghcr.io/kethalia/hive-base@sha256:165cfa153b89a2f7ca2c0b7671ee521b9dc644ae5fe2baddd7974c8a60e78f76",
+  "image": "ghcr.io/kethalia/hive-base@sha256:5056be3e0418a672093734112e8e8f1be2aff255fb93201a6a6d911cbd551e6d",
   "image_variant": "browser",
   "capabilities": {
     "browser": true,
@@ -18,6 +18,9 @@
     "memory_limit": "16Gi",
     "storage": "50Gi"
   },
-  "vscode_extensions": ["ms-playwright.playwright", "dbaeumer.vscode-eslint"],
+  "vscode_extensions": [
+    "ms-playwright.playwright",
+    "dbaeumer.vscode-eslint"
+  ],
   "codex_sandbox_apparmor_profile": "hive-codex-v1"
 }
