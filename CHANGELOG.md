@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.20.7
+
+### Patch Changes
+
+- a065eeb: Keep active voice calls connected across workspace and window changes, pausing microphone input and speaker playback in unfocused panes and resuming them when focused. Recover suspended browser audio contexts and heartbeat timers, and discard microphone and speaker frames queued before resuming focus.
+- 8a6fa38: Release the updated Kubernetes workspace image digests with the bundled Coder templates.
+
 ## 2.20.6
 
 ### Patch Changes
