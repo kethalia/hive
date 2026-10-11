@@ -93,6 +93,109 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it.each([
+    "hidden",
+    "unfocused",
+    "frozen",
+  ])("suspends the ownership deadline while the pane is %s", async (mode) => {
+    let focused = true;
+    const { audio, socket, status } = session(() => focused);
+    socket.emit({ type: "ready", claimRequired: true });
+    socket.emit({ type: "active", active: true });
+    expect(socket.send).toHaveBeenCalledWith('{"type":"claim"}');
+    await vi.advanceTimersByTimeAsync(7000);
+    if (mode === "hidden") audio.setVisible(false);
+    else if (mode === "frozen") audio.setFrozen(true);
+    else {
+      focused = false;
+      audio.refreshFocus();
+    }
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(getUserMedia).not.toHaveBeenCalled();
+    if (mode === "hidden") audio.setVisible(true);
+    else if (mode === "frozen") audio.setFrozen(false);
+    else {
+      focused = true;
+      audio.refreshFocus();
+    }
+    // Allow queued ownership confirmation to arrive before a fresh deadline.
+    await vi.advanceTimersByTimeAsync(7999);
+    socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    expect(socket.send.mock.calls.filter(([value]) => value === '{"type":"claim"}')).toHaveLength(
+      1,
+    );
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+  });
+
+  it("still times out unconfirmed ownership while the pane stays focused", async () => {
+    const { socket, status } = session();
+    socket.emit({ type: "ready", claimRequired: true });
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(8000);
+    expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(status).toHaveBeenLastCalledWith({
+      phase: "error",
+      message: "Voice ownership timed out. Run /voice again.",
+    });
+  });
+
+  it("cancels a paused ownership deadline when native capture ends", async () => {
+    const { audio, socket } = session();
+    socket.emit({ type: "ready", claimRequired: true });
+    socket.emit({ type: "active", active: true });
+    audio.setFrozen(true);
+    socket.emit({ type: "active", active: false });
+    const releases = () =>
+      socket.send.mock.calls.filter(([value]) => value === '{"type":"release"}').length;
+    const endedReleases = releases();
+    audio.setFrozen(false);
+    socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(releases()).toBe(endedReleases);
+  });
+
+  it("ignores a superseded resume rejection while the latest attempt succeeds", async () => {
+    let rejectFirst = (_error: Error) => {};
+    let resolveLatest = () => {};
+    const first = new Promise<void>((_resolve, reject) => {
+      rejectFirst = reject;
+    });
+    const latest = new Promise<void>((resolve) => {
+      resolveLatest = resolve;
+    });
+    vi.stubGlobal(
+      "AudioContext",
+      class extends Context {
+        state = "suspended";
+        resume = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(latest);
+      },
+    );
+    const { audio, socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    audio.setVisible(false);
+    audio.setVisible(true);
+    const context = Context.instances[0];
+    expect(context.resume).toHaveBeenCalledTimes(2);
+    rejectFirst(new Error("Older focus attempt rejected"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+    expect(stop).not.toHaveBeenCalled();
+    context.state = "running";
+    resolveLatest();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(socket.close).not.toHaveBeenCalled();
+  });
+
   it("rejects queued capture packets from before a pause after focus resumes", async () => {
     const { audio, socket } = session();
     socket.emit({ type: "active", active: true });

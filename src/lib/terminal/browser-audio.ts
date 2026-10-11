@@ -29,6 +29,7 @@ export class TerminalAudio {
   private claimRequired = false;
   private cancelClaim: (() => void) | null = null;
   private confirmClaim: (() => void) | null = null;
+  private updateClaimFocus: (() => void) | null = null;
   private pendingClaim = false;
   private claimRetry: ReturnType<typeof setTimeout> | undefined;
   private mediaPaused: boolean | undefined;
@@ -100,6 +101,7 @@ export class TerminalAudio {
   }
 
   private updateMediaFocus() {
+    this.updateClaimFocus?.();
     this.resumePending?.updateFocus();
     const focused = this.mediaFocused();
     const paused = !focused || (this.context !== null && this.context.state !== "running");
@@ -152,6 +154,7 @@ export class TerminalAudio {
     let deadline: ReturnType<typeof setTimeout> | undefined;
     let focused = false;
     let settled = false;
+    let resumeAttempt = 0;
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
@@ -167,6 +170,7 @@ export class TerminalAudio {
       if (settled) return;
       if (!this.mediaFocused()) {
         focused = false;
+        resumeAttempt++;
         clearTimeout(deadline);
         deadline = undefined;
         // A running context needs no autoplay recovery while the pane is paused.
@@ -175,6 +179,7 @@ export class TerminalAudio {
       }
       if (focused) return;
       focused = true;
+      const attempt = ++resumeAttempt;
       deadline = setTimeout(() => {
         if (!this.mediaFocused()) {
           focused = false;
@@ -185,10 +190,16 @@ export class TerminalAudio {
           new Error("Press Enter in the terminal to enable spoken replies, then run /voice again."),
         );
       }, 8000);
-      void context.resume().then(checkRunning, (error) => {
-        if (this.mediaFocused())
-          finish(error instanceof Error ? error : new Error("Could not resume voice audio."));
-      });
+      void context.resume().then(
+        () => {
+          if (attempt === resumeAttempt) checkRunning();
+        },
+        (error) => {
+          // Losing focus supersedes pending attempts, even if focus has since returned.
+          if (attempt === resumeAttempt && this.mediaFocused())
+            finish(error instanceof Error ? error : new Error("Could not resume voice audio."));
+        },
+      );
     };
     this.resumePending = { context, promise, updateFocus, cancel: () => finish(), checkRunning };
     updateFocus();
@@ -359,18 +370,35 @@ export class TerminalAudio {
       }
       if (this.claimRequired) {
         await new Promise<void>((resolve, reject) => {
+          let deadline: ReturnType<typeof setTimeout> | undefined;
+          let settled = false;
           const finish = (error?: Error) => {
+            if (settled) return;
+            settled = true;
             clearTimeout(deadline);
             this.cancelClaim = this.confirmClaim = null;
+            this.updateClaimFocus = null;
             if (error) reject(error);
             else resolve();
           };
-          const deadline = setTimeout(
-            () => finish(new Error("Voice ownership timed out. Run /voice again.")),
-            8000,
-          );
+          const updateFocus = () => {
+            if (settled) return;
+            if (!this.mediaFocused()) {
+              clearTimeout(deadline);
+              deadline = undefined;
+              return;
+            }
+            if (deadline !== undefined) return;
+            // On return, give queued claimed events a fresh deadline to dispatch.
+            deadline = setTimeout(() => {
+              if (!this.mediaFocused()) updateFocus();
+              else finish(new Error("Voice ownership timed out. Run /voice again."));
+            }, 8000);
+          };
           this.cancelClaim = () => finish(new Error("Voice ended."));
           this.confirmClaim = () => finish();
+          this.updateClaimFocus = updateFocus;
+          updateFocus();
           this.send({ type: "claim" });
         });
         if (!current()) return;
