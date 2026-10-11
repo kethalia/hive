@@ -108,6 +108,10 @@ It suppresses speaker delivery while paused and tags subsequent frames with the
 current generation. The browser rejects older generations, including messages
 queued while its tab was frozen. Older clients retain their previous frame format;
 deploy both the web client and terminal proxy to enable this protection.
+The AudioWorklet also tags microphone packets with their capture generation, so
+packets already queued on its MessagePort before pausing cannot be sent when
+focus resumes. This metadata stays inside the browser; upstream microphone PCM
+keeps its existing format.
 The proxy starts `hive-audio relay -- <session>` through the existing Coder PTY API.
 That relay observes the session broker without claiming its devices. Native
 capture notifies observers; a recently armed, focused view claims the call before

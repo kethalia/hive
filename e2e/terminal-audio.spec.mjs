@@ -55,7 +55,7 @@ test.beforeAll(async () => {
     } else if (req.url === "/style.css") {
       res.setHeader("Content-Type", "text/css");
       res.end(styles.css);
-    } else if (req.url === "/hive-audio-worklet.js") {
+    } else if (new URL(req.url, "http://localhost").pathname === "/hive-audio-worklet.js") {
       res.setHeader("Content-Type", "text/javascript");
       res.end(worklet);
     } else if (req.url.startsWith("/native?")) {

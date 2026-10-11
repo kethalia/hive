@@ -21,6 +21,31 @@ function processor() {
 }
 
 describe("terminal audio focus pausing", () => {
+  it("tags capture with its creation generation and discards partial capture across pauses", () => {
+    const audio = processor();
+    const tick = () =>
+      audio.process([[new Float32Array(128).fill(0.5)]], [[new Float32Array(128)]]);
+    const pause = (paused: boolean, generation: number) =>
+      audio.port.onmessage({ data: { type: "pause", paused, generation } });
+    pause(false, 1);
+    for (let at = 0; at < 4; at++) tick();
+    const [queued, transfer] = audio.port.postMessage.mock.calls[0];
+    expect(queued.generation).toBe(1);
+    expect(queued.pcm.byteLength).toBe(960);
+    expect(transfer).toEqual([queued.pcm]);
+    pause(true, 2);
+    for (let at = 0; at < 4; at++) tick();
+    expect(audio.port.postMessage).toHaveBeenCalledOnce();
+    pause(false, 3);
+    for (let at = 0; at < 3; at++) tick();
+    expect(audio.port.postMessage).toHaveBeenCalledOnce();
+    tick();
+    const [fresh] = audio.port.postMessage.mock.calls[1];
+    expect(fresh.generation).toBe(3);
+    expect(new Int16Array(fresh.pcm).every((sample) => sample === 16384)).toBe(true);
+    expect(queued.generation).toBe(1);
+  });
+
   it("silences capture and playback while paused and discards old samples on resume", () => {
     const audio = processor();
     const speaker = new Int16Array(480).fill(8192).buffer;

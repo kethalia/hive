@@ -93,6 +93,36 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it("rejects queued capture packets from before a pause after focus resumes", async () => {
+    const { audio, socket } = session();
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    const port = Worklet.instances[0].port;
+    const controls = () =>
+      port.postMessage.mock.calls.map(([data]) => data).filter((data) => data.type === "pause");
+    const firstGeneration = controls().at(-1).generation;
+    const queued = { pcm: new ArrayBuffer(960), generation: firstGeneration };
+    audio.setVisible(false);
+    audio.setVisible(true);
+    const generation = controls().at(-1).generation;
+    expect(generation).toBeGreaterThan(firstGeneration);
+    socket.send.mockClear();
+    const capture = port.onmessage as unknown as (event: { data: unknown }) => void;
+    capture({ data: queued });
+    capture({ data: new ArrayBuffer(960) });
+    capture({ data: { pcm: new ArrayBuffer(960), generation: generation - 1 } });
+    capture({ data: { pcm: new ArrayBuffer(958), generation } });
+    expect(socket.send).not.toHaveBeenCalled();
+    capture({ data: { pcm: new ArrayBuffer(960), generation } });
+    expect(socket.send).toHaveBeenCalledOnce();
+    expect(JSON.parse(socket.send.mock.calls[0][0])).toEqual({
+      type: "microphone",
+      pcm: btoa(String.fromCharCode(...new Uint8Array(960))),
+    });
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
   it("keeps backgrounded playback initialization alive beyond the autoplay deadline", async () => {
     vi.stubGlobal(
       "AudioContext",
@@ -316,11 +346,9 @@ describe("native terminal browser audio", () => {
     second.socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
     const pcm = btoa(String.fromCharCode(...new Uint8Array(960)));
-    const transmit = (index: number) =>
-      (
-        Worklet.instances[index].port.onmessage as unknown as (event: { data: ArrayBuffer }) => void
-      )({
-        data: new ArrayBuffer(960),
+    const transmit = (index: number, generation: number) =>
+      (Worklet.instances[index].port.onmessage as unknown as (event: { data: unknown }) => void)({
+        data: { pcm: new ArrayBuffer(960), generation },
       });
     for (let index = 0; index < 4; index++) {
       selected = index % 2;
@@ -329,8 +357,11 @@ describe("native terminal browser audio", () => {
       for (const [at, call] of [first, second].entries()) {
         call.socket.send.mockClear();
         const port = Worklet.instances[at].port;
+        const generation = port.postMessage.mock.calls
+          .filter(([data]) => data?.type === "pause")
+          .at(-1)![0].generation;
         port.postMessage.mockClear();
-        transmit(at);
+        transmit(at, generation);
         call.socket.emit({ type: "speaker", pcm });
         expect(tracks[at].enabled).toBe(at === selected);
         expect(call.socket.send.mock.calls).toHaveLength(at === selected ? 1 : 0);
@@ -358,6 +389,7 @@ describe("native terminal browser audio", () => {
     expect(Worklet.instances[0].port.postMessage).toHaveBeenLastCalledWith({
       type: "pause",
       paused: true,
+      generation: 2,
     });
     expect(socket.close).not.toHaveBeenCalled();
     expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
@@ -456,9 +488,10 @@ describe("native terminal browser audio", () => {
     socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
     const port = Worklet.instances[0].port;
+    const generation = port.postMessage.mock.calls.at(-1)![0].generation;
     const transmit = () =>
-      (port.onmessage as unknown as (event: { data: ArrayBuffer }) => void)({
-        data: new ArrayBuffer(960),
+      (port.onmessage as unknown as (event: { data: unknown }) => void)({
+        data: { pcm: new ArrayBuffer(960), generation },
       });
     socket.send.mockClear();
     socket.bufferedAmount = 70_000;

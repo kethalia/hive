@@ -35,7 +35,7 @@ export class TerminalAudio {
   private mediaFocus: boolean | undefined;
   private pendingPlayback: Record<string, unknown> | null = null;
   private playbackRetry: ReturnType<typeof setTimeout> | undefined;
-  private playbackGeneration = 0;
+  private mediaGeneration = 0;
   private generationSupported = false;
   private resumePending: {
     context: AudioContext;
@@ -121,11 +121,11 @@ export class TerminalAudio {
     this.mediaFocus = focused;
     if (this.mediaPaused !== paused) {
       this.mediaPaused = paused;
-      this.playbackGeneration++;
+      this.mediaGeneration++;
       if (this.generationSupported)
-        this.send({ type: "playback", enabled: !paused, generation: this.playbackGeneration });
+        this.send({ type: "playback", enabled: !paused, generation: this.mediaGeneration });
       // Clear both audio buffers so resuming cannot replay speech from before pausing.
-      this.worklet.port.postMessage({ type: "pause", paused });
+      this.worklet.port.postMessage({ type: "pause", paused, generation: this.mediaGeneration });
     }
     this.onStatus(
       paused
@@ -265,7 +265,7 @@ export class TerminalAudio {
           !this.mediaFocused() ||
           this.mediaPaused ||
           value.pcm.length > 1280 ||
-          (this.generationSupported && value.generation !== this.playbackGeneration)
+          (this.generationSupported && value.generation !== this.mediaGeneration)
         )
           return;
         try {
@@ -415,7 +415,8 @@ export class TerminalAudio {
       };
       if (context.sampleRate !== 48_000)
         throw new Error("This browser does not support the voice audio format.");
-      await context.audioWorklet.addModule("/hive-audio-worklet.js");
+      // A distinct URL prevents cached older worklets from using untagged capture.
+      await context.audioWorklet.addModule("/hive-audio-worklet.js?capture-generation=1");
       if (!current()) return;
       await this.resumeContext(context);
       if (!current()) return;
@@ -432,11 +433,15 @@ export class TerminalAudio {
           !current() ||
           !this.mediaFocused() ||
           this.mediaPaused ||
-          !(data instanceof ArrayBuffer) ||
-          data.byteLength !== 960
+          data?.generation !== this.mediaGeneration ||
+          !(data?.pcm instanceof ArrayBuffer) ||
+          data.pcm.byteLength !== 960
         )
           return;
-        this.send({ type: "microphone", pcm: btoa(String.fromCharCode(...new Uint8Array(data))) });
+        this.send({
+          type: "microphone",
+          pcm: btoa(String.fromCharCode(...new Uint8Array(data.pcm))),
+        });
       };
       worklet.onprocessorerror = () => {
         if (current()) this.fail("Voice audio stopped. Run /voice again to reconnect.");
