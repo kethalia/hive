@@ -1,8 +1,8 @@
-import { EventEmitter } from "node:events";
+import { EventEmitter, once } from "node:events";
 import type { IncomingMessage } from "node:http";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { WebSocket } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import {
   connectAudioRelay,
   handleAudioUpgrade,
@@ -29,6 +29,62 @@ afterEach(() => {
 });
 
 describe("terminal audio boundaries", () => {
+  it("keeps the Coder PTY connected through claims, PCM, heartbeats and release", async () => {
+    const server = new WebSocketServer({ port: 0 });
+    const frames: Array<{ type: string; pcm?: string }> = [];
+    let workspace: WebSocket | undefined;
+    server.on("connection", (socket) => {
+      workspace = socket;
+      socket.on("message", (data, binary) => {
+        // Coder's PTY uses websocket.NetConn with MessageBinary.
+        if (!binary) {
+          socket.close(1003, "expected MessageBinary");
+          return;
+        }
+        const frame = JSON.parse(JSON.parse(data.toString()).data.trim());
+        frames.push(frame);
+        if (frame.type === "claim" || frame.type === "ping")
+          socket.send(`${JSON.stringify({ type: frame.type === "claim" ? "claimed" : "pong" })}\n`);
+      });
+    });
+    await once(server, "listening");
+    const address = server.address();
+    if (typeof address === "string" || !address) throw new Error("No test server address");
+    const upstream = new WebSocket(`ws://127.0.0.1:${address.port}`);
+    const browser = new Socket();
+    browser.ping.mockImplementation(() => browser.emit("pong"));
+    try {
+      await once(upstream, "open");
+      connectAudioRelay(browser as unknown as WebSocket, upstream);
+      workspace?.send('{"type":"ready","claimRequired":true}\n');
+      await vi.waitFor(() =>
+        expect(browser.send).toHaveBeenCalledWith('{"type":"ready","claimRequired":true}'),
+      );
+      browser.emit("message", Buffer.from('{"type":"claim"}'), false);
+      await vi.waitFor(() => expect(browser.send).toHaveBeenCalledWith('{"type":"claimed"}'));
+      const pcm = Buffer.alloc(960).toString("base64");
+      browser.emit("message", Buffer.from(JSON.stringify({ type: "microphone", pcm })), false);
+      browser.emit("message", Buffer.from('{"type":"ping"}'), false);
+      await vi.waitFor(() => expect(frames).toHaveLength(3));
+      expect(frames).toEqual([{ type: "claim" }, { type: "microphone", pcm }, { type: "ping" }]);
+      // Also exercise the proxy's first automatic heartbeat, where idle views failed.
+      await vi.waitFor(
+        () => expect(frames.filter((frame) => frame.type === "ping")).toHaveLength(2),
+        { timeout: 6000 },
+      );
+      expect(upstream.readyState).toBe(WebSocket.OPEN);
+      expect(browser.close).not.toHaveBeenCalled();
+      browser.emit("message", Buffer.from('{"type":"release"}'), false);
+      await vi.waitFor(() => expect(frames.at(-1)).toEqual({ type: "release" }));
+      expect(browser.close).toHaveBeenCalledWith(1000, "audio ended");
+    } finally {
+      browser.emit("close");
+      upstream.terminate();
+      for (const socket of server.clients) socket.terminate();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 10_000);
+
   it("preserves call claiming capabilities and permits the bounded claim control", () => {
     expect(parseWorkspaceAudio('{"type":"ready","claimRequired":true,"extra":1}')).toBe(
       '{"type":"ready","claimRequired":true}',
@@ -167,6 +223,7 @@ describe("terminal audio boundaries", () => {
     browser.emit("close");
     expect(upstream.send).toHaveBeenLastCalledWith(
       JSON.stringify({ data: '{"type":"release"}\n' }),
+      { binary: true },
     );
     expect(upstream.close).toHaveBeenCalledOnce();
   });

@@ -88,7 +88,7 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
     clearInterval(heartbeat);
     clearTimeout(startup);
     if (upstream.readyState === WebSocket.OPEN)
-      upstream.send(JSON.stringify({ data: '{"type":"release"}\n' }));
+      upstream.send(JSON.stringify({ data: '{"type":"release"}\n' }), { binary: true });
     upstream.close();
     browser.close(code, message);
   };
@@ -99,7 +99,7 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
       return;
     }
     if (upstream.readyState === WebSocket.OPEN)
-      upstream.send(JSON.stringify({ data: '{"type":"ping"}\n' }));
+      upstream.send(JSON.stringify({ data: '{"type":"ping"}\n' }), { binary: true });
     if (browser.readyState === WebSocket.OPEN) browser.ping();
   }, 5000);
   browser.on("pong", () => {
@@ -128,7 +128,8 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
       close(1013, "audio connection stalled");
       return;
     }
-    upstream.send(JSON.stringify({ data: `${message}\n` }));
+    // Coder's PTY accepts binary WebSocket frames, including JSON input envelopes.
+    upstream.send(JSON.stringify({ data: `${message}\n` }), { binary: true });
   });
   upstream.on("message", (data) => {
     buffer += data.toString();
