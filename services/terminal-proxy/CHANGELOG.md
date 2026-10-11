@@ -1,5 +1,11 @@
 # hive-terminal-proxy
 
+## 2.3.3
+
+### Patch Changes
+
+- 92935af: Keep terminal voice calls connected through brief audio backpressure by dropping late PCM, reserving bounded capacity for controls, and retrying workspace relay controls when the broker queue is full.
+
 ## 2.3.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.20.6
+
+### Patch Changes
+
+- 92935af: Keep terminal voice calls connected through brief audio backpressure by dropping late PCM, reserving bounded capacity for controls, and retrying workspace relay controls when the broker queue is full.
+
 ## 2.20.5
 
 ### Patch Changes
