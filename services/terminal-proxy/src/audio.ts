@@ -82,15 +82,51 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
   let closed = false;
   let lastPong = Date.now();
   let lastWorkspacePong = Date.now();
+  const browserControls: string[] = [];
+  const workspaceControls: string[] = [];
+  let controlRetry: ReturnType<typeof setTimeout> | undefined;
   const close = (code = 1000, message = "audio ended") => {
     if (closed) return;
     closed = true;
     clearInterval(heartbeat);
     clearTimeout(startup);
+    clearTimeout(controlRetry);
+    browserControls.length = workspaceControls.length = 0;
     if (upstream.readyState === WebSocket.OPEN)
       upstream.send(JSON.stringify({ data: '{"type":"release"}\n' }), { binary: true });
     upstream.close();
     browser.close(code, message);
+  };
+  const flushControls = () => {
+    clearTimeout(controlRetry);
+    controlRetry = undefined;
+    if (closed) return;
+    for (const [target, queue] of [
+      [browser, browserControls],
+      [upstream, workspaceControls],
+    ] as const) {
+      while (
+        queue.length &&
+        target.readyState === WebSocket.OPEN &&
+        target.bufferedAmount <= MAX_QUEUE + 2048
+      ) {
+        const message = queue.shift() as string;
+        if (target === upstream) target.send(message, { binary: true });
+        else target.send(message);
+      }
+    }
+    if (browserControls.length || workspaceControls.length)
+      controlRetry = setTimeout(flushControls, 50);
+  };
+  const queueControl = (queue: string[], message: string, periodic = false) => {
+    if (closed || (periodic && queue.includes(message))) return;
+    // Preserve every state transition in order, including stop followed by start.
+    if (queue.length >= 32) {
+      close(1013, "audio controls stalled");
+      return;
+    }
+    queue.push(message);
+    flushControls();
   };
   const startup = setTimeout(() => close(1013, "workspace audio timed out"), 10_000);
   const heartbeat = setInterval(() => {
@@ -99,13 +135,14 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
       return;
     }
     if (upstream.readyState === WebSocket.OPEN)
-      upstream.send(JSON.stringify({ data: '{"type":"ping"}\n' }), { binary: true });
+      queueControl(workspaceControls, JSON.stringify({ data: '{"type":"ping"}\n' }), true);
     if (browser.readyState === WebSocket.OPEN) browser.ping();
   }, 5000);
   browser.on("pong", () => {
     lastPong = Date.now();
   });
   browser.on("message", (data, binary) => {
+    if (closed) return;
     if (binary) {
       close(1008, "invalid audio frame");
       return;
@@ -124,14 +161,22 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
       if (message !== '{"type":"ping"}') close(1008, "audio is not ready");
       return;
     }
-    if (upstream.bufferedAmount > MAX_QUEUE) {
-      close(1013, "audio connection stalled");
+    if (!message.startsWith('{"type":"microphone"')) {
+      queueControl(
+        workspaceControls,
+        JSON.stringify({ data: `${message}\n` }),
+        message === '{"type":"ping"}',
+      );
       return;
     }
+    flushControls();
+    if (workspaceControls.length || upstream.bufferedAmount > MAX_QUEUE) return;
     // Coder's PTY accepts binary WebSocket frames, including JSON input envelopes.
     upstream.send(JSON.stringify({ data: `${message}\n` }), { binary: true });
   });
   upstream.on("message", (data) => {
+    if (closed) return;
+    flushControls();
     buffer += data.toString();
     if (buffer.length > MAX_QUEUE) {
       close(1008, "invalid workspace audio frame");
@@ -145,11 +190,11 @@ export function connectAudioRelay(browser: WebSocket, upstream: WebSocket) {
         const control = JSON.parse(message);
         if (control.type === "ready" || control.type === "pong") lastWorkspacePong = Date.now();
         if (control.type === "ready") clearTimeout(startup);
-        if (browser.bufferedAmount > MAX_QUEUE) {
-          close(1013, "audio connection stalled");
-          return;
-        }
-        browser.send(message);
+        if (control.type !== "speaker")
+          queueControl(browserControls, message, control.type === "pong");
+        // Late PCM is disposable; state-changing controls are delivered first.
+        else if (!browserControls.length && browser.bufferedAmount <= MAX_QUEUE)
+          browser.send(message);
       }
       newline = buffer.indexOf("\n");
     }

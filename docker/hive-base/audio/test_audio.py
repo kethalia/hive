@@ -246,6 +246,27 @@ class AudioRelayTest(unittest.TestCase):
         self.receive(shared_socket, shared_broker)
         self.assertEqual(self.read(replacement), {"type": "ready", "claimRequired": True})
 
+    def test_microphone_burst_does_not_end_relay_when_broker_queue_is_full(self):
+        sock, broker = self.broker("burst")
+        relay = self.start_relay("burst")
+        self.receive(sock, broker)
+        self.assertEqual(self.read(relay), {"type": "ready", "claimRequired": True})
+        self.assertEqual(self.read(relay), {"type": "active", "active": False})
+        # Pause broker consumption while the browser flushes delayed worklet frames.
+        frame = json.dumps({"type": "microphone", "pcm": "A" * 1280}).encode() + b"\n"
+        relay.stdin.write(frame * 100 + b'{"type":"ping"}\n')
+        self.assertEqual(self.read(relay), {"type": "pong"})
+        self.assertIsNone(relay.poll())
+        # Controls must still arrive after the broker drains its queue.
+        relay.stdin.write(b'{"type":"claim"}\n')
+        broker.capturing = True
+        deadline = time.monotonic() + 3
+        while broker.owner is None and time.monotonic() < deadline:
+            self.receive(sock, broker)
+        self.assertEqual(self.read(relay), {"type": "claimed"})
+        relay.stdin.write(b'{"type":"release"}\n')
+        self.assertEqual(relay.wait(timeout=3), 0)
+
     def test_all_commands_parse_leading_dash_session_names(self):
         for command in ("prepare", "serve", "relay"):
             with self.subTest(command=command), patch.object(sys, "argv", ["hive-audio", command, "--", "-voice"]), \
