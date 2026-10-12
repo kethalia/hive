@@ -32,10 +32,29 @@ The validation's temporary directory was removed and evidence is preserved at
 Production secret provisioning and rollout verification remain pending; this
 repository fix does not change a live deployment or Security Cloud finding state.
 
+## Workspace app isolation fix
+
+Findings `commit:93258b1bcd6881919b1f2be96204fc98` and
+`commit:77d897a572848191b10d536984967ccc`: retire the same-origin workspace
+proxy, including direct navigation and script resources. All old proxy methods
+return inert `410` JSON without resolving a user/workspace or contacting Coder.
+The legacy tool panel now uses authenticated Coder app URLs, and both tool
+surfaces deny camera/microphone access. Server actions reject app hosts covered
+by Hive's cookies and authentication redirects that change the selected origin.
+Normal forms, downloads, clipboard use, pointer lock, and fullscreen remain
+available in the app's own origin.
+
+Chrome desktop/mobile checks verify that workspace content cannot read Hive's
+DOM/API responses, receive its session cookie, or reuse its microphone grant.
+They also cover host-overlap rejection, fullscreen, tab continuity, and inert
+legacy navigation/script requests. The app-auth endpoints are simulated; live
+Coder app connectivity still requires rollout verification. Evidence is preserved
+in [`workspace-app-isolation`](../checks/security/workspace-app-isolation/).
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
-2. Isolate workspace-controlled content from Hive account authority, including top-level proxy navigation, response headers, cookies, and microphone permissions. Validate File Browser and desktop compatibility in Browser Testing.
+2. Verify isolated File Browser/editor/desktop connectivity after the app-origin fix is deployed.
 3. Fix session-cookie scope and duplicate-cookie ambiguity with an explicit migration path; preserve supported terminal authentication.
 4. Bound paste request bytes and concurrent work, then review workspace credential scope, desktop listeners, and supply-chain artifacts.
 
@@ -45,7 +64,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 
 | Finding ID | Severity | Exported title | Repository status / next check |
 | --- | --- | --- | --- |
-| `commit:93258b1bcd6881919b1f2be96204fc98` | high | Noauth File Browser admin exposed under Hive origin | Confirmed proxy boundary remains: WorkspaceToolPanel is unsandboxed and proxy HTML uses Hive origin. MultiSessionWorkspace already has a sandbox. |
+| `commit:93258b1bcd6881919b1f2be96204fc98` | high | Noauth File Browser admin exposed under Hive origin | Repository fix retires the proxy and loads authenticated tools on isolated app hosts; Chrome boundary regressions pass. Live app connectivity verification remains pending. |
 | `commit:f7118176d1788191a5d41f8e0b9c23e1` | high | Unauthenticated KasmVNC exposed on workspace network | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:09825c4928cc81918315da2d4ff42f68` | high | Council KasmVNC listens network-wide with weak/no auth | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:edcec789b9f8819194c07cd5157d5c4d` | high | Coder CLI auto-login exposes user Coder tokens to workspace code | Coder-login module still enabled; verify actual token scope before selecting remediation. |
@@ -54,7 +73,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:113a7b7e251c81919b7c8f05a3750c13` | high | Auto-derived cookie Domain broadens session scope | Confirmed automatic Domain derivation; check terminal-subdomain authentication before changing cookie scope. |
 | `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Revalidation required: current audio code consumes a recent single-use terminal gesture; arbitrary-process activation still needs adversarial testing. |
 | `commit:e172a9d020f081918c97f470636f7440` | medium | Workspace code can activate and read the browser microphone | Same microphone activation boundary as 2013bf58; do not close solely because a gesture gate was added. |
-| `commit:77d897a572848191b10d536984967ccc` | medium | Workspace proxy can reuse Hive microphone permissions | Confirmed: global microphone=(self) and workspace proxy share an origin; include in proxy isolation fix. |
+| `commit:77d897a572848191b10d536984967ccc` | medium | Workspace proxy can reuse Hive microphone permissions | Repository fix removes active proxy content and denies microphone/camera in tool frames. Chrome tests confirm Hive's permission is not reusable on the app origin. |
 | `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:77cecf3dcd488191aa1c6f3960b1e173` | medium | Unverified downloads in published workspace base image | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:beb03b5055a48191b33374352232c78c` | medium | Persistent tmux scrollback can expose terminal secrets | Confirmed persistent pane capture remains enabled; decide on opt-in retention behavior. |

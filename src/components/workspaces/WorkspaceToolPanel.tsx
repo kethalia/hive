@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Breadcrumb,
@@ -23,8 +23,14 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { getWorkspaceAppToolAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import {
+  WORKSPACE_APP_FRAME_ALLOW,
+  WORKSPACE_APP_FRAME_SANDBOX,
+} from "@/lib/security/workspace-app-isolation";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
+import { readDocumentCoderFrameHosts } from "@/lib/workspaces/document-frame-hosts";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
 const TerminalTabManager = dynamic(
@@ -40,6 +46,14 @@ const tools = [
 ] as const;
 
 type ToolId = (typeof tools)[number]["id"];
+type AppToolId = "filebrowser" | "kasmvnc";
+interface AppToolState {
+  url?: string;
+  directUrl?: string;
+  loading?: boolean;
+  error?: boolean;
+  reloadRequired?: boolean;
+}
 
 interface WorkspaceToolPanelProps {
   workspace: CoderWorkspace;
@@ -56,6 +70,14 @@ export function WorkspaceToolPanel({
 }: WorkspaceToolPanelProps) {
   const [activeTool, setActiveTool] = useState<ToolId>("terminal");
   const [toolPickerOpen, setToolPickerOpen] = useState(false);
+  const [appTools, setAppTools] = useState<{
+    workspaceId: string;
+    tools: Partial<Record<AppToolId, AppToolState>>;
+  }>({ workspaceId: workspace.id, tools: {} });
+  const latestWorkspaceId = useRef(workspace.id);
+  latestWorkspaceId.current = workspace.id;
+  const pendingTools = useRef(new Set<string>());
+  const resolvedAppTools = appTools.workspaceId === workspace.id ? appTools.tools : {};
 
   const urls = buildWorkspaceUrls(workspace, agentName, coderUrl);
   const isRunning = workspace.latest_build.status === "running";
@@ -72,17 +94,48 @@ export function WorkspaceToolPanel({
   const activeDef = availableTools.find((tool) => tool.id === resolvedActiveTool) ?? tools[0];
   const ActiveIcon = activeDef.icon;
 
-  const proxyBase = `/api/workspace-proxy/${workspace.id}`;
-  const iframeUrlMap: Record<string, string> = {
-    filebrowser: `${proxyBase}/filebrowser`,
-    kasmvnc: `${proxyBase}/kasmvnc`,
-  };
   const directUrlMap: Record<string, string | undefined> = {
-    filebrowser: urls?.filebrowser,
-    kasmvnc: urls?.kasmvnc,
+    filebrowser: resolvedAppTools.filebrowser?.directUrl,
+    kasmvnc: resolvedAppTools.kasmvnc?.directUrl,
     dashboard: urls?.dashboard,
   };
   const activeUrl = directUrlMap[resolvedActiveTool];
+
+  async function selectTool(tool: ToolId) {
+    setActiveTool(tool);
+    if (tool !== "filebrowser" && tool !== "kasmvnc") return;
+    const requestWorkspaceId = workspace.id;
+    const requestKey = `${requestWorkspaceId}:${tool}`;
+    if (resolvedAppTools[tool]?.url || pendingTools.current.has(requestKey)) return;
+    pendingTools.current.add(requestKey);
+    const update = (state: AppToolState) => {
+      if (latestWorkspaceId.current !== requestWorkspaceId) return;
+      setAppTools((current) => ({
+        workspaceId: requestWorkspaceId,
+        tools: {
+          ...(current.workspaceId === requestWorkspaceId ? current.tools : {}),
+          [tool]: state,
+        },
+      }));
+    };
+    update({ loading: true });
+    try {
+      const result = await getWorkspaceAppToolAction({
+        workspaceId: requestWorkspaceId,
+        tool,
+        documentFrameHosts: readDocumentCoderFrameHosts(),
+      });
+      if (!result?.data) {
+        update({ error: true });
+        return;
+      }
+      update(result.data);
+    } catch {
+      update({ error: true });
+    } finally {
+      pendingTools.current.delete(requestKey);
+    }
+  }
 
   if (!isRunning) {
     return (
@@ -147,7 +200,7 @@ export function WorkspaceToolPanel({
                         type="button"
                         key={tool.id}
                         onClick={() => {
-                          setActiveTool(tool.id);
+                          void selectTool(tool.id);
                           setToolPickerOpen(false);
                         }}
                         className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent ${
@@ -170,7 +223,11 @@ export function WorkspaceToolPanel({
 
         <div className="ml-auto flex items-center gap-2">
           {activeUrl && (
-            <Button variant="ghost" size="sm" onClick={() => window.open(activeUrl, "_blank")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.open(activeUrl, "_blank", "noopener,noreferrer")}
+            >
               <ExternalLink data-icon="inline-start" />
               Pop Out
             </Button>
@@ -187,21 +244,51 @@ export function WorkspaceToolPanel({
           {agentId && <TerminalTabManager agentId={agentId} workspaceId={workspace.id} />}
         </div>
 
-        {/* Proxied iframe tools */}
+        {/* Authenticated workspace apps stay outside Hive's origin and cookie scope. */}
         {availableTools
-          .filter(({ id }) => id === "filebrowser" || id === "kasmvnc")
+          .filter(
+            (tool): tool is (typeof tools)[1] | (typeof tools)[2] =>
+              tool.id === "filebrowser" || tool.id === "kasmvnc",
+          )
           .map((tool) => (
             <div
               key={tool.id}
               className="absolute inset-0"
               style={{ display: resolvedActiveTool === tool.id ? "flex" : "none" }}
             >
-              <iframe
-                src={iframeUrlMap[tool.id]}
-                title={tool.label}
-                className="h-full w-full rounded-lg border border-border"
-                allow="clipboard-read; clipboard-write"
-              />
+              {resolvedAppTools[tool.id]?.url && !resolvedAppTools[tool.id]?.reloadRequired ? (
+                <iframe
+                  src={resolvedAppTools[tool.id]?.url}
+                  title={tool.label}
+                  className="h-full w-full rounded-lg border border-border"
+                  allow={WORKSPACE_APP_FRAME_ALLOW}
+                  sandbox={WORKSPACE_APP_FRAME_SANDBOX}
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div
+                  className="flex h-full w-full flex-col items-center justify-center gap-3"
+                  role="status"
+                >
+                  {resolvedAppTools[tool.id]?.loading ? (
+                    "Opening workspace tool…"
+                  ) : resolvedAppTools[tool.id]?.reloadRequired ? (
+                    <>
+                      <p>Reload Hive to open this tool.</p>
+                      <Button onClick={() => window.location.reload()}>Reload Hive</Button>
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        {resolvedAppTools[tool.id]?.error
+                          ? "Could not open this workspace tool."
+                          : "Open this workspace tool to connect."}
+                      </p>
+                      <Button onClick={() => void selectTool(tool.id)}>Open {tool.label}</Button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ))}
 

@@ -1,0 +1,27 @@
+{
+  "workspace": "hive-proxy-isolation-browser",
+  "workspace_id": "e415ad79-57da-4d19-952f-f721124e5b64",
+  "provenance": "created disposable for workspace proxy isolation",
+  "profile": "browser",
+  "chrome": "Google Chrome 155.0.8059.39",
+  "source_base_revision": "891bdba60ad6668b9d7edfd892efc168d8b4f8b2",
+  "stats": {
+    "startTime": "2026-10-12T09:17:45.614Z",
+    "duration": 9117.272,
+    "expected": 8,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "source_sha256": {
+    "src/lib/security/workspace-app-isolation.ts": "b8f4930119a0be2647827b3a707eb2510a5ac800eb8d191a67a0d2b541cf5535",
+    "src/lib/workspaces/app-access.ts": "c1a2e01b9e9920e5c232360444405f5fd522cf7e4a5ac6d8ab8b302d72521b8e",
+    "src/lib/actions/workspaces.ts": "596f642e0fd1ce508c5b6b5e2a4db0ea40aef1757944ff09b6b0cfce67c38885",
+    "src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts": "7b1809c067b41c963401402fdcca58be266cf36f498a87cc581b8e0f22f48fac",
+    "src/components/workspaces/WorkspaceToolPanel.tsx": "c70f0a1d59e308308f47a2a82ca71510c93da2f747c93469747d85a7b91071fe",
+    "src/components/workspaces/MultiSessionWorkspace.tsx": "abb0d3ea6db0d1a09970af821852d38493d2db3c50c03c06172a0197f7b3f6fc",
+    "e2e/workspace-app-isolation.spec.mjs": "eef09f78e852ebc56528b0f43ca1a56bdc4b4d6d5537a0fd23badd29f2409bc6",
+    "scripts/build-workspace-isolation-fixture.mjs": "e0beec4099acd10b2c1021e4f9cb9a0c205be56f4867467da4840d0d6ab29eb3"
+  },
+  "scope": "Production tool panel and isolation/proxy logic; simulated Coder app auth and tool content. Live Coder/File Browser/KasmVNC integration remains a rollout check."
+}
