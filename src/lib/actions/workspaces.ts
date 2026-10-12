@@ -15,9 +15,14 @@ import {
   CODER_HOST_COOKIE,
   coderFrameConfiguredUrls,
 } from "@/lib/security/content-security-policy";
+import { assertWorkspaceAppIsolated } from "@/lib/security/workspace-app-isolation";
 import { isRetiredWorkspaceTemplate, workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { TERMINAL_PATH_BATCH_SIZE } from "@/lib/terminal/link-target";
 import { execInWorkspace } from "@/lib/workspace/exec";
+import {
+  getIsolatedWorkspaceAppAuthRedirect,
+  getWorkspaceAppIsolationContext,
+} from "@/lib/workspaces/app-access";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
 import {
@@ -457,13 +462,26 @@ export const getWorkspaceSessionToolsAction = authActionClient
       requestedFilesUrl = downloadUrl.toString();
     }
 
+    const isolation = await getWorkspaceAppIsolationContext();
+    assertWorkspaceAppIsolated(
+      requestedCodeUrl,
+      isolation.hiveHostname,
+      isolation.cookieDomains,
+      isolation.hiveHostnames,
+    );
+    assertWorkspaceAppIsolated(
+      requestedFilesUrl,
+      isolation.hiveHostname,
+      isolation.cookieDomains,
+      isolation.hiveHostnames,
+    );
     const codeUrl =
       parsedInput.tool === "code"
-        ? await client.getApplicationAuthRedirect(requestedCodeUrl)
+        ? await getIsolatedWorkspaceAppAuthRedirect(client, requestedCodeUrl, isolation)
         : requestedCodeUrl;
     const filesUrl =
       parsedInput.tool === "files"
-        ? await client.getApplicationAuthRedirect(requestedFilesUrl)
+        ? await getIsolatedWorkspaceAppAuthRedirect(client, requestedFilesUrl, isolation)
         : requestedFilesUrl;
     const reloadRequired = await synchronizeCoderFrameHosts(
       client.getBaseUrl(),
@@ -478,6 +496,36 @@ export const getWorkspaceSessionToolsAction = authActionClient
       reloadRequired,
       source: getWorkspaceDirectorySource(currentDirectory, folderPath),
     };
+  });
+
+export const getWorkspaceAppToolAction = authActionClient
+  .inputSchema(
+    z.object({
+      workspaceId: z.string().min(1),
+      tool: z.enum(["filebrowser", "kasmvnc"]),
+      documentFrameHosts: z.array(z.string().trim().min(1).max(253)).max(8),
+    }),
+  )
+  .action(async ({ parsedInput, ctx }) => {
+    const { agent, applicationsHost, client, workspace } = await getWorkspaceWithAgent(
+      ctx.user.id,
+      parsedInput.workspaceId,
+    );
+    const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
+    if (!(parsedInput.tool === "filebrowser" ? capabilities.fileBrowser : capabilities.desktop)) {
+      throw new Error("The selected tool is not provisioned for this workspace template.");
+    }
+    const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
+    if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
+    const directUrl = parsedInput.tool === "filebrowser" ? urls.filebrowser : urls.kasmvnc;
+    const isolation = await getWorkspaceAppIsolationContext();
+    const url = await getIsolatedWorkspaceAppAuthRedirect(client, directUrl, isolation);
+    const reloadRequired = await synchronizeCoderFrameHosts(
+      client.getBaseUrl(),
+      applicationsHost,
+      parsedInput.documentFrameHosts,
+    );
+    return { url, directUrl, reloadRequired };
   });
 
 function getWorkspaceDirectorySource(

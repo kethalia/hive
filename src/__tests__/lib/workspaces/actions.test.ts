@@ -10,6 +10,7 @@ vi.mock("@/lib/workspace/exec", () => ({
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(),
+  headers: vi.fn(async () => new Headers({ host: "hive.example.com" })),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -60,6 +61,8 @@ describe("workspace server actions", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example.com");
+    vi.stubEnv("COOKIE_DOMAIN", "");
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -105,6 +108,103 @@ describe("workspace server actions", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    "filebrowser",
+    "kasmvnc",
+  ] as const)("authorizes the %s tool on its isolated Coder app origin", async (tool) => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      name: "dev-box",
+      owner_name: "alice",
+      template_name: "browser-testing",
+    });
+    const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAppToolAction({
+      workspaceId: "ws-1",
+      tool,
+      documentFrameHosts: ["https://coder.example.com"],
+    });
+    const expected = `https://${tool === "filebrowser" ? "filebrowser" : "kasm-vnc"}--main--dev-box--alice.coder.example.com/`;
+    expect(result?.data).toEqual({
+      url: expected,
+      directUrl: expected.slice(0, -1),
+      reloadRequired: false,
+    });
+    expect(mockedGetCoderClientForUser).toHaveBeenCalledWith("user-123");
+    expect(mockGetApplicationAuthRedirect).toHaveBeenCalledWith(expected);
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("rejects a desktop app not provisioned by the workspace template", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      name: "dev-box",
+      owner_name: "alice",
+      template_name: "ai-dev-k8s",
+    });
+    const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAppToolAction({
+      workspaceId: "ws-1",
+      tool: "kasmvnc",
+      documentFrameHosts: [],
+    });
+    expect(result?.serverError).toContain("not provisioned");
+    expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
+  });
+
+  it("requires a Hive session before authorizing an app tool", async () => {
+    mockedGetRequestSession.mockResolvedValueOnce(null);
+    const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAppToolAction({
+      workspaceId: "ws-1",
+      tool: "filebrowser",
+      documentFrameHosts: [],
+    });
+    expect(result?.serverError).toBe("Not authenticated");
+    expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects app hosts covered by Hive cookies before requesting a Coder auth grant", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      name: "dev-box",
+      owner_name: "alice",
+      template_name: "browser-testing",
+    });
+    mockGetApplicationsHost.mockResolvedValueOnce("*.apps.hive.example.com");
+    const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAppToolAction({
+      workspaceId: "ws-1",
+      tool: "filebrowser",
+      documentFrameHosts: [],
+    });
+    expect(result?.serverError).toContain("cookie scope");
+    expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
+    expect(mockCookieSet).not.toHaveBeenCalled();
+  });
+
+  it("also protects terminal file links and downloads from cookie-scope overlap", async () => {
+    mockGetWorkspace.mockResolvedValueOnce({
+      name: "dev-box",
+      owner_name: "alice",
+      template_name: "browser-testing",
+    });
+    mockGetApplicationsHost.mockResolvedValueOnce("*.apps.hive.example.com");
+    mockedExec.mockResolvedValueOnce({
+      stdout: "/home/coder/projects/hive",
+      stderr: "",
+      exitCode: 0,
+    });
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "main",
+      tool: "files",
+      filePath: "notes.html",
+      download: true,
+      documentFrameHosts: [],
+    });
+    expect(result?.serverError).toContain("cookie scope");
+    expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
   });
 
   it("listWorkspacesAction returns workspace list", async () => {

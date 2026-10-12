@@ -95,6 +95,10 @@ import {
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import {
+  WORKSPACE_APP_FRAME_ALLOW,
+  WORKSPACE_APP_FRAME_SANDBOX,
+} from "@/lib/security/workspace-app-isolation";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import {
   type ClipboardActionStatus,
@@ -4470,11 +4474,12 @@ export function MultiSessionWorkspace({
                     src={toolUrl}
                     title={presentation.title}
                     className="min-h-0 flex-1 border-0 bg-background"
-                    allow="clipboard-read; clipboard-write"
+                    allow={WORKSPACE_APP_FRAME_ALLOW}
+                    referrerPolicy="no-referrer"
                     sandbox={
                       toolUrl.startsWith("/api/workspace-proxy/")
                         ? "allow-downloads allow-forms allow-modals allow-popups allow-scripts"
-                        : "allow-downloads allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+                        : WORKSPACE_APP_FRAME_SANDBOX
                     }
                     data-testid={`workspace-tool-frame-${toolPane.tool}`}
                     onFocus={activateToolPane}

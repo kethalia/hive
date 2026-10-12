@@ -84,7 +84,7 @@ function parentHiveCookieDomain(hostname?: string | null): string | undefined {
   return isHiveScopedCookieDomain(parentDomain) ? parentDomain : undefined;
 }
 
-function sessionCookieDomainsToClear(hostname?: string | null): string[] {
+export function sessionCookieDomainsToClear(hostname?: string | null): string[] {
   const domain = resolveSessionCookieDomain(hostname);
   const parentDomain = parentHiveCookieDomain(hostname);
   return [domain, parentDomain].filter(

@@ -75,41 +75,12 @@ describe("workspace actions use authActionClient + getCoderClientForUser", () =>
     expect(source).toContain("ctx.user.id");
   });
 
-  it("proxy route returns 401 for unauthenticated requests", async () => {
+  it("retired proxy returns inert content even without a session", async () => {
     mockedGetSession.mockResolvedValue(null);
-
     const { GET } = await import("@/app/api/workspace-proxy/[workspaceId]/[[...path]]/route");
-    const url = "http://localhost/api/workspace-proxy/aaaaaaaa-1111-2222-3333-444444444444";
-    const req = new Request(url);
-    Object.defineProperty(req, "nextUrl", { value: new URL(url) });
-
-    const response = await GET(req as never, {
-      params: Promise.resolve({
-        workspaceId: "aaaaaaaa-1111-2222-3333-444444444444",
-      }),
-    });
-
-    expect(response.status).toBe(401);
-    const body = await response.json();
-    expect(body.error).toBe("Unauthorized");
-  });
-
-  it("proxy route does not use env var credentials", async () => {
-    const source = await readFile(
-      "src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts",
-      "utf-8",
-    );
-    expect(source).toContain("getCoderClientForUser");
-    expect(source).toContain("getSession");
-    expect(source).not.toContain("process.env.CODER_URL");
-    expect(source).not.toContain("process.env.CODER_SESSION_TOKEN");
-  });
-
-  it("proxy route metaCache key includes userId to prevent cross-user poisoning", async () => {
-    const source = await readFile(
-      "src/app/api/workspace-proxy/[workspaceId]/[[...path]]/route.ts",
-      "utf-8",
-    );
-    expect(source).toMatch(/\$\{userId\}:\$\{workspaceId\}/);
+    const response = GET();
+    expect(response.status).toBe(410);
+    expect((await response.json()).error).toContain("Workspace proxy retired");
+    expect(_mockedGetCoderClientForUser).not.toHaveBeenCalled();
   });
 });

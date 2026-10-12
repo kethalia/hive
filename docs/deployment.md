@@ -87,6 +87,39 @@ accepted at a time; mixed values cause backend authentication failures. To roll
 back a client image, roll back auth enforcement first. Rolling back the auth image
 restores the old exposure, so prefer a forward fix and keep network isolation.
 
+## Workspace app origin isolation
+
+Workspace tools load from Coder's app domains. Hive uses the authenticated
+`/api/v2/applications/auth-redirect` flow to bootstrap app access; the user's Coder
+API token remains server-side. No workspace response body or headers are forwarded
+through Hive's web origin. The retired `/api/workspace-proxy/...` route returns
+inert `410` JSON for every method, including script and direct-navigation URLs.
+Open old bookmarks again through Hive's tool controls.
+
+Use a Coder wildcard app host outside Hive's session-cookie scope. For example,
+`*.apps.example.com` can be separate from a Hive deployment at `hive.example.com`
+with cookies scoped to `.hive.example.com`; `*.apps.hive.example.com` overlaps
+those cookies and is rejected. A different port on the same hostname also fails
+the check because cookies do not distinguish ports. Both the incoming Hive host
+and `HIVE_PUBLIC_ORIGIN`, when configured, are checked along with known cookie
+migration domains. The Coder authentication redirect must retain the authorized
+app origin.
+
+Embedded tools explicitly deny camera and microphone access, retain their own
+origin/storage, and allow normal app scripts, forms, downloads, clipboard use,
+pointer lock, and fullscreen. App authentication URLs stay in memory rather than
+persisted pane state. If an app host changes and the document's framing policy
+needs updating, reload Hive before opening it in the legacy tool panel.
+
+Validate login, File Browser folder navigation/downloads, editor panes, and
+desktop connectivity through the deployed Coder app URLs after rollout. The
+browser regression uses the production panel and security logic with simulated
+app-auth endpoints; it checks cookie delivery, same-origin access, microphone
+permissions, fullscreen, and inert legacy URLs. It does not exercise a live Coder
+deployment or the File Browser/KasmVNC binaries. Current automatic cookie scope,
+duplicate-cookie handling, and general CSRF protections remain separate follow-up
+work; origin isolation does not replace those controls.
+
 ## Git clone discovery and clone terminals
 
 The Git sidebar and clone terminal flow share one runtime contract: the web service, terminal proxy, and Coder agent runtime must agree on `HIVE_PROJECTS_ROOT`. The value must be an absolute POSIX path. The default value is `/home/coder`, so discovery is not limited to a strict `projects` directory; it finds Git repositories anywhere under that workspace home root while skipping noisy/sensitive hidden directories and known build-output folders.

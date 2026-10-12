@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+
+const mockAppToolAction = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/actions/workspaces", () => ({ getWorkspaceAppToolAction: mockAppToolAction }));
 
 vi.mock("@/lib/workspaces/urls", () => ({
   buildWorkspaceUrls: (_ws: unknown, _agent: unknown, coderUrl: string) => {
@@ -145,6 +148,14 @@ describe("WorkspaceToolPanel", () => {
   let mockOpen: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    mockAppToolAction.mockReset();
+    mockAppToolAction.mockImplementation(async ({ tool }) => ({
+      data: {
+        url: `${tool === "filebrowser" ? "https://fb.test" : "https://kasm.test"}/?app_auth=grant`,
+        directUrl: tool === "filebrowser" ? "https://fb.test" : "https://kasm.test",
+        reloadRequired: false,
+      },
+    }));
     mockOpen = vi.fn();
     vi.stubGlobal("open", mockOpen);
   });
@@ -184,24 +195,133 @@ describe("WorkspaceToolPanel", () => {
     expect(screen.getByTestId("tool-option-dashboard")).toBeInTheDocument();
   });
 
-  it("switches active tool when option is clicked", () => {
+  it("switches active tool when option is clicked", async () => {
     render(<WorkspaceToolPanel {...defaultProps} />);
 
     fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
 
     const trigger = screen.getByTestId("tool-picker-trigger");
     expect(trigger).toHaveTextContent("Filebrowser");
+    await screen.findByTitle("Filebrowser");
   });
 
-  it("renders proxied iframes for filebrowser and kasmvnc", () => {
+  it("opens authenticated isolated frames lazily and preserves tools between tabs", async () => {
     const { container } = render(<WorkspaceToolPanel {...defaultProps} />);
+    expect(container.querySelectorAll("iframe")).toHaveLength(0);
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    const files = await screen.findByTitle("Filebrowser");
+    fireEvent.click(screen.getByTestId("tool-option-kasmvnc"));
+    const desktop = await screen.findByTitle("KasmVNC");
+    expect(container.querySelectorAll("iframe")).toHaveLength(2);
+    expect(files).toHaveAttribute("src", "https://fb.test/?app_auth=grant");
+    expect(desktop).toHaveAttribute("src", "https://kasm.test/?app_auth=grant");
+    for (const frame of [files, desktop]) {
+      expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
+      expect(frame.getAttribute("allow")).toContain("microphone 'none'");
+      expect(frame.getAttribute("allow")).toContain("camera 'none'");
+      expect(frame.getAttribute("sandbox")).not.toContain("allow-top-navigation");
+    }
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    expect(screen.getByTitle("Filebrowser")).toBe(files);
+    expect(mockAppToolAction).toHaveBeenCalledTimes(2);
+    fireEvent.load(files);
+    fireEvent.click(screen.getByRole("button", { name: /Pop Out/ }));
+    expect(mockOpen).toHaveBeenCalledWith("https://fb.test", "_blank", "noopener,noreferrer");
+  });
 
-    const iframes = container.querySelectorAll("iframe");
-    expect(iframes).toHaveLength(2);
+  it("disables pop-out until the selected tool frame finishes loading", async () => {
+    render(<WorkspaceToolPanel {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    const files = await screen.findByTitle("Filebrowser");
+    let popOut = screen.getByRole("button", { name: /Pop Out/ });
+    expect(popOut).toBeDisabled();
+    fireEvent.click(popOut);
+    expect(mockOpen).not.toHaveBeenCalled();
 
-    const srcs = Array.from(iframes).map((f) => f.getAttribute("src"));
-    expect(srcs).toContain("/api/workspace-proxy/ws-1/filebrowser");
-    expect(srcs).toContain("/api/workspace-proxy/ws-1/kasmvnc");
+    fireEvent.load(files);
+    expect(popOut).toBeEnabled();
+    fireEvent.click(popOut);
+    expect(mockOpen).toHaveBeenCalledWith("https://fb.test", "_blank", "noopener,noreferrer");
+
+    fireEvent.click(screen.getByTestId("tool-option-kasmvnc"));
+    const desktop = await screen.findByTitle("KasmVNC");
+    popOut = screen.getByRole("button", { name: /Pop Out/ });
+    expect(popOut).toBeDisabled();
+    fireEvent.load(files);
+    expect(popOut).toBeDisabled();
+    fireEvent.load(desktop);
+    expect(popOut).toBeEnabled();
+    fireEvent.click(popOut);
+    expect(mockOpen).toHaveBeenLastCalledWith("https://kasm.test", "_blank", "noopener,noreferrer");
+
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    expect(popOut).toBeEnabled();
+    expect(mockAppToolAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires the new workspace frame to load before enabling pop-out", async () => {
+    const { rerender } = render(<WorkspaceToolPanel {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    const previousFrame = await screen.findByTitle("Filebrowser");
+    fireEvent.load(previousFrame);
+    expect(screen.getByRole("button", { name: /Pop Out/ })).toBeEnabled();
+
+    rerender(<WorkspaceToolPanel {...defaultProps} workspace={makeWorkspace({ id: "ws-2" })} />);
+    expect(screen.queryByRole("button", { name: /Pop Out/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    const newFrame = await screen.findByTitle("Filebrowser");
+    expect(newFrame).not.toBe(previousFrame);
+    fireEvent.load(previousFrame);
+    expect(screen.getByRole("button", { name: /Pop Out/ })).toBeDisabled();
+    fireEvent.load(newFrame);
+    expect(screen.getByRole("button", { name: /Pop Out/ })).toBeEnabled();
+  });
+
+  it("does not render a frame or unsafe pop-out when authorization fails", async () => {
+    mockAppToolAction.mockResolvedValueOnce({ serverError: "Cookie scope overlap" });
+    const { container } = render(<WorkspaceToolPanel {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    await screen.findByText("Could not open this workspace tool.");
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Pop Out/ })).not.toBeInTheDocument();
+    expect(mockOpen).not.toHaveBeenCalled();
+  });
+
+  it("waits for a refreshed document frame policy before embedding a newly configured host", async () => {
+    mockAppToolAction.mockResolvedValueOnce({
+      data: {
+        url: "https://fb.test/?grant=one",
+        directUrl: "https://fb.test",
+        reloadRequired: true,
+      },
+    });
+    const { container } = render(<WorkspaceToolPanel {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    await screen.findByText("Reload Hive to open this tool.");
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(screen.getByRole("button", { name: /Pop Out/ })).toBeDisabled();
+  });
+
+  it("ignores an authorization response from a previous workspace", async () => {
+    let resolve!: (value: unknown) => void;
+    mockAppToolAction.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    const { container, rerender } = render(<WorkspaceToolPanel {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    rerender(<WorkspaceToolPanel {...defaultProps} workspace={makeWorkspace({ id: "ws-2" })} />);
+    await act(async () =>
+      resolve({
+        data: {
+          url: "https://old-workspace.test",
+          directUrl: "https://old-workspace.test",
+          reloadRequired: false,
+        },
+      }),
+    );
+    expect(container.querySelector("iframe")).toBeNull();
   });
 
   it("omits unprovisioned apps from a terminal-only orchestrator", () => {
@@ -215,12 +335,14 @@ describe("WorkspaceToolPanel", () => {
     expect(container.querySelectorAll("iframe")).toHaveLength(0);
   });
 
-  it("keeps repository apps but omits Desktop for the headless software profile", () => {
+  it("keeps repository apps but omits Desktop for the headless software profile", async () => {
     const workspace = makeWorkspace({ template_name: "ai-dev-k8s" });
     const { container } = render(<WorkspaceToolPanel {...defaultProps} workspace={workspace} />);
 
     expect(screen.getByTestId("tool-option-filebrowser")).toBeInTheDocument();
     expect(screen.queryByTestId("tool-option-kasmvnc")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    await screen.findByTitle("Filebrowser");
     expect(container.querySelectorAll("iframe")).toHaveLength(1);
   });
 
