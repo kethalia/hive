@@ -1,0 +1,49 @@
+# Security Cloud findings remediation
+
+Source: the CSV export supplied on 2026-10-12, containing 22 diff-scan findings for `kethalia/hive` (7 high, 9 medium, 2 low, 4 informational). All exported statuses are `new`; live Security Cloud queries returned no records in this session. This document tracks repository work, not cloud resolution status.
+
+Initial review base: `eeaaa47`. The reports describe historical revisions, so each finding needs verification against current code and deployment boundaries. “Confirmed” below refers to source inspection, not proof of deployed exploitability.
+
+## First fix
+
+Finding `commit:586a0bdebe348191a71e954ce45e4654`: terminal paste uploads must handle SSH stdin and stderr errors independently of child process errors. Stream failures reject the upload, clear its timeout, and terminate SSH. Error listeners remain installed so late events cannot crash the web process; a later successful close cannot override an earlier failure. Upload file/count limits are unchanged.
+
+Validation: the new real Writable EPIPE regression fails on the original source with an uncaught exception, and passes with the fix. Targeted helper and route tests cover normal uploads, stream failures, late events, startup failure, and transfer timeout.
+
+## Next slices
+
+1. Authenticate internal auth-service calls, updating web, terminal proxy, worker, health checks, and deployment secret wiring together.
+2. Isolate workspace-controlled content from Hive account authority, including top-level proxy navigation, response headers, cookies, and microphone permissions. Validate File Browser and desktop compatibility in Browser Testing.
+3. Fix session-cookie scope and duplicate-cookie ambiguity with an explicit migration path; preserve supported terminal authentication.
+4. Bound paste request bytes and concurrent work, then review workspace credential scope, desktop listeners, and supply-chain artifacts.
+
+Browser execution belongs in `browser-testing`; live infrastructure validation belongs in `infrastructure`. This first slice uses code-level checks in the software workspace.
+
+## Finding inventory
+
+| Finding ID | Severity | Exported title | Repository status / next check |
+| --- | --- | --- | --- |
+| `commit:93258b1bcd6881919b1f2be96204fc98` | high | Noauth File Browser admin exposed under Hive origin | Confirmed proxy boundary remains: WorkspaceToolPanel is unsandboxed and proxy HTML uses Hive origin. MultiSessionWorkspace already has a sandbox. |
+| `commit:f7118176d1788191a5d41f8e0b9c23e1` | high | Unauthenticated KasmVNC exposed on workspace network | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:09825c4928cc81918315da2d4ff42f68` | high | Council KasmVNC listens network-wide with weak/no auth | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:edcec789b9f8819194c07cd5157d5c4d` | high | Coder CLI auto-login exposes user Coder tokens to workspace code | Coder-login module still enabled; verify actual token scope before selecting remediation. |
+| `commit:b09307b841448191844b374f0398337f` | high | Auth service exposes tokens with only a session ID | Confirmed: auth-service routing has no caller authentication; protect service and update all clients/deployment configuration together. |
+| `commit:8896576e73508191aad9981022235120` | high | Unpinned remote installer in production Docker image | Confirmed remote Coder installer in production Dockerfile; pinned artifact verification pending. |
+| `commit:113a7b7e251c81919b7c8f05a3750c13` | high | Auto-derived cookie Domain broadens session scope | Confirmed automatic Domain derivation; check terminal-subdomain authentication before changing cookie scope. |
+| `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Revalidation required: current audio code consumes a recent single-use terminal gesture; arbitrary-process activation still needs adversarial testing. |
+| `commit:e172a9d020f081918c97f470636f7440` | medium | Workspace code can activate and read the browser microphone | Same microphone activation boundary as 2013bf58; do not close solely because a gesture gate was added. |
+| `commit:77d897a572848191b10d536984967ccc` | medium | Workspace proxy can reuse Hive microphone permissions | Confirmed: global microphone=(self) and workspace proxy share an origin; include in proxy isolation fix. |
+| `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:77cecf3dcd488191aa1c6f3960b1e173` | medium | Unverified downloads in published workspace base image | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:beb03b5055a48191b33374352232c78c` | medium | Persistent tmux scrollback can expose terminal secrets | Confirmed persistent pane capture remains enabled; decide on opt-in retention behavior. |
+| `commit:09602bc411208191a99b3ae90931beab` | medium | Duplicate session cookies enable session fixation | Confirmed duplicate signed-cookie selection; review together with cookie scope and migration. |
+| `commit:586a0bdebe348191a71e954ce45e4654` | medium | Paste image upload can crash Hive web process | Fixed in this slice; reproduced EPIPE on the baseline and added regression coverage. |
+| `commit:6cc2606c14648191b1013e97870401a4` | medium | Paste uploads can exhaust web and SSH resources | Confirmed: 10 × 10 MiB buffers and parallel SSH transfers; limits and admission control remain open. |
+| `commit:745807de8770819193d07f503330274f` | low | Untrusted workspace output can poison the local clipboard | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb` | low | Hover focus can leak keystrokes to workspace terminals | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:66d6747a76288191be7b68df43d8504b` | informational | Prisma baseline blocks Helm upgrades with existing schemas | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:205cc7eee8d48191a9baef63850e08f5` | informational | Unsafe board keys can crash tab keyboard navigation | Selector interpolation remains; regression and safe element lookup pending. |
+| `commit:62ec3a2baa848191987856c226e78552` | informational | Manual terminal retry is blocked after final failures | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+
+Findings must only be closed in Security Cloud after their exact accessible record and remediation evidence have been checked. This slice changes no Cloud finding state.
