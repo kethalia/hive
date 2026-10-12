@@ -1,0 +1,172 @@
+{
+  "workspace": "daniel/backup-rollout-verification",
+  "provenance": "reused; retained running for its existing task",
+  "profile": "infrastructure",
+  "helm_version": "v3.16.4+g7877b45",
+  "checks": [
+    {
+      "command": ["helm", "version", "--short"],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "command": ["helm", "dependency", "build", "charts/hive"],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "command": ["helm", "lint", "--strict", "charts/hive-web"],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "hive",
+        "charts/hive-web",
+        "--set",
+        "existingSecret=caller-auth-test-secret"
+      ],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "check": "required Secret reference in hive-web",
+      "deployments": 1,
+      "status": "passed"
+    },
+    {
+      "command": ["helm", "lint", "--strict", "charts/hive-auth"],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "hive",
+        "charts/hive-auth",
+        "--set",
+        "existingSecret=caller-auth-test-secret"
+      ],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "check": "required Secret reference in hive-auth",
+      "deployments": 1,
+      "status": "passed"
+    },
+    {
+      "command": ["helm", "lint", "--strict", "charts/hive-terminal"],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "hive",
+        "charts/hive-terminal",
+        "--set",
+        "existingSecret=caller-auth-test-secret"
+      ],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "check": "required Secret reference in hive-terminal",
+      "deployments": 1,
+      "status": "passed"
+    },
+    {
+      "command": ["helm", "lint", "--strict", "charts/hive"],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "hive",
+        "charts/hive",
+        "--set",
+        "existingSecret=caller-auth-test-secret"
+      ],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "check": "required Secret reference in hive",
+      "deployments": 3,
+      "status": "passed"
+    },
+    {
+      "command": [
+        "helm",
+        "template",
+        "hive",
+        "charts/hive",
+        "-f",
+        "charts/hive/values-preview.yaml"
+      ],
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "check": "preview service credential wiring",
+      "status": "passed"
+    }
+  ],
+  "temporary_directory_removed": true,
+  "source_base_revision": "57aadc9b5cc28c6dec1fca0c06a2988f11dc6c01",
+  "chart_file_sha256": {
+    "charts/hive-auth/Chart.yaml": "e9e6ee1b576ccce9c2200d4f3c517708ad1164c3aafe94492a623e9c5b88e328",
+    "charts/hive-auth/templates/NOTES.txt": "b825777c1953c0cc4f4ec2d1856d82a4ddb36c2615acca018b93858892abf364",
+    "charts/hive-auth/templates/_helpers.tpl": "30df0a03d15f29a0786d4e34a4e12c60dbab94b6011a4003005261bd0dba383c",
+    "charts/hive-auth/templates/configmap.yaml": "0bc64d3e488110411851e58f7ff752630a4950aa4b9525593c91f82b7d65f805",
+    "charts/hive-auth/templates/deployment.yaml": "e2a36ff8ebfec6ad968fc2e832e910e087ff6618c696d12b8ab81d788af8b164",
+    "charts/hive-auth/templates/hpa.yaml": "437bc86c92cd4ce91fa5087eef2bb00625cc23054634b096ef829df2cfca3c44",
+    "charts/hive-auth/templates/ingress.yaml": "0e5bac1f7ef3b36700a7e7537a965e2c82b2bec919195b7523cf63624a7ee7c6",
+    "charts/hive-auth/templates/pdb.yaml": "0de47e4d6086cb94f666c39482c1606c10a916628ab300c12aa41d717ecae87d",
+    "charts/hive-auth/templates/service.yaml": "212dca213659649b8909be05b0dd0eaf4d7cc2ff3668e2caa3a20e46c2693256",
+    "charts/hive-auth/templates/serviceaccount.yaml": "dc622b326ea6c52986513d9ec4740bc89a846e6dc968f563c4e322aa794fa558",
+    "charts/hive-auth/values.yaml": "66c8270e1d993086ef86a17e0816fb3eca052d1579f8619f6275622559d2a145",
+    "charts/hive-terminal/Chart.yaml": "7da9c1cf274eb066bde0546f1c1de84dc6c3a6bd762233b95fdf7c4d94119bfe",
+    "charts/hive-terminal/templates/NOTES.txt": "385ba051ba56413f02d80204ade36d891228e7ba4142dc2b8d5350c0d4608ef4",
+    "charts/hive-terminal/templates/_helpers.tpl": "fe4e276723b42337cb543ee872d6751735a0e6742055ea31ec740a750bbd89a1",
+    "charts/hive-terminal/templates/configmap.yaml": "9a793d139edf5b93131540110981a51729d6b58fb438f3e9fe28996ac1e6aefa",
+    "charts/hive-terminal/templates/deployment.yaml": "00bd55cf63ce583958e531860807e1cb00c402bbbdee0a63ae696f7c7699b884",
+    "charts/hive-terminal/templates/hpa.yaml": "3c30c599c9d38808cf69267b6e5215d58a73bebdc22ebcdb792b89e130a52bce",
+    "charts/hive-terminal/templates/ingress.yaml": "ad7607fd3c030ada95968f278a1e1256b7835c6162276f897fdfeea999d50be1",
+    "charts/hive-terminal/templates/pdb.yaml": "717e844748b39c8145dedbf806937ff8c9d1c93e0dd02f56345167de287b17ae",
+    "charts/hive-terminal/templates/public-ingress.yaml": "4457c39060d12f371417cec23b6b626342064788b854c1c8b743c256310642c9",
+    "charts/hive-terminal/templates/service.yaml": "763e14c8578315fe0f0532bae0327157b6de59272f66202f5ae7b06effc74b30",
+    "charts/hive-terminal/templates/serviceaccount.yaml": "33422ed280c9d1def31fc0f4bac6fba5cc5eb8ea6df02958d9f6c9afc62b5cef",
+    "charts/hive-terminal/values.yaml": "b270cf5758c1de698403de06c7ff37d3628879c135e36893a782b85e4b7a4d15",
+    "charts/hive-web/Chart.yaml": "7f1409eb0b81853954c278ab3ee210fc17f5accea09cff8d1d9a9245312de377",
+    "charts/hive-web/templates/NOTES.txt": "474d759f9812f84db047fde185cf136db470f58ebae4aa8aa92e646094de1bb9",
+    "charts/hive-web/templates/_helpers.tpl": "237771ad8be0ebe545e3ec158b689f347e36382c29dc5432514635a6e0d2eb86",
+    "charts/hive-web/templates/configmap.yaml": "d48fc425375319f49de79ced08e2cb9e836cde31f6041ff6189bcaa016205b0c",
+    "charts/hive-web/templates/deployment.yaml": "9994404d53f4ef3704a45cb8e71cb50f0ca18ea479cbcb286a28924b0704dc9b",
+    "charts/hive-web/templates/hpa.yaml": "f05b0c7502ec82ee21cece5fbc1875e14a6687e2725d9671b59753d703c00049",
+    "charts/hive-web/templates/ingress.yaml": "af7ca552fc5f4234465705965bd2e7123c31757980f934d665c7e7b1b4a75566",
+    "charts/hive-web/templates/pdb.yaml": "c03599057baabba2816ad80acb896b3481b07a344c534a517ed496386f5abf70",
+    "charts/hive-web/templates/public-ingress.yaml": "7fba18cbb92dee04014bb57d2a3a30c0cf583f7dcaf3be65d4526a45ca21374b",
+    "charts/hive-web/templates/service.yaml": "fdd137ac9ae085c99af800dae0befdd3b1ea0e205c2dc965159c851a231ec713",
+    "charts/hive-web/templates/serviceaccount.yaml": "0e6d5e53dce24e0dcb914fa683eb35a0eecfabad976cd68b946174a0744e51d3",
+    "charts/hive-web/values.yaml": "67ace6b4282a67a6893790114db37d6e56c5a98d4a59ff2365f2f577d06eb32f",
+    "charts/hive/Chart.yaml": "dfb5f1a2b0884018e6dfcffa5b69840808c299ca9aad552bde8e5610e16802b6",
+    "charts/hive/templates/NOTES.txt": "1fe9cdfe882559e8f28159a8e0fe3a41510f0385a419bab490726869fad3268a",
+    "charts/hive/templates/_helpers.tpl": "5397a9ca48097c65c0e2dbee691cb534ae0fd57d9b053227479d1c145e6e26fc",
+    "charts/hive/templates/cnpg-cluster.yaml": "ed742165dbd13ff202796ae364d866911f19c0b0b29deb2fbde2a544a8ad418d",
+    "charts/hive/templates/migrate-job.yaml": "8c9505d3d8ef9e5f078aa5db6be934e74a1d5de1701007ef7e68fd8a91875fbb",
+    "charts/hive/templates/preview-cert.yaml": "d955e65d75fb895313fa569058652474688cf4b750635712e6378d683e87cc44",
+    "charts/hive/templates/preview-namespace.yaml": "c4eaef0b0fbca82c538de1be44da7862984b57f10cfe9a83edde627535ed2c25",
+    "charts/hive/templates/secret.yaml": "9241de8c1f159db0b83adea9ad96019dff6f18b68ad416637c28a0843c69a011",
+    "charts/hive/templates/valkey.yaml": "700589eb2fda19f7bb8ebfcb33c2cf10e09472061c528b906789576128e9245e",
+    "charts/hive/values-preview.yaml": "7362aa78cc6343ccd98fe5af343157b736105861b8ee3779ce170e02469b684e",
+    "charts/hive/values.yaml": "bc8a0ba51bc49fe28fcc20806ab2b1ca9c6395fdb92226c0cda956fa5132dac0"
+  }
+}

@@ -42,6 +42,51 @@ The following exceptions are intentional and should be revisited only when the m
 - The migration Job is an Argo CD Sync hook with sync-wave ordering, not a Helm hook. Successful hook Jobs may be deleted after completion, so absence of the Job after a healthy sync is expected.
 - Database migrations are forward-only operationally. A failed app rollout can be rolled back to a compatible image, but do not assume the database schema can be automatically rolled back.
 
+## Auth-service caller authentication
+
+`AUTH_SERVICE_SECRET` is required in the web, auth, and terminal-proxy environments.
+Use the same value in all three services: 32 random bytes encoded as exactly 64 hex
+characters, generated independently of `COOKIE_SECRET` and `ENCRYPTION_KEY`.
+Store it in the deployment's secret manager; do not commit it, put it in a ConfigMap,
+or pass it to browsers or Coder workspaces. The auth service refuses to start with
+missing or malformed configuration. Clients refuse to make unauthenticated calls.
+
+All auth-service requests require `Authorization: Bearer <AUTH_SERVICE_SECRET>`,
+including `/login`, `/logout`, and session/credential/token lookups. Only the exact
+`GET /health` probe remains public. The public Hive login route sends the credential
+server-side, so the browser's login flow and session cookie format are unchanged.
+Authenticated service requests do not follow redirects.
+
+For Compose, configure `AUTH_SERVICE_SECRET` in the local environment before starting
+the stack; both local and production Compose files require it. Native development
+processes must load the same value. For Helm, each service references the
+`AUTH_SERVICE_SECRET` key in its `existingSecret` (or its default secret name).
+If the umbrella manages the Secret, set `sharedSecret.AUTH_SERVICE_SECRET` through
+the secret-management integration. Its empty default is intentionally unusable;
+when `sharedSecret` is disabled, the externally managed Secret must contain the key.
+
+Use a staged rollout for an existing deployment:
+
+1. Provision the secret in all three service environments and restart existing pods
+   so they load it. Older images ignore the extra variable.
+2. Promote the new web and terminal images first. They send the credential and
+   remain compatible with the older auth service. Verify login, session lookup,
+   logout, and terminal authentication.
+3. Promote the new auth image. It enforces the credential before routing or reading
+   a request body. Verify that a session ID alone gets `401`, authenticated calls
+   work, and `GET /health` still succeeds without credentials.
+
+Keep the auth service internal-only and retain network restrictions; caller
+authentication does not encrypt HTTP traffic. Use TLS/mTLS when service traffic
+crosses an untrusted network. Live secret provisioning, rollout verification, and
+Helm validation belong in the Infrastructure workspace.
+
+Rotate the credential by updating the managed Secret and restarting all three
+services together during a coordinated maintenance window. Only one credential is
+accepted at a time; mixed values cause backend authentication failures. To roll
+back a client image, roll back auth enforcement first. Rolling back the auth image
+restores the old exposure, so prefer a forward fix and keep network isolation.
+
 ## Git clone discovery and clone terminals
 
 The Git sidebar and clone terminal flow share one runtime contract: the web service, terminal proxy, and Coder agent runtime must agree on `HIVE_PROJECTS_ROOT`. The value must be an absolute POSIX path. The default value is `/home/coder`, so discovery is not limited to a strict `projects` directory; it finds Git repositories anywhere under that workspace home root while skipping noisy/sensitive hidden directories and known build-output folders.

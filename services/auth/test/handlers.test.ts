@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { addRoute, clearRoutes, matchRoute } from "../src/router.js";
-import { sendError } from "../src/server.js";
+import { addRoute, clearRoutes } from "../src/router.js";
+import { createRequestHandler } from "../src/server.js";
 
 vi.mock("../src/auth/login.js", () => ({
   performLogin: vi.fn(),
@@ -39,20 +39,7 @@ import { handleGetSession } from "../src/handlers/session.js";
 
 function startTestServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
-    const server = createServer(async (req, res) => {
-      const url = new URL(req.url ?? "/", "http://localhost");
-      const method = req.method ?? "GET";
-      const match = matchRoute(method, url.pathname);
-      if (!match) {
-        sendError(res, 404, "Not found", "NOT_FOUND");
-        return;
-      }
-      try {
-        await match.handler(req, res, match.params);
-      } catch {
-        sendError(res, 500, "Internal server error", "INTERNAL_ERROR");
-      }
-    });
+    const server = createServer(createRequestHandler("a".repeat(64)));
 
     server.listen(0, () => {
       const addr = server.address();
@@ -120,7 +107,7 @@ describe("HTTP handlers", () => {
 
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({
           coderUrl: "https://coder.test",
           email: "alice@test.com",
@@ -138,7 +125,7 @@ describe("HTTP handlers", () => {
     it("returns 400 when body is empty", async () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({}),
       });
 
@@ -150,7 +137,7 @@ describe("HTTP handlers", () => {
     it("returns 400 when email is missing", async () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({ coderUrl: "https://coder.test", password: "pass" }),
       });
 
@@ -162,7 +149,7 @@ describe("HTTP handlers", () => {
     it("returns 400 when password is missing", async () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({ coderUrl: "https://coder.test", email: "a@b.com" }),
       });
 
@@ -174,7 +161,7 @@ describe("HTTP handlers", () => {
     it("returns 400 when coderUrl is missing", async () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({ email: "a@b.com", password: "pass" }),
       });
 
@@ -188,7 +175,7 @@ describe("HTTP handlers", () => {
 
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({
           coderUrl: "https://coder.test",
           email: "a@b.com",
@@ -206,7 +193,7 @@ describe("HTTP handlers", () => {
 
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({ coderUrl: "https://bad.coder", email: "a@b.com", password: "pass" }),
       });
 
@@ -224,7 +211,7 @@ describe("HTTP handlers", () => {
 
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({
           coderUrl: "https://coder.test",
           email: "a@b.com",
@@ -243,7 +230,7 @@ describe("HTTP handlers", () => {
 
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({
           coderUrl: "https://coder.test",
           email: "a@b.com",
@@ -263,7 +250,7 @@ describe("HTTP handlers", () => {
 
       const res = await fetch(`${baseUrl}/logout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({ sessionId: "sess-123" }),
       });
 
@@ -276,7 +263,7 @@ describe("HTTP handlers", () => {
     it("returns 400 when sessionId is missing", async () => {
       const res = await fetch(`${baseUrl}/logout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({}),
       });
 
@@ -299,7 +286,9 @@ describe("HTTP handlers", () => {
         session: { id: "row-1", sessionId: "sess-123", expiresAt: new Date("2026-05-01") },
       });
 
-      const res = await fetch(`${baseUrl}/sessions/sess-123`);
+      const res = await fetch(`${baseUrl}/sessions/sess-123`, {
+        headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+      });
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -311,7 +300,9 @@ describe("HTTP handlers", () => {
     it("returns 404 when session not found", async () => {
       vi.mocked(getSessionById).mockResolvedValue(null);
 
-      const res = await fetch(`${baseUrl}/sessions/nonexistent`);
+      const res = await fetch(`${baseUrl}/sessions/nonexistent`, {
+        headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+      });
 
       expect(res.status).toBe(404);
       const body = await res.json();
@@ -336,7 +327,9 @@ describe("HTTP handlers", () => {
         expiresAt: new Date("2026-05-01"),
       });
 
-      const res = await fetch(`${baseUrl}/sessions/sess-123/credentials`);
+      const res = await fetch(`${baseUrl}/sessions/sess-123/credentials`, {
+        headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+      });
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -346,7 +339,9 @@ describe("HTTP handlers", () => {
     it("returns 404 when session not found", async () => {
       vi.mocked(getSessionById).mockResolvedValue(null);
 
-      const res = await fetch(`${baseUrl}/sessions/nonexistent/credentials`);
+      const res = await fetch(`${baseUrl}/sessions/nonexistent/credentials`, {
+        headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+      });
 
       expect(res.status).toBe(404);
       const body = await res.json();
@@ -356,12 +351,16 @@ describe("HTTP handlers", () => {
 
   describe("unknown routes", () => {
     it("returns 404 for unknown paths", async () => {
-      const res = await fetch(`${baseUrl}/does-not-exist`);
+      const res = await fetch(`${baseUrl}/does-not-exist`, {
+        headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+      });
       expect(res.status).toBe(404);
     });
 
     it("returns 404 for wrong method on existing path", async () => {
-      const res = await fetch(`${baseUrl}/login`);
+      const res = await fetch(`${baseUrl}/login`, {
+        headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+      });
       expect(res.status).toBe(404);
     });
   });

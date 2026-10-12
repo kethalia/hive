@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { addRoute, clearRoutes, matchRoute } from "../src/router.js";
-import { sendError } from "../src/server.js";
+import { addRoute, clearRoutes } from "../src/router.js";
+import { createRequestHandler } from "../src/server.js";
 
 vi.mock("../src/auth/session.js", () => ({
   getSessionById: vi.fn(),
@@ -25,20 +25,7 @@ import { handleGetCoderToken } from "../src/handlers/token.js";
 
 function startTestServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
-    const server = createServer(async (req, res) => {
-      const url = new URL(req.url ?? "/", "http://localhost");
-      const method = req.method ?? "GET";
-      const match = matchRoute(method, url.pathname);
-      if (!match) {
-        sendError(res, 404, "Not found", "NOT_FOUND");
-        return;
-      }
-      try {
-        await match.handler(req, res, match.params);
-      } catch {
-        sendError(res, 500, "Internal server error", "INTERNAL_ERROR");
-      }
-    });
+    const server = createServer(createRequestHandler("a".repeat(64)));
 
     server.listen(0, () => {
       const addr = server.address();
@@ -90,7 +77,9 @@ describe("GET /sessions/:id/token", () => {
       expiresAt: new Date("2026-06-01"),
     });
 
-    const res = await fetch(`${baseUrl}/sessions/sess-123/token`);
+    const res = await fetch(`${baseUrl}/sessions/sess-123/token`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -115,7 +104,9 @@ describe("GET /sessions/:id/token", () => {
       expiresAt: null,
     });
 
-    const res = await fetch(`${baseUrl}/sessions/sess-123/token`);
+    const res = await fetch(`${baseUrl}/sessions/sess-123/token`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -126,7 +117,9 @@ describe("GET /sessions/:id/token", () => {
   it("returns 404 when session not found", async () => {
     vi.mocked(getSessionById).mockResolvedValue(null);
 
-    const res = await fetch(`${baseUrl}/sessions/nonexistent/token`);
+    const res = await fetch(`${baseUrl}/sessions/nonexistent/token`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
 
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -146,7 +139,9 @@ describe("GET /sessions/:id/token", () => {
     });
     vi.mocked(getDecryptedCoderToken).mockResolvedValue(null);
 
-    const res = await fetch(`${baseUrl}/sessions/sess-123/token`);
+    const res = await fetch(`${baseUrl}/sessions/sess-123/token`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
 
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -166,7 +161,9 @@ describe("GET /sessions/:id/token", () => {
     });
     vi.mocked(getDecryptedCoderToken).mockRejectedValue(new Error("KEY_UNAVAILABLE"));
 
-    const res = await fetch(`${baseUrl}/sessions/sess-123/token`);
+    const res = await fetch(`${baseUrl}/sessions/sess-123/token`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
 
     expect(res.status).toBe(500);
     const body = await res.json();
@@ -186,7 +183,9 @@ describe("GET /sessions/:id/token", () => {
     });
     vi.mocked(getDecryptedCoderToken).mockRejectedValue(new Error("KEY_MISMATCH"));
 
-    const res = await fetch(`${baseUrl}/sessions/sess-123/token`);
+    const res = await fetch(`${baseUrl}/sessions/sess-123/token`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
 
     expect(res.status).toBe(500);
     const body = await res.json();
@@ -206,7 +205,9 @@ describe("GET /sessions/:id/token", () => {
     });
     vi.mocked(getDecryptedCoderToken).mockRejectedValue(new Error("DECRYPT_FAILED"));
 
-    const res = await fetch(`${baseUrl}/sessions/sess-123/token`);
+    const res = await fetch(`${baseUrl}/sessions/sess-123/token`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
 
     expect(res.status).toBe(500);
     const body = await res.json();
@@ -226,7 +227,9 @@ describe("GET /sessions/:id/token", () => {
     });
     vi.mocked(getDecryptedCoderToken).mockRejectedValue(new Error("something unexpected"));
 
-    const res = await fetch(`${baseUrl}/sessions/sess-123/token`);
+    const res = await fetch(`${baseUrl}/sessions/sess-123/token`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
 
     expect(res.status).toBe(500);
     const body = await res.json();

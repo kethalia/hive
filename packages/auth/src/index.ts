@@ -24,6 +24,7 @@ export {
 export { signCookie, verifyCookie } from "./cookie";
 export { decrypt, encrypt, tryDecrypt, validateEncryptionKey } from "./encryption";
 export { checkRateLimit } from "./rate-limit";
+export { authServiceHeaders } from "./service-auth";
 export type {
   CoderTokenResponse,
   CredentialResponse,

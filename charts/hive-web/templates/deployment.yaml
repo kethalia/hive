@@ -55,9 +55,15 @@ spec:
           {{- /* Per-env additions wired to external Secrets (CNPG's
                  generated app Secret, our Valkey Secret). The umbrella
                  passes secretName as a templated string referencing
-                 .Release.Name, so render it through tpl. */ -}}
-          {{- with .Values.extraEnv }}
+                 .Release.Name, so render it through tpl. */}}
           env:
+            # Required in every service; do not fall back to browser cookie authority.
+            - name: AUTH_SERVICE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hive-web.secretName" . }}
+                  key: AUTH_SERVICE_SECRET
+          {{- with .Values.extraEnv }}
             {{- range . }}
             - name: {{ .name }}
               valueFrom:

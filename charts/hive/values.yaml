@@ -75,6 +75,9 @@ migrateJob:
 # REDIS_URL are NOT composed here — they come from the CNPG- and
 # Valkey-owned Secrets via the `extraEnv` blocks above.
 sharedSecret:
+  # Required: supply a unique 64-hex secret shared by web, auth, and terminal.
+  # Blank deliberately fails authentication; externally managed Secrets need this key too.
+  AUTH_SERVICE_SECRET: ""
   COOKIE_SECRET: replace-me
   ENCRYPTION_KEY: replace-me-32-bytes-hex-for-aes256
 
