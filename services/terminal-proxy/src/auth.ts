@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import type { CoderTokenResponse } from "@hive/auth";
-import { verifyCookie } from "@hive/auth";
+import { authServiceHeaders, verifyCookie } from "@hive/auth";
 
 const AUTH_SERVICE_TIMEOUT_MS = 5_000;
 
@@ -82,6 +82,17 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     "",
   );
 
+  let serviceHeaders: ReturnType<typeof authServiceHeaders>;
+  try {
+    serviceHeaders = authServiceHeaders();
+  } catch {
+    console.error("[terminal-proxy] auth: auth_service_secret_invalid → 502");
+    return {
+      ok: false,
+      value: { error: "Server misconfigured", status: 502, reason: "auth_service_secret_invalid" },
+    };
+  }
+
   let tokenRes: Response;
   let sessionRes: Response;
   try {
@@ -90,10 +101,14 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     try {
       [tokenRes, sessionRes] = await Promise.all([
         fetch(`${authServiceUrl}/sessions/${sessionId}/token`, {
+          headers: serviceHeaders,
           signal: controller.signal,
+          redirect: "error",
         }),
         fetch(`${authServiceUrl}/sessions/${sessionId}`, {
+          headers: serviceHeaders,
           signal: controller.signal,
+          redirect: "error",
         }),
       ]);
     } finally {

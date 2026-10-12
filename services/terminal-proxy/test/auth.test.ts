@@ -1,7 +1,8 @@
 import type { IncomingMessage } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@hive/auth", () => ({
+vi.mock("@hive/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hive/auth")>()),
   verifyCookie: vi.fn(),
 }));
 
@@ -23,6 +24,7 @@ describe("authenticateUpgrade", () => {
       ...originalEnv,
       COOKIE_SECRET: "test-secret",
       AUTH_SERVICE_URL: "http://localhost:4400",
+      AUTH_SERVICE_SECRET: "a".repeat(64),
     };
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -163,6 +165,11 @@ describe("authenticateUpgrade", () => {
     });
 
     const result = await authenticateUpgrade(makeReq({ cookie: "hive-session=valid" }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [, options] of fetchMock.mock.calls) {
+      expect(options.headers).toEqual({ Authorization: `Bearer ${"a".repeat(64)}` });
+      expect(options.redirect).toBe("error");
+    }
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.token).toBe("coder-token-123");
@@ -170,6 +177,35 @@ describe("authenticateUpgrade", () => {
       expect(result.value.sessionId).toBe("sess-abc");
       expect(result.value.username).toBe("alice");
     }
+  });
+
+  it.each([
+    undefined,
+    "",
+    "replace-me",
+    "g".repeat(64),
+  ])("returns 502 without calling the auth service when its secret is missing or malformed", async (secret) => {
+    if (secret === undefined) delete process.env.AUTH_SERVICE_SECRET;
+    else process.env.AUTH_SERVICE_SECRET = secret;
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-1", timestamp: Date.now() });
+
+    const result = await authenticateUpgrade(makeReq({ cookie: "hive-session=valid" }));
+
+    expect(result).toEqual({
+      ok: false,
+      value: { error: "Server misconfigured", status: 502, reason: "auth_service_secret_invalid" },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("treats auth-service credential rejection as a backend failure", async () => {
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-1", timestamp: Date.now() });
+    fetchMock.mockResolvedValue({ ok: false, status: 401 });
+    const result = await authenticateUpgrade(makeReq({ cookie: "hive-session=valid" }));
+    expect(result).toEqual({
+      ok: false,
+      value: { error: "Token unavailable", status: 502, reason: "token_unavailable" },
+    });
   });
 
   it("parses hive-session from multiple cookies correctly", async () => {
@@ -265,6 +301,7 @@ describe("authenticateUpgrade", () => {
     for (const call of [...logSpy.mock.calls, ...errSpy.mock.calls]) {
       for (const arg of call) {
         expect(String(arg)).not.toContain("secret-token-xyz");
+        expect(String(arg)).not.toContain("a".repeat(64));
       }
     }
 

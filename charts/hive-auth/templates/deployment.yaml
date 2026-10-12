@@ -52,8 +52,14 @@ spec:
                 name: {{ include "hive-auth.secretName" . }}
             - configMapRef:
                 name: {{ include "hive-auth.configMapName" . }}
-          {{- with .Values.extraEnv }}
           env:
+            # Required in every service; do not fall back to browser cookie authority.
+            - name: AUTH_SERVICE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hive-auth.secretName" . }}
+                  key: AUTH_SERVICE_SECRET
+          {{- with .Values.extraEnv }}
             {{- range . }}
             - name: {{ .name }}
               valueFrom:

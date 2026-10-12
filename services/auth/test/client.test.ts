@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthServiceClient } from "../src/client.js";
 
 type MockHandler = (req: IncomingMessage, res: ServerResponse) => void;
@@ -39,14 +39,43 @@ describe("AuthServiceClient", () => {
   let handler: MockHandler;
 
   beforeAll(async () => {
-    const result = await createMockServer((req, res) => handler(req, res));
+    const result = await createMockServer((req, res) => {
+      expect(req.headers.authorization).toBe(`Bearer ${"a".repeat(64)}`);
+      handler(req, res);
+    });
     server = result.server;
     port = result.port;
     client = new AuthServiceClient(`http://localhost:${port}`);
   });
 
+  beforeEach(() => {
+    vi.stubEnv("AUTH_SERVICE_SECRET", "a".repeat(64));
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
   afterAll(() => {
     server.close();
+  });
+
+  it.each([
+    "login",
+    "logout",
+    "getSession",
+    "getCredentials",
+    "getCoderToken",
+  ] as const)("refuses %s without a configured service secret before making a request", async (operation) => {
+    vi.stubEnv("AUTH_SERVICE_SECRET", "");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const request =
+      operation === "login"
+        ? client.login({ coderUrl: "https://coder.test", email: "user@test", password: "password" })
+        : client[operation]("sess-1");
+    await expect(request).rejects.toThrow("AUTH_SERVICE_SECRET must be exactly 64 hex characters");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   describe("login", () => {

@@ -10,9 +10,31 @@ Finding `commit:586a0bdebe348191a71e954ce45e4654`: terminal paste uploads must h
 
 Validation: the new real Writable EPIPE regression fails on the original source with an uncaught exception, and passes with the fix. Targeted helper and route tests cover normal uploads, stream failures, late events, startup failure, and transfer timeout.
 
+## Auth-service fix
+
+Finding `commit:b09307b841448191844b374f0398337f`: require a dedicated
+`AUTH_SERVICE_SECRET` on all auth-service calls except the exact `GET /health`
+probe. The auth service validates configuration before listening and authenticates
+requests before routing or reading bodies. The shared web client and terminal
+proxy send the credential, refuse missing/malformed configuration, and reject
+redirects. The request logger no longer includes raw session IDs.
+
+The existing login and token handler tests now use the production request guard.
+Additional HTTP regressions verify that session IDs alone and incorrect service
+credentials cannot invoke protected handlers. The deployment charts and Compose
+files wire the new credential to all three services. The deployment runbook
+describes provisioning the credential and upgrading clients before enforcement.
+
+Helm lint and rendering were run in the reused Infrastructure workspace
+`daniel/backup-rollout-verification`; it remains running for its existing task.
+The validation's temporary directory was removed and evidence is preserved at
+[`auth-service-caller-auth-helm.json`](../checks/security/auth-service-caller-auth-helm.json).
+Production secret provisioning and rollout verification remain pending; this
+repository fix does not change a live deployment or Security Cloud finding state.
+
 ## Next slices
 
-1. Authenticate internal auth-service calls, updating web, terminal proxy, worker, health checks, and deployment secret wiring together.
+1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
 2. Isolate workspace-controlled content from Hive account authority, including top-level proxy navigation, response headers, cookies, and microphone permissions. Validate File Browser and desktop compatibility in Browser Testing.
 3. Fix session-cookie scope and duplicate-cookie ambiguity with an explicit migration path; preserve supported terminal authentication.
 4. Bound paste request bytes and concurrent work, then review workspace credential scope, desktop listeners, and supply-chain artifacts.
@@ -27,7 +49,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:f7118176d1788191a5d41f8e0b9c23e1` | high | Unauthenticated KasmVNC exposed on workspace network | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:09825c4928cc81918315da2d4ff42f68` | high | Council KasmVNC listens network-wide with weak/no auth | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:edcec789b9f8819194c07cd5157d5c4d` | high | Coder CLI auto-login exposes user Coder tokens to workspace code | Coder-login module still enabled; verify actual token scope before selecting remediation. |
-| `commit:b09307b841448191844b374f0398337f` | high | Auth service exposes tokens with only a session ID | Confirmed: auth-service routing has no caller authentication; protect service and update all clients/deployment configuration together. |
+| `commit:b09307b841448191844b374f0398337f` | high | Auth service exposes tokens with only a session ID | Repository fix adds service authentication, updated clients, required secret wiring, and HTTP regressions. Live secret provisioning and staged rollout remain pending. |
 | `commit:8896576e73508191aad9981022235120` | high | Unpinned remote installer in production Docker image | Confirmed remote Coder installer in production Dockerfile; pinned artifact verification pending. |
 | `commit:113a7b7e251c81919b7c8f05a3750c13` | high | Auto-derived cookie Domain broadens session scope | Confirmed automatic Domain derivation; check terminal-subdomain authentication before changing cookie scope. |
 | `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Revalidation required: current audio code consumes a recent single-use terminal gesture; arbitrary-process activation still needs adversarial testing. |

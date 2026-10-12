@@ -1,24 +1,11 @@
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { addRoute, clearRoutes, matchRoute } from "../src/router.js";
-import { sendError, sendJson } from "../src/server.js";
+import { createRequestHandler, sendJson } from "../src/server.js";
 
 function startTestServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
-    const server = createServer(async (req, res) => {
-      const url = new URL(req.url ?? "/", "http://localhost");
-      const method = req.method ?? "GET";
-      const match = matchRoute(method, url.pathname);
-      if (!match) {
-        sendError(res, 404, "Not found", "NOT_FOUND");
-        return;
-      }
-      try {
-        await match.handler(req, res, match.params);
-      } catch {
-        sendError(res, 500, "Internal server error", "INTERNAL_ERROR");
-      }
-    });
+    const server = createServer(createRequestHandler("a".repeat(64)));
 
     server.listen(0, () => {
       const addr = server.address();
@@ -57,7 +44,9 @@ describe("health endpoint", () => {
   });
 
   it("returns 404 for unknown routes", async () => {
-    const res = await fetch(`http://localhost:${port}/unknown`);
+    const res = await fetch(`http://localhost:${port}/unknown`, {
+      headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+    });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toBe("Not found");

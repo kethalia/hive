@@ -12,6 +12,7 @@ services:
       - DATABASE_URL=postgresql://hive:hive@postgres:5432/hive
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - COOKIE_SECRET=${COOKIE_SECRET:-}
+      - AUTH_SERVICE_SECRET=${AUTH_SERVICE_SECRET:?Set AUTH_SERVICE_SECRET to the same 64-hex secret for all Hive services}
       - CODER_CA_CERT=${CODER_CA_CERT:-}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:4400/health"]
@@ -40,6 +41,7 @@ services:
       - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder}
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
+      - AUTH_SERVICE_SECRET=${AUTH_SERVICE_SECRET:?Set AUTH_SERVICE_SECRET to the same 64-hex secret for all Hive services}
       - NEXT_PUBLIC_TERMINAL_WS_URL=${NEXT_PUBLIC_TERMINAL_WS_URL:-}
       - HIVE_CODEX_VOICE_ENABLED=${HIVE_CODEX_VOICE_ENABLED:-false}
       - HIVE_PUBLIC_ORIGIN=${HIVE_PUBLIC_ORIGIN:-}
@@ -57,6 +59,7 @@ services:
     environment:
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
+      - AUTH_SERVICE_SECRET=${AUTH_SERVICE_SECRET:?Set AUTH_SERVICE_SECRET to the same 64-hex secret for all Hive services}
       - CODER_CA_CERT=${CODER_CA_CERT:-}
       - HIVE_PROJECTS_ROOT=${HIVE_PROJECTS_ROOT:-/home/coder}
 

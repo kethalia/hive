@@ -1,3 +1,4 @@
+import { authServiceHeaders } from "./service-auth";
 import type {
   CoderTokenResponse,
   CredentialResponse,
@@ -20,9 +21,10 @@ export class AuthServiceClient {
   async login(req: LoginRequest): Promise<LoginResponse> {
     const res = await fetch(`${this.baseUrl}/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authServiceHeaders() },
       body: JSON.stringify(req),
       signal: AbortSignal.timeout(this.timeoutMs),
+      redirect: "error",
     });
 
     if (!res.ok) {
@@ -38,9 +40,10 @@ export class AuthServiceClient {
   async logout(sessionId: string): Promise<void> {
     const res = await fetch(`${this.baseUrl}/logout`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authServiceHeaders() },
       body: JSON.stringify({ sessionId }),
       signal: AbortSignal.timeout(this.timeoutMs),
+      redirect: "error",
     });
 
     if (!res.ok) {
@@ -53,7 +56,9 @@ export class AuthServiceClient {
 
   async getSession(sessionId: string): Promise<SessionPayload | null> {
     const res = await fetch(`${this.baseUrl}/sessions/${sessionId}`, {
+      headers: authServiceHeaders(),
       signal: AbortSignal.timeout(this.timeoutMs),
+      redirect: "error",
     });
 
     if (res.status === 404) {
@@ -72,7 +77,9 @@ export class AuthServiceClient {
 
   async getCredentials(sessionId: string): Promise<CredentialResponse | null> {
     const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/credentials`, {
+      headers: authServiceHeaders(),
       signal: AbortSignal.timeout(this.timeoutMs),
+      redirect: "error",
     });
 
     if (res.status === 404) {
@@ -92,7 +99,9 @@ export class AuthServiceClient {
 
   async getCoderToken(sessionId: string): Promise<CoderTokenResponse | null> {
     const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/token`, {
+      headers: authServiceHeaders(),
       signal: AbortSignal.timeout(this.timeoutMs),
+      redirect: "error",
     });
 
     if (res.status === 404) {

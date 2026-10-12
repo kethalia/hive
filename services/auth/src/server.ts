@@ -1,4 +1,12 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
+import {
+  createServer,
+  type IncomingMessage,
+  type RequestListener,
+  type Server,
+  type ServerResponse,
+} from "node:http";
+import { authServiceHeaders } from "@hive/auth";
 import { closeDb } from "@hive/db";
 import { ErrorCode } from "./auth/constants.js";
 import { matchRoute } from "./router.js";
@@ -52,13 +60,28 @@ export function sendError(
   sendJson(res, status, { error: message, code: code ?? "ERROR" });
 }
 
-export function startServer(port: number): Server {
-  const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? "/", `http://localhost:${port}`);
+export function createRequestHandler(secret = process.env.AUTH_SERVICE_SECRET): RequestListener {
+  // Validate before listening: configuration errors must never disable authentication.
+  const expectedAuthorization = Buffer.from(authServiceHeaders(secret).Authorization);
+  return async (req, res) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
     const method = req.method ?? "GET";
     const pathname = url.pathname;
 
-    console.log(`[auth-service] ${method} ${pathname}`);
+    // Only the exact health probe is public; authenticate before routing or reading bodies.
+    if (method !== "GET" || pathname !== "/health") {
+      const authorization = Buffer.from(req.headers.authorization ?? "");
+      if (
+        authorization.length !== expectedAuthorization.length ||
+        !timingSafeEqual(authorization, expectedAuthorization)
+      ) {
+        sendError(res, 401, "Service authentication required", "SERVICE_UNAUTHORIZED");
+        return;
+      }
+    }
+
+    // Paths can contain session IDs. Never log raw URLs or authentication headers.
+    console.log(`[auth-service] ${method} request`);
 
     const match = matchRoute(method, pathname);
     if (!match) {
@@ -81,7 +104,11 @@ export function startServer(port: number): Server {
       console.error(`[auth-service] Handler error: ${message}`);
       sendError(res, 500, "Internal server error", ErrorCode.INTERNAL_ERROR);
     }
-  });
+  };
+}
+
+export function startServer(port: number): Server {
+  const server = createServer(createRequestHandler());
 
   server.listen(port, () => {
     console.log(`[auth-service] Listening on port ${port}`);
