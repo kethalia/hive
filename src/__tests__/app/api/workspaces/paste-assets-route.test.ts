@@ -339,3 +339,92 @@ describe("paste resource boundaries", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe("multipart allocation bounds", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetRequestSession.mockResolvedValue({ user: { id: "user-1" } });
+    mockUploadTerminalPasteAssets.mockReset().mockResolvedValue([]);
+  });
+
+  function multipartRequest(body: string, contentType = "multipart/form-data; boundary=test") {
+    return new Request("https://hive.test/upload", {
+      method: "POST",
+      body,
+      headers: { "Content-Type": contentType },
+    });
+  }
+
+  const filePart =
+    '--test\r\nContent-Disposition: form-data; name="files"; filename="empty.txt"\r\nContent-Type: text/plain\r\n\r\n\r\n';
+  const fieldPart = '--test\r\nContent-Disposition: form-data; name="unused"\r\n\r\n\r\n';
+
+  it.each([
+    filePart,
+    fieldPart,
+  ])("rejects 100,000 empty parts under the byte cap without invoking the parser", async (part) => {
+    const body = `${part.repeat(100_000)}--test--\r\n`;
+    expect(Buffer.byteLength(body)).toBeLessThan(TERMINAL_PASTE_ASSET_MAX_REQUEST_BYTES);
+    const parse = vi.spyOn(Response.prototype, "formData");
+    try {
+      const response = await POST(multipartRequest(body), context);
+      expect(response.status).toBe(413);
+      expect(parse).not.toHaveBeenCalled();
+      expect(mockUploadTerminalPasteAssets).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it.each([
+    "multipart/form-data; boundary=test",
+    'multipart/form-data; boundary="test"; charset=UTF-8',
+    'multipart/form-data; boundary="te\\st"',
+    "multipart/form-data; boundary=test; boundary=alternate",
+  ])("accepts ten parts using a single canonical boundary: %s", async (contentType) => {
+    const parse = vi.spyOn(Response.prototype, "formData");
+    try {
+      expect(
+        (await POST(multipartRequest(`${filePart.repeat(10)}--test--\r\n`, contentType), context))
+          .status,
+      ).toBe(200);
+      expect(parse).toHaveBeenCalledOnce();
+      expect((parse.mock.contexts[0] as Response).headers.get("content-type")).toBe(
+        'multipart/form-data; boundary="test"',
+      );
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it("counts unused fields together with files before parsing", async () => {
+    const parse = vi.spyOn(Response.prototype, "formData");
+    try {
+      expect(
+        (await POST(multipartRequest(`${filePart.repeat(10)}${fieldPart}--test--\r\n`), context))
+          .status,
+      ).toBe(413);
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it.each([
+    "multipart/form-data",
+    "multipart/form-data; boundary=",
+    'multipart/form-data; boundary="bad "',
+    `multipart/form-data; boundary=${"b".repeat(71)}`,
+    'multipart/form-data; boundary="bad\\"quote"',
+  ])("rejects invalid boundaries before parsing: %s", async (contentType) => {
+    const parse = vi.spyOn(Response.prototype, "formData");
+    try {
+      expect(
+        (await POST(multipartRequest(`${filePart}--test--\r\n`, contentType), context)).status,
+      ).toBe(400);
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+});

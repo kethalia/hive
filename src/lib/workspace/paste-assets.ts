@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 import {
   TERMINAL_PASTE_ASSET_MAX_BYTES,
   TERMINAL_PASTE_ASSET_MAX_FILES,
   TERMINAL_PASTE_ASSET_MAX_TOTAL_BYTES,
 } from "@/lib/terminal/paste-limits";
+import { getTerminalPasteCoderClient } from "./paste-credentials";
 
 export {
   TERMINAL_PASTE_ASSET_MAX_BYTES,
@@ -81,7 +81,7 @@ export async function uploadTerminalPasteAssets({
     file,
     path: `${TERMINAL_PASTE_ASSET_TARGET_DIR}/${randomUUID()}-${sanitizePasteAssetName(file.name, file.type)}`,
   }));
-  const client = await getCoderClientForUser(userId);
+  const client = await getTerminalPasteCoderClient(userId, signal);
   signal?.throwIfAborted();
   const agentTarget = await client.getWorkspaceAgentName(workspaceId, signal);
   signal?.throwIfAborted();

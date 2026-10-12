@@ -96,20 +96,31 @@ Limits apply independently to each web process/replica.
 The raw request has a 21 MiB ceiling including multipart overhead and unused
 fields. Streamed bytes are checked before multipart parsing, regardless of an
 absent or misleading Content-Length; oversized bodies receive `413`. A fixed
-buffer bounds metadata overhead for tiny chunks. The client checks the same
-aggregate file limit before uploading.
+buffer bounds metadata overhead for tiny chunks. A conservative boundary scan
+caps all multipart parts (files and unused fields combined) at ten before
+`FormData` can allocate entries. Scanning and parsing use the same canonical,
+validated boundary, including quoted/duplicate Content-Type parameters. The
+client checks the same aggregate file limit before uploading.
 
 Files are read/transferred one at a time, as raw bytes without full-file base64
 copies. SSH stderr is drained without retaining its content. Disconnects and a
 120-second request budget cancel body reads, Coder agent lookup, and SSH; the
 local SSH/Coder process group is killed and its close awaited before admission
-is released. The workspace command checks the complete file size before
-publishing a path and removes partial temporary files on exit.
+is released. Credential-store waits also end on abort. Their underlying Prisma
+queries cannot be cancelled, so a separate per-process limit holds one pending
+lookup per user and four total until the queries actually settle. Busy lookups
+receive `429`/`Retry-After`; late results cannot restart cancelled uploads and
+late failures are observed. The workspace command checks the complete file size
+before publishing a path and removes partial temporary files on exit.
 
 Regressions cover chunked/forged-length bodies, aggregate boundaries, saturation,
 slot release, stalled read cancellation, sequential transfers, and the original
 EPIPE failure. Real subprocess checks verify process-group cancellation and
 execute the production storage command against binary and truncated payloads.
+Review regressions demonstrate that 100,000 empty fields/files below the byte
+cap never invoke the parser, and stalled credentials return `504` without
+retaining upload admission. Both regressions fail on the original PR commit
+`f2377af` and pass with the review fixes.
 Live rollout and Security Cloud resolution remain pending.
 
 ## Next slices

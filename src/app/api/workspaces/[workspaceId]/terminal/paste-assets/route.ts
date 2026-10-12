@@ -81,7 +81,12 @@ export async function POST(
     const message = error instanceof Error ? error.message : "Failed to upload pasted file";
     return NextResponse.json(
       { error: message },
-      { status: error instanceof PasteRequestError ? error.status : 400 },
+      {
+        status: error instanceof PasteRequestError ? error.status : 400,
+        ...(error instanceof PasteRequestError && error.status === 429
+          ? { headers: { "Retry-After": "2" } }
+          : {}),
+      },
     );
   } finally {
     clearTimeout(timer);
