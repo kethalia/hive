@@ -165,8 +165,8 @@ export class CoderClient {
   }
 
   /** Fetch a workspace by ID. */
-  async getWorkspace(workspaceId: string): Promise<CoderWorkspace> {
-    return this.request<CoderWorkspace>(`/api/v2/workspaces/${workspaceId}`);
+  async getWorkspace(workspaceId: string, signal?: AbortSignal): Promise<CoderWorkspace> {
+    return this.request<CoderWorkspace>(`/api/v2/workspaces/${workspaceId}`, { signal });
   }
 
   /**
@@ -269,10 +269,11 @@ export class CoderClient {
    * Returns `<workspace_name>.<agent_name>` — the format `coder ssh` expects.
    * Throws if the workspace has no agents.
    */
-  async getWorkspaceAgentName(workspaceId: string): Promise<string> {
-    const ws = await this.getWorkspace(workspaceId);
+  async getWorkspaceAgentName(workspaceId: string, signal?: AbortSignal): Promise<string> {
+    const ws = await this.getWorkspace(workspaceId, signal);
     const resources = await this.request<WorkspaceResource[]>(
       `/api/v2/workspacebuilds/${ws.latest_build.id}/resources`,
+      { signal },
     );
     for (const resource of resources) {
       if (resource.agents && resource.agents.length > 0) {

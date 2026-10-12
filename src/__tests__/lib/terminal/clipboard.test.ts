@@ -258,3 +258,26 @@ it.each(["c", "hello"])("pastes %s literally and clears armed modifiers", async 
   expect(send).toHaveBeenCalledExactlyOnceWith(text);
   expect(getMobileModifiers(term).ctrl).toBe(false);
 });
+
+it("rejects an aggregate paste over 20 MiB before making an upload request", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  const files = [10 * 1024 * 1024, 10 * 1024 * 1024, 1].map(
+    (size) => new File([new Uint8Array(size)], "file.bin"),
+  );
+  const onStatus = vi.fn();
+  const send = vi.fn();
+  await handleTerminalPasteOutcome(
+    { kind: "asset-files", files },
+    { term: null, send, openCompose: vi.fn(), workspaceId: "workspace-1", onStatus },
+  );
+  expect(fetch).not.toHaveBeenCalled();
+  expect(send).not.toHaveBeenCalled();
+  expect(onStatus).toHaveBeenCalledWith({
+    action: "paste",
+    outcome: "failed",
+    reason: "paste-too-large",
+    message: "Pasted files must total 20 MiB or less.",
+  });
+  vi.unstubAllGlobals();
+});

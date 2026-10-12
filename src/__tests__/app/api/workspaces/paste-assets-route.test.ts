@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetRequestSession = vi.hoisted(() => vi.fn());
 const mockUploadTerminalPasteAssets = vi.hoisted(() => vi.fn());
@@ -14,10 +14,16 @@ vi.mock("@/lib/workspace/paste-assets", () => ({
 }));
 
 import { POST } from "@/app/api/workspaces/[workspaceId]/terminal/paste-assets/route";
+import { TERMINAL_PASTE_ASSET_MAX_REQUEST_BYTES } from "@/lib/terminal/paste-limits";
+import { TERMINAL_PASTE_MAX_ACTIVE_REQUESTS } from "@/lib/workspace/paste-admission";
+import { TERMINAL_PASTE_REQUEST_TIMEOUT_MS } from "@/lib/workspace/paste-request";
 
 describe("terminal paste asset upload route", () => {
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUploadTerminalPasteAssets.mockReset();
     mockGetRequestSession.mockResolvedValue({
       user: { id: "user-1" },
       session: { sessionId: "sess-1" },
@@ -48,13 +54,8 @@ describe("terminal paste asset upload route", () => {
     expect(mockUploadTerminalPasteAssets).toHaveBeenCalledWith({
       userId: "user-1",
       workspaceId: "workspace-1",
-      files: [
-        {
-          name: "unsafe path.txt",
-          type: "text/plain",
-          bytes: expect.any(Uint8Array),
-        },
-      ],
+      files: [expect.objectContaining({ name: "unsafe path.txt", type: "text/plain" })],
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -86,9 +87,11 @@ describe("terminal paste asset upload route", () => {
     expect(mockUploadTerminalPasteAssets).toHaveBeenCalledExactlyOnceWith({
       userId: "user-1",
       workspaceId: "workspace-1",
-      files: [{ name: "document.pdf", type: "application/pdf", bytes: expect.any(Uint8Array) }],
+      files: [expect.objectContaining({ name: "document.pdf", type: "application/pdf" })],
+      signal: expect.any(AbortSignal),
     });
-    const uploadedBytes = mockUploadTerminalPasteAssets.mock.calls[0][0].files[0].bytes;
+    const uploadedBytes =
+      await mockUploadTerminalPasteAssets.mock.calls[0][0].files[0].arrayBuffer();
     expect(Buffer.from(uploadedBytes).equals(Buffer.from(bytes))).toBe(true);
   });
 
@@ -103,8 +106,236 @@ describe("terminal paste asset upload route", () => {
       params: Promise.resolve({ workspaceId: "workspace-1" }),
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(413);
     expect(await response.json()).toEqual({ error: "Pasted file is too large" });
     expect(mockUploadTerminalPasteAssets).not.toHaveBeenCalled();
+  });
+});
+
+function pasteRequest(signal?: AbortSignal) {
+  const body = new FormData();
+  body.append("files", new File(["hello"], "hello.txt"));
+  return new Request("https://hive.test/upload", { method: "POST", body, signal });
+}
+
+function streamRequest(
+  body: ReadableStream<Uint8Array>,
+  headers: Record<string, string> = {},
+  signal?: AbortSignal,
+) {
+  return new Request("https://hive.test/upload", {
+    method: "POST",
+    body,
+    headers: { "Content-Type": "multipart/form-data; boundary=test", ...headers },
+    signal,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+}
+
+const context = { params: Promise.resolve({ workspaceId: "workspace-1" }) };
+
+describe("paste resource boundaries", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetRequestSession.mockResolvedValue({ user: { id: "user-1" } });
+    mockUploadTerminalPasteAssets.mockReset().mockResolvedValue(["/tmp/result.txt"]);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("rejects an advertised oversized body without reading or parsing it", async () => {
+    const pull = vi.fn();
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ pull, cancel }, { highWaterMark: 0 });
+    const request = streamRequest(body, {
+      "Content-Length": String(TERMINAL_PASTE_ASSET_MAX_REQUEST_BYTES + 1),
+    });
+    const parse = vi.spyOn(Response.prototype, "formData");
+    try {
+      const response = await POST(request, context);
+      expect(response.status).toBe(413);
+      expect(pull).not.toHaveBeenCalled();
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(parse).not.toHaveBeenCalled();
+      expect(mockUploadTerminalPasteAssets).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it.each([undefined, "1"])("counts streamed bytes with Content-Length=%s", async (length) => {
+    const cancel = vi.fn();
+    let reads = 0;
+    const chunk = new Uint8Array(64 * 1024);
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          reads++;
+          controller.enqueue(chunk);
+        },
+        cancel,
+      },
+      { highWaterMark: 0 },
+    );
+    const parse = vi.spyOn(Response.prototype, "formData");
+    try {
+      const response = await POST(
+        streamRequest(body, length ? { "Content-Length": length } : {}),
+        context,
+      );
+      expect(response.status).toBe(413);
+      expect(reads).toBe(TERMINAL_PASTE_ASSET_MAX_REQUEST_BYTES / chunk.byteLength + 1);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(parse).not.toHaveBeenCalled();
+      expect(mockUploadTerminalPasteAssets).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it.each(["-1", "NaN", "1, 2"])("rejects malformed Content-Length %s", async (length) => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ cancel }, { highWaterMark: 0 });
+    const response = await POST(streamRequest(body, { "Content-Length": length }), context);
+    expect(response.status).toBe(400);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("rejects aggregate files over 20 MiB before starting uploads", async () => {
+    const body = new FormData();
+    for (const size of [10 * 1024 * 1024, 10 * 1024 * 1024, 1]) {
+      body.append("files", new File([new Uint8Array(size)], "file.bin"));
+    }
+    const response = await POST(
+      new Request("https://hive.test/upload", { method: "POST", body }),
+      context,
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "Paste files must total 20 MiB or less" });
+    expect(mockUploadTerminalPasteAssets).not.toHaveBeenCalled();
+  });
+
+  it("accepts exactly 20 MiB of files plus normal multipart overhead", async () => {
+    const body = new FormData();
+    for (let i = 0; i < 2; i++)
+      body.append("files", new File([new Uint8Array(10 * 1024 * 1024)], "file.bin"));
+    const response = await POST(
+      new Request("https://hive.test/upload", { method: "POST", body }),
+      context,
+    );
+    expect(response.status).toBe(200);
+    expect(mockUploadTerminalPasteAssets).toHaveBeenCalledOnce();
+  });
+
+  it("rejects concurrent pastes for one user before reading the second body, then releases the slot", async () => {
+    let finish!: (paths: string[]) => void;
+    mockUploadTerminalPasteAssets.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const first = POST(pasteRequest(), context);
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    const pull = vi.fn();
+    const cancel = vi.fn();
+    try {
+      const second = await POST(
+        streamRequest(new ReadableStream({ pull, cancel }, { highWaterMark: 0 })),
+        context,
+      );
+      expect(second.status).toBe(429);
+      expect(second.headers.get("retry-after")).toBe("2");
+      expect(pull).not.toHaveBeenCalled();
+      expect(cancel).toHaveBeenCalledOnce();
+    } finally {
+      finish(["/tmp/result.txt"]);
+      await first;
+    }
+    expect((await POST(pasteRequest(), context)).status).toBe(200);
+  });
+
+  it("keeps admission during transfer cancellation until the helper confirms process exit", async () => {
+    const controller = new AbortController();
+    let fail!: (error: Error) => void;
+    let transferSignal: AbortSignal | undefined;
+    mockUploadTerminalPasteAssets.mockImplementationOnce(({ signal }) => {
+      transferSignal = signal;
+      return new Promise((_resolve, reject) => {
+        fail = reject;
+      });
+    });
+    const first = POST(pasteRequest(controller.signal), context);
+    await vi.waitFor(() => expect(transferSignal).toBeDefined());
+    controller.abort();
+    expect(transferSignal!.aborted).toBe(true);
+    try {
+      expect(
+        (await POST(streamRequest(new ReadableStream({}, { highWaterMark: 0 })), context)).status,
+      ).toBe(429);
+    } finally {
+      fail(new Error("SSH closed"));
+    }
+    expect((await first).status).toBe(408);
+    expect((await POST(pasteRequest(), context)).status).toBe(200);
+  });
+
+  it("bounds simultaneous users and releases global capacity", async () => {
+    const finishes: ((paths: string[]) => void)[] = [];
+    const pending: Promise<Response>[] = [];
+    mockUploadTerminalPasteAssets.mockImplementation(
+      () => new Promise((resolve) => finishes.push(resolve)),
+    );
+    try {
+      for (let i = 0; i < TERMINAL_PASTE_MAX_ACTIVE_REQUESTS; i++) {
+        mockGetRequestSession.mockResolvedValue({ user: { id: `user-${i}` } });
+        pending.push(POST(pasteRequest(), context));
+        await vi.waitFor(() => expect(finishes).toHaveLength(i + 1));
+      }
+      mockGetRequestSession.mockResolvedValue({ user: { id: "other-user" } });
+      expect(
+        (await POST(streamRequest(new ReadableStream({}, { highWaterMark: 0 })), context)).status,
+      ).toBe(429);
+    } finally {
+      finishes.forEach((finish) => {
+        finish([]);
+      });
+      await Promise.all(pending);
+    }
+    mockUploadTerminalPasteAssets.mockResolvedValue([]);
+    expect((await POST(pasteRequest(), context)).status).toBe(200);
+  });
+
+  it("releases admission after multipart errors and upload failures", async () => {
+    const bad = streamRequest(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("bad"));
+          controller.close();
+        },
+      }),
+    );
+    expect((await POST(bad, context)).status).toBe(400);
+    mockUploadTerminalPasteAssets.mockRejectedValueOnce(new Error("SSH failed"));
+    expect((await POST(pasteRequest(), context)).status).toBe(400);
+    expect((await POST(pasteRequest(), context)).status).toBe(200);
+  });
+
+  it.each([
+    "abort",
+    "timeout",
+  ])("cancels stalled reads on %s even if source cancellation never resolves", async (kind) => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const cancel = vi.fn(() => new Promise<void>(() => {}));
+    const body = new ReadableStream<Uint8Array>({ cancel }, { highWaterMark: 0 });
+    const response = POST(streamRequest(body, {}, controller.signal), context);
+    await vi.advanceTimersByTimeAsync(0);
+    if (kind === "abort") controller.abort();
+    else await vi.advanceTimersByTimeAsync(TERMINAL_PASTE_REQUEST_TIMEOUT_MS);
+    expect((await response).status).toBe(kind === "abort" ? 408 : 504);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(mockUploadTerminalPasteAssets).not.toHaveBeenCalled();
+    expect((await POST(pasteRequest(), context)).status).toBe(200);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
