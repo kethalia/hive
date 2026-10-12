@@ -18,9 +18,16 @@ Worker or custom domain instead of leaking the private GitOps hostname into brow
    ```
 
    `HIVE_ORIGIN` must be the HTTPS GitOps origin, not the public hostname routed to this Worker.
-   When the terminal uses a sibling hostname, also configure `PUBLIC_COOKIE_DOMAIN` to the shared
-   parent domain (for example `.hive.example.com`) so authenticated WebSocket upgrades receive the
-   session cookie.
+   Terminal and audio transports use short-lived request tickets issued by Hive;
+   the account cookie remains host-only even when the terminal has another hostname.
+   `PUBLIC_COOKIE_DOMAIN` is retained only to expire legacy shared `hive-session`
+   cookies during migration. It never adds Domain to a live cookie. Remove this
+   setting once the old cookies have expired.
+
+   Set `HIVE_PUBLIC_ORIGIN` on the web service to the exact public origin so the
+   ticket issuer can validate browser Origin behind this Worker. If a separate
+   terminal edge rewrites Host, set `TERMINAL_PUBLIC_ORIGIN` on the terminal service
+   to its exact public origin too.
 
    For browser voice, configure `HIVE_PUBLIC_ORIGIN` on the Hive web service to
    the exact public Worker/custom-domain origin (for example

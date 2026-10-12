@@ -138,6 +138,8 @@ podDisruptionBudget:
 
 config:
   LOG_LEVEL: info
+  # Exact public terminal origin only when a reverse proxy rewrites Host.
+  TERMINAL_PUBLIC_ORIGIN: ""
   # Defaults to the in-cluster auth Service rendered by hive-auth (Release.Name = hive-auth).
   # Override when deployed under a different release (e.g. umbrella where the
   # Service renders as `<umbrella-release>-hive-auth`).

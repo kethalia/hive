@@ -42,10 +42,7 @@ describe("proxy", () => {
     const setCookie = response.headers.get("set-cookie");
 
     expect(mockVerifyCookie).toHaveBeenCalledWith("signed-value", "test-secret");
-    expect(setCookie).toContain("hive-session=signed-value");
-    expect(setCookie).toContain("Domain=.hive.local.kethalia.com");
-    expect(setCookie).toContain("HttpOnly");
-    expect(setCookie).toContain("SameSite=lax");
+    expect(setCookie).toBeNull();
     expect(response.headers.get("content-security-policy")).toContain(
       "frame-src 'self' https://coder.example.com https://*.coder.example.com",
     );
@@ -107,86 +104,48 @@ describe("proxy", () => {
     expect(policy).toContain("http://apps.localhost:7080 http://*.apps.localhost:7080");
   });
 
-  it("accepts a valid scoped cookie when a stale parent-domain cookie with the same name is last", () => {
-    vi.stubEnv("COOKIE_SECRET", "preview-secret");
-    vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");
-    mockVerifyCookie.mockImplementation((value) =>
-      value === "preview-cookie" ? { sessionId: "sess-preview", timestamp: Date.now() } : null,
-    );
-
-    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/workspaces", {
-      headers: {
-        cookie: "hive-session=preview-cookie; hive-session=prod-cookie",
-      },
-    });
-
-    const response = proxy(request);
-    const setCookie = response.headers.get("set-cookie");
-
-    expect(response.headers.get("location")).toBeNull();
-    expect(mockVerifyCookie).toHaveBeenCalledWith("preview-cookie", "preview-secret");
-    expect(setCookie).toContain("hive-session=preview-cookie");
-    expect(setCookie).toContain("Domain=.pr-101.hive.local.kethalia.com");
-  });
-
-  it("derives preview cookie domain when refreshing without COOKIE_DOMAIN", () => {
-    vi.stubEnv("COOKIE_SECRET", "preview-secret");
-    vi.stubEnv("COOKIE_DOMAIN", "");
-    mockVerifyCookie.mockReturnValue({ sessionId: "sess-preview", timestamp: Date.now() });
-
-    const request = new NextRequest("https://pr-113.hive.local.kethalia.com/workspaces", {
-      headers: {
-        cookie: "hive-session=preview-cookie",
-      },
-    });
-
-    const response = proxy(request);
-    const setCookie = response.headers.get("set-cookie");
-
-    expect(response.headers.get("location")).toBeNull();
-    expect(mockVerifyCookie).toHaveBeenCalledWith("preview-cookie", "preview-secret");
-    expect(setCookie).toContain("hive-session=preview-cookie");
-    expect(setCookie).toContain("Domain=.pr-113.hive.local.kethalia.com");
-  });
-
-  it("does not derive a cookie domain for localhost", () => {
+  it.each([
+    "hive-session=victim; hive-session=attacker",
+    "hive-session=attacker; hive-session=victim",
+    "hive-session=same; hive-session=same",
+    "hive-session=; hive-session=victim",
+  ])("rejects ambiguous cookies without selecting by browser order or timestamp: %s", (cookie) => {
     vi.stubEnv("COOKIE_SECRET", "test-secret");
-    vi.stubEnv("COOKIE_DOMAIN", "");
-    mockVerifyCookie.mockReturnValue({ sessionId: "sess-local", timestamp: Date.now() });
-
-    const request = new NextRequest("http://localhost:3000/workspaces", {
-      headers: {
-        cookie: "hive-session=local-cookie",
-      },
-    });
-
-    const response = proxy(request);
-
-    expect(response.headers.get("location")).toBeNull();
+    mockVerifyCookie.mockReturnValue({ sessionId: "attacker", timestamp: Date.now() });
+    const response = proxy(
+      new NextRequest("https://hive.example.com/workspaces", { headers: { cookie } }),
+    );
+    expect(response.headers.get("location")).toBe("https://hive.example.com/login");
     expect(response.headers.get("set-cookie")).toBeNull();
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
   });
 
-  it("refreshes the newest verified duplicate session cookie deterministically", () => {
-    vi.stubEnv("COOKIE_SECRET", "preview-secret");
-    vi.stubEnv("COOKIE_DOMAIN", ".pr-101.hive.local.kethalia.com");
-    const now = Date.now();
-    mockVerifyCookie.mockImplementation((value) => {
-      if (value === "older-cookie") return { sessionId: "sess-older", timestamp: now - 1000 };
-      if (value === "newer-cookie") return { sessionId: "sess-newer", timestamp: now };
-      return null;
-    });
+  it("requires a fresh production login instead of trusting a legacy domain cookie", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    const response = proxy(
+      new NextRequest("https://hive.example.com/workspaces", {
+        headers: { cookie: "hive-session=legacy-valid" },
+      }),
+    );
+    expect(response.headers.get("location")).toBe("https://hive.example.com/login");
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+  });
 
-    const request = new NextRequest("https://pr-101.hive.local.kethalia.com/workspaces", {
-      headers: {
-        cookie: "hive-session=older-cookie; hive-session=newer-cookie",
-      },
-    });
-
-    const response = proxy(request);
-    const setCookie = response.headers.get("set-cookie");
-
+  it("uses the protected cookie even alongside attacker-planted legacy cookies", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    mockVerifyCookie.mockReturnValue({ sessionId: "victim", timestamp: Date.now() });
+    const response = proxy(
+      new NextRequest("https://hive.example.com/workspaces", {
+        headers: {
+          cookie: "hive-session=attacker; __Host-hive-session=victim; hive-session=another",
+        },
+      }),
+    );
     expect(response.headers.get("location")).toBeNull();
-    expect(setCookie).toContain("hive-session=newer-cookie");
-    expect(setCookie).not.toContain("hive-session=older-cookie");
+    expect(mockVerifyCookie).toHaveBeenCalledOnce();
+    expect(mockVerifyCookie).toHaveBeenCalledWith("victim", "test-secret");
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });

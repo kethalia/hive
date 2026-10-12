@@ -4,6 +4,11 @@ import { signCookie, verifyCookie } from "./cookie";
 const SECRET = "test-secret-key-for-hmac-signing";
 
 describe("signCookie / verifyCookie", () => {
+  it("rejects pre-migration signatures even when sent under the new cookie name", () => {
+    const payload = `stolen-session.${Date.now()}`;
+    const oldMac = createHmac("sha256", SECRET).update(payload).digest("hex");
+    expect(verifyCookie(`${payload}.${oldMac}`, SECRET)).toBeNull();
+  });
   it("round-trips: sign then verify returns correct sessionId and timestamp", () => {
     const sessionId = "abc-123-def";
     const cookie = signCookie(sessionId, SECRET);
@@ -60,3 +65,5 @@ describe("signCookie / verifyCookie", () => {
     expect(verifyCookie("random-garbage-string-here", SECRET)).toBeNull();
   });
 });
+
+import { createHmac } from "node:crypto";

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { consumeTerminalAudioInteraction } from "@/lib/terminal/audio-interaction";
+import { terminalAuthProtocols } from "@/lib/terminal/auth-transport";
 import { TerminalAudio, type TerminalAudioStatus } from "@/lib/terminal/browser-audio";
 import { TERMINAL_AUDIO_PRIME_EVENT } from "@/lib/terminal/events";
 
@@ -37,6 +38,7 @@ export function TerminalAudioBridge({
         return true;
       },
       () => consumeTerminalAudioInteraction(terminal),
+      (url) => terminalAuthProtocols(url, "hive-audio-v1"),
     );
     let inView = false;
     const update = () => {

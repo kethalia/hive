@@ -6,7 +6,7 @@ vi.mock("@hive/auth", async (importOriginal) => ({
   verifyCookie: vi.fn(),
 }));
 
-import { verifyCookie } from "@hive/auth";
+import { createTerminalTicket, verifyCookie } from "@hive/auth";
 import { authenticateUpgrade } from "../src/auth.js";
 
 const mockVerifyCookie = verifyCookie as ReturnType<typeof vi.fn>;
@@ -44,6 +44,136 @@ describe("authenticateUpgrade", () => {
       expect(result.value.status).toBe(502);
       expect(result.value.reason).toBe("cookie_secret_missing");
     }
+  });
+
+  it.each([
+    "authorization",
+    "sec-websocket-protocol",
+  ])("accepts a bound terminal ticket over %s without a session cookie", async (header) => {
+    process.env.NODE_ENV = "production";
+    const ticket = createTerminalTicket(
+      {
+        sessionId: "sess-1",
+        audience: "terminal.example.com",
+        origin: "https://hive.example.com",
+        requestTarget: "/ws?agentId=agent",
+      },
+      "test-secret",
+      Date.now() + 60_000,
+    );
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "tok", coderUrl: "http://coder" }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: "victim" }),
+    });
+    const req = makeReq({
+      host: "terminal.example.com",
+      origin: "https://hive.example.com",
+      [header]:
+        header === "authorization" ? `Bearer ${ticket}` : `hive-terminal-v1, hive-ticket.${ticket}`,
+    });
+    req.url = "/ws?agentId=agent";
+    expect(await authenticateUpgrade(req)).toMatchObject({
+      ok: true,
+      value: { sessionId: "sess-1", username: "victim" },
+    });
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { host: "another.example.com" },
+    { origin: "https://attacker.example.com" },
+    { target: "/ws?agentId=other" },
+    { target: "/ws/audio?agentId=agent" },
+  ])("rejects ticket authority/target substitution before fetching tokens: %o", async (change) => {
+    const ticket = createTerminalTicket(
+      {
+        sessionId: "sess-1",
+        audience: "terminal.example.com",
+        origin: "https://hive.example.com",
+        requestTarget: "/ws?agentId=agent",
+      },
+      "test-secret",
+      Date.now() + 60_000,
+    );
+    const req = makeReq({
+      authorization: `Bearer ${ticket}`,
+      host: change.host || "terminal.example.com",
+      origin: change.origin || "https://hive.example.com",
+    });
+    req.url = change.target || "/ws?agentId=agent";
+    expect(await authenticateUpgrade(req)).toMatchObject({
+      ok: false,
+      value: { status: 401, reason: "invalid_terminal_ticket" },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to a cookie when a ticket is invalid or ambiguous", async () => {
+    mockVerifyCookie.mockReturnValue({ sessionId: "victim" });
+    for (const protocols of ["hive-ticket.invalid", "hive-ticket.one, hive-ticket.two"]) {
+      const req = makeReq({ cookie: "hive-session=valid", "sec-websocket-protocol": protocols });
+      expect(await authenticateUpgrade(req)).toMatchObject({
+        ok: false,
+        value: { reason: "invalid_terminal_ticket" },
+      });
+    }
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a cross-origin ticket without Origin but supports same-origin GETs", async () => {
+    process.env.NODE_ENV = "production";
+    const target = {
+      sessionId: "sess-1",
+      audience: "terminal.example.com",
+      requestTarget: "/keepalive/status",
+    };
+    const ticket = (origin: string) =>
+      createTerminalTicket({ ...target, origin }, "test-secret", Date.now() + 60_000);
+    const req = makeReq({
+      host: target.audience,
+      authorization: `Bearer ${ticket("https://hive.example.com")}`,
+    });
+    req.url = target.requestTarget;
+    expect(await authenticateUpgrade(req)).toMatchObject({
+      ok: false,
+      value: { reason: "invalid_terminal_ticket" },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    req.headers.authorization = `Bearer ${ticket("https://terminal.example.com")}`;
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "tok", coderUrl: "https://coder" }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: "victim" }),
+    });
+    expect(await authenticateUpgrade(req)).toMatchObject({ ok: true });
+  });
+
+  it("ignores legacy cookies in production and accepts only the protected name", async () => {
+    process.env.NODE_ENV = "production";
+    expect(await authenticateUpgrade(makeReq({ cookie: "hive-session=legacy" }))).toMatchObject({
+      ok: false,
+      value: { status: 401 },
+    });
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+    mockVerifyCookie.mockReturnValue(null);
+    await authenticateUpgrade(
+      makeReq({ cookie: "hive-session=attacker; __Host-hive-session=victim" }),
+    );
+    expect(mockVerifyCookie).toHaveBeenCalledWith("victim", "test-secret");
+    expect(mockVerifyCookie).toHaveBeenCalledTimes(1);
   });
 
   it("returns 401 when no Cookie header", async () => {
@@ -228,55 +358,17 @@ describe("authenticateUpgrade", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("uses a valid duplicate hive-session cookie when a stale cookie is sent first", async () => {
-    mockVerifyCookie.mockImplementation((value: string) =>
-      value === "fresh" ? { sessionId: "sess-fresh", timestamp: Date.now() } : null,
-    );
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ token: "tok", coderUrl: "http://c", expiresAt: null }),
-    });
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ username: "u" }),
-    });
-
-    const result = await authenticateUpgrade(
-      makeReq({ cookie: "hive-session=stale; other=x; hive-session=fresh" }),
-    );
-
-    expect(mockVerifyCookie).toHaveBeenCalledWith("stale", "test-secret");
-    expect(mockVerifyCookie).toHaveBeenCalledWith("fresh", "test-secret");
-    expect(result.ok).toBe(true);
-    const [url] = fetchMock.mock.calls[0];
-    expect(url).toContain("/sessions/sess-fresh/token");
-  });
-
-  it("uses the first valid duplicate hive-session cookie in browser order", async () => {
-    mockVerifyCookie.mockImplementation((value: string) => ({
-      sessionId: value === "preview" ? "sess-preview" : "sess-parent",
-      timestamp: value === "preview" ? 1000 : 2000,
-    }));
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ token: "tok", coderUrl: "http://c", expiresAt: null }),
-    });
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ username: "u" }),
-    });
-
-    const result = await authenticateUpgrade(
-      makeReq({ cookie: "hive-session=preview; hive-session=parent" }),
-    );
-
-    expect(result.ok).toBe(true);
-    const [url] = fetchMock.mock.calls[0];
-    expect(url).toContain("/sessions/sess-preview/token");
+  it.each([
+    "hive-session=stale; hive-session=fresh",
+    "hive-session=victim; hive-session=attacker",
+    "hive-session=attacker; hive-session=victim",
+    "hive-session=same; hive-session=same",
+    "hive-session=; hive-session=valid",
+  ])("rejects duplicate cookies before contacting auth: %s", async (cookie) => {
+    const result = await authenticateUpgrade(makeReq({ cookie }));
+    expect(result).toMatchObject({ ok: false, value: { status: 401, reason: "ambiguous_cookie" } });
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("never logs token values", async () => {

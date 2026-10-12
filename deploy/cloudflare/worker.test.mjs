@@ -97,18 +97,18 @@ test("scopes origin cookies to the public Worker host", () => {
   ]);
 });
 
-test("rewrites cookie scope to a configured public parent domain", () => {
+test("does not broaden live cookie scope with a configured public parent domain", () => {
   const headers = new Headers({
     "Set-Cookie": "hive-session=signed; Path=/; Domain=.internal.example; Secure; HttpOnly",
   });
 
   scopeResponseCookiesToPublicHost(headers, ".hive.example.com");
 
-  assert.match(headers.get("Set-Cookie") ?? "", /Domain=.hive.example.com/);
+  assert.doesNotMatch(headers.get("Set-Cookie") ?? "", /Domain=/);
   assert.doesNotMatch(headers.get("Set-Cookie") ?? "", /internal\.example/);
 });
 
-test("adds the configured public domain to host-only origin cookies", () => {
+test("keeps host-only origin cookies host-only even with a public domain configured", () => {
   const headers = new Headers({
     "Set-Cookie": "hive-session=signed; Path=/; Secure; HttpOnly; SameSite=Lax",
   });
@@ -117,7 +117,7 @@ test("adds the configured public domain to host-only origin cookies", () => {
 
   assert.equal(
     headers.get("Set-Cookie"),
-    "hive-session=signed; Path=/; Secure; HttpOnly; SameSite=Lax; Domain=.hive.example.com",
+    "hive-session=signed; Path=/; Secure; HttpOnly; SameSite=Lax",
   );
 });
 
@@ -134,4 +134,24 @@ test("returns 502 when the origin fetch fails", async (t) => {
   );
 
   assert.equal(response.status, 502);
+});
+
+test("preserves the protected production cookie prefix requirements", () => {
+  const headers = new Headers({
+    "Set-Cookie": "__Host-hive-session=signed; Path=/; Secure; HttpOnly; SameSite=Lax",
+  });
+  scopeResponseCookiesToPublicHost(headers, ".hive.example.com");
+  assert.equal(
+    headers.get("Set-Cookie"),
+    "__Host-hive-session=signed; Path=/; Secure; HttpOnly; SameSite=Lax",
+  );
+});
+
+test("retains the legacy public domain solely for cookie deletion", () => {
+  const headers = new Headers({
+    "Set-Cookie": "hive-session=; Path=/; Domain=.internal.example; Max-Age=0; Secure; HttpOnly",
+  });
+  scopeResponseCookiesToPublicHost(headers, ".hive.example.com");
+  assert.match(headers.get("Set-Cookie") || "", /Domain=.hive.example.com/);
+  assert.match(headers.get("Set-Cookie") || "", /Max-Age=0/);
 });

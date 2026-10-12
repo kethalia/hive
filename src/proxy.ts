@@ -1,10 +1,7 @@
 import { verifyCookie } from "@hive/auth";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import {
-  getSessionCookieValuesFromHeader,
-  refreshDomainSessionCookie,
-} from "./lib/auth/session-cookie";
+import { getSessionCookieValuesFromHeader } from "./lib/auth/session-cookie";
 import {
   buildContentSecurityPolicy,
   buildPermissionsPolicy,
@@ -39,7 +36,7 @@ export function proxy(request: NextRequest) {
   }
 
   const sessionCookieValues = getSessionCookieValuesFromHeader(request.headers.get("cookie"));
-  if (sessionCookieValues.length === 0) {
+  if (sessionCookieValues.length !== 1 || !sessionCookieValues[0]) {
     const loginUrl = new URL("/login", request.url);
     return withContentSecurityPolicy(NextResponse.redirect(loginUrl));
   }
@@ -51,12 +48,7 @@ export function proxy(request: NextRequest) {
     return withContentSecurityPolicy(NextResponse.redirect(loginUrl));
   }
 
-  const verifiedSessionCookie = [...new Set(sessionCookieValues)]
-    .flatMap((value) => {
-      const verified = verifyCookie(value, cookieSecret);
-      return verified ? [{ value, verified }] : [];
-    })
-    .sort((left, right) => right.verified.timestamp - left.verified.timestamp)[0];
+  const verifiedSessionCookie = verifyCookie(sessionCookieValues[0], cookieSecret);
 
   if (verifiedSessionCookie) {
     const coderFrameUrls =
@@ -68,12 +60,6 @@ export function proxy(request: NextRequest) {
     requestHeaders.set(CODER_FRAME_HOSTS_REQUEST_HEADER, coderFrameUrls.join("~"));
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     withContentSecurityPolicy(response, coderFrameUrls);
-    refreshDomainSessionCookie(
-      response.cookies,
-      verifiedSessionCookie.value,
-      verifiedSessionCookie.verified.timestamp,
-      request.nextUrl.hostname,
-    );
     return response;
   }
 

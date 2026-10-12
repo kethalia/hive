@@ -1,9 +1,15 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+// Invalidate previously shared cookies even if a stolen value is renamed to
+// __Host-hive-session by a non-browser client during the migration.
+const COOKIE_SIGNATURE_PURPOSE = "hive-host-only-session-v1:";
+
 export function signCookie(sessionId: string, secret: string): string {
   const timestamp = Date.now();
   const payload = `${sessionId}.${timestamp}`;
-  const hmac = createHmac("sha256", secret).update(payload).digest("hex");
+  const hmac = createHmac("sha256", secret)
+    .update(COOKIE_SIGNATURE_PURPOSE + payload)
+    .digest("hex");
   return `${payload}.${hmac}`;
 }
 
@@ -23,7 +29,9 @@ export function verifyCookie(
   if (!Number.isFinite(timestamp)) return null;
 
   const payload = `${sessionId}.${timestampStr}`;
-  const expectedHmac = createHmac("sha256", secret).update(payload).digest("hex");
+  const expectedHmac = createHmac("sha256", secret)
+    .update(COOKIE_SIGNATURE_PURPOSE + payload)
+    .digest("hex");
 
   const expectedBuf = Buffer.from(expectedHmac, "hex");
   const providedBuf = Buffer.from(providedHmac, "hex");

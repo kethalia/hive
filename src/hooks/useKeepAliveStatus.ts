@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRuntimeConfig } from "@/components/runtime-config-provider";
+import { fetchTerminal } from "@/lib/terminal/auth-transport";
 
 export type KeepAliveHealthStatus =
   | "healthy"
@@ -201,9 +202,7 @@ export function useKeepAliveStatus(workspaceId: string): KeepAliveStatus {
 
     async function poll() {
       try {
-        const res = await fetch(`${baseUrl}/keepalive/status`, {
-          credentials: "include",
-        });
+        const res = await fetchTerminal(`${baseUrl}/keepalive/status`, {});
         if (!res.ok) {
           if (mountedRef.current) setStatus((s) => ({ ...s, isLoading: false }));
           return;

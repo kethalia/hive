@@ -29,7 +29,10 @@ class MockWebSocket {
     this.readyState = MockWebSocket.CLOSED;
   });
 
-  constructor(readonly url: string) {
+  constructor(
+    readonly url: string,
+    readonly protocols?: string | string[],
+  ) {
     instances.push(this);
   }
 }
@@ -80,6 +83,52 @@ function dispatchPageTransitionEvent(type: "pagehide" | "pageshow", persisted = 
 }
 
 describe("useTerminalWebSocket reconnect loop", () => {
+  it("waits for authorization and obtains a fresh ticket on reconnect", async () => {
+    const authorizeConnection = vi
+      .fn()
+      .mockResolvedValue(["hive-terminal-v1", "hive-ticket.fixture"]);
+    const { unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws",
+        onData: vi.fn(),
+        authorizeConnection,
+      }),
+    );
+    await act(async () => {});
+    expect(authorizeConnection).toHaveBeenCalledWith("ws://terminal.example/ws");
+    expect(instances).toHaveLength(1);
+    expect(instances[0].protocols).toEqual(["hive-terminal-v1", "hive-ticket.fixture"]);
+    closeSocket(instances[0], { code: 1013, reason: "retry" });
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(authorizeConnection).toHaveBeenCalledTimes(2);
+    expect(instances).toHaveLength(2);
+    unmount();
+  });
+
+  it("ignores authorization that finishes after the terminal unmounts", async () => {
+    let complete!: (protocols: string[]) => void;
+    const authorizeConnection = vi.fn(
+      () =>
+        new Promise<string[]>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const { unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws",
+        onData: vi.fn(),
+        authorizeConnection,
+      }),
+    );
+    expect(instances).toHaveLength(0);
+    unmount();
+    await act(async () => {
+      complete(["hive-terminal-v1", "hive-ticket.fixture"]);
+    });
+    expect(instances).toHaveLength(0);
+  });
   beforeEach(() => {
     instances.length = 0;
     vi.useFakeTimers();

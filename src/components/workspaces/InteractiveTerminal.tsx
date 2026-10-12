@@ -34,6 +34,7 @@ import {
   pasteNativeClipboardEventToTerminal,
 } from "@/lib/terminal/actions";
 import { primeTerminalAudio } from "@/lib/terminal/audio-interaction";
+import { terminalAuthProtocols } from "@/lib/terminal/auth-transport";
 import {
   handleTerminalPasteOutcome,
   readNativePasteOutcome,
@@ -579,6 +580,7 @@ function TerminalRuntime({
 
   const { send, resize, connectionState, recoveryState, manualReconnect } = useTerminalWebSocket({
     url: wsUrl,
+    authorizeConnection: (url) => terminalAuthProtocols(url, "hive-terminal-v1"),
     onData: handleData,
     onResizeSent: ({ rows, cols, source, sentAt }) => {
       recordMobileTerminalResizeSent(rows, cols, source, () => sentAt);
