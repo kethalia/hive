@@ -224,8 +224,57 @@ describe("WorkspaceToolPanel", () => {
     fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
     expect(screen.getByTitle("Filebrowser")).toBe(files);
     expect(mockAppToolAction).toHaveBeenCalledTimes(2);
+    fireEvent.load(files);
     fireEvent.click(screen.getByRole("button", { name: /Pop Out/ }));
     expect(mockOpen).toHaveBeenCalledWith("https://fb.test", "_blank", "noopener,noreferrer");
+  });
+
+  it("disables pop-out until the selected tool frame finishes loading", async () => {
+    render(<WorkspaceToolPanel {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    const files = await screen.findByTitle("Filebrowser");
+    let popOut = screen.getByRole("button", { name: /Pop Out/ });
+    expect(popOut).toBeDisabled();
+    fireEvent.click(popOut);
+    expect(mockOpen).not.toHaveBeenCalled();
+
+    fireEvent.load(files);
+    expect(popOut).toBeEnabled();
+    fireEvent.click(popOut);
+    expect(mockOpen).toHaveBeenCalledWith("https://fb.test", "_blank", "noopener,noreferrer");
+
+    fireEvent.click(screen.getByTestId("tool-option-kasmvnc"));
+    const desktop = await screen.findByTitle("KasmVNC");
+    popOut = screen.getByRole("button", { name: /Pop Out/ });
+    expect(popOut).toBeDisabled();
+    fireEvent.load(files);
+    expect(popOut).toBeDisabled();
+    fireEvent.load(desktop);
+    expect(popOut).toBeEnabled();
+    fireEvent.click(popOut);
+    expect(mockOpen).toHaveBeenLastCalledWith("https://kasm.test", "_blank", "noopener,noreferrer");
+
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    expect(popOut).toBeEnabled();
+    expect(mockAppToolAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires the new workspace frame to load before enabling pop-out", async () => {
+    const { rerender } = render(<WorkspaceToolPanel {...defaultProps} />);
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    const previousFrame = await screen.findByTitle("Filebrowser");
+    fireEvent.load(previousFrame);
+    expect(screen.getByRole("button", { name: /Pop Out/ })).toBeEnabled();
+
+    rerender(<WorkspaceToolPanel {...defaultProps} workspace={makeWorkspace({ id: "ws-2" })} />);
+    expect(screen.queryByRole("button", { name: /Pop Out/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
+    const newFrame = await screen.findByTitle("Filebrowser");
+    expect(newFrame).not.toBe(previousFrame);
+    fireEvent.load(previousFrame);
+    expect(screen.getByRole("button", { name: /Pop Out/ })).toBeDisabled();
+    fireEvent.load(newFrame);
+    expect(screen.getByRole("button", { name: /Pop Out/ })).toBeEnabled();
   });
 
   it("does not render a frame or unsafe pop-out when authorization fails", async () => {
@@ -250,6 +299,7 @@ describe("WorkspaceToolPanel", () => {
     fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
     await screen.findByText("Reload Hive to open this tool.");
     expect(container.querySelector("iframe")).toBeNull();
+    expect(screen.getByRole("button", { name: /Pop Out/ })).toBeDisabled();
   });
 
   it("ignores an authorization response from a previous workspace", async () => {

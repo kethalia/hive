@@ -53,6 +53,7 @@ interface AppToolState {
   loading?: boolean;
   error?: boolean;
   reloadRequired?: boolean;
+  frameLoaded?: boolean;
 }
 
 interface WorkspaceToolPanelProps {
@@ -100,6 +101,26 @@ export function WorkspaceToolPanel({
     dashboard: urls?.dashboard,
   };
   const activeUrl = directUrlMap[resolvedActiveTool];
+  const activeAppTool =
+    resolvedActiveTool === "filebrowser" || resolvedActiveTool === "kasmvnc"
+      ? resolvedAppTools[resolvedActiveTool]
+      : undefined;
+
+  function markAppToolLoaded(tool: AppToolId, workspaceId: string, url?: string) {
+    if (latestWorkspaceId.current !== workspaceId) return;
+    setAppTools((current) => {
+      const app = current.tools[tool];
+      if (
+        current.workspaceId !== workspaceId ||
+        !url ||
+        app?.url !== url ||
+        app.reloadRequired ||
+        app.frameLoaded
+      )
+        return current;
+      return { ...current, tools: { ...current.tools, [tool]: { ...app, frameLoaded: true } } };
+    });
+  }
 
   async function selectTool(tool: ToolId) {
     setActiveTool(tool);
@@ -226,6 +247,9 @@ export function WorkspaceToolPanel({
             <Button
               variant="ghost"
               size="sm"
+              disabled={Boolean(
+                activeAppTool && (!activeAppTool.frameLoaded || activeAppTool.reloadRequired),
+              )}
               onClick={() => window.open(activeUrl, "_blank", "noopener,noreferrer")}
             >
               <ExternalLink data-icon="inline-start" />
@@ -258,12 +282,16 @@ export function WorkspaceToolPanel({
             >
               {resolvedAppTools[tool.id]?.url && !resolvedAppTools[tool.id]?.reloadRequired ? (
                 <iframe
+                  key={workspace.id}
                   src={resolvedAppTools[tool.id]?.url}
                   title={tool.label}
                   className="h-full w-full rounded-lg border border-border"
                   allow={WORKSPACE_APP_FRAME_ALLOW}
                   sandbox={WORKSPACE_APP_FRAME_SANDBOX}
                   referrerPolicy="no-referrer"
+                  onLoad={() =>
+                    markAppToolLoaded(tool.id, workspace.id, resolvedAppTools[tool.id]?.url)
+                  }
                 />
               ) : (
                 <div
