@@ -142,20 +142,28 @@ function writePasteAssetToWorkspace({
 
   return new Promise((resolve, reject) => {
     let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill();
+    let settled = false;
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       reject(new Error("Failed to store pasted file in workspace"));
-    }, timeoutMs);
+      child.kill();
+    };
+    const timer = setTimeout(fail, timeoutMs);
 
+    // An early SSH exit can emit EPIPE on stdin independently of the child.
+    // Keep stream error listeners installed for late errors after process close.
+    child.stdin.on("error", fail);
+    child.stderr.on("error", fail);
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {
       stderr += chunk;
     });
-    child.on("error", () => {
-      clearTimeout(timer);
-      reject(new Error("Failed to store pasted file in workspace"));
-    });
+    child.on("error", fail);
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       if (code === 0) {
         resolve();
