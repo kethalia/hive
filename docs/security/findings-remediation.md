@@ -65,10 +65,13 @@ session lookup. Neither browser ordering nor timestamp selects an account.
 Old configured/derived cookie domains remain deletion targets on login/logout.
 The Cloudflare Worker keeps live cookies host-only; PUBLIC_COOKIE_DOMAIN only
 applies to legacy deletion headers. HTTP development keeps the unprefixed cookie
-with no Domain/Secure attribute; production requires HTTPS and prefix support.
+with no Domain/Secure attribute. Public production requires HTTPS and prefix
+support; the local production-stage Compose stack permits plaintext only when
+both web and terminal URLs use supported loopback authorities. Secure production
+cookie attributes remain enabled.
 
 Separate terminal hosts authenticate with 30-second tickets bound to the public
-terminal host, exact request path/query, and browser origin. Tickets use a
+terminal host, a SHA-256 digest of the exact request path/query, and browser origin. Tickets use a
 separate HMAC purpose and cannot authenticate Hive web requests. The browser
 obtains a fresh ticket from a same-origin, Origin-checked POST for each connection
 or status/event request; it sends tickets in a WebSocket subprotocol or HTTP

@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 import type { CoderTokenResponse } from "@hive/auth";
 import {
   authServiceHeaders,
+  isLoopbackHostname,
   sessionCookieValues,
   verifyCookie,
   verifyTerminalTicket,
@@ -55,10 +56,16 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
   if (tickets.length) {
     let claims: ReturnType<typeof verifyTerminalTicket> = null;
     try {
-      const authority = new URL(
+      let authority = new URL(
         process.env.TERMINAL_PUBLIC_ORIGIN ||
           `${process.env.NODE_ENV === "production" ? "https" : "http"}://${req.headers.host}`,
       );
+      if (
+        !process.env.TERMINAL_PUBLIC_ORIGIN &&
+        process.env.NODE_ENV === "production" &&
+        isLoopbackHostname(authority.hostname)
+      )
+        authority = new URL(`http://${req.headers.host}`);
       if (tickets.length === 1)
         claims = verifyTerminalTicket(tickets[0], cookieSecret, {
           audience: authority.host,

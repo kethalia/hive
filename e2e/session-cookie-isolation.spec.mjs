@@ -336,3 +336,147 @@ test("tickets cannot authorize a different request or survive logout", async ({ 
   ).toBe(401);
   expect(await page.evaluate(async () => (await fetch("/api/whoami")).status)).toBe(401);
 });
+
+test("production localhost HTTP supports protected login and compact terminal tickets", async ({
+  page,
+  context,
+}) => {
+  const assets = process.env.HIVE_COOKIE_BUNDLE_DIR || join(directory, "assets");
+  const browser = await readFile(join(assets, "browser.js"));
+  const originalPublicOrigin = process.env.HIVE_PUBLIC_ORIGIN;
+  const originalTerminalUrl = process.env.NEXT_PUBLIC_TERMINAL_WS_URL;
+  let localOrigin;
+  const httpCookies = [];
+  const localTerminal = httpServer(async (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", localOrigin);
+    res.setHeader("Access-Control-Allow-Headers", "Authorization");
+    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    httpCookies.push(Boolean(req.headers.cookie));
+    const result = await fixture.authenticateUpgrade(req);
+    res.writeHead(result.ok ? 200 : result.value.status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ user: result.ok ? result.value.username : null }));
+  });
+  const localWs = new WebSocketServer({
+    noServer: true,
+    handleProtocols: (protocols) =>
+      [...protocols].find((value) => value === "hive-terminal-v1" || value === "hive-audio-v1") ||
+      false,
+  });
+  localTerminal.on("upgrade", async (req, socket, head) => {
+    const result = await fixture.authenticateUpgrade(req);
+    if (!result.ok) {
+      socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      return;
+    }
+    localWs.handleUpgrade(req, socket, head, (ws) => {
+      ws.send(JSON.stringify({ user: result.value.username, protocol: ws.protocol }));
+    });
+  });
+  const localHive = httpServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const request = new Request(`http://${req.headers.host}${req.url}`, {
+      method: req.method,
+      headers: req.headers,
+      ...(req.method === "POST" ? { body: Buffer.concat(chunks) } : {}),
+    });
+    if (req.url === "/login-fixture") {
+      const headers = new Headers();
+      fixture.appendSetSessionCookieHeaders(
+        headers,
+        fixture.signCookie("victim", secret),
+        "localhost",
+      );
+      res.setHeader("Set-Cookie", headers.getSetCookie());
+      res.writeHead(302, { Location: "/" });
+      res.end();
+      return;
+    }
+    if (req.url === "/api/auth/terminal-ticket") {
+      const response = await fixture.runWithRequest(request, () => fixture.issueTicket(request));
+      res.writeHead(response.status, Object.fromEntries(response.headers));
+      res.end(await response.text());
+      return;
+    }
+    if (req.url === "/browser.js") {
+      res.setHeader("Content-Type", "text/javascript");
+      res.end(browser);
+      return;
+    }
+    res.setHeader("Content-Type", "text/html");
+    res.end(
+      '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Local production session</title><script src="/browser.js"></script>',
+    );
+  });
+  try {
+    const target = `http://localhost:${await listen(localTerminal)}`;
+    localOrigin = `http://localhost:${await listen(localHive)}`;
+    process.env.HIVE_PUBLIC_ORIGIN = localOrigin;
+    process.env.NEXT_PUBLIC_TERMINAL_WS_URL = target.replace(/^http:/, "ws:");
+    await page.goto(`${localOrigin}/login-fixture`);
+    const cookie = (await context.cookies()).find((value) => value.name === "__Host-hive-session");
+    expect(cookie).toMatchObject({ domain: "localhost", path: "/", secure: true, httpOnly: true });
+    const clonePath = `/home/coder/${Array.from({ length: 5 }, () => "r".repeat(198)).join("/")}`;
+    const cloneProof = fixture.createCloneTerminalProof(
+      {
+        workspaceId: "workspace",
+        agentId: "agent",
+        sessionId: "victim",
+        sessionName: "clone:repo",
+        clonePath,
+      },
+      secret,
+    );
+    const longPath = `/ws?${new URLSearchParams({ workspaceId: "workspace", agentId: "agent", clonePath, cloneProof })}`;
+    expect(`${target}${longPath}`.length).toBeLessThan(3000);
+    for (const [path, protocol] of [
+      [longPath, "hive-terminal-v1"],
+      ["/ws/audio?agentId=agent", "hive-audio-v1"],
+    ]) {
+      const result = await page.evaluate(
+        async ({ url, protocol }) => {
+          const protocols = await window.HiveTerminalAuth.terminalAuthProtocols(url, protocol);
+          return new Promise((resolve, reject) => {
+            const ws = new WebSocket(url, protocols);
+            ws.onmessage = ({ data }) => {
+              resolve({ ...JSON.parse(data), ticketLength: protocols[1].length });
+              ws.close();
+            };
+            ws.onerror = () => reject(new Error("Local WebSocket rejected"));
+          });
+        },
+        { url: `${target.replace(/^http:/, "ws:")}${path}`, protocol },
+      );
+      expect(result.user).toBe("victim");
+      expect(result.protocol).toBe(protocol);
+      expect(result.ticketLength).toBeLessThan(1024);
+    }
+    for (const path of ["/keepalive/status", "/session-events?after=1"]) {
+      const result = await page.evaluate(
+        async (url) => (await window.HiveTerminalAuth.fetchTerminal(url)).json(),
+        `${target}${path}`,
+      );
+      expect(result).toEqual({ user: "victim" });
+    }
+    expect(httpCookies).toEqual([false, false]);
+  } finally {
+    process.env.HIVE_PUBLIC_ORIGIN = originalPublicOrigin;
+    process.env.NEXT_PUBLIC_TERMINAL_WS_URL = originalTerminalUrl;
+    for (const socket of localWs.clients) socket.terminate();
+    localWs.close();
+    await Promise.all(
+      [localHive, localTerminal].map(
+        (server) =>
+          new Promise((resolve) => {
+            server.closeAllConnections();
+            server.close(resolve);
+          }),
+      ),
+    );
+  }
+});

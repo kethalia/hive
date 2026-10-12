@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const TERMINAL_TICKET_TTL_MS = 30_000;
 const PURPOSE = "hive-terminal-ticket-v1";
@@ -7,7 +7,7 @@ interface Claims {
   sessionId: string;
   audience: string;
   origin: string;
-  requestTarget: string;
+  requestTargetHash: string;
   issuedAt: number;
   expiresAt: number;
 }
@@ -17,7 +17,7 @@ function signature(payload: string, secret: string): string {
 }
 
 export function createTerminalTicket(
-  claims: Omit<Claims, "issuedAt" | "expiresAt">,
+  claims: Omit<Claims, "issuedAt" | "expiresAt" | "requestTargetHash"> & { requestTarget: string },
   secret: string,
   sessionExpiresAt: number,
   now = Date.now(),
@@ -29,9 +29,13 @@ export function createTerminalTicket(
     sessionExpiresAt <= now
   )
     throw new Error("Cannot authorize terminal connection.");
+  const { requestTarget, ...identity } = claims;
   const payload = Buffer.from(
     JSON.stringify({
-      ...claims,
+      ...identity,
+      // A clone proof embeds its path again. Hash the complete target so large
+      // supported URLs still produce compact, request-bound handshake tickets.
+      requestTargetHash: createHash("sha256").update(requestTarget).digest("base64url"),
       issuedAt: now,
       expiresAt: Math.min(sessionExpiresAt, now + TERMINAL_TICKET_TTL_MS),
     }),
@@ -60,7 +64,8 @@ export function verifyTerminalTicket(
       claims.audience !== expected.audience ||
       typeof claims.origin !== "string" ||
       (expected.origin !== undefined && claims.origin !== expected.origin) ||
-      claims.requestTarget !== expected.requestTarget ||
+      claims.requestTargetHash !==
+        createHash("sha256").update(expected.requestTarget).digest("base64url") ||
       !Number.isSafeInteger(claims.issuedAt) ||
       !Number.isSafeInteger(claims.expiresAt) ||
       claims.issuedAt > now + 5000 ||
@@ -73,4 +78,10 @@ export function verifyTerminalTicket(
   } catch {
     return null;
   }
+}
+
+// These exact loopback authorities support the shipped local Compose stack.
+// Do not accept DNS suffix matches or private-network addresses as loopback.
+export function isLoopbackHostname(hostname: string): boolean {
+  return ["localhost", "127.0.0.1", "[::1]"].includes(hostname.toLowerCase());
 }

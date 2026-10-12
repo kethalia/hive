@@ -176,6 +176,102 @@ describe("authenticateUpgrade", () => {
     expect(mockVerifyCookie).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    "localhost:3001",
+    "127.0.0.1:3001",
+    "[::1]:3001",
+  ])("accepts an origin-less production GET on its local HTTP authority: %s", async (host) => {
+    process.env.NODE_ENV = "production";
+    delete process.env.TERMINAL_PUBLIC_ORIGIN;
+    const ticket = createTerminalTicket(
+      {
+        sessionId: "sess-1",
+        audience: host,
+        origin: `http://${host}`,
+        requestTarget: "/keepalive/status",
+      },
+      "test-secret",
+      Date.now() + 60_000,
+    );
+    const req = makeReq({ host, authorization: `Bearer ${ticket}` });
+    req.url = "/keepalive/status";
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "tok", coderUrl: "http://coder" }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: "victim" }),
+    });
+    expect(await authenticateUpgrade(req)).toMatchObject({ ok: true });
+  });
+
+  it("authenticates the configured public terminal authority after Host rewriting", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.TERMINAL_PUBLIC_ORIGIN = "https://terminal.example.com";
+    const ticket = createTerminalTicket(
+      {
+        sessionId: "sess-1",
+        audience: "terminal.example.com",
+        origin: "https://hive.example.com",
+        requestTarget: "/ws?agentId=agent",
+      },
+      "test-secret",
+      Date.now() + 60_000,
+    );
+    const req = makeReq({
+      host: "terminal-proxy:3001",
+      origin: "https://hive.example.com",
+      "sec-websocket-protocol": `hive-terminal-v1, hive-ticket.${ticket}`,
+    });
+    req.url = "/ws?agentId=agent";
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "tok", coderUrl: "http://coder" }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: "victim" }),
+    });
+    expect(await authenticateUpgrade(req)).toMatchObject({ ok: true });
+  });
+
+  it("preserves an explicit non-default TLS port when inferring public authority", async () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.TERMINAL_PUBLIC_ORIGIN;
+    const ticket = createTerminalTicket(
+      {
+        sessionId: "sess-1",
+        audience: "terminal.example.com:80",
+        origin: "https://hive.example.com",
+        requestTarget: "/ws?agentId=agent",
+      },
+      "test-secret",
+      Date.now() + 60_000,
+    );
+    const req = makeReq({
+      host: "terminal.example.com:80",
+      origin: "https://hive.example.com",
+      "sec-websocket-protocol": `hive-terminal-v1, hive-ticket.${ticket}`,
+    });
+    req.url = "/ws?agentId=agent";
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "tok", coderUrl: "https://coder" }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: "victim" }),
+    });
+    expect(await authenticateUpgrade(req)).toMatchObject({ ok: true });
+  });
+
   it("returns 401 when no Cookie header", async () => {
     const result = await authenticateUpgrade(makeReq());
     expect(result.ok).toBe(false);

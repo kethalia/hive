@@ -1,0 +1,50 @@
+{
+  "workspace": "hive-cookie-review-browser",
+  "workspace_id": "dcfc1d10-8716-49ec-a562-e805c8cca4c6",
+  "provenance": "created disposable for PR 303 review validation",
+  "template_name": "browser-testing",
+  "browser_version": "Google Chrome 155.0.8059.39",
+  "profile": "browser",
+  "source_base_revision": "4895c12b7c7a29d797ce3c06820cc58d878caebd",
+  "source_sha256": {
+    "e2e/session-cookie-isolation.spec.mjs": "30aeeac8cd690aaa9c325e9a6f22991b91c9f5d7705d3a35a92f9c365f711923",
+    "packages/auth/src/index.ts": "03630f1fb8051ecd2789fe5c75d9a9ac089fcbb7941a0289ef5f5fb13871b3c1",
+    "packages/auth/src/terminal-ticket.test.ts": "fcb37cd64e640d048a3f89c5a4fdebde49636aa9d982421b4b23c82aa1b41940",
+    "packages/auth/src/terminal-ticket.ts": "2d76ef56e90b526f20f52364ff331104d6ed9bb4cda44a390c7e8c2e05d1a1c6",
+    "scripts/build-session-cookie-fixture.mjs": "dde37db53dafcf9bd20aa3fae4ec7fd3c0229d31bcc3bca51796f2a9620614a1",
+    "services/terminal-proxy/src/auth.ts": "3f2e68abf10058e77461d352fee3fd26355539e903672359513a2a1acafde90e",
+    "services/terminal-proxy/test/auth.test.ts": "be94fd9237ea163ec4a749f2bda75b49cce92658f8a7b12baa68490b28ad90b4",
+    "src/__tests__/auth/terminal-ticket-route.test.ts": "2912e29a48738f95bae9f730b71c0862d5e0b5594640c001660fc830665b5950",
+    "src/app/api/auth/terminal-ticket/route.ts": "629aad9a09e1be47097dfc6186331b75db7de8bea6afa48862a8ef36bf27cc78"
+  },
+  "stats": {
+    "startTime": "2026-10-12T19:28:52.324Z",
+    "duration": 5595.436,
+    "expected": 10,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "automated_tests": {
+    "web": 262,
+    "terminal": 235,
+    "shared_auth": 40,
+    "worker": 12
+  },
+  "compose_validation": "docker compose config with a fixture env verifies both configured and empty TERMINAL_PUBLIC_ORIGIN/ALLOWED_ORIGINS in local and production stacks; no containers are started.",
+  "limitations": "The production cookie/session/ticket issuer/verifier and browser transport run with an AsyncLocalStorage replacement for Next request context, a simulated auth-service store, and minimal TLS/loopback HTTP WebSocket endpoints. No live Coder workspace/PTY or deployed auth service is used.",
+  "cleanup": {
+    "stopped": true,
+    "deleted": true,
+    "absence_verified": true,
+    "evidence_preserved_before_cleanup": true
+  },
+  "additional_service_validation": {
+    "reason": "Preserve explicit TLS ports during authority inference; refined after browser validation.",
+    "final_source_sha256": {
+      "services/terminal-proxy/src/auth.ts": "f943a2173ae9c419448138aff5c8c1fb82874e81402dbb2fe257a66dafe4f16e",
+      "services/terminal-proxy/test/auth.test.ts": "a2febdddd170c28b6e9ee0bc347113a767dd7ff01c3b4ca1b7d5da481ae85202"
+    },
+    "checks": "Full terminal service suite and typecheck; browser-tested hashes remain recorded separately in source_sha256."
+  }
+}

@@ -255,7 +255,7 @@ Keep the old `COOKIE_DOMAIN` value on web temporarily as a deletion target;
 it no longer broadens a live cookie. Cloudflare's `PUBLIC_COOKIE_DOMAIN` likewise
 only scopes legacy deletion headers. Remove those values after migration.
 The Worker preserves host-only scope for live cookies even when the legacy
-setting remains configured. HTTPS and browsers that enforce the
+setting remains configured. Public deployments require HTTPS and browsers that enforce the
 [__Host- cookie prefix](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#cookie_prefixes)
 are required for production. Local HTTP development keeps unprefixed host-only
 cookies and also adopts the new signing purpose.
@@ -269,13 +269,26 @@ continue sharing the existing COOKIE_SECRET and AUTH_SERVICE_SECRET.
 
 `NEXT_PUBLIC_TERMINAL_WS_URL` must name the actual terminal HTTPS/WSS authority
 (or a same-origin path such as `/terminal`); production refuses plaintext ticket
-delivery. On web, set `HIVE_PUBLIC_ORIGIN` to the exact public HTTPS origin if a
+delivery unless both the web and terminal URL use the exact loopback names
+`localhost`, `127.0.0.1`, or `[::1]`. This supports the production-stage local
+Compose image at `http://localhost:3000` with `ws://localhost:3001`; the Secure,
+HttpOnly, host-only production cookie stays enabled. Use a browser that treats
+localhost as a trusted context. Private-network addresses and hostname suffix
+lookalikes are not included in the exception. On web, set `HIVE_PUBLIC_ORIGIN` to the exact public HTTPS origin if a
 reverse proxy rewrites the request URL. The ticket issuer checks Origin against
 this value; forwarded headers alone are not trusted. On terminal, set
 `TERMINAL_PUBLIC_ORIGIN` to its exact public HTTPS origin only if its reverse
 proxy rewrites Host. Otherwise ticket audiences match the incoming Host.
+Both local and production Compose stacks forward `TERMINAL_PUBLIC_ORIGIN` and
+`ALLOWED_ORIGINS` from the environment. Leave the public-origin setting empty for
+direct loopback access. Configure `ALLOWED_ORIGINS` for numeric loopback addresses
+or public hostnames; its unchanged default allows only localhost.
 Keep the web origin in terminal `ALLOWED_ORIGINS` and allow Authorization in CORS
 preflights; the service includes that header in its existing allowed-origin policy.
+
+Tickets bind a SHA-256 digest of the exact request path/query so clone paths
+and their embedded proofs do not inflate handshake headers. Substituting a path
+or query still invalidates the ticket.
 
 The browser requests a fresh 30-second, request-bound ticket for every terminal
 or audio connection and each status/event HTTP request. Tickets live only in

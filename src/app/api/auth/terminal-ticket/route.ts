@@ -1,4 +1,4 @@
-import { createTerminalTicket } from "@hive/auth";
+import { createTerminalTicket, isLoopbackHostname } from "@hive/auth";
 import { getRequestSession } from "@/lib/auth/session";
 import { resolveTerminalWsUrl } from "@/lib/runtime-config";
 
@@ -37,7 +37,9 @@ export async function POST(request: Request): Promise<Response> {
       !ENDPOINTS.has(endpoint)
     )
       return response(400, { error: "Invalid terminal request" });
-    if (process.env.NODE_ENV === "production" && base.protocol !== "https:")
+    const localLoopback =
+      isLoopbackHostname(location.hostname) && isLoopbackHostname(base.hostname);
+    if (process.env.NODE_ENV === "production" && base.protocol !== "https:" && !localLoopback)
       return response(503, { error: "Terminal requires HTTPS" });
     const session = await getRequestSession();
     if (!session) return response(401, { error: "Sign in required" });

@@ -32,3 +32,9 @@ The harness uses installed Chrome, temporary TLS certificates, and loopback
 servers. Dependencies use the pinned lockfile; no browser/system installer is
 needed. It closes servers, removes certificate files, and restores fixture
 configuration after the run.
+
+PR 303 review follow-up validation is preserved in
+[review-fixes](review-fixes/README.md). It repeats the eight HTTPS checks and adds
+two production-stage HTTP localhost checks, covering protected login, compact
+tickets for a long clone path/proof, terminal/audio WebSockets, and status/event
+HTTP authentication.

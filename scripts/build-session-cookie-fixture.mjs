@@ -15,6 +15,7 @@ export async function buildSessionCookieFixture(directory) {
         export { POST as issueTicket } from "./src/app/api/auth/terminal-ticket/route";
         export { authenticateUpgrade } from "./services/terminal-proxy/src/auth";
         export { signCookie } from "./packages/auth/src/cookie";
+        export { createCloneTerminalProof } from "./packages/auth/src/clone-terminal-proof";
         export { runWithRequest } from "./e2e/fixtures/session-cookie-next-headers";`,
       resolveDir: process.cwd(),
     },

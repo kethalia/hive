@@ -30,6 +30,7 @@ export { checkRateLimit } from "./rate-limit";
 export { authServiceHeaders } from "./service-auth";
 export {
   createTerminalTicket,
+  isLoopbackHostname,
   TERMINAL_TICKET_TTL_MS,
   verifyTerminalTicket,
 } from "./terminal-ticket";
