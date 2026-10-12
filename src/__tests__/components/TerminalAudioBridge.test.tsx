@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TerminalAudioBridge } from "@/components/terminal/TerminalAudioBridge";
 import { primeTerminalAudio } from "@/lib/terminal/audio-interaction";
 
+const ticket = `fixture.${"a".repeat(43)}`;
+
 class Socket {
   static OPEN = 1;
   static instances: Socket[] = [];
@@ -12,7 +14,10 @@ class Socket {
   onmessage: ((event: { data: string }) => void) | null = null;
   send = vi.fn();
   close = vi.fn();
-  constructor() {
+  constructor(
+    readonly url: string,
+    readonly protocols: string | string[],
+  ) {
     Socket.instances.push(this);
   }
   emit(value: unknown) {
@@ -47,6 +52,13 @@ let getUserMedia: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.useFakeTimers();
   Socket.instances = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url !== "/api/auth/terminal-ticket") throw new Error("Unexpected fixture request");
+      return Response.json({ ticket });
+    }),
+  );
   getUserMedia = vi.fn().mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] });
   vi.stubGlobal("WebSocket", Socket);
   vi.stubGlobal("AudioContext", Context);
@@ -84,7 +96,7 @@ afterEach(async () => {
   Object.defineProperty(navigator, "locks", { configurable: true, value: originalLocks });
 });
 
-function mount() {
+async function mount() {
   const container = document.createElement("div");
   surface.append(container);
   const view = render(
@@ -96,7 +108,11 @@ function mount() {
     />,
     { container },
   );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
   const socket = Socket.instances.at(-1)!;
+  expect(socket.protocols).toEqual(["hive-audio-v1", `hive-ticket.${ticket}`]);
   act(() => socket.emit({ type: "ready", claimRequired: true }));
   return { view, socket };
 }
@@ -115,7 +131,7 @@ describe("terminal audio interaction ownership", () => {
     const input = document.createElement("input");
     surface.append(input);
     input.focus();
-    const { socket, view } = mount();
+    const { socket, view } = await mount();
     act(() => primeTerminalAudio(surface));
     await emit(socket, { type: "active", active: true });
     await emit(socket, { type: "claimed" });
@@ -136,7 +152,7 @@ describe("terminal audio interaction ownership", () => {
   });
 
   it("pauses on workspace parking and window blur without releasing the call", async () => {
-    const { socket, view } = mount();
+    const { socket, view } = await mount();
     act(() => primeTerminalAudio(surface));
     await emit(socket, { type: "active", active: true });
     await emit(socket, { type: "claimed" });
@@ -171,7 +187,7 @@ describe("terminal audio interaction ownership", () => {
   it("claims already-active capture using a gesture made before the bridge mounted", async () => {
     primeTerminalAudio(surface);
     await vi.advanceTimersByTimeAsync(1000);
-    const { socket, view } = mount();
+    const { socket, view } = await mount();
     await emit(socket, { type: "active", active: true });
     expect(socket.claims()).toBe(1);
     expect(getUserMedia).not.toHaveBeenCalled();
@@ -181,7 +197,7 @@ describe("terminal audio interaction ownership", () => {
   });
 
   it("does not race a subsequent call on another device after successfully claiming", async () => {
-    const { socket } = mount();
+    const { socket } = await mount();
     act(() => primeTerminalAudio(surface));
     await emit(socket, { type: "active", active: true });
     await emit(socket, { type: "claimed" });
@@ -197,7 +213,7 @@ describe("terminal audio interaction ownership", () => {
   });
 
   it("does not race a subsequent call after the preceding claim was rejected", async () => {
-    const { socket, view } = mount();
+    const { socket, view } = await mount();
     act(() => primeTerminalAudio(surface));
     await emit(socket, { type: "active", active: true });
     await emit(socket, { type: "error", code: "session_busy", message: "Already connected." });
@@ -210,7 +226,7 @@ describe("terminal audio interaction ownership", () => {
   });
 
   it("does not leave Enter used to stop an owned call armed for the next call", async () => {
-    const { socket } = mount();
+    const { socket } = await mount();
     act(() => primeTerminalAudio(surface));
     await emit(socket, { type: "active", active: true });
     await emit(socket, { type: "claimed" });
@@ -222,7 +238,7 @@ describe("terminal audio interaction ownership", () => {
   });
 
   it("does not reuse an arm after a claim timeout and relay reconnect", async () => {
-    const { socket } = mount();
+    const { socket } = await mount();
     act(() => primeTerminalAudio(surface));
     await emit(socket, { type: "active", active: true });
     await act(async () => vi.advanceTimersByTimeAsync(11_000));
@@ -237,11 +253,11 @@ describe("terminal audio interaction ownership", () => {
 
   it("does not reuse a consumed arm when the bridge remounts", async () => {
     primeTerminalAudio(surface);
-    const first = mount();
+    const first = await mount();
     await emit(first.socket, { type: "active", active: true });
     await emit(first.socket, { type: "claimed" });
     first.view.unmount();
-    const second = mount();
+    const second = await mount();
     await emit(second.socket, { type: "active", active: true });
     expect(second.socket.claims()).toBe(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
@@ -250,7 +266,7 @@ describe("terminal audio interaction ownership", () => {
   it("leaves capture unclaimed when the deferred bridge loads after the arm expires", async () => {
     primeTerminalAudio(surface);
     await vi.advanceTimersByTimeAsync(15_000);
-    const { socket } = mount();
+    const { socket } = await mount();
     await emit(socket, { type: "active", active: true });
     expect(socket.claims()).toBe(0);
     expect(getUserMedia).not.toHaveBeenCalled();

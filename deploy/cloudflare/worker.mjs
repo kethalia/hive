@@ -24,7 +24,12 @@ function scopeResponseCookiesToPublicHost(headers, publicCookieDomain) {
 
   headers.delete("Set-Cookie");
   for (const cookie of cookies) {
-    const domainAttribute = publicCookieDomain ? `; Domain=${publicCookieDomain}` : "";
+    // Only legacy-cookie tombstones may target a shared public domain. Live
+    // cookies, especially __Host- cookies, must remain host-only at the edge.
+    const legacyDeletion =
+      cookie.startsWith("hive-session=") && /;\s*Max-Age=0(?:;|$)/i.test(cookie);
+    const domainAttribute =
+      publicCookieDomain && legacyDeletion ? `; Domain=${publicCookieDomain}` : "";
     const scopedCookie = /;\s*Domain=[^;]*/i.test(cookie)
       ? cookie.replace(/;\s*Domain=[^;]*/gi, domainAttribute)
       : `${cookie}${domainAttribute}`;

@@ -13,6 +13,8 @@ export class TerminalAudio {
   private worklet: AudioWorkletNode | null = null;
   private visible = false;
   private disposed = false;
+  private authorizing = false;
+  private connectionAttempt = 0;
   private nativeActive = false;
   private generation = 0;
   private reconnect: ReturnType<typeof setTimeout> | undefined;
@@ -52,6 +54,7 @@ export class TerminalAudio {
     private canStart: () => boolean = () => true,
     // A single-use interaction arm is consumed at the first activation attempt.
     private canClaim: () => boolean = canStart,
+    private authorizeConnection?: (url: string) => Promise<string[]>,
   ) {}
 
   /** Called synchronously from Enter so playback can use the browser's user activation. */
@@ -206,10 +209,27 @@ export class TerminalAudio {
     return promise;
   }
 
-  private connect() {
-    if (!this.mediaFocused() || this.disposed || this.socket) return;
+  private async connect() {
+    if (!this.mediaFocused() || this.disposed || this.socket || this.authorizing) return;
     clearTimeout(this.reconnect);
-    const socket = new WebSocket(this.url, "hive-audio-v1");
+    let protocols: string | string[] = "hive-audio-v1";
+    if (this.authorizeConnection) {
+      const attempt = ++this.connectionAttempt;
+      this.authorizing = true;
+      try {
+        protocols = await this.authorizeConnection(this.url);
+      } catch {
+        if (attempt !== this.connectionAttempt || this.disposed) return;
+        this.authorizing = false;
+        this.onStatus({ phase: "error", message: "Voice authentication unavailable." });
+        if (this.mediaFocused()) this.reconnect = setTimeout(() => this.connect(), 3000);
+        return;
+      }
+      if (attempt !== this.connectionAttempt || this.disposed) return;
+      this.authorizing = false;
+      if (!this.mediaFocused()) return;
+    }
+    const socket = new WebSocket(this.url, protocols);
     this.socket = socket;
     let retry = true;
     this.lastPong = Date.now();
@@ -587,6 +607,8 @@ export class TerminalAudio {
   }
 
   private disconnect() {
+    this.connectionAttempt++;
+    this.authorizing = false;
     clearTimeout(this.reconnect);
     clearInterval(this.heartbeat);
     const socket = this.socket;

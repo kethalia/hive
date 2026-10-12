@@ -1,0 +1,527 @@
+{
+  "config": {
+    "argv": [
+      "/usr/bin/node",
+      "/tmp/hive-cookie-review-tc_m1ml9/node_modules/.pnpm/@playwright+test@1.61.1/node_modules/@playwright/test/cli.js",
+      "test",
+      "e2e/session-cookie-isolation.spec.mjs",
+      "--project=desktop-chromium",
+      "--project=mobile-chromium",
+      "--workers=1",
+      "--reporter=json"
+    ],
+    "configFile": "/tmp/hive-cookie-review-tc_m1ml9/playwright.config.ts",
+    "rootDir": "/tmp/hive-cookie-review-tc_m1ml9/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/tmp/hive-cookie-review-tc_m1ml9/test-results/playwright",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop-chromium",
+        "name": "desktop-chromium",
+        "testDir": "/tmp/hive-cookie-review-tc_m1ml9/e2e",
+        "testIgnore": [],
+        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/tmp/hive-cookie-review-tc_m1ml9/test-results/playwright",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "tablet-chromium",
+        "name": "tablet-chromium",
+        "testDir": "/tmp/hive-cookie-review-tc_m1ml9/e2e",
+        "testIgnore": [],
+        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/tmp/hive-cookie-review-tc_m1ml9/test-results/playwright",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-chromium",
+        "name": "mobile-chromium",
+        "testDir": "/tmp/hive-cookie-review-tc_m1ml9/e2e",
+        "testIgnore": [],
+        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/tmp/hive-cookie-review-tc_m1ml9/test-results/playwright",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-webkit",
+        "name": "mobile-webkit",
+        "testDir": "/tmp/hive-cookie-review-tc_m1ml9/e2e",
+        "testIgnore": [],
+        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/tmp/hive-cookie-review-tc_m1ml9/test-results/playwright",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "tablet-webkit",
+        "name": "tablet-webkit",
+        "testDir": "/tmp/hive-cookie-review-tc_m1ml9/e2e",
+        "testIgnore": [],
+        "testMatch": ["**/*.@(spec|test).?(c|m)[jt]s?(x)"],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [["json"]],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "session-cookie-isolation.spec.mjs",
+      "file": "session-cookie-isolation.spec.mjs",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "legacy cookies require a fresh login and are cleared on migration",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 395,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:52.745Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-2279a981863619965bfb",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 228,
+          "column": 1
+        },
+        {
+          "title": "an untrusted child cannot overwrite the protected Hive account cookie",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 491,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:53.555Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-ebd4ddb62c03bea52617",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 250,
+          "column": 1
+        },
+        {
+          "title": "terminal and audio tickets connect without sharing Hive cookies",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 364,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:54.058Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-d37c2457fc81e5d3c4f4",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 275,
+          "column": 1
+        },
+        {
+          "title": "tickets cannot authorize a different request or survive logout",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 306,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [
+                    {
+                      "text": "[terminal-proxy] auth: session_not_found session=victim\u2026 \u2192 401\n"
+                    }
+                  ],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:54.441Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-4837e163dda36fb405fe",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 306,
+          "column": 1
+        },
+        {
+          "title": "production localhost HTTP supports protected login and compact terminal tickets",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 328,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:54.756Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-a19b5de17ec24567cbd0",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 340,
+          "column": 1
+        },
+        {
+          "title": "legacy cookies require a fresh login and are cleared on migration",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 364,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:55.775Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-5008f171a465bde8cc98",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 228,
+          "column": 1
+        },
+        {
+          "title": "an untrusted child cannot overwrite the protected Hive account cookie",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 452,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:56.590Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-79a200fae8646dae11cd",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 250,
+          "column": 1
+        },
+        {
+          "title": "terminal and audio tickets connect without sharing Hive cookies",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 292,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:57.052Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-12136f443906f036c2d7",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 275,
+          "column": 1
+        },
+        {
+          "title": "tickets cannot authorize a different request or survive logout",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 233,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [
+                    {
+                      "text": "[terminal-proxy] auth: session_not_found session=victim\u2026 \u2192 401\n"
+                    }
+                  ],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:57.354Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-c48323c7c4ee7e61c905",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 306,
+          "column": 1
+        },
+        {
+          "title": "production localhost HTTP supports protected login and compact terminal tickets",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chromium",
+              "projectName": "mobile-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 221,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    },
+                    {
+                      "text": "[terminal-proxy] auth: session=victim\u2026 user=victim \u2192 authenticated\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-12T19:28:57.608Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "80dee86efe9e036238eb-7f2e510087a10a679c8f",
+          "file": "session-cookie-isolation.spec.mjs",
+          "line": 340,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-12T19:28:52.324Z",
+    "duration": 5595.436,
+    "expected": 10,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

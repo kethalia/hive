@@ -21,6 +21,15 @@ const loadedHealthyDefault = {
   isLoading: false,
 };
 
+const ticket = `fixture.${"a".repeat(43)}`;
+
+function mockStatusResponse(response: Response) {
+  return vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(Response.json({ ticket }))
+    .mockResolvedValue(response);
+}
+
 describe("useKeepAliveStatus", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -58,15 +67,25 @@ describe("useKeepAliveStatus", () => {
         },
       },
     };
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const fetchMock = mockStatusResponse(new Response(JSON.stringify(payload), { status: 200 }));
 
     const { result } = await renderLoadedStatus("workspace-1");
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://terminal-proxy.example.test/socket/keepalive/status",
-      { credentials: "include" },
+      expect.objectContaining({
+        credentials: "omit",
+        redirect: "error",
+        headers: { Authorization: `Bearer ${ticket}` },
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/terminal-ticket",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        body: JSON.stringify({ url: "http://terminal-proxy.example.test/socket/keepalive/status" }),
+      }),
     );
     expect(result.current).toEqual({
       status: "recently-disconnected",
@@ -87,7 +106,7 @@ describe("useKeepAliveStatus", () => {
   });
 
   it("parses not-applicable manual shutdown status", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    mockStatusResponse(
       new Response(
         JSON.stringify({
           workspaces: {
@@ -119,7 +138,7 @@ describe("useKeepAliveStatus", () => {
   });
 
   it("returns safe defaults when the requested workspace is missing", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    mockStatusResponse(
       new Response(
         JSON.stringify({
           workspaces: {
@@ -140,7 +159,7 @@ describe("useKeepAliveStatus", () => {
   });
 
   it("drops unknown statuses, categories, counts, and raw timestamp-like material", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    mockStatusResponse(
       new Response(
         JSON.stringify({
           workspaces: {
@@ -171,7 +190,7 @@ describe("useKeepAliveStatus", () => {
   });
 
   it("returns safe defaults for malformed payloads", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    mockStatusResponse(
       new Response(JSON.stringify({ workspaces: "raw-token-not-a-record" }), { status: 200 }),
     );
 
@@ -188,7 +207,7 @@ describe("useKeepAliveStatus", () => {
 
   it("does not read or expose non-OK response bodies", async () => {
     const json = vi.fn(async () => ({ token: "raw-response-body" }));
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, json } as unknown as Response);
+    mockStatusResponse({ ok: false, json } as unknown as Response);
 
     const { result } = await renderLoadedStatus("workspace-1");
 

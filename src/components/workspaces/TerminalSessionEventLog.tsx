@@ -14,6 +14,7 @@ import {
 import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
 import { terminalProxyHttpBaseUrl } from "@/hooks/useKeepAliveStatus";
+import { fetchTerminal } from "@/lib/terminal/auth-transport";
 import {
   parseTerminalSessionEventPayload,
   type TerminalSessionEvent,
@@ -62,9 +63,8 @@ async function fetchSessionEvents(
   if (workspaceId) params.set("workspaceId", workspaceId);
   if (sessionName) params.set("sessionName", sessionName);
   if (afterId > 0) params.set("after", String(afterId));
-  const response = await fetch(`${endpoint}?${params.toString()}`, {
+  const response = await fetchTerminal(`${endpoint}?${params.toString()}`, {
     cache: "no-store",
-    credentials: "include",
     signal,
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

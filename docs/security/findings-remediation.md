@@ -51,11 +51,45 @@ legacy navigation/script requests. The app-auth endpoints are simulated; live
 Coder app connectivity still requires rollout verification. Evidence is preserved
 in [`workspace-app-isolation`](../checks/security/workspace-app-isolation/).
 
+## Session-cookie isolation and fixation fix
+
+Findings `commit:113a7b7e251c81919b7c8f05a3750c13` and
+`commit:09602bc411208191a99b3ae90931beab`: production uses
+`__Host-hive-session` with Secure, HttpOnly, SameSite=Lax, Path=/ and no Domain.
+The cookie signature has a new purpose so an old stolen value cannot be renamed
+and replayed. Existing users must sign in once. Web session lookup, the request
+proxy, and terminal authentication reject every duplicate of the selected cookie
+name, including empty or identical values, before signature verification or
+session lookup. Neither browser ordering nor timestamp selects an account.
+
+Old configured/derived cookie domains remain deletion targets on login/logout.
+The Cloudflare Worker keeps live cookies host-only; PUBLIC_COOKIE_DOMAIN only
+applies to legacy deletion headers. HTTP development keeps the unprefixed cookie
+with no Domain/Secure attribute. Public production requires HTTPS and prefix
+support; the local production-stage Compose stack permits plaintext only when
+both web and terminal URLs use supported loopback authorities. Secure production
+cookie attributes remain enabled.
+
+Separate terminal hosts authenticate with 30-second tickets bound to the public
+terminal host, a SHA-256 digest of the exact request path/query, and browser origin. Tickets use a
+separate HMAC purpose and cannot authenticate Hive web requests. The browser
+obtains a fresh ticket from a same-origin, Origin-checked POST for each connection
+or status/event request; it sends tickets in a WebSocket subprotocol or HTTP
+Authorization header, never in URLs/storage. Proxy HTTP requests omit cookies and
+refuse redirects. Authentication still checks the live session/token store, and
+existing Coder workspace/agent and clone-proof authorization remains in force.
+
+Deployment must coordinate web/terminal versions and public-origin settings.
+Browser boundary evidence is preserved in
+[`session-cookie-isolation`](../checks/security/session-cookie-isolation/).
+Live rollout and Security Cloud resolution remain pending; see the migration
+instructions in [deployment.md](../deployment.md).
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
 2. Verify isolated File Browser/editor/desktop connectivity after the app-origin fix is deployed.
-3. Fix session-cookie scope and duplicate-cookie ambiguity with an explicit migration path; preserve supported terminal authentication.
+3. Verify the host-only cookie migration and ticket-based terminal/audio/status authentication after coordinated deployment.
 4. Bound paste request bytes and concurrent work, then review workspace credential scope, desktop listeners, and supply-chain artifacts.
 
 Browser execution belongs in `browser-testing`; live infrastructure validation belongs in `infrastructure`. This first slice uses code-level checks in the software workspace.
@@ -70,14 +104,14 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:edcec789b9f8819194c07cd5157d5c4d` | high | Coder CLI auto-login exposes user Coder tokens to workspace code | Coder-login module still enabled; verify actual token scope before selecting remediation. |
 | `commit:b09307b841448191844b374f0398337f` | high | Auth service exposes tokens with only a session ID | Repository fix adds service authentication, updated clients, required secret wiring, and HTTP regressions. Live secret provisioning and staged rollout remain pending. |
 | `commit:8896576e73508191aad9981022235120` | high | Unpinned remote installer in production Docker image | Confirmed remote Coder installer in production Dockerfile; pinned artifact verification pending. |
-| `commit:113a7b7e251c81919b7c8f05a3750c13` | high | Auto-derived cookie Domain broadens session scope | Confirmed automatic Domain derivation; check terminal-subdomain authentication before changing cookie scope. |
+| `commit:113a7b7e251c81919b7c8f05a3750c13` | high | Auto-derived cookie Domain broadens session scope | Repository fix removes live Domain scope, changes the signature purpose, and uses a protected production cookie name. One fresh login and coordinated web/terminal rollout are required. |
 | `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Revalidation required: current audio code consumes a recent single-use terminal gesture; arbitrary-process activation still needs adversarial testing. |
 | `commit:e172a9d020f081918c97f470636f7440` | medium | Workspace code can activate and read the browser microphone | Same microphone activation boundary as 2013bf58; do not close solely because a gesture gate was added. |
 | `commit:77d897a572848191b10d536984967ccc` | medium | Workspace proxy can reuse Hive microphone permissions | Repository fix removes active proxy content and denies microphone/camera in tool frames. Chrome tests confirm Hive's permission is not reusable on the app origin. |
 | `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:77cecf3dcd488191aa1c6f3960b1e173` | medium | Unverified downloads in published workspace base image | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:beb03b5055a48191b33374352232c78c` | medium | Persistent tmux scrollback can expose terminal secrets | Confirmed persistent pane capture remains enabled; decide on opt-in retention behavior. |
-| `commit:09602bc411208191a99b3ae90931beab` | medium | Duplicate session cookies enable session fixation | Confirmed duplicate signed-cookie selection; review together with cookie scope and migration. |
+| `commit:09602bc411208191a99b3ae90931beab` | medium | Duplicate session cookies enable session fixation | Repository fix rejects all duplicate selected-name cookies across web/proxy/terminal and ignores legacy names in production. Live migration verification remains pending. |
 | `commit:586a0bdebe348191a71e954ce45e4654` | medium | Paste image upload can crash Hive web process | Fixed in this slice; reproduced EPIPE on the baseline and added regression coverage. |
 | `commit:6cc2606c14648191b1013e97870401a4` | medium | Paste uploads can exhaust web and SSH resources | Confirmed: 10 × 10 MiB buffers and parallel SSH transfers; limits and admission control remain open. |
 | `commit:745807de8770819193d07f503330274f` | low | Untrusted workspace output can poison the local clipboard | Pending current-source and deployment verification; no remediation or cloud closure claimed. |

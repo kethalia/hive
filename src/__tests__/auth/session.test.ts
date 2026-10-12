@@ -109,7 +109,7 @@ describe("session management", () => {
       expect(result!.session.expiresAt).toBeInstanceOf(Date);
     });
 
-    it("uses the valid scoped cookie when duplicate session cookies include a stale parent-domain cookie last", async () => {
+    it("rejects duplicate session cookies before verifying or looking up either account", async () => {
       const futureDate = new Date(Date.now() + 86400000);
       const cookieStore = {
         get: vi.fn().mockReturnValue({ value: "prod-cookie" }),
@@ -133,10 +133,9 @@ describe("session management", () => {
         "hive-session=preview-cookie; hive-session=prod-cookie",
       );
 
-      expect(result).not.toBeNull();
-      expect(result!.session.sessionId).toBe("sess-preview");
-      expect(mockVerifyCookie).toHaveBeenCalledWith("preview-cookie", "test-secret");
-      expect(mockServiceClient.getSession).toHaveBeenCalledWith("sess-preview");
+      expect(result).toBeNull();
+      expect(mockVerifyCookie).not.toHaveBeenCalled();
+      expect(mockServiceClient.getSession).not.toHaveBeenCalled();
     });
   });
 
@@ -186,7 +185,7 @@ describe("session management", () => {
       vi.unstubAllEnvs();
     });
 
-    it("includes domain when COOKIE_DOMAIN is set", () => {
+    it("ignores COOKIE_DOMAIN for live session cookies", () => {
       vi.stubEnv("COOKIE_DOMAIN", ".hive.local.kethalia.com");
 
       const cookieStore = { set: vi.fn() };
@@ -199,7 +198,6 @@ describe("session management", () => {
         sameSite: "lax",
         path: "/",
         maxAge: 30 * 24 * 60 * 60,
-        domain: ".hive.local.kethalia.com",
       });
 
       vi.unstubAllEnvs();
@@ -215,9 +213,6 @@ describe("session management", () => {
 
       const options = cookieStore.set.mock.calls[0][2] as Record<string, unknown>;
       expect(options).not.toHaveProperty("domain");
-      expect(console.error).toHaveBeenCalledWith(
-        "[session-cookie] Refusing unsafe COOKIE_DOMAIN; use a Hive-specific parent such as .hive.local.kethalia.com",
-      );
 
       vi.unstubAllEnvs();
     });

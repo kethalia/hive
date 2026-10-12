@@ -14,7 +14,10 @@ class Socket {
   onmessage: ((event: { data: string }) => void) | null = null;
   send = vi.fn();
   close = vi.fn();
-  constructor() {
+  constructor(
+    readonly url?: string,
+    readonly protocols?: string | string[],
+  ) {
     Socket.instances.push(this);
   }
   emit(value: unknown) {
@@ -93,6 +96,45 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it("authorizes before opening audio and ignores grants after disposal", async () => {
+    let complete!: (protocols: string[]) => void;
+    const authorize = vi.fn(
+      () =>
+        new Promise<string[]>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const audio = new TerminalAudio(
+      "wss://terminal/ws/audio",
+      vi.fn(),
+      () => true,
+      () => true,
+      authorize,
+    );
+    sessions.push(audio);
+    audio.setVisible(true);
+    audio.refreshFocus();
+    expect(authorize).toHaveBeenCalledTimes(1);
+    expect(Socket.instances).toHaveLength(0);
+    complete(["hive-audio-v1", "hive-ticket.fixture"]);
+    await Promise.resolve();
+    expect(Socket.instances[0].protocols).toEqual(["hive-audio-v1", "hive-ticket.fixture"]);
+    audio.dispose();
+
+    const pending = new TerminalAudio(
+      "wss://terminal/ws/audio",
+      vi.fn(),
+      () => true,
+      () => true,
+      authorize,
+    );
+    sessions.push(pending);
+    pending.setVisible(true);
+    pending.dispose();
+    complete(["hive-audio-v1", "hive-ticket.stale"]);
+    await Promise.resolve();
+    expect(Socket.instances).toHaveLength(1);
+  });
   it.each([
     "hidden",
     "unfocused",

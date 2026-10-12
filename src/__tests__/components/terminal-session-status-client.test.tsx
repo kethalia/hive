@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+vi.mock("@/lib/terminal/auth-transport", () => ({
+  fetchTerminal: (url: string, options: RequestInit) => fetch(url, options),
+}));
 
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type React from "react";
@@ -141,7 +144,6 @@ describe("TerminalSessionStatusClient", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("https://terminal.example.test/keepalive/status", {
       cache: "no-store",
-      credentials: "include",
     });
     expect(screen.getByText("Workspace rows").parentElement).toHaveTextContent("2");
     expect(screen.getAllByText("Active terminal connections")[0].parentElement).toHaveTextContent(
@@ -160,7 +162,7 @@ describe("TerminalSessionStatusClient", () => {
     await waitFor(() => expect(screen.getByText("upstream_connected")).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith(
       "https://terminal.example.test/session-events?limit=500&workspaceId=workspace-1",
-      expect.objectContaining({ cache: "no-store", credentials: "include" }),
+      expect.objectContaining({ cache: "no-store" }),
     );
   });
 });

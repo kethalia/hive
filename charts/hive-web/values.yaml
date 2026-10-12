@@ -151,13 +151,13 @@ config:
   AUTH_SERVICE_URL: "http://hive-auth"
   CODER_URL: ""
   NEXT_PUBLIC_TERMINAL_WS_URL: ""
+  # Exact public web origin when a reverse proxy rewrites the origin hostname.
+  HIVE_PUBLIC_ORIGIN: ""
   # Absolute POSIX workspace home tree path used for Git clone discovery/sidebar scans.
   # The web service scans this path inside Coder workspaces via coder ssh.
   HIVE_PROJECTS_ROOT: "/home/coder"
-  # Cookie Domain attribute applied to the session cookie. Set to a shared
-  # parent (leading dot recommended) so the cookie is sent to sibling
-  # subdomains like the terminal-proxy host (`*-hive-terminal.<domain>`).
-  # Leave empty for host-only cookies (single-host or localhost setups).
+  # Legacy Domain used only for deletion during migration; live cookies are host-only.
+  # Retain the old value temporarily so login/logout can expire shared cookies.
   COOKIE_DOMAIN: ""
 
 nodeSelector: {}

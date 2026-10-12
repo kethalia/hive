@@ -1,6 +1,12 @@
 import type { IncomingMessage } from "node:http";
 import type { CoderTokenResponse } from "@hive/auth";
-import { authServiceHeaders, verifyCookie } from "@hive/auth";
+import {
+  authServiceHeaders,
+  isLoopbackHostname,
+  sessionCookieValues,
+  verifyCookie,
+  verifyTerminalTicket,
+} from "@hive/auth";
 
 const AUTH_SERVICE_TIMEOUT_MS = 5_000;
 
@@ -19,21 +25,6 @@ export interface AuthFailure {
 
 export type AuthResult = { ok: true; value: AuthSuccess } | { ok: false; value: AuthFailure };
 
-function parseCookieValues(header: string, name: string): string[] {
-  const values: string[] = [];
-  const pairs = header.split(";");
-  for (const pair of pairs) {
-    const eq = pair.indexOf("=");
-    if (eq === -1) continue;
-    const key = pair.slice(0, eq).trim();
-    if (key === name) {
-      const value = pair.slice(eq + 1).trim();
-      if (value) values.push(value);
-    }
-  }
-  return [...new Set(values)];
-}
-
 export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthResult> {
   const cookieSecret = process.env.COOKIE_SECRET;
   if (!cookieSecret) {
@@ -44,37 +35,72 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     };
   }
 
-  const cookieHeader = req.headers.cookie;
-  if (!cookieHeader) {
-    console.error("[terminal-proxy] auth: no_cookie → 401");
+  const values = sessionCookieValues(req.headers.cookie);
+  if (values.length > 1)
     return {
       ok: false,
-      value: { error: "No cookie provided", status: 401, reason: "no_cookie" },
+      value: { error: "Ambiguous session cookie", status: 401, reason: "ambiguous_cookie" },
     };
+  const protocols = (req.headers["sec-websocket-protocol"] || "")
+    .split(",")
+    .map((value) => value.trim());
+  const tickets = protocols
+    .filter((value) => value.startsWith("hive-ticket."))
+    .map((value) => value.slice("hive-ticket.".length));
+  if (req.headers.authorization) {
+    tickets.push(
+      req.headers.authorization.startsWith("Bearer ") ? req.headers.authorization.slice(7) : "",
+    );
   }
-
-  const cookieValues = parseCookieValues(cookieHeader, "hive-session");
-  if (cookieValues.length === 0) {
-    console.error("[terminal-proxy] auth: no_cookie → 401");
-    return {
-      ok: false,
-      value: { error: "No hive-session cookie", status: 401, reason: "no_cookie" },
-    };
+  let sessionId: string;
+  if (tickets.length) {
+    let claims: ReturnType<typeof verifyTerminalTicket> = null;
+    try {
+      let authority = new URL(
+        process.env.TERMINAL_PUBLIC_ORIGIN ||
+          `${process.env.NODE_ENV === "production" ? "https" : "http"}://${req.headers.host}`,
+      );
+      if (
+        !process.env.TERMINAL_PUBLIC_ORIGIN &&
+        process.env.NODE_ENV === "production" &&
+        isLoopbackHostname(authority.hostname)
+      )
+        authority = new URL(`http://${req.headers.host}`);
+      if (tickets.length === 1)
+        claims = verifyTerminalTicket(tickets[0], cookieSecret, {
+          audience: authority.host,
+          // Same-origin GETs may omit Origin. Only the proxy's own public
+          // origin may use that case; cross-origin tickets must supply Origin.
+          origin: req.headers.origin || authority.origin,
+          requestTarget: req.url || "/",
+        });
+    } catch {
+      /* Invalid public authority fails closed. */
+    }
+    if (!claims)
+      return {
+        ok: false,
+        value: { error: "Invalid terminal ticket", status: 401, reason: "invalid_terminal_ticket" },
+      };
+    sessionId = claims.sessionId;
+  } else {
+    if (values.length !== 1 || !values[0])
+      return {
+        ok: false,
+        value: {
+          error: "Missing or ambiguous session cookie",
+          status: 401,
+          reason: values.length > 1 ? "ambiguous_cookie" : "no_cookie",
+        },
+      };
+    const verified = verifyCookie(values[0], cookieSecret);
+    if (!verified)
+      return {
+        ok: false,
+        value: { error: "Invalid cookie signature", status: 401, reason: "invalid_hmac" },
+      };
+    sessionId = verified.sessionId;
   }
-
-  const verifiedSessionCookie = cookieValues.flatMap((value) => {
-    const verified = verifyCookie(value, cookieSecret);
-    return verified ? [{ value, verified }] : [];
-  })[0];
-  if (!verifiedSessionCookie) {
-    console.error("[terminal-proxy] auth: invalid_hmac → 401");
-    return {
-      ok: false,
-      value: { error: "Invalid cookie signature", status: 401, reason: "invalid_hmac" },
-    };
-  }
-
-  const { sessionId } = verifiedSessionCookie.verified;
   const truncatedId = sessionId.slice(0, 8);
 
   const authServiceUrl = (process.env.AUTH_SERVICE_URL || "http://localhost:4400").replace(

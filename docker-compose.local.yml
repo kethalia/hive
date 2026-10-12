@@ -57,6 +57,8 @@ services:
       auth:
         condition: service_healthy
     environment:
+      - TERMINAL_PUBLIC_ORIGIN=${TERMINAL_PUBLIC_ORIGIN:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - AUTH_SERVICE_URL=http://auth:4400
       - COOKIE_SECRET=${COOKIE_SECRET:-}
       - AUTH_SERVICE_SECRET=${AUTH_SERVICE_SECRET:?Set AUTH_SERVICE_SECRET to the same 64-hex secret for all Hive services}

@@ -258,6 +258,7 @@ interface UseTerminalWebSocketProps {
   onResizeSent?: (event: TerminalResizeSentEvent) => void;
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
   refreshUrlBeforeReconnect?: TerminalRefreshUrlBeforeReconnect;
+  authorizeConnection?: (url: string) => Promise<string[]>;
 }
 
 interface UseTerminalWebSocketReturn {
@@ -385,6 +386,7 @@ export function useTerminalWebSocket({
   onResizeSent,
   onRecoveryStateChange,
   refreshUrlBeforeReconnect,
+  authorizeConnection,
 }: UseTerminalWebSocketProps): UseTerminalWebSocketReturn {
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [recoveryState, setRecoveryState] = useState<TerminalRecoveryState>(INITIAL_RECOVERY_STATE);
@@ -409,12 +411,14 @@ export function useTerminalWebSocket({
   const onResizeSentRef = useRef(onResizeSent);
   const onRecoveryStateChangeRef = useRef(onRecoveryStateChange);
   const refreshUrlBeforeReconnectRef = useRef(refreshUrlBeforeReconnect);
+  const authorizeConnectionRef = useRef(authorizeConnection);
 
   onDataRef.current = onData;
   onStateChangeRef.current = onStateChange;
   onResizeSentRef.current = onResizeSent;
   onRecoveryStateChangeRef.current = onRecoveryStateChange;
   refreshUrlBeforeReconnectRef.current = refreshUrlBeforeReconnect;
+  authorizeConnectionRef.current = authorizeConnection;
 
   const updateRecoveryState = useCallback((update: RecoveryStateUpdate) => {
     if (!mountedRef.current) return;
@@ -648,7 +652,17 @@ export function useTerminalWebSocket({
         console.log(`[terminal] Reconnect attempt ${attemptRef.current}`);
       }
 
-      const ws = new WebSocket(effectiveUrl, TERMINAL_SUBPROTOCOL);
+      let protocols: string | string[] = TERMINAL_SUBPROTOCOL;
+      if (authorizeConnectionRef.current) {
+        try {
+          protocols = await authorizeConnectionRef.current(effectiveUrl);
+        } catch {
+          scheduleRefreshFailureRetry("callback-error");
+          return;
+        }
+        if (!mountedRef.current || generation !== connectionGenerationRef.current) return;
+      }
+      const ws = new WebSocket(effectiveUrl, protocols);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 

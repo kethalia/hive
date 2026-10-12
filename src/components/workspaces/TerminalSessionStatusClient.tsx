@@ -15,6 +15,7 @@ import {
   parseKeepAliveStatusPayload,
   terminalProxyHttpBaseUrl,
 } from "@/hooks/useKeepAliveStatus";
+import { fetchTerminal } from "@/lib/terminal/auth-transport";
 
 interface TerminalSessionStatusClientProps {
   highlightedWorkspaceId?: string;
@@ -163,7 +164,7 @@ export function TerminalSessionStatusClient({
 
     if (mountedRef.current) setState((current) => ({ ...current, isLoading: true }));
     try {
-      const res = await fetch(statusEndpoint, { cache: "no-store", credentials: "include" });
+      const res = await fetchTerminal(statusEndpoint, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const payload: unknown = await res.json();
       if (!mountedRef.current) return;
