@@ -59,4 +59,4 @@ response. The corrected harness passed all four checks against the real Coder
 app in disposable workspace `daniel/hive-desktop-review-check`. Current source
 hashes, regression results, and cleanup are in `review-verification.json`; the
 live login evidence is in `review-browser-report.json`. Run the regressions in
-Browser Testing with `node --test e2e/desktop-anonymous-denial.test.mjs`.
+Browser Testing with `node --test e2e/desktop-anonymous-denial-regressions.mjs`.

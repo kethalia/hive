@@ -9,7 +9,7 @@
   },
   "source_hashes": {
     "e2e/desktop-listener-isolation.mjs": "ef604babde66d5556c33a488da6cbbd6ae21813b401efb5beaa5b24be48aff55",
-    "e2e/desktop-anonymous-denial.test.mjs": "3d03936e8bd12e6e9e21d4e5d5bf79b29ba167a7507a98026a833798a239f781",
+    "e2e/desktop-anonymous-denial-regressions.mjs": "3d03936e8bd12e6e9e21d4e5d5bf79b29ba167a7507a98026a833798a239f781",
     "e2e/helpers/coder-anonymous-denial.mjs": "899b89e059c18ec672a181bd57b5b4af1c21ce65745b7cd8cbffaaed45915439"
   },
   "regressions": {
