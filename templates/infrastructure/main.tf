@@ -428,11 +428,11 @@ resource "coder_app" "desktop" {
 }
 
 # =============================================================================
-# Coder Login (auto-authenticates coder CLI inside workspace)
+# Owner Coder login belongs only to the persistent orchestration workspace.
 # =============================================================================
 
 module "coder-login" {
-  count    = data.coder_workspace.me.start_count
+  count    = local.profile.id == "software" ? data.coder_workspace.me.start_count : 0
   source   = "registry.coder.com/coder/coder-login/coder"
   version  = "1.0.15"
   agent_id = coder_agent.main.id
@@ -621,7 +621,12 @@ resource "kubernetes_deployment_v1" "workspace" {
           name              = "dev"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
-          command           = ["sh", "-c", coder_agent.main.init_script]
+          command = ["sh", "-c", local.profile.id == "software" ? coder_agent.main.init_script : templatefile("${path.module}/scripts/specialist-agent-entrypoint.sh", {
+            agent_init_script               = coder_agent.main.init_script
+            coder_access_url_b64            = base64encode(data.coder_workspace.me.access_url)
+            workspace_profile_b64           = base64encode(local.profile.id)
+            coder_credential_cleanup_script = file("${path.module}/scripts/coder-credential-cleanup.py")
+          })]
 
           security_context {
             allow_privilege_escalation = false

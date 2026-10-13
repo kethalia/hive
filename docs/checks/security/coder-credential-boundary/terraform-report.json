@@ -1,0 +1,62 @@
+{
+  "profiles": {
+    "ai-dev-k8s": {
+      "fmt_passed": true,
+      "validation": {
+        "format_version": "1.0",
+        "valid": true,
+        "error_count": 0,
+        "warning_count": 0,
+        "diagnostics": []
+      },
+      "mock_plan_passed": true
+    },
+    "browser-testing": {
+      "fmt_passed": true,
+      "validation": {
+        "format_version": "1.0",
+        "valid": true,
+        "error_count": 0,
+        "warning_count": 0,
+        "diagnostics": []
+      },
+      "mock_plan_passed": true
+    },
+    "game-dev": {
+      "fmt_passed": true,
+      "validation": {
+        "format_version": "1.0",
+        "valid": true,
+        "error_count": 0,
+        "warning_count": 0,
+        "diagnostics": []
+      },
+      "mock_plan_passed": true
+    },
+    "electronics": {
+      "fmt_passed": true,
+      "validation": {
+        "format_version": "1.0",
+        "valid": true,
+        "error_count": 0,
+        "warning_count": 0,
+        "diagnostics": []
+      },
+      "mock_plan_passed": true
+    },
+    "infrastructure": {
+      "fmt_passed": true,
+      "validation": {
+        "format_version": "1.0",
+        "valid": true,
+        "error_count": 0,
+        "warning_count": 0,
+        "diagnostics": []
+      },
+      "mock_plan_passed": true
+    }
+  },
+  "owner_session_references": ["coder-login/main.tf"],
+  "temporary_files_removed": true,
+  "live_plan_or_apply": false
+}

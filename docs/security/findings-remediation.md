@@ -180,6 +180,36 @@ retired code absent from this repository. Active profile desktops use the shared
 fix, but old Council deployments still need retirement/rollout verification.
 No live template rollout or Security Cloud closure is claimed.
 
+## Specialist Coder credential boundary
+
+Finding `commit:edcec789b9f8819194c07cd5157d5c4d`: automatic owner-level Coder
+CLI login is now gated to the persistent `software` profile (`ai-dev-k8s`).
+The Browser, Game, Electronics, and Infrastructure profiles use their existing
+agent credential for workspace-local operations and GitHub external auth.
+
+Specialist pod entrypoints clear inherited `CODER_SESSION_TOKEN` and remove
+this deployment's persisted Coder CLI session before launching the agent. This
+runs before all agent startup scripts and terminals, rather than racing with
+repository bootstrap. Default, XDG, and custom config roots inside the private
+workspace home are covered. Other deployment logins and non-auth settings are
+preserved. Shared/symlinked credentials and unsafe or ambiguous paths stop
+startup without deleting their targets or logging secrets. The primary
+pod command and owner-login module retain their existing behavior.
+
+Live credential metadata confirmed `coder:all` with unrestricted resources.
+On a disposable Infrastructure workspace, cleanup removed the persisted owner
+login and blocked workspace management, while agent-based GitHub authentication
+continued to work. The primary credential was unchanged and its management
+commands remained available. Profile regressions and Terraform checks are
+preserved in [`coder-credential-boundary`](../checks/security/coder-credential-boundary/).
+
+Apply updated templates and restart specialist workspaces to clear old processes
+and run the pre-agent migration. Local file removal does not revoke previously
+copied tokens; review/revoke exposed credentials separately with exact key IDs.
+No production template rollout or Security Cloud closure is claimed. Owner-token
+access within the primary software workspace is a deliberate retained capability,
+so processes in that workspace remain trusted with orchestration authority.
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
@@ -196,7 +226,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:93258b1bcd6881919b1f2be96204fc98` | high | Noauth File Browser admin exposed under Hive origin | Repository fix retires the proxy and loads authenticated tools on isolated app hosts; Chrome boundary regressions pass. Live app connectivity verification remains pending. |
 | `commit:f7118176d1788191a5d41f8e0b9c23e1` | high | Unauthenticated KasmVNC exposed on workspace network | Repository fix confines managed TCP/UDP binds to loopback behind owner-only Coder apps. Real Chrome/peer/socket checks pass; image/template rollout remains pending. |
 | `commit:09825c4928cc81918315da2d4ff42f68` | high | Council KasmVNC listens network-wide with weak/no auth | Council launcher/template is absent from current source. Active profile desktops use the shared isolation fix; retired/live Council deployments still require verification. |
-| `commit:edcec789b9f8819194c07cd5157d5c4d` | high | Coder CLI auto-login exposes user Coder tokens to workspace code | Coder-login module still enabled; verify actual token scope before selecting remediation. |
+| `commit:edcec789b9f8819194c07cd5157d5c4d` | high | Coder CLI auto-login exposes user Coder tokens to workspace code | Owner login is limited to the primary software profile by design; specialist pre-agent migration clears this deployment’s inherited/stored owner credentials. Live management/GitHub checks pass; production rollout and any exposed-token revocation remain pending. |
 | `commit:b09307b841448191844b374f0398337f` | high | Auth service exposes tokens with only a session ID | Repository fix adds service authentication, updated clients, required secret wiring, and HTTP regressions. Live secret provisioning and staged rollout remain pending. |
 | `commit:8896576e73508191aad9981022235120` | high | Unpinned remote installer in production Docker image | Repository fix removes the remote installer and keeps only checksum-pinned release archives. Both real artifact hashes/architectures and the native install command were verified. Live image rollout remains pending. |
 | `commit:113a7b7e251c81919b7c8f05a3750c13` | high | Auto-derived cookie Domain broadens session scope | Repository fix removes live Domain scope, changes the signature purpose, and uses a protected production cookie name. One fresh login and coordinated web/terminal rollout are required. |

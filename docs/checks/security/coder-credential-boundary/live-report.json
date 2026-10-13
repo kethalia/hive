@@ -1,0 +1,15 @@
+{
+  "baseline_owner_scope": ["coder:all"],
+  "baseline_allow_list": ["*:*"],
+  "baseline_owner_management_available": true,
+  "persisted_owner_credential_removed": true,
+  "cleanup_preceded_agent_marker": true,
+  "owner_management_blocked": true,
+  "github_agent_authentication_passed": true,
+  "agent_token_retained": true,
+  "primary_management_preserved": true,
+  "primary_credential_unchanged": true,
+  "final_entrypoint_repeat_startup_passed": true,
+  "management_still_blocked": true,
+  "agent_github_still_available": true
+}
