@@ -40,6 +40,12 @@ needed. Record whether the workspace was reused or created as disposable for the
 preparing a specialist workspace, keep the interaction in Hive's TUI: tell the user which workspace
 to open and provide the handoff below so questions and corrections stay interactive.
 
+Only `ai-dev-k8s` automatically receives owner-level Coder CLI authentication. Specialist profiles
+use their agent credential for workspace-local operations and GitHub authentication. Before their
+agent starts, Hive clears inherited owner authentication and removes this deployment's persisted
+CLI session from the private workspace home. Send workspace-management operations back to
+`ai-dev-k8s`; do not copy its owner credential into a specialist workspace.
+
 After a specialist task finishes, preserve its changes and evidence in the primary workspace before
 cleanup. Only `ai-dev-k8s` performs cleanup:
 

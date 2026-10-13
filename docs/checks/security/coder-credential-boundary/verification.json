@@ -1,0 +1,32 @@
+{
+  "verified_at": "2026-10-13T17:49:09.988356+00:00",
+  "workspace": {
+    "id": "1e256df3-9d10-4e70-b9a9-7ea2e64a5623",
+    "name": "hive-coder-credential-check",
+    "owner_name": "daniel",
+    "template_name": "infrastructure",
+    "created_disposable": true
+  },
+  "source_hashes": {
+    "templates/ai-dev-k8s/main.tf": "1650a15d15eedcff00c08b839fed13ebb3310258aded1cbead2edf4d1372bdd2",
+    "templates/ai-dev-k8s/scripts/specialist-agent-entrypoint.sh": "3846a3d333c6d503b2cfcf3cdb2445e6e1a764cc9df3056508e385f98b0622a7",
+    "templates/ai-dev-k8s/scripts/coder-credential-cleanup.py": "0cec985766bdfb2d55c6c3b7fc3d2db2e8cd5fbd5a579dad83a97522f6837bde",
+    "scripts/verify-coder-credential-boundary.test.mjs": "a79300918334989edc9c52fca66ad941bf2c7a2d22c1a454c0bceeadf152feba",
+    "docs/checks/security/coder-credential-boundary/credential-boundary.tftest.hcl": "d873d5ef1a363c3e43f172a9fc7d28f09eb4a5e22fd04b58382a53c2b7000344"
+  },
+  "template_tests": {
+    "passed": 64,
+    "failed": 0
+  },
+  "credential_regressions": {
+    "passed": 13,
+    "failed": 0
+  },
+  "live_scope": "Reviewed wrapper executed with an agent marker on a disposable Infrastructure workspace; production template rollout was not performed. Initial credential migration was followed by repeat startup with the final source. Primary credential and management were preserved.",
+  "cleanup": {
+    "validation_workspace_session_revoked": true,
+    "workspace_stopped": true,
+    "disposable_workspace_deleted": true,
+    "absence_verified_by_id_and_name": true
+  }
+}
