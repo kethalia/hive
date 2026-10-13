@@ -1,0 +1,15 @@
+{
+  "workspace": "backup-targeted-recovery",
+  "reused": true,
+  "fmt": true,
+  "init_readonly_lockfile": true,
+  "validate": {
+    "format_version": "1.0",
+    "valid": true,
+    "error_count": 0,
+    "warning_count": 0,
+    "diagnostics": []
+  },
+  "temporary_directory_removed": true,
+  "workspace_retained_for_existing_task": true
+}

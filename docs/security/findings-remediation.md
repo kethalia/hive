@@ -149,6 +149,37 @@ No local Docker daemon is available; arm64 runtime execution and full image
 builds were not performed locally. Rebuilding/deploying the image and live
 Security Cloud resolution remain separate rollout steps.
 
+## Desktop listener isolation fix
+
+Finding `commit:f7118176d1788191a5d41f8e0b9c23e1`: managed desktops now expose
+only a loopback WebSocket endpoint through an explicit owner-only Coder app.
+The pinned module already requested loopback TCP, but KasmVNC 1.4.0 still opened
+wildcard UDP and existing user configuration could widen its listener. A
+repository-owned launcher loads an image-built native bind guard only into
+Xvnc, preventing all non-loopback IPv4/IPv6 binds. Raw VNC and X11 TCP are
+disabled. Other desktop preferences are preserved and desktop applications run
+without the guard. Startup checks both guard behavior and the actual owned
+socket before reporting readiness; missing/invalid guards fail closed.
+
+Live Chrome checks through the real Coder app confirm anonymous denial, owner
+desktop display, keyboard input, and reconnection. Peer connections are refused;
+runtime inspection shows only `127.0.0.1:6080` and no backend UDP listener.
+Adversarial persisted network settings cannot override the boundary. Native and
+template regressions and Terraform validation pass. Evidence is preserved in
+[`desktop-listener-isolation`](../checks/security/desktop-listener-isolation/).
+
+The template bundles the same reviewed native guard source as the image. When
+an older pinned desktop image lacks the library, its existing compiler builds
+the guard in a private temporary directory, and startup verifies it before
+launching Xvnc. Templates therefore remain deployable with the checked-in image
+pins. Rebuilt images supply the prebuilt guard; no external download or insecure
+fallback is used. Forced retirement waits for process exit and cleans only
+owned stale display artifacts, preserving live or unrelated displays.
+The earlier Council finding `commit:09825c4928cc81918315da2d4ff42f68` concerns
+retired code absent from this repository. Active profile desktops use the shared
+fix, but old Council deployments still need retirement/rollout verification.
+No live template rollout or Security Cloud closure is claimed.
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
@@ -163,8 +194,8 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | Finding ID | Severity | Exported title | Repository status / next check |
 | --- | --- | --- | --- |
 | `commit:93258b1bcd6881919b1f2be96204fc98` | high | Noauth File Browser admin exposed under Hive origin | Repository fix retires the proxy and loads authenticated tools on isolated app hosts; Chrome boundary regressions pass. Live app connectivity verification remains pending. |
-| `commit:f7118176d1788191a5d41f8e0b9c23e1` | high | Unauthenticated KasmVNC exposed on workspace network | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
-| `commit:09825c4928cc81918315da2d4ff42f68` | high | Council KasmVNC listens network-wide with weak/no auth | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:f7118176d1788191a5d41f8e0b9c23e1` | high | Unauthenticated KasmVNC exposed on workspace network | Repository fix confines managed TCP/UDP binds to loopback behind owner-only Coder apps. Real Chrome/peer/socket checks pass; image/template rollout remains pending. |
+| `commit:09825c4928cc81918315da2d4ff42f68` | high | Council KasmVNC listens network-wide with weak/no auth | Council launcher/template is absent from current source. Active profile desktops use the shared isolation fix; retired/live Council deployments still require verification. |
 | `commit:edcec789b9f8819194c07cd5157d5c4d` | high | Coder CLI auto-login exposes user Coder tokens to workspace code | Coder-login module still enabled; verify actual token scope before selecting remediation. |
 | `commit:b09307b841448191844b374f0398337f` | high | Auth service exposes tokens with only a session ID | Repository fix adds service authentication, updated clients, required secret wiring, and HTTP regressions. Live secret provisioning and staged rollout remain pending. |
 | `commit:8896576e73508191aad9981022235120` | high | Unpinned remote installer in production Docker image | Repository fix removes the remote installer and keeps only checksum-pinned release archives. Both real artifact hashes/architectures and the native install command were verified. Live image rollout remains pending. |

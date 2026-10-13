@@ -1,0 +1,36 @@
+{
+  "browser": "155.0.8059.39",
+  "checks": [
+    {
+      "name": "anonymous access cannot open the desktop",
+      "passed": true
+    },
+    {
+      "name": "authenticated Coder app displays the real desktop over WebSocket",
+      "passed": true,
+      "frames_received": 7
+    },
+    {
+      "name": "keyboard input reaches the workspace through the authenticated desktop",
+      "passed": true
+    },
+    {
+      "name": "desktop reconnects through the Coder app",
+      "passed": true
+    }
+  ],
+  "screenshots": ["desktop-owner-chromium.png"],
+  "success": true,
+  "backend_sockets": [
+    {
+      "protocol": "tcp",
+      "local": "0100007F:17C0"
+    }
+  ],
+  "harness_sha256": "3bf6a8c01b67a54b7d94b4974610ed78602de5bdd0ba0cbbb58bfaf02670122b",
+  "runtime_source_hashes": {
+    "kasmvnc-loopback.c": "6e83588ccae2c2bc29ab711a538f44b7336eeaf22ab9f81af21a3f6da0001546",
+    "tools-desktop.sh": "c189033b0431efd58b112964932a4a6c9924e52ed6291a2788b8ac9db91b3edd"
+  },
+  "guard_binary_sha256": "15101047fc61120ec0d4d1fd31952b891c27473e015daeba0c5e9607ca39812d"
+}

@@ -1,0 +1,30 @@
+{
+  "browser": "155.0.8059.39",
+  "checks": [
+    {
+      "name": "anonymous access cannot open the desktop",
+      "passed": true,
+      "evidence": {
+        "kind": "coder-login",
+        "origin": "https://coder.kethalia.com",
+        "pathname": "/login",
+        "status": 200
+      }
+    },
+    {
+      "name": "authenticated Coder app displays the real desktop over WebSocket",
+      "passed": true,
+      "frames_received": 6
+    },
+    {
+      "name": "keyboard input reaches the workspace through the authenticated desktop",
+      "passed": true
+    },
+    {
+      "name": "desktop reconnects through the Coder app",
+      "passed": true
+    }
+  ],
+  "screenshots": ["review-owner-chromium.png"],
+  "success": true
+}

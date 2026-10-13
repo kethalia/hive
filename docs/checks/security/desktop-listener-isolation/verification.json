@@ -1,0 +1,49 @@
+{
+  "verified_at": "2026-10-13T10:00:07.553385+00:00",
+  "source_hashes": {
+    "docker/hive-base/kasmvnc-loopback.c": "6e83588ccae2c2bc29ab711a538f44b7336eeaf22ab9f81af21a3f6da0001546",
+    "templates/ai-dev-k8s/scripts/tools-desktop.sh": "c189033b0431efd58b112964932a4a6c9924e52ed6291a2788b8ac9db91b3edd",
+    "docker/hive-base/kasmvnc.yaml": "fe56028e42c1275e5d7049d836a1958fd2fa2bf553953f722427fa37e47b3dbe",
+    "templates/ai-dev-k8s/main.tf": "1a32fc0ce90d3a830f477367cbe51f700a2936569a16377bd3c2fc370f72e838",
+    "e2e/desktop-listener-isolation.mjs": "3bf6a8c01b67a54b7d94b4974610ed78602de5bdd0ba0cbbb58bfaf02670122b"
+  },
+  "browser_workspace": {
+    "id": "4bed84ef-fb9d-4ecf-913a-ec06f33827fd",
+    "name": "hive-desktop-isolation-check",
+    "owner_name": "daniel",
+    "template_name": "browser-testing",
+    "created_disposable": true
+  },
+  "runtime_path_substitution": "Only /usr/local/lib/hive/kasmvnc-loopback.so replaced by the task-compiled library path. Launcher and guard source hashes match repository files.",
+  "module_review": {
+    "version": "1.3.0",
+    "url": "https://registry.coder.com/download/coder/1.3.0-kasmvnc.tar.gz",
+    "sha256": "3e323137f3154493ce1afa81bad4e9497198b5d549ae679fbbc0c476d6d7dbc2",
+    "tcp_default": "loopback",
+    "observed_udp_baseline": "0.0.0.0:6080"
+  },
+  "adversarial_user_config": {
+    "supplied_interface": "0.0.0.0",
+    "supplied_port": 6099,
+    "supplied_ipv6": true,
+    "effective_interface": "127.0.0.1",
+    "effective_port": 6080,
+    "effective_ipv6": false,
+    "custom_geometry_preserved": "1100x700",
+    "custom_frame_rate_preserved": 35
+  },
+  "validation_scope": "Existing owner-only Coder app/agent proxy with the repository launcher and guard on the current pinned browser image. New image construction and template rollout are separate steps. No non-owner authenticated account was used. No active Council template/launcher is present in the current repository; retired or deployed Council instances were not inspected.",
+  "previous_validation_workspace": {
+    "id": "6aa8634e-4dd3-4cad-b014-06d9d5e9c384",
+    "disposable_workspace_deleted": true
+  },
+  "stale_pid_file_test": {
+    "unrelated_parent_process_survived": true,
+    "startup_succeeded": true
+  },
+  "cleanup": {
+    "workspace_stopped": true,
+    "disposable_workspace_deleted": true,
+    "absence_verified_by_id_and_name": true
+  }
+}

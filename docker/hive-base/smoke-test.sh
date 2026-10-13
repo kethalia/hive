@@ -68,6 +68,24 @@ PY'
 expect_absent obsidian
 
 case "$variant" in
+  game|electronics|browser)
+    run env LD_PRELOAD=/usr/local/lib/hive/kasmvnc-loopback.so python3 -c '
+import errno, socket
+for kind in (socket.SOCK_STREAM, socket.SOCK_DGRAM):
+    with socket.socket(socket.AF_INET, kind) as sock:
+        try: sock.bind(("0.0.0.0", 0))
+        except OSError as error: assert error.errno == errno.EACCES, error
+        else: raise AssertionError("Desktop bind guard is missing or inactive")
+    with socket.socket(socket.AF_INET, kind) as sock:
+        sock.bind(("127.0.0.1", 0))
+'
+    ;;
+  *)
+    run test ! -e /usr/local/lib/hive/kasmvnc-loopback.so
+    ;;
+esac
+
+case "$variant" in
   cli)
     expect_absent vncserver
     expect_absent xfce4-session

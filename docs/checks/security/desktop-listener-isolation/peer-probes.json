@@ -1,0 +1,20 @@
+[
+  {
+    "target_ip": "10.42.2.123",
+    "port": 6080,
+    "connected": false,
+    "error_code": 111
+  },
+  {
+    "target_ip": "10.42.2.123",
+    "port": 5901,
+    "connected": false,
+    "error_code": 111
+  },
+  {
+    "target_ip": "10.42.2.123",
+    "port": 6001,
+    "connected": false,
+    "error_code": 111
+  }
+]

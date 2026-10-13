@@ -1,0 +1,60 @@
+{
+  "verified_at": "2026-10-13T10:42:55.834823+00:00",
+  "browser_workspace": {
+    "id": "21bb194a-e881-443c-8fa7-7ab8e3719023",
+    "name": "hive-desktop-review-check",
+    "owner_name": "daniel",
+    "template_name": "browser-testing",
+    "created_disposable": true
+  },
+  "source_hashes": {
+    "templates/ai-dev-k8s/main.tf": "22f9a954adcdc44a33d0d7bea61077f6f5735c15f4a743b747d53fe01a91242c",
+    "templates/ai-dev-k8s/scripts/tools-desktop.sh": "dbe6c3ae18209181fb7d7856d55e67535416edd8b9b66c5d3729f17d0bc5be6d",
+    "templates/ai-dev-k8s/scripts/kasmvnc-loopback.c": "6e83588ccae2c2bc29ab711a538f44b7336eeaf22ab9f81af21a3f6da0001546",
+    "scripts/verify-desktop-isolation.test.mjs": "f96f38bb703b20066478f5ee3bf50f11a21ce333ff7b8d63846a88b2b9eb3eb9"
+  },
+  "compatibility_and_forced_recovery": {
+    "old_image_has_no_guard": true,
+    "bundled_source_bootstrap_passed": true,
+    "stopped_Xvnc_was_forcibly_retired": true,
+    "replacement_ready": true
+  },
+  "guard_mapping_present": true,
+  "backend_sockets": [
+    {
+      "protocol": "tcp",
+      "local": "0100007F:17C0"
+    }
+  ],
+  "peer_probes": [
+    {
+      "port": 6080,
+      "connected": false,
+      "error_code": 111
+    },
+    {
+      "port": 5901,
+      "connected": false,
+      "error_code": 111
+    },
+    {
+      "port": 6001,
+      "connected": false,
+      "error_code": 111
+    }
+  ],
+  "template_tests": {
+    "passed": 51,
+    "failed": 0
+  },
+  "anonymous_browser_regressions": {
+    "passed": 5,
+    "failed": 0
+  },
+  "terraform_validation": "review-terraform-validation.json",
+  "cleanup": {
+    "workspace_stopped": true,
+    "disposable_workspace_deleted": true,
+    "absence_verified_by_id_and_name": true
+  }
+}

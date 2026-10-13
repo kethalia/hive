@@ -208,13 +208,17 @@ RUN if [ "$WORKSPACE_VARIANT" = "game" ] \
       && rm -rf /var/lib/apt/lists/*; \
     fi
 
-COPY xstartup kasmvnc.yaml /tmp/hive-kasmvnc/
+COPY xstartup kasmvnc.yaml kasmvnc-loopback.c /tmp/hive-kasmvnc/
 RUN if [ "$WORKSPACE_VARIANT" = "game" ] \
     || [ "$WORKSPACE_VARIANT" = "electronics" ] \
     || [ "$WORKSPACE_VARIANT" = "browser" ]; then \
       install -d -m 0755 /etc/kasmvnc \
       && install -m 0755 /tmp/hive-kasmvnc/xstartup /etc/kasmvnc/xstartup \
-      && install -m 0644 /tmp/hive-kasmvnc/kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml; \
+      && install -m 0644 /tmp/hive-kasmvnc/kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml \
+      && install -d -m 0755 /usr/local/lib/hive \
+      && cc -std=c11 -Wall -Wextra -Werror -shared -fPIC \
+          -Wl,-z,relro,-z,now /tmp/hive-kasmvnc/kasmvnc-loopback.c \
+          -o /usr/local/lib/hive/kasmvnc-loopback.so -ldl -pthread; \
     fi \
     && rm -rf /tmp/hive-kasmvnc
 
