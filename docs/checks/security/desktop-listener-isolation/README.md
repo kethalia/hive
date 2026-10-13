@@ -23,8 +23,9 @@ process. It denies all non-loopback IPv4/IPv6 binds, including UDP, and allows
 Unix sockets. The launcher tests the guard before startup, overrides network
 options while preserving other Kasm settings, disables raw RFB/X11 TCP, and
 verifies the actual backend socket ownership before declaring readiness.
-Desktop applications start without the guard. Missing or unloadable libraries
-fail startup after retiring the previous managed display.
+Desktop applications start without the guard. Older pinned images compile the template-bundled reviewed source with their
+existing compiler. Missing source/compiler or an unloadable library fails
+startup after retiring the previous managed display.
 
 Results:
 
@@ -35,7 +36,7 @@ Results:
 - A persisted user config requesting `0.0.0.0`, port 6099, and IPv6 cannot widen
   the listener. Its custom 1100×700 resolution and frame rate 35 are preserved.
 - A stale PID file naming the launcher’s parent cannot terminate that unrelated process.
-- Four native/config/startup regressions and all 46 template tests pass.
+- Native/config/startup regressions and template tests pass.
 - Read-only Terraform fmt/init/validate passes with no diagnostics in reused
   Infrastructure workspace `daniel/backup-targeted-recovery`. Its temporary
   files were removed; the workspace remains assigned to its existing task.
@@ -60,3 +61,10 @@ app in disposable workspace `daniel/hive-desktop-review-check`. Current source
 hashes, regression results, and cleanup are in `review-verification.json`; the
 live login evidence is in `review-browser-report.json`. Run the regressions in
 Browser Testing with `node --test e2e/desktop-anonymous-denial-regressions.mjs`.
+
+Additional review fixes bundle the native source with every template, allowing
+the checked-in older desktop images to compile the guard before activation. The
+prebuilt image library remains preferred. Process retirement uses pidfds, waits
+for SIGKILL exit, and removes only owned stale display locks/sockets. It refuses
+to disturb a live or unrelated display. Compatibility/recovery validation and
+current source hashes are recorded in `compatibility-verification.json`.

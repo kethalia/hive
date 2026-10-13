@@ -168,9 +168,13 @@ Adversarial persisted network settings cannot override the boundary. Native and
 template regressions and Terraform validation pass. Evidence is preserved in
 [`desktop-listener-isolation`](../checks/security/desktop-listener-isolation/).
 
-Rebuild desktop images and merge the generated image-pin update before updating
-desktop templates/restarting workspaces. The new launcher requires the guard
-in the image; applying templates against old images leaves the desktop stopped.
+The template bundles the same reviewed native guard source as the image. When
+an older pinned desktop image lacks the library, its existing compiler builds
+the guard in a private temporary directory, and startup verifies it before
+launching Xvnc. Templates therefore remain deployable with the checked-in image
+pins. Rebuilt images supply the prebuilt guard; no external download or insecure
+fallback is used. Forced retirement waits for process exit and cleans only
+owned stale display artifacts, preserving live or unrelated displays.
 The earlier Council finding `commit:09825c4928cc81918315da2d4ff42f68` concerns
 retired code absent from this repository. Active profile desktops use the shared
 fix, but old Council deployments still need retirement/rollout verification.

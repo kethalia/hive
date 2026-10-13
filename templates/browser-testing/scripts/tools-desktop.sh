@@ -15,9 +15,11 @@ flock -x 9
 python3 - "$state_dir/server.pid" <<'PYTHON'
 import os
 from pathlib import Path
+import select
 import signal
+import socket
+import stat
 import sys
-import time
 
 def identity(proc):
     try:
@@ -37,20 +39,80 @@ for proc in Path("/proc").iterdir():
     if started is None:
         continue
     try:
-        os.kill(int(proc.name), signal.SIGTERM)
-        for _ in range(40):
+        descriptor = os.pidfd_open(int(proc.name))
+        try:
             if identity(proc) != started:
-                break
-            time.sleep(0.05)
-        else:
-            if identity(proc) == started:
-                os.kill(int(proc.name), signal.SIGKILL)
+                continue
+            exited = select.poll()
+            exited.register(descriptor, select.POLLIN)
+            signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+            if not exited.poll(2000):
+                signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+                if not exited.poll(5000):
+                    raise SystemExit("Previous desktop did not exit; replacement was not started")
+        finally:
+            os.close(descriptor)
     except ProcessLookupError:
         pass
+
+# SIGKILL cannot remove X's display artifacts. Remove only owned, stale entries;
+# a live PID or Unix listener keeps its display and prevents replacement startup.
+lock = Path("/tmp/.X1-lock")
+x_socket = Path("/tmp/.X11-unix/X1")
+artifacts = []
+for path in (lock, x_socket):
+    try:
+        before = path.lstat()
+    except FileNotFoundError:
+        continue
+    if before.st_uid != os.getuid():
+        raise SystemExit("Desktop display artifact belongs to another user")
+    if path == lock:
+        if not stat.S_ISREG(before.st_mode):
+            raise SystemExit("Unexpected desktop display lock")
+        try:
+            pid = int(path.read_text().strip())
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+            if state != "Z":
+                raise SystemExit("Desktop display lock names a live process")
+        except FileNotFoundError:
+            pass
+        except ValueError:
+            raise SystemExit("Invalid desktop display lock")
+    else:
+        if not stat.S_ISSOCK(before.st_mode):
+            raise SystemExit("Unexpected desktop display socket")
+        with socket.socket(socket.AF_UNIX) as probe:
+            probe.settimeout(0.2)
+            try:
+                probe.connect(str(path))
+            except (ConnectionRefusedError, FileNotFoundError):
+                pass
+            else:
+                raise SystemExit("Desktop display still has a live listener")
+    artifacts.append((path, before))
+for path, before in artifacts:
+    after = path.lstat()
+    if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+        raise SystemExit("Desktop display artifact changed during retirement")
+    path.unlink()
 Path(sys.argv[1]).unlink(missing_ok=True)
 for record in (Path.home() / ".vnc").glob("*:1.pid"):
     record.unlink(missing_ok=True)
 PYTHON
+
+# Older pinned desktop images already contain the compiler. Bundle this exact
+# reviewed source with each template so its activation does not depend on a later
+# image-pin PR. Prefer the root-owned image library when it is present.
+guard_build=""
+trap 'if [ -n "$guard_build" ]; then rm -rf -- "$guard_build"; fi' EXIT
+if [ ! -e "$library" ] && [ -n "${HIVE_DESKTOP_GUARD_SOURCE_B64:-}" ]; then
+  guard_build="$(mktemp -d "$state_dir/guard.XXXXXX")"
+  printf '%s' "$HIVE_DESKTOP_GUARD_SOURCE_B64" | base64 --decode >"$guard_build/guard.c"
+  cc -std=c11 -Wall -Wextra -Werror -shared -fPIC -Wl,-z,relro,-z,now \
+    "$guard_build/guard.c" -o "$guard_build/guard.so" -ldl -pthread
+  library="$guard_build/guard.so"
+fi
 
 if [ ! -r "$library" ] || [ ! -x /usr/bin/Xvnc ] || ! command -v kasmvncserver >/dev/null 2>&1 || ! command -v startxfce4 >/dev/null 2>&1; then
   printf '[error] Desktop image is missing the loopback guard, Xvnc, or XFCE; update the image.\n' >&2

@@ -1,0 +1,14 @@
+{
+  "fmt_passed": true,
+  "init_passed": true,
+  "validation": {
+    "format_version": "1.0",
+    "valid": true,
+    "error_count": 0,
+    "warning_count": 0,
+    "diagnostics": []
+  },
+  "workspace": "daniel/backup-targeted-recovery",
+  "temporary_files_removed": true,
+  "live_changes": false
+}

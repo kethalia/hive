@@ -404,7 +404,10 @@ resource "coder_script" "tools_desktop" {
   display_name = "Desktop"
   icon         = "/icon/kasmvnc.svg"
   run_on_start = true
-  script       = file("${path.module}/scripts/tools-desktop.sh")
+  script = join("\n", [
+    "HIVE_DESKTOP_GUARD_SOURCE_B64='${base64encode(file("${path.module}/scripts/kasmvnc-loopback.c"))}'",
+    file("${path.module}/scripts/tools-desktop.sh"),
+  ])
 }
 
 resource "coder_app" "desktop" {
