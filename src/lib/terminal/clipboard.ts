@@ -1,8 +1,13 @@
 import type { Terminal } from "@xterm/xterm";
 import { NO_MOBILE_MODIFIERS, setMobileModifiers } from "./mobile-modifiers";
+import {
+  TERMINAL_PASTE_ASSET_MAX_BYTES,
+  TERMINAL_PASTE_ASSET_MAX_FILES,
+  TERMINAL_PASTE_ASSET_MAX_TOTAL_BYTES,
+} from "./paste-limits";
 
-export const TERMINAL_PASTE_ASSET_MAX_FILES = 10;
-export const TERMINAL_PASTE_ASSET_MAX_BYTES = 10 * 1024 * 1024;
+export { TERMINAL_PASTE_ASSET_MAX_BYTES, TERMINAL_PASTE_ASSET_MAX_FILES } from "./paste-limits";
+
 const TERMINAL_PASTE_ASSET_MIME_EXTENSIONS = new Map([
   ["image/png", "png"],
   ["image/jpeg", "jpg"],
@@ -42,7 +47,12 @@ export type TerminalPasteStatus =
   | {
       action: "paste";
       outcome: "failed";
-      reason: "workspace-required" | "too-many-files" | "file-too-large" | "upload-failed";
+      reason:
+        | "workspace-required"
+        | "too-many-files"
+        | "file-too-large"
+        | "paste-too-large"
+        | "upload-failed";
       message: string;
     };
 
@@ -203,6 +213,18 @@ export async function handleTerminalPasteOutcome(
         outcome: "failed",
         reason: "file-too-large",
         message: "Each pasted file must be 10 MiB or smaller.",
+      });
+      return;
+    }
+    if (
+      outcome.files.reduce((total, file) => total + file.size, 0) >
+      TERMINAL_PASTE_ASSET_MAX_TOTAL_BYTES
+    ) {
+      controller.onStatus?.({
+        action: "paste",
+        outcome: "failed",
+        reason: "paste-too-large",
+        message: "Pasted files must total 20 MiB or less.",
       });
       return;
     }

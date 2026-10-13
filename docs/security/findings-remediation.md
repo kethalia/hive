@@ -85,12 +85,50 @@ Browser boundary evidence is preserved in
 Live rollout and Security Cloud resolution remain pending; see the migration
 instructions in [deployment.md](../deployment.md).
 
+## Paste upload resource bounds
+
+Finding `commit:6cc2606c14648191b1013e97870401a4`: terminal paste uploads now
+allow 10 files, 10 MiB per file, and 20 MiB total. The authenticated route acquires
+admission before body reads: one active request per user and four requests per
+web process, with no queue. Excess requests receive `429` and `Retry-After`.
+Limits apply independently to each web process/replica.
+
+The raw request has a 21 MiB ceiling including multipart overhead and unused
+fields. Streamed bytes are checked before multipart parsing, regardless of an
+absent or misleading Content-Length; oversized bodies receive `413`. A fixed
+buffer bounds metadata overhead for tiny chunks. A conservative boundary scan
+caps all multipart parts (files and unused fields combined) at ten before
+`FormData` can allocate entries. Scanning and parsing use the same canonical,
+validated boundary, including quoted/duplicate Content-Type parameters. The
+client checks the same aggregate file limit before uploading.
+
+Files are read/transferred one at a time, as raw bytes without full-file base64
+copies. SSH stderr is drained without retaining its content. Disconnects and a
+120-second request budget cancel body reads, Coder agent lookup, and SSH; the
+local SSH/Coder process group is killed and its close awaited before admission
+is released. Credential-store waits also end on abort. Their underlying Prisma
+queries cannot be cancelled, so a separate per-process limit holds one pending
+lookup per user and four total until the queries actually settle. Busy lookups
+receive `429`/`Retry-After`; late results cannot restart cancelled uploads and
+late failures are observed. The workspace command checks the complete file size
+before publishing a path and removes partial temporary files on exit.
+
+Regressions cover chunked/forged-length bodies, aggregate boundaries, saturation,
+slot release, stalled read cancellation, sequential transfers, and the original
+EPIPE failure. Real subprocess checks verify process-group cancellation and
+execute the production storage command against binary and truncated payloads.
+Review regressions demonstrate that 100,000 empty fields/files below the byte
+cap never invoke the parser, and stalled credentials return `504` without
+retaining upload admission. Both regressions fail on the original PR commit
+`f2377af` and pass with the review fixes.
+Live rollout and Security Cloud resolution remain pending.
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
 2. Verify isolated File Browser/editor/desktop connectivity after the app-origin fix is deployed.
 3. Verify the host-only cookie migration and ticket-based terminal/audio/status authentication after coordinated deployment.
-4. Bound paste request bytes and concurrent work, then review workspace credential scope, desktop listeners, and supply-chain artifacts.
+4. Review workspace credential scope, desktop listeners, and supply-chain artifacts.
 
 Browser execution belongs in `browser-testing`; live infrastructure validation belongs in `infrastructure`. This first slice uses code-level checks in the software workspace.
 
@@ -113,7 +151,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:beb03b5055a48191b33374352232c78c` | medium | Persistent tmux scrollback can expose terminal secrets | Confirmed persistent pane capture remains enabled; decide on opt-in retention behavior. |
 | `commit:09602bc411208191a99b3ae90931beab` | medium | Duplicate session cookies enable session fixation | Repository fix rejects all duplicate selected-name cookies across web/proxy/terminal and ignores legacy names in production. Live migration verification remains pending. |
 | `commit:586a0bdebe348191a71e954ce45e4654` | medium | Paste image upload can crash Hive web process | Fixed in this slice; reproduced EPIPE on the baseline and added regression coverage. |
-| `commit:6cc2606c14648191b1013e97870401a4` | medium | Paste uploads can exhaust web and SSH resources | Confirmed: 10 × 10 MiB buffers and parallel SSH transfers; limits and admission control remain open. |
+| `commit:6cc2606c14648191b1013e97870401a4` | medium | Paste uploads can exhaust web and SSH resources | Repository fix caps raw bodies before parsing, limits aggregate files/admission per web process, and transfers sequentially with cancellation cleanup. Live rollout verification remains pending. |
 | `commit:745807de8770819193d07f503330274f` | low | Untrusted workspace output can poison the local clipboard | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb` | low | Hover focus can leak keystrokes to workspace terminals | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Pending current-source and deployment verification; no remediation or cloud closure claimed. |

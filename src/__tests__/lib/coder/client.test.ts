@@ -392,3 +392,21 @@ describe("CoderClient", () => {
     );
   });
 });
+
+it("passes the cancellation signal to both workspace-agent lookup requests", async () => {
+  const controller = new AbortController();
+  const fetchSpy = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse(mockWorkspace()))
+    .mockResolvedValueOnce(jsonResponse([{ agents: [{ name: "agent" }] }]));
+  vi.stubGlobal("fetch", fetchSpy);
+  try {
+    expect(await makeClient().getWorkspaceAgentName("ws-123", controller.signal)).toBe(
+      "test-workspace.agent",
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchSpy.mock.calls) expect(init.signal).toBe(controller.signal);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
