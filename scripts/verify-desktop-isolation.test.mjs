@@ -120,6 +120,7 @@ test("every desktop profile uses the guarded launcher and owner-only loopback Co
   ]) {
     const tf = readFileSync(`templates/${name}/main.tf`, "utf8");
     assert.doesNotMatch(tf, /module "kasmvnc"/);
+    assert.match(tf, /script = join\("\\n", \[\s*"#!\/bin\/bash",/);
     const app = tf.match(/resource "coder_app" "desktop" \{([\s\S]*?)\n\}/)?.[1];
     assert.ok(app);
     assert.match(app, /capabilities\.desktop/);

@@ -405,6 +405,7 @@ resource "coder_script" "tools_desktop" {
   icon         = "/icon/kasmvnc.svg"
   run_on_start = true
   script = join("\n", [
+    "#!/bin/bash",
     "HIVE_DESKTOP_GUARD_SOURCE_B64='${base64encode(file("${path.module}/scripts/kasmvnc-loopback.c"))}'",
     file("${path.module}/scripts/tools-desktop.sh"),
   ])

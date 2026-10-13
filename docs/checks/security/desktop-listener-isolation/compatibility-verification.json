@@ -8,10 +8,10 @@
     "created_disposable": true
   },
   "source_hashes": {
-    "templates/ai-dev-k8s/main.tf": "7e365dbab5806c1b73d05394a157ea7123b0fc95f6b4c4b8cc9ea9205f0ed72e",
+    "templates/ai-dev-k8s/main.tf": "22f9a954adcdc44a33d0d7bea61077f6f5735c15f4a743b747d53fe01a91242c",
     "templates/ai-dev-k8s/scripts/tools-desktop.sh": "dbe6c3ae18209181fb7d7856d55e67535416edd8b9b66c5d3729f17d0bc5be6d",
     "templates/ai-dev-k8s/scripts/kasmvnc-loopback.c": "6e83588ccae2c2bc29ab711a538f44b7336eeaf22ab9f81af21a3f6da0001546",
-    "scripts/verify-desktop-isolation.test.mjs": "1a28d8e53493e949d441bcb82ecb8c0f7dc6adc5c3db834580bc3be587b08a30"
+    "scripts/verify-desktop-isolation.test.mjs": "f96f38bb703b20066478f5ee3bf50f11a21ce333ff7b8d63846a88b2b9eb3eb9"
   },
   "compatibility_and_forced_recovery": {
     "old_image_has_no_guard": true,
