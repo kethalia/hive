@@ -81,6 +81,9 @@ RUN apt-get update \
 # notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
 RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
         https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz \
+    && printf '%s  %s\n' \
+        'a261198233a50a3134f300236c618f4f3bff7574bf82df05ffb69da0a308d9b6' \
+        '/tmp/notesmd-cli.tar.gz' | sha256sum --check --status \
     && tar xf /tmp/notesmd-cli.tar.gz -C /usr/local/bin notesmd-cli \
     && chmod +x /usr/local/bin/notesmd-cli \
     && rm -f /tmp/notesmd-cli.tar.gz
@@ -89,6 +92,9 @@ RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
 ENV ACT_VERSION=0.2.74
 RUN curl -fsSLo /tmp/act.tar.gz \
         https://github.com/nektos/act/releases/download/v${ACT_VERSION}/act_Linux_x86_64.tar.gz \
+    && printf '%s  %s\n' \
+        '7512b40671e073a011470e216eb2256d1b3ae37b5970d53dc23b29375ffb90f6' \
+        '/tmp/act.tar.gz' | sha256sum --check --status \
     && tar xf /tmp/act.tar.gz -C /usr/local/bin act \
     && chmod +x /usr/local/bin/act \
     && rm -f /tmp/act.tar.gz \
@@ -202,6 +208,9 @@ RUN if [ "$WORKSPACE_VARIANT" = "game" ] \
       && rm -rf /var/lib/apt/lists/* \
       && curl -fsSL -o /tmp/kasmvnc.deb \
           https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_trixie_1.4.0_amd64.deb \
+      && printf '%s  %s\n' \
+          '7b1515fbb0dd5002db2bcfd352882836333ac995dc423f440c8fbb9de30d7c31' \
+          '/tmp/kasmvnc.deb' | sha256sum --check --status \
       && apt-get update \
       && apt-get install --yes --no-install-recommends /tmp/kasmvnc.deb \
       && rm -f /tmp/kasmvnc.deb \
@@ -323,7 +332,18 @@ WORKDIR /home/coder
 
 # Claude Code is image-baked; Codex is installed into the persistent home by
 # the profile startup script so updates do not require rebuilding every variant.
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Verify the native binary before installing it into the standard native layout.
+# Version upgrades must update the SHA-256 from Anthropic's signed manifest.
+ENV CLAUDE_CODE_VERSION=2.1.296
+RUN curl -fsSLo /tmp/claude \
+        https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/linux-x64/claude \
+    && printf '%s  %s\n' \
+        '24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de' \
+        '/tmp/claude' | sha256sum --check --status \
+    && install -d -m 0755 /home/coder/.local/bin /home/coder/.local/share/claude/versions \
+    && install -m 0755 /tmp/claude /home/coder/.local/share/claude/versions/${CLAUDE_CODE_VERSION} \
+    && ln -s /home/coder/.local/share/claude/versions/${CLAUDE_CODE_VERSION} /home/coder/.local/bin/claude \
+    && rm -f /tmp/claude
 ENV PATH="/home/coder/.local/bin:${PATH}"
 
 RUN mkdir -p ~/projects ~/bin ~/.config ~/.ssh ~/.local/bin ~/.claude \

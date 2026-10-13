@@ -1,0 +1,71 @@
+{
+  "verified_at": "2026-10-13T18:12:40.708034+00:00",
+  "artifacts": [
+    {
+      "name": "notesmd-cli",
+      "version": "0.3.4",
+      "architecture": "amd64",
+      "url": "https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz",
+      "sha256": "a261198233a50a3134f300236c618f4f3bff7574bf82df05ffb69da0a308d9b6",
+      "bytes": 1861846,
+      "vendor_checksum_source": "https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/checksums.txt",
+      "matches_vendor_checksum": true
+    },
+    {
+      "name": "act",
+      "version": "0.2.74",
+      "architecture": "amd64",
+      "url": "https://github.com/nektos/act/releases/download/v0.2.74/act_Linux_x86_64.tar.gz",
+      "sha256": "7512b40671e073a011470e216eb2256d1b3ae37b5970d53dc23b29375ffb90f6",
+      "bytes": 7824452,
+      "vendor_checksum_source": "https://github.com/nektos/act/releases/download/v0.2.74/checksums.txt",
+      "matches_vendor_checksum": true
+    },
+    {
+      "name": "kasmvnc",
+      "version": "1.4.0",
+      "architecture": "amd64",
+      "url": "https://github.com/kasmtech/KasmVNC/releases/download/v1.4.0/kasmvncserver_trixie_1.4.0_amd64.deb",
+      "sha256": "7b1515fbb0dd5002db2bcfd352882836333ac995dc423f440c8fbb9de30d7c31",
+      "bytes": 2100456,
+      "vendor_checksum_source": "https://api.github.com/repos/kasmtech/KasmVNC/releases/tags/v1.4.0",
+      "matches_vendor_checksum": true
+    },
+    {
+      "name": "claude",
+      "version": "2.1.296",
+      "architecture": "amd64",
+      "url": "https://downloads.claude.ai/claude-code-releases/2.1.296/linux-x64/claude",
+      "sha256": "24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de",
+      "bytes": 257068216,
+      "vendor_checksum_source": "https://downloads.claude.ai/claude-code-releases/2.1.296/manifest.json",
+      "matches_vendor_checksum": true
+    }
+  ],
+  "claude_manifest_signature": {
+    "manifest_sha256": "e50e872d91f3b7da2fb3d8d38505d709e0a90f48da1951dd51176930c8da8270",
+    "signature_url": "https://downloads.claude.ai/claude-code-releases/2.1.296/manifest.json.sig",
+    "signature_sha256": "ab95ac645a820036734e38a6fc21d41f0535412722a463d91e0b6077082e29c9",
+    "key_url": "https://downloads.claude.ai/keys/claude-code.asc",
+    "key_sha256": "bd70a5e4a268002704024ceba7f8446024114e94f3f0bdd11c23a9e592be81c6",
+    "verified_fingerprint": "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+    "fingerprint_source": "https://code.claude.com/docs/en/setup#verify-the-manifest-signature",
+    "gpg_validsig": true
+  },
+  "native_version_output": {
+    "notesmd-cli": "notesmd-cli version v0.3.4",
+    "act": "act version 0.2.74",
+    "claude": "2.1.296 (Claude Code)"
+  },
+  "kasmvnc_package_metadata": {
+    "package": "kasmvncserver",
+    "version": "1.4.0-1",
+    "architecture": "amd64"
+  },
+  "validation_scope": "Actual amd64 artifacts downloaded and hashed against vendor records; Claude signed manifest verified with the documented key fingerprint. Verified CLI binaries executed with --version. KasmVNC package metadata inspected without installing desktop packages in the software workspace. Full image builds and variant smoke checks run in GitHub Actions; no local Docker daemon.",
+  "exact_install_commands_native_output": {
+    "notesmd-cli": "notesmd-cli version v0.3.4",
+    "act": "act version 0.2.74",
+    "claude": "2.1.296 (Claude Code)"
+  }
+}
