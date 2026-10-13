@@ -47,11 +47,11 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    git_config_retry_script       = file("${path.module}/scripts/git-config-retry.sh")
-    workspace_name = data.coder_workspace.me.name
-    owner_name     = data.coder_workspace_owner.me.name
-    owner_email    = data.coder_workspace_owner.me.email
-    enable_browser = local.profile.capabilities.browser
+    git_config_retry_script = file("${path.module}/scripts/git-config-retry.sh")
+    workspace_name          = data.coder_workspace.me.name
+    owner_name              = data.coder_workspace_owner.me.name
+    owner_email             = data.coder_workspace_owner.me.email
+    enable_browser          = local.profile.capabilities.browser
     claude_md_content = join("\n\n", [
       trimspace(file("${path.module}/CLAUDE.md")),
       trimspace(file("${path.module}/WORKSPACE_ROUTING.md")),
@@ -224,7 +224,7 @@ resource "coder_script" "tools_ci" {
     github_credential_script_b64  = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64 = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
     repositories_manifest_b64     = base64encode(file("${path.module}/repositories.txt"))
-    worktree_lifecycle_script_b64  = base64encode(file("${path.module}/scripts/worktree-lifecycle.py"))
+    worktree_lifecycle_script_b64 = base64encode(file("${path.module}/scripts/worktree-lifecycle.py"))
   })
 }
 
@@ -395,16 +395,32 @@ module "claude-code" {
 }
 
 # =============================================================================
-# KasmVNC (module replaces browser-serve.sh + coder_app)
+# Loopback desktop (Coder owns authentication; the backend has no network ingress)
 # =============================================================================
 
-module "kasmvnc" {
-  count               = local.profile.capabilities.desktop ? data.coder_workspace.me.start_count : 0
-  source              = "registry.coder.com/coder/kasmvnc/coder"
-  version             = "1.3.0"
-  agent_id            = coder_agent.main.id
-  desktop_environment = "xfce"
-  port                = 6080
+resource "coder_script" "tools_desktop" {
+  count        = local.profile.capabilities.desktop ? data.coder_workspace.me.start_count : 0
+  agent_id     = coder_agent.main.id
+  display_name = "Desktop"
+  icon         = "/icon/kasmvnc.svg"
+  run_on_start = true
+  script       = file("${path.module}/scripts/tools-desktop.sh")
+}
+
+resource "coder_app" "desktop" {
+  count        = local.profile.capabilities.desktop ? data.coder_workspace.me.start_count : 0
+  agent_id     = coder_agent.main.id
+  slug         = "kasm-vnc"
+  display_name = "KasmVNC"
+  url          = "http://127.0.0.1:6080"
+  icon         = "/icon/kasmvnc.svg"
+  subdomain    = true
+  share        = "owner"
+  healthcheck {
+    url       = "http://127.0.0.1:6080/app"
+    interval  = 5
+    threshold = 5
+  }
 }
 
 # =============================================================================

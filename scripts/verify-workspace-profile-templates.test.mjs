@@ -186,7 +186,7 @@ test("canonical Terraform gates every optional workspace surface", () => {
   );
   assert.match(
     terraform,
-    /module "kasmvnc" \{[\s\S]*?count\s*=\s*local\.profile\.capabilities\.desktop \? data\.coder_workspace\.me\.start_count : 0/,
+    /resource "coder_script" "tools_desktop" \{[\s\S]*?count\s*=\s*local\.profile\.capabilities\.desktop \? data\.coder_workspace\.me\.start_count : 0/,
   );
   assert.match(
     terraform,
