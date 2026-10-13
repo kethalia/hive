@@ -4,6 +4,7 @@ import { TerminalAudioBridge } from "../../src/components/terminal/TerminalAudio
 import { primeTerminalAudio } from "../../src/lib/terminal/audio-interaction";
 
 const probe = {
+  requests: 0,
   contexts: [] as AudioContext[],
   tracks: [] as MediaStreamTrack[],
   analysers: [] as AnalyserNode[],
@@ -27,6 +28,7 @@ window.AudioWorkletNode = class extends Worklet {
 };
 const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 navigator.mediaDevices.getUserMedia = async (constraints) => {
+  probe.requests++;
   const stream = await getUserMedia(constraints);
   probe.tracks.push(...stream.getTracks());
   return stream;

@@ -49,6 +49,7 @@ class Worklet {
   }
 }
 let sessions: TerminalAudio[];
+let callbacks: WeakMap<TerminalAudio, ReturnType<typeof vi.fn>>;
 let stop: ReturnType<typeof vi.fn>;
 let getUserMedia: ReturnType<typeof vi.fn>;
 let stream: MediaStream;
@@ -56,6 +57,7 @@ let pendingGrants: Array<() => void>;
 beforeEach(() => {
   vi.useFakeTimers();
   sessions = [];
+  callbacks = new WeakMap();
   pendingGrants = [];
   Socket.instances = [];
   Context.instances = [];
@@ -78,12 +80,24 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   Object.defineProperty(navigator, "locks", { configurable: true, value: originalLocks });
 });
-function session(canStart = () => true, url = "wss://hive/ws/audio", canClaim = canStart) {
+function session(canStart = () => true, url = "wss://hive/ws/audio") {
   const status = vi.fn();
-  const audio = new TerminalAudio(url, status, canStart, canClaim);
+  const audio = new TerminalAudio(url, status, canStart);
+  callbacks.set(audio, status);
   sessions.push(audio);
   audio.setVisible(true);
   return { audio, status, socket: Socket.instances.at(-1) as Socket };
+}
+
+// Existing media/lifecycle cases explicitly approve their simulated voice call.
+// Security cases below send native activity without using this helper.
+function approveVoice(socket: Socket) {
+  const audio = sessions.find(
+    (audio) => (audio as unknown as { socket: Socket }).socket === socket,
+  );
+  expect(audio).toBeDefined();
+  socket.emit({ type: "active", active: true });
+  audio?.approveMicrophone(callbacks.get(audio)?.mock.lastCall?.[0]?.requestId ?? -1);
 }
 
 function pendingPermission() {
@@ -96,6 +110,68 @@ function pendingPermission() {
 }
 
 describe("native terminal browser audio", () => {
+  it.each([
+    true,
+    false,
+    undefined,
+  ])("requires explicit approval even when a relay sets claimRequired=%s", async (claimRequired) => {
+    const { audio, socket, status } = session();
+    audio.approveMicrophone(-1); // Approval cannot arm a future workspace request.
+    socket.emit({ type: "ready", claimRequired });
+    socket.emit({ type: "active", active: true });
+    audio.prime();
+    socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"claim"}');
+    expect(status).toHaveBeenLastCalledWith({
+      phase: "request",
+      message: expect.any(String),
+      requestId: expect.any(Number),
+    });
+    const requestId = status.mock.lastCall![0].requestId;
+    audio.approveMicrophone(requestId);
+    audio.approveMicrophone(requestId); // Duplicate clicks cannot create parallel claims.
+    if (claimRequired) socket.emit({ type: "claimed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    socket.emit({ type: "active", active: false });
+    socket.emit({ type: "active", active: true });
+    audio.prime();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("rejects approval for an expired request after a replacement capture starts", async () => {
+    const { audio, socket, status } = session();
+    socket.emit({ type: "active", active: true });
+    const expired = status.mock.lastCall![0].requestId;
+    socket.emit({ type: "active", active: false });
+    socket.emit({ type: "active", active: true });
+    const current = status.mock.lastCall![0].requestId;
+    expect(current).not.toBe(expired);
+    audio.approveMicrophone(expired);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    audio.approveMicrophone(current);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("does not carry microphone approval through a disconnected relay", async () => {
+    const { audio, socket } = session();
+    approveVoice(socket);
+    await vi.advanceTimersByTimeAsync(0);
+    socket.onclose?.();
+    await vi.advanceTimersByTimeAsync(3000);
+    const replacement = Socket.instances.at(-1)!;
+    replacement.emit({ type: "active", active: true });
+    audio.prime();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
   it("authorizes before opening audio and ignores grants after disposal", async () => {
     let complete!: (protocols: string[]) => void;
     const authorize = vi.fn(
@@ -104,13 +180,7 @@ describe("native terminal browser audio", () => {
           complete = resolve;
         }),
     );
-    const audio = new TerminalAudio(
-      "wss://terminal/ws/audio",
-      vi.fn(),
-      () => true,
-      () => true,
-      authorize,
-    );
+    const audio = new TerminalAudio("wss://terminal/ws/audio", vi.fn(), () => true, authorize);
     sessions.push(audio);
     audio.setVisible(true);
     audio.refreshFocus();
@@ -121,13 +191,7 @@ describe("native terminal browser audio", () => {
     expect(Socket.instances[0].protocols).toEqual(["hive-audio-v1", "hive-ticket.fixture"]);
     audio.dispose();
 
-    const pending = new TerminalAudio(
-      "wss://terminal/ws/audio",
-      vi.fn(),
-      () => true,
-      () => true,
-      authorize,
-    );
+    const pending = new TerminalAudio("wss://terminal/ws/audio", vi.fn(), () => true, authorize);
     sessions.push(pending);
     pending.setVisible(true);
     pending.dispose();
@@ -143,7 +207,7 @@ describe("native terminal browser audio", () => {
     let focused = true;
     const { audio, socket, status } = session(() => focused);
     socket.emit({ type: "ready", claimRequired: true });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     expect(socket.send).toHaveBeenCalledWith('{"type":"claim"}');
     await vi.advanceTimersByTimeAsync(7000);
     if (mode === "hidden") audio.setVisible(false);
@@ -177,7 +241,7 @@ describe("native terminal browser audio", () => {
   it("still times out unconfirmed ownership while the pane stays focused", async () => {
     const { socket, status } = session();
     socket.emit({ type: "ready", claimRequired: true });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(8000);
     expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
     expect(getUserMedia).not.toHaveBeenCalled();
@@ -190,7 +254,7 @@ describe("native terminal browser audio", () => {
   it("cancels a paused ownership deadline when native capture ends", async () => {
     const { audio, socket } = session();
     socket.emit({ type: "ready", claimRequired: true });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     audio.setFrozen(true);
     socket.emit({ type: "active", active: false });
     const releases = () =>
@@ -216,16 +280,20 @@ describe("native terminal browser audio", () => {
       "AudioContext",
       class extends Context {
         state = "suspended";
-        resume = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(latest);
+        resume = vi
+          .fn()
+          .mockResolvedValueOnce(undefined)
+          .mockReturnValueOnce(first)
+          .mockReturnValueOnce(latest);
       },
     );
     const { audio, socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     audio.setVisible(false);
     audio.setVisible(true);
     const context = Context.instances[0];
-    expect(context.resume).toHaveBeenCalledTimes(2);
+    expect(context.resume).toHaveBeenCalledTimes(3);
     rejectFirst(new Error("Older focus attempt rejected"));
     await vi.advanceTimersByTimeAsync(0);
     expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
@@ -240,7 +308,7 @@ describe("native terminal browser audio", () => {
 
   it("rejects queued capture packets from before a pause after focus resumes", async () => {
     const { audio, socket } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     const port = Worklet.instances[0].port;
     const controls = () =>
@@ -277,7 +345,7 @@ describe("native terminal browser audio", () => {
       },
     );
     const { audio, socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     audio.setVisible(false);
     await vi.advanceTimersByTimeAsync(30_000);
@@ -302,7 +370,7 @@ describe("native terminal browser audio", () => {
       },
     );
     const { socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(8000);
     expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
     expect(stop).toHaveBeenCalled();
@@ -313,7 +381,7 @@ describe("native terminal browser audio", () => {
     const track = { enabled: true, stop, onended: null };
     getUserMedia.mockResolvedValue({ getTracks: () => [track] });
     const { audio, socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     audio.setVisible(false);
     const context = Context.instances[0];
@@ -343,7 +411,7 @@ describe("native terminal browser audio", () => {
   it("re-probes an overdue heartbeat after a frozen tab without releasing the call", async () => {
     const { audio, socket } = session();
     socket.onopen?.();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     audio.setFrozen(true);
     vi.setSystemTime(Date.now() + 60_000);
@@ -361,7 +429,7 @@ describe("native terminal browser audio", () => {
   it("rejects speaker frames queued before focus resumed even after a queued pong", async () => {
     const { audio, socket } = session();
     socket.emit({ type: "ready", playbackGeneration: true });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     const generation = () =>
       JSON.parse(
@@ -385,7 +453,7 @@ describe("native terminal browser audio", () => {
   it("retries the latest playback generation after congestion and cancels it on end", async () => {
     const { audio, socket } = session();
     socket.emit({ type: "ready", playbackGeneration: true });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     socket.send.mockClear();
     socket.bufferedAmount = 70_000;
@@ -408,7 +476,7 @@ describe("native terminal browser audio", () => {
 
   it("cancels pending context recovery when native voice ends", async () => {
     const { audio, socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     audio.setVisible(false);
     const context = Context.instances[0];
@@ -451,7 +519,7 @@ describe("native terminal browser audio", () => {
     stream = { getTracks: () => [track] } as unknown as MediaStream;
     getUserMedia.mockResolvedValue(stream);
     const { audio, socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(Worklet.instances).toHaveLength(0);
     audio.setVisible(false);
@@ -482,13 +550,13 @@ describe("native terminal browser audio", () => {
     const first = session(() => selected === 0);
     first.socket.onopen?.();
     first.socket.emit({ type: "ready", claimRequired: true });
-    first.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
     first.socket.emit({ type: "claimed" });
     await vi.advanceTimersByTimeAsync(0);
     selected = 1;
     first.audio.refreshFocus();
     const second = session(() => selected === 1, "wss://hive/ws/audio?sessionName=other");
-    second.socket.emit({ type: "active", active: true });
+    approveVoice(second.socket);
     await vi.advanceTimersByTimeAsync(0);
     const pcm = btoa(String.fromCharCode(...new Uint8Array(960)));
     const transmit = (index: number, generation: number) =>
@@ -523,7 +591,7 @@ describe("native terminal browser audio", () => {
   it("keeps hidden workspace calls connected and resumes without reclaiming or prompting", async () => {
     const { audio, socket, status } = session();
     socket.emit({ type: "ready", claimRequired: true });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     socket.emit({ type: "claimed" });
     await vi.advanceTimersByTimeAsync(0);
     audio.setVisible(false);
@@ -568,7 +636,7 @@ describe("native terminal browser audio", () => {
     stream = { getTracks: () => [track] } as unknown as MediaStream;
     getUserMedia.mockReturnValueOnce(promise);
     const { audio, socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     audio.setVisible(false);
     grant();
@@ -591,19 +659,12 @@ describe("native terminal browser audio", () => {
   });
 
   it("retries a congested call claim without consuming another interaction", async () => {
-    let armed = true;
-    const canClaim = vi.fn(() => {
-      const value = armed;
-      armed = false;
-      return value;
-    });
-    const { socket, status } = session(() => true, "wss://hive/ws/audio", canClaim);
+    const { socket, status } = session();
     socket.emit({ type: "ready", claimRequired: true });
     socket.bufferedAmount = 70_000;
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(1000);
     expect(socket.send).not.toHaveBeenCalled();
-    expect(canClaim).toHaveBeenCalledOnce();
     socket.bufferedAmount = 0;
     await vi.advanceTimersByTimeAsync(100);
     expect(socket.send).toHaveBeenCalledWith('{"type":"claim"}');
@@ -611,14 +672,13 @@ describe("native terminal browser audio", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
-    expect(canClaim).toHaveBeenCalledOnce();
   });
 
   it("cancels a queued claim when native capture ends", async () => {
     const { socket } = session();
     socket.emit({ type: "ready", claimRequired: true });
     socket.bufferedAmount = 70_000;
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(100);
     socket.emit({ type: "active", active: false });
     socket.bufferedAmount = 0;
@@ -630,7 +690,7 @@ describe("native terminal browser audio", () => {
   it("drops microphone frames during a short network stall and resumes the same call", async () => {
     const { socket, status } = session();
     socket.onopen?.();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     const port = Worklet.instances[0].port;
     const generation = port.postMessage.mock.calls.at(-1)![0].generation;
@@ -668,7 +728,7 @@ describe("native terminal browser audio", () => {
   it("keeps a rejected call observer connected until the owner finishes", async () => {
     const first = session();
     first.socket.emit({ type: "ready", claimRequired: true });
-    first.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
     first.socket.emit({ type: "error", code: "session_busy", message: "Already connected." });
     await vi.advanceTimersByTimeAsync(30_000);
     expect(getUserMedia).not.toHaveBeenCalled();
@@ -676,7 +736,7 @@ describe("native terminal browser audio", () => {
     expect(Socket.instances).toHaveLength(1);
     first.socket.emit({ type: "active", active: false });
     expect(first.status).toHaveBeenLastCalledWith({ phase: "standby" });
-    first.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
     first.socket.emit({ type: "claimed" });
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
@@ -684,8 +744,8 @@ describe("native terminal browser audio", () => {
   it("keeps separate terminal calls connected without ending the other call", async () => {
     const first = session();
     const second = session(() => true, "wss://hive/ws/audio?sessionName=other");
-    first.socket.emit({ type: "active", active: true });
-    second.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
+    approveVoice(second.socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledTimes(2);
     for (const call of [first, second])
@@ -698,7 +758,7 @@ describe("native terminal browser audio", () => {
   it("claims a workspace call before requesting microphone permission", async () => {
     const first = session();
     first.socket.emit({ type: "ready", claimRequired: true });
-    first.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
     expect(first.socket.send).toHaveBeenCalledWith('{"type":"claim"}');
     expect(getUserMedia).not.toHaveBeenCalled();
     first.socket.emit({ type: "claimed" });
@@ -707,11 +767,7 @@ describe("native terminal browser audio", () => {
   });
 
   it("an unused device observes native capture without reserving the call or prompting", async () => {
-    const unused = session(
-      () => true,
-      "wss://hive/ws/audio",
-      () => false,
-    );
+    const unused = session();
     unused.socket.emit({ type: "ready", claimRequired: true });
     unused.socket.emit({ type: "active", active: true });
     await vi.advanceTimersByTimeAsync(0);
@@ -719,7 +775,7 @@ describe("native terminal browser audio", () => {
     expect(getUserMedia).not.toHaveBeenCalled();
     const current = session();
     current.socket.emit({ type: "ready", claimRequired: true });
-    current.socket.emit({ type: "active", active: true });
+    approveVoice(current.socket);
     current.socket.emit({ type: "claimed" });
     await vi.advanceTimersByTimeAsync(0);
     expect(current.status).toHaveBeenLastCalledWith({
@@ -731,7 +787,7 @@ describe("native terminal browser audio", () => {
   it("does not use a late claim confirmation after native capture ends", async () => {
     const first = session();
     first.socket.emit({ type: "ready", claimRequired: true });
-    first.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
     first.socket.emit({ type: "active", active: false });
     first.socket.emit({ type: "claimed" });
     await vi.advanceTimersByTimeAsync(0);
@@ -752,7 +808,7 @@ describe("native terminal browser audio", () => {
     focused = true;
     first.audio.refreshFocus();
     const replacement = Socket.instances.at(-1) as Socket;
-    replacement.emit({ type: "active", active: true });
+    approveVoice(replacement);
     await vi.advanceTimersByTimeAsync(0);
     focused = false;
     first.audio.refreshFocus();
@@ -782,20 +838,22 @@ describe("native terminal browser audio", () => {
     const background = session(() => focused);
     // Native activity may arrive just before the DOM focus update runs.
     focused = false;
-    background.socket.emit({ type: "active", active: true });
+    approveVoice(background.socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).not.toHaveBeenCalled();
+    background.audio.refreshFocus();
     expect(background.socket.send).toHaveBeenCalledWith('{"type":"release"}');
     focused = true;
+    background.audio.refreshFocus();
     await vi.advanceTimersByTimeAsync(3000);
     const socket = Socket.instances.at(-1) as Socket;
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     focused = false;
     background.audio.refreshFocus();
     const other = session();
-    other.socket.emit({ type: "active", active: true });
+    approveVoice(other.socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(stop).not.toHaveBeenCalled();
@@ -809,30 +867,32 @@ describe("native terminal browser audio", () => {
     const { promise, grant } = pendingPermission();
     getUserMedia.mockReturnValueOnce(promise);
     const first = session();
-    first.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
     await vi.advanceTimersByTimeAsync(0);
     first.audio.dispose();
     const other = session();
-    other.socket.emit({ type: "active", active: true });
+    approveVoice(other.socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     grant();
     await vi.advanceTimersByTimeAsync(0);
     expect(stop).toHaveBeenCalledOnce();
-    expect(Context.instances).toHaveLength(0);
+    expect(Context.instances.every((context) => context.close.mock.calls.length > 0)).toBe(true);
     await vi.advanceTimersByTimeAsync(3000);
-    (Socket.instances.at(-1) as Socket).emit({ type: "active", active: true });
+    const retry = Socket.instances.at(-1) as Socket;
+    retry.emit({ type: "active", active: false });
+    approveVoice(retry);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledTimes(2);
   });
 
   it("ignores a retired audio processor's error after starting another call", async () => {
     const { socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     const oldError = Worklet.instances[0].onprocessorerror;
     socket.emit({ type: "active", active: false });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     oldError?.();
     expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
@@ -843,10 +903,10 @@ describe("native terminal browser audio", () => {
     const { promise, grant } = pendingPermission();
     getUserMedia.mockReturnValueOnce(promise);
     const { socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     socket.emit({ type: "active", active: false });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(status).toHaveBeenLastCalledWith({
@@ -856,9 +916,11 @@ describe("native terminal browser audio", () => {
     grant();
     await vi.advanceTimersByTimeAsync(0);
     expect(stop).toHaveBeenCalledOnce();
-    expect(Context.instances).toHaveLength(0);
+    expect(Context.instances.every((context) => context.close.mock.calls.length > 0)).toBe(true);
     await vi.advanceTimersByTimeAsync(3000);
-    (Socket.instances.at(-1) as Socket).emit({ type: "active", active: true });
+    const retry = Socket.instances.at(-1) as Socket;
+    retry.emit({ type: "active", active: false });
+    approveVoice(retry);
     await vi.advanceTimersByTimeAsync(0);
     expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
   });
@@ -867,11 +929,11 @@ describe("native terminal browser audio", () => {
     const track = { stop, onended: null as (() => void) | null };
     getUserMedia.mockResolvedValueOnce({ getTracks: () => [track] });
     const { socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     const oldEnded = track.onended;
     socket.emit({ type: "active", active: false });
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     oldEnded?.();
     expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
@@ -900,7 +962,7 @@ describe("native terminal browser audio", () => {
     available.emit({ type: "active", active: false });
     expect(status).toHaveBeenLastCalledWith({ phase: "standby" });
     expect(getUserMedia).not.toHaveBeenCalled();
-    available.emit({ type: "active", active: true });
+    approveVoice(available);
     await vi.advanceTimersByTimeAsync(0);
     expect(Socket.instances).toHaveLength(3);
     expect(getUserMedia).toHaveBeenCalledOnce();
@@ -926,7 +988,7 @@ describe("native terminal browser audio", () => {
   it("keeps permission errors visible after the relay reconnects", async () => {
     getUserMedia.mockRejectedValue(new DOMException("denied", "NotAllowedError"));
     const { socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(3000);
     const retry = Socket.instances.at(-1) as Socket;
@@ -942,7 +1004,7 @@ describe("native terminal browser audio", () => {
     const request = vi.fn(async (_name, _options, callback) => callback(null));
     Object.defineProperty(navigator, "locks", { configurable: true, value: { request } });
     const { socket, status } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).not.toHaveBeenCalled();
     expect(status).toHaveBeenLastCalledWith({
@@ -962,7 +1024,7 @@ describe("native terminal browser audio", () => {
     const { promise, grant } = pendingPermission();
     getUserMedia.mockReturnValue(promise);
     const { audio, socket } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(released).toBe(false);
@@ -980,7 +1042,7 @@ describe("native terminal browser audio", () => {
     socket.emit({ type: "ready" });
     socket.emit({ type: "active", active: false });
     expect(getUserMedia).not.toHaveBeenCalled();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
     socket.emit({ type: "active", active: false });
@@ -992,21 +1054,21 @@ describe("native terminal browser audio", () => {
     const { promise, grant } = pendingPermission();
     getUserMedia.mockReturnValue(promise);
     const { audio, socket } = session();
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     audio.dispose();
     grant();
     await vi.advanceTimersByTimeAsync(0);
     expect(stop).toHaveBeenCalledOnce();
-    expect(Context.instances).toHaveLength(0);
+    expect(Context.instances.every((context) => context.close.mock.calls.length > 0)).toBe(true);
     expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
   });
 
   it("prevents duplicate views of one call and releases native capture on denial", async () => {
     const first = session();
-    first.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
     await vi.advanceTimersByTimeAsync(0);
     const second = session();
-    second.socket.emit({ type: "active", active: true });
+    approveVoice(second.socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledOnce();
     expect(second.status).toHaveBeenLastCalledWith({
@@ -1016,7 +1078,7 @@ describe("native terminal browser audio", () => {
     first.audio.dispose();
     getUserMedia.mockRejectedValue(new DOMException("denied", "NotAllowedError"));
     const denied = session();
-    denied.socket.emit({ type: "active", active: true });
+    approveVoice(denied.socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(denied.socket.send).toHaveBeenCalledWith('{"type":"release"}');
     expect(denied.status).toHaveBeenLastCalledWith({
@@ -1027,13 +1089,13 @@ describe("native terminal browser audio", () => {
 
   it("releases active media on socket closure and permits a subsequent native call", async () => {
     const first = session();
-    first.socket.emit({ type: "active", active: true });
+    approveVoice(first.socket);
     await vi.advanceTimersByTimeAsync(0);
     first.socket.onclose?.();
     expect(stop).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(3000);
     const socket = Socket.instances.at(-1) as Socket;
-    socket.emit({ type: "active", active: true });
+    approveVoice(socket);
     await vi.advanceTimersByTimeAsync(0);
     expect(getUserMedia).toHaveBeenCalledTimes(2);
     expect(first.status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });

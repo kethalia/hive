@@ -1,0 +1,44 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [desktop-chromium] › e2e/terminal-audio.spec.mjs:182:1 › background capture after ordinary Enter cannot use an already-granted microphone (797ms)
+
+
+  1) [desktop-chromium] › e2e/terminal-audio.spec.mjs:182:1 › background capture after ordinary Enter cannot use an already-granted microphone 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      207 |     contentType: "application/json",
+      208 |   });
+    > 209 |   expect(observation.permissionRequests).toBe(0);
+          |                                          ^
+      210 |   expect(microphoneFrames).toBe(0);
+      211 |   expect(owners.size).toBe(0);
+      212 |   await expect(page.getByRole("button", { name: "Enable microphone" })).toBeVisible();
+        at /home/coder/projects/kethalia/hive/e2e/terminal-audio.spec.mjs:209:42
+
+    attachment #1: unapproved-capture-observation (application/json) ───────────────────────────────
+    test-results/playwright/terminal-audio-background--eac2c--already-granted-microphone-desktop-chromium/attachments/unapproved-capture-observation-b41205276925b68822795cf15ed0dc98f94ee5b7.json
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/terminal-audio-background--eac2c--already-granted-microphone-desktop-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/terminal-audio-background--eac2c--already-granted-microphone-desktop-chromium/error-context.md
+
+    Error Context: test-results/playwright/terminal-audio-background--eac2c--already-granted-microphone-desktop-chromium/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/terminal-audio-background--eac2c--already-granted-microphone-desktop-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/terminal-audio-background--eac2c--already-granted-microphone-desktop-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [desktop-chromium] › e2e/terminal-audio.spec.mjs:182:1 › background capture after ordinary Enter cannot use an already-granted microphone 

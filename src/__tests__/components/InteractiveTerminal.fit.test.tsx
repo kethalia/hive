@@ -3,8 +3,8 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TerminalPanel } from "@/components/templates/TerminalPanel";
 import { InteractiveTerminal } from "@/components/workspaces/InteractiveTerminal";
-import { consumeTerminalAudioInteraction } from "@/lib/terminal/audio-interaction";
 import { installTerminalBrowserIntegration } from "@/lib/terminal/browser-integration";
+import { TERMINAL_AUDIO_PRIME_EVENT } from "@/lib/terminal/events";
 import { EVENT_NAME as FONT_SIZE_EVENT } from "@/lib/terminal/font-size";
 
 const mockTerminalState = vi.hoisted(() => ({
@@ -103,17 +103,18 @@ afterEach(() => {
 });
 
 describe("InteractiveTerminal safe fit", () => {
-  it("records Enter before the asynchronous audio bridge mounts", async () => {
+  it("Enter primes playback before the asynchronous audio bridge mounts", async () => {
     const { container } = render(
       <InteractiveTerminal agentId="agent-1" workspaceId="workspace-1" sessionName="main" />,
     );
     const surface = container.querySelector<HTMLElement>('[data-terminal-surface="true"]')!;
+    const prime = vi.fn();
+    surface.addEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
     fireEvent.keyDown(surface, { key: "Enter" });
-    expect(consumeTerminalAudioInteraction(surface)).toBe(true);
-    expect(consumeTerminalAudioInteraction(surface)).toBe(false);
+    expect(prime).toHaveBeenCalledOnce();
   });
 
-  it("records Compose and touch submission before the audio bridge mounts", async () => {
+  it("Compose and touch submission prime playback without microphone approval", async () => {
     const onTerminalReady = vi.fn();
     const { container } = render(
       <InteractiveTerminal
@@ -126,10 +127,11 @@ describe("InteractiveTerminal safe fit", () => {
     await waitFor(() => expect(onTerminalReady).toHaveBeenCalledOnce());
     const send = onTerminalReady.mock.calls[0][1] as (data: string) => void;
     const surface = container.querySelector<HTMLElement>('[data-terminal-surface="true"]')!;
+    const prime = vi.fn();
+    surface.addEventListener(TERMINAL_AUDIO_PRIME_EVENT, prime);
     act(() => send("/voice\r"));
     expect(mockTerminalState.send).toHaveBeenCalled();
-    expect(consumeTerminalAudioInteraction(surface)).toBe(true);
-    expect(consumeTerminalAudioInteraction(surface)).toBe(false);
+    expect(prime).toHaveBeenCalledOnce();
   });
 
   it("warns instead of throwing and preserves font size when a font-step refit fails", async () => {

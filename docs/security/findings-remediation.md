@@ -85,6 +85,38 @@ Browser boundary evidence is preserved in
 Live rollout and Security Cloud resolution remain pending; see the migration
 instructions in [deployment.md](../deployment.md).
 
+## Explicit terminal microphone approval
+
+Findings `commit:2013bf58f9488191a12419f6eafb5234` and
+`commit:e172a9d020f081918c97f470636f7440`: workspace capture activity now
+only requests audio. Hive shows **Enable microphone** inside the requesting
+terminal; that action approves one current request in the focused, selected
+session. Enter, Compose submission, and touch Enter only prime speaker playback.
+The previous 15-second microphone arm is removed. The browser approval gate
+applies even when an older or modified relay omits its claim requirement.
+
+An approved call keeps the existing focus-pause behavior. **Stop microphone**
+releases tracks and audio resources, cancels pending ownership, and ignores late
+permission grants. Capture ending, a failed claim, reconnection, terminal identity
+changes, and remounting cannot carry consent into another call. Native/browser
+ownership still prevents overlapping views and permission prompts.
+
+Seventy targeted regressions pass. Real Chrome checks cover 13 cases each on
+desktop and mobile, including a simulated background capture after `ls`/Enter
+with browser microphone permission already granted. Before approval there are
+zero permission requests and zero audio frames; approved calls exchange PCM and
+Stop ends capture. The adversarial regression fails on `27f7301` by opening
+microphone access without approval. Screenshots, counts, logs, and validation
+boundaries are preserved in
+[`terminal-microphone-consent`](../checks/security/terminal-microphone-consent/).
+
+Approval is for the selected terminal's virtual microphone, not an individual
+workspace process: programs with access to that device can read audio while the
+call is approved. Deploy the updated web client and refresh existing views;
+neither a workspace image upgrade nor terminal proxy change is required for
+this browser consent gate. Live deployment verification and Security Cloud
+closure remain pending.
+
 ## Paste upload resource bounds
 
 Finding `commit:6cc2606c14648191b1013e97870401a4`: terminal paste uploads now
@@ -256,8 +288,8 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:b09307b841448191844b374f0398337f` | high | Auth service exposes tokens with only a session ID | Repository fix adds service authentication, updated clients, required secret wiring, and HTTP regressions. Live secret provisioning and staged rollout remain pending. |
 | `commit:8896576e73508191aad9981022235120` | high | Unpinned remote installer in production Docker image | Repository fix removes the remote installer and keeps only checksum-pinned release archives. Both real artifact hashes/architectures and the native install command were verified. Live image rollout remains pending. |
 | `commit:113a7b7e251c81919b7c8f05a3750c13` | high | Auto-derived cookie Domain broadens session scope | Repository fix removes live Domain scope, changes the signature purpose, and uses a protected production cookie name. One fresh login and coordinated web/terminal rollout are required. |
-| `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Revalidation required: current audio code consumes a recent single-use terminal gesture; arbitrary-process activation still needs adversarial testing. |
-| `commit:e172a9d020f081918c97f470636f7440` | medium | Workspace code can activate and read the browser microphone | Same microphone activation boundary as 2013bf58; do not close solely because a gesture gate was added. |
+| `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Repository fix requires explicit approval for each pending terminal microphone request; ordinary Enter cannot grant consent. Web deployment/refresh and cloud closure remain pending. |
+| `commit:e172a9d020f081918c97f470636f7440` | medium | Workspace code can activate and read the browser microphone | Same explicit browser approval fix as 2013bf58. Approved audio is available to programs sharing that terminal's virtual microphone; live rollout/cloud closure remain pending. |
 | `commit:77d897a572848191b10d536984967ccc` | medium | Workspace proxy can reuse Hive microphone permissions | Repository fix removes active proxy content and denies microphone/camera in tool frames. Chrome tests confirm Hive's permission is not reusable on the app origin. |
 | `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:77cecf3dcd488191aa1c6f3960b1e173` | medium | Unverified downloads in published workspace base image | Repository fix adds checksum gates and pins the native Claude release. Image rebuild/digest rollout and cloud closure remain pending. |

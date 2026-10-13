@@ -1,10 +1,11 @@
 export type TerminalAudioStatus =
   | { phase: "standby" }
+  | { phase: "request"; message: string; requestId: number }
   | { phase: "connecting" | "active" | "paused" | "error"; message: string };
 
 const microphoneOwners = new Map<string, TerminalAudio>();
 
-/** A terminal owns its audio transport; native device activity owns microphone access. */
+/** Native activity requests audio; only explicit browser approval starts capture. */
 export class TerminalAudio {
   private socket: WebSocket | null = null;
   private context: AudioContext | null = null;
@@ -52,8 +53,6 @@ export class TerminalAudio {
     private url: string,
     private onStatus: (status: TerminalAudioStatus) => void,
     private canStart: () => boolean = () => true,
-    // A single-use interaction arm is consumed at the first activation attempt.
-    private canClaim: () => boolean = canStart,
     private authorizeConnection?: (url: string) => Promise<string[]>,
   ) {}
 
@@ -63,15 +62,32 @@ export class TerminalAudio {
     try {
       this.context ??= new AudioContext({ sampleRate: 48_000 });
       void this.context.resume().catch(() => {});
-      if (this.nativeActive) {
-        // Enter used during an owned call (including /voice stop) must not arm
-        // this observer to claim the next call started on a different device.
-        if (this.ownsCall && this.claimRequired) this.canClaim();
-        else if (!this.ownsCall) void this.activate();
-      }
     } catch {
       /* Report unsupported audio only if native voice actually starts. */
     }
+  }
+
+  /** Approve the currently pending request from this terminal's Hive control. */
+  approveMicrophone(requestId: number) {
+    if (
+      this.disposed ||
+      requestId !== this.generation ||
+      !this.nativeActive ||
+      this.ownsCall ||
+      this.pendingMicrophone ||
+      this.ownerRejected ||
+      !this.mediaFocused()
+    )
+      return;
+    this.prime();
+    void this.activate();
+  }
+
+  stopMicrophone() {
+    if (this.disposed) return;
+    this.failed = false;
+    this.disconnect();
+    this.refreshFocus();
   }
 
   setVisible(visible: boolean) {
@@ -95,8 +111,10 @@ export class TerminalAudio {
     this.focused = focused;
     this.updateMediaFocus();
     if (this.ownsCall || this.pendingMicrophone) return;
-    if (focused) this.connect();
-    else this.disconnect();
+    if (focused) {
+      this.connect();
+      if (this.nativeActive && !this.failed) this.requestMicrophone();
+    } else this.disconnect();
   }
 
   private mediaFocused() {
@@ -279,16 +297,18 @@ export class TerminalAudio {
       } else if (value?.type === "claimed") {
         this.confirmClaim?.();
       } else if (value?.type === "active" && typeof value.active === "boolean") {
-        if (this.nativeActive === value.active) return;
+        if (this.nativeActive === value.active) {
+          if (!value.active) this.failed = false;
+          return;
+        }
         this.nativeActive = value.active;
-        if (value.active) void this.activate();
-        else {
+        if (value.active) {
+          this.requestMicrophone();
+        } else {
+          const preserveError = this.failed && !this.ownerRejected;
           this.releaseMedia();
-          if (this.claimRequired && this.ownerRejected) {
-            this.ownerRejected = false;
-            this.failed = false;
-          }
-          if (!this.failed) this.onStatus({ phase: "standby" });
+          this.ownerRejected = this.failed = false;
+          if (!preserveError) this.onStatus({ phase: "standby" });
           this.refreshFocus();
         }
       } else if (value?.type === "speaker" && typeof value.pcm === "string" && this.worklet) {
@@ -331,8 +351,10 @@ export class TerminalAudio {
           phase: "error",
           message: "Voice disconnected. Run /voice again after reconnecting.",
         });
+      const requested = this.nativeActive && !this.ownsCall && !this.failed;
       this.nativeActive = false;
       this.releaseMedia();
+      if (requested) this.onStatus({ phase: "standby" });
       if (retry && this.visible && !this.disposed)
         this.reconnect = setTimeout(() => this.connect(), 3000);
     };
@@ -341,16 +363,29 @@ export class TerminalAudio {
     };
   }
 
+  private requestMicrophone() {
+    if (this.pendingMicrophone) {
+      this.fail("Finish the microphone permission request, then run /voice again.");
+      return;
+    }
+    if (this.mediaFocused() && !this.ownsCall && !this.failed)
+      this.onStatus({
+        phase: "request",
+        message: "This terminal is requesting microphone access.",
+        requestId: this.generation,
+      });
+  }
+
+  // Only approveMicrophone calls this, for one live request. No permission is
+  // carried into the next capture, relay reconnect, or component instance.
   private async activate() {
-    // A view left open on another device must not answer native activity merely
-    // because that browser still reports focus. Enter arms a new call briefly.
-    if (this.claimRequired && !this.canClaim()) return;
     if (this.pendingMicrophone) {
       this.fail("Finish the microphone permission request, then run /voice again.");
       return;
     }
     const generation = ++this.generation;
     const current = () => !this.disposed && this.nativeActive && generation === this.generation;
+    this.onStatus({ phase: "connecting", message: "Connecting voice…" });
     try {
       // Focus chooses a new call. Later focus changes pause media, not ownership.
       if (!this.mediaFocused())
