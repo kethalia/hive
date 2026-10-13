@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
+import { verifyAnonymousCoderLogin } from "./helpers/coder-anonymous-denial.mjs";
 
 const config = JSON.parse(readFileSync(0, "utf8"));
 assert.equal(process.env.HIVE_WORKSPACE_PROFILE, "browser", "Run in Browser Testing");
@@ -21,12 +22,8 @@ try {
   const anonymous = await browser.newContext({ ignoreHTTPSErrors: true });
   stage = "anonymous-owner-app";
   const anon = await anonymous.newPage();
-  await anon.goto(config.appUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
-  const denied =
-    new URL(anon.url()).origin !== new URL(config.appUrl).origin ||
-    (await anon.locator("canvas").count()) === 0;
-  assert.ok(denied);
-  report.checks.push({ name: "anonymous access cannot open the desktop", passed: true });
+  const evidence = await verifyAnonymousCoderLogin(anon, config);
+  report.checks.push({ name: "anonymous access cannot open the desktop", passed: true, evidence });
   await anonymous.close();
   const owner = await browser.newContext({
     ignoreHTTPSErrors: true,

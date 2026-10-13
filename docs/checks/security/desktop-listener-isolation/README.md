@@ -4,8 +4,8 @@ Validated on 2026-10-13 in disposable Browser Testing workspace
 `daniel/hive-desktop-isolation-check` (`4bed84ef-fb9d-4ecf-913a-ec06f33827fd`).
 The current pinned image supplies KasmVNC 1.4.0 and Chrome 155. The repository's
 guard was compiled in that workspace, and the launcher ran with only its library
-path substituted to the task directory. Source hashes are recorded in
-`verification.json`; the final browser harness hash is in `browser-report.json`.
+path substituted to the task directory. Source hashes for the initial validation are recorded in
+`verification.json` and `browser-report.json`.
 
 The pinned Coder KasmVNC module 1.3.0 already selects loopback TCP but disables
 BasicAuth, permits existing user configuration to override the listener, and
@@ -41,7 +41,7 @@ Results:
   files were removed; the workspace remains assigned to its existing task.
 
 The browser harness is `e2e/desktop-listener-isolation.mjs`. Run it only in
-Browser Testing, passing `appUrl`, a fresh owner app `authRedirect`, and
+Browser Testing, passing `appUrl`, the expected `coderUrl`, a fresh owner app `authRedirect`, and
 `artifactDir` through stdin JSON. Obtain the redirect via Coder's authenticated
 application API and keep its signed proof out of logs and saved artifacts.
 The harness uses installed Chrome and the repository-pinned Playwright version.
@@ -50,3 +50,13 @@ This verifies the existing Coder app/agent proxy plus the repository launcher on
 the current image. New image construction is checked in PR CI; template/image
 rollout remains separate. No second authenticated user's account or retired
 Council deployment was inspected. Security Cloud finding state is unchanged.
+
+Review follow-up: the anonymous check now requires a successful response from
+the configured Coder origin at `/login` with a visible sign-in button. A missing
+canvas or arbitrary redirect cannot pass. Five Chrome regressions cover a valid
+login, delayed public desktop, blank page, unexpected login origin, and error
+response. The corrected harness passed all four checks against the real Coder
+app in disposable workspace `daniel/hive-desktop-review-check`. Current source
+hashes, regression results, and cleanup are in `review-verification.json`; the
+live login evidence is in `review-browser-report.json`. Run the regressions in
+Browser Testing with `node --test e2e/desktop-anonymous-denial.test.mjs`.
