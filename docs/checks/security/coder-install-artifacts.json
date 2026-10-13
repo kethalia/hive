@@ -1,0 +1,32 @@
+{
+  "verified_at": "2026-10-13T07:00:40.388503+00:00",
+  "release_version": "2.33.0",
+  "dockerfile_sha256": "b9c1383adeaf566f83169b5623a68199d5420ebffd7b5326ffca2ac406ea109e",
+  "vendor_checksums_url": "https://github.com/coder/coder/releases/download/v2.33.0/coder_2.33.0_checksums.txt",
+  "artifacts": [
+    {
+      "architecture": "amd64",
+      "release_url": "https://github.com/coder/coder/releases/download/v2.33.0/coder_2.33.0_linux_amd64.tar.gz",
+      "sha256": "0089d46a9931498e5dcbe6df6bfb7153a2345156b5e7388ccbce8fb9b430061a",
+      "archive_bytes": 185048221,
+      "matches_repository_pin": true,
+      "matches_vendor_checksums": true,
+      "coder_member": "./coder",
+      "elf_machine": 62,
+      "native_smoke": true
+    },
+    {
+      "architecture": "arm64",
+      "release_url": "https://github.com/coder/coder/releases/download/v2.33.0/coder_2.33.0_linux_arm64.tar.gz",
+      "sha256": "c66893c330bb5a3fdbd046965f36426d1be91969e6edecd27c31a21cb51aeb50",
+      "archive_bytes": 180090987,
+      "matches_repository_pin": true,
+      "matches_vendor_checksums": true,
+      "coder_member": "./coder",
+      "elf_machine": 183,
+      "native_smoke": false
+    }
+  ],
+  "native_install_output": "/tmp/hive-coder-release-OMULfm/install.tar.gz: OK\nCoder v2.33.0+f009c17 Tue May  5 19:54:04 UTC 2026\nhttps://github.com/coder/coder/commit/f009c17217e6bad9a61ba511d23735bc1ce94da0\n\nFull build of Coder, supports the server subcommand.",
+  "validation_scope": "Both real archives hash/ELF checked; exact install command executed for amd64 using a local verified download fixture. arm64 runtime and full images are not executed locally; no Docker daemon is available."
+}

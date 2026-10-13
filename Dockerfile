@@ -31,15 +31,13 @@ ARG TARGETARCH
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
-RUN apk add --no-cache ca-certificates curl openssh-client && \
-    curl -fsSL https://coder.com/install.sh | sh && \
-    coder version && \
+RUN apk add --no-cache ca-certificates curl openssh-client tar && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs && \
     mkdir -p /home/coder && \
     chown nextjs:nodejs /home/coder
-RUN apk add --no-cache ca-certificates curl tar && \
-    case "${TARGETARCH:-amd64}" in \
+# Install only the pinned release archive; verify it before extraction/execution.
+RUN case "${TARGETARCH}" in \
       amd64) coder_arch="amd64"; coder_sha="0089d46a9931498e5dcbe6df6bfb7153a2345156b5e7388ccbce8fb9b430061a" ;; \
       arm64) coder_arch="arm64"; coder_sha="c66893c330bb5a3fdbd046965f36426d1be91969e6edecd27c31a21cb51aeb50" ;; \
       *) echo "Unsupported Coder CLI architecture: ${TARGETARCH}" >&2; exit 1 ;; \
@@ -48,7 +46,8 @@ RUN apk add --no-cache ca-certificates curl tar && \
     echo "${coder_sha}  /tmp/coder.tar.gz" | sha256sum -c - && \
     tar -xzf /tmp/coder.tar.gz -C /usr/local/bin ./coder && \
     chmod 0755 /usr/local/bin/coder && \
-    rm /tmp/coder.tar.gz
+    rm /tmp/coder.tar.gz && \
+    coder version
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
