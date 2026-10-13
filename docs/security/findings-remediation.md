@@ -123,12 +123,38 @@ retaining upload admission. Both regressions fail on the original PR commit
 `f2377af` and pass with the review fixes.
 Live rollout and Security Cloud resolution remain pending.
 
+## Production Coder installation fix
+
+Finding `commit:8896576e73508191aad9981022235120`: the web image no longer
+downloads/executes `coder.com/install.sh` before installing the pinned CLI.
+It downloads only the Coder 2.33.0 release archive selected by BuildKit's
+`TARGETARCH`, checks the repository-pinned SHA-256 before extraction, and runs
+`coder version` after installation. Missing and unsupported architectures fail
+before any download. A version upgrade must also update the architecture hashes.
+
+Eight install-command/pin regressions run in normal test/coverage CI: both supported
+architecture branches, checksum mismatch, download failure, missing/unsupported
+architecture, removal of the remote installer, and pins matching the verified
+release record. The tests execute the
+Dockerfile shell command with isolated paths, download fixtures, and fixture
+hashes; failed verification cannot extract or execute the binary.
+
+Both real release archives match the existing repository pins and Coder's
+published checksum manifest. Their ELF machine types match amd64 and arm64.
+The exact install command was also run against the real verified amd64 archive,
+including executable permissions, archive cleanup, and the version smoke check.
+Evidence and validation boundaries are preserved in
+[`coder-install-artifacts.json`](../checks/security/coder-install-artifacts.json).
+No local Docker daemon is available; arm64 runtime execution and full image
+builds were not performed locally. Rebuilding/deploying the image and live
+Security Cloud resolution remain separate rollout steps.
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
 2. Verify isolated File Browser/editor/desktop connectivity after the app-origin fix is deployed.
 3. Verify the host-only cookie migration and ticket-based terminal/audio/status authentication after coordinated deployment.
-4. Review workspace credential scope, desktop listeners, and supply-chain artifacts.
+4. Review workspace credential scope, desktop listeners, and remaining workspace-image supply-chain artifacts.
 
 Browser execution belongs in `browser-testing`; live infrastructure validation belongs in `infrastructure`. This first slice uses code-level checks in the software workspace.
 
@@ -141,7 +167,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:09825c4928cc81918315da2d4ff42f68` | high | Council KasmVNC listens network-wide with weak/no auth | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:edcec789b9f8819194c07cd5157d5c4d` | high | Coder CLI auto-login exposes user Coder tokens to workspace code | Coder-login module still enabled; verify actual token scope before selecting remediation. |
 | `commit:b09307b841448191844b374f0398337f` | high | Auth service exposes tokens with only a session ID | Repository fix adds service authentication, updated clients, required secret wiring, and HTTP regressions. Live secret provisioning and staged rollout remain pending. |
-| `commit:8896576e73508191aad9981022235120` | high | Unpinned remote installer in production Docker image | Confirmed remote Coder installer in production Dockerfile; pinned artifact verification pending. |
+| `commit:8896576e73508191aad9981022235120` | high | Unpinned remote installer in production Docker image | Repository fix removes the remote installer and keeps only checksum-pinned release archives. Both real artifact hashes/architectures and the native install command were verified. Live image rollout remains pending. |
 | `commit:113a7b7e251c81919b7c8f05a3750c13` | high | Auto-derived cookie Domain broadens session scope | Repository fix removes live Domain scope, changes the signature purpose, and uses a protected production cookie name. One fresh login and coordinated web/terminal rollout are required. |
 | `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Revalidation required: current audio code consumes a recent single-use terminal gesture; arbitrary-process activation still needs adversarial testing. |
 | `commit:e172a9d020f081918c97f470636f7440` | medium | Workspace code can activate and read the browser microphone | Same microphone activation boundary as 2013bf58; do not close solely because a gesture gate was added. |
