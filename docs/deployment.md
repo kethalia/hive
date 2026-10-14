@@ -157,6 +157,72 @@ From a machine with cluster access, the lightweight verifier can check the expec
 
 Use `--context <kube-context>` when the desired cluster is not the active kubeconfig context.
 
+## Existing database baseline adoption
+
+The `hive-migrate` image runs a catalog/history preflight before `prisma migrate deploy`.
+It inspects the PostgreSQL schema selected by `DATABASE_URL` (`public` by default), including
+non-default schema names. The check does not write tables or migration history. Its messages omit
+connection credentials and raw CLI output.
+
+| Database state | Result |
+| --- | --- |
+| Empty schema, including an empty `_prisma_migrations` table | Normal migration deployment proceeds. |
+| Completed, non-rolled-back `0_init` baseline with no unresolved migration | Normal migration deployment proceeds; Prisma handles pending migrations. |
+| Existing tables, views, sequences, standalone composites, enums, or domains without a completed baseline | `HIVE_MIGRATION_BASELINE_REQUIRED`; deployment stops for explicit reconciliation. |
+| Unfinished, non-rolled-back migration history | `HIVE_MIGRATION_FAILED_HISTORY`; investigate and repair the failed migration. |
+| Connection, permission, or malformed-history failure | Preflight fails; application rollout stays blocked. |
+
+The preflight checks history and schema occupancy, not complete schema compatibility. A recorded
+baseline is not proof that later schema drift is safe. Original migration files remain immutable;
+the runner never runs `migrate resolve`, resets a database, or rewrites historical rows.
+
+For a preflight-only check from the repository, provide the approved target's `DATABASE_URL`
+through your secret-management mechanism, then run:
+
+```bash
+pnpm --filter hive-migrate preflight
+pnpm --filter @hive/db exec prisma migrate status --schema prisma/schema.prisma
+```
+
+`migrate status` can return nonzero for pending or divergent history; inspect the result rather
+than treating it as authorization to change history. Inside the deployed migration image, the
+equivalent check is `node src/migrate.mjs --check`.
+
+For an existing schema created before this migration history was adopted:
+
+1. Use the Infrastructure workspace for live database operations. Confirm the exact database and
+   schema, obtain a verified backup, and test restoration and the procedure on an isolated copy.
+   Preserve the existing `_prisma_migrations` contents and schema definition as evidence.
+2. Identify the exact historical migration prefix already represented by that schema. Replay that
+   prefix in an empty reference database and compare it with the restored copy before marking
+   anything applied. Review constraints, indexes, types, and migration data effects as well as
+   columns; a comparison with today's Prisma datamodel alone does not establish the historical
+   baseline. Prisma 6's `migrate diff --exit-code` returns 0 for no schema difference, 2 for a
+   difference, and 1 for an error. Resolve discrepancies before proceeding.
+3. For a schema verified to match **only `0_init`**, explicitly mark that migration as applied:
+
+   ```bash
+   pnpm --filter @hive/db exec prisma migrate resolve --applied 0_init --schema prisma/schema.prisma
+   ```
+
+   This changes migration metadata and skips the baseline SQL; it does not create or validate the
+   baseline's objects. If later migrations are already represented, verify and explicitly resolve
+   each applicable migration in order. Do not apply the `0_init`-only example blindly to a database
+   produced by a later `db push` or to a schema with failed/partial migrations. Incompatible
+   historical layouts require a reviewed reconciliation plan before retrying.
+4. Review the remaining migration SQL and preserve data affected by it. In particular,
+   `20260814000000_remove_legacy_tasks` drops the retired `tasks`, `task_logs`, and `workspaces`
+   tables and their enums. Baseline adoption itself does not authorize that pending data removal.
+5. Rerun the preflight on the restored copy, deploy the pending migrations there, and verify retained
+   user/session data and application behavior. Only after the live operation is authorized should
+   the same verified metadata reconciliation be performed on the target.
+6. Deploy the updated `hive-migrate` image through GitOps and resync Argo CD. Confirm the migration
+   hook succeeds before application pods roll. No schema reset or migration-file editing is needed.
+
+See [Prisma 6 baselining](https://www.prisma.io/docs/orm/v6/prisma-migrate/workflows/baselining)
+and the [Prisma 6 CLI reference](https://www.prisma.io/docs/orm/v6/reference/prisma-cli-reference).
+This is an operator-guided migration procedure, not automatic adoption of an arbitrary schema.
+
 ## Verify manually
 
 If the verifier is not available, check these signals directly:

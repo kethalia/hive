@@ -3,8 +3,12 @@
   "version": "0.1.7",
   "private": true,
   "type": "module",
+  "files": [
+    "src"
+  ],
   "scripts": {
-    "start": "prisma migrate deploy --schema node_modules/@hive/db/prisma/schema.prisma"
+    "start": "node src/migrate.mjs",
+    "preflight": "node src/migrate.mjs --check"
   },
   "dependencies": {
     "@hive/db": "workspace:*",

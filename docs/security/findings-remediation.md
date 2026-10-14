@@ -314,6 +314,28 @@ or prove that a response during an approved selection matches the highlighted
 range. Web rollout, physical Safari verification, and Cloud review remain pending.
 See [touch selection](../terminal/touch-selection.md).
 
+## Existing-schema migration preflight
+
+Finding `commit:66d6747a76288191be7b68df43d8504b`: the dedicated migration
+image checks schema occupancy and migration history before deploying migrations.
+Empty schemas and databases with a completed `0_init` baseline proceed through
+normal Prisma deployment. Existing schemas lacking that baseline stop with a
+specific runbook reference; unresolved failed history and inspection errors also
+stop deployment. The check honors the selected PostgreSQL schema and performs no
+table or migration-history writes. CLI output is bounded and credentials are not
+included in runner diagnostics.
+
+Historical migrations are unchanged. Baseline adoption remains an explicit
+operator action after backup/restore testing and verification against the
+appropriate historical migration prefix. The runbook also calls out the pending
+legacy-task table removal. Unit checks cover routing, failure handling, schema
+input, and redaction; an isolated PostgreSQL CI service exercises fresh,
+already-migrated, legacy, failed-history, custom-schema, and explicit-adoption
+cases, including retained user data. See
+[baseline adoption](../deployment.md#existing-database-baseline-adoption).
+No live database was inspected or modified; image rollout, operator reconciliation,
+and Security Cloud review remain pending.
+
 ## Specialist handoff cleanup authorization
 
 Finding `commit:cc856e47e0fc8191a6dd335ea8175231`: the shared routing contract
@@ -446,7 +468,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:745807de8770819193d07f503330274f` | low | Untrusted workspace output can poison the local clipboard | Automatic writes require a selection release; other requests offer Copy. Real tmux/Chrome checks pass. Response content remains workspace-controlled; web/device verification and Cloud review remain pending. |
 | `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb` | low | Hover focus can leak keystrokes to workspace terminals | Owner accepted focus-follows-mouse on 2026-10-14, including accidental pointer crossing redirecting typing. Preserve the behavior; hidden/inactive-pane and dialog/text-field boundaries require separate verification. No Cloud closure claimed. |
 | `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
-| `commit:66d6747a76288191be7b68df43d8504b` | informational | Prisma baseline blocks Helm upgrades with existing schemas | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:66d6747a76288191be7b68df43d8504b` | informational | Prisma baseline blocks Helm upgrades with existing schemas | Migration image checks baseline/history before deployment and provides an explicit adoption runbook. Historical migrations remain unchanged; live reconciliation, image rollout, and Cloud review remain pending. |
 | `commit:205cc7eee8d48191a9baef63850e08f5` | informational | Unsafe board keys can crash tab keyboard navigation | Repository fix uses a fixed selector and exact identifier comparison. Unusual-key regressions cover arrows, Home, and End; deployment verification and Cloud closure remain pending. |
 | `commit:62ec3a2baa848191987856c226e78552` | informational | Manual terminal retry is blocked after final failures | Repository fix lets explicit Retry start a fresh authorized attempt. Final failures still stop scheduled/lifecycle retries; regression coverage passes. Live rollout and Cloud closure remain pending. |
 
