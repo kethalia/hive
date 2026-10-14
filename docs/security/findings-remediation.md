@@ -324,6 +324,8 @@ specific runbook reference; unresolved failed history and inspection errors also
 stop deployment. The check honors the selected PostgreSQL schema and performs no
 table or migration-history writes. CLI output is bounded and credentials are not
 included in runner diagnostics.
+Schema names containing double quotes are rejected before the CLI starts because Prisma 6 does
+not escape them in connection setup; other unusual schema characters remain data in the preflight.
 
 Historical migrations are unchanged. Baseline adoption remains an explicit
 operator action after backup/restore testing and verification against the

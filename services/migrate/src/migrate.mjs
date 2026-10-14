@@ -21,6 +21,13 @@ export function migrationSchema(databaseUrl) {
   if (schemas.length > 1 || !schema || schema.includes("\0") || Buffer.byteLength(schema) > 63) {
     throw new Error("DATABASE_URL must select one valid PostgreSQL schema.");
   }
+  // Prisma 6 interpolates the schema into its connection's quoted search_path.
+  // Reject quotes before starting the CLI, including in preflight-only mode.
+  if (schema.includes('"')) {
+    throw new Error(
+      "DATABASE_URL schema names containing double quotes are unsupported by Prisma 6.",
+    );
+  }
   return schema;
 }
 

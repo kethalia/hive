@@ -164,6 +164,9 @@ It inspects the PostgreSQL schema selected by `DATABASE_URL` (`public` by defaul
 non-default schema names. The check does not write tables or migration history. Its messages omit
 connection credentials and raw CLI output.
 
+Schema names containing double quotes are rejected before invoking Prisma: Prisma 6 does not
+escape these names in its connection setup. Other schema names are safely encoded in preflight SQL.
+
 | Database state | Result |
 | --- | --- |
 | Empty schema, including an empty `_prisma_migrations` table | Normal migration deployment proceeds. |

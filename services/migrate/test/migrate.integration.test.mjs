@@ -30,7 +30,7 @@ async function sql(databaseUrl, script) {
 }
 
 async function fixture(t, unusual = false) {
-  const schema = `hive_test_${randomUUID().replaceAll("-", "").slice(0, 16)}${unusual ? '";$hive_preflight$' : ""}`;
+  const schema = `hive_test_${randomUUID().replaceAll("-", "").slice(0, 16)}${unusual ? "';$hive_preflight$" : ""}`;
   await sql(baseUrl.href, `CREATE SCHEMA ${quote(schema)};`);
   t.after(() => sql(baseUrl.href, `DROP SCHEMA ${quote(schema)} CASCADE;`));
   const url = new URL(baseUrl);

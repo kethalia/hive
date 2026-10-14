@@ -10,7 +10,7 @@ const success = { code: 0, output: "" };
 
 test("defaults to public and honors a custom schema", () => {
   assert.equal(migrationSchema(databaseUrl), "public");
-  assert.equal(migrationSchema(`${databaseUrl}?schema=tenant%22blue`), 'tenant"blue');
+  assert.equal(migrationSchema(`${databaseUrl}?schema=tenant-blue`), "tenant-blue");
 });
 
 for (const invalid of [
@@ -20,6 +20,8 @@ for (const invalid of [
   `${databaseUrl}?schema=`,
   `${databaseUrl}?schema=a&schema=b`,
   `${databaseUrl}?schema=%00`,
+  `${databaseUrl}?schema=tenant%22blue`,
+  `${databaseUrl}?schema=tenant%22%3BDROP%20SCHEMA%20public%3B--`,
   `${databaseUrl}?schema=${"x".repeat(64)}`,
 ]) {
   test(`rejects malformed database configuration (${String(invalid).slice(-12)})`, async () => {
