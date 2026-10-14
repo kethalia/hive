@@ -336,6 +336,8 @@ in private primary state; existing workspaces and imported handoff records canno
 An explicit completion operation binds preserved evidence to the signed task.
 Cleanup verifies task/deployment/primary identity, signature, unchanged evidence,
 fresh workspace metadata, and stopped-build state before UUID-targeted deletion.
+Both completion and cleanup hash evidence in 1 MiB chunks, bounding memory use for
+large traces or archives without imposing a file-size limit.
 Changing repository-local instructions cannot alter these executable checks.
 
 On 2026-10-14, the owner explicitly chose to keep automatic cleanup and trust the

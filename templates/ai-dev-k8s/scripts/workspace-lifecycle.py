@@ -28,6 +28,14 @@ def identifier(value):
     return str(uuid.UUID(value))
 
 
+def evidence_digest(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *_args, **_kwargs):
         raise ValueError("Coder redirects are not permitted")
@@ -160,7 +168,7 @@ class Workspaces:
             raise ValueError("Preserve evidence as a regular file in the primary projects directory")
         self.fresh(record)
         record.update(status="complete", evidence=str(evidence),
-                      evidence_sha256=hashlib.sha256(evidence.read_bytes()).hexdigest())
+                      evidence_sha256=evidence_digest(evidence))
         self.save(record)
         return record
 
@@ -169,7 +177,7 @@ class Workspaces:
         if record["status"] != "complete":
             raise ValueError("Task is still active; retaining workspace")
         evidence = Path(record["evidence"])
-        if evidence.resolve() != evidence or hashlib.sha256(evidence.read_bytes()).hexdigest() != record["evidence_sha256"]:
+        if evidence.resolve() != evidence or evidence_digest(evidence) != record["evidence_sha256"]:
             raise ValueError("Preserved evidence changed; retaining workspace")
         current = self.fresh(record)
         status = current["latest_build"]["status"]

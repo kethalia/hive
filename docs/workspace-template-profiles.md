@@ -92,6 +92,8 @@ delete it. Task, deployment, primary, signature, preserved evidence, fresh ident
 checks execute in Python independently of repository-local `AGENTS.md` or handoff text. Refusal
 means retention and investigation, without falling back to raw deletion. The HMAC key and receipts
 stay in the primary's private `~/.local/state/hive/workspaces`; exported evidence cannot replace them.
+Completion and cleanup hash evidence incrementally with reads capped at 1 MiB, so large traces and
+archives do not need to fit in memory. Evidence size is not capped by the helper.
 
 On 2026-10-14, the owner explicitly chose to retain automatic cleanup and trust the primary agent's
 completion decision. `complete` intentionally has no out-of-band approval requirement. Signing a

@@ -1,10 +1,12 @@
 """Exercise automatic cleanup independently of repository-local agent instructions."""
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import uuid
 
 SOURCE = Path("templates/ai-dev-k8s/scripts/workspace-lifecycle.py")
@@ -164,6 +166,52 @@ class LifecycleTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 self.manager.cleanup(WORKSPACE, "task-1")
         self.assertEqual(self.api.calls, [])
+
+    def test_large_evidence_is_hashed_with_bounded_reads_for_completion_and_cleanup(self):
+        expected = hashlib.sha256()
+        block = bytes(range(256)) * 2048
+        with self.evidence.open("wb") as stream:
+            for _ in range(6):
+                stream.write(block)
+                expected.update(block)
+            stream.write(b"the final partial chunk")
+            expected.update(b"the final partial chunk")
+
+        reads = []
+        original_open = Path.open
+        case = self
+
+        class BoundedReader:
+            def __init__(self, stream):
+                self.stream = stream
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return self.stream.__exit__(*args)
+
+            def read(self, size=-1):
+                case.assertGreater(size, 0, "Evidence must not be read without a byte limit")
+                case.assertLessEqual(size, 1024 * 1024)
+                reads.append(size)
+                return self.stream.read(size)
+
+        def tracked_open(path, *args, **kwargs):
+            stream = original_open(path, *args, **kwargs)
+            mode = kwargs.get("mode", args[0] if args else "r")
+            return BoundedReader(stream) if path == self.evidence and mode == "rb" else stream
+
+        with self.manager.lock():
+            self.create()
+            with patch.object(Path, "open", tracked_open):
+                record = self.manager.complete(WORKSPACE, "task-1", self.evidence)
+                self.assertEqual(record["evidence_sha256"], expected.hexdigest())
+                self.assertGreaterEqual(len(reads), 4)
+                reads.clear()
+                self.api.workspace["latest_build"]["status"] = "stopped"
+                self.assertEqual(self.manager.cleanup(WORKSPACE, "task-1")["status"], "deleting")
+                self.assertGreaterEqual(len(reads), 4)
 
     def test_primary_template_cannot_be_recorded_as_disposable(self):
         self.api.template_name = "ai-dev-k8s"
