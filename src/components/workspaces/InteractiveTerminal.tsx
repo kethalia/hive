@@ -838,8 +838,11 @@ function TerminalRuntime({
       event.stopImmediatePropagation();
     };
     const preserveNativeContextMenu = (event: MouseEvent) => {
-      if (mobileInputModeRef.current && isTouchMouseEvent(event)) {
-        event.preventDefault();
+      if (
+        mobileInputModeRef.current &&
+        (selectionModeEnabledRef.current || isTouchMouseEvent(event))
+      ) {
+        if (!selectionModeEnabledRef.current) event.preventDefault();
         event.stopImmediatePropagation();
       }
     };

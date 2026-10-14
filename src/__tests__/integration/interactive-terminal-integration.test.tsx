@@ -3354,6 +3354,33 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
+  it.each(
+    [true, false].flatMap((selectionModeEnabled) =>
+      [true, false].map((sourceCapabilities) => ({ selectionModeEnabled, sourceCapabilities })),
+    ),
+  )("preserves native fallback context menus without xterm interference (native=$selectionModeEnabled, capabilities=$sourceCapabilities)", async ({
+    selectionModeEnabled,
+    sourceCapabilities,
+  }) => {
+    const { container, unmount } = await renderTerminal({
+      mobileInputMode: true,
+      selectionModeEnabled,
+    });
+    const screen = container.querySelector(".xterm-screen")!;
+    const xtermContext = vi.fn((event: Event) => event.preventDefault());
+    screen.addEventListener("contextmenu", xtermContext);
+    // Native fallback's React capture handler stops touchstart before the
+    // compatibility-event tracker. Safari also omits sourceCapabilities.
+    fireTouchEvent(screen, "touchstart", [touchPoint(1, 80, 240)]);
+    const context = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    if (sourceCapabilities)
+      Object.defineProperty(context, "sourceCapabilities", { value: { firesTouchEvents: true } });
+    screen.dispatchEvent(context);
+    expect(context.defaultPrevented).toBe(!selectionModeEnabled);
+    expect(xtermContext).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("keeps selection mode passive so native text selection wins over keyboard, scroll, and sidebar gestures", async () => {
     const { container, rerender, unmount } = await renderTerminal({ mobileInputMode: true });
     expect(container.querySelector('[data-testid="terminal-fit-host"]')).not.toHaveAttribute(

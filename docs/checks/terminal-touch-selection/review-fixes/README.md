@@ -1,6 +1,6 @@
 # PR 314 review regressions
 
-The three unresolved review threads are addressed:
+The four review threads are addressed:
 
 1. `PRRT_kwDORpHjSM6sPweL`: the explicit mobile native fallback retains its native
    marker and removes the normal touch-selection marker. React integration checks
@@ -14,8 +14,12 @@ The three unresolved review threads are addressed:
    response is accepted, so even an inactive/active round trip in one DOM batch
    permanently revokes the old grant. Observers follow new ancestors after moves
    and disconnect on disposal; ordinary output redraws do not cancel gestures.
+4. `PRRT_kwDORpHjSM6sRQWT`: the explicit native fallback keeps the browser's
+   context menu while stopping xterm from cancelling it. Four component cases
+   cover default/fallback modes with and without sourceCapabilities; the fallback
+   also works when its React capture handler prevents touch-event tracking.
 
-Validation: 282 targeted unit/integration tests, 51 real tmux/Chrome checks across
+Validation: 286 targeted unit/integration tests, 51 real tmux/Chrome checks across
 desktop/tablet/phone settings, and 19 existing mobile link/path regressions pass.
 TypeScript, Biome lint/format, and diff checks pass. The browser fixture and physical
 iOS limitations described in the parent README still apply.

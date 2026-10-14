@@ -16,7 +16,8 @@ input controls cannot grant clipboard access. Changing a mouse drag to a modifie
 selection also cancels its grant.
 
 The explicit legacy selection-mode fallback retains its native marker, scrolling
-exemption, and preserved Copy text. Normal mobile terminals use tmux selection.
+exemption, browser Copy context menu, and preserved Copy text. Normal mobile
+terminals use tmux selection.
 
 Desktop tmux mouse drags retain copy on release. For both pointer types, Hive
 starts the clipboard write during the release event and waits up to three
