@@ -837,6 +837,97 @@ describe("useTerminalWebSocket reconnect loop", () => {
     unmount();
   });
 
+  it.each([
+    { code: 4401, reason: "unauthorized", wasClean: false },
+    { code: 4403, reason: "forbidden", wasClean: false },
+    { code: 1008, reason: "cloneProof invalid", wasClean: false },
+    { code: 1000, reason: "", wasClean: true },
+  ])("allows explicit retry after final close $code ($reason) without automatic retries", async (close) => {
+    const authorizeConnection = vi
+      .fn()
+      .mockResolvedValueOnce(["hive-terminal-v1", "hive-ticket.initial"])
+      .mockResolvedValueOnce(["hive-terminal-v1", "hive-ticket.fresh"]);
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/ws",
+        onData: vi.fn(),
+        authorizeConnection,
+      }),
+    );
+    await act(async () => {});
+    closeSocket(openSocket(), close);
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "final-failure",
+      isRecoverable: false,
+      canRetry: true,
+    });
+    expect(vi.getTimerCount()).toBe(0);
+
+    act(() => {
+      mockVisibilityState("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+      document.dispatchEvent(new Event("resume"));
+      window.dispatchEvent(new Event("pageshow"));
+      window.dispatchEvent(new Event("online"));
+    });
+    await advanceTimersAndFlush(60000);
+    expect(instances).toHaveLength(1);
+    expect(authorizeConnection).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      result.current.manualReconnect();
+      result.current.manualReconnect();
+    });
+    expect(authorizeConnection).toHaveBeenCalledTimes(2);
+    expect(authorizeConnection).toHaveBeenLastCalledWith("ws://terminal.example/ws");
+    expect(instances).toHaveLength(2);
+    expect(latestSocket().protocols).toEqual(["hive-terminal-v1", "hive-ticket.fresh"]);
+    expect(result.current.recoveryState).toMatchObject({
+      phase: "recovering",
+      lastRecoveryAction: "manual-reconnect",
+      failureCategory: null,
+      canRetry: false,
+    });
+
+    const retriedSocket = openSocket();
+    expect(result.current.connectionState).toBe("connected");
+    closeSocket(retriedSocket, close);
+    await advanceTimersAndFlush(60000);
+    expect(result.current.recoveryState.phase).toBe("final-failure");
+    expect(instances).toHaveLength(2);
+    expect(vi.getTimerCount()).toBe(0);
+    unmount();
+  });
+
+  it("refreshes the URL and authorizes it again when explicitly retrying a final failure", async () => {
+    const refreshUrlBeforeReconnect = vi.fn().mockResolvedValue("ws://terminal.example/fresh");
+    const authorizeConnection = vi
+      .fn()
+      .mockResolvedValue(["hive-terminal-v1", "hive-ticket.fresh"]);
+    const { result, unmount } = renderHook(() =>
+      useTerminalWebSocket({
+        url: "ws://terminal.example/stale",
+        onData: vi.fn(),
+        refreshUrlBeforeReconnect,
+        authorizeConnection,
+      }),
+    );
+    await act(async () => {});
+    closeSocket(openSocket(), { code: 4401, reason: "unauthorized" });
+    expect(refreshUrlBeforeReconnect).not.toHaveBeenCalled();
+
+    await act(async () => result.current.manualReconnect());
+
+    expect(refreshUrlBeforeReconnect).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ reason: "manual-reconnect", closeCategory: "auth-expired" }),
+    );
+    expect(authorizeConnection).toHaveBeenCalledTimes(2);
+    expect(authorizeConnection).toHaveBeenLastCalledWith("ws://terminal.example/fresh");
+    expect(instances).toHaveLength(2);
+    expect(latestSocket().url).toBe("ws://terminal.example/fresh");
+    unmount();
+  });
+
   it("refreshes the URL before manual reconnects", async () => {
     const refreshUrlBeforeReconnect = vi
       .fn()

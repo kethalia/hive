@@ -287,6 +287,7 @@ type MutableRef<T> = {
 type StartManualReconnectOptions = {
   preserveRetryCount?: boolean;
   onlyWhenConnectionLost?: boolean;
+  allowFinalFailure?: boolean;
 };
 
 type UseBrowserLifecycleReconnectionOptions = {
@@ -856,10 +857,16 @@ export function useTerminalWebSocket({
     ({
       preserveRetryCount = false,
       onlyWhenConnectionLost = false,
+      allowFinalFailure = false,
     }: StartManualReconnectOptions = {}) => {
       if (!(currentUrlRef.current ?? url) || !mountedRef.current) return;
       const recovery = recoveryStateRef.current;
-      if (recovery.phase === "final-failure" && recovery.isRecoverable === false) return;
+      if (
+        recovery.phase === "final-failure" &&
+        recovery.isRecoverable === false &&
+        !allowFinalFailure
+      )
+        return;
       const currentSocket = wsRef.current;
       const hasOpenSocket = currentSocket?.readyState === WebSocket.OPEN;
       const hasActiveConnectAttempt =
@@ -885,6 +892,7 @@ export function useTerminalWebSocket({
         ...current,
         phase: "recovering",
         retryCount: preserveRetryCount ? Math.max(current.retryCount, 1) : 0,
+        failureCategory: null,
         lastDelayMs: null,
         lastRecoveryAction: "manual-reconnect",
         isRecoverable: true,
@@ -901,7 +909,9 @@ export function useTerminalWebSocket({
   );
 
   const manualReconnect = useCallback(() => {
-    startManualReconnect();
+    // Browser lifecycle recovery keeps final failures stopped; explicit Retry
+    // starts a new attempt through the normal refresh and authorization flow.
+    startManualReconnect({ allowFinalFailure: true });
   }, [startManualReconnect]);
 
   useBrowserLifecycleReconnection({

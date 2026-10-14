@@ -314,6 +314,23 @@ or prove that a response during an approved selection matches the highlighted
 range. Web rollout, physical Safari verification, and Cloud review remain pending.
 See [touch selection](../terminal/touch-selection.md).
 
+## Explicit terminal retry after final failures
+
+Finding `commit:62ec3a2baa848191987856c226e78552`: the Retry terminal connection
+button can start a fresh attempt after a final authentication, permission,
+clone-proof, or clean terminal-close failure. A final failure still stops scheduled
+reconnects and browser foreground/online recovery; only explicit Retry opts into
+a new attempt. Existing URL refresh and connection authorization run again,
+including fetching a new terminal ticket when configured. Repeated clicks during
+an in-flight attempt cannot create duplicate connections. Another final rejection
+stops recovery again.
+
+Five regressions fail against the original guard and pass with the fix, covering
+fresh authorization, URL refresh, automatic-recovery suppression, duplicate
+clicks, successful reconnection, and repeated final rejection. Existing hook and
+terminal integration checks also pass. Live rollout and Security Cloud closure
+remain pending.
+
 ## Safe workspace-board keyboard navigation
 
 Finding `commit:205cc7eee8d48191a9baef63850e08f5`: workspace-tab navigation
@@ -379,6 +396,6 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:66d6747a76288191be7b68df43d8504b` | informational | Prisma baseline blocks Helm upgrades with existing schemas | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:205cc7eee8d48191a9baef63850e08f5` | informational | Unsafe board keys can crash tab keyboard navigation | Repository fix uses a fixed selector and exact identifier comparison. Unusual-key regressions cover arrows, Home, and End; deployment verification and Cloud closure remain pending. |
-| `commit:62ec3a2baa848191987856c226e78552` | informational | Manual terminal retry is blocked after final failures | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:62ec3a2baa848191987856c226e78552` | informational | Manual terminal retry is blocked after final failures | Repository fix lets explicit Retry start a fresh authorized attempt. Final failures still stop scheduled/lifecycle retries; regression coverage passes. Live rollout and Cloud closure remain pending. |
 
 Findings must only be closed in Security Cloud after their exact accessible record and remediation evidence have been checked. This slice changes no Cloud finding state.
