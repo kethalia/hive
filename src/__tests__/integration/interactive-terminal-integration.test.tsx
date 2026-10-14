@@ -3072,7 +3072,51 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     unmount();
   });
 
-  it("preserves browser selection defaults while blocking touch compatibility presses from xterm", async () => {
+  it("uses tmux for held mobile selection without wheel scrolling or keyboard focus", async () => {
+    mockUseTerminalWebSocket.mockReturnValue({
+      send: mockSend,
+      resize: mockResize,
+      connectionState: "connected",
+    });
+    const onUserFocusRequest = vi.fn();
+    const { container, unmount } = await renderTerminal({
+      mobileInputMode: true,
+      onUserFocusRequest,
+    });
+    const terminal = terminalInstances.at(-1)!;
+    terminal.modes.mouseTrackingMode = "drag";
+    terminal.focus.mockClear();
+    const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
+    const screen = container.querySelector(".xterm-screen")!;
+    const events: string[] = [];
+    for (const type of ["mousedown", "mousemove", "mouseup", "wheel"])
+      screen.addEventListener(type, () => events.push(type));
+    expect(host).toHaveAttribute("data-terminal-touch-selection", "true");
+    expect(host).not.toHaveAttribute("data-terminal-native-selection");
+    fireTouchEvent(screen, "touchstart", [touchPoint(1, 80, 240)]);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 550));
+    });
+    expect(host).toHaveAttribute("data-terminal-touch-selecting", "true");
+    expect(fireTouchEvent(screen, "touchmove", [touchPoint(1, 160, 240)]).defaultPrevented).toBe(
+      true,
+    );
+    expect(fireTouchEvent(screen, "touchend", [], [touchPoint(1, 160, 240)]).defaultPrevented).toBe(
+      true,
+    );
+    fireEvent.click(screen);
+    expect(events).toEqual(["mousedown", "mousemove", "mouseup"]);
+    expect(onUserFocusRequest).toHaveBeenCalledOnce();
+    expect(terminal.focus).not.toHaveBeenCalled();
+    expect(host).not.toHaveAttribute("data-terminal-touch-selecting");
+    // The next short tap can still request the keyboard.
+    fireTouchEvent(screen, "touchstart", [touchPoint(1, 80, 240)]);
+    fireTouchEvent(screen, "touchend", [], [touchPoint(1, 80, 240)]);
+    expect(terminal.focus).toHaveBeenCalledOnce();
+    unmount();
+  });
+
+  it("blocks touch compatibility presses while allowing physical mouse selection", async () => {
     const { container, unmount } = await renderTerminal({ mobileInputMode: true });
     const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
     const target = document.createElement("span");

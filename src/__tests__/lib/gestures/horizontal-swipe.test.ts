@@ -62,6 +62,17 @@ describe("resolveHorizontalSwipe", () => {
     expect(isSidebarGestureIgnoredTarget(disabledEditor)).toBe(false);
   });
 
+  it("reserves an active terminal touch selection while allowing ordinary terminal swipes", () => {
+    const terminal = document.createElement("div");
+    const row = document.createElement("span");
+    terminal.append(row);
+    expect(isSidebarGestureIgnoredTarget(row)).toBe(false);
+    terminal.dataset.terminalTouchSelecting = "true";
+    expect(isSidebarGestureIgnoredTarget(row)).toBe(true);
+    delete terminal.dataset.terminalTouchSelecting;
+    expect(isSidebarGestureIgnoredTarget(row)).toBe(false);
+  });
+
   it("allows coordinated mobile sidebars to replace one another", () => {
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");

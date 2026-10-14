@@ -1,7 +1,6 @@
-import { ClipboardAddon, type IClipboardProvider } from "@xterm/addon-clipboard";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import type { IBuffer, IBufferRange, Terminal } from "@xterm/xterm";
-import { toast } from "sonner";
 import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import { createTerminalLinkMenu } from "./link-menu";
 import {
@@ -15,6 +14,8 @@ import {
   createTerminalPathValidator,
   TERMINAL_PATH_VALIDATION_TIMEOUT_MS,
 } from "./path-validation";
+import { installSelectionClipboard } from "./selection-clipboard";
+import { isTerminalTouchMouseEvent } from "./touch-mouse-events";
 
 export function openTerminalLink(uri: string): void {
   try {
@@ -25,29 +26,6 @@ export function openTerminalLink(uri: string): void {
     // Terminal output is not necessarily a valid URL.
   }
 }
-
-export const terminalClipboardProvider: IClipboardProvider = {
-  // Remote programs may request writes, but cannot read the local clipboard.
-  readText: () => "",
-  writeText: (_selection, text) => {
-    if (!text || text.length > 1024 * 1024) return;
-    const copy = async () => {
-      try {
-        await navigator.clipboard.writeText(text);
-        toast.success("Copied terminal text");
-      } catch {
-        // Safari and other browsers may require a fresh local user gesture.
-        toast("Terminal text is ready to copy", {
-          id: "terminal-clipboard-copy",
-          duration: 15000,
-          action: { label: "Copy", onClick: () => void copy() },
-        });
-      }
-    };
-    // Do not block the terminal parser on a browser permission prompt.
-    void copy();
-  },
-};
 
 /** Use standard terminal links and clipboard protocols, including in fullscreen TUIs. */
 export function installTerminalBrowserIntegration(
@@ -317,8 +295,9 @@ export function installTerminalBrowserIntegration(
     allowNonHttpProtocols: true,
   };
   const links = new WebLinksAddon(activate, { hover, leave });
-  const clipboard = allowClipboardWrite
-    ? new ClipboardAddon(undefined, terminalClipboardProvider)
+  const selectionClipboard = allowClipboardWrite ? installSelectionClipboard(term) : undefined;
+  const clipboard = selectionClipboard
+    ? new ClipboardAddon(undefined, selectionClipboard.provider)
     : undefined;
   term.loadAddon(links);
   const pathProvider = terminalPathLinkProvider(
@@ -335,6 +314,10 @@ export function installTerminalBrowserIntegration(
   const mouseDown = (event: MouseEvent) => {
     pressed = undefined;
     menu.close();
+    if (isTerminalTouchMouseEvent(event)) {
+      cancel();
+      return;
+    }
     if (event.button !== 0 || event.shiftKey) {
       cancelPathValidation();
       return;
@@ -347,6 +330,7 @@ export function installTerminalBrowserIntegration(
     event.stopImmediatePropagation();
   };
   const mouseUp = (event: MouseEvent) => {
+    if (isTerminalTouchMouseEvent(event)) return;
     const link = pressed;
     const pending = pendingPlainPress;
     pendingPlainPress = undefined;
@@ -588,6 +572,7 @@ export function installTerminalBrowserIntegration(
   };
   element?.addEventListener("mousemove", pendingMouseMove);
   const mouseMove = (event: MouseEvent) => {
+    if (isTerminalTouchMouseEvent(event)) return;
     if (!touchProbes.has(event)) {
       if (touchProbe) cancel();
       suppressHover = false;
@@ -635,5 +620,6 @@ export function installTerminalBrowserIntegration(
     menu.dispose();
     links.dispose();
     clipboard?.dispose();
+    selectionClipboard?.dispose();
   };
 }

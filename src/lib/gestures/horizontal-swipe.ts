@@ -11,6 +11,7 @@ export interface HorizontalSwipeProgress {
 
 const SIDEBAR_GESTURE_IGNORE_SELECTOR = [
   '[data-sidebar-gesture-ignore="true"]',
+  '[data-terminal-touch-selecting="true"]',
   '[data-mobile-scroll-allow="true"]',
   '[data-window-drag-surface="true"]',
   "input",

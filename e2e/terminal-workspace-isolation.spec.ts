@@ -116,6 +116,8 @@ for (const kind of ["url", "osc-url", "file"] as const) {
             "path-link-provider",
             "link-menu",
             "native-selection",
+            "selection-clipboard",
+            "touch-mouse-events",
             "browser-integration",
           ].map((name) => [`./${name}`, compile(`src/lib/terminal/${name}.ts`)]),
         ],

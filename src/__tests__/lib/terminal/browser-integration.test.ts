@@ -4,11 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   installTerminalBrowserIntegration,
   openTerminalLink,
-  terminalClipboardProvider,
 } from "@/lib/terminal/browser-integration";
 import { createTerminalLinkMenu } from "@/lib/terminal/link-menu";
 
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn() }) }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), dismiss: vi.fn() }),
+}));
 
 afterEach(() => {
   vi.useRealTimers();
@@ -158,7 +159,7 @@ describe("terminal browser integration", () => {
     dispose();
   });
 
-  it("handles real OSC 52 clipboard writes while never reading local clipboard data", async () => {
+  it("offers Copy for unsolicited OSC 52 and never reads local clipboard data", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     const readText = vi.fn();
     Object.defineProperty(navigator, "clipboard", {
@@ -168,7 +169,7 @@ describe("terminal browser integration", () => {
     const { term, osc, dispose } = surface(true);
     const text = "a complete\nCodex selection";
     await osc.get(52)?.(`c;${btoa(text)}`);
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(text);
+    expect(writeText).not.toHaveBeenCalled();
     await osc.get(52)?.("c;?");
     expect(readText).not.toHaveBeenCalled();
     expect(term.input).toHaveBeenCalledWith("\x1b]52;c;\x07", false);
@@ -179,13 +180,16 @@ describe("terminal browser integration", () => {
     const { toast } = await import("sonner");
     const writeText = vi.fn().mockRejectedValue(new Error("denied"));
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-    terminalClipboardProvider.writeText("c" as never, "selection");
+    const { osc, dispose } = surface(true);
+    await osc.get(52)?.(`c;${btoa("selection")}`);
     await vi.waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         "Terminal text is ready to copy",
         expect.objectContaining({ action: expect.objectContaining({ label: "Copy" }) }),
       ),
     );
+    expect(writeText).not.toHaveBeenCalled();
+    dispose();
   });
 });
 
