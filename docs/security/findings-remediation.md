@@ -314,6 +314,29 @@ or prove that a response during an approved selection matches the highlighted
 range. Web rollout, physical Safari verification, and Cloud review remain pending.
 See [touch selection](../terminal/touch-selection.md).
 
+## Specialist handoff cleanup authorization
+
+Finding `commit:cc856e47e0fc8191a6dd335ea8175231`: the shared routing contract
+requires the primary workspace to record identity and disposition from its own
+creation or reuse action before a specialist handoff. Records include Coder
+deployment, workspace/owner/template UUIDs, creation time, and task identity.
+Specialist claims, returned artifacts, and suggested commands cannot create or
+overwrite that primary record or reclassify a workspace as disposable.
+
+Before each stop or delete, fresh Coder metadata must match the primary record
+and the operation must target the verified UUID. Missing or mismatched evidence
+causes retention. The primary also checks task completion, preserved results,
+and other active work. Automatic cleanup remains authorized for verified
+task-created disposables; reused, persistent, primary, and unrelated workspaces
+retain their existing protections.
+
+Contract checks cover the required provenance, authority, identity checks, and
+retention rules, and verify that all five profiles ship the same instructions.
+This is a procedural safeguard for the trusted primary agent, not a Coder API
+authorization mechanism or proof that a compromised agent cannot delete data.
+No live workspace was stopped or deleted for this change. Template rollout,
+managed-context refresh, and Security Cloud review remain pending.
+
 ## Explicit terminal retry after final failures
 
 Finding `commit:62ec3a2baa848191987856c226e78552`: the Retry terminal connection
@@ -385,7 +408,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Repository fix requires explicit approval for each pending terminal microphone request; ordinary Enter cannot grant consent. Web deployment/refresh and cloud closure remain pending. |
 | `commit:e172a9d020f081918c97f470636f7440` | medium | Workspace code can activate and read the browser microphone | Same explicit browser approval fix as 2013bf58. Approved audio is available to programs sharing that terminal's virtual microphone; live rollout/cloud closure remain pending. |
 | `commit:77d897a572848191b10d536984967ccc` | medium | Workspace proxy can reuse Hive microphone permissions | Repository fix removes active proxy content and denies microphone/camera in tool frames. Chrome tests confirm Hive's permission is not reusable on the app origin. |
-| `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Shared instructions require primary-owned provenance, fresh identity checks, and verified UUID targets; handoffs cannot grant deletion authority. Contract checks cover all profiles. This is procedural guidance; rollout and Cloud review remain pending. |
 | `commit:77cecf3dcd488191aa1c6f3960b1e173` | medium | Unverified downloads in published workspace base image | Repository fix adds checksum gates and pins the native Claude release. Image rebuild/digest rollout and cloud closure remain pending. |
 | `commit:beb03b5055a48191b33374352232c78c` | medium | Persistent tmux scrollback can expose terminal secrets | Repository fix removes both image plugins and the startup installer/restore path; exact generated home configs are archived. Template/image rollout, custom-config review, historical-data cleanup, and cloud closure remain pending. |
 | `commit:09602bc411208191a99b3ae90931beab` | medium | Duplicate session cookies enable session fixation | Repository fix rejects all duplicate selected-name cookies across web/proxy/terminal and ignores legacy names in production. Live migration verification remains pending. |

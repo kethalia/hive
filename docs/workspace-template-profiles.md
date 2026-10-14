@@ -75,6 +75,23 @@ On every workspace start, Hive refreshes the template-managed global agent conte
 their repositories and layer on top of that workspace context. If an agent configuration directory
 is itself a symlink, Hive warns and preserves it instead of writing through to the linked target.
 
+## Specialist workspace cleanup
+
+The primary software workspace records each specialist's identity before handing off work:
+Coder deployment URL, workspace UUID, owner UUID, template UUID, creation timestamp, task identity,
+and whether it created the workspace as disposable or reused it. The record comes from the
+primary's own creation or inspection and remains with its task evidence. Specialist handoffs and
+returned files cannot create, replace, or grant authority through that record.
+
+Before each stop or delete, the primary checks fresh Coder metadata against its record and targets
+the verified workspace UUID. A reused name cannot identify a replacement workspace. Missing or
+mismatched evidence causes retention and investigation in the primary TUI. Completion, preserved
+results, and absence of unrelated active work must also be checked against primary task context.
+Automatic deletion remains authorized for verified disposable workspaces created for the completed
+task; reused and persistent workspaces require explicit user authorization of the exact deletion
+target. This is agent workflow guidance, not a new Coder permission boundary. Applying the updated
+templates and restarting affected workspaces refreshes their managed agent instructions.
+
 ## Codex updates
 
 Every workspace startup refreshes the user-installed Codex CLI from npm's `latest` tag.
