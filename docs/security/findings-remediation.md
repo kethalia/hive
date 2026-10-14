@@ -314,6 +314,23 @@ or prove that a response during an approved selection matches the highlighted
 range. Web rollout, physical Safari verification, and Cloud review remain pending.
 See [touch selection](../terminal/touch-selection.md).
 
+## Accepted focus-follows-mouse behavior
+
+Finding `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb`: on 2026-10-14, the owner
+explicitly confirmed that pointer movement should redirect terminal typing.
+Desktop focus-follows-mouse is intentional and will be retained. Moving across
+a terminal pane selects its session and focuses its xterm input; a separate click
+is not required. See the pane mouse-move handler and `selectSession` in
+[`MultiSessionWorkspace.tsx`](../../src/components/workspaces/MultiSessionWorkspace.tsx).
+
+The accepted tradeoff is that an accidental pointer crossing while typing can
+send commands or sensitive text to a different workspace terminal. This decision
+accepts that interaction, rather than treating pointer-driven focus itself as a
+bug. It does not accept hidden or inactive panes receiving input or focus being
+stolen from dialogs or other text fields; those boundaries still require separate
+verification. No behavior change, new browser validation, or Security Cloud
+resolution is claimed by this documentation update.
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
@@ -344,7 +361,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:586a0bdebe348191a71e954ce45e4654` | medium | Paste image upload can crash Hive web process | Fixed in this slice; reproduced EPIPE on the baseline and added regression coverage. |
 | `commit:6cc2606c14648191b1013e97870401a4` | medium | Paste uploads can exhaust web and SSH resources | Repository fix caps raw bodies before parsing, limits aggregate files/admission per web process, and transfers sequentially with cancellation cleanup. Live rollout verification remains pending. |
 | `commit:745807de8770819193d07f503330274f` | low | Untrusted workspace output can poison the local clipboard | Automatic writes require a selection release; other requests offer Copy. Real tmux/Chrome checks pass. Response content remains workspace-controlled; web/device verification and Cloud review remain pending. |
-| `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb` | low | Hover focus can leak keystrokes to workspace terminals | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb` | low | Hover focus can leak keystrokes to workspace terminals | Owner accepted focus-follows-mouse on 2026-10-14, including accidental pointer crossing redirecting typing. Preserve the behavior; hidden/inactive-pane and dialog/text-field boundaries require separate verification. No Cloud closure claimed. |
 | `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:66d6747a76288191be7b68df43d8504b` | informational | Prisma baseline blocks Helm upgrades with existing schemas | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:205cc7eee8d48191a9baef63850e08f5` | informational | Unsafe board keys can crash tab keyboard navigation | Selector interpolation remains; regression and safe element lookup pending. |
