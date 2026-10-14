@@ -47,11 +47,12 @@ resource "coder_agent" "main" {
   startup_script_behavior = "blocking"
 
   startup_script = templatefile("${path.module}/scripts/init.sh", {
-    git_config_retry_script = file("${path.module}/scripts/git-config-retry.sh")
-    workspace_name          = data.coder_workspace.me.name
-    owner_name              = data.coder_workspace_owner.me.name
-    owner_email             = data.coder_workspace_owner.me.email
-    enable_browser          = local.profile.capabilities.browser
+    git_config_retry_script        = file("${path.module}/scripts/git-config-retry.sh")
+    tmux_snapshot_migration_script = file("${path.module}/scripts/retire-tmux-snapshots.py")
+    workspace_name                 = data.coder_workspace.me.name
+    owner_name                     = data.coder_workspace_owner.me.name
+    owner_email                    = data.coder_workspace_owner.me.email
+    enable_browser                 = local.profile.capabilities.browser
     claude_md_content = join("\n\n", [
       trimspace(file("${path.module}/CLAUDE.md")),
       trimspace(file("${path.module}/WORKSPACE_ROUTING.md")),
@@ -439,14 +440,22 @@ module "coder-login" {
 }
 
 # =============================================================================
-# tmux with session persistence
+# tmux sessions survive disconnects while the workspace is running
 # =============================================================================
 
-module "tmux" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/anomaly/tmux/coder"
-  version  = "1.0.4"
-  agent_id = coder_agent.main.id
+resource "coder_app" "tmux" {
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.main.id
+  slug         = "tmux-default"
+  display_name = "tmux - default"
+  icon         = "/icon/tmux.svg"
+  command      = "tmux new-session -A -s default"
+}
+
+# Retain the existing app identity while dropping the module's plugin installer.
+moved {
+  from = module.tmux[0].coder_app.tmux_sessions["default"]
+  to   = coder_app.tmux[0]
 }
 
 # =============================================================================

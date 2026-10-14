@@ -1,0 +1,8 @@
+{
+  "workspace": "hive-tmux-removal-check",
+  "generated_config_recognized": true,
+  "original_archived_unchanged": true,
+  "archive_mode": "0o600",
+  "second_run_noop": true,
+  "running_tmux_servers_restarted": false
+}

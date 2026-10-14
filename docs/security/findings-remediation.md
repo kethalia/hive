@@ -268,6 +268,34 @@ No production template rollout or Security Cloud closure is claimed. Owner-token
 access within the primary software workspace is a deliberate retained capability,
 so processes in that workspace remain trusted with orchestration authority.
 
+## Remove tmux snapshots and command restoration
+
+Finding `commit:beb03b5055a48191b33374352232c78c`: workspace images no
+longer bundle tmux-resurrect/tmux-continuum or enable pane capture, periodic saves,
+or restoration. The Coder registry tmux module was a second installer and restore
+path: it is replaced by a plain attach-or-create Coder app, with a Terraform
+`moved` block retaining the existing app identity.
+
+Before startup completes, a one-time migration archives only the unmodified
+module-generated `.tmux.conf`, recognized by its normalized content hash. The
+backup is owner-only. Custom configurations, linked files, plugin caches, and
+previously saved pane output remain preserved. Existing custom plugin settings
+need owner review; no live snapshot cleanup or cloud closure is claimed.
+
+Real tmux checks retain the same server, pane process, live history, and F12 menu
+across two attach/detach cycles with no snapshot hooks. Image smoke checks run
+that probe in every variant and reject bundled plugin directories. Migration
+regressions cover repeat startup, configured intervals, personal files, links,
+and existing snapshots. Infrastructure validation covers all five templates,
+including mocked running/stopped plans and a successful migration of a fresh
+workspace's actual module-generated configuration. Evidence is preserved in
+[`tmux-snapshot-removal`](../checks/security/tmux-snapshot-removal/).
+
+Deploy updated templates and workspace image digests before restarting affected
+workspaces. Running servers retain loaded hooks until they exit. See
+[tmux session lifetime](../terminal/tmux-sessions.md) for the restart behavior and
+legacy-data boundary.
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
@@ -293,7 +321,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:77d897a572848191b10d536984967ccc` | medium | Workspace proxy can reuse Hive microphone permissions | Repository fix removes active proxy content and denies microphone/camera in tool frames. Chrome tests confirm Hive's permission is not reusable on the app origin. |
 | `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:77cecf3dcd488191aa1c6f3960b1e173` | medium | Unverified downloads in published workspace base image | Repository fix adds checksum gates and pins the native Claude release. Image rebuild/digest rollout and cloud closure remain pending. |
-| `commit:beb03b5055a48191b33374352232c78c` | medium | Persistent tmux scrollback can expose terminal secrets | Confirmed persistent pane capture remains enabled; decide on opt-in retention behavior. |
+| `commit:beb03b5055a48191b33374352232c78c` | medium | Persistent tmux scrollback can expose terminal secrets | Repository fix removes both image plugins and the startup installer/restore path; exact generated home configs are archived. Template/image rollout, custom-config review, historical-data cleanup, and cloud closure remain pending. |
 | `commit:09602bc411208191a99b3ae90931beab` | medium | Duplicate session cookies enable session fixation | Repository fix rejects all duplicate selected-name cookies across web/proxy/terminal and ignores legacy names in production. Live migration verification remains pending. |
 | `commit:586a0bdebe348191a71e954ce45e4654` | medium | Paste image upload can crash Hive web process | Fixed in this slice; reproduced EPIPE on the baseline and added regression coverage. |
 | `commit:6cc2606c14648191b1013e97870401a4` | medium | Paste uploads can exhaust web and SSH resources | Repository fix caps raw bodies before parsing, limits aggregate files/admission per web process, and transfers sequentially with cancellation cleanup. Live rollout verification remains pending. |
