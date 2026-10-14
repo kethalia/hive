@@ -2,4 +2,4 @@
 "hive-web": patch
 ---
 
-Require primary-owned workspace provenance and fresh UUID checks before specialist cleanup; completion handoffs cannot grant deletion authority.
+Enforce automatic specialist cleanup through a software-only wrapper with signed creation receipts, task/evidence checks, fresh UUID validation, and stopped-before-delete ordering. Require explicit template updates when rolling out the helper and agent instructions.

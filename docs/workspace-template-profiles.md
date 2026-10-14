@@ -80,8 +80,18 @@ is itself a symlink, Hive warns and preserves it instead of writing through to t
 The primary software workspace records each specialist's identity before handing off work:
 Coder deployment URL, workspace UUID, owner UUID, template UUID, creation timestamp, task identity,
 and whether it created the workspace as disposable or reused it. The record comes from the
-primary's own creation or inspection and remains with its task evidence. Specialist handoffs and
-returned files cannot create, replace, or grant authority through that record.
+primary's own creation or inspection and remains with its task evidence. Automatic deletion uses
+the software-only `hive-workspace` executable installed by the template, not an agent's reading of
+those records. Its `create` command obtains the actual workspace creation response and writes a
+signed private receipt. It cannot import a handoff receipt or adopt an existing workspace.
+
+After verifying completion, preserve an evidence file under the primary's `~/projects` and run
+`hive-workspace complete <uuid> --task <task> --evidence <file>`. Then run
+`hive-workspace cleanup <uuid> --task <task>` to stop it; after the stop succeeds, rerun cleanup to
+delete it. Task, deployment, primary, signature, preserved evidence, fresh identity, and stopped-build
+checks execute in Python independently of repository-local `AGENTS.md` or handoff text. Refusal
+means retention and investigation, without falling back to raw deletion. The HMAC key and receipts
+stay in the primary's private `~/.local/state/hive/workspaces`; exported evidence cannot replace them.
 
 Before each stop or delete, the primary checks fresh Coder metadata against its record and targets
 the verified workspace UUID. A reused name cannot identify a replacement workspace. Missing or
@@ -89,8 +99,16 @@ mismatched evidence causes retention and investigation in the primary TUI. Compl
 results, and absence of unrelated active work must also be checked against primary task context.
 Automatic deletion remains authorized for verified disposable workspaces created for the completed
 task; reused and persistent workspaces require explicit user authorization of the exact deletion
-target. This is agent workflow guidance, not a new Coder permission boundary. Applying the updated
-templates and restarting affected workspaces refreshes their managed agent instructions.
+target. The trusted primary still has owner credentials and can bypass the helper; protecting against
+a compromised primary would require a separate credential broker or Coder permission boundary.
+
+Publish and activate the updated template versions first. Existing workspaces must use
+`coder update <workspace-name>` (which stops a running workspace, updates it, and starts it), or have
+automatic template updates explicitly enabled before a subsequent start. A restart alone with the
+default/manual update policy keeps the old version. Coordinate updates with active tasks, then
+verify the workspace's latest build uses the intended template version, startup succeeded, the
+software profile has `~/.local/bin/hive-workspace`, and the managed agent files contain this contract.
+See [Coder workspace updates](https://coder.com/docs/user-guides/workspace-management#update-workspaces).
 
 ## Codex updates
 
