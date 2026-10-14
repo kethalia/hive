@@ -1,0 +1,11 @@
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.004s
+
+OK
+Retired generated tmux save/restore configuration; original preserved at /tmp/tmp_b9chphr/.tmux.conf.hive-retired-2da7b4a7fb8c412d9d7096543adfcc7f
+Retired generated tmux save/restore configuration; original preserved at /tmp/tmp3jbjj6xa/.tmux.conf.hive-retired-954cfc151cf14c7aaffe6d1d809bb13b
+Retired generated tmux save/restore configuration; original preserved at /tmp/tmpkn_luzmr/.tmux.conf.hive-retired-d621bd1f6dc040c58745c35c7dd6eb21
+Preserving custom tmux configuration; review any snapshot plugins it enables.
+Preserving linked or externally owned tmux configuration; review snapshot settings.
+Preserving linked or externally owned tmux configuration; review snapshot settings.

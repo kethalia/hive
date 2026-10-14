@@ -54,6 +54,8 @@ expect_command hive-audio
 expect_command pulseaudio
 expect_command pacat
 expect_command pactl
+run test ! -e /opt/tmux-plugins
+docker run --rm -i "$image" python3 - /etc/tmux.conf < "$(dirname "$0")/test-tmux.py"
 # Match the plugin directory baked into Codex's bundled ALSA, rather than letting
 # Debian's system library find plugins through its different multiarch default.
 run bash -lc 'export PULSE_SERVER="$(hive-audio prepare -- smoke)"; pactl info >/dev/null; ALSA_PLUGIN_DIR=/usr/lib/alsa-lib python3 - <<"PY"

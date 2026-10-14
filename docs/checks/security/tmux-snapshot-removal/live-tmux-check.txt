@@ -1,0 +1,1 @@
+tmux: live process/history survive reconnects; menu retained; no snapshot hooks

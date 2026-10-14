@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+python3 - <<'PYTMUX'
+${tmux_snapshot_migration_script}
+PYTMUX
+
 ${git_config_retry_script}
 
 if [ ! -f "$HOME/.workspace_initialized" ]; then
