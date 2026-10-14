@@ -20,11 +20,11 @@ Shift-drag remains available for terminal selection. Touch taps use the same lin
 providers; touch scrolling and selection mode do not open links.
 
 The xterm clipboard add-on handles OSC 52 from Codex and tmux. Clipboard reads
-return empty data, never local clipboard contents. Nonempty writes up to 1 MiB go
-to the browser clipboard. If the browser requires a fresh gesture, a Copy action
-lets the user complete the write. Native mobile browser selections inside the
-active terminal are also recognized by Hive's Copy button. Failed copies retain
-selection for retry.
+return empty data, never local clipboard contents. Desktop mouse drags and mobile
+held touch drags copy one response up to 1 MiB on release. Other remote requests
+offer a Copy action, as do writes denied by the browser. Mobile selection is
+drawn by tmux without native browser handles. See [touch selection](touch-selection.md)
+for gesture behavior, fallback copying, and validation limits.
 
 On each new PTY attachment, the dedicated `web` tmux server enables application
 clipboard writes and negotiated extended keys. The client advertises clipboard,
@@ -91,7 +91,7 @@ Workspace handoff required
 - [ ] Click a plain URL and an OSC 8 named link: local tab, no remote browser error.
 - [ ] Tap links on touch; drag to scroll/select without opening a link.
 - [ ] Copy Codex's fullscreen selection and use Ctrl+O / Copy reply.
-- [ ] Copy a Hive Shift-drag selection and a mobile native selection.
+- [ ] Copy a Hive Shift-drag selection and a mobile held tmux drag selection.
 - [ ] Deny clipboard write permission and retry using the local Copy action.
 - [ ] Answer single-choice, multi-choice, and free-text questions using touch controls.
 - [ ] Exercise Ctrl+J, Ctrl+G, Shift+Tab, Enter, Tab, and custom keymap bindings.

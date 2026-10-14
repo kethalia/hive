@@ -1,0 +1,12 @@
+{
+  "id": "4ad882c9-89a9-46fa-8de0-2a82b5ebd388",
+  "name": "hive-mobile-selection-review",
+  "owner_id": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+  "owner_name": "daniel",
+  "created_at": "2026-10-14T09:58:07.646263Z",
+  "template": "browser-testing",
+  "provenance": "Created as disposable for PR 314 review regressions",
+  "temporary_workspace_cli_key_id": "D0DwLfkbrZ",
+  "temporary_workspace_cli_key_revoked": true,
+  "primary_key_distinct": true
+}

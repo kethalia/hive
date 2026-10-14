@@ -43,6 +43,15 @@
     -webkit-user-select: none;
 }
 
+/* Mobile selection is drawn by tmux/xterm, without OS handles or a callout. */
+[data-terminal-touch-selection="true"] .xterm,
+[data-terminal-touch-selection="true"] .xterm .xterm-rows,
+[data-terminal-touch-selection="true"] .xterm .xterm-rows * {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
 /* xterm disables hit testing on its DOM rows; native selection needs real text targets. */
 [data-terminal-native-selection="true"] .xterm .xterm-rows {
     pointer-events: auto;

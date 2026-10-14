@@ -1,7 +1,6 @@
-import { ClipboardAddon, type IClipboardProvider } from "@xterm/addon-clipboard";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import type { IBuffer, IBufferRange, Terminal } from "@xterm/xterm";
-import { toast } from "sonner";
 import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import { createTerminalLinkMenu } from "./link-menu";
 import {
@@ -15,6 +14,8 @@ import {
   createTerminalPathValidator,
   TERMINAL_PATH_VALIDATION_TIMEOUT_MS,
 } from "./path-validation";
+import { installSelectionClipboard } from "./selection-clipboard";
+import { isTerminalTouchMouseEvent } from "./touch-mouse-events";
 
 export function openTerminalLink(uri: string): void {
   try {
@@ -25,29 +26,6 @@ export function openTerminalLink(uri: string): void {
     // Terminal output is not necessarily a valid URL.
   }
 }
-
-export const terminalClipboardProvider: IClipboardProvider = {
-  // Remote programs may request writes, but cannot read the local clipboard.
-  readText: () => "",
-  writeText: (_selection, text) => {
-    if (!text || text.length > 1024 * 1024) return;
-    const copy = async () => {
-      try {
-        await navigator.clipboard.writeText(text);
-        toast.success("Copied terminal text");
-      } catch {
-        // Safari and other browsers may require a fresh local user gesture.
-        toast("Terminal text is ready to copy", {
-          id: "terminal-clipboard-copy",
-          duration: 15000,
-          action: { label: "Copy", onClick: () => void copy() },
-        });
-      }
-    };
-    // Do not block the terminal parser on a browser permission prompt.
-    void copy();
-  },
-};
 
 /** Use standard terminal links and clipboard protocols, including in fullscreen TUIs. */
 export function installTerminalBrowserIntegration(
@@ -192,8 +170,11 @@ export function installTerminalBrowserIntegration(
       menu.closeLoading();
     }
   });
+  // Generated selection moves still reach xterm's mouse protocol and linkifier.
+  // Ignore them in link callbacks without stopping the remote application's drag.
   const hoverLink = (event: MouseEvent, uri: string, opaque: boolean, range?: IBufferRange) => {
-    if (disposed || (touchProbes.has(event) && event !== touchProbe)) return;
+    if (disposed || isTerminalTouchMouseEvent(event)) return;
+    if (touchProbes.has(event) && event !== touchProbe) return;
     if (touchProbe && event !== touchProbe) return;
     if (!terminalLinkTarget(uri) || event.shiftKey) {
       invalidateLink();
@@ -221,6 +202,7 @@ export function installTerminalBrowserIntegration(
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
   const hover = (event: MouseEvent, uri: string, range?: IBufferRange) => {
+    if (isTerminalTouchMouseEvent(event)) return;
     if (!pendingPlainClick && !pendingPlainPress) cancelPathValidation();
     hoverLink(event, uri, false, range);
   };
@@ -244,6 +226,7 @@ export function installTerminalBrowserIntegration(
     range?: IBufferRange,
   ) => {
     if (
+      isTerminalTouchMouseEvent(event) ||
       event.shiftKey ||
       (touchProbe && event !== touchProbe) ||
       (touchProbes.has(event) && event !== touchProbe)
@@ -317,8 +300,9 @@ export function installTerminalBrowserIntegration(
     allowNonHttpProtocols: true,
   };
   const links = new WebLinksAddon(activate, { hover, leave });
-  const clipboard = allowClipboardWrite
-    ? new ClipboardAddon(undefined, terminalClipboardProvider)
+  const selectionClipboard = allowClipboardWrite ? installSelectionClipboard(term) : undefined;
+  const clipboard = selectionClipboard
+    ? new ClipboardAddon(undefined, selectionClipboard.provider)
     : undefined;
   term.loadAddon(links);
   const pathProvider = terminalPathLinkProvider(
@@ -335,6 +319,10 @@ export function installTerminalBrowserIntegration(
   const mouseDown = (event: MouseEvent) => {
     pressed = undefined;
     menu.close();
+    if (isTerminalTouchMouseEvent(event)) {
+      cancel();
+      return;
+    }
     if (event.button !== 0 || event.shiftKey) {
       cancelPathValidation();
       return;
@@ -347,6 +335,7 @@ export function installTerminalBrowserIntegration(
     event.stopImmediatePropagation();
   };
   const mouseUp = (event: MouseEvent) => {
+    if (isTerminalTouchMouseEvent(event)) return;
     const link = pressed;
     const pending = pendingPlainPress;
     pendingPlainPress = undefined;
@@ -550,6 +539,7 @@ export function installTerminalBrowserIntegration(
   // listener runs. Expose that pending result without treating it as a valid file.
   let pendingFeedback: object | undefined;
   const showPendingPlain = (event: MouseEvent) => {
+    if (isTerminalTouchMouseEvent(event)) return;
     const pending = pathProvider.pendingLinkAt(event);
     if (!pending || event.shiftKey) return;
     const token = {};
@@ -582,12 +572,13 @@ export function installTerminalBrowserIntegration(
     });
   };
   const pendingMouseMove = (event: MouseEvent) => {
-    if (touchProbe) return;
+    if (touchProbe || isTerminalTouchMouseEvent(event)) return;
     if (pathProvider.pendingLinkAt(event)) showPendingPlain(event);
     else if (!unverifiedHover) menu.closeLoading();
   };
   element?.addEventListener("mousemove", pendingMouseMove);
   const mouseMove = (event: MouseEvent) => {
+    if (isTerminalTouchMouseEvent(event)) return;
     if (!touchProbes.has(event)) {
       if (touchProbe) cancel();
       suppressHover = false;
@@ -635,5 +626,6 @@ export function installTerminalBrowserIntegration(
     menu.dispose();
     links.dispose();
     clipboard?.dispose();
+    selectionClipboard?.dispose();
   };
 }

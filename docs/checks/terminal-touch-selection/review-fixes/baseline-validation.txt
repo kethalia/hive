@@ -1,0 +1,156 @@
+BASELINE 8de96ec: scrollbar
+
+Running 1 test using 1 worker
+
+Failed-case clipboard observation: [{"text":"\nsecond line to select\nhttps://example.com/demo\n","activation":true,"success":true}]
+  ✘  1 [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:297:1 › a scrollbar drag does not grant clipboard access (692ms)
+
+
+  1) [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:297:1 › a scrollbar drag does not grant clipboard access 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 10
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "activation": true,
+    +     "success": true,
+    +     "text": "
+    + second line to select
+    + https://example.com/demo
+    + ",
+    +   },
+    + ]
+
+      314 |   );
+      315 |   await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+    > 316 |   expect(await page.evaluate(() => window.selectionFixture.writes)).toEqual([]);
+          |                                                                     ^
+      317 | });
+      318 |
+      319 | test("dragging the helper textarea does not grant clipboard access", async ({ page }) => {
+        at /home/coder/projects/kethalia/hive/e2e/terminal-touch-selection.spec.mjs:316:69
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/review/terminal-touch-selection-a-b4000--not-grant-clipboard-access-mobile-chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/review/terminal-touch-selection-a-b4000--not-grant-clipboard-access-mobile-chrome/error-context.md
+
+    Error Context: test-results/review/terminal-touch-selection-a-b4000--not-grant-clipboard-access-mobile-chrome/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/review/terminal-touch-selection-a-b4000--not-grant-clipboard-access-mobile-chrome/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/review/terminal-touch-selection-a-b4000--not-grant-clipboard-access-mobile-chrome/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:297:1 › a scrollbar drag does not grant clipboard access 
+
+
+BASELINE 8de96ec: inert
+
+Running 1 test using 1 worker
+
+Failed-case clipboard observation: [{"text":"ALPHA","activation":true,"success":true}]
+  ✘  1 [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:383:3 › leaving and returning to a pane permanently cancels its pending write (inert) (6.4s)
+
+
+  1) [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:383:3 › leaving and returning to a pane permanently cancels its pending write (inert) 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Copy', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('button', { name: 'Copy', exact: true })
+
+
+      414 |       window.selectionFixture.flushClipboard();
+      415 |     }, kind);
+    > 416 |     await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+          |                                                                           ^
+      417 |     expect(await page.evaluate(() => window.selectionFixture.writes)).toEqual([]);
+      418 |     // The cancelled grant stays cancelled; a fresh explicit action still works.
+      419 |     await page.getByRole("button", { name: "Copy", exact: true }).click();
+        at /home/coder/projects/kethalia/hive/e2e/terminal-touch-selection.spec.mjs:416:75
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/review/terminal-touch-selection-l-25483-ls-its-pending-write-inert--mobile-chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/review/terminal-touch-selection-l-25483-ls-its-pending-write-inert--mobile-chrome/error-context.md
+
+    Error Context: test-results/review/terminal-touch-selection-l-25483-ls-its-pending-write-inert--mobile-chrome/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/review/terminal-touch-selection-l-25483-ls-its-pending-write-inert--mobile-chrome/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/review/terminal-touch-selection-l-25483-ls-its-pending-write-inert--mobile-chrome/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:383:3 › leaving and returning to a pane permanently cancels its pending write (inert) 
+
+
+BASELINE 8de96ec: parking
+
+Running 1 test using 1 worker
+
+Failed-case clipboard observation: [{"text":"ALPHA","activation":true,"success":true}]
+  ✘  1 [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:383:3 › leaving and returning to a pane permanently cancels its pending write (parking) (6.4s)
+
+
+  1) [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:383:3 › leaving and returning to a pane permanently cancels its pending write (parking) 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: 'Copy', exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('button', { name: 'Copy', exact: true })
+
+
+      414 |       window.selectionFixture.flushClipboard();
+      415 |     }, kind);
+    > 416 |     await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+          |                                                                           ^
+      417 |     expect(await page.evaluate(() => window.selectionFixture.writes)).toEqual([]);
+      418 |     // The cancelled grant stays cancelled; a fresh explicit action still works.
+      419 |     await page.getByRole("button", { name: "Copy", exact: true }).click();
+        at /home/coder/projects/kethalia/hive/e2e/terminal-touch-selection.spec.mjs:416:75
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/review/terminal-touch-selection-l-bf37a--its-pending-write-parking--mobile-chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/review/terminal-touch-selection-l-bf37a--its-pending-write-parking--mobile-chrome/error-context.md
+
+    Error Context: test-results/review/terminal-touch-selection-l-bf37a--its-pending-write-parking--mobile-chrome/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/review/terminal-touch-selection-l-bf37a--its-pending-write-parking--mobile-chrome/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/review/terminal-touch-selection-l-bf37a--its-pending-write-parking--mobile-chrome/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:383:3 › leaving and returning to a pane permanently cancels its pending write (parking) 

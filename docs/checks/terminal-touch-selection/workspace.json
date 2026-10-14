@@ -1,0 +1,13 @@
+{
+  "id": "7bf06afa-3ae3-4e35-b62e-a9d4f4f3addb",
+  "name": "hive-mobile-selection-check",
+  "owner_id": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+  "owner_name": "daniel",
+  "created_at": "2026-10-14T08:57:51.769406Z",
+  "template": "browser-testing",
+  "provenance": "Created as disposable for mobile tmux selection validation",
+  "primary_repository": "/home/coder/projects/kethalia/hive",
+  "temporary_workspace_cli_key_id": "ADc16FC4SP",
+  "temporary_workspace_cli_key_revoked": true,
+  "primary_key_distinct": true
+}

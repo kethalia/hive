@@ -4,11 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   installTerminalBrowserIntegration,
   openTerminalLink,
-  terminalClipboardProvider,
 } from "@/lib/terminal/browser-integration";
 import { createTerminalLinkMenu } from "@/lib/terminal/link-menu";
+import { markTerminalTouchMouseEvent } from "@/lib/terminal/touch-mouse-events";
 
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn() }) }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), dismiss: vi.fn() }),
+}));
 
 afterEach(() => {
   vi.useRealTimers();
@@ -158,7 +160,7 @@ describe("terminal browser integration", () => {
     dispose();
   });
 
-  it("handles real OSC 52 clipboard writes while never reading local clipboard data", async () => {
+  it("offers Copy for unsolicited OSC 52 and never reads local clipboard data", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     const readText = vi.fn();
     Object.defineProperty(navigator, "clipboard", {
@@ -168,7 +170,7 @@ describe("terminal browser integration", () => {
     const { term, osc, dispose } = surface(true);
     const text = "a complete\nCodex selection";
     await osc.get(52)?.(`c;${btoa(text)}`);
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(text);
+    expect(writeText).not.toHaveBeenCalled();
     await osc.get(52)?.("c;?");
     expect(readText).not.toHaveBeenCalled();
     expect(term.input).toHaveBeenCalledWith("\x1b]52;c;\x07", false);
@@ -179,13 +181,16 @@ describe("terminal browser integration", () => {
     const { toast } = await import("sonner");
     const writeText = vi.fn().mockRejectedValue(new Error("denied"));
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-    terminalClipboardProvider.writeText("c" as never, "selection");
+    const { osc, dispose } = surface(true);
+    await osc.get(52)?.(`c;${btoa("selection")}`);
     await vi.waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         "Terminal text is ready to copy",
         expect.objectContaining({ action: expect.objectContaining({ label: "Copy" }) }),
       ),
     );
+    expect(writeText).not.toHaveBeenCalled();
+    dispose();
   });
 });
 
@@ -476,6 +481,80 @@ function positionedSurface(
   vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({ top: 0, height: 40 } as DOMRect);
   return result;
 }
+
+it.each([
+  "plain-path",
+  "web-url",
+  "osc-url",
+  "osc-file",
+])("does not open a %s menu while a generated selection move pauses over it", async (kind) => {
+  vi.useFakeTimers();
+  const validate = vi.fn((paths: string[]) => paths);
+  const { term, plainLink, dispose } = positionedSurface(validate);
+  validate.mockClear();
+  const event = new MouseEvent("mousemove", { bubbles: true, buttons: 1, clientY: 10 });
+  markTerminalTouchMouseEvent(event);
+  const screen = term.element.querySelector(".xterm-screen")!;
+  const remote = vi.fn();
+  term.element.addEventListener("mousemove", remote);
+  screen.addEventListener("mousemove", () => {
+    if (kind === "plain-path") plainLink.hover?.(event, plainLink.text);
+    else if (kind === "web-url") {
+      const addon = term.loadAddon.mock.calls[0][0];
+      addon._options.hover(event, "https://example.com");
+    } else {
+      term.options.linkHandler?.hover?.(
+        event,
+        kind === "osc-url" ? "https://example.com" : "file:///home/coder/real.md",
+        {} as never,
+      );
+    }
+  });
+  screen.dispatchEvent(event);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(remote).toHaveBeenCalledExactlyOnceWith(event);
+  expect(validate).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+});
+
+it("does not show pending file feedback for a generated selection move", async () => {
+  vi.useFakeTimers();
+  let resolve!: (paths: string[]) => void;
+  const { term, dispose } = positionedSurface(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const screen = term.element.querySelector(".xterm-screen")!;
+  vi.mocked(screen.getBoundingClientRect).mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 40,
+    bottom: 40,
+    right: 800,
+  } as DOMRect);
+  const event = new MouseEvent("mousemove", {
+    bubbles: true,
+    buttons: 1,
+    clientX: 10,
+    clientY: 10,
+  });
+  markTerminalTouchMouseEvent(event);
+  screen.addEventListener("mousemove", () => {
+    term.registerLinkProvider.mock.calls.at(-1)![0].provideLinks(1, (links) => {
+      links?.[0]?.hover?.(event, links[0].text);
+    });
+  });
+  screen.dispatchEvent(event);
+  expect(document.querySelector("[role=status]")).toBeNull();
+  resolve(["docs/image.png"]);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(document.querySelector("[role=menu]")).toBeNull();
+  dispose();
+});
 
 it.each([
   "activate",

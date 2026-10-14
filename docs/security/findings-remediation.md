@@ -296,6 +296,24 @@ workspaces. Running servers retain loaded hooks until they exit. See
 [tmux session lifetime](../terminal/tmux-sessions.md) for the restart behavior and
 legacy-data boundary.
 
+## Selection gestures and terminal clipboard writes
+
+Finding `commit:745807de8770819193d07f503330274f`: unsolicited OSC 52 requests
+now require an explicit Copy action. Automatic copying is limited to one reply
+from the same terminal within three seconds of releasing a deliberate mouse or
+held touch selection. New pointer activity, blur, resize, disposal, and inactive
+panes cancel pending access. Clipboard reads still return empty data.
+
+Mobile held touch drags now use tmux's mouse selection, with native selection
+handles suppressed. A deferred ClipboardItem starts the write during release so
+tmux can return its text asynchronously. Browser denial falls back to Copy.
+Real tmux/Chrome regressions check exact single-line and multiline copied text,
+desktop copying, cancellation, links, separate panes, and unsolicited output.
+The workspace controls response content; this does not authenticate its contents
+or prove that a response during an approved selection matches the highlighted
+range. Web rollout, physical Safari verification, and Cloud review remain pending.
+See [touch selection](../terminal/touch-selection.md).
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
@@ -325,7 +343,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:09602bc411208191a99b3ae90931beab` | medium | Duplicate session cookies enable session fixation | Repository fix rejects all duplicate selected-name cookies across web/proxy/terminal and ignores legacy names in production. Live migration verification remains pending. |
 | `commit:586a0bdebe348191a71e954ce45e4654` | medium | Paste image upload can crash Hive web process | Fixed in this slice; reproduced EPIPE on the baseline and added regression coverage. |
 | `commit:6cc2606c14648191b1013e97870401a4` | medium | Paste uploads can exhaust web and SSH resources | Repository fix caps raw bodies before parsing, limits aggregate files/admission per web process, and transfers sequentially with cancellation cleanup. Live rollout verification remains pending. |
-| `commit:745807de8770819193d07f503330274f` | low | Untrusted workspace output can poison the local clipboard | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:745807de8770819193d07f503330274f` | low | Untrusted workspace output can poison the local clipboard | Automatic writes require a selection release; other requests offer Copy. Real tmux/Chrome checks pass. Response content remains workspace-controlled; web/device verification and Cloud review remain pending. |
 | `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb` | low | Hover focus can leak keystrokes to workspace terminals | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:66d6747a76288191be7b68df43d8504b` | informational | Prisma baseline blocks Helm upgrades with existing schemas | Pending current-source and deployment verification; no remediation or cloud closure claimed. |

@@ -1,0 +1,28 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/terminal/activity.test.ts (7 tests) 19ms
+ ✓ src/__tests__/lib/gestures/horizontal-swipe.test.ts (6 tests) 36ms
+ ✓ src/__tests__/lib/terminal/selection-clipboard.test.ts (11 tests) 39ms
+ ✓ src/__tests__/lib/terminal/clipboard.test.ts (14 tests) 27ms
+ ✓ src/__tests__/lib/terminal/touch-selection.test.ts (18 tests) 66ms
+ ✓ src/__tests__/lib/terminal/native-selection.test.ts (21 tests) 63ms
+ ✓ src/__tests__/components/terminal/MobileTerminalShell.test.tsx (8 tests) 185ms
+ ✓ src/__tests__/lib/terminal/browser-integration.test.ts (72 tests) 266ms
+ ✓ src/__tests__/components/InteractiveTerminal.fit.test.tsx (5 tests) 249ms
+stdout | src/__tests__/integration/interactive-terminal-integration.test.tsx > WorkspaceTerminalPage integration — Multi-session route > reuses the stale-entry alert path when the agent lookup fails
+[workspaces] Stale entry detected for workspace test-ws, dispatching sidebar refresh
+
+ ✓ src/__tests__/lib/terminal/actions.test.ts (27 tests) 1062ms
+stdout | src/__tests__/integration/interactive-terminal-integration.test.tsx > TerminalClient integration — Clone route parameters > ignores clonePath while bootstrapping a generic no-session terminal
+[workspaces] No session param for workspace test-ws, resolving terminal session (attempt 1)
+
+ ✓ src/__tests__/integration/interactive-terminal-integration.test.tsx (97 tests) 2536ms
+   ✓ WorkspaceTerminalPage integration — Multi-session route > keeps tiled layout signals stable without pane-header reorder controls  361ms
+   ✓ InteractiveTerminal integration — Mobile input adapter > uses tmux for held mobile selection without wheel scrolling or keyboard focus  567ms
+
+ Test Files  11 passed (11)
+      Tests  286 passed (286)
+   Start at  10:28:35
+   Duration  3.84s (transform 1.33s, setup 0ms, collect 2.51s, tests 4.55s, environment 7.92s, prepare 837ms)
+

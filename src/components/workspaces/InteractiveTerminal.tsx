@@ -58,6 +58,8 @@ import {
 import { hasNativeTerminalSelection } from "@/lib/terminal/native-selection";
 import { encodeInput } from "@/lib/terminal/protocol";
 import { createSelectionOutput } from "@/lib/terminal/selection-output";
+import { isTerminalTouchMouseEvent } from "@/lib/terminal/touch-mouse-events";
+import { installTerminalTouchSelection } from "@/lib/terminal/touch-selection";
 import { cn } from "@/lib/utils";
 import "@/styles/xterm.css";
 
@@ -430,6 +432,8 @@ function TerminalRuntime({
   suppressAutoFocusRef.current = suppressAutoFocus;
   const selectionModeEnabledRef = useRef(selectionModeEnabled);
   selectionModeEnabledRef.current = selectionModeEnabled;
+  const onSelectionFocusRef = useRef(onUserFocusRequest);
+  onSelectionFocusRef.current = onUserFocusRequest;
   const mobileTouchIntentRef = useRef<MobileTouchIntent | null>(null);
   const suppressNextClickFocusRef = useRef(false);
   const nativePasteAttemptsRef = useRef<NativePasteAttempt[]>([]);
@@ -788,10 +792,26 @@ function TerminalRuntime({
     const container = containerRef.current;
     if (!container) return;
 
-    // Input capabilities identify compatibility events where supported. Older
-    // browsers fall back to recent touch activity, cleared by a physical pointer.
     let lastTouchAt = Number.NEGATIVE_INFINITY;
     let touchActive = false;
+    const disposeTouchSelection = installTerminalTouchSelection(container, {
+      terminal: () => termRef.current,
+      enabled: () => mobileInputModeRef.current && !selectionModeEnabledRef.current,
+      onStart: () => {
+        mobileTouchIntentRef.current = null;
+        suppressNextClickFocusRef.current = true;
+        onSelectionFocusRef.current?.();
+      },
+      onFinish: () => {
+        mobileTouchIntentRef.current = null;
+        suppressNextClickFocusRef.current = true;
+        touchActive = false;
+        lastTouchAt = Date.now();
+      },
+    });
+
+    // Input capabilities identify compatibility events where supported. Older
+    // browsers fall back to recent touch activity, cleared by a physical pointer.
     const recordTouch = (event: TouchEvent) => {
       touchActive = event.touches.length > 0;
       lastTouchAt = Date.now();
@@ -810,15 +830,21 @@ function TerminalRuntime({
       ).sourceCapabilities;
       return capabilities?.firesTouchEvents ?? (touchActive || Date.now() - lastTouchAt < 1000);
     };
-    // Keep native long-press selection available, while letting real mouse
-    // presses reach xterm selection and the descendant link handlers.
+    // Real mouse presses and our tmux drag reach xterm; compatibility mouse
+    // presses following a touch must not refocus the hidden input.
     const preventXtermMouseFocus = (event: MouseEvent) => {
+      if (isTerminalTouchMouseEvent(event)) return;
       if (!mobileInputModeRef.current || !isTouchMouseEvent(event)) return;
-      // Block xterm's focus/selection handlers, not the browser's native selection default.
       event.stopImmediatePropagation();
     };
     const preserveNativeContextMenu = (event: MouseEvent) => {
-      if (mobileInputModeRef.current && isTouchMouseEvent(event)) event.stopImmediatePropagation();
+      if (
+        mobileInputModeRef.current &&
+        (selectionModeEnabledRef.current || isTouchMouseEvent(event))
+      ) {
+        if (!selectionModeEnabledRef.current) event.preventDefault();
+        event.stopImmediatePropagation();
+      }
     };
     const handleTouchStart = (event: TouchEvent) => {
       if (!mobileInputModeRef.current) return;
@@ -844,6 +870,7 @@ function TerminalRuntime({
     container.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
     return () => {
+      disposeTouchSelection();
       container.removeEventListener("pointerdown", recordPointer, true);
       container.removeEventListener("touchend", recordTouch, true);
       container.removeEventListener("touchcancel", recordTouch, true);
@@ -1322,7 +1349,12 @@ function TerminalRuntime({
           className="h-full min-h-0 w-full"
           data-testid="terminal-fit-host"
           data-sidebar-gesture-ignore={selectionModeEnabled ? "true" : undefined}
-          data-terminal-native-selection={mobileInputMode ? "true" : undefined}
+          data-terminal-touch-selection={
+            mobileInputMode && !selectionModeEnabled ? "true" : undefined
+          }
+          data-terminal-native-selection={
+            mobileInputMode && selectionModeEnabled ? "true" : undefined
+          }
           data-terminal-selection-mode={selectionModeEnabled ? "true" : undefined}
           onClickCapture={stopTerminalEventForSelection}
           onMouseDownCapture={stopTerminalEventForSelection}

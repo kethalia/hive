@@ -154,12 +154,20 @@ for (const format of [
       {
         format,
         sources: [
-          "link-target",
-          "path-validation",
-          "path-link-provider",
-          "link-menu",
-          "browser-integration",
-        ].map((name) => [`./${name}`, compile(`src/lib/terminal/${name}.ts`)]),
+          ["@/lib/gestures/conventions", compile("src/lib/gestures/conventions.ts")],
+          ...[
+            "link-target",
+            "path-validation",
+            "path-link-provider",
+            "link-menu",
+            "native-selection",
+            "activity",
+            "selection-surface",
+            "selection-clipboard",
+            "touch-mouse-events",
+            "browser-integration",
+          ].map((name) => [`./${name}`, compile(`src/lib/terminal/${name}.ts`)]),
+        ],
       },
     );
     const screen = await page.locator(".xterm-screen").boundingBox();

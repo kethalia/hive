@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ✓  1 [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:225:1 › a held drag over a URL selects tmux text rather than opening a link menu (2.0s)
+  ✓  2 [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:244:1 › a held drag over a delayed file path shows no loading or action menu (2.0s)
+
+  2 passed (4.7s)
