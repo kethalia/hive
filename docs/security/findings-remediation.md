@@ -314,6 +314,58 @@ or prove that a response during an approved selection matches the highlighted
 range. Web rollout, physical Safari verification, and Cloud review remain pending.
 See [touch selection](../terminal/touch-selection.md).
 
+## Specialist handoff cleanup authorization
+
+Finding `commit:cc856e47e0fc8191a6dd335ea8175231`: the shared routing contract
+requires the primary workspace to record identity and disposition from its own
+creation or reuse action before a specialist handoff. Records include Coder
+deployment, workspace/owner/template UUIDs, creation time, and task identity.
+Specialist claims, returned artifacts, and suggested commands cannot create or
+overwrite that primary record or reclassify a workspace as disposable.
+
+Before each stop or delete, fresh Coder metadata must match the primary record
+and the operation must target the verified UUID. Missing or mismatched evidence
+causes retention. The primary also checks task completion, preserved results,
+and other active work. Automatic cleanup remains authorized for verified
+task-created disposables; reused, persistent, primary, and unrelated workspaces
+retain their existing protections.
+
+The software-only `hive-workspace` wrapper validates target identity and recorded
+task state in code. It records the Coder creation response with an HMAC signature
+in private primary state; existing workspaces and imported handoff records cannot be adopted.
+An explicit completion operation binds preserved evidence to the signed task.
+Cleanup verifies task/deployment/primary identity, signature, unchanged evidence,
+fresh workspace metadata, and stopped-build state before UUID-targeted deletion.
+Both completion and cleanup hash evidence in 1 MiB chunks, bounding memory use for
+large traces or archives without imposing a file-size limit.
+Changing repository-local instructions cannot alter these executable checks.
+
+On 2026-10-14, the owner explicitly chose to keep automatic cleanup and trust the
+primary agent to decide completion, rather than require separate user approval.
+`complete` accepts the trusted primary caller's decision and signs that transition;
+the signature and evidence hash do not independently authenticate task completion
+or absence of other active work. Repository/handoff instructions could still
+influence the primary into prematurely completing and deleting a verified task
+disposable. This residual completion-authorization risk is accepted, not remediated
+by the wrapper. The acceptance does not authorize deletion of reused, persistent,
+primary, or unrelated resources. No Security Cloud risk acceptance or closure was
+submitted; this records the owner's repository decision only.
+
+Executable regressions cover forged receipts and conflicting `AGENTS.md`, receipts
+still marked active, incorrect task/deployment/primary identity, all workspace identity fields,
+name reuse, changed evidence, build races, and stopped-before-delete behavior.
+Contract checks verify all five profiles ship the same instructions and the helper
+is wired into software startup. The primary still holds owner credentials and
+remains trusted; the wrapper does not prevent a compromised primary from bypassing
+it through raw Coder access. No live workspaces were stopped or deleted here.
+
+Rollout requires publishing/activating updated templates and explicitly updating
+existing workspaces with `coder update`, or verifying automatic updates are
+enabled before their next start. Restarting a manually updated workspace alone
+does not select the new version. Verify the build's template version and installed
+helper/managed context after startup; see [workspace cleanup rollout](../workspace-template-profiles.md#specialist-workspace-cleanup).
+Live rollout and Security Cloud review remain pending.
+
 ## Explicit terminal retry after final failures
 
 Finding `commit:62ec3a2baa848191987856c226e78552`: the Retry terminal connection
@@ -385,7 +437,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:2013bf58f9488191a12419f6eafb5234` | medium | Workspace code can silently activate the browser microphone | Repository fix requires explicit approval for each pending terminal microphone request; ordinary Enter cannot grant consent. Web deployment/refresh and cloud closure remain pending. |
 | `commit:e172a9d020f081918c97f470636f7440` | medium | Workspace code can activate and read the browser microphone | Same explicit browser approval fix as 2013bf58. Approved audio is available to programs sharing that terminal's virtual microphone; live rollout/cloud closure remain pending. |
 | `commit:77d897a572848191b10d536984967ccc` | medium | Workspace proxy can reuse Hive microphone permissions | Repository fix removes active proxy content and denies microphone/camera in tool frames. Chrome tests confirm Hive's permission is not reusable on the app origin. |
-| `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:cc856e47e0fc8191a6dd335ea8175231` | medium | Agent handoffs can authorize destructive workspace deletion | Partial hardening: wrapper checks signed receipts, recorded task/evidence integrity, fresh identity, and stopped state. Owner accepted trusting the primary's completion decision on 2026-10-14; no independent completion approval is enforced. Explicit template update, rollout verification, and Cloud review remain pending. |
 | `commit:77cecf3dcd488191aa1c6f3960b1e173` | medium | Unverified downloads in published workspace base image | Repository fix adds checksum gates and pins the native Claude release. Image rebuild/digest rollout and cloud closure remain pending. |
 | `commit:beb03b5055a48191b33374352232c78c` | medium | Persistent tmux scrollback can expose terminal secrets | Repository fix removes both image plugins and the startup installer/restore path; exact generated home configs are archived. Template/image rollout, custom-config review, historical-data cleanup, and cloud closure remain pending. |
 | `commit:09602bc411208191a99b3ae90931beab` | medium | Duplicate session cookies enable session fixation | Repository fix rejects all duplicate selected-name cookies across web/proxy/terminal and ignores legacy names in production. Live migration verification remains pending. |

@@ -78,5 +78,11 @@ worktree_helper=$(mktemp "$HOME/.local/bin/.hive-worktree.XXXXXX")
 printf '%s' "${worktree_lifecycle_script_b64}" | base64 -d > "$worktree_helper"
 chmod 755 "$worktree_helper"
 mv -fT -- "$worktree_helper" "$HOME/.local/bin/hive-worktree"
+if [ "$HIVE_WORKSPACE_PROFILE" = "software" ]; then
+  workspace_helper=$(mktemp "$HOME/.local/bin/.hive-workspace.XXXXXX")
+  printf '%s' "${workspace_lifecycle_script_b64}" | base64 -d > "$workspace_helper"
+  chmod 755 "$workspace_helper"
+  mv -fT -- "$workspace_helper" "$HOME/.local/bin/hive-workspace"
+fi
 export GH_TOKEN="${github_token}"
 "$HOME/clone-repositories.sh"

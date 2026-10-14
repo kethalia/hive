@@ -21,6 +21,56 @@ const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
 const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 const INFRASTRUCTURE_TEMPLATE_ROOT = join(process.cwd(), "templates/infrastructure");
 
+test("workspace lifecycle checks provenance independently of agent instructions", () => {
+  const result = spawnSync("python3", ["-B", "scripts/workspace-lifecycle.test.py"], {
+    encoding: "utf8",
+    timeout: 10000,
+  });
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  const terraform = readFileSync(join(TEMPLATE_ROOT, "main.tf"), "utf8");
+  const script = readFileSync(join(TEMPLATE_ROOT, "scripts/tools-ci.sh"), "utf8");
+  assert.match(terraform, /workspace_lifecycle_script_b64\s*=\s*base64encode/);
+  assert.match(
+    script,
+    /if \[ "\$HIVE_WORKSPACE_PROFILE" = "software" \]; then[\s\S]*hive-workspace/,
+  );
+  const block = script.match(
+    /if \[ "\$HIVE_WORKSPACE_PROFILE" = "software" \]; then[\s\S]*?\nfi/,
+  )?.[0];
+  assert.ok(block);
+  const payload = readFileSync(join(TEMPLATE_ROOT, "scripts/workspace-lifecycle.py"));
+  for (const profile of ["software", "browser"]) {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "hive-workspace-install-"));
+    mkdirSync(join(fixtureRoot, ".local/bin"), { recursive: true });
+    const install = spawnSync(
+      "bash",
+      [
+        "-eu",
+        "-c",
+        block
+          .replace(`\${workspace_lifecycle_script_b64}`, payload.toString("base64"))
+          .replaceAll("$HOME", "$HIVE_WORKSPACE_INSTALL_ROOT"),
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          HIVE_WORKSPACE_INSTALL_ROOT: fixtureRoot,
+          HIVE_WORKSPACE_PROFILE: profile,
+        },
+      },
+    );
+    assert.equal(install.status, 0, install.stderr);
+    const helper = join(fixtureRoot, ".local/bin/hive-workspace");
+    assert.equal(existsSync(helper), profile === "software");
+    if (profile === "software") {
+      assert.deepEqual(readFileSync(helper), payload);
+      const help = spawnSync(helper, ["--help"], { encoding: "utf8" });
+      assert.equal(help.status, 0, help.stderr);
+    }
+  }
+});
+
 test("task worktree lifecycle preserves active work and user-owned bootstrap choices", () => {
   const result = spawnSync("python3", ["-B", "scripts/worktree-lifecycle.test.py"], {
     encoding: "utf8",
