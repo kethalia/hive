@@ -97,6 +97,37 @@ describe("WorkspaceBoardBar", () => {
     expect(screen.getByTestId("workspace-board-tab-main")).toHaveFocus();
   });
 
+  describe.each([
+    'team"blue',
+    "team\\blue",
+    'team"], [role="tab',
+    "team\nblue",
+  ])("keyboard navigation to board key %j", (targetKey) => {
+    it.each([
+      "ArrowRight",
+      "ArrowLeft",
+      "Home",
+      "End",
+    ])("selects and focuses the exact tab with %s", (key) => {
+      const onSelect = vi.fn();
+      const targetFirst = key === "ArrowLeft" || key === "Home";
+      const boards = [
+        board("main", "Main", targetFirst ? 1 : 0),
+        board(targetKey, "Target", targetFirst ? 0 : 1),
+      ];
+      render(<WorkspaceBoardBar boards={boards} activeBoardKey="main" onSelect={onSelect} />);
+      const tabs = screen.getAllByRole("tab");
+      const source = tabs[targetFirst ? 1 : 0];
+      const target = tabs[targetFirst ? 0 : 1];
+      source.focus();
+
+      fireEvent.keyDown(source, { key });
+
+      expect(onSelect).toHaveBeenCalledExactlyOnceWith(targetKey, { focusTerminal: false });
+      expect(target).toHaveFocus();
+    });
+  });
+
   it("creates a workspace immediately from the plus button", () => {
     const onCreate = vi.fn();
 

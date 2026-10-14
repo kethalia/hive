@@ -314,6 +314,20 @@ or prove that a response during an approved selection matches the highlighted
 range. Web rollout, physical Safari verification, and Cloud review remain pending.
 See [touch selection](../terminal/touch-selection.md).
 
+## Safe workspace-board keyboard navigation
+
+Finding `commit:205cc7eee8d48191a9baef63850e08f5`: workspace-tab navigation
+uses a fixed tab selector followed by an exact identifier comparison. Stored
+board keys are no longer interpreted as CSS, so quotes, backslashes, newlines,
+and selector fragments cannot break the lookup or redirect focus to another tab.
+Arrow keys, Home, and End retain their selection and focus behavior. Existing
+keys are preserved without a storage migration.
+
+Sixteen regression cases cover four unusual keys across all four navigation
+keys; fourteen fail against the original lookup. Existing component and board
+state/integration checks also pass. This repository fix does not change Security
+Cloud finding state.
+
 ## Accepted focus-follows-mouse behavior
 
 Finding `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb`: on 2026-10-14, the owner
@@ -364,7 +378,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb` | low | Hover focus can leak keystrokes to workspace terminals | Owner accepted focus-follows-mouse on 2026-10-14, including accidental pointer crossing redirecting typing. Preserve the behavior; hidden/inactive-pane and dialog/text-field boundaries require separate verification. No Cloud closure claimed. |
 | `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 | `commit:66d6747a76288191be7b68df43d8504b` | informational | Prisma baseline blocks Helm upgrades with existing schemas | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
-| `commit:205cc7eee8d48191a9baef63850e08f5` | informational | Unsafe board keys can crash tab keyboard navigation | Selector interpolation remains; regression and safe element lookup pending. |
+| `commit:205cc7eee8d48191a9baef63850e08f5` | informational | Unsafe board keys can crash tab keyboard navigation | Repository fix uses a fixed selector and exact identifier comparison. Unusual-key regressions cover arrows, Home, and End; deployment verification and Cloud closure remain pending. |
 | `commit:62ec3a2baa848191987856c226e78552` | informational | Manual terminal retry is blocked after final failures | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
 
 Findings must only be closed in Security Cloud after their exact accessible record and remediation evidence have been checked. This slice changes no Cloud finding state.

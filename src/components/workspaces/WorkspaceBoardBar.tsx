@@ -78,9 +78,11 @@ export function WorkspaceBoardBar({
       if (nextBoard.key !== activeKey) {
         onSelect?.(nextBoard.key, { focusTerminal: false });
       }
-      event.currentTarget
+      const tabs = event.currentTarget
         .closest('[role="tablist"]')
-        ?.querySelector<HTMLButtonElement>(`[data-testid="workspace-board-tab-${nextBoard.key}"]`)
+        ?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+      Array.from(tabs ?? [])
+        .find((tab) => tab.getAttribute("data-testid") === `workspace-board-tab-${nextBoard.key}`)
         ?.focus();
     }
   }
