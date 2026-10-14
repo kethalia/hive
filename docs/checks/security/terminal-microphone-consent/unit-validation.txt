@@ -1,0 +1,12 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/browser-audio.test.ts (51 tests) 72ms
+ ✓ src/__tests__/components/TerminalAudioBridge.test.tsx (14 tests) 337ms
+ ✓ src/__tests__/components/InteractiveTerminal.fit.test.tsx (5 tests) 258ms
+
+ Test Files  3 passed (3)
+      Tests  70 passed (70)
+   Start at  18:53:43
+   Duration  1.56s (transform 413ms, setup 0ms, collect 956ms, tests 668ms, environment 1.33s, prepare 150ms)
+

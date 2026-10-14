@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { consumeTerminalAudioInteraction } from "@/lib/terminal/audio-interaction";
 import { terminalAuthProtocols } from "@/lib/terminal/auth-transport";
 import { TerminalAudio, type TerminalAudioStatus } from "@/lib/terminal/browser-audio";
 import { TERMINAL_AUDIO_PRIME_EVENT } from "@/lib/terminal/events";
@@ -18,8 +17,10 @@ export function TerminalAudioBridge({
   sessionName: string;
 }) {
   const element = useRef<HTMLDivElement>(null);
+  const controller = useRef<TerminalAudio | null>(null);
   const [status, setStatus] = useState<TerminalAudioStatus>({ phase: "standby" });
   useEffect(() => {
+    setStatus({ phase: "standby" });
     if (!proxyUrl || !element.current) return;
     const terminal = element.current.closest<HTMLElement>('[data-terminal-surface="true"]');
     if (!terminal) return;
@@ -37,9 +38,9 @@ export function TerminalAudioBridge({
         // Touch/Compose input may live outside xterm; use the selected pane then.
         return true;
       },
-      () => consumeTerminalAudioInteraction(terminal),
       (url) => terminalAuthProtocols(url, "hive-audio-v1"),
     );
+    controller.current = audio;
     let inView = false;
     const update = () => {
       audio.setVisible(
@@ -88,9 +89,13 @@ export function TerminalAudioBridge({
       window.removeEventListener("focus", focus);
       window.removeEventListener("blur", focus);
       audio.dispose();
+      if (controller.current === audio) controller.current = null;
     };
   }, [proxyUrl, workspaceId, agentId, sessionName]);
 
+  // Bind controls to the rendered controller/request, including across prop
+  // changes. A queued click must not approve a replacement terminal or call.
+  const audio = controller.current;
   return (
     <div
       ref={element}
@@ -98,11 +103,28 @@ export function TerminalAudioBridge({
     >
       {status.phase !== "standby" ? (
         <div
-          role="status"
-          aria-live="polite"
           className={`rounded bg-background/95 px-2 py-1 text-xs ${status.phase === "error" ? "text-destructive" : "text-muted-foreground"}`}
         >
-          {status.message}
+          <span role="status" aria-live="polite">
+            {status.message}
+          </span>
+          {status.phase === "request" ? (
+            <button
+              type="button"
+              className="pointer-events-auto ml-2 rounded border px-2 py-1 text-foreground focus-visible:outline-2"
+              onClick={() => audio?.approveMicrophone(status.requestId)}
+            >
+              Enable microphone
+            </button>
+          ) : status.phase !== "error" ? (
+            <button
+              type="button"
+              className="pointer-events-auto ml-2 rounded border px-2 py-1 text-foreground focus-visible:outline-2"
+              onClick={() => audio?.stopMicrophone()}
+            >
+              Stop microphone
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

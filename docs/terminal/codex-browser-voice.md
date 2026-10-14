@@ -2,20 +2,22 @@
 
 Hive forwards browser microphone and speaker audio to the virtual audio devices
 of each workspace terminal. Codex uses its own native `/voice` command and its
-current session. There is no session picker or separate Start voice bar.
+current session. Microphone approval appears inside the requesting terminal.
 
 ## Use
 
 1. Focus the Hive window and the terminal containing Codex, then type `/voice`.
-2. Allow microphone access to the Hive website or installed PWA when prompted.
-3. Speak normally. Codex replies play through the browser. Use Codex's `/voice`
-   command to end voice.
+2. Click **Enable microphone** in that terminal.
+3. Allow microphone access to the Hive website or installed PWA when prompted.
+4. Speak normally. Codex replies play through the browser. Click **Stop microphone**
+   or use Codex's `/voice` command to end voice.
 
-The bridge is enabled by default. Microphone access starts only when the native
-application opens its capture stream. An idle terminal does not request or hold
-the microphone. A small status message appears during connection, an active
-call, a paused call, or an error. Browser permission settings determine whether
-future calls prompt again. HTTPS (or localhost) and Web Audio/AudioWorklet
+The bridge is enabled by default. Opening a native capture stream requests audio;
+the browser only starts microphone access after explicit approval in Hive.
+An idle terminal does not request or hold the microphone. A small status message
+appears for a request, connection, active call, paused call, or error. Hive requires
+approval for every new call, even when browser permission is already granted.
+HTTPS (or localhost) and Web Audio/AudioWorklet
 support are required. Pressing Enter in the terminal enables playback under
 browser autoplay rules.
 
@@ -25,12 +27,17 @@ pane, workspace, tab, or window focus keeps existing calls connected and pauses
 microphone input and speaker playback in every unfocused pane. Only the focused,
 selected pane sends your voice and plays replies. Returning to a paused pane
 resumes the same call without another claim or microphone permission request.
-Enter, Compose send, or touch Enter arms that terminal for one claim attempt
-within 15 seconds, even if the audio bridge is still loading. Successful,
-rejected, and failed attempts consume the interaction; a later call needs a
-fresh gesture. A view left open on an unused device cannot claim a call solely
-because its browser still reports focus. Background views do not reserve an idle
-relay.
+Enter, Compose send, and touch Enter only unlock speaker playback. They never
+approve microphone capture. Approval applies to the current pending request in
+the selected terminal, and is not retained after capture ends, a connection
+fails, or the terminal's audio bridge remounts. If a request ends before you
+approve it, run `/voice` again. A view left open on an unused device cannot claim
+a call solely because its browser still reports focus. Background views do not
+reserve an idle relay.
+
+Approval enables that terminal's virtual microphone. Workspace programs with
+access to the same virtual device can read audio during the approved call;
+the approval does not identify or isolate an individual workspace process.
 
 Hiding the browser tab or parking the terminal pauses its audio and shows “Voice
 paused — focus this pane to resume” when its status is visible. Paused calls
@@ -78,6 +85,9 @@ Deploy the matching terminal proxy and web application before restarting onto th
 new workspace image. Refresh older Hive views on all devices after deployment.
 The web client retains compatibility with the old relay handshake, whose idle
 ownership behavior remains until the workspace is upgraded.
+Explicit browser microphone approval applies to both relay handshakes. Deploy
+the updated web application and refresh existing Hive views to enforce it;
+this consent change does not require a new workspace image or terminal proxy.
 
 The terminal proxy's existing `ALLOWED_ORIGINS`, Hive cookie authentication, Coder
 credentials, and workspace/agent authorization also protect `/ws/audio`. Ensure

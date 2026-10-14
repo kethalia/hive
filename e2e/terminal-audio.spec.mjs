@@ -1,5 +1,5 @@
 import { once } from "node:events";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { expect, test } from "@playwright/test";
@@ -49,7 +49,11 @@ test.beforeAll(async () => {
     define: { "process.env.NODE_ENV": '"development"' },
   });
   server = createServer(async (req, res) => {
-    if (req.url === "/bundle.js") {
+    if (req.url === "/api/auth/terminal-ticket" && req.method === "POST") {
+      // Isolate the microphone boundary from the separately tested auth service.
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ ticket: `fixture.${"a".repeat(43)}` }));
+    } else if (req.url === "/bundle.js") {
       res.setHeader("Content-Type", "text/javascript");
       res.end(bundle.outputFiles[0].contents);
     } else if (req.url === "/style.css") {
@@ -168,11 +172,64 @@ async function voice(page, sessionName = "test") {
   const terminal = page.getByRole("textbox", {
     name: sessionName === "test" ? "Terminal input" : `${sessionName} terminal input`,
   });
+  const pane = page.locator(`[data-session="${sessionName}"]`);
+  const stopping = (await pane.getByRole("button", { name: "Stop microphone" }).count()) > 0;
   await terminal.fill("/voice");
   await terminal.press("Enter");
+  if (!stopping) await pane.getByRole("button", { name: "Enable microphone" }).click();
 }
 
-test("native /voice prompts audio automatically, exchanges PCM, and releases media on end", async ({
+test("background capture after ordinary Enter cannot use an already-granted microphone", async ({
+  page,
+  request,
+}, testInfo) => {
+  await page.goto(url);
+  await expect.poll(() => connections.size).toBe(1);
+  const input = page.getByRole("textbox", { name: "Terminal input" });
+  await input.fill("ls");
+  await input.press("Enter");
+  // Simulate an arbitrary workspace recorder starting during the former 15s arm.
+  await request.post(`${url}/native?sessionName=test`, { data: "/voice" });
+  await input.press("Enter");
+  await page.waitForTimeout(300);
+  const observation = {
+    ...(await page.evaluate(() => ({
+      permissionRequests: window.audioProbe.requests,
+      tracks: window.audioProbe.tracks.map((track) => track.readyState),
+    }))),
+    microphoneFrames,
+    owners: owners.size,
+  };
+  const observationPath = testInfo.outputPath("unapproved-capture-observation.json");
+  await writeFile(observationPath, `${JSON.stringify(observation, null, 2)}\n`);
+  await testInfo.attach("unapproved-capture-observation", {
+    path: observationPath,
+    contentType: "application/json",
+  });
+  expect(observation.permissionRequests).toBe(0);
+  expect(microphoneFrames).toBe(0);
+  expect(owners.size).toBe(0);
+  await expect(page.getByRole("button", { name: "Enable microphone" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("microphone-approval-required.png") });
+  await page.getByRole("button", { name: "Enable microphone" }).click();
+  await expect(page.getByRole("status")).toHaveText("Voice connected");
+  await expect.poll(() => microphoneFrames).toBeGreaterThan(5);
+  await page.getByRole("button", { name: "Stop microphone" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.audioProbe.tracks.every((track) => track.readyState === "ended")),
+    )
+    .toBe(true);
+  await expect.poll(() => connections.size).toBe(1);
+  await request.post(`${url}/native?sessionName=test`, { data: "/voice" });
+  await expect(page.getByRole("button", { name: "Enable microphone" })).toBeVisible();
+  await input.press("Enter");
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.audioProbe.requests)).toBe(1);
+  expect(owners.size).toBe(0);
+});
+
+test("native /voice requires approval, exchanges PCM, and releases media on end", async ({
   page,
 }, testInfo) => {
   await page.goto(url);
@@ -222,7 +279,8 @@ test("denial ends the native audio connection and explains how to retry", async 
   await expect.poll(() => connections.size).toBe(1);
   await voice(page);
   await expect(page.getByRole("status")).toContainText("Microphone access was denied");
-  await expect.poll(() => connections.size).toBe(0);
+  await expect.poll(() => owners.size).toBe(0);
+  await expect.poll(() => activeCalls.get("test")).toBe(false);
   expect(microphoneFrames).toBe(0);
 });
 
@@ -309,6 +367,7 @@ test("page freeze and resume events pause audio while retaining the relay", asyn
 test("another Hive window cannot share the microphone and releasing it permits a later call", async ({
   page,
   context,
+  request,
 }) => {
   const other = await context.newPage();
   await other.goto(`${url}/lock-page`);
@@ -331,10 +390,11 @@ test("another Hive window cannot share the microphone and releasing it permits a
   await voice(page);
   await expect(page.getByRole("status")).toContainText("other Hive tab or window");
   expect(await page.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
-  await expect.poll(() => connections.size).toBe(0);
+  expect(owners.size).toBe(0);
   await other.close();
   await expect.poll(() => connections.size).toBe(1);
-  await page.getByRole("textbox", { name: "Terminal input" }).press("Enter");
+  await request.post(`${url}/native?sessionName=test`, { data: "/voice" });
+  await voice(page);
   await expect(page.getByRole("status")).toHaveText("Voice connected");
   await expect.poll(() => microphoneFrames).toBeGreaterThan(5);
 });
@@ -398,7 +458,10 @@ test("different terminal calls stay connected and only the focused pane transmit
   ).toEqual(["ended", "live"]);
 });
 
-test("duplicate views cannot overlap pending permission or use a late grant", async ({ page }) => {
+test("duplicate views cannot overlap pending permission or use a late grant", async ({
+  page,
+  request,
+}) => {
   await page.addInitScript(() => {
     const native = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     window.permissionRequests = 0;
@@ -427,7 +490,8 @@ test("duplicate views cannot overlap pending permission or use a late grant", as
     .poll(() => page.evaluate(() => window.audioProbe.tracks.map((track) => track.readyState)))
     .toEqual(["ended"]);
   expect(microphoneFrames).toBe(0);
-  await page.getByRole("textbox", { name: "second terminal input" }).press("Enter");
+  await request.post(`${url}/native?sessionName=test`, { data: "/voice" });
+  await voice(page, "second");
   await expect.poll(() => page.evaluate(() => window.permissionRequests)).toBe(2);
   await page.evaluate(() => window.grantMicrophone());
   await expect(page.locator('[data-session="second"]').getByRole("status")).toHaveText(
@@ -473,6 +537,10 @@ test("external Compose-style focus uses the selected pane to choose a new call",
     "Codex terminal",
   );
   await page.getByRole("button", { name: "Send voice to selected pane" }).click();
+  await page
+    .locator('[data-session="second"]')
+    .getByRole("button", { name: "Enable microphone" })
+    .click();
   await expect(page.locator('[data-session="second"]').getByRole("status")).toHaveText(
     "Voice connected",
   );
@@ -497,7 +565,7 @@ test("an unused device cannot own a session or interrupt the current device's ca
     await expect(page.getByRole("status")).toHaveText("Voice connected");
     await expect.poll(() => microphoneFrames).toBeGreaterThan(5);
     expect(await unused.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
-    await expect(unused.getByRole("status")).toHaveCount(0);
+    await expect(unused.getByRole("button", { name: "Enable microphone" })).toBeVisible();
     const frames = microphoneFrames;
     await otherContext.close();
     await expect.poll(() => microphoneFrames).toBeGreaterThan(frames + 5);
@@ -520,8 +588,10 @@ test("another device cannot take over a live call in the same terminal", async (
     const other = await otherContext.newPage();
     await other.goto(url);
     await expect.poll(() => connections.size).toBe(2);
-    // Enter on the other device attempts a claim while native capture is already active.
+    // Enter on the other device cannot claim the current call.
     await other.getByRole("textbox", { name: "Terminal input" }).press("Enter");
+    expect(await other.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
+    await other.getByRole("button", { name: "Enable microphone" }).click();
     await expect(other.getByRole("status")).toContainText("another view");
     expect(await other.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
     const frames = microphoneFrames;

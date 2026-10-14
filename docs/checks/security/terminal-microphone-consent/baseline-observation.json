@@ -1,0 +1,8 @@
+{
+  "baseline_commit": "27f7301",
+  "expected_regression_failure": true,
+  "permissionRequests": 1,
+  "tracks": ["live"],
+  "microphoneFrames": 32,
+  "owners": 1
+}

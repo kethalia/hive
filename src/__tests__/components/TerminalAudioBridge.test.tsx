@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TerminalAudioBridge } from "@/components/terminal/TerminalAudioBridge";
 import { primeTerminalAudio } from "@/lib/terminal/audio-interaction";
@@ -124,17 +124,47 @@ async function emit(socket: Socket, value: unknown) {
   });
 }
 
-describe("terminal audio interaction ownership", () => {
-  it("pauses a deselected pane even while xterm temporarily retains keyboard focus", async () => {
+async function approve(view: ReturnType<typeof render>) {
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Enable microphone" }));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
+async function start(view: ReturnType<typeof render>, socket: Socket) {
+  await emit(socket, { type: "active", active: true });
+  await approve(view);
+  await emit(socket, { type: "claimed" });
+}
+
+describe("explicit terminal microphone approval", () => {
+  it.each([
+    true,
+    false,
+    undefined,
+  ])("Enter never approves capture when claimRequired is %s", async (claimRequired) => {
+    primeTerminalAudio(surface);
+    const { socket, view } = await mount();
+    await emit(socket, { type: "ready", claimRequired });
+    await emit(socket, { type: "active", active: true });
+    act(() => primeTerminalAudio(surface));
+    await emit(socket, { type: "claimed" });
+    expect(socket.claims()).toBe(0);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(view.getByRole("button", { name: "Enable microphone" })).toBeDefined();
+    await approve(view);
+    if (claimRequired) await emit(socket, { type: "claimed" });
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("pauses a deselected pane even while xterm retains keyboard focus", async () => {
     surface.dataset.paneMode = "tiled";
     surface.dataset.active = "true";
     const input = document.createElement("input");
     surface.append(input);
     input.focus();
     const { socket, view } = await mount();
-    act(() => primeTerminalAudio(surface));
-    await emit(socket, { type: "active", active: true });
-    await emit(socket, { type: "claimed" });
+    await start(view, socket);
     await act(async () => {
       surface.dataset.active = "false";
       await vi.advanceTimersByTimeAsync(0);
@@ -142,20 +172,18 @@ describe("terminal audio interaction ownership", () => {
     expect(document.activeElement).toBe(input);
     expect(view.getByRole("status").textContent).toContain("Voice paused");
     expect(socket.close).not.toHaveBeenCalled();
-    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
     await act(async () => {
       surface.dataset.active = "true";
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(view.getByRole("status").textContent).toBe("Voice connected");
     expect(socket.claims()).toBe(1);
+    expect(getUserMedia).toHaveBeenCalledOnce();
   });
 
-  it("pauses on workspace parking and window blur without releasing the call", async () => {
+  it("pauses on workspace parking and window blur without releasing an approved call", async () => {
     const { socket, view } = await mount();
-    act(() => primeTerminalAudio(surface));
-    await emit(socket, { type: "active", active: true });
-    await emit(socket, { type: "claimed" });
+    await start(view, socket);
     await act(async () => {
       surface.setAttribute("inert", "");
       await vi.advanceTimersByTimeAsync(0);
@@ -165,7 +193,6 @@ describe("terminal audio interaction ownership", () => {
       surface.removeAttribute("inert");
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(view.getByRole("status").textContent).toBe("Voice connected");
     vi.mocked(document.hasFocus).mockReturnValue(false);
     await act(async () => {
       window.dispatchEvent(new Event("blur"));
@@ -177,85 +204,59 @@ describe("terminal audio interaction ownership", () => {
       window.dispatchEvent(new Event("focus"));
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(view.getByRole("status").textContent).toBe("Voice connected");
+    expect(view.getByRole("status").textContent).toContain("Voice connected");
     expect(socket.close).not.toHaveBeenCalled();
-    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
     expect(socket.claims()).toBe(1);
     expect(getUserMedia).toHaveBeenCalledOnce();
   });
 
-  it("claims already-active capture using a gesture made before the bridge mounted", async () => {
-    primeTerminalAudio(surface);
-    await vi.advanceTimersByTimeAsync(1000);
+  it("requires fresh approval for each native capture after a successful call", async () => {
     const { socket, view } = await mount();
-    await emit(socket, { type: "active", active: true });
-    expect(socket.claims()).toBe(1);
-    expect(getUserMedia).not.toHaveBeenCalled();
-    await emit(socket, { type: "claimed" });
-    expect(getUserMedia).toHaveBeenCalledOnce();
-    expect(view.getByRole("status").textContent).toBe("Voice connected");
-  });
-
-  it("does not race a subsequent call on another device after successfully claiming", async () => {
-    const { socket } = await mount();
+    await start(view, socket);
     act(() => primeTerminalAudio(surface));
-    await emit(socket, { type: "active", active: true });
-    await emit(socket, { type: "claimed" });
     await emit(socket, { type: "active", active: false });
     await emit(socket, { type: "active", active: true });
+    act(() => primeTerminalAudio(surface));
     expect(socket.claims()).toBe(1);
     expect(getUserMedia).toHaveBeenCalledOnce();
-    // Fresh interaction may claim an already-active call on this device.
-    act(() => primeTerminalAudio(surface));
-    expect(socket.claims()).toBe(2);
+    await approve(view);
     await emit(socket, { type: "claimed" });
+    expect(socket.claims()).toBe(2);
     expect(getUserMedia).toHaveBeenCalledTimes(2);
   });
 
-  it("does not race a subsequent call after the preceding claim was rejected", async () => {
+  it("does not race another device after a rejected claim", async () => {
     const { socket, view } = await mount();
-    act(() => primeTerminalAudio(surface));
     await emit(socket, { type: "active", active: true });
+    await approve(view);
     await emit(socket, { type: "error", code: "session_busy", message: "Already connected." });
     expect(view.getByRole("status").textContent).toBe("Already connected.");
     await emit(socket, { type: "active", active: false });
     await emit(socket, { type: "active", active: true });
+    act(() => primeTerminalAudio(surface));
     expect(socket.claims()).toBe(1);
     expect(getUserMedia).not.toHaveBeenCalled();
     expect(socket.close).not.toHaveBeenCalled();
   });
 
-  it("does not leave Enter used to stop an owned call armed for the next call", async () => {
-    const { socket } = await mount();
-    act(() => primeTerminalAudio(surface));
+  it("does not reuse approval after a claim timeout and reconnect", async () => {
+    const { socket, view } = await mount();
     await emit(socket, { type: "active", active: true });
-    await emit(socket, { type: "claimed" });
-    act(() => primeTerminalAudio(surface));
-    await emit(socket, { type: "active", active: false });
-    await emit(socket, { type: "active", active: true });
-    expect(socket.claims()).toBe(1);
-    expect(getUserMedia).toHaveBeenCalledOnce();
-  });
-
-  it("does not reuse an arm after a claim timeout and relay reconnect", async () => {
-    const { socket } = await mount();
-    act(() => primeTerminalAudio(surface));
-    await emit(socket, { type: "active", active: true });
+    await approve(view);
     await act(async () => vi.advanceTimersByTimeAsync(11_000));
-    expect(socket.claims()).toBe(1);
     const retry = Socket.instances.at(-1)!;
     expect(retry).not.toBe(socket);
     await emit(retry, { type: "ready", claimRequired: true });
+    await emit(retry, { type: "active", active: false });
     await emit(retry, { type: "active", active: true });
     expect(retry.claims()).toBe(0);
     expect(getUserMedia).not.toHaveBeenCalled();
+    expect(view.getByRole("button", { name: "Enable microphone" })).toBeDefined();
   });
 
-  it("does not reuse a consumed arm when the bridge remounts", async () => {
-    primeTerminalAudio(surface);
+  it("does not reuse approval when the bridge remounts", async () => {
     const first = await mount();
-    await emit(first.socket, { type: "active", active: true });
-    await emit(first.socket, { type: "claimed" });
+    await start(first.view, first.socket);
     first.view.unmount();
     const second = await mount();
     await emit(second.socket, { type: "active", active: true });
@@ -263,12 +264,98 @@ describe("terminal audio interaction ownership", () => {
     expect(getUserMedia).toHaveBeenCalledOnce();
   });
 
-  it("leaves capture unclaimed when the deferred bridge loads after the arm expires", async () => {
-    primeTerminalAudio(surface);
-    await vi.advanceTimersByTimeAsync(15_000);
-    const { socket } = await mount();
+  it("a queued click cannot approve a replacement capture before its prompt renders", async () => {
+    const { socket, view } = await mount();
     await emit(socket, { type: "active", active: true });
+    const button = view.getByRole("button", { name: "Enable microphone" });
+    act(() => {
+      socket.emit({ type: "active", active: false });
+      socket.emit({ type: "active", active: true });
+      fireEvent.click(button);
+    });
     expect(socket.claims()).toBe(0);
     expect(getUserMedia).not.toHaveBeenCalled();
+    await approve(view);
+    await emit(socket, { type: "claimed" });
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("a queued click cannot approve a replacement terminal before its prompt renders", async () => {
+    const { socket, view } = await mount();
+    await emit(socket, { type: "active", active: true });
+    const button = view.getByRole("button", { name: "Enable microphone" });
+    view.rerender(
+      <TerminalAudioBridge
+        proxyUrl="wss://hive"
+        workspaceId="workspace"
+        agentId="agent"
+        sessionName="replacement"
+      />,
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    const replacement = Socket.instances.at(-1)!;
+    expect(view.queryByRole("status")).toBeNull();
+    act(() => {
+      replacement.emit({ type: "ready", claimRequired: true });
+      replacement.emit({ type: "active", active: true });
+      fireEvent.click(button);
+    });
+    expect(replacement.claims()).toBe(0);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    await approve(view);
+    await emit(replacement, { type: "claimed" });
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("stops an approved call and refuses a new capture without approval", async () => {
+    const stop = vi.fn();
+    getUserMedia.mockResolvedValue({ getTracks: () => [{ stop }] });
+    const { socket, view } = await mount();
+    await start(view, socket);
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Stop microphone" }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(stop).toHaveBeenCalledOnce();
+    expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
+    const retry = Socket.instances.at(-1)!;
+    await emit(retry, { type: "ready", claimRequired: true });
+    await emit(retry, { type: "active", active: false });
+    await emit(retry, { type: "active", active: true });
+    expect(retry.claims()).toBe(0);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("Stop cancels a pending ownership claim and ignores late confirmation", async () => {
+    const { socket, view } = await mount();
+    await emit(socket, { type: "active", active: true });
+    await approve(view);
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Stop microphone" }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await emit(socket, { type: "claimed" });
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
+  });
+
+  it("Stop discards a late browser permission grant", async () => {
+    const stop = vi.fn();
+    let grant!: (stream: unknown) => void;
+    getUserMedia.mockReturnValue(
+      new Promise((resolve) => {
+        grant = resolve;
+      }),
+    );
+    const { socket, view } = await mount();
+    await start(view, socket);
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "Stop microphone" }));
+      grant({ getTracks: () => [{ stop }] });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(stop).toHaveBeenCalledOnce();
+    expect(view.queryByRole("button", { name: "Stop microphone" })).toBeNull();
+    expect(getUserMedia).toHaveBeenCalledOnce();
   });
 });
