@@ -93,6 +93,15 @@ checks execute in Python independently of repository-local `AGENTS.md` or handof
 means retention and investigation, without falling back to raw deletion. The HMAC key and receipts
 stay in the primary's private `~/.local/state/hive/workspaces`; exported evidence cannot replace them.
 
+On 2026-10-14, the owner explicitly chose to retain automatic cleanup and trust the primary agent's
+completion decision. `complete` intentionally has no out-of-band approval requirement. Signing a
+receipt authenticates the primary's recorded transition; it does not independently prove that the
+task is finished or that the workspace has no other active work. Repository/handoff instructions
+could influence the primary into signing premature completion, and cleanup could then stop and
+delete that task's disposable workspace. This residual completion-authorization risk is accepted
+for verified task-created disposables. HMAC and identity checks provide record/target integrity,
+not an independent completion authorization boundary.
+
 Before each stop or delete, the primary checks fresh Coder metadata against its record and targets
 the verified workspace UUID. A reused name cannot identify a replacement workspace. Missing or
 mismatched evidence causes retention and investigation in the primary TUI. Completion, preserved
