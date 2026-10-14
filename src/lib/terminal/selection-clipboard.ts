@@ -1,6 +1,8 @@
 import type { IClipboardProvider } from "@xterm/addon-clipboard";
 import type { Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
+import { observeTerminalActivity } from "./activity";
+import { isTerminalSelectionSurface } from "./selection-surface";
 
 const controllers = new WeakMap<Terminal, ReturnType<typeof createSelectionClipboard>>();
 let nextId = 0;
@@ -40,7 +42,7 @@ export function createSelectionClipboard(available: () => boolean = () => true) 
     pending = undefined;
   };
   const release = () => {
-    if (!dragging || disposed || !available()) return cancel();
+    if (disposed || !available() || !dragging) return cancel();
     cancel();
     let resolve!: (text: Blob) => void;
     let reject!: () => void;
@@ -112,9 +114,13 @@ export function terminalSelectionClipboard(term: Terminal) {
 }
 
 export function installSelectionClipboard(term: Terminal) {
-  const clipboard = createSelectionClipboard(() =>
-    Boolean(term.element?.isConnected && !term.element.closest("[inert]") && !document.hidden),
-  );
+  let activity: ReturnType<typeof observeTerminalActivity> | undefined;
+  const clipboard = createSelectionClipboard(() => {
+    activity?.flush();
+    return Boolean(
+      term.element?.isConnected && !term.element.closest("[inert]") && !document.hidden,
+    );
+  });
   controllers.set(term, clipboard);
   let start: { x: number; y: number; moved: boolean } | undefined;
   const down = (event: MouseEvent) => {
@@ -122,6 +128,14 @@ export function installSelectionClipboard(term: Terminal) {
       !event.isTrusted ||
       event.button !== 0 ||
       event.shiftKey ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      !isTerminalSelectionSurface(
+        term.element?.querySelector<HTMLElement>(".xterm-screen"),
+        event.target,
+        event,
+      ) ||
       !term.modes ||
       term.modes.mouseTrackingMode === "none"
     )
@@ -133,6 +147,17 @@ export function installSelectionClipboard(term: Terminal) {
     if (
       start &&
       event.isTrusted &&
+      (!(event.buttons & 1) ||
+        event.shiftKey ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        term.modes.mouseTrackingMode === "none")
+    )
+      return cancel();
+    if (
+      start &&
+      event.isTrusted &&
       Math.hypot(event.clientX - start.x, event.clientY - start.y) >= 8
     )
       start.moved = true;
@@ -141,7 +166,17 @@ export function installSelectionClipboard(term: Terminal) {
     if (!start || !event.isTrusted || event.button !== 0) return;
     const moved = start.moved;
     start = undefined;
-    if (moved && !term.element?.closest("[inert]")) clipboard.release();
+    if (
+      moved &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      term.modes.mouseTrackingMode !== "none" &&
+      !term.options.disableStdin &&
+      !term.element?.closest("[inert]")
+    )
+      clipboard.release();
     else clipboard.cancel();
   };
   const cancel = () => {
@@ -151,6 +186,7 @@ export function installSelectionClipboard(term: Terminal) {
   const visibility = () => {
     if (document.hidden) cancel();
   };
+  if (term.element) activity = observeTerminalActivity(term.element, cancel);
   term.element?.addEventListener("mousedown", down);
   document.addEventListener("pointerdown", cancel, true);
   document.addEventListener("mousemove", move, true);
@@ -161,6 +197,7 @@ export function installSelectionClipboard(term: Terminal) {
   return {
     provider: clipboard.provider,
     dispose() {
+      activity?.dispose();
       cancel();
       clipboard.dispose();
       controllers.delete(term);

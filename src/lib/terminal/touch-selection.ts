@@ -1,7 +1,9 @@
 import type { Terminal } from "@xterm/xterm";
 import { DRAG_LONG_PRESS_MOVE_PX, LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import { copyTerminalSelection } from "./actions";
+import { observeTerminalActivity } from "./activity";
 import { terminalSelectionClipboard } from "./selection-clipboard";
+import { isTerminalSelectionSurface } from "./selection-surface";
 import { markTerminalTouchMouseEvent } from "./touch-mouse-events";
 
 type Point = Pick<Touch, "clientX" | "clientY">;
@@ -117,11 +119,20 @@ export function installTerminalTouchSelection(
     gesture = undefined;
   };
   const cancel = () => finish(false);
+  const activity = observeTerminalActivity(container, cancel);
   const start = (event: TouchEvent) => {
+    activity.flush();
     cancel();
     const term = terminal();
     const target = container.querySelector<HTMLElement>(".xterm-screen");
-    if (!usable() || !term || !target || event.touches.length !== 1 || term.options.disableStdin)
+    if (
+      !usable() ||
+      !term ||
+      !target ||
+      event.touches.length !== 1 ||
+      term.options.disableStdin ||
+      !isTerminalSelectionSurface(target, event.target, event.touches[0])
+    )
       return;
     const touch = event.touches[0];
     gesture = {
@@ -135,6 +146,7 @@ export function installTerminalTouchSelection(
       remote: false,
     };
     timer = setTimeout(() => {
+      activity.flush();
       if (!gesture || !usable() || terminal() !== term || term.options.disableStdin)
         return cancel();
       gesture.active = true;
@@ -153,6 +165,7 @@ export function installTerminalTouchSelection(
     }, LONG_PRESS_MS);
   };
   const move = (event: TouchEvent) => {
+    activity.flush();
     if (!gesture) return;
     if (
       event.touches.length !== 1 ||
@@ -181,6 +194,7 @@ export function installTerminalTouchSelection(
     else selectLocal(touch);
   };
   const end = (event: TouchEvent) => {
+    activity.flush();
     if (
       !gesture ||
       !Array.from(event.changedTouches).some((item) => item.identifier === gesture?.id)
@@ -203,6 +217,7 @@ export function installTerminalTouchSelection(
   window.addEventListener("resize", cancel);
   document.addEventListener("visibilitychange", visibility);
   return () => {
+    activity.dispose();
     cancel();
     container.removeEventListener("touchstart", start, true);
     container.removeEventListener("touchmove", move, true);

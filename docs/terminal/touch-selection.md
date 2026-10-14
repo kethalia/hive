@@ -11,6 +11,12 @@ selection owns its movement, so it cannot also scroll or open a sidebar. A
 cancelled touch, additional finger, blur, resize, parked pane, changed terminal,
 or unmount ends the drag without granting automatic clipboard access. When an
 application disables mouse reporting, Hive uses xterm selection for visible text.
+Only gestures starting within the text grid qualify; scrollbar chrome and visible
+input controls cannot grant clipboard access. Changing a mouse drag to a modified
+selection also cancels its grant.
+
+The explicit legacy selection-mode fallback retains its native marker, scrolling
+exemption, and preserved Copy text. Normal mobile terminals use tmux selection.
 
 Desktop tmux mouse drags retain copy on release. For both pointer types, Hive
 starts the clipboard write during the release event and waits up to three
@@ -24,6 +30,9 @@ remote application, offer **Copy** rather than overwriting the OS clipboard.
 Remote programs cannot read the local clipboard. This is an intent boundary:
 the workspace still controls the returned text, and an OSC 52 response within
 the short selection window is not cryptographic proof of what was highlighted.
+Parking or an inactive transition permanently cancels pending access, including
+an inactive/active round trip before the next browser task. Returning to a pane
+requires a new selection gesture or an explicit Copy action.
 
 The change requires a web deployment and a refresh of existing terminal views;
 no workspace restart or image rebuild is needed. Physical iOS Safari behavior

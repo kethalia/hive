@@ -3089,6 +3089,14 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     const host = container.querySelector('[data-testid="terminal-fit-host"]')!;
     const screen = container.querySelector(".xterm-screen")!;
     const events: string[] = [];
+    vi.spyOn(screen, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 800,
+      bottom: 480,
+      width: 800,
+      height: 480,
+    } as DOMRect);
     for (const type of ["mousedown", "mousemove", "mouseup", "wheel"])
       screen.addEventListener(type, () => events.push(type));
     expect(host).toHaveAttribute("data-terminal-touch-selection", "true");
@@ -3376,6 +3384,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
     expect(inputTarget).toHaveAttribute("data-sidebar-gesture-ignore", "true");
     expect(inputTarget).toHaveAttribute("data-terminal-selection-mode", "true");
+    expect(inputTarget).toHaveAttribute("data-terminal-native-selection", "true");
+    expect(inputTarget).not.toHaveAttribute("data-terminal-touch-selection");
     expect(inputTarget).not.toHaveAttribute("data-terminal-pinch-zoom");
     expect(helper).not.toHaveAttribute("data-terminal-mobile-input");
     expect(document.activeElement).not.toBe(helper);

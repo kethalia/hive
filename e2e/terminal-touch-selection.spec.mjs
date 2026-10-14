@@ -114,6 +114,11 @@ test.beforeEach(async ({ page, browserName, context }) => {
     window.selectionFixture.writes.length = 0;
   });
 });
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status !== "failed") return;
+  const writes = await page.evaluate(() => window.selectionFixture?.writes).catch(() => undefined);
+  console.log("Failed-case clipboard observation:", JSON.stringify(writes));
+});
 
 async function point(page, col = 0, row = 0, name = "first") {
   const box = await page.locator(`#${name} .xterm-screen`).boundingBox();
@@ -287,4 +292,150 @@ test("selection preserves an input that was already focused", async ({ page, bro
     .poll(() => page.evaluate(() => window.selectionFixture.writes.map((item) => item.text)))
     .toEqual(["ALPHA"]);
   await expect(page.locator("#first textarea")).toBeFocused();
+});
+
+test("a scrollbar drag does not grant clipboard access", async ({ page }) => {
+  await page.evaluate(() => {
+    const element = window.selectionFixture.terms[0].element;
+    const chrome = document.createElement("div");
+    chrome.id = "scrollbar-chrome";
+    chrome.setAttribute("role", "scrollbar");
+    chrome.style.cssText =
+      "position:absolute;left:285px;top:0;width:15px;height:100px;background:gray;z-index:20";
+    element.append(chrome);
+  });
+  const rect = await page.locator("#scrollbar-chrome").boundingBox();
+  await page.mouse.move(rect.x + 5, rect.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(rect.x + 5, rect.y + 60, { steps: 5 });
+  await page.mouse.up();
+  await page.evaluate(() =>
+    window.selectionFixture.terms[0].write(`\x1b]52;c;${btoa("scrollbar attack")}\x07`),
+  );
+  await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.selectionFixture.writes)).toEqual([]);
+});
+
+test("dragging the helper textarea does not grant clipboard access", async ({ page }) => {
+  await page.locator("#first textarea").evaluate((helper) => {
+    helper.style.cssText =
+      "position:absolute;left:0;top:80px;width:120px;height:20px;opacity:1;z-index:40";
+    helper.value = "input text";
+  });
+  const rect = await page.locator("#first textarea").boundingBox();
+  await page.mouse.move(rect.x + 5, rect.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(rect.x + 80, rect.y + 10, { steps: 5 });
+  await page.mouse.up();
+  await page.evaluate(() =>
+    window.selectionFixture.terms[0].write(`\x1b]52;c;${btoa("helper attack")}\x07`),
+  );
+  await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.selectionFixture.writes)).toEqual([]);
+});
+
+test("a held touch on terminal chrome cannot start a selection grant", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "Trusted held touch uses CDP.");
+  await page.evaluate(() => {
+    const element = window.selectionFixture.terms[0].element;
+    const chrome = document.createElement("div");
+    chrome.id = "touch-chrome";
+    chrome.style.cssText =
+      "position:absolute;left:285px;top:0;width:15px;height:100px;background:gray;z-index:20";
+    element.append(chrome);
+  });
+  const rect = await page.locator("#touch-chrome").boundingBox();
+  const send = await touch(page);
+  await send("touchStart", { x: rect.x + 5, y: rect.y + 10 });
+  await page.waitForTimeout(600);
+  await expect(page.locator("#first")).not.toHaveAttribute("data-terminal-touch-selecting");
+  await send("touchMove", { x: rect.x + 5, y: rect.y + 60 });
+  await send("touchEnd");
+  await page.evaluate(() =>
+    window.selectionFixture.terms[0].write(`\x1b]52;c;${btoa("touch chrome attack")}\x07`),
+  );
+  await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.selectionFixture.writes)).toEqual([]);
+});
+
+test("a drag that changes to Shift selection does not retain clipboard access", async ({
+  page,
+}) => {
+  const start = await point(page);
+  const end = await point(page, 5);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.keyboard.down("Shift");
+  await page.mouse.move(end.x, end.y, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  await page.evaluate(() =>
+    window.selectionFixture.terms[0].write(`\x1b]52;c;${btoa("shift attack")}\x07`),
+  );
+  await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.selectionFixture.writes)).toEqual([]);
+});
+
+for (const kind of ["inert", "parking"])
+  test(`leaving and returning to a pane permanently cancels its pending write (${kind})`, async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== "chromium", "Trusted held touch uses CDP.");
+    await page.evaluate(() => {
+      window.selectionFixture.gate.holdClipboard = true;
+    });
+    const send = await touch(page);
+    await send("touchStart", await point(page));
+    await expect(page.locator("#first")).toHaveAttribute("data-terminal-touch-selecting", "true");
+    await send("touchMove", await point(page, 5));
+    await send("touchEnd");
+    await expect
+      .poll(() => page.evaluate(() => window.selectionFixture.delayed.length))
+      .toBeGreaterThan(0);
+    await page.evaluate((kind) => {
+      const host = document.getElementById("first");
+      if (kind === "inert") {
+        host.inert = true;
+        host.inert = false;
+      } else {
+        const parent = host.parentNode;
+        const next = host.nextSibling;
+        const parking = document.createElement("div");
+        parking.inert = true;
+        document.body.append(parking);
+        parking.append(host);
+        parent.insertBefore(host, next);
+        parking.remove();
+      }
+      window.selectionFixture.flushClipboard();
+    }, kind);
+    await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => window.selectionFixture.writes)).toEqual([]);
+    // The cancelled grant stays cancelled; a fresh explicit action still works.
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
+    await expect
+      .poll(() => page.evaluate(() => window.selectionFixture.writes.map((item) => item.text)))
+      .toEqual(["ALPHA"]);
+  });
+
+test("explicit native fallback preserves text after xterm redraw", async ({ page }) => {
+  await page.evaluate(() => {
+    const host = document.getElementById("first");
+    delete host.dataset.terminalTouchSelection;
+    host.dataset.terminalNativeSelection = "true";
+    host.dataset.terminalSelectionMode = "true";
+    const row = host.querySelector(".xterm-rows").firstElementChild;
+    const text = row.firstChild.firstChild;
+    window.getSelection().setBaseAndExtent(text, 0, text, 5);
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.selectionFixture.selectedText()))
+    .toBe("ALPHA");
+  await page.evaluate(() => window.selectionFixture.terms[0].refresh(0, 9));
+  await expect.poll(() => page.evaluate(() => window.getSelection().isCollapsed)).toBe(true);
+  expect(await page.evaluate(() => window.selectionFixture.selectedText())).toBe("ALPHA");
 });

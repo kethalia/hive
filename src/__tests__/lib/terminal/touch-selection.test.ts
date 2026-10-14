@@ -25,7 +25,8 @@ function setup(remote = true) {
     '<div class="xterm"><div class="xterm-screen"></div><textarea></textarea></div>';
   document.body.append(container);
   const screen = container.querySelector<HTMLElement>(".xterm-screen")!;
-  screen.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 240 }) as DOMRect;
+  screen.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, right: 800, bottom: 240, width: 800, height: 240 }) as DOMRect;
   const term = {
     textarea: container.querySelector("textarea"),
     modes: { mouseTrackingMode: remote ? "drag" : "none" },
@@ -47,7 +48,7 @@ function setup(remote = true) {
     onStart,
     onFinish,
   });
-  const touch = (type: string, x = 20, y = 20, count = 1) => {
+  const touch = (type: string, x = 20, y = 20, count = 1, target: Element = screen) => {
     const point = { identifier: 1, clientX: x, clientY: y };
     const event = new Event(type, { bubbles: true, cancelable: true });
     Object.defineProperties(event, {
@@ -59,7 +60,7 @@ function setup(remote = true) {
       },
       changedTouches: { value: [point] },
     });
-    screen.dispatchEvent(event);
+    target.dispatchEvent(event);
     return event;
   };
   return {
@@ -171,6 +172,34 @@ it("preserves an already focused terminal input during selection", () => {
   state.touch("touchmove", 120);
   state.touch("touchend", 120);
   expect(document.activeElement).toBe(state.term.textarea);
+  state.dispose();
+});
+
+it("ends the held drag when a pane parks and returns before the next touch event", () => {
+  const state = setup();
+  state.touch("touchstart");
+  vi.advanceTimersByTime(500);
+  state.touch("touchmove", 120);
+  state.container.setAttribute("inert", "");
+  state.container.removeAttribute("inert");
+  state.touch("touchend", 120);
+  expect(clipboard.release).not.toHaveBeenCalled();
+  expect(state.events.at(-1)?.type).toBe("mouseup");
+  state.dispose();
+});
+
+it.each(["chrome", "helper"])("does not turn a touch on %s into a terminal selection", (kind) => {
+  const state = setup();
+  const target = document.createElement("div");
+  if (kind === "helper") {
+    target.className = "xterm-helpers";
+    state.screen.append(target);
+  } else state.container.append(target);
+  state.touch("touchstart", 20, 20, 1, target);
+  vi.advanceTimersByTime(600);
+  expect(state.onStart).not.toHaveBeenCalled();
+  expect(clipboard.begin).not.toHaveBeenCalled();
+  expect(state.events).toEqual([]);
   state.dispose();
 });
 

@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
 import { Blob } from "node:buffer";
+import type { Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createSelectionClipboard } from "@/lib/terminal/selection-clipboard";
+import {
+  createSelectionClipboard,
+  installSelectionClipboard,
+  terminalSelectionClipboard,
+} from "@/lib/terminal/selection-clipboard";
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }),
@@ -123,4 +128,42 @@ it("rejects oversized/empty responses and never reads the OS clipboard", () => {
   expect(writeText).not.toHaveBeenCalled();
   expect(clipboard.provider.readText("c" as never)).toBe("");
   clipboard.dispose();
+});
+
+it.each([
+  "inert",
+  "park",
+])("permanently revokes a pending write after %s and restoration in one task", async (kind) => {
+  const { clipboard: unused, write, writeText } = setup(true);
+  const board = document.createElement("section");
+  const element = document.createElement("div");
+  board.append(element);
+  document.body.append(board);
+  const term = {
+    element,
+    modes: { mouseTrackingMode: "drag" },
+    options: {},
+  } as unknown as Terminal;
+  const installed = installSelectionClipboard(term);
+  const controller = terminalSelectionClipboard(term)!;
+  controller.begin();
+  controller.release();
+  if (kind === "inert") {
+    board.setAttribute("inert", "");
+    board.removeAttribute("inert");
+  } else {
+    const parking = document.createElement("div");
+    parking.setAttribute("inert", "");
+    document.body.append(parking);
+    parking.append(element);
+    board.append(element);
+    parking.remove();
+  }
+  installed.provider.writeText("c" as never, "stale response");
+  await vi.runAllTimersAsync();
+  expect(writeText).not.toHaveBeenCalled();
+  await expect(write.mock.results[0].value).rejects.toThrow("cancelled");
+  installed.dispose();
+  unused.dispose();
+  board.remove();
 });

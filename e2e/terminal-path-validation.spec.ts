@@ -161,6 +161,8 @@ for (const format of [
             "path-link-provider",
             "link-menu",
             "native-selection",
+            "activity",
+            "selection-surface",
             "selection-clipboard",
             "touch-mouse-events",
             "browser-integration",

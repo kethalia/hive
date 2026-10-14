@@ -1,0 +1,24 @@
+
+Running 19 tests using 1 worker
+
+  ✓   1 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:16:5 › late path validation uses the current pointer cell on the same row (392ms)
+  ✓   2 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (relative) (1.2s)
+  ✓   3 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (file-url) (1.1s)
+  ✓   4 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (osc) (1.2s)
+  ✓   5 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (relative-mouse) (1.1s)
+  ✓   6 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (relative-output) (1.1s)
+  ✓   7 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (relative-touch) (1.1s)
+  ✓   8 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (osc-touch) (1.1s)
+  ✓   9 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (relative-hybrid-touch) (1.4s)
+  ✓  10 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (osc-hybrid-touch) (1.4s)
+  ✓  11 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (osc-stationary-touch) (1.1s)
+  ✓  12 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (osc-stationary-hold-touch) (1.3s)
+  ✓  13 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (relative-escape) (1.3s)
+  ✓  14 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (osc-escape) (1.3s)
+  ✓  15 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (relative-missing) (1.3s)
+  ✓  16 [mobile-chrome] › e2e/terminal-path-validation.spec.ts:94:7 › file menu survives validation-triggered redraws (osc-missing) (1.3s)
+  ✓  17 [mobile-chrome] › e2e/terminal-workspace-isolation.spec.ts:15:7 › touch link menus stay in the active workspace (url) (693ms)
+  ✓  18 [mobile-chrome] › e2e/terminal-workspace-isolation.spec.ts:15:7 › touch link menus stay in the active workspace (osc-url) (669ms)
+  ✓  19 [mobile-chrome] › e2e/terminal-workspace-isolation.spec.ts:15:7 › touch link menus stay in the active workspace (file) (923ms)
+
+  19 passed (22.0s)
