@@ -438,6 +438,25 @@ stolen from dialogs or other text fields; those boundaries still require separat
 verification. No behavior change, new browser validation, or Security Cloud
 resolution is claimed by this documentation update.
 
+## Accepted latest AI tool updates
+
+Finding `commit:91db3652bf588191ae50cf242a1db567`: on 2026-10-14, the owner
+explicitly requested always-latest AI tools. All five workspace profiles retain
+the unconditional Codex npm `latest` refresh and now run the installed native
+`claude install latest` updater at every startup. The image's checksum-verified
+Claude binary serves as the bootstrap rather than a runtime release pin.
+Bounded update attempts warn on failure and retain an available working CLI.
+
+The owner accepts the supply-chain and regression risk of executing newly
+published vendor releases without a repository review of each version. This is
+an accepted policy, not removal of the unpinned-update risk. Offline failures can
+leave an older CLI in use. Regression checks cover repeated refreshes with an
+existing CLI, latest-channel selection, failed/offline updates, and missing or
+broken Claude installations; shared-script checks cover all five profiles.
+Template publication/update and live startup verification remain pending, and
+no Security Cloud closure is claimed. See
+[AI tool updates](../workspace-template-profiles.md#ai-tool-updates).
+
 ## Next slices
 
 1. Provision the auth-service credential and validate its staged rollout in Infrastructure.
@@ -469,7 +488,7 @@ Browser execution belongs in `browser-testing`; live infrastructure validation b
 | `commit:6cc2606c14648191b1013e97870401a4` | medium | Paste uploads can exhaust web and SSH resources | Repository fix caps raw bodies before parsing, limits aggregate files/admission per web process, and transfers sequentially with cancellation cleanup. Live rollout verification remains pending. |
 | `commit:745807de8770819193d07f503330274f` | low | Untrusted workspace output can poison the local clipboard | Automatic writes require a selection release; other requests offer Copy. Real tmux/Chrome checks pass. Response content remains workspace-controlled; web/device verification and Cloud review remain pending. |
 | `commit:c3d4f68efe1c8191aa3fc56a2cc1ebbb` | low | Hover focus can leak keystrokes to workspace terminals | Owner accepted focus-follows-mouse on 2026-10-14, including accidental pointer crossing redirecting typing. Preserve the behavior; hidden/inactive-pane and dialog/text-field boundaries require separate verification. No Cloud closure claimed. |
-| `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Pending current-source and deployment verification; no remediation or cloud closure claimed. |
+| `commit:91db3652bf588191ae50cf242a1db567` | informational | Unpinned Codex updates allow startup-time supply-chain execution | Owner explicitly accepted latest AI tools on 2026-10-14. All profiles refresh Codex and native Claude from latest at startup; bounded offline fallback remains. Template rollout/live verification and Cloud review remain pending. |
 | `commit:66d6747a76288191be7b68df43d8504b` | informational | Prisma baseline blocks Helm upgrades with existing schemas | Migration image checks baseline/history before deployment and provides an explicit adoption runbook. Historical migrations remain unchanged; live reconciliation, image rollout, and Cloud review remain pending. |
 | `commit:205cc7eee8d48191a9baef63850e08f5` | informational | Unsafe board keys can crash tab keyboard navigation | Repository fix uses a fixed selector and exact identifier comparison. Unusual-key regressions cover arrows, Home, and End; deployment verification and Cloud closure remain pending. |
 | `commit:62ec3a2baa848191987856c226e78552` | informational | Manual terminal retry is blocked after final failures | Repository fix lets explicit Retry start a fresh authorized attempt. Final failures still stop scheduled/lifecycle retries; regression coverage passes. Live rollout and Cloud closure remain pending. |

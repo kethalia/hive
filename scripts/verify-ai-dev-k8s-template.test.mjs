@@ -727,6 +727,8 @@ function verifyAiAgentSelection() {
   const agentInstructions = readTemplateFile("CLAUDE.md");
 
   assert.match(script, /npm install -g @openai\/codex@latest/);
+  assert.match(script, /\nrefresh_codex\n/);
+  assert.match(script, /\nrefresh_claude\n/);
   assert.doesNotMatch(script, /if npm_global_has "@openai\/codex" && command_exists codex/);
   assert.ok(terraform.includes('module "claude-code"'));
   assert.ok(!terraform.includes('resource "coder_app" "gsd"'));
@@ -1471,6 +1473,61 @@ echo STARTUP_CONTINUED
     assert.match(result.stdout, /STARTUP_CONTINUED/);
     if (failure) {
       assert.match(result.stdout, installed ? /keeping the available CLI/ : /no working CLI/);
+    }
+  }
+});
+
+test("Claude refresh selects latest on every startup and tolerates unavailable updates", () => {
+  const script = readTemplateFile("scripts/tools-ai.sh");
+  const refresh = script.match(/refresh_claude\(\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(refresh);
+  for (const [installed, failure, working] of [
+    [true, false, true],
+    [true, true, true],
+    [true, true, false],
+    [false, true, false],
+  ]) {
+    const result = spawnSync(
+      "bash",
+      [
+        "-c",
+        `
+set -e
+BOLD= GREEN= YELLOW= RESET=
+command_exists() { [ "$1" = claude ] && ${installed ? "true" : "false"}; }
+timeout() {
+  if [ "$1" != --signal=TERM ] || [ "$2" != --kill-after=10s ] || [ "$3" != 120s ]; then
+    echo WRONG_TIMEOUT >&2
+    return 1
+  fi
+  shift 3
+  "$@"
+}
+claude() {
+  case "$*" in
+    'install latest')
+      echo REFRESH_ATTEMPT
+      ${failure ? "return 1" : "return 0"}
+      ;;
+    --version) ${working ? "return 0" : "return 1"} ;;
+    *) echo WRONG_CLAUDE_ARGUMENTS >&2; return 1 ;;
+  esac
+}
+${refresh}
+refresh_claude
+refresh_claude
+echo STARTUP_CONTINUED
+`,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout.match(/REFRESH_ATTEMPT/g)?.length ?? 0, installed ? 2 : 0);
+    assert.match(result.stdout, /STARTUP_CONTINUED/);
+    if (!installed) assert.match(result.stdout, /Claude Code is missing/);
+    else if (failure) {
+      assert.match(result.stdout, working ? /keeping the available CLI/ : /no working CLI/);
     }
   }
 });
