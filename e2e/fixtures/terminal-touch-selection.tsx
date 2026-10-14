@@ -52,7 +52,10 @@ for (const name of ["first", "second"]) {
     else term.write(data);
   };
   term.onData((data) => socket.send(data));
-  const browser = installTerminalBrowserIntegration(term, { allowClipboardWrite: true });
+  const browser = installTerminalBrowserIntegration(term, {
+    allowClipboardWrite: true,
+    validatePaths: (paths) => new Promise((resolve) => setTimeout(() => resolve(paths), 200)),
+  });
   const selection = installTerminalTouchSelection(host, {
     terminal: () => term,
     enabled: () => host.dataset.terminalTouchSelection === "true",

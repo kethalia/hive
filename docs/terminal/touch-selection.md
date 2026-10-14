@@ -7,7 +7,8 @@ long-press callout are suppressed on the normal mobile terminal surface.
 
 A short tap still opens a link menu or requests the keyboard. Moving before the
 hold threshold retains terminal scrolling and sidebar swipe behavior. An active
-selection owns its movement, so it cannot also scroll or open a sidebar. A
+selection owns its movement, so it cannot also scroll or open a sidebar. Pausing
+over a URL or file path keeps link menus and file-check feedback closed. A
 cancelled touch, additional finger, blur, resize, parked pane, changed terminal,
 or unmount ends the drag without granting automatic clipboard access. When an
 application disables mouse reporting, Hive uses xterm selection for visible text.

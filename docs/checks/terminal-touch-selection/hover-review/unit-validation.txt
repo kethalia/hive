@@ -1,0 +1,37 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/terminal/activity.test.ts (7 tests) 25ms
+ ✓ src/__tests__/lib/terminal/selection-clipboard.test.ts (11 tests) 24ms
+ ✓ src/__tests__/lib/gestures/horizontal-swipe.test.ts (6 tests) 21ms
+ ✓ src/__tests__/lib/terminal/clipboard.test.ts (14 tests) 34ms
+ ✓ src/__tests__/lib/terminal/native-selection.test.ts (21 tests) 62ms
+ ✓ src/__tests__/lib/terminal/touch-selection.test.ts (18 tests) 81ms
+ ✓ src/__tests__/components/terminal/MobileTerminalShell.test.tsx (8 tests) 149ms
+ ✓ src/__tests__/lib/terminal/browser-integration.test.ts (77 tests) 273ms
+stderr | src/__tests__/lib/terminal/actions.test.ts > keeps terminal selection when both clipboard write methods fail
+[clipboard] copy fallback failed
+
+ ✓ src/__tests__/components/InteractiveTerminal.fit.test.tsx (5 tests) 252ms
+stderr | src/__tests__/lib/terminal/actions.test.ts > native selection copy completion > preserves backward selection direction during fallback (success: false)
+[clipboard] copy fallback failed
+
+stdout | src/__tests__/integration/interactive-terminal-integration.test.tsx > WorkspaceTerminalPage integration — Multi-session route > reuses the stale-entry alert path when the agent lookup fails
+[workspaces] Stale entry detected for workspace test-ws, dispatching sidebar refresh
+
+stderr | src/__tests__/lib/terminal/actions.test.ts > native selection copy completion > preserves native selection when API and fallback both fail
+[clipboard] copy fallback failed
+
+ ✓ src/__tests__/lib/terminal/actions.test.ts (27 tests) 1060ms
+stdout | src/__tests__/integration/interactive-terminal-integration.test.tsx > TerminalClient integration — Clone route parameters > ignores clonePath while bootstrapping a generic no-session terminal
+[workspaces] No session param for workspace test-ws, resolving terminal session (attempt 1)
+
+ ✓ src/__tests__/integration/interactive-terminal-integration.test.tsx (97 tests) 2580ms
+   ✓ WorkspaceTerminalPage integration — Multi-session route > keeps tiled layout signals stable without pane-header reorder controls  364ms
+   ✓ InteractiveTerminal integration — Mobile input adapter > uses tmux for held mobile selection without wheel scrolling or keyboard focus  566ms
+
+ Test Files  11 passed (11)
+      Tests  291 passed (291)
+   Start at  14:51:15
+   Duration  3.99s (transform 1.47s, setup 0ms, collect 2.70s, tests 4.56s, environment 8.18s, prepare 934ms)
+

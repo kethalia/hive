@@ -170,8 +170,11 @@ export function installTerminalBrowserIntegration(
       menu.closeLoading();
     }
   });
+  // Generated selection moves still reach xterm's mouse protocol and linkifier.
+  // Ignore them in link callbacks without stopping the remote application's drag.
   const hoverLink = (event: MouseEvent, uri: string, opaque: boolean, range?: IBufferRange) => {
-    if (disposed || (touchProbes.has(event) && event !== touchProbe)) return;
+    if (disposed || isTerminalTouchMouseEvent(event)) return;
+    if (touchProbes.has(event) && event !== touchProbe) return;
     if (touchProbe && event !== touchProbe) return;
     if (!terminalLinkTarget(uri) || event.shiftKey) {
       invalidateLink();
@@ -199,6 +202,7 @@ export function installTerminalBrowserIntegration(
     if (touchProbe) pressed = { uri, x: touchProbe.clientX, y: touchProbe.clientY };
   };
   const hover = (event: MouseEvent, uri: string, range?: IBufferRange) => {
+    if (isTerminalTouchMouseEvent(event)) return;
     if (!pendingPlainClick && !pendingPlainPress) cancelPathValidation();
     hoverLink(event, uri, false, range);
   };
@@ -222,6 +226,7 @@ export function installTerminalBrowserIntegration(
     range?: IBufferRange,
   ) => {
     if (
+      isTerminalTouchMouseEvent(event) ||
       event.shiftKey ||
       (touchProbe && event !== touchProbe) ||
       (touchProbes.has(event) && event !== touchProbe)
@@ -534,6 +539,7 @@ export function installTerminalBrowserIntegration(
   // listener runs. Expose that pending result without treating it as a valid file.
   let pendingFeedback: object | undefined;
   const showPendingPlain = (event: MouseEvent) => {
+    if (isTerminalTouchMouseEvent(event)) return;
     const pending = pathProvider.pendingLinkAt(event);
     if (!pending || event.shiftKey) return;
     const token = {};
@@ -566,7 +572,7 @@ export function installTerminalBrowserIntegration(
     });
   };
   const pendingMouseMove = (event: MouseEvent) => {
-    if (touchProbe) return;
+    if (touchProbe || isTerminalTouchMouseEvent(event)) return;
     if (pathProvider.pendingLinkAt(event)) showPendingPlain(event);
     else if (!unverifiedHover) menu.closeLoading();
   };

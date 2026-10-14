@@ -18,7 +18,7 @@ if pid == 0:
     os.execvpe("tmux", [
         "tmux", "-S", socket, "-f", "/dev/null", "-T", "clipboard,RGB",
         "set", "-s", "set-clipboard", "on", ";",
-        "new-session", "-s", "selection", "/bin/sh -c 'printf \"\\033[2J\\033[HALPHA beta GAMMA delta\\r\\nsecond line to select\\r\\nhttps://example.com/demo\\r\\n\"; exec cat'", ";",
+        "new-session", "-s", "selection", "/bin/sh -c 'printf \"\\033[2J\\033[HALPHA beta GAMMA delta\\r\\nsecond line to select\\r\\nhttps://example.com/demo\\r\\ndocs/selection.txt\\r\\n\"; exec cat'", ";",
         "set", "status", "off", ";", "set", "mouse", "on",
     ], env)
 

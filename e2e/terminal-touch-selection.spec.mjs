@@ -231,10 +231,32 @@ test("a held drag over a URL selects tmux text rather than opening a link menu",
   await send("touchStart", await point(page, 0, 2));
   await expect(page.locator("#first")).toHaveAttribute("data-terminal-touch-selecting", "true");
   await send("touchMove", await point(page, 5, 2));
+  // Stay beyond the link menu's hover delay while tmux still owns the drag.
+  await page.waitForTimeout(650);
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await send("touchEnd");
   await expect
     .poll(() => page.evaluate(() => window.selectionFixture.writes.map((item) => item.text)))
     .toEqual(["https"]);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+});
+
+test("a held drag over a delayed file path shows no loading or action menu", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "Trusted held touch uses CDP.");
+  const send = await touch(page);
+  await send("touchStart", await point(page, 0, 3));
+  await expect(page.locator("#first")).toHaveAttribute("data-terminal-touch-selecting", "true");
+  await send("touchMove", await point(page, 5, 3));
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await page.waitForTimeout(650);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await send("touchEnd");
+  await expect
+    .poll(() => page.evaluate(() => window.selectionFixture.writes.map((item) => item.text)))
+    .toEqual(["docs/"]);
   await expect(page.getByRole("menu")).toHaveCount(0);
 });
 

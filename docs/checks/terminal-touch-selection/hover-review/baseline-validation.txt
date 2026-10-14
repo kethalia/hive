@@ -1,0 +1,52 @@
+
+Running 2 tests using 1 worker
+
+Failed-case clipboard observation: []
+  ✘  1 [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:225:1 › a held drag over a URL selects tmux text rather than opening a link menu (7.0s)
+  -  2 [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:244:1 › a held drag over a delayed file path shows no loading or action menu
+
+
+  1) [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:225:1 › a held drag over a URL selects tmux text rather than opening a link menu 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('menu')
+    Expected: 0
+    Received: 1
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for getByRole('menu')
+        14 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      234 |   // Stay beyond the link menu's hover delay while tmux still owns the drag.
+      235 |   await page.waitForTimeout(650);
+    > 236 |   await expect(page.getByRole("menu")).toHaveCount(0);
+          |                                        ^
+      237 |   await send("touchEnd");
+      238 |   await expect
+      239 |     .poll(() => page.evaluate(() => window.selectionFixture.writes.map((item) => item.text)))
+        at /home/coder/projects/kethalia/hive/e2e/terminal-touch-selection.spec.mjs:236:40
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/hover/terminal-touch-selection-a-03b8d-er-than-opening-a-link-menu-mobile-chrome/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/hover/terminal-touch-selection-a-03b8d-er-than-opening-a-link-menu-mobile-chrome/error-context.md
+
+    Error Context: test-results/hover/terminal-touch-selection-a-03b8d-er-than-opening-a-link-menu-mobile-chrome/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/hover/terminal-touch-selection-a-03b8d-er-than-opening-a-link-menu-mobile-chrome/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/hover/terminal-touch-selection-a-03b8d-er-than-opening-a-link-menu-mobile-chrome/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [mobile-chrome] › e2e/terminal-touch-selection.spec.mjs:225:1 › a held drag over a URL selects tmux text rather than opening a link menu 
+  1 did not run
