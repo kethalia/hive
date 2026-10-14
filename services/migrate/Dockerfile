@@ -1,7 +1,7 @@
 # Dedicated Prisma migrate image.
 #
 # Built from the @hive/db workspace package which owns the schema and
-# migrations. Runs `prisma migrate deploy` against DATABASE_URL and exits.
+# migrations. Checks baseline history before `prisma migrate deploy` and exits.
 # Invoked by charts/hive/templates/migrate-job.yaml as a Helm hook.
 ARG PNPM_VERSION=10.32.1
 ARG NODE_IMAGE=public.ecr.aws/docker/library/node:20-alpine
@@ -46,5 +46,5 @@ RUN addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 appuser -G appgroup
 COPY --from=deploy --chown=appuser:appgroup /deploy ./
 USER appuser
-ENTRYPOINT ["tini", "--"]
-CMD ["node_modules/.bin/prisma", "migrate", "deploy", "--schema", "node_modules/@hive/db/prisma/schema.prisma"]
+ENTRYPOINT ["tini", "-g", "--"]
+CMD ["node", "src/migrate.mjs"]
