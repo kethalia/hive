@@ -134,11 +134,116 @@ afterAll(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
   MockEventSource.instances = [];
 });
 
 describe("templates mobile list", () => {
+  it("keeps controls disabled while reconnecting an enqueued job", async () => {
+    vi.useFakeTimers();
+    const statuses = [makeStatus()];
+    const fetchMock = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url.endsWith("/status") ? statuses : { jobId: "job-1" }),
+    }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    render(<TemplatesClient initialStatuses={statuses} />);
+    fireEvent.click(screen.getByRole("button", { name: "Push all" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm push" }));
+    });
+    expect(MockEventSource.instances).toHaveLength(1);
+    act(() => MockEventSource.instances[0].onerror?.(new Event("error")));
+    expect(screen.getByRole("button", { name: "Push all" })).toBeDisabled();
+    expect(
+      within(screen.getByTestId("template-mobile-card")).getByRole("button", { name: /Pushing/ }),
+    ).toBeDisabled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(MockEventSource.instances).toHaveLength(2);
+    expect(MockEventSource.instances[1].url).toBe(MockEventSource.instances[0].url);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      MockEventSource.instances[1].listeners.status[0](
+        new MessageEvent("status", { data: '{"success":true}' }),
+      );
+    });
+    expect(screen.getByRole("button", { name: "Push all" })).not.toBeDisabled();
+  });
+
+  it("refreshes statuses once after every push in a batch settles, including a final failure", async () => {
+    const statuses = [
+      makeStatus(),
+      makeStatus({ name: "game-dev" }),
+      makeStatus({ name: "electronics" }),
+    ];
+    const fetchMock = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (url.endsWith("/status") ? statuses : { jobId: "job-1" }),
+    }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    render(<TemplatesClient initialStatuses={statuses} />);
+    fireEvent.click(screen.getByRole("button", { name: "Push all" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm push all" }));
+    });
+    for (const source of MockEventSource.instances.slice(0, 2)) {
+      await act(async () => {
+        source.listeners.status[0](new MessageEvent("status", { data: '{"success":true}' }));
+      });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      MockEventSource.instances[2].listeners.status[0](
+        new MessageEvent("status", { data: '{"success":false}' }),
+      );
+    });
+    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/templates/status")).toHaveLength(1);
+  });
+
+  it("shares in-flight refreshes and follows an older scan with a fresh scan after completion", async () => {
+    const statuses = [makeStatus()];
+    let resolveOlder!: (response: Response) => void;
+    const older = new Promise<Response>((resolve) => {
+      resolveOlder = resolve;
+    });
+    let scans = 0;
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith("/status") && ++scans === 1) return older;
+      return Promise.resolve({
+        ok: true,
+        json: async () =>
+          url.endsWith("/status")
+            ? [makeStatus({ lastPushed: new Date().toISOString() })]
+            : { jobId: "job-1" },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    render(<TemplatesClient initialStatuses={statuses} />);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(scans).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Push all" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm push" }));
+    });
+    await act(async () => {
+      MockEventSource.instances[0].listeners.status[0](
+        new MessageEvent("status", { data: '{"success":true}' }),
+      );
+    });
+    expect(scans).toBe(1);
+    await act(async () => {
+      resolveOlder({ ok: true, json: async () => statuses } as Response);
+    });
+    expect(scans).toBe(2);
+    expect(
+      within(screen.getByTestId("template-mobile-card")).getAllByText("just now"),
+    ).toHaveLength(2);
+  });
+
   it("confirms the full batch once, keeps each result independent, and closes streams on unmount", async () => {
     const statuses = [
       makeStatus(),

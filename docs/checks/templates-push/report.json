@@ -36,6 +36,11 @@
         "scroll": 2119
       },
       "pushes": ["ai-dev-k8s", "browser-testing", "game-dev", "electronics", "infrastructure"],
+      "streamRecovery": {
+        "initial503": "passed",
+        "midstreamDisconnect": "passed",
+        "duplicatePushRequests": 0
+      },
       "scrollToLastPanel": "passed",
       "scrollOverOutputAtBottom": "passed",
       "closeLastPanel": "passed",
@@ -74,6 +79,11 @@
         "scroll": 2119
       },
       "pushes": ["ai-dev-k8s", "browser-testing", "game-dev", "electronics", "infrastructure"],
+      "streamRecovery": {
+        "initial503": "passed",
+        "midstreamDisconnect": "passed",
+        "duplicatePushRequests": 0
+      },
       "scrollToLastPanel": "passed",
       "scrollOverOutputAtBottom": "passed",
       "closeLastPanel": "passed",
@@ -112,6 +122,11 @@
         "scroll": 4134
       },
       "pushes": ["ai-dev-k8s", "browser-testing", "game-dev", "electronics", "infrastructure"],
+      "streamRecovery": {
+        "initial503": "passed",
+        "midstreamDisconnect": "passed",
+        "duplicatePushRequests": 0
+      },
       "scrollToLastPanel": "passed",
       "scrollOverOutputAtBottom": "passed",
       "closeLastPanel": "passed",

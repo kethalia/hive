@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { templateCatalogEntry, workspaceSurfaceLabel } from "@/lib/templates/catalog";
+import { followTemplatePush } from "@/lib/templates/push-stream";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
@@ -83,15 +84,17 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
   const [pushStates, setPushStates] = useState<Record<string, PushState>>({});
   const [templatesPendingPush, setTemplatesPendingPush] = useState<string[] | null>(null);
   const activePushes = useRef(new Set<string>());
-  const eventSources = useRef(new Map<string, EventSource>());
+  const pushStreams = useRef(new Map<string, () => void>());
+  const refreshInFlight = useRef<Promise<void> | null>(null);
+  const refreshNeeded = useRef(false);
   const mounted = useRef(true);
 
   useEffect(() => {
     mounted.current = true;
-    const sources = eventSources.current;
+    const sources = pushStreams.current;
     return () => {
       mounted.current = false;
-      for (const source of sources.values()) source.close();
+      for (const stop of sources.values()) stop();
       sources.clear();
     };
   }, []);
@@ -133,19 +136,35 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
 
   // ── Status polling ─────────────────────────────────────────────
 
-  const refreshStatuses = useCallback(async () => {
-    try {
-      const res = await fetch("/api/templates/status");
-      if (!res.ok) return;
-      const data: TemplateStatus[] = await res.json();
-      setStatuses(data);
-    } catch {
-      // Silent — stale data is fine
-    }
+  const refreshStatuses = useCallback((): Promise<void> => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const pending = (async () => {
+      try {
+        const res = await fetch("/api/templates/status");
+        if (!res.ok) return;
+        const data: TemplateStatus[] = await res.json();
+        if (mounted.current) setStatuses(data);
+      } catch {
+        // Silent — stale data is fine
+      }
+    })().finally(() => {
+      refreshInFlight.current = null;
+    });
+    refreshInFlight.current = pending;
+    return pending;
   }, []);
 
+  const refreshAfterPushes = useCallback(async () => {
+    // A scan already running may have taken its snapshot before completion.
+    // Wait for it, then request one fresh scan without overlapping responses.
+    await refreshInFlight.current;
+    if (mounted.current) await refreshStatuses();
+  }, [refreshStatuses]);
+
   useEffect(() => {
-    const interval = setInterval(refreshStatuses, 30_000);
+    const interval = setInterval(() => {
+      if (activePushes.current.size === 0) void refreshStatuses();
+    }, 30_000);
     return () => clearInterval(interval);
   }, [refreshStatuses]);
 
@@ -156,14 +175,19 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
       if (activePushes.current.has(name)) return;
       activePushes.current.add(name);
       const finish = (success: boolean) => {
-        eventSources.current.get(name)?.close();
-        eventSources.current.delete(name);
+        pushStreams.current.get(name)?.();
+        pushStreams.current.delete(name);
         activePushes.current.delete(name);
         if (!mounted.current) return;
         setPushStates((prev) => ({
           ...prev,
           [name]: { ...prev[name], inProgress: false, result: success },
         }));
+        if (success) refreshNeeded.current = true;
+        if (activePushes.current.size === 0 && refreshNeeded.current) {
+          refreshNeeded.current = false;
+          void refreshAfterPushes();
+        }
       };
       // Start push — clear previous output history for this template
       lineHistory.current[name] = [];
@@ -192,40 +216,24 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
       if (!mounted.current) return;
       setPushStates((prev) => ({ ...prev, [name]: { ...prev[name], jobId } }));
 
-      // Stream output
-      const eventSource = new EventSource(`/api/templates/${name}/push/${jobId}/stream`);
-      eventSources.current.set(name, eventSource);
-
-      eventSource.onmessage = (ev) => {
-        writeLine(name, ev.data);
-      };
-
-      eventSource.addEventListener("status", (ev) => {
-        try {
-          const payload = JSON.parse((ev as MessageEvent).data);
-          const success = payload.success === true;
+      const stop = followTemplatePush(name, jobId, {
+        onLine: (line) => writeLine(name, line),
+        onReconnect: () =>
+          writeLine(name, "[stream] Connection interrupted; reconnecting to this push…"),
+        onStatus: ({ success, error }) => {
           // Always write a final status line so the terminal is never blank
           if (success) {
             writeLine(name, "\r\n\x1b[32m✓ Push succeeded\x1b[0m");
           } else {
-            const errDetail = payload.error ? ` — ${payload.error}` : "";
+            const errDetail = error ? ` — ${error}` : "";
             writeLine(name, `\r\n\x1b[31m✗ Push failed${errDetail}\x1b[0m`);
           }
           finish(success);
-          if (success) {
-            void refreshStatuses();
-          }
-        } catch {
-          // Malformed status event — close anyway
-          finish(false);
-        }
+        },
       });
-
-      eventSource.onerror = () => {
-        finish(false);
-      };
+      pushStreams.current.set(name, stop);
     },
-    [refreshStatuses, writeLine],
+    [refreshAfterPushes, writeLine],
   );
 
   const handleCloseTerminal = useCallback((name: string) => {

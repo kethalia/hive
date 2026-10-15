@@ -56,6 +56,7 @@ await mkdir(evidence, { recursive: true });
 const names = ["ai-dev-k8s", "browser-testing", "game-dev", "electronics", "infrastructure"];
 let pushes = [];
 const streams = new Set();
+const streamAttempts = new Map();
 const server = createServer(async (req, res) => {
   if (req.url === "/api/templates/status") {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -81,10 +82,21 @@ const server = createServer(async (req, res) => {
       ),
     );
   } else if (req.url.endsWith("/stream")) {
+    const name = req.url.split("/")[3];
+    const attempt = (streamAttempts.get(name) ?? 0) + 1;
+    streamAttempts.set(name, attempt);
+    if (name === "electronics" && attempt === 1) {
+      res.writeHead(503);
+      res.end("Temporary queue lookup failure");
+      return;
+    }
     res.writeHead(200, { "Content-Type": "text/event-stream" });
     streams.add(res);
     res.on("close", () => streams.delete(res));
-    for (let i = 0; i < 100; i++) res.write(`data: fixture output line ${i}\n\n`);
+    const interrupted = name === "game-dev" && attempt === 1;
+    for (let i = 0; i < (interrupted ? 30 : 100); i++)
+      res.write(`data: fixture output line ${i}\n\n`);
+    if (interrupted) res.end();
   } else if (
     req.url === "/bundle.js" ||
     req.url === "/style.css" ||
@@ -127,6 +139,7 @@ try {
     ["mobile", 390, 844, true],
   ]) {
     pushes = [];
+    streamAttempts.clear();
     const context = await browser.newContext({
       viewport: { width, height },
       hasTouch: touch,
@@ -159,6 +172,14 @@ try {
     await page.locator('[data-slot="dialog-overlay"]').waitFor({ state: "detached" });
     await page.waitForFunction(() => document.querySelectorAll(".xterm").length === 5);
     await page.waitForFunction(() => document.querySelectorAll(".xterm-rows").length === 5);
+    await page.waitForFunction(
+      () =>
+        [...document.querySelectorAll(".xterm-rows")].filter((rows) =>
+          rows.textContent.includes("line 99"),
+        ).length === 4,
+    );
+    assert.equal(streamAttempts.get("electronics"), 2);
+    assert.equal(streamAttempts.get("game-dev"), 2);
     assert.deepEqual([...pushes].sort(), [...names].sort());
     assert.equal(await all.isDisabled(), true);
     const region = page.getByTestId("templates-scroll-region");
@@ -274,6 +295,11 @@ try {
       layout,
       metrics,
       pushes: [...pushes],
+      streamRecovery: {
+        initial503: "passed",
+        midstreamDisconnect: "passed",
+        duplicatePushRequests: 0,
+      },
       scrollToLastPanel: "passed",
       scrollOverOutputAtBottom: "passed",
       closeLastPanel: "passed",

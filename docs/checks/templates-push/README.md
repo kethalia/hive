@@ -58,3 +58,17 @@ lookup errors, ownership checks, and cancellation that stops polling.
 ```sh
 pnpm exec vitest run src/__tests__/app/api/templates/push-routes.test.ts src/__tests__/lib/templates/push-queue.test.ts
 ```
+
+Client review follow-up: both template screens reconnect the same stream with
+backoff while keeping push controls disabled, and suppress replayed log lines.
+Only terminal status events complete a push. The browser fixture now includes
+an initial HTTP 503 for one stream and a midstream disconnect for another;
+both recover without creating another push request at all three viewports.
+Batch completion waits for all active pushes, then requests one status scan.
+Manual and periodic refreshes share an in-flight request; a completion scan
+waits for older work so an earlier snapshot cannot overwrite newer results.
+Periodic scans are deferred during active pushes.
+
+```sh
+pnpm exec vitest run src/__tests__/lib/templates/push-stream.test.ts src/__tests__/components/templates-list-mobile.test.tsx
+```

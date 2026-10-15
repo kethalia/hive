@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { templateCatalogEntry, workspaceSurfaceLabel } from "@/lib/templates/catalog";
+import { followTemplatePush } from "@/lib/templates/push-stream";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
@@ -61,11 +62,14 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
 
   const writeRef = useRef<((line: string) => void) | null>(null);
   const lineHistory = useRef<string[]>([]);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const stopStreamRef = useRef<(() => void) | null>(null);
+  const mounted = useRef(true);
 
   useEffect(() => {
+    mounted.current = true;
     return () => {
-      eventSourceRef.current?.close();
+      mounted.current = false;
+      stopStreamRef.current?.();
     };
   }, []);
 
@@ -106,38 +110,22 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
       return;
     }
 
+    if (!mounted.current) return;
     setPushState((prev) => ({ ...prev, jobId }));
-
-    eventSourceRef.current?.close();
-    const eventSource = new EventSource(`/api/templates/${status.name}/push/${jobId}/stream`);
-    eventSourceRef.current = eventSource;
-
-    eventSource.onmessage = (ev) => {
-      writeLine(ev.data);
-    };
-
-    eventSource.addEventListener("status", (ev) => {
-      try {
-        const payload = JSON.parse((ev as MessageEvent).data);
-        const success = payload.success === true;
-        eventSource.close();
+    stopStreamRef.current?.();
+    stopStreamRef.current = followTemplatePush(status.name, jobId, {
+      onLine: writeLine,
+      onReconnect: () => writeLine("[stream] Connection interrupted; reconnecting to this push…"),
+      onStatus: ({ success, error }) => {
         if (success) {
           writeLine("\r\n\x1b[32m\u2713 Push succeeded\x1b[0m");
         } else {
-          const errDetail = payload.error ? ` \u2014 ${payload.error}` : "";
+          const errDetail = error ? ` \u2014 ${error}` : "";
           writeLine(`\r\n\x1b[31m\u2717 Push failed${errDetail}\x1b[0m`);
         }
         setPushState((prev) => ({ ...prev, inProgress: false, result: success }));
-      } catch {
-        eventSource.close();
-        setPushState((prev) => ({ ...prev, inProgress: false, result: false }));
-      }
+      },
     });
-
-    eventSource.onerror = () => {
-      eventSource.close();
-      setPushState((prev) => ({ ...prev, inProgress: false, result: false }));
-    };
   }, [status.name, writeLine]);
 
   const handleCloseTerminal = useCallback(() => {
