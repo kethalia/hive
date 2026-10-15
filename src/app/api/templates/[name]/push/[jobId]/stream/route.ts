@@ -14,6 +14,9 @@ import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 /** Regex allowing job IDs (UUID v4 format). */
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Queue completion can precede the worker's final asynchronous log writes. */
+const TERMINAL_LOG_DRAIN_MS = 2000;
+
 /**
  * Tail a template push's log as SSE data events, then emit its final status.
  * Queued and active jobs remain pending regardless of how long they take.
@@ -50,6 +53,7 @@ export async function GET(
       const encoder = new TextEncoder();
       let byteOffset = 0;
       let buffer = "";
+      let terminalLogSince: number | null = null;
 
       function send(raw: string) {
         if (cancelled || request.signal.aborted) return;
@@ -94,6 +98,7 @@ export async function GET(
             // controls disabled and retry rather than enabling a duplicate push.
           }
           if (cancelled || request.signal.aborted) return;
+          let localLogReadable = false;
           if (existsSync(logPath)) {
             try {
               const size = statSync(logPath).size;
@@ -108,22 +113,32 @@ export async function GET(
                 byteOffset = size;
                 if (processChunk(content)) return;
               }
+              localLogReadable = true;
             } catch {
               // Log files are local to the worker. Their absence/read failure
               // cannot decide whether a queued or running job has failed.
             }
           }
           if (state === "completed" || state === "failed" || state === "unknown") {
-            if (buffer) sendData(buffer);
-            sendStatus(
-              state === "completed",
-              state === "failed"
-                ? "Template push failed"
-                : state === "unknown"
-                  ? "Push job no longer exists"
-                  : undefined,
-            );
-            return;
+            terminalLogSince ??= Date.now();
+            // Let a readable local log reach its sentinel before falling back
+            // to queue state. Missing/unreadable worker-local logs need no wait.
+            if (
+              !localLogReadable ||
+              state === "unknown" ||
+              Date.now() - terminalLogSince >= TERMINAL_LOG_DRAIN_MS
+            ) {
+              if (buffer) sendData(buffer);
+              sendStatus(
+                state === "completed",
+                state === "failed"
+                  ? "Template push failed"
+                  : state === "unknown"
+                    ? "Push job no longer exists"
+                    : undefined,
+              );
+              return;
+            }
           }
           await new Promise((resolve) => setTimeout(resolve, SSE_POLL_INTERVAL_MS));
         }

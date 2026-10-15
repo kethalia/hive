@@ -72,3 +72,11 @@ Periodic scans are deferred during active pushes.
 ```sh
 pnpm exec vitest run src/__tests__/lib/templates/push-stream.test.ts src/__tests__/components/templates-list-mobile.test.tsx
 ```
+
+Log-drain review follow-up: after a queue job reaches completed/failed, a
+readable local log gets up to two seconds to flush its final lines and exit
+sentinel before queue state closes the stream. An arriving sentinel completes
+the stream immediately. Missing or unreadable logs still use queue state
+without a drain delay. Route regressions cover both successful and failed jobs
+whose final diagnostics arrive after queue completion, a readable log with no
+sentinel, and an unreadable log.

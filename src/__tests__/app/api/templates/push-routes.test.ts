@@ -215,8 +215,76 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
     await vi.advanceTimersByTimeAsync(150_000);
     expect(ended).toBe(false);
     mockGetState.mockResolvedValue("completed");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(2500);
     expect(await body).toContain('event: status\ndata: {"success":true}');
+  });
+
+  it.each([
+    true,
+    false,
+  ])("drains final diagnostics before closing a %s queue result", async (success) => {
+    vi.useFakeTimers();
+    mockGetState.mockResolvedValue(success ? "completed" : "failed");
+    const initial = "starting push\n";
+    const final = `final diagnostic\n[exit:${success ? 0 : 1}]\n`;
+    mockStatSync.mockReturnValue({ size: initial.length });
+    mockCreateReadStream.mockImplementationOnce(() => mockReadable(initial));
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    let ended = false;
+    const body = response.text().then((text) => {
+      ended = true;
+      return text;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ended).toBe(false);
+    mockStatSync.mockReturnValue({ size: initial.length + final.length });
+    mockCreateReadStream.mockImplementationOnce(() => mockReadable(final));
+    await vi.advanceTimersByTimeAsync(500);
+    const text = await body;
+    expect(text).toContain("data: final diagnostic");
+    expect(text.indexOf("data: final diagnostic")).toBeLessThan(text.indexOf("event: status"));
+    expect(text).toContain(`"success":${success}`);
+  });
+
+  it("bounds local log draining when no exit sentinel is ever written", async () => {
+    vi.useFakeTimers();
+    mockGetState.mockResolvedValue("completed");
+    const partial = "last unterminated diagnostic";
+    mockStatSync.mockReturnValue({ size: partial.length });
+    mockCreateReadStream.mockImplementationOnce(() => mockReadable(partial));
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    let ended = false;
+    const body = response.text().then((text) => {
+      ended = true;
+      return text;
+    });
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(ended).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const text = await body;
+    expect(text).toContain("data: last unterminated diagnostic");
+    expect(text).toContain('"success":true');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("falls back immediately if the completed job's local log is unreadable", async () => {
+    vi.useFakeTimers();
+    mockGetState.mockResolvedValue("completed");
+    mockStatSync.mockImplementationOnce(() => {
+      throw new Error("unreadable");
+    });
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    expect(await response.text()).toContain('"success":true');
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it.each([
