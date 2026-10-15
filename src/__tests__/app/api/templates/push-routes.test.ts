@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KNOWN_TEMPLATES } from "@/lib/templates/staleness";
 
 // ── Mocks ────────────────────────────────────────────────────────
@@ -21,9 +21,14 @@ vi.mock("@/lib/queue/connection", () => ({
 }));
 
 const mockAdd = vi.fn().mockResolvedValue(undefined);
+const mockGetState = vi.fn().mockResolvedValue("active");
+const mockGetJob = vi.fn().mockResolvedValue({
+  data: { userId: "user-1", templateName: "ai-dev-k8s" },
+  getState: mockGetState,
+});
 
 vi.mock("@/lib/templates/push-queue", () => ({
-  getTemplatePushQueue: vi.fn(() => ({ add: mockAdd })),
+  getTemplatePushQueue: vi.fn(() => ({ add: mockAdd, getJob: mockGetJob })),
   pushLogPath: vi.fn((jobId: string) => `/tmp/template-push-${jobId}.log`),
 }));
 
@@ -137,12 +142,21 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockGetState.mockResolvedValue("active");
+    mockGetJob.mockResolvedValue({
+      data: { userId: "user-1", templateName: "ai-dev-k8s" },
+      getState: mockGetState,
+    });
     mockExistsSync.mockReturnValue(true);
     mockStatSync.mockReturnValue({ size: 0 });
     mockCreateReadStream.mockReturnValue(mockReadable(""));
 
     const mod = await import("@/app/api/templates/[name]/push/[jobId]/stream/route");
     GET = mod.GET;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   function makeRequest(abortController?: AbortController) {
@@ -157,6 +171,214 @@ describe("GET /api/templates/[name]/push/[jobId]/stream", () => {
       controller: ctrl,
     };
   }
+
+  it("keeps a queued stream open beyond 30s, then streams the real result after the job starts", async () => {
+    vi.useFakeTimers();
+    mockExistsSync.mockReturnValue(false);
+    mockGetState.mockResolvedValue("waiting");
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    let ended = false;
+    const body = response.text().then((text) => {
+      ended = true;
+      return text;
+    });
+    await vi.advanceTimersByTimeAsync(65_000);
+    expect(ended).toBe(false);
+
+    mockGetState.mockResolvedValue("active");
+    const content = "worker started\n[exit:0]\n";
+    mockExistsSync.mockReturnValue(true);
+    mockStatSync.mockReturnValue({ size: content.length });
+    mockCreateReadStream.mockImplementation(() => mockReadable(content));
+    await vi.advanceTimersByTimeAsync(500);
+    const text = await body;
+    expect(text).toContain(": waiting for template push");
+    expect(text).toContain("data: worker started");
+    expect(text).toContain('event: status\ndata: {"success":true}');
+    expect(text).not.toContain('"success":false');
+  });
+
+  it("keeps active pushes pending beyond 120s without new output and uses queue completion", async () => {
+    vi.useFakeTimers();
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    let ended = false;
+    const body = response.text().then((text) => {
+      ended = true;
+      return text;
+    });
+    await vi.advanceTimersByTimeAsync(150_000);
+    expect(ended).toBe(false);
+    mockGetState.mockResolvedValue("completed");
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(await body).toContain('event: status\ndata: {"success":true}');
+  });
+
+  it.each([
+    true,
+    false,
+  ])("drains final diagnostics before closing a %s queue result", async (success) => {
+    vi.useFakeTimers();
+    mockGetState.mockResolvedValue(success ? "completed" : "failed");
+    const initial = "starting push\n";
+    const final = `final diagnostic\n[exit:${success ? 0 : 1}]\n`;
+    mockStatSync.mockReturnValue({ size: initial.length });
+    mockCreateReadStream.mockImplementationOnce(() => mockReadable(initial));
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    let ended = false;
+    const body = response.text().then((text) => {
+      ended = true;
+      return text;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ended).toBe(false);
+    mockStatSync.mockReturnValue({ size: initial.length + final.length });
+    mockCreateReadStream.mockImplementationOnce(() => mockReadable(final));
+    await vi.advanceTimersByTimeAsync(500);
+    const text = await body;
+    expect(text).toContain("data: final diagnostic");
+    expect(text.indexOf("data: final diagnostic")).toBeLessThan(text.indexOf("event: status"));
+    expect(text).toContain(`"success":${success}`);
+  });
+
+  it("bounds local log draining when no exit sentinel is ever written", async () => {
+    vi.useFakeTimers();
+    mockGetState.mockResolvedValue("completed");
+    const partial = "last unterminated diagnostic";
+    mockStatSync.mockReturnValue({ size: partial.length });
+    mockCreateReadStream.mockImplementationOnce(() => mockReadable(partial));
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    let ended = false;
+    const body = response.text().then((text) => {
+      ended = true;
+      return text;
+    });
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(ended).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const text = await body;
+    expect(text).toContain("data: last unterminated diagnostic");
+    expect(text).toContain('"success":true');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("falls back immediately if the completed job's local log is unreadable", async () => {
+    vi.useFakeTimers();
+    mockGetState.mockResolvedValue("completed");
+    mockStatSync.mockImplementationOnce(() => {
+      throw new Error("unreadable");
+    });
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    expect(await response.text()).toContain('"success":true');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    "completed",
+    "failed",
+    "unknown",
+  ])("ends without waiting for a log when the queue job is %s", async (state) => {
+    mockExistsSync.mockReturnValue(false);
+    mockGetState.mockResolvedValue(state);
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    const text = await response.text();
+    expect(text).toContain(`"success":${state === "completed"}`);
+    if (state !== "completed") {
+      expect(text).toContain(
+        state === "failed" ? "Template push failed" : "Push job no longer exists",
+      );
+    }
+  });
+
+  it("retries transient queue lookup failures without reporting the push as failed", async () => {
+    vi.useFakeTimers();
+    mockExistsSync.mockReturnValue(false);
+    mockGetState
+      .mockRejectedValueOnce(new Error("Redis disconnected"))
+      .mockResolvedValue("completed");
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    const body = response.text();
+    await vi.advanceTimersByTimeAsync(500);
+    const text = await body;
+    expect(text).toContain('"success":true');
+    expect(text).not.toContain('"success":false');
+  });
+
+  it("stops queue polling when the client cancels the stream", async () => {
+    vi.useFakeTimers();
+    mockExistsSync.mockReturnValue(false);
+    mockGetState.mockResolvedValue("waiting");
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    await response.body?.cancel();
+    await vi.advanceTimersByTimeAsync(500);
+    const calls = mockGetState.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(mockGetState).toHaveBeenCalledTimes(calls);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("stops queued streams when the request is aborted without reporting failure", async () => {
+    vi.useFakeTimers();
+    mockExistsSync.mockReturnValue(false);
+    mockGetState.mockResolvedValue("waiting");
+    const { request, controller } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    const body = response.text();
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(await body).not.toContain("event: status");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("returns a controlled error if the initial queue lookup fails", async () => {
+    mockGetJob.mockRejectedValueOnce(new Error("Redis down"));
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe("Push queue unavailable");
+    expect(mockExistsSync).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    undefined,
+    { userId: "another-user", templateName: "ai-dev-k8s" },
+    { userId: "user-1", templateName: "game-dev" },
+  ])("rejects missing or mismatched jobs before reading any logs: %j", async (data) => {
+    mockGetJob.mockResolvedValue(data ? { data, getState: mockGetState } : undefined);
+    const { request } = makeRequest();
+    const response = await GET(request, {
+      params: Promise.resolve({ name: "ai-dev-k8s", jobId: VALID_JOB_ID }),
+    });
+    expect(response.status).toBe(404);
+    expect(mockExistsSync).not.toHaveBeenCalled();
+  });
 
   it("returns 400 for unknown template name", async () => {
     const { request } = makeRequest();

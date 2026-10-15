@@ -97,6 +97,30 @@ afterEach(() => {
 });
 
 describe("PullToRefresh", () => {
+  it("allows downward scrolling when its ancestor is scrolled instead of triggering refresh", () => {
+    const onRefresh = vi.fn();
+    render(
+      <div data-testid="page-scroll" style={{ overflowY: "auto" }}>
+        <PullToRefresh onRefresh={onRefresh}>
+          <p>Templates</p>
+        </PullToRefresh>
+      </div>,
+    );
+    const page = screen.getByTestId("page-scroll");
+    Object.defineProperties(page, {
+      scrollHeight: { value: 1600 },
+      clientHeight: { value: 600 },
+    });
+    page.scrollTop = 200;
+    dragPull(screen.getByTestId("pull-to-refresh"), PULL_REFRESH_TRIGGER_PX);
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(screen.getByTestId("pull-to-refresh")).toHaveAttribute("data-pull-state", "idle");
+
+    page.scrollTop = 0;
+    dragPull(screen.getByTestId("pull-to-refresh"), PULL_REFRESH_TRIGGER_PX);
+    expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
   it("renders children with DOM diagnostics and contained overscroll", () => {
     renderPullToRefresh();
 

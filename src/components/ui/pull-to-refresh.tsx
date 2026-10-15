@@ -33,9 +33,9 @@ export function PullToRefresh({
       data-pull-state={pullState}
       className={cn("relative min-h-0 overscroll-contain", className)}
       style={{
-        ...style,
         overscrollBehavior: "contain",
         touchAction: "pan-y",
+        ...style,
       }}
     >
       <div
