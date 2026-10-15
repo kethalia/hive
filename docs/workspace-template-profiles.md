@@ -121,14 +121,30 @@ verify the workspace's latest build uses the intended template version, startup 
 software profile has `~/.local/bin/hive-workspace`, and the managed agent files contain this contract.
 See [Coder workspace updates](https://coder.com/docs/user-guides/workspace-management#update-workspaces).
 
-## Codex updates
+## AI tool updates
 
-Every workspace startup refreshes the user-installed Codex CLI from npm's `latest` tag.
-Hive does not pin a Codex release or set shared daemon feature flags. Registry retries
-and a 120-second command limit bound the attempt; an offline refresh reports a warning
-and leaves an available CLI in use rather than deleting its installation first.
+Hive follows the latest release channel for Codex and Claude Code in all five profiles.
+Every workspace startup runs `npm install -g @openai/codex@latest` and the installed native
+`claude install latest` updater, even when a CLI already exists in the persistent home.
+The explicit Claude target also selects the latest channel for subsequent native auto-updates.
+See [OpenAI's update command](https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex#quickstart-using-goals)
+and [Claude's native installer and channels](https://code.claude.com/docs/en/setup#install-a-specific-version).
 
-Codex's background server can update independently while a workspace remains running.
+Each startup refresh has a 120-second limit plus a 10-second termination grace period.
+Codex registry retries are bounded. A failed/offline refresh reports a warning and uses an
+available working CLI; startup does not delete an installation before attempting an update.
+The checksum-verified Claude binary baked into the image bootstraps its native updater.
+If that CLI is missing, startup warns that the image installation needs repair.
+Network failures can leave a previous release in use until the next successful refresh.
+
+The owner explicitly chose latest AI tools on 2026-10-14, accepting automatic execution of
+new vendor releases without per-release repository review. This policy covers the two AI
+CLIs; curated skill/plugin revisions and image download checks remain managed separately.
+After publishing these template changes, update each workspace to the new template version
+before its next startup to enable the Claude refresh in existing workspaces.
+
+Hive does not set shared Codex daemon feature flags. Codex's background server can update
+independently while a workspace remains running.
 If its version differs from the CLI, run `codex update` and start a fresh session.
 A feature-settings prompt can still occur between clients with different configurations;
 use the prompt's run-without-daemon option while other sessions are active. Hive does not

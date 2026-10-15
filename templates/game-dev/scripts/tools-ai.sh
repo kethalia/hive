@@ -320,6 +320,26 @@ refresh_codex() {
 
 refresh_codex
 
+refresh_claude() {
+  if ! command_exists claude; then
+    printf '%b[warn] Claude Code is missing; restore the workspace image installation before retrying.%b\n' "$YELLOW" "$RESET"
+    return 0
+  fi
+
+  # Select latest explicitly even when the persistent home used the stable channel.
+  # Use the installed native updater; the image binary is only the bootstrap.
+  printf '%b[install] Refreshing Claude Code from latest...%b\n' "$BOLD" "$RESET"
+  if timeout --signal=TERM --kill-after=10s 120s claude install latest; then
+    printf '%b[ok] Claude Code refreshed%b\n' "$GREEN" "$RESET"
+  elif claude --version >/dev/null 2>&1; then
+    printf '%b[warn] Claude refresh failed; keeping the available CLI. Retry claude install latest when online.%b\n' "$YELLOW" "$RESET"
+  else
+    printf '%b[warn] Claude refresh failed and no working CLI is available.%b\n' "$YELLOW" "$RESET"
+  fi
+}
+
+refresh_claude
+
 hash -r 2>/dev/null || true
 
 codex_path="$(command -v codex 2>/dev/null || true)"
