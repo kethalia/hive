@@ -26,8 +26,24 @@ export interface UsePullToRefreshResult {
 
 function getEventScrollTop(event: { currentTarget: EventTarget | null }): number {
   const currentTarget = event.currentTarget;
-  if (currentTarget instanceof HTMLElement) return currentTarget.scrollTop;
   if (typeof window === "undefined") return 0;
+  // The refresh surface can sit inside a page's scrolling container. Checking
+  // only the surface (which stays at scrollTop=0) steals downward scrolls.
+  if (currentTarget instanceof HTMLElement) {
+    for (
+      let element: HTMLElement | null = currentTarget;
+      element;
+      element = element.parentElement
+    ) {
+      if (
+        element.scrollHeight > element.clientHeight &&
+        /auto|scroll/.test(window.getComputedStyle(element).overflowY)
+      ) {
+        return element.scrollTop;
+      }
+    }
+    if (currentTarget.scrollTop > 0) return currentTarget.scrollTop;
+  }
   return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
 }
 

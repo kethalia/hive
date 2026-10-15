@@ -38,6 +38,7 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
       fontSize: 13,
       lineHeight: 1.4,
       cursorBlink: false,
+      disableStdin: true,
       convertEol: true,
       scrollback: 5000,
     },
@@ -65,12 +66,12 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border/40 px-3 py-1.5">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/40 pl-3 pr-1">
         <span className="text-xs font-mono text-muted-foreground">push output</span>
         <button
           type="button"
           onClick={onClose}
-          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="flex size-11 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Close terminal"
         >
           <X className="h-3.5 w-3.5" />
@@ -78,7 +79,7 @@ export function TerminalPanel({ onClose, writeRef, onReady, className }: Termina
       </div>
 
       {/* xterm container */}
-      <div ref={containerRef} className="flex-1 p-2 min-h-[200px]" />
+      <div ref={containerRef} className="min-h-0 flex-1 p-2" />
     </div>
   );
 }

@@ -1,0 +1,140 @@
+{
+  "workspace": "creator-direction-upgrade",
+  "workspaceReused": true,
+  "livePushes": false,
+  "views": [
+    {
+      "label": "desktop",
+      "layout": {
+        "client": 1440,
+        "scroll": 1440,
+        "descriptions": [
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          }
+        ]
+      },
+      "metrics": {
+        "client": 900,
+        "scroll": 2119
+      },
+      "pushes": [
+        "ai-dev-k8s",
+        "browser-testing",
+        "game-dev",
+        "electronics",
+        "infrastructure"
+      ],
+      "scrollToLastPanel": "passed",
+      "scrollOverOutputAtBottom": "passed",
+      "closeLastPanel": "passed",
+      "scrollBackUp": "not exercised"
+    },
+    {
+      "label": "tablet",
+      "layout": {
+        "client": 900,
+        "scroll": 900,
+        "descriptions": [
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          }
+        ]
+      },
+      "metrics": {
+        "client": 800,
+        "scroll": 2119
+      },
+      "pushes": [
+        "ai-dev-k8s",
+        "browser-testing",
+        "game-dev",
+        "electronics",
+        "infrastructure"
+      ],
+      "scrollToLastPanel": "passed",
+      "scrollOverOutputAtBottom": "passed",
+      "closeLastPanel": "passed",
+      "scrollBackUp": "passed"
+    },
+    {
+      "label": "mobile",
+      "layout": {
+        "client": 390,
+        "scroll": 390,
+        "descriptions": [
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          },
+          {
+            "wraps": true,
+            "columns": 7
+          }
+        ]
+      },
+      "metrics": {
+        "client": 844,
+        "scroll": 4134
+      },
+      "pushes": [
+        "ai-dev-k8s",
+        "browser-testing",
+        "game-dev",
+        "electronics",
+        "infrastructure"
+      ],
+      "scrollToLastPanel": "passed",
+      "scrollOverOutputAtBottom": "passed",
+      "closeLastPanel": "passed",
+      "scrollBackUp": "passed"
+    }
+  ],
+  "errors": []
+}

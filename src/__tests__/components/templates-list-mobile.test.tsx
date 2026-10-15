@@ -139,6 +139,58 @@ afterEach(() => {
 });
 
 describe("templates mobile list", () => {
+  it("confirms the full batch once, keeps each result independent, and closes streams on unmount", async () => {
+    const statuses = [
+      makeStatus(),
+      makeStatus({ name: "browser-testing" }),
+      makeStatus({ name: "game-dev" }),
+    ];
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith("/status")) return Promise.resolve({ ok: true, json: async () => statuses });
+      if (url.includes("browser-testing"))
+        return Promise.resolve({ ok: false, json: async () => ({ error: "Push denied" }) });
+      return Promise.resolve({ ok: true, json: async () => ({ jobId: "job-1" }) });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const { unmount } = render(<TemplatesClient initialStatuses={statuses} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Push all" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Push all 3 templates?");
+    for (const status of statuses)
+      expect(within(screen.getByRole("dialog")).getByText(status.name)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Push all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm push all" }));
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2));
+    for (const status of statuses)
+      expect(fetchMock).toHaveBeenCalledWith(`/api/templates/${status.name}/push`, {
+        method: "POST",
+      });
+    expect(screen.getAllByTestId("terminal-panel")).toHaveLength(3);
+    expect(screen.getByRole("button", { name: "Push all" })).toBeDisabled();
+
+    const success = MockEventSource.instances[0];
+    act(() =>
+      success.listeners.status[0](
+        new MessageEvent("status", { data: JSON.stringify({ success: true }) }),
+      ),
+    );
+    expect(success.closed).toBe(true);
+    const cards = screen.getAllByTestId("template-mobile-card");
+    expect(within(cards[0]).getByLabelText("Push succeeded")).toBeInTheDocument();
+    expect(within(cards[1]).getByLabelText("Push failed")).toBeInTheDocument();
+    expect(within(cards[2]).getByRole("button", { name: /Pushing/ })).toBeDisabled();
+    unmount();
+    expect(MockEventSource.instances.every((source) => source.closed)).toBe(true);
+  });
+
+  it("disables Push all for an empty list", () => {
+    render(<TemplatesClient initialStatuses={[]} />);
+    expect(screen.getByRole("button", { name: "Push all" })).toBeDisabled();
+  });
+
   it("renders mobile cards, desktop table columns, and 44px mobile push actions", () => {
     render(
       <TemplatesClient

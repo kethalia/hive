@@ -145,7 +145,7 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
   }, []);
 
   return (
-    <DashboardPageShell>
+    <DashboardPageShell className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain">
       <TemplatePushConfirmation
         name={status.name}
         open={confirmOpen}

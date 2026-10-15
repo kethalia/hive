@@ -2,7 +2,7 @@
 
 import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { TemplatePushConfirmation } from "@/components/templates/TemplatePushConfirmation";
@@ -81,7 +81,20 @@ function runtimeLabel(templateName: string): string {
 export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
   const [statuses, setStatuses] = useState<TemplateStatus[]>(initialStatuses);
   const [pushStates, setPushStates] = useState<Record<string, PushState>>({});
-  const [templatePendingPush, setTemplatePendingPush] = useState<string | null>(null);
+  const [templatesPendingPush, setTemplatesPendingPush] = useState<string[] | null>(null);
+  const activePushes = useRef(new Set<string>());
+  const eventSources = useRef(new Map<string, EventSource>());
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    const sources = eventSources.current;
+    return () => {
+      mounted.current = false;
+      for (const source of sources.values()) source.close();
+      sources.clear();
+    };
+  }, []);
 
   // writeRef per template — populated when TerminalPanel mounts
   const writeRefs = useRef<Record<string, React.MutableRefObject<((line: string) => void) | null>>>(
@@ -140,6 +153,18 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
 
   const handlePush = useCallback(
     async (name: string) => {
+      if (activePushes.current.has(name)) return;
+      activePushes.current.add(name);
+      const finish = (success: boolean) => {
+        eventSources.current.get(name)?.close();
+        eventSources.current.delete(name);
+        activePushes.current.delete(name);
+        if (!mounted.current) return;
+        setPushStates((prev) => ({
+          ...prev,
+          [name]: { ...prev[name], inProgress: false, result: success },
+        }));
+      };
       // Start push — clear previous output history for this template
       lineHistory.current[name] = [];
       setPushStates((prev) => ({
@@ -153,30 +178,23 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: "Unknown error" }));
           writeLine(name, `[error] ${body.error ?? "Failed to start push"}`);
-          setPushStates((prev) => ({
-            ...prev,
-            [name]: { ...prev[name], inProgress: false, result: false },
-          }));
+          finish(false);
           return;
         }
         const data = await res.json();
         jobId = data.jobId;
       } catch (err) {
         writeLine(name, `[error] ${err instanceof Error ? err.message : String(err)}`);
-        setPushStates((prev) => ({
-          ...prev,
-          [name]: { ...prev[name], inProgress: false, result: false },
-        }));
+        finish(false);
         return;
       }
 
-      setPushStates((prev) => ({
-        ...prev,
-        [name]: { jobId, inProgress: true, result: null, terminalOpen: true },
-      }));
+      if (!mounted.current) return;
+      setPushStates((prev) => ({ ...prev, [name]: { ...prev[name], jobId } }));
 
       // Stream output
       const eventSource = new EventSource(`/api/templates/${name}/push/${jobId}/stream`);
+      eventSources.current.set(name, eventSource);
 
       eventSource.onmessage = (ev) => {
         writeLine(name, ev.data);
@@ -186,7 +204,6 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
         try {
           const payload = JSON.parse((ev as MessageEvent).data);
           const success = payload.success === true;
-          eventSource.close();
           // Always write a final status line so the terminal is never blank
           if (success) {
             writeLine(name, "\r\n\x1b[32m✓ Push succeeded\x1b[0m");
@@ -194,30 +211,18 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
             const errDetail = payload.error ? ` — ${payload.error}` : "";
             writeLine(name, `\r\n\x1b[31m✗ Push failed${errDetail}\x1b[0m`);
           }
-          setPushStates((prev) => ({
-            ...prev,
-            [name]: { ...prev[name], inProgress: false, result: success },
-          }));
+          finish(success);
           if (success) {
-            // Refresh this template's status after a short delay
-            setTimeout(refreshStatuses, 1000);
+            void refreshStatuses();
           }
         } catch {
           // Malformed status event — close anyway
-          eventSource.close();
-          setPushStates((prev) => ({
-            ...prev,
-            [name]: { ...prev[name], inProgress: false, result: false },
-          }));
+          finish(false);
         }
       });
 
       eventSource.onerror = () => {
-        eventSource.close();
-        setPushStates((prev) => ({
-          ...prev,
-          [name]: { ...prev[name], inProgress: false, result: false },
-        }));
+        finish(false);
       };
     },
     [refreshStatuses, writeLine],
@@ -233,34 +238,55 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <DashboardPageShell>
+    <DashboardPageShell
+      className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain"
+      data-testid="templates-scroll-region"
+    >
       <TemplatePushConfirmation
-        name={templatePendingPush}
-        open={templatePendingPush !== null}
+        name={templatesPendingPush?.[0] ?? null}
+        names={templatesPendingPush ?? undefined}
+        open={templatesPendingPush !== null}
         onOpenChange={(open) => {
-          if (!open) setTemplatePendingPush(null);
+          if (!open) setTemplatesPendingPush(null);
         }}
         onConfirm={() => {
-          if (!templatePendingPush) return;
-          const name = templatePendingPush;
-          setTemplatePendingPush(null);
-          void handlePush(name);
+          if (!templatesPendingPush) return;
+          const names = templatesPendingPush;
+          setTemplatesPendingPush(null);
+          for (const name of names) void handlePush(name);
         }}
       />
       <DashboardPageHeader
         title="Templates"
         actions={
-          <Button variant="outline" size="sm" onClick={refreshStatuses}>
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            Refresh
-          </Button>
+          <>
+            <Button
+              size="sm"
+              className="min-h-11"
+              disabled={
+                statuses.length === 0 || Object.values(pushStates).some((push) => push.inProgress)
+              }
+              onClick={() => setTemplatesPendingPush(statuses.map((status) => status.name))}
+            >
+              <Upload className="mr-1.5 h-3.5 w-3.5" />
+              Push all
+            </Button>
+            <Button variant="outline" size="sm" className="min-h-11" onClick={refreshStatuses}>
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              Refresh
+            </Button>
+          </>
         }
       />
 
       {/* Status list */}
-      <PullToRefresh onRefresh={refreshStatuses} data-refresh-surface="templates-status-list">
+      <PullToRefresh
+        onRefresh={refreshStatuses}
+        data-refresh-surface="templates-status-list"
+        style={{ touchAction: "pan-x pan-y" }}
+      >
         <Card className="hidden md:block" data-testid="templates-desktop-table">
-          <Table>
+          <Table className="min-w-[60rem]">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -280,63 +306,72 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                 const profile = workspaceProfileForTemplate(status.name);
 
                 return (
-                  <TableRow key={status.name}>
-                    <TableCell>
-                      <code className="font-mono text-sm">{status.name}</code>
-                      {definition ? (
-                        <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-                          {definition.description}
-                        </p>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{profile.label}</Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {runtimeLabel(status.name)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {workspaceSurfaceLabel(status.name)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {formatDate(status.lastPushed)}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        status={status}
-                        pushResult={push?.result ?? null}
-                        inProgress={isInProgress}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {push?.result === true && (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                        )}
-                        {push?.result === false && <XCircle className="h-4 w-4 text-destructive" />}
-                        <Button
-                          size="sm"
-                          variant={status.stale ? "default" : "outline"}
-                          disabled={isInProgress}
-                          onClick={() => {
-                            setTemplatePendingPush(status.name);
-                          }}
-                        >
-                          {isInProgress ? (
-                            <>
-                              <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                              Pushing…
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="mr-1.5 h-3.5 w-3.5" />
-                              Push
-                            </>
+                  <Fragment key={status.name}>
+                    <TableRow className={definition ? "border-b-0" : undefined}>
+                      <TableCell>
+                        <code className="font-mono text-sm">{status.name}</code>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{profile.label}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {runtimeLabel(status.name)}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {workspaceSurfaceLabel(status.name)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatDate(status.lastPushed)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          status={status}
+                          pushResult={push?.result ?? null}
+                          inProgress={isInProgress}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {push?.result === true && (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
                           )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                          {push?.result === false && (
+                            <XCircle className="h-4 w-4 text-destructive" />
+                          )}
+                          <Button
+                            size="sm"
+                            variant={status.stale ? "default" : "outline"}
+                            disabled={isInProgress}
+                            onClick={() => {
+                              setTemplatesPendingPush([status.name]);
+                            }}
+                          >
+                            {isInProgress ? (
+                              <>
+                                <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                Pushing…
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="mr-1.5 h-3.5 w-3.5" />
+                                Push
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {definition ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className="whitespace-normal pt-0 text-xs leading-relaxed text-muted-foreground"
+                        >
+                          {definition.description}
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
                 );
               })}
             </TableBody>
@@ -406,7 +441,7 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
                     <ListCardAction
                       type="button"
                       disabled={isInProgress}
-                      onClick={() => setTemplatePendingPush(status.name)}
+                      onClick={() => setTemplatesPendingPush([status.name])}
                     >
                       {isInProgress ? (
                         <>
