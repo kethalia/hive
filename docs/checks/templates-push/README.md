@@ -45,3 +45,16 @@ handling by pull-to-refresh:
 ```sh
 pnpm exec vitest run src/__tests__/components/templates-list-mobile.test.tsx src/__tests__/components/template-detail.test.tsx src/__tests__/components/pull-to-refresh.test.tsx
 ```
+
+Review follow-up: the SSE route now keeps queued and active jobs pending using
+BullMQ state and sends heartbeat comments while waiting. It no longer treats
+30 seconds without a local log, or 120 seconds of execution, as push failure.
+Terminal queue states supply the result when a worker-local log is unavailable.
+The route verifies the job belongs to the session user and requested template
+before reading logs. Route regressions simulate a 65-second queue wait, active
+execution beyond 120 seconds, terminal states without logs, transient queue
+lookup errors, ownership checks, and cancellation that stops polling.
+
+```sh
+pnpm exec vitest run src/__tests__/app/api/templates/push-routes.test.ts src/__tests__/lib/templates/push-queue.test.ts
+```

@@ -42,10 +42,4 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 /** Polling interval for SSE log file tailing (500ms). */
 export const SSE_POLL_INTERVAL_MS = 500;
 
-/** Max time to wait for a log file to appear before giving up (30s). */
-export const SSE_LOG_WAIT_TIMEOUT_MS = 30_000;
-
-/** Max poll iterations before timing out SSE stream (240 × 500ms = 120s). */
-export const SSE_MAX_POLLS = 240;
-
 // ── Defaults ───────────────────────────────────────────────────────
