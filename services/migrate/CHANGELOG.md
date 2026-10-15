@@ -1,5 +1,11 @@
 # hive-migrate
 
+## 0.1.8
+
+### Patch Changes
+
+- 069ef2f: Check existing PostgreSQL schemas for a completed baseline before deploying migrations. Preserve legacy schema/history and provide an explicit baseline-adoption runbook when reconciliation is required.
+
 ## 0.1.7
 
 ### Patch Changes

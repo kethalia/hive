@@ -1,5 +1,15 @@
 # hive-terminal-proxy
 
+## 2.3.5
+
+### Patch Changes
+
+- 891bdba: Require a dedicated AUTH_SERVICE_SECRET for internal auth-service requests, authenticate the web and terminal clients, and reject missing or invalid service credentials before accessing sessions or Coder tokens. Provision the same 64-hex secret in all three services before rollout, update clients first, then enable auth-service enforcement.
+- 07d5177: Use protected host-only production session cookies and a new signing purpose, reject duplicate cookies, and authenticate separate terminal/audio/status transports with short-lived request-bound tickets. Existing users must sign in once after a coordinated web/terminal rollout; legacy cookie domains are deletion targets only.
+- Updated dependencies [891bdba]
+- Updated dependencies [07d5177]
+  - @hive/auth@1.0.4
+
 ## 2.3.4
 
 ### Patch Changes

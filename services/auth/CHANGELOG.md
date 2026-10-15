@@ -1,5 +1,14 @@
 # hive-auth
 
+## 1.1.3
+
+### Patch Changes
+
+- 891bdba: Require a dedicated AUTH_SERVICE_SECRET for internal auth-service requests, authenticate the web and terminal clients, and reject missing or invalid service credentials before accessing sessions or Coder tokens. Provision the same 64-hex secret in all three services before rollout, update clients first, then enable auth-service enforcement.
+- Updated dependencies [891bdba]
+- Updated dependencies [07d5177]
+  - @hive/auth@1.0.4
+
 ## 1.1.2
 
 ### Patch Changes

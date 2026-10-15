@@ -1,5 +1,35 @@
 # hive-orchestrator
 
+## 2.20.8
+
+### Patch Changes
+
+- 891bdba: Require a dedicated AUTH_SERVICE_SECRET for internal auth-service requests, authenticate the web and terminal clients, and reject missing or invalid service credentials before accessing sessions or Coder tokens. Provision the same 64-hex secret in all three services before rollout, update clients first, then enable auth-service enforcement.
+- 5c71ff5: Bound terminal paste uploads to 20 MiB total and 10 MiB per file, reject excess concurrent requests before reading their bodies, and transfer files sequentially with cancellation and timeout cleanup.
+- 03ab163: Require explicit microphone approval for each terminal voice call and add a Stop microphone control. Ordinary terminal input no longer authorizes recording.
+- 07d5177: Use protected host-only production session cookies and a new signing purpose, reject duplicate cookies, and authenticate separate terminal/audio/status transports with short-lived request-bound tickets. Existing users must sign in once after a coordinated web/terminal rollout; legacy cookie domains are deletion targets only.
+- a815cba: Refresh native Claude Code from the latest channel on every workspace startup alongside Codex, with bounded update attempts and offline fallback. Document the owner's accepted latest AI tool policy across all workspace profiles.
+- 333b5b7: Restrict managed desktop listeners to loopback behind owner-only Coder apps. Prevent KasmVNC's wildcard UDP binds, disable raw VNC/X11 TCP, and verify the bind guard before starting the backend. Bundle its source with templates so existing pinned desktop images can compile it securely; newer images supply the prebuilt guard.
+- 1aaacee: Allow Retry terminal connection to start a fresh authorized attempt after a final failure, while keeping automatic reconnects stopped for those failures.
+- 714a7a1: Use held touch drags for tmux selection on mobile and copy on release, without native selection handles. Tie remote clipboard writes to a selection gesture or an explicit Copy action.
+- 57aadc9: Handle SSH upload stream errors so failed terminal paste uploads cannot crash the Hive web process, and clear transfer timeouts on failure.
+- 4190eae: Remove automatic tmux snapshots and command restoration from workspace images. Running terminal sessions still survive browser disconnects.
+- c76c9e0: Keep workspace-tab keyboard navigation working when saved board keys contain quotes, backslashes, or other CSS selector characters.
+- 6db9648: Keep automatic owner-level Coder CLI authentication in the primary software workspace. Specialist profiles clear inherited and persisted Hive owner credentials before their agent starts, while retaining workspace agent and GitHub authentication.
+- f37f39d: Remove the unpinned Coder shell installer from the production web image. Install only the architecture-specific release archive after checking its pinned SHA-256 digest, and reject unsupported or missing target architectures.
+- 2218cb3: Guard automatic specialist cleanup through a software-only wrapper with signed creation receipts, recorded task/evidence integrity checks, fresh UUID validation, and stopped-before-delete ordering. Completion remains the trusted primary agent's decision, an explicitly accepted risk. Require explicit template updates when rolling out the helper and agent instructions.
+
+  Hash preserved evidence incrementally during completion and cleanup so large files do not need to fit in memory.
+
+- 27f7301: Verify workspace image downloads before extraction or installation, and replace the remote Claude installer with a pinned native release.
+- a3a4039: Retire same-origin workspace proxy responses and open workspace tools through authenticated Coder app URLs outside Hive's session-cookie scope. Block camera and microphone access in embedded tools while preserving downloads, clipboard integration, pointer lock, and fullscreen. App domains overlapping Hive cookies must be reconfigured before tools can open.
+- 1da9256: Release the updated Kubernetes workspace image digests with the bundled Coder templates.
+- 0b65e1f: Release the updated Kubernetes workspace image digests with the bundled Coder templates.
+- 6a4b3df: Release the updated Kubernetes workspace image digests with the bundled Coder templates.
+- Updated dependencies [891bdba]
+- Updated dependencies [07d5177]
+  - @hive/auth@1.0.4
+
 ## 2.20.7
 
 ### Patch Changes
