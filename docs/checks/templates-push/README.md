@@ -35,6 +35,9 @@ Transfer the assets and runner to Browser Testing, where Chrome and either
 node e2e/templates-push-regressions.mjs /tmp/hive-templates-push/assets /tmp/hive-templates-push/evidence
 ```
 
+After preserving a new report in the repository, normalize it with
+`pnpm exec biome format --write docs/checks/templates-push/report.json`.
+
 Component regression coverage includes independent batch outcomes, stream
 cleanup, empty-list disabling, individual pushes, and nested scroll-container
 handling by pull-to-refresh:
