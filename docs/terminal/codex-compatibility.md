@@ -6,10 +6,9 @@ keymap. It does not select a Codex TUI mode or change user configuration.
 ## Paste
 
 Text (including multiple lines and multiple uploaded file paths) goes directly
-through xterm's paste API. Hive no longer automatically opens Compose, and paste
-never appends Enter. Codex enables bracketed paste, so newline characters remain
-part of the draft. Escape characters are removed from pasted text so they cannot
-terminate a bracketed paste early. Compose remains available as an explicit tool.
+through xterm's paste API. Pasting never appends Enter. Codex enables bracketed
+paste, so newline characters remain part of the draft. Escape characters are removed
+from pasted text so they cannot terminate a bracketed paste early.
 
 ## Links and copy
 
@@ -44,7 +43,7 @@ the original attachment predates this change.
   bindings without maintaining a competing copy of Codex's complete keymap.
   Ctrl+V uses Hive's existing clipboard/file paste path, and Ctrl+C copies a local
   selection when one exists. Otherwise shortcuts go directly to the active pane.
-- Existing terminal quick keys, clipboard tools, Compose, and font controls remain.
+- Existing terminal quick keys, clipboard tools and font controls remain.
 
 Use Codex's `/keymap` to inspect the active bindings. For example, Ctrl+J enters a
 newline, Ctrl+G opens the external prompt editor, and Shift+Tab can be sent from All
@@ -85,7 +84,7 @@ Workspace handoff required
 - Next action: open this branch's terminal preview in Browser Testing, reconnect
   the PTY, launch Codex, and run the checklist. Keep corrections in Hive's live TUI.
 
-- [ ] Paste a multiline prompt with a trailing newline: no Compose, no turn until Enter.
+- [ ] Paste a multiline prompt with a trailing newline: no turn until Enter.
 - [ ] Paste from Ctrl+V, Ctrl+Shift+V, native context menu, and touch Paste; each occurs once.
 - [ ] Paste images and multiple files into Codex.
 - [ ] Click a plain URL and an OSC 8 named link: local tab, no remote browser error.

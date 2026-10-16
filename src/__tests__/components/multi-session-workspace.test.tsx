@@ -16,10 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { KeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import type { KeybindingContextValue } from "@/hooks/useKeybindings";
-import {
-  TERMINAL_COMPOSE_TOGGLE_EVENT,
-  TERMINAL_NOTIFICATION_FOCUS_EVENT,
-} from "@/lib/terminal/events";
+import { TERMINAL_NOTIFICATION_FOCUS_EVENT } from "@/lib/terminal/events";
 
 const mockCreateSession = vi.fn();
 const mockGetSessions = vi.fn();
@@ -39,8 +36,7 @@ const mockToastError = vi.hoisted(() => vi.fn());
 const mockToastLoading = vi.hoisted(() => vi.fn(() => "clipboard-pending"));
 const mockToastSuccess = vi.hoisted(() => vi.fn());
 const mockToastDismiss = vi.hoisted(() => vi.fn());
-const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mockUseIsComposeSheet() }));
+const mockUseIsMobile = vi.hoisted(() => vi.fn(() => false));
 const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
 const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
@@ -111,7 +107,6 @@ const terminalProps = new Map<
     onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
     onTerminalDestroy?: () => void;
     onUserFocusRequest?: () => void;
-    onComposeRequest?: (request: { draft: string; append?: boolean; targetLabel?: string }) => void;
     onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler;
     onClipboardStatus?: (status: {
       action: "paste";
@@ -159,7 +154,6 @@ vi.mock("next/dynamic", () => ({
       onRecoveryStateChange,
       onTerminalReady,
       onUserFocusRequest,
-      onComposeRequest,
       onClipboardStatus,
       onFileAction,
       mobileInputMode,
@@ -188,11 +182,6 @@ vi.mock("next/dynamic", () => ({
       onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
       onTerminalDestroy?: () => void;
       onUserFocusRequest?: () => void;
-      onComposeRequest?: (request: {
-        draft: string;
-        append?: boolean;
-        targetLabel?: string;
-      }) => void;
       onFileAction?: import("@/lib/terminal/link-target").TerminalFileActionHandler;
       onClipboardStatus?: (status: {
         action: "paste";
@@ -231,7 +220,6 @@ vi.mock("next/dynamic", () => ({
         onRecoveryStateChange,
         onTerminalReady,
         onUserFocusRequest,
-        onComposeRequest,
         onClipboardStatus,
         onFileAction,
         mobileInputMode,
@@ -332,8 +320,8 @@ vi.mock("@/hooks/useKeepAliveStatus", () => ({
   useKeepAliveStatus: (workspaceId: string) => mockUseKeepAliveStatus(workspaceId),
 }));
 
-vi.mock("@/hooks/use-compose-sheet", () => ({
-  useIsComposeSheet: () => mockUseIsComposeSheet(),
+vi.mock("@/hooks/use-mobile", () => ({
+  useIsMobile: () => mockUseIsMobile(),
 }));
 
 vi.mock("@/lib/device/haptics", () => ({
@@ -578,13 +566,9 @@ vi.mock("@/components/ui/sheet", () => ({
     onOpenChange?: (open: boolean) => void;
   }>) =>
     open ? (
-      <div data-testid="compose-sheet" data-open="true">
+      <div data-testid="sheet" data-open="true">
         {children}
-        <button
-          type="button"
-          data-testid="compose-sheet-close-proxy"
-          onClick={() => onOpenChange?.(false)}
-        >
+        <button type="button" data-testid="sheet-close-proxy" onClick={() => onOpenChange?.(false)}>
           Close sheet
         </button>
       </div>
@@ -603,7 +587,7 @@ vi.mock("@/components/ui/sheet", () => ({
   }>) => (
     <section
       className={className}
-      data-testid={dataTestId ?? "compose-sheet-content"}
+      data-testid={dataTestId ?? "sheet-content"}
       data-side={side}
       style={style}
     >
@@ -780,7 +764,7 @@ describe("MultiSessionWorkspace", () => {
       },
     });
     mockReadPendingWorkspaceToolIntent.mockReturnValue(null);
-    mockUseIsComposeSheet.mockReturnValue(false);
+    mockUseIsMobile.mockReturnValue(false);
     mockSetOpenMobileRight.mockReset();
     mockCopyTerminalSelection.mockReset();
     mockPasteClipboardApiToTerminal.mockReset();
@@ -1751,8 +1735,8 @@ describe("MultiSessionWorkspace", () => {
     expect(focusMainTerminal).not.toHaveBeenCalled();
   });
 
-  it("shows mobile terminal controls in compose-sheet workspace mode", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+  it("shows mobile terminal controls on mobile viewports", async () => {
+    mockUseIsMobile.mockReturnValue(true);
     await renderTwoSessionWorkspace();
 
     expect(screen.getByTestId("terminal-mobile-shell")).toContainElement(
@@ -1784,7 +1768,6 @@ describe("MultiSessionWorkspace", () => {
       mainTerm,
       mainSend,
       expect.objectContaining({
-        targetLabel: "main-session",
         workspaceId: "ws-1",
       }),
     );
@@ -1795,7 +1778,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("opens the integrated right sidebar from the mobile window switcher", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     await renderTwoSessionWorkspace();
 
     fireEvent.click(screen.getByTestId("terminal-window-switcher"));
@@ -1805,7 +1788,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("uploads a mobile PDF to the workspace and pastes its path to the original session without submitting", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     await renderTwoSessionWorkspace();
     const mainTerm = makeTerminal("main-session");
     const mainSend = makeSender("main-session");
@@ -1862,7 +1845,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("shows mobile file upload failures without sending terminal input", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     await renderTwoSessionWorkspace();
     const term = makeTerminal("main-session");
     const send = makeSender("main-session");
@@ -1888,7 +1871,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("opens the integrated right sidebar instead of a local mobile Add session drawer", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     mockListGitClones.mockResolvedValueOnce({ data: { ok: true, tree: { nodes: [] } } });
     render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
@@ -1901,7 +1884,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("opens direct native pane actions from the touch-sized More control", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     await renderTwoSessionWorkspace();
 
@@ -1989,7 +1972,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("clears an open pane action target when the workspace identity changes", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     mockGetSessions.mockResolvedValue(twoSessionPayload());
     const { rerender } = render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
     await screen.findByTestId("workspace-pane-main-session");
@@ -2004,7 +1987,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("wraps loading and failure states in the visual viewport shell on mobile", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     mockGetSessions.mockReturnValueOnce(new Promise(() => undefined));
     render(<MultiSessionWorkspace {...defaultProps} />);
 
@@ -2023,7 +2006,7 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it("shows a toast with the exact paste limit error", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     mockPasteClipboardApiToTerminal.mockImplementation((_term, _send, options) => {
       options?.onStatus?.({
         action: "paste",
@@ -2052,159 +2035,8 @@ describe("MultiSessionWorkspace", () => {
     });
   });
 
-  it("stages multiple pasted file paths in the mobile compose sheet for the active multi-session pane", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
-    await renderTwoSessionWorkspace();
-
-    act(() => {
-      terminalProps.get("main-session")?.onTerminalReady?.(makeTerminal("main-session"), vi.fn());
-    });
-
-    act(() => {
-      terminalProps.get("main-session")?.onComposeRequest?.({
-        draft: "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
-        append: true,
-        targetLabel: "main-session",
-      });
-      terminalProps.get("main-session")?.onClipboardStatus?.({
-        action: "paste",
-        outcome: "pasted",
-        method: "clipboard-api",
-      });
-    });
-
-    expect(screen.getByTestId("compose-sheet")).toHaveAttribute("data-open", "true");
-    expect(screen.getByTestId("compose-sheet-content")).toHaveAttribute("data-side", "bottom");
-    expect(screen.getByTestId("compose-sheet-content")).toHaveClass(
-      "h-[var(--app-viewport-height)]",
-      "max-h-[var(--app-viewport-height)]",
-    );
-    expect(screen.getByLabelText("Dismiss compose panel")).toBeInTheDocument();
-    expect(screen.queryByText(/Compose to main-session/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId("multi-session-compose-inline")).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue(
-      "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
-    );
-    expect(screen.getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste complete");
-  });
-
-  it("keeps the compose panel inline on desktop multi-session workspaces", async () => {
-    mockUseIsComposeSheet.mockReturnValue(false);
-    await renderTwoSessionWorkspace();
-
-    act(() => {
-      terminalProps.get("main-session")?.onComposeRequest?.({
-        draft: "printf desktop",
-        targetLabel: "main-session",
-      });
-    });
-
-    expect(screen.queryByTestId("compose-sheet-content")).not.toBeInTheDocument();
-    expect(screen.getByTestId("multi-session-compose-inline")).toBeInTheDocument();
-    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue("printf desktop");
-  });
-
-  it("sends compose drafts to the pane that opened compose", async () => {
-    mockUseIsComposeSheet.mockReturnValue(false);
-    await renderTwoSessionWorkspace();
-    const mainSend = makeSender("main-session");
-    const devSend = makeSender("dev-server");
-    const mainTerm = makeTerminal("main-session");
-    const devTerm = makeTerminal("dev-server");
-
-    act(() => {
-      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
-      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
-      terminalProps.get("dev-server")?.onComposeRequest?.({
-        draft: "printf dev",
-        targetLabel: "dev-server",
-      });
-    });
-
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
-    expect(screen.getByText(/Compose to dev-server/)).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
-      "data-compose-disabled",
-      "false",
-    );
-    expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
-      "data-compose-disabled",
-      "true",
-    );
-    expect(screen.getByTestId("workspace-pane-main-session-disabled-overlay")).toHaveTextContent(
-      "Compose locked",
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Send command" }));
-
-    expect(devTerm.paste).toHaveBeenCalledWith("printf dev");
-    expect(devSend).toHaveBeenCalledOnce();
-    expect(devSend).toHaveBeenCalledWith("\r");
-    expect(mainTerm.paste).not.toHaveBeenCalled();
-    expect(mainSend).not.toHaveBeenCalled();
-  });
-
-  it("keeps global compose locked to the session focused when compose opened", async () => {
-    mockUseIsComposeSheet.mockReturnValue(false);
-    await renderTwoSessionWorkspace();
-    const mainSend = makeSender("main-session");
-    const devSend = makeSender("dev-server");
-    const mainTerm = makeTerminal("main-session");
-    const devTerm = makeTerminal("dev-server");
-
-    act(() => {
-      terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
-      terminalProps.get("dev-server")?.onTerminalReady?.(devTerm, devSend);
-      window.dispatchEvent(new Event(TERMINAL_COMPOSE_TOGGLE_EVENT));
-    });
-
-    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
-      "data-compose-disabled",
-      "false",
-    );
-    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
-      "data-compose-disabled",
-      "true",
-    );
-    expect(screen.getByTestId("workspace-pane-dev-server-disabled-overlay")).toHaveTextContent(
-      "Compose locked",
-    );
-    expect(
-      screen.getByTestId("workspace-pane-dev-server").querySelector('[data-testid="icon-grip"]'),
-    ).not.toBeInTheDocument();
-    expect(document.querySelector('[data-workspace-window-id="dev-server"]')).toHaveAttribute(
-      "data-workspace-window-disabled",
-      "true",
-    );
-    expect(
-      screen.getByTestId("workspace-pane-main-session").querySelector('[data-testid="icon-grip"]'),
-    ).toBeInTheDocument();
-
-    fireEvent.change(screen.getByPlaceholderText("Type multi-line command..."), {
-      target: { value: "printf main" },
-    });
-    fireEvent.mouseEnter(screen.getByTestId("workspace-pane-dev-server"));
-
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
-    expect(screen.getByText(/Compose to main-session/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Send command" }));
-
-    expect(mainTerm.paste).toHaveBeenCalledWith("printf main");
-    expect(mainSend).toHaveBeenCalledOnce();
-    expect(mainSend).toHaveBeenCalledWith("\r");
-    expect(devTerm.paste).not.toHaveBeenCalled();
-    expect(devSend).not.toHaveBeenCalled();
-    expect(screen.getByTestId("workspace-pane-dev-server")).toHaveAttribute(
-      "data-compose-disabled",
-      "false",
-    );
-  });
-
   it("uses direct mobile selection without enabling a separate mode", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     await renderTwoSessionWorkspace();
 
     act(() => {
@@ -2597,14 +2429,19 @@ describe("MultiSessionWorkspace", () => {
     const nextBoard = lastRegisteredEntry("multi-session:ws-1:next-board");
     expect(previousBoard).toMatchObject({
       id: "multi-session:ws-1:previous-board",
-      keys: ["cmd+alt+arrowleft", "ctrl+alt+arrowleft"],
+      keys: ["cmd+alt+arrowleft", "ctrl+alt+arrowleft", "cmd+alt+arrowup", "ctrl+alt+arrowup"],
       category: "terminal",
       enabledInBrowser: true,
       global: true,
     });
     expect(nextBoard).toMatchObject({
       id: "multi-session:ws-1:next-board",
-      keys: ["cmd+alt+arrowright", "ctrl+alt+arrowright"],
+      keys: [
+        "cmd+alt+arrowright",
+        "ctrl+alt+arrowright",
+        "cmd+alt+arrowdown",
+        "ctrl+alt+arrowdown",
+      ],
       category: "terminal",
       enabledInBrowser: true,
       global: true,
@@ -2875,75 +2712,6 @@ describe("MultiSessionWorkspace", () => {
     await act(async () => finish({ data: [] }));
     expect(await screen.findByTestId("multi-session-empty")).toBeInTheDocument();
     expect(mockGetSessions).toHaveBeenLastCalledWith({ workspaceId: "ws-2" });
-  });
-
-  it.each([
-    { mobile: false, separateBoards: false },
-    { mobile: false, separateBoards: true },
-    { mobile: true, separateBoards: false },
-    { mobile: true, separateBoards: true },
-  ])("leaves notification focus unhandled while compose is locked ($mobile, $separateBoards)", async ({
-    mobile,
-    separateBoards,
-  }) => {
-    mockUseIsComposeSheet.mockReturnValue(mobile);
-    if (separateBoards) {
-      window.localStorage.setItem(
-        "workspace-board-state:workspace:ws-1",
-        JSON.stringify({
-          version: 1,
-          activeBoardKey: "default",
-          boards: [
-            {
-              key: "default",
-              name: "Default",
-              order: 0,
-              panes: [{ kind: "terminal", key: "main", sessionName: "main-session", order: 0 }],
-            },
-            {
-              key: "review",
-              name: "Review",
-              order: 1,
-              panes: [{ kind: "terminal", key: "dev", sessionName: "dev-server", order: 0 }],
-            },
-          ],
-        }),
-      );
-    }
-    await renderTwoSessionWorkspace();
-    act(() =>
-      terminalProps
-        .get("main-session")
-        ?.onComposeRequest?.({ draft: "unsent command", targetLabel: "main-session" }),
-    );
-    function focus(sessionName: string) {
-      const event = new CustomEvent(TERMINAL_NOTIFICATION_FOCUS_EVENT, {
-        cancelable: true,
-        detail: { workspaceId: "ws-1", sessionName },
-      });
-      let unhandled = true;
-      act(() => {
-        unhandled = window.dispatchEvent(event);
-      });
-      return unhandled;
-    }
-    expect(focus("dev-server")).toBe(true);
-    expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
-    expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue("unsent command");
-    expect(focus("main-session")).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(focus("dev-server")).toBe(false);
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
-    if (separateBoards)
-      expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
-    expect(mockGetSessions).toHaveBeenCalledTimes(1);
   });
 
   it("changes notification route focus without rerunning session restoration", async () => {

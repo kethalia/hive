@@ -56,18 +56,10 @@ export type TerminalPasteStatus =
       message: string;
     };
 
-export interface TerminalComposeRequest {
-  draft: string;
-  append?: boolean;
-  targetLabel?: string;
-}
-
 export interface TerminalPasteController {
   term: Terminal | null;
   send: (data: string) => void;
-  openCompose: (request: TerminalComposeRequest) => void;
   workspaceId?: string;
-  targetLabel?: string;
   onStatus?: (status: TerminalPasteStatus) => void;
 }
 
@@ -97,7 +89,7 @@ export function pasteTextToXterm(
   send: (data: string) => void,
   text: string,
 ): void {
-  // Clipboard and compose text are literal input, not the next modified key.
+  // Clipboard text is literal input, not the next modified key.
   setMobileModifiers(term, NO_MOBILE_MODIFIERS);
   if (term && typeof term.paste === "function") {
     // Pasted escape characters must not terminate the application's bracketed paste.
@@ -105,15 +97,6 @@ export function pasteTextToXterm(
     return;
   }
   send(text);
-}
-
-export function submitTerminalComposeDraft(
-  term: Pick<Terminal, "paste"> | null,
-  send: (data: string) => void,
-  draft: string,
-): void {
-  pasteTextToXterm(term, send, draft);
-  send("\r");
 }
 
 export async function uploadTerminalPasteAssets(

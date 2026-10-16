@@ -91,7 +91,7 @@ Findings `commit:2013bf58f9488191a12419f6eafb5234` and
 `commit:e172a9d020f081918c97f470636f7440`: workspace capture activity now
 only requests audio. Hive shows **Enable microphone** inside the requesting
 terminal; that action approves one current request in the focused, selected
-session. Enter, Compose submission, and touch Enter only prime speaker playback.
+session. Enter and touch Enter only prime speaker playback.
 The previous 15-second microphone arm is removed. The browser approval gate
 applies even when an older or modified relay omits its claim requirement.
 

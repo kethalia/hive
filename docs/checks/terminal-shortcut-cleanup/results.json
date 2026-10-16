@@ -1,0 +1,15 @@
+{
+  "workspace": "hive-shortcut-validation",
+  "provenance": "created disposable",
+  "checks": [
+    "Chrome desktop help lists dashboard, clipboard, workspace 1–9, tmux, and all workspace alternatives without compose",
+    "Former compose chord no longer opens UI",
+    "Native multiline paste reaches xterm directly without appending Enter or opening compose",
+    "File hover and upload still paste the uploaded path directly",
+    "Workspace fallback shortcuts and notification session switching remain functional",
+    "390px mobile terminal and full shortcut dialog fit without horizontal overflow; no compose control",
+    "Mac user agent displays Command and Option alternatives including native paste"
+  ],
+  "pageErrors": [],
+  "result": "passed"
+}

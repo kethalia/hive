@@ -20,33 +20,48 @@ const TMUX_MENU_KEY_SEQUENCE = "\u001b[24~";
 
 export function KeybindingProvider({ children }: { children: React.ReactNode }) {
   const registryRef = React.useRef<Map<string, KeybindingEntry>>(new Map());
+  const entriesRef = React.useRef<KeybindingEntry[]>([]);
+  const listenersRef = React.useRef(new Set<() => void>());
   const [activeTerminal, setActiveTerminalState] = React.useState<Terminal | null>(null);
   const [activeSend, setActiveSendState] = React.useState<((data: string) => void) | null>(null);
 
-  const register = React.useCallback((entry: KeybindingEntry) => {
-    for (const key of entry.keys) {
-      registryRef.current.set(key, entry);
-    }
+  const publish = React.useCallback(() => {
+    const entries = new Map<string, KeybindingEntry>();
+    for (const entry of registryRef.current.values()) entries.set(entry.id, entry);
+    entriesRef.current = [...entries.values()];
+    for (const listener of listenersRef.current) listener();
   }, []);
 
-  const unregister = React.useCallback((id: string) => {
-    for (const [key, entry] of registryRef.current) {
-      if (entry.id === id) {
-        registryRef.current.delete(key);
+  const register = React.useCallback(
+    (entry: KeybindingEntry) => {
+      for (const key of entry.keys) {
+        registryRef.current.set(key, entry);
       }
-    }
-  }, []);
+      publish();
+    },
+    [publish],
+  );
 
-  const getAll = React.useCallback((): KeybindingEntry[] => {
-    const seen = new Set<string>();
-    const entries: KeybindingEntry[] = [];
-    for (const entry of registryRef.current.values()) {
-      if (!seen.has(entry.id)) {
-        seen.add(entry.id);
-        entries.push(entry);
+  const unregister = React.useCallback(
+    (id: string) => {
+      let changed = false;
+      for (const [key, entry] of registryRef.current) {
+        if (entry.id === id) {
+          registryRef.current.delete(key);
+          changed = true;
+        }
       }
-    }
-    return entries;
+      if (changed) publish();
+    },
+    [publish],
+  );
+
+  const getAll = React.useCallback(() => entriesRef.current, []);
+  const subscribe = React.useCallback((listener: () => void) => {
+    listenersRef.current.add(listener);
+    return () => {
+      listenersRef.current.delete(listener);
+    };
   }, []);
 
   const handleKeyEvent = React.useCallback(
@@ -74,12 +89,22 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       register,
       unregister,
       getAll,
+      subscribe,
       handleKeyEvent,
       activeTerminal,
       activeSend,
       setActiveTerminal,
     }),
-    [register, unregister, getAll, handleKeyEvent, activeTerminal, activeSend, setActiveTerminal],
+    [
+      register,
+      unregister,
+      getAll,
+      subscribe,
+      handleKeyEvent,
+      activeTerminal,
+      activeSend,
+      setActiveTerminal,
+    ],
   );
 
   React.useEffect(() => {
@@ -124,6 +149,15 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
   }, [activeTerminal]);
 
   React.useEffect(() => {
+    // Native/xterm paste owns execution; register its chord for shortcut help.
+    register({
+      id: "paste",
+      keys: ["ctrl+v", "cmd+v", "ctrl+shift+v", "cmd+shift+v"],
+      action: () => true,
+      description: "Paste text or files into terminal",
+      category: "clipboard",
+      enabledInBrowser: true,
+    });
     register({
       id: "copy",
       keys: ["ctrl+c", "cmd+c"],
@@ -137,6 +171,7 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
     });
     return () => {
       unregister("copy");
+      unregister("paste");
     };
   }, [register, unregister]);
 

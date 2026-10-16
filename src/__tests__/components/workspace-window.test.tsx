@@ -39,25 +39,6 @@ describe("WorkspaceWindow", () => {
     cleanup();
   });
 
-  it("disables both drag and drop behavior for a compose-locked pane", () => {
-    render(
-      <WorkspaceWindow
-        disabled
-        id="locked"
-        style={{ left: "0%", top: "0%", width: "50%", height: "50%" }}
-      >
-        {() => <div>Locked terminal</div>}
-      </WorkspaceWindow>,
-    );
-
-    expect(draggableState.draggableDisabled).toBe(true);
-    expect(draggableState.droppableDisabled).toBe(true);
-    expect(screen.getByText("Locked terminal").parentElement).toHaveAttribute(
-      "data-workspace-window-disabled",
-      "true",
-    );
-  });
-
   it("always exposes stable drag handle listeners to its pane frame", () => {
     render(
       <WorkspaceWindow id="terminal" style={{ left: "0%", top: "0%", width: "50%", height: "50%" }}>
@@ -68,6 +49,8 @@ describe("WorkspaceWindow", () => {
     );
 
     expect(screen.getByTestId("drag-listeners")).toHaveTextContent("true");
+    expect(draggableState.draggableDisabled).toBe(false);
+    expect(draggableState.droppableDisabled).toBe(false);
   });
 
   it("removes the pane from its slot while a translucent copy follows the pointer", () => {
@@ -80,6 +63,8 @@ describe("WorkspaceWindow", () => {
 
     const window = screen.getByText("VS Code").parentElement;
     expect(window).toHaveAttribute("data-workspace-window-dragging", "true");
+    expect(draggableState.draggableDisabled).toBe(false);
+    expect(draggableState.droppableDisabled).toBe(true);
     expect(window).toHaveClass("pointer-events-none", "opacity-60");
     expect(window).not.toHaveClass("opacity-0");
     expect(window).toHaveStyle({ transform: "translate3d(48px, 32px, 0)" });

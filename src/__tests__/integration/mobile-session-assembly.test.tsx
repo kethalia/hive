@@ -250,7 +250,6 @@ vi.mock("lucide-react", () => ({
   InfoIcon: () => <span data-testid="icon-info" />,
   Keyboard: () => <span data-testid="icon-keyboard" />,
   Loader2Icon: () => <span data-testid="icon-loading" />,
-  MessageSquareText: () => <span data-testid="icon-compose" />,
   Minus: () => <span data-testid="icon-minus" />,
   OctagonXIcon: () => <span data-testid="icon-error" />,
   PanelLeftIcon: () => <span data-testid="icon-panel-left" />,
@@ -308,14 +307,6 @@ vi.mock("@/components/ui/resizable", () => ({
   ResizableHandle: () => <div data-testid="resizable-handle" />,
   ResizablePanel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ResizablePanelGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock("@/components/terminal/ComposePanel", () => ({
-  ComposePanel: ({ onClose }: { onClose: () => void }) => (
-    <button type="button" onClick={onClose}>
-      Close compose
-    </button>
-  ),
 }));
 
 vi.mock("@/components/workspaces/KeepAliveWarning", () => ({

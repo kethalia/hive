@@ -34,7 +34,6 @@ import { toast } from "sonner";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
-import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,7 +65,7 @@ import {
   WorkspaceWindow,
   WorkspaceWindowDropPlaceholder,
 } from "@/components/workspaces/WorkspaceWindow";
-import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalClipboardFeedback } from "@/hooks/useTerminalClipboardFeedback";
@@ -112,15 +111,8 @@ import {
   getTerminalSelectionText,
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
-import {
-  handleTerminalPasteOutcome,
-  submitTerminalComposeDraft,
-  type TerminalComposeRequest,
-} from "@/lib/terminal/clipboard";
-import {
-  TERMINAL_COMPOSE_TOGGLE_EVENT,
-  TERMINAL_NOTIFICATION_FOCUS_EVENT,
-} from "@/lib/terminal/events";
+import { handleTerminalPasteOutcome } from "@/lib/terminal/clipboard";
+import { TERMINAL_NOTIFICATION_FOCUS_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import {
   forgetTerminalSession,
@@ -212,7 +204,6 @@ interface InteractiveTerminalComponentProps {
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
   onUserFocusRequest?: () => void;
-  onComposeRequest?: (request: TerminalComposeRequest) => void;
   onClipboardStatus?: (status: ClipboardActionStatus) => void;
   targetLabel?: string;
   layoutSignal?: unknown;
@@ -1183,10 +1174,6 @@ export function MultiSessionWorkspace({
   const [gitFavoritesFailed, setGitFavoritesFailed] = useState(false);
   const [gitSearchOpen, setGitSearchOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [composeOpen, setComposeOpen] = useState(false);
-  const [composeDraft, setComposeDraft] = useState("");
-  const [composeTargetSessionName, setComposeTargetSessionName] = useState<string | null>(null);
-  const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
   const {
     status: clipboardActionStatus,
@@ -1248,7 +1235,7 @@ export function MultiSessionWorkspace({
   const canCreateSession = true;
   const isUnifiedSource = source === "unified";
   const keepAliveStatus = useKeepAliveStatus(workspaceId);
-  const isComposeSheet = useIsComposeSheet();
+  const isMobile = useIsMobile();
   const { openMobileRight, setOpenMobileRight } = useSidebar();
   const pointerWindowDragSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
@@ -1260,15 +1247,15 @@ export function MultiSessionWorkspace({
     activationConstraint: { distance: DRAG_LONG_PRESS_MOVE_PX },
   });
   const windowDragSensors = useSensors(
-    isComposeSheet ? mouseWindowDragSensor : pointerWindowDragSensor,
-    isComposeSheet ? touchWindowDragSensor : null,
+    isMobile ? mouseWindowDragSensor : pointerWindowDragSensor,
+    isMobile ? touchWindowDragSensor : null,
   );
   const {
     isKeyboardVisible: visualKeyboardVisible,
     visualViewportHeightPx,
     visualViewportOffsetTopPx,
   } = useVisualViewportKeyboardOffset();
-  const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
+  const isMobileKeyboardVisible = isMobile && visualKeyboardVisible;
   const activeBoard = useMemo(() => findActiveWorkspaceBoard(boardState), [boardState]);
   const workspaceViewportReady = workspaceViewport.width > 0 && workspaceViewport.height > 0;
 
@@ -1698,11 +1685,6 @@ export function MultiSessionWorkspace({
         windowId?: string;
       } = {},
     ) => {
-      const lockedSessionName = composeOpen
-        ? (composeTargetSessionName ?? activeSessionNameRef.current)
-        : null;
-      if (lockedSessionName && sessionName !== lockedSessionName) return;
-
       const {
         focusTerminal = true,
         preserveActiveSessionWhenSourceHidden = false,
@@ -1726,7 +1708,7 @@ export function MultiSessionWorkspace({
         return;
       }
 
-      const shouldFocusTerminal = focusTerminal && !isComposeSheet;
+      const shouldFocusTerminal = focusTerminal && !isMobile;
       pendingTerminalFocusSessionNameRef.current = shouldFocusTerminal ? sessionName : null;
       activeSessionNameRef.current = sessionName;
       setActiveSessionName(sessionName);
@@ -1755,14 +1737,7 @@ export function MultiSessionWorkspace({
       }
       clearActiveTerminal();
     },
-    [
-      clearActiveTerminal,
-      composeOpen,
-      composeTargetSessionName,
-      isComposeSheet,
-      persistBoardState,
-      setActiveTerminal,
-    ],
+    [clearActiveTerminal, isMobile, persistBoardState, setActiveTerminal],
   );
 
   const markPendingWindowInsertion = useCallback(
@@ -1836,7 +1811,7 @@ export function MultiSessionWorkspace({
       onDelete={handleDeleteBoard}
       onSelect={handleSelectBoard}
       className="w-full min-w-0 max-w-full"
-      touchOptimized={isComposeSheet}
+      touchOptimized={isMobile}
     />
   );
 
@@ -1947,14 +1922,14 @@ export function MultiSessionWorkspace({
       terminalsRef.current.set(sessionName, { term, send });
       if (activeSessionNameRef.current === sessionName) {
         setActiveTerminal(term, send);
-        if (!isComposeSheet && pendingTerminalFocusSessionNameRef.current === sessionName) {
+        if (!isMobile && pendingTerminalFocusSessionNameRef.current === sessionName) {
           term.focus();
           pendingTerminalFocusSessionNameRef.current = null;
         }
       }
       setTerminalStateVersion((version) => version + 1);
     },
-    [isComposeSheet, setActiveTerminal],
+    [isMobile, setActiveTerminal],
   );
 
   const handleTerminalDestroy = useCallback(
@@ -1968,57 +1943,6 @@ export function MultiSessionWorkspace({
     [clearActiveTerminal],
   );
 
-  const openComposeWithDraft = useCallback(
-    (request: TerminalComposeRequest, sessionName = activeSessionNameRef.current) => {
-      setComposeTargetSessionName(sessionName);
-      setComposeTargetLabel(request.targetLabel);
-      setComposeDraft((current) => {
-        if (!request.append || !current) return request.draft;
-        return `${current.replace(/\s*$/, "")}\n${request.draft}`;
-      });
-      setComposeOpen(true);
-    },
-    [],
-  );
-
-  const closeCompose = useCallback(() => {
-    setComposeOpen(false);
-    setComposeDraft("");
-    setComposeTargetSessionName(null);
-    setComposeTargetLabel(undefined);
-  }, []);
-
-  const sendComposeDraft = useCallback(
-    (draft: string) => {
-      const targetName = composeTargetSessionName ?? activeSessionNameRef.current;
-      const entry = targetName ? terminalsRef.current.get(targetName) : null;
-      if (!entry) return;
-      submitTerminalComposeDraft(entry.term, entry.send, draft);
-    },
-    [composeTargetSessionName],
-  );
-
-  useEffect(() => {
-    const handleComposeToggle = () => {
-      setComposeOpen((open) => {
-        if (open) {
-          setComposeTargetSessionName(null);
-          setComposeTargetLabel(undefined);
-          return false;
-        }
-
-        const targetSessionName = activeSessionNameRef.current;
-        setComposeTargetSessionName(targetSessionName);
-        setComposeTargetLabel(activeLabel ?? targetSessionName ?? undefined);
-        return true;
-      });
-    };
-    window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
-    return () => {
-      window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
-    };
-  }, [activeLabel]);
-
   const handleMobileCopy = useCallback(() => {
     const term = activeTerminalEntry?.term;
     if (!term) return;
@@ -2030,17 +1954,9 @@ export function MultiSessionWorkspace({
     if (!entry) return;
     pasteClipboardApiToTerminal(entry.term, entry.send, {
       onStatus: handleClipboardActionStatus,
-      onCompose: openComposeWithDraft,
-      targetLabel: activeLabel,
       workspaceId,
     });
-  }, [
-    activeLabel,
-    activeTerminalEntry,
-    handleClipboardActionStatus,
-    openComposeWithDraft,
-    workspaceId,
-  ]);
+  }, [activeTerminalEntry, handleClipboardActionStatus, workspaceId]);
 
   const handleMobileUpload = useCallback(
     async (files: File[]) => {
@@ -2051,20 +1967,12 @@ export function MultiSessionWorkspace({
         {
           term: entry.term,
           send: entry.send,
-          openCompose: openComposeWithDraft,
           workspaceId,
-          targetLabel: activeLabel,
           onStatus: handleClipboardActionStatus,
         },
       );
     },
-    [
-      activeLabel,
-      activeTerminalEntry,
-      handleClipboardActionStatus,
-      openComposeWithDraft,
-      workspaceId,
-    ],
+    [activeTerminalEntry, handleClipboardActionStatus, workspaceId],
   );
 
   useEffect(() => {
@@ -2118,13 +2026,13 @@ export function MultiSessionWorkspace({
   );
 
   const openWorkspaceCommandPalette = useCallback(() => {
-    if (isComposeSheet) {
+    if (isMobile) {
       setGitSearchQuery("");
       setOpenMobileRight(true);
       return;
     }
     setPaletteOpen(true);
-  }, [isComposeSheet, setOpenMobileRight]);
+  }, [isMobile, setOpenMobileRight]);
 
   const mobileWindowNavigation = useMemo(() => {
     const sessionsForControls = visibleSessions.map((session) => ({
@@ -2374,7 +2282,7 @@ export function MultiSessionWorkspace({
     });
     register({
       id: `multi-session:${workspaceId}:previous-board`,
-      keys: ["cmd+alt+arrowleft", "ctrl+alt+arrowleft"],
+      keys: ["cmd+alt+arrowleft", "ctrl+alt+arrowleft", "cmd+alt+arrowup", "ctrl+alt+arrowup"],
       action: () => {
         switchRelativeWorkspaceBoard(-1);
         return false;
@@ -2386,7 +2294,12 @@ export function MultiSessionWorkspace({
     });
     register({
       id: `multi-session:${workspaceId}:next-board`,
-      keys: ["cmd+alt+arrowright", "ctrl+alt+arrowright"],
+      keys: [
+        "cmd+alt+arrowright",
+        "ctrl+alt+arrowright",
+        "cmd+alt+arrowdown",
+        "ctrl+alt+arrowdown",
+      ],
       action: () => {
         switchRelativeWorkspaceBoard(1);
         return false;
@@ -2667,10 +2580,6 @@ export function MultiSessionWorkspace({
   const focusNotificationSession = useCallback(
     (sessionName: string) => {
       if (loading || loadedWorkspaceRef.current !== workspaceId) return false;
-      const lockedSessionName = composeOpen
-        ? (composeTargetSessionName ?? activeSessionNameRef.current)
-        : null;
-      if (lockedSessionName && sessionName !== lockedSessionName) return false;
       const target = sessions.find((session) => session.sessionName === sessionName);
       const current = boardStateRef.current;
       const board = current.boards.find((board) =>
@@ -2684,15 +2593,7 @@ export function MultiSessionWorkspace({
       selectSession(target.sessionName);
       return true;
     },
-    [
-      composeOpen,
-      composeTargetSessionName,
-      loading,
-      persistBoardState,
-      selectSession,
-      sessions,
-      workspaceId,
-    ],
+    [loading, persistBoardState, selectSession, sessions, workspaceId],
   );
 
   useEffect(() => {
@@ -3803,7 +3704,7 @@ export function MultiSessionWorkspace({
   );
 
   const renderGitFontControls = () => {
-    if (!isUnifiedSource || isComposeSheet) return null;
+    if (!isUnifiedSource || isMobile) return null;
 
     return (
       <TerminalFontSizeControls
@@ -4127,7 +4028,7 @@ export function MultiSessionWorkspace({
       {renderGitRepositorySearchModal()}
       {renderGitAddFailureStatus()}
       {renderGitRestoreFailureStatus()}
-      {!isComposeSheet ? (
+      {!isMobile ? (
         <CommandPalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
@@ -4167,7 +4068,7 @@ export function MultiSessionWorkspace({
   const hasActiveSender = Boolean(activeTerminalEntry?.send);
   const mobileClipboardStatus =
     clipboardMessage ?? (hasActiveSender ? "Terminal controls ready" : "Terminal is not ready");
-  const mobileTerminalControls = isComposeSheet ? (
+  const mobileTerminalControls = isMobile ? (
     <MobileTerminalControls
       isKeyboardVisible={isMobileKeyboardVisible}
       onHapticFeedback={triggerHapticFeedback}
@@ -4192,40 +4093,6 @@ export function MultiSessionWorkspace({
       uploadDisabledReason={hasActiveSender ? undefined : "Terminal is not ready"}
     />
   ) : null;
-  const desktopComposePanel =
-    composeOpen && !isComposeSheet ? (
-      <div className="h-72 min-h-56 shrink-0 p-1 pt-0" data-testid="multi-session-compose-inline">
-        <TerminalSessionCompose
-          variant="inline"
-          initialDraft={composeDraft}
-          targetLabel={composeTargetLabel ?? activeLabel}
-          onSend={sendComposeDraft}
-          onClose={closeCompose}
-        />
-      </div>
-    ) : null;
-  const mobileComposeSheet = isComposeSheet ? (
-    <TerminalSessionCompose
-      variant="sheet"
-      open={composeOpen}
-      onOpenChange={(open) => {
-        if (open) {
-          setComposeOpen(true);
-        } else {
-          closeCompose();
-        }
-      }}
-      isKeyboardVisible={isMobileKeyboardVisible}
-      initialDraft={composeDraft}
-      targetLabel={composeTargetLabel ?? activeLabel}
-      onSend={sendComposeDraft}
-      onClose={closeCompose}
-    />
-  ) : null;
-  const composeLockedSessionName = composeOpen
-    ? (composeTargetSessionName ?? activeSessionName)
-    : null;
-
   const handleWindowDragStart = (model: WorkspaceBoardRenderModel, event: DragStartEvent) => {
     windowDropPreviewRef.current = null;
     setWindowDropPreview(null);
@@ -4429,7 +4296,7 @@ export function MultiSessionWorkspace({
               },
             ]
           : []),
-        ...(isComposeSheet
+        ...(isMobile
           ? []
           : (["left", "right", "up", "down"] as const).map((direction) => ({
               id: `move-${direction}`,
@@ -4537,7 +4404,7 @@ export function MultiSessionWorkspace({
                   windowId: toolPane.key,
                 })
               }
-              touchOptimizedActions={isComposeSheet}
+              touchOptimizedActions={isMobile}
               isDragging={isDragging}
               headerActions={
                 !toolUrl || toolUrl.startsWith("/api/workspace-proxy/") ? null : (
@@ -4626,8 +4493,6 @@ export function MultiSessionWorkspace({
       visibleSession ?? sessions.find((candidate) => candidate.sessionName === pane.sessionName);
     const presentation = session ? workspaceSessionPresentation(session) : { title: pane.label };
     const isActive = model.isActive && pane.sessionName === activeWindowId;
-    const isComposeDisabled =
-      Boolean(composeLockedSessionName) && pane.sessionName !== composeLockedSessionName;
     const cloneSessionKey = session?.cloneSessionKey;
     const relativePath = session?.relativePath;
     const boardPaneSignal = visibleSession?.boardPaneKey ?? pane.id;
@@ -4655,7 +4520,6 @@ export function MultiSessionWorkspace({
 
     return (
       <WorkspaceWindow
-        disabled={isComposeDisabled}
         key={`${model.board.key}:${pane.id}`}
         id={pane.sessionName}
         previewStyle={panePreviewStyle}
@@ -4687,10 +4551,8 @@ export function MultiSessionWorkspace({
                 windowId: pane.sessionName,
               })
             }
-            touchOptimizedActions={isComposeSheet}
+            touchOptimizedActions={isMobile}
             isDragging={isDragging}
-            disabled={isComposeDisabled}
-            disabledLabel="Compose locked"
             headerActions={
               session ? (
                 <WorkspaceSessionTools
@@ -4722,7 +4584,7 @@ export function MultiSessionWorkspace({
               selectSession(pane.sessionName);
             }}
             onMouseMove={
-              isComposeSheet
+              isMobile
                 ? undefined
                 : () => {
                     if (!model.isActive || activeWindowIdRef.current === pane.sessionName) return;
@@ -4762,9 +4624,9 @@ export function MultiSessionWorkspace({
               refreshCloneTerminalIdentity={refreshCloneTerminalIdentity}
               className="min-h-0 flex-1"
               layoutSignal={layoutSignal}
-              mobileInputMode={isComposeSheet}
+              mobileInputMode={isMobile}
               suppressAutoFocus
-              pinToBottomOnResize={isComposeSheet}
+              pinToBottomOnResize={isMobile}
               onConnectionStateChange={(state) =>
                 handlePaneConnectionStateChange(boardPaneSignal, boardPaneKind, state)
               }
@@ -4781,9 +4643,6 @@ export function MultiSessionWorkspace({
                   persistBoardState(selectWorkspaceBoard(boardState, model.board.key));
                 }
                 selectSession(pane.sessionName, { focusTerminal: false });
-              }}
-              onComposeRequest={(request) => {
-                openComposeWithDraft(request, pane.sessionName);
               }}
               onClipboardStatus={handleClipboardActionStatus}
               targetLabel={presentation.title}
@@ -4860,7 +4719,7 @@ export function MultiSessionWorkspace({
   };
 
   const wrapMobileWorkspace = (content: ReactNode) =>
-    isComposeSheet ? (
+    isMobile ? (
       <MobileTerminalShell
         isKeyboardVisible={isMobileKeyboardVisible}
         reserveDashboardTrigger={false}
@@ -4976,16 +4835,14 @@ export function MultiSessionWorkspace({
           ref={workspaceBodyRef}
           className={cn(
             "relative min-h-0 flex-1 overflow-hidden overscroll-none",
-            isComposeSheet && "mt-2",
+            isMobile && "mt-2",
           )}
           data-testid="multi-session-body"
         >
           {boardRenderModels.map(renderBoardLayer)}
         </div>
         {mobileTerminalControls}
-        {desktopComposePanel}
       </div>
-      {mobileComposeSheet}
       <WorkspacePaneActionSheet
         actions={paneActions}
         anchor={paneActionTarget?.anchor}

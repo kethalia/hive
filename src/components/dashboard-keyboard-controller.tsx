@@ -11,7 +11,6 @@ import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
 import { formatRelativeDate } from "@/lib/helpers/format";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
-import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import {
   getGlobalCommandPaletteSources,
   subscribeGlobalCommandPaletteSources,
@@ -19,7 +18,6 @@ import {
 
 const GLOBAL_COMMAND_PALETTE_KEYS = ["ctrl+k", "cmd+k"] as const;
 const GLOBAL_SIDEBAR_KEYS = ["ctrl+b", "cmd+b"] as const;
-const GLOBAL_COMPOSE_KEYS = ["ctrl+`", "cmd+`"] as const;
 const GLOBAL_FULLSCREEN_KEYS = ["ctrl+enter", "cmd+enter"] as const;
 const NAV_WORKSPACES_KEYS = ["ctrl+shift+1", "cmd+shift+1"] as const;
 const NAV_TEMPLATES_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
@@ -237,20 +235,6 @@ export function DashboardKeyboardController() {
     },
     description: "Toggle sidebar",
     category: "general",
-    enabledInBrowser: true,
-    global: true,
-    allowTextEntry: true,
-  });
-
-  useRegisterKeybinding({
-    id: "dashboard:toggle-compose",
-    keys: [...GLOBAL_COMPOSE_KEYS],
-    action: () => {
-      window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_TOGGLE_EVENT));
-      return false;
-    },
-    description: "Toggle terminal compose",
-    category: "terminal",
     enabledInBrowser: true,
     global: true,
     allowTextEntry: true,

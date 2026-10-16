@@ -527,9 +527,7 @@ test("an unfocused Hive window cannot begin a microphone call", async ({
   await expect(page.getByRole("status")).toHaveText("Voice connected");
 });
 
-test("external Compose-style focus uses the selected pane to choose a new call", async ({
-  page,
-}) => {
+test("external toolbar focus uses the selected pane to choose a new call", async ({ page }) => {
   await page.goto(`${url}/panes`);
   await expect.poll(() => connections.size).toBe(1);
   await page.getByRole("button", { name: "Select second pane" }).click();

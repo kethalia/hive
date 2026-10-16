@@ -56,11 +56,45 @@ describe("KeybindingProvider", () => {
     const entries = probe.context?.getAll() ?? [];
     expect(entries.map((entry) => entry.id)).toContain("copy");
     expect(entries.map((entry) => entry.id)).toContain("tmux-menu");
-    expect(entries.map((entry) => entry.id)).not.toContain("paste");
-    expect(entries.flatMap((entry) => entry.keys)).not.toContain("ctrl+v");
-    expect(entries.flatMap((entry) => entry.keys)).not.toContain("cmd+v");
+    expect(entries.map((entry) => entry.id)).toContain("paste");
+    expect(entries.flatMap((entry) => entry.keys)).toContain("ctrl+v");
+    expect(entries.flatMap((entry) => entry.keys)).toContain("cmd+v");
+    expect(entries.flatMap((entry) => entry.keys)).toContain("ctrl+shift+v");
+    expect(entries.flatMap((entry) => entry.keys)).toContain("cmd+shift+v");
     expect(probe.context?.handleKeyEvent(makeKeyEvent({ key: "v", ctrlKey: true }))).toBe(true);
     expect(probe.context?.handleKeyEvent(makeKeyEvent({ key: "v", metaKey: true }))).toBe(true);
+    expect(
+      probe.context?.handleKeyEvent(makeKeyEvent({ key: "V", ctrlKey: true, shiftKey: true })),
+    ).toBe(true);
+  });
+
+  it("publishes stable shortcut snapshots and notifies subscribers of additions and removals", () => {
+    const probe = renderWithProbe();
+    const context = probe.context!;
+    const initial = context.getAll();
+    expect(context.getAll()).toBe(initial);
+    const listener = vi.fn();
+    const unsubscribe = context.subscribe!(listener);
+    const entry = {
+      id: "workspace:create",
+      keys: ["ctrl+t", "cmd+t", "ctrl+alt+t", "cmd+alt+t"],
+      action: () => false,
+      description: "Create numbered workspace",
+      category: "terminal",
+      enabledInBrowser: true,
+    };
+    act(() => context.register(entry));
+    expect(listener).toHaveBeenCalledTimes(1);
+    const updated = context.getAll();
+    expect(updated).not.toBe(initial);
+    expect(context.getAll()).toBe(updated);
+    expect(updated.filter((item) => item.id === entry.id)).toEqual([entry]);
+    act(() => context.unregister(entry.id));
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(context.getAll().some((item) => item.id === entry.id)).toBe(false);
+    unsubscribe();
+    act(() => context.register(entry));
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it("handles registered global shortcuts at the window level", async () => {

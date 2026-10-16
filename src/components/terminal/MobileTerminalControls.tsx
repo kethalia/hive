@@ -1,19 +1,10 @@
 "use client";
 
-import {
-  ClipboardPaste,
-  Copy,
-  FileUp,
-  Loader2,
-  MessageSquareText,
-  Minus,
-  Plus,
-} from "lucide-react";
+import { ClipboardPaste, Copy, FileUp, Loader2, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
-import { TERMINAL_COMPOSE_OPEN_EVENT } from "@/lib/terminal/events";
 import {
   getMobileModifiers,
   NO_MOBILE_MODIFIERS,
@@ -196,11 +187,6 @@ export function MobileTerminalControls({
             busy: uploading,
             action: () => fileInputRef.current?.click(),
             disabled: uploadDisabled,
-          },
-          {
-            label: "Compose",
-            Icon: MessageSquareText,
-            action: () => window.dispatchEvent(new CustomEvent(TERMINAL_COMPOSE_OPEN_EVENT)),
           },
           { label: "Decrease font size", Icon: Minus, action: decrease, disabled: !canDecrease },
           { label: "Increase font size", Icon: Plus, action: increase, disabled: !canIncrease },

@@ -19,6 +19,7 @@ export interface KeybindingContextValue {
   register(entry: KeybindingEntry): void;
   unregister(id: string): void;
   getAll(): KeybindingEntry[];
+  subscribe?: (listener: () => void) => () => void;
   handleKeyEvent(e: KeyboardEvent): boolean;
   activeTerminal: Terminal | null;
   activeSend: ((data: string) => void) | null;
@@ -67,10 +68,11 @@ export function normalizeKeyCombo(e: KeyboardEvent): string {
 
 export const KeybindingContext = React.createContext<KeybindingContextValue | null>(null);
 
+const EMPTY_BINDINGS: KeybindingEntry[] = [];
 const NOOP_KEYBINDINGS: KeybindingContextValue = {
   register: () => {},
   unregister: () => {},
-  getAll: () => [],
+  getAll: () => EMPTY_BINDINGS,
   handleKeyEvent: () => true,
   activeTerminal: null,
   activeSend: null,

@@ -19,6 +19,7 @@ import { formatShortcut, isApplePlatform } from "@/lib/keyboard-shortcuts";
 import { usePwaStandalone } from "@/lib/terminal/pwa";
 
 const NUDGE_DISMISSED_KEY = "hive:help-nudge-dismissed";
+const subscribeToNothing = () => () => {};
 
 function groupByCategory(entries: KeybindingEntry[]): Record<string, KeybindingEntry[]> {
   const groups: Record<string, KeybindingEntry[]> = {};
@@ -32,7 +33,8 @@ function groupByCategory(entries: KeybindingEntry[]): Record<string, KeybindingE
 
 export function HelpOverlay() {
   const [open, setOpen] = React.useState(false);
-  const { getAll } = useKeybindings();
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const { getAll, subscribe } = useKeybindings();
   const isStandalone = usePwaStandalone();
   const isMac = React.useMemo(() => isApplePlatform(), []);
   const [nudgeDismissed, setNudgeDismissed] = React.useState(true);
@@ -58,7 +60,7 @@ export function HelpOverlay() {
     global: true,
   });
 
-  const entries = getAll();
+  const entries = React.useSyncExternalStore(subscribe ?? subscribeToNothing, getAll, getAll);
   const groups = groupByCategory(entries);
   const categoryOrder = Object.keys(groups).sort((a, b) => {
     if (a === "general") return -1;
@@ -79,7 +81,11 @@ export function HelpOverlay() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-h-[80vh] overflow-y-auto">
+      <DialogContent
+        ref={dialogRef}
+        initialFocus={dialogRef}
+        className="max-h-[80vh] overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle>Keyboard Shortcuts</DialogTitle>
           <DialogDescription className="sr-only">
@@ -96,10 +102,14 @@ export function HelpOverlay() {
               <div className="space-y-1">
                 {groups[category].map((entry) => {
                   const isPwaOnly = !isStandalone && !entry.enabledInBrowser;
+                  const platformKeys = entry.keys.filter((key) =>
+                    isMac ? key.includes("cmd") : !key.includes("cmd"),
+                  );
+                  const shortcuts = [...new Set(platformKeys.length ? platformKeys : entry.keys)];
                   return (
                     <div
                       key={entry.id}
-                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm"
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm"
                     >
                       <span className={isPwaOnly ? "text-muted-foreground" : ""}>
                         {entry.description}
@@ -109,9 +119,16 @@ export function HelpOverlay() {
                           </Badge>
                         )}
                       </span>
-                      <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-                        {formatShortcut(entry.keys, isMac)}
-                      </kbd>
+                      <span className="flex flex-wrap items-center gap-1">
+                        {shortcuts.map((key) => (
+                          <kbd
+                            key={key}
+                            className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
+                          >
+                            {formatShortcut([key], isMac)}
+                          </kbd>
+                        ))}
+                      </span>
                     </div>
                   );
                 })}

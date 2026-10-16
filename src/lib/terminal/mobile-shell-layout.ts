@@ -12,9 +12,6 @@ export const MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT =
   "max(0px, calc(var(--app-visual-viewport-height) - var(--safe-area-inset-top) - 3.5rem))";
 export const MOBILE_TERMINAL_SAFE_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT =
   "var(--app-visual-viewport-height)";
-export const COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET =
-  "calc(var(--app-viewport-height) - var(--app-visual-viewport-height) - var(--app-visual-viewport-offset-top))";
-
 interface ElementStyleSnapshot {
   height: string;
   overflow: string;
@@ -55,17 +52,6 @@ export function mobileTerminalFrameStyle(
     top: reserveDashboardTrigger
       ? MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT
       : MOBILE_TERMINAL_SAFE_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
-  };
-}
-
-export function composeSheetKeyboardStyle(isKeyboardVisible: boolean): CSSProperties {
-  const height = "var(--app-visual-viewport-height)";
-
-  return {
-    bottom: isKeyboardVisible ? COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET : "0px",
-    height,
-    maxHeight: height,
-    paddingBottom: "var(--safe-area-inset-bottom)",
   };
 }
 

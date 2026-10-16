@@ -23,8 +23,6 @@ export const TERMINAL_THEME: ITheme = {
 };
 
 export const TERMINAL_FONT_FAMILY = "'Fira Code', monospace";
-export const COMPOSE_SHEET_BREAKPOINT = 600;
-export const COMPOSE_SHEET_DISMISS_DRAG_PX = 80;
 
 export async function loadTerminalFont(): Promise<void> {
   try {

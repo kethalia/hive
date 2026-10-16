@@ -7,12 +7,18 @@ import "@testing-library/jest-dom/vitest";
 const mockGetAll = vi.fn();
 const mockRegister = vi.fn();
 const mockUnregister = vi.fn();
+const mockListeners = new Set<() => void>();
+const mockSubscribe = (listener: () => void) => {
+  mockListeners.add(listener);
+  return () => mockListeners.delete(listener);
+};
 
 vi.mock("@/hooks/useKeybindings", () => ({
   useKeybindings: () => ({
     register: mockRegister,
     unregister: mockUnregister,
     getAll: mockGetAll,
+    subscribe: mockSubscribe,
     handleKeyEvent: vi.fn(),
     activeTerminal: null,
     activeSend: null,
@@ -138,10 +144,13 @@ describe("HelpOverlay", () => {
     mockPwaStandalone = false;
     mockGetAll.mockReturnValue(testEntries);
     localStorage.clear();
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Linux");
   });
 
   afterEach(() => {
     cleanup();
+    expect(mockListeners.size).toBe(0);
+    vi.restoreAllMocks();
   });
 
   it("renders nothing when overlay is closed", () => {
@@ -171,6 +180,51 @@ describe("HelpOverlay", () => {
     expect(screen.getByText("Ctrl + /")).toBeInTheDocument();
     expect(screen.getByText("Ctrl + Shift + M")).toBeInTheDocument();
     expect(screen.queryByText("⇧ + ?")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Linux", "Ctrl + T", "Ctrl + Alt + T"],
+    ["Macintosh", "⌘ + T", "⌘ + ⌥ + T"],
+  ])("shows primary and fallback workspace shortcuts on %s", (platform, primary, fallback) => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(platform);
+    const { registered } = renderOpenOverlay();
+    act(() => {
+      mockGetAll.mockReturnValue([
+        ...testEntries,
+        {
+          ...testEntries[0],
+          id: "workspace:create",
+          description: "Create numbered workspace",
+          keys: ["ctrl+t", "cmd+t", "ctrl+alt+t", "cmd+alt+t"],
+        },
+      ]);
+      for (const listener of mockListeners) listener();
+    });
+    expect(registered).toBeDefined();
+    expect(screen.getByText(primary)).toBeInTheDocument();
+    expect(screen.getByText(fallback)).toBeInTheDocument();
+    expect(screen.getByText("Create numbered workspace")).toBeInTheDocument();
+  });
+
+  it("updates an open dialog when terminal shortcuts register or unregister", () => {
+    renderOpenOverlay();
+    const lateEntry = {
+      ...testEntries[0],
+      id: "paste",
+      keys: ["ctrl+v", "cmd+v"],
+      description: "Paste text or files into terminal",
+    };
+    act(() => {
+      mockGetAll.mockReturnValue([...testEntries, lateEntry]);
+      for (const listener of mockListeners) listener();
+    });
+    expect(screen.getByText(lateEntry.description)).toBeInTheDocument();
+    expect(screen.getByText("Ctrl + V")).toBeInTheDocument();
+    act(() => {
+      mockGetAll.mockReturnValue(testEntries);
+      for (const listener of mockListeners) listener();
+    });
+    expect(screen.queryByText(lateEntry.description)).not.toBeInTheDocument();
   });
 
   it("shows PWA only badge on enabledInBrowser:false shortcuts in browser mode", () => {

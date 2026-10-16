@@ -502,6 +502,7 @@ function mockStandaloneDisplayMode(matches: boolean) {
 describe("workspace board shortcut integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("innerWidth", 1440);
     terminalProps.clear();
     window.localStorage.clear();
     mockGetSessions.mockResolvedValue(twoSessionPayload());
@@ -523,6 +524,7 @@ describe("workspace board shortcut integration", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("selects the notifying session on an inactive board without duplicating it", async () => {

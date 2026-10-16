@@ -35,7 +35,7 @@ export function TerminalAudioBridge({
           return false;
         const focusedTerminal = document.activeElement?.closest('[data-terminal-surface="true"]');
         if (focusedTerminal) return focusedTerminal === terminal;
-        // Touch/Compose input may live outside xterm; use the selected pane then.
+        // Touch input may live outside xterm; use the selected pane then.
         return true;
       },
       (url) => terminalAuthProtocols(url, "hive-audio-v1"),
