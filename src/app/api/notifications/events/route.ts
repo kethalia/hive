@@ -47,15 +47,29 @@ export async function POST(request: Request) {
   const rate = await redis.incr(rateKey);
   if (rate === 1) await redis.expire(rateKey, 120);
   if (rate > 60) return new Response(null, { status: 429 });
-  const url = new URL(`/workspaces/${source.workspaceId}/terminal`, "https://hive.local");
-  if (event.sessionName) url.searchParams.set("session", event.sessionName);
+  const url = new URL(
+    `/workspaces/${encodeURIComponent(source.workspaceId)}/terminal/workspace`,
+    "https://hive.local",
+  );
+  if (event.sessionName) {
+    url.pathname = `/workspaces/${encodeURIComponent(source.workspaceId)}/terminal`;
+    url.searchParams.set("session", event.sessionName);
+    url.searchParams.set("notification", event.eventId);
+  }
   const project = event.projectName.replace(/\s+/g, " ").trim();
   // Clone session IDs are routing identifiers, not useful notification labels.
   const session = /^git-clone-[a-f0-9]{32}$/.test(event.sessionName)
     ? ""
     : event.sessionName.replace(/\s+/g, " ").trim();
-  const location = [project, session === project ? "" : session].filter(Boolean).join(" · ");
+  const location =
+    project && session && project !== session ? `${project} (${session})` : project || session;
   const agent = event.agent === "codex" ? "Codex" : "Claude Code";
+  const message = {
+    question: "has a question for you",
+    approval: "is waiting for your approval",
+    ready: "has finished its turn",
+    failure: "stopped because of an error",
+  }[event.kind];
   await enqueueNotification(
     {
       userId: source.userId,
@@ -63,7 +77,7 @@ export async function POST(request: Request) {
       payload: {
         kind: event.kind,
         title: notificationLabels[event.kind],
-        body: `${location ? `${location}\n` : ""}${agent} · ${source.workspaceName}`,
+        body: `${agent} ${message}${location ? ` in ${location}` : ""} on ${source.workspaceName}.`,
         tag: `hive-${source.id}-${event.eventId}`,
         url: url.pathname + url.search,
       },

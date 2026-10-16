@@ -158,6 +158,68 @@ export const resolveGitCloneTerminalAction = authActionClient
     };
   });
 
+// Resolve notification routing metadata against the authenticated workspace.
+// Push payloads never carry reusable terminal proofs or caller-selected paths.
+export const resolveGitCloneNotificationAction = authActionClient
+  .inputSchema(
+    z
+      .object({
+        workspaceId: z.string().trim().min(1),
+        agentId: z.string().trim().min(1).optional(),
+        sessionName: z.string().regex(/^git-clone-[a-f0-9]{32}$/),
+      })
+      .strict(),
+  )
+  .action(async ({ parsedInput, ctx }): Promise<GitCloneTerminalIdentity> => {
+    const agentId = await resolveAuthorizedWorkspaceAgentId(
+      ctx.user.id,
+      parsedInput.workspaceId,
+      parsedInput.agentId,
+    );
+    const tree = await discoverWorkspaceCloneTree(
+      ctx.user.id,
+      resolveConfiguredProjectsRoot(),
+      parsedInput.workspaceId,
+    );
+    function find(nodes: readonly CloneTreeNode[]): CloneTreeRepositoryNode | undefined {
+      for (const node of nodes) {
+        if (node.kind === "repository") {
+          if (createSafeCloneTerminalSessionName(node.cloneSessionKey) === parsedInput.sessionName)
+            return node;
+        } else {
+          const found = find(node.children);
+          if (found) return found;
+        }
+      }
+    }
+    const repository = find(tree.nodes);
+    if (!repository) throw new Error("This notification's terminal is no longer available.");
+    const client = await getCoderClientForUser(ctx.user.id);
+    const target = await client.getWorkspaceAgentName(parsedInput.workspaceId);
+    const existing = await execInWorkspace(
+      target,
+      `tmux -L web has-session -t ${shellQuote(`=${parsedInput.sessionName}`)}`,
+      { coderUrl: client.getBaseUrl(), sessionToken: client.getSessionToken() },
+    );
+    if (existing.exitCode !== 0)
+      throw new Error("This notification's terminal is no longer available.");
+    return {
+      sessionName: parsedInput.sessionName,
+      clonePath: repository.relativePath,
+      cloneSessionKey: repository.cloneSessionKey,
+      cloneProof: createCloneTerminalProof(
+        {
+          workspaceId: parsedInput.workspaceId,
+          agentId,
+          sessionId: ctx.session.sessionId,
+          sessionName: parsedInput.sessionName,
+          clonePath: repository.relativePath,
+        },
+        getCloneTerminalProofSecret(),
+      ),
+    };
+  });
+
 export const closeGitCloneTerminalAction = authActionClient
   .inputSchema(closeGitCloneTerminalSchema)
   .action(async ({ parsedInput, ctx }): Promise<{ sessionName: string }> => {

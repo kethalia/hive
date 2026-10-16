@@ -22,6 +22,7 @@ import { cookies } from "next/headers";
 import {
   closeGitCloneTerminalAction,
   listGitClonesAction,
+  resolveGitCloneNotificationAction,
   resolveGitCloneTerminalAction,
 } from "@/lib/actions/git-clones";
 import { getRequestSession, getSession } from "@/lib/auth/session";
@@ -32,7 +33,11 @@ import {
   PROJECTS_ROOT_ENV_KEY,
   resolveConfiguredProjectsRoot,
 } from "@/lib/git/clone-actions-contract";
-import { CLONE_TERMINAL_SESSION_PREFIX, type CloneTreeNode } from "@/lib/git/clone-tree";
+import {
+  CLONE_TERMINAL_SESSION_PREFIX,
+  type CloneTreeNode,
+  createSafeCloneTerminalSessionName,
+} from "@/lib/git/clone-tree";
 import { execInWorkspace } from "@/lib/workspace/exec";
 
 const mockedCookies = vi.mocked(cookies);
@@ -361,6 +366,72 @@ describe("resolveGitCloneTerminalAction", () => {
     expect(mockedExecInWorkspace).not.toHaveBeenCalled();
   });
 
+  it("resolves a notification ID using workspace discovery and mints a proof for this login", async () => {
+    const sessionName = createSafeCloneTerminalSessionName(repositoryNode.cloneSessionKey);
+    const result = await resolveGitCloneNotificationAction({
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      sessionName,
+    });
+    expect(result?.data).toMatchObject({
+      sessionName,
+      clonePath: repositoryNode.relativePath,
+      cloneSessionKey: repositoryNode.cloneSessionKey,
+    });
+    expect(mockedExecInWorkspace).toHaveBeenLastCalledWith(
+      AGENT_TARGET,
+      `tmux -L web has-session -t '=${sessionName}'`,
+      expect.any(Object),
+    );
+    expect(
+      verifyCloneTerminalProof(
+        result?.data?.cloneProof,
+        {
+          workspaceId: WORKSPACE_ID,
+          agentId: AGENT_ID,
+          sessionId: MOCK_SESSION.session.sessionId,
+          sessionName,
+          clonePath: repositoryNode.relativePath,
+        },
+        COOKIE_SECRET,
+      ),
+    ).toMatchObject({ ok: true });
+    expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
+  });
+  it("does not route an unknown notification ID to a different repository", async () => {
+    const result = await resolveGitCloneNotificationAction({
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      sessionName: `git-clone-${"f".repeat(32)}`,
+    });
+    expect(result?.data).toBeUndefined();
+    expect(result?.serverError).toContain("no longer available");
+    expect(mockedExecInWorkspace).toHaveBeenCalledTimes(1);
+  });
+  it("refuses a closed notification terminal instead of creating a replacement", async () => {
+    mockedExecInWorkspace
+      .mockResolvedValueOnce({ stdout: "kethalia/hive\n", stderr: "", exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: "", stderr: "no session", exitCode: 1 });
+    const result = await resolveGitCloneNotificationAction({
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      sessionName: createSafeCloneTerminalSessionName(repositoryNode.cloneSessionKey),
+    });
+    expect(result?.data).toBeUndefined();
+    expect(result?.serverError).toContain("no longer available");
+  });
+  it("requires workspace access and rejects mismatched agents for notification routing", async () => {
+    const input = {
+      workspaceId: WORKSPACE_ID,
+      agentId: OTHER_AGENT_ID,
+      sessionName: createSafeCloneTerminalSessionName(repositoryNode.cloneSessionKey),
+    };
+    expect((await resolveGitCloneNotificationAction(input))?.data).toBeUndefined();
+    expect(mockedExecInWorkspace).not.toHaveBeenCalled();
+    mockedGetRequestSession.mockResolvedValueOnce(null);
+    mockedGetSession.mockResolvedValueOnce(null);
+    expect((await resolveGitCloneNotificationAction(input))?.serverError).toBe("Not authenticated");
+  });
   it("closes a verified reserved clone terminal session without exposing generic kill controls", async () => {
     const result = await closeGitCloneTerminalAction({
       cloneSessionKey: repositoryNode.cloneSessionKey,
