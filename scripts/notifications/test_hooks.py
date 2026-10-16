@@ -32,16 +32,44 @@ class NotificationHookTests(unittest.TestCase):
         opener.open.side_effect = [urllib.error.URLError("offline"), MagicMock()]
         event = {"hook_event_name": "PreToolUse", "tool_name": "request_user_input",
                  "session_id": "session", "turn_id": "turn", "tool_input": {"questions": "private prompt"}}
-        with patch("sys.argv", ["agent-hook.py", "codex"]), patch("sys.stdin", io.StringIO(json.dumps(event))), patch("pathlib.Path.read_text", return_value=json.dumps({"url": "https://hive.test/api/notifications/events", "token": "scoped-secret"})), patch("urllib.request.build_opener", return_value=opener), patch("time.sleep"), patch.dict("os.environ", {}, clear=True):
+        with patch("sys.argv", ["agent-hook.py", "codex"]), patch("sys.stdin", io.StringIO(json.dumps(event))), patch("pathlib.Path.read_text", return_value=json.dumps({"url": "https://hive.test/api/notifications/events", "token": "scoped-secret"})), patch("urllib.request.build_opener", return_value=opener), patch("time.sleep"), patch.object(hook, "project_name", return_value="hive"), patch.dict("os.environ", {}, clear=True):
             hook.main()
         self.assertEqual(opener.open.call_count, 2)
         request = opener.open.call_args[0][0]
         payload = json.loads(request.data)
         self.assertEqual(payload["kind"], "question")
-        self.assertEqual(set(payload), {"kind", "agent", "eventId", "sessionName"})
+        self.assertEqual(payload["projectName"], "hive")
+        self.assertEqual(set(payload), {"kind", "agent", "eventId", "sessionName", "projectName"})
         self.assertNotIn("private prompt", request.data.decode())
         self.assertEqual(request.get_header("Authorization"), "Bearer scoped-secret")
         self.assertEqual(request.get_header("User-agent"), "Hive-Agent-Notifications/1.0")
+
+    def test_project_name_uses_repository_root_from_nested_directory(self):
+        with patch("subprocess.check_output", return_value="/home/coder/projects/kethalia/codex-creative-studio\n") as command:
+            self.assertEqual(hook.project_name("/home/coder/projects/kethalia/codex-creative-studio/src"), "codex-creative-studio")
+        self.assertEqual(command.call_args[0][0], ["git", "-C", "/home/coder/projects/kethalia/codex-creative-studio/src", "rev-parse", "--show-toplevel"])
+
+    def test_project_name_falls_back_when_git_is_unavailable(self):
+        for error in (FileNotFoundError(), hook.subprocess.TimeoutExpired("git", 1), hook.subprocess.CalledProcessError(128, "git")):
+            with patch("subprocess.check_output", side_effect=error):
+                self.assertEqual(hook.project_name("/home/coder/scratch/task"), "task")
+        with patch("subprocess.check_output") as command:
+            self.assertEqual(hook.project_name(None), "")
+            self.assertEqual(hook.project_name(""), "")
+        command.assert_not_called()
+
+    def test_sender_uses_event_cwd_and_keeps_routing_session(self):
+        opener = MagicMock()
+        event = {"hook_event_name": "Stop", "cwd": "/home/coder/projects/kethalia/hive", "last_assistant_message": "private result"}
+        session = "git-clone-" + "a" * 32
+        with patch("sys.argv", ["agent-hook.py", "codex"]), patch("sys.stdin", io.StringIO(json.dumps(event))), patch("pathlib.Path.read_text", return_value=json.dumps({"url": "https://hive.test/api/notifications/events", "token": "scoped-secret"})), patch("urllib.request.build_opener", return_value=opener), patch("subprocess.check_output", return_value=session), patch.object(hook, "project_name", return_value="hive") as project, patch.dict("os.environ", {"TMUX_PANE": "%1"}, clear=True):
+            hook.main()
+        project.assert_called_once_with(event["cwd"])
+        payload = json.loads(opener.open.call_args[0][0].data)
+        self.assertEqual(payload["sessionName"], session)
+        self.assertEqual(payload["projectName"], "hive")
+        self.assertNotIn("private result", json.dumps(payload))
+        self.assertNotIn("/home/coder", json.dumps(payload))
 
     def test_install_preserves_user_configuration_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as temp:
