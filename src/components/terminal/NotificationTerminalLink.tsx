@@ -56,6 +56,12 @@ export function NotificationTerminalLink({
     async function open() {
       try {
         if (!/^[a-zA-Z0-9._-]{1,200}$/.test(sessionName)) throw new Error("Invalid session");
+        // Board restoration obtains fresh authorization itself. Avoid resolving a
+        // Git terminal twice when its exact session is already on a saved board.
+        if (hasBoard()) {
+          openBoard();
+          return;
+        }
         const query = new URLSearchParams({ session: sessionName });
         if (sessionName.startsWith("git-clone-")) {
           const result = await resolveGitCloneNotificationAction({

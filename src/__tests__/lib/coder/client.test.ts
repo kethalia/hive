@@ -83,6 +83,17 @@ describe("CoderClient", () => {
 
   // ── getWorkspace ───────────────────────────────────────────────
 
+  it("fetches resources from an already authorized build without fetching its workspace again", async () => {
+    fetchSpy.mockResolvedValueOnce(jsonResponse([{ id: "resource-1", agents: [] }]));
+    await expect(makeClient().getWorkspaceResources("ws-123", "build-789")).resolves.toEqual([
+      { id: "resource-1", agents: [] },
+    ]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0][0]).toBe(
+      `${BASE_URL}/api/v2/workspacebuilds/build-789/resources`,
+    );
+  });
+
   it("getWorkspace constructs correct URL and returns workspace", async () => {
     const ws = mockWorkspace({ id: "ws-abc" });
     fetchSpy.mockResolvedValueOnce(jsonResponse(ws));

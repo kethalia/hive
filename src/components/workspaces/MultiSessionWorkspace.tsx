@@ -72,7 +72,10 @@ import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalClipboardFeedback } from "@/hooks/useTerminalClipboardFeedback";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
-import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
+import {
+  resolveGitCloneTerminalAction,
+  restoreGitCloneTerminalsAction,
+} from "@/lib/actions/git-clones";
 import {
   listNavigationFavoritesAction,
   type NavigationFavoriteDto,
@@ -111,9 +114,11 @@ import {
   submitTerminalComposeDraft,
   type TerminalComposeRequest,
 } from "@/lib/terminal/clipboard";
-import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
+import {
+  TERMINAL_COMPOSE_TOGGLE_EVENT,
+  TERMINAL_NOTIFICATION_FOCUS_EVENT,
+} from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
-import { isPwaStandalone } from "@/lib/terminal/pwa";
 import {
   forgetTerminalSession,
   forgetTerminalViews,
@@ -359,7 +364,6 @@ type BoardPersistenceNotice = {
 };
 
 const CREATE_TERMINAL_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
-const CLOSE_TERMINAL_PANE_SHORTCUT_KEYS = ["ctrl+w"] as const;
 const WORKSPACE_BOARD_INDEXES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 type WorkspaceBoardIndex = (typeof WORKSPACE_BOARD_INDEXES)[number];
 
@@ -372,6 +376,7 @@ type WorkspaceShortcutEvent = Pick<
   | "key"
   | "metaKey"
   | "preventDefault"
+  | "repeat"
   | "shiftKey"
   | "target"
 >;
@@ -1067,63 +1072,48 @@ async function loadGitSessions(
   agentId: string,
   persistedJson: string | null,
 ): Promise<SessionLoadResult> {
-  const discovery = unwrapActionData(await listGitClonesAction({ workspaceId }));
-  if (!isObjectRecord(discovery) || discovery.ok !== true || !isPublicCloneTree(discovery.tree)) {
-    return { status: "failure" };
-  }
-
-  const repositories = flattenRepositoryNodes(discovery.tree.nodes).map(toGitRepositoryOption);
   const persistedRefs = readPersistedGitPaneRefs(persistedJson);
-  if (repositories.length === 0) {
-    return { status: "empty", repositories, gitRestoreFailed: persistedRefs.length > 0 };
-  }
-
-  const repositoryByIdentity = new Map(
-    repositories.map((repository) => [
-      gitPaneIdentity(repository.cloneSessionKey, repository.relativePath),
-      repository,
-    ]),
-  );
-  const selectedRefs = persistedRefs.filter((ref) =>
-    repositoryByIdentity.has(gitPaneIdentity(ref.cloneSessionKey, ref.relativePath)),
-  );
-  if (selectedRefs.length === 0) {
-    return { status: "empty", repositories, gitRestoreFailed: persistedRefs.length > 0 };
-  }
-
-  const resolved = await Promise.allSettled(
-    selectedRefs.map(async (ref): Promise<WorkspaceSessionPane | null> => {
-      const repository = repositoryByIdentity.get(
-        gitPaneIdentity(ref.cloneSessionKey, ref.relativePath),
-      );
-      if (!repository) return null;
-
-      const identity = unwrapActionData(
-        await resolveGitCloneTerminalAction({
-          agentId,
-          workspaceId,
-          cloneSessionKey: ref.cloneSessionKey,
-          relativePath: ref.relativePath,
-        }),
-      );
-      if (!isGitCloneTerminalIdentity(identity)) return null;
-      return {
-        sessionName: identity.sessionName,
-        label:
-          getGitRepositoryPresentation(ref.relativePath, ref.label ?? repository.label)?.title ??
-          repository.label,
-        clonePath: identity.clonePath,
-        cloneProof: identity.cloneProof,
-        cloneSessionKey: ref.cloneSessionKey,
-        relativePath: ref.relativePath,
-      };
+  const restored = unwrapActionData(
+    await restoreGitCloneTerminalsAction({
+      workspaceId,
+      agentId,
+      panes: persistedRefs.map(({ cloneSessionKey, relativePath }) => ({
+        cloneSessionKey,
+        relativePath,
+      })),
     }),
   );
+  if (
+    !isObjectRecord(restored) ||
+    !isPublicCloneTree(restored.tree) ||
+    !Array.isArray(restored.identities)
+  ) {
+    return { status: "failure" };
+  }
+  const repositories = flattenRepositoryNodes(restored.tree.nodes).map(toGitRepositoryOption);
+  const identities = restored.identities.filter(isGitCloneTerminalIdentity);
 
   const sessions = uniqueSessions(
-    resolved.flatMap((result) =>
-      result.status === "fulfilled" && result.value ? [result.value] : [],
-    ),
+    persistedRefs.flatMap((ref) => {
+      const identity = identities.find(
+        (item) =>
+          item.cloneSessionKey === ref.cloneSessionKey && item.clonePath === ref.relativePath,
+      );
+      if (!identity) return [];
+      return [
+        {
+          sessionName: identity.sessionName,
+          label:
+            getGitRepositoryPresentation(ref.relativePath, ref.label)?.title ??
+            ref.label ??
+            ref.relativePath,
+          clonePath: identity.clonePath,
+          cloneProof: identity.cloneProof,
+          cloneSessionKey: ref.cloneSessionKey,
+          relativePath: ref.relativePath,
+        },
+      ];
+    }),
   );
   const gitRestoreFailed = sessions.length < persistedRefs.length;
 
@@ -1177,6 +1167,7 @@ export function MultiSessionWorkspace({
   const [activeSessionName, setActiveSessionName] = useState<string | null>(null);
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const loadedWorkspaceRef = useRef<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -2236,6 +2227,18 @@ export function MultiSessionWorkspace({
 
       if (isTextEntryTarget && !isTerminalHelperTarget) return false;
 
+      const key =
+        event.altKey && /^Key[TW]$/.test(event.code)
+          ? event.code.slice(3).toLowerCase()
+          : event.key.toLowerCase();
+      if (key === "t" || key === "w") {
+        event.preventDefault();
+        if (event.repeat || loading) return true;
+        if (key === "t") handleCreateBoard();
+        else if (activeBoard) handleDeleteBoard(activeBoard.key);
+        return true;
+      }
+
       const arrowDirection = workspaceArrowDirectionFromShortcutEvent(event);
       if (arrowDirection) {
         event.preventDefault();
@@ -2251,7 +2254,15 @@ export function MultiSessionWorkspace({
 
       return false;
     },
-    [focusWorkspaceWindowInDirection, switchRelativeWorkspaceBoard, switchToWorkspaceBoardIndex],
+    [
+      activeBoard,
+      focusWorkspaceWindowInDirection,
+      handleCreateBoard,
+      handleDeleteBoard,
+      loading,
+      switchRelativeWorkspaceBoard,
+      switchToWorkspaceBoardIndex,
+    ],
   );
 
   const handleWorkspaceKeyDown = useCallback(
@@ -2285,6 +2296,32 @@ export function MultiSessionWorkspace({
   }, [handleWorkspaceShortcutKeyDown]);
 
   useEffect(() => {
+    register({
+      id: `multi-session:${workspaceId}:create-board`,
+      allowRepeat: false,
+      keys: ["ctrl+t", "cmd+t", "ctrl+alt+t", "cmd+alt+t"],
+      action: () => {
+        if (!loading) handleCreateBoard();
+        return false;
+      },
+      description: "Create numbered workspace (use Alt if the browser reserves this shortcut)",
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
+    register({
+      id: `multi-session:${workspaceId}:close-board`,
+      allowRepeat: false,
+      keys: ["ctrl+w", "cmd+w", "ctrl+alt+w", "cmd+alt+w"],
+      action: () => {
+        if (!loading && activeBoard) handleDeleteBoard(activeBoard.key);
+        return false;
+      },
+      description: "Close numbered workspace (use Alt if the browser reserves this shortcut)",
+      category: "terminal",
+      enabledInBrowser: true,
+      global: true,
+    });
     register({
       id: `multi-session:${workspaceId}:focus-left-pane`,
       keys: ["ctrl+arrowleft", "cmd+arrowleft"],
@@ -2368,6 +2405,8 @@ export function MultiSessionWorkspace({
       });
     }
     return () => {
+      unregister(`multi-session:${workspaceId}:create-board`);
+      unregister(`multi-session:${workspaceId}:close-board`);
       unregister(`multi-session:${workspaceId}:focus-left-pane`);
       unregister(`multi-session:${workspaceId}:focus-right-pane`);
       unregister(`multi-session:${workspaceId}:focus-up-pane`);
@@ -2379,7 +2418,11 @@ export function MultiSessionWorkspace({
       }
     };
   }, [
+    activeBoard,
     focusWorkspaceWindowInDirection,
+    handleCreateBoard,
+    handleDeleteBoard,
+    loading,
     register,
     switchRelativeWorkspaceBoard,
     switchToWorkspaceBoardIndex,
@@ -2405,6 +2448,7 @@ export function MultiSessionWorkspace({
     const storedActiveSessionName = parsePersistedActiveSessionName(storedLayout.raw);
     let cancelled = false;
 
+    loadedWorkspaceRef.current = null;
     setLoading(true);
     setLoadFailed(false);
     setCreateFailed(false);
@@ -2541,7 +2585,7 @@ export function MultiSessionWorkspace({
         setGitRestoreFailed(parsed.gitRestoreFailed === true);
 
         if (parsed.status === "success") {
-          let nextBoardState = reconcileGitPaneSessionNames(
+          const nextBoardState = reconcileGitPaneSessionNames(
             resolveWorkspaceBoardState({
               persistedBoardJson: storedBoard.raw,
               legacyPaneLayoutJson: storedLayout.raw,
@@ -2549,45 +2593,6 @@ export function MultiSessionWorkspace({
             }),
             parsed.sessions,
           );
-          if (notificationSession) {
-            const target = parsed.sessions.find(
-              (session) => session.sessionName === notificationSession,
-            );
-            if (target) {
-              const board = nextBoardState.boards.find((board) =>
-                board.panes.some((pane) => pane.sessionName === target.sessionName),
-              );
-              const pane = board?.panes.find((pane) => pane.sessionName === target.sessionName);
-              if (!board || !pane) {
-                const query = new URLSearchParams({ session: target.sessionName });
-                if (
-                  target.clonePath &&
-                  target.cloneProof &&
-                  target.cloneSessionKey &&
-                  target.relativePath
-                ) {
-                  query.set("clonePath", target.clonePath);
-                  query.set("cloneProof", target.cloneProof);
-                  query.set("cloneSessionKey", target.cloneSessionKey);
-                  query.set("relativePath", target.relativePath);
-                }
-                window.location.replace(
-                  `/workspaces/${encodeURIComponent(workspaceId)}/terminal?${query}`,
-                );
-                return;
-              }
-              nextBoardState = selectWorkspaceBoardPane(
-                selectWorkspaceBoard(nextBoardState, board.key),
-                board.key,
-                pane.key,
-              );
-              persistBoardState(nextBoardState);
-            } else {
-              toast.error(
-                "This notification's terminal is no longer available. Reopen it from the sidebar.",
-              );
-            }
-          }
           const nextActiveBoard = findActiveWorkspaceBoard(nextBoardState);
           const nextVisibleSessions = deriveVisibleSessionsFromBoard(
             parsed.sessions,
@@ -2607,10 +2612,6 @@ export function MultiSessionWorkspace({
         }
 
         if (parsed.status === "empty") {
-          if (notificationSession)
-            toast.error(
-              "This notification's terminal is no longer available. Reopen it from the sidebar.",
-            );
           const nextBoardState = resolveWorkspaceBoardState({
             persistedBoardJson: storedBoard.raw,
             legacyPaneLayoutJson: storedLayout.raw,
@@ -2628,7 +2629,10 @@ export function MultiSessionWorkspace({
       } catch {
         if (!cancelled) setLoadFailed(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          loadedWorkspaceRef.current = workspaceId;
+          setLoading(false);
+        }
       }
     }
 
@@ -2648,9 +2652,63 @@ export function MultiSessionWorkspace({
     reloadKey,
     source,
     workspaceId,
-    notificationSession,
     persistBoardState,
   ]);
+
+  // A notification for an already mounted workspace only changes focus. Keep
+  // its renderers and WebSockets alive instead of repeating session discovery.
+  const handledNotificationRef = useRef<string | null>(null);
+  const focusNotificationSession = useCallback(
+    (sessionName: string) => {
+      if (loading || loadedWorkspaceRef.current !== workspaceId) return false;
+      const target = sessions.find((session) => session.sessionName === sessionName);
+      const current = boardStateRef.current;
+      const board = current.boards.find((board) =>
+        board.panes.some((pane) => pane.sessionName === sessionName),
+      );
+      const pane = board?.panes.find((pane) => pane.sessionName === sessionName);
+      if (!board || !pane || !target) return false;
+      persistBoardState(
+        selectWorkspaceBoardPane(selectWorkspaceBoard(current, board.key), board.key, pane.key),
+      );
+      selectSession(target.sessionName);
+      return true;
+    },
+    [loading, persistBoardState, selectSession, sessions, workspaceId],
+  );
+
+  useEffect(() => {
+    const focus = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId: string; sessionName: string }>).detail;
+      if (detail?.workspaceId === workspaceId && focusNotificationSession(detail.sessionName))
+        event.preventDefault();
+    };
+    window.addEventListener(TERMINAL_NOTIFICATION_FOCUS_EVENT, focus);
+    return () => window.removeEventListener(TERMINAL_NOTIFICATION_FOCUS_EVENT, focus);
+  }, [focusNotificationSession, workspaceId]);
+
+  useEffect(() => {
+    if (loading || loadedWorkspaceRef.current !== workspaceId || !notificationSession) return;
+    const requestKey = `${workspaceId}:${notificationSession}`;
+    if (handledNotificationRef.current === requestKey) return;
+    handledNotificationRef.current = requestKey;
+    if (focusNotificationSession(notificationSession)) return;
+    const target = sessions.find((session) => session.sessionName === notificationSession);
+    if (target) {
+      const query = new URLSearchParams({ session: target.sessionName });
+      if (target.clonePath && target.cloneProof && target.cloneSessionKey && target.relativePath) {
+        query.set("clonePath", target.clonePath);
+        query.set("cloneProof", target.cloneProof);
+        query.set("cloneSessionKey", target.cloneSessionKey);
+        query.set("relativePath", target.relativePath);
+      }
+      router.replace(`/workspaces/${encodeURIComponent(workspaceId)}/terminal?${query}`);
+    } else {
+      toast.error(
+        "This notification's terminal is no longer available. Reopen it from the sidebar.",
+      );
+    }
+  }, [focusNotificationSession, loading, notificationSession, router, sessions, workspaceId]);
 
   useEffect(() => {
     if (!gitSearchOpen) return;
@@ -3716,48 +3774,6 @@ export function MultiSessionWorkspace({
     },
     [replaceWorkspaceToolPanes],
   );
-
-  useEffect(() => {
-    register({
-      id: `multi-session:${workspaceId}:close-active-pane`,
-      keys: [...CLOSE_TERMINAL_PANE_SHORTCUT_KEYS],
-      action: () => {
-        if (!isPwaStandalone()) return true;
-        const activeToolPane = activeBoardRenderModel?.toolPanes.find(
-          (pane) => pane.key === activeWindowIdRef.current,
-        );
-        if (activeToolPane) {
-          removeWorkspaceToolPane(activeToolPane.key);
-          return false;
-        }
-        const target =
-          visibleSessions.find((session) => session.sessionName === activeSessionNameRef.current) ??
-          visibleSessions[0];
-        if (!activeBoard?.key || !target) return false;
-        void handleRemovePane({
-          boardKey: activeBoard.key,
-          boardPaneKey: target.boardPaneKey,
-          sessionName: target.sessionName,
-        });
-        return false;
-      },
-      description: "Close active terminal pane",
-      category: "terminal",
-      enabledInBrowser: false,
-      global: true,
-    });
-
-    return () => unregister(`multi-session:${workspaceId}:close-active-pane`);
-  }, [
-    activeBoard?.key,
-    activeBoardRenderModel?.toolPanes,
-    handleRemovePane,
-    register,
-    removeWorkspaceToolPane,
-    unregister,
-    visibleSessions,
-    workspaceId,
-  ]);
 
   const renderGitFontControls = () => {
     if (!isUnifiedSource || isComposeSheet) return null;

@@ -74,6 +74,66 @@ const resolveGitCloneTerminalSchema = z
 
 const closeGitCloneTerminalSchema = resolveGitCloneTerminalSchema;
 
+// Restore all saved Git panes from one scan. Each proof is still tied to the
+// authenticated user session, authorized agent, and a repository found on disk.
+export const restoreGitCloneTerminalsAction = authActionClient
+  .inputSchema(
+    z
+      .object({
+        workspaceId: z.string().trim().min(1),
+        agentId: z.string().trim().min(1),
+        panes: z
+          .array(
+            resolveGitCloneTerminalSchema.pick({
+              cloneSessionKey: true,
+              relativePath: true,
+            }),
+          )
+          .max(200),
+      })
+      .strict(),
+  )
+  .action(async ({ parsedInput, ctx }) => {
+    const [tree, agentId] = await Promise.all([
+      discoverWorkspaceCloneTree(
+        ctx.user.id,
+        resolveConfiguredProjectsRoot(),
+        parsedInput.workspaceId,
+      ),
+      parsedInput.panes.length
+        ? resolveAuthorizedWorkspaceAgentId(
+            ctx.user.id,
+            parsedInput.workspaceId,
+            parsedInput.agentId,
+          )
+        : Promise.resolve(parsedInput.agentId),
+    ]);
+    if (getRootSkippedReason(tree.diagnostics)) throw new Error(SCAN_FAILED_MESSAGE);
+    const identities = parsedInput.panes.flatMap((pane) => {
+      const repository = findRepositoryNode(tree.nodes, pane.cloneSessionKey, pane.relativePath);
+      if (!repository) return [];
+      const sessionName = createSafeCloneTerminalSessionName(repository.cloneSessionKey);
+      return [
+        {
+          sessionName,
+          clonePath: repository.relativePath,
+          cloneSessionKey: repository.cloneSessionKey,
+          cloneProof: createCloneTerminalProof(
+            {
+              workspaceId: parsedInput.workspaceId,
+              agentId,
+              sessionId: ctx.session.sessionId,
+              sessionName,
+              clonePath: repository.relativePath,
+            },
+            getCloneTerminalProofSecret(),
+          ),
+        },
+      ];
+    });
+    return { tree: toPublicCloneTree(tree), identities };
+  });
+
 export const listGitClonesAction = authActionClient
   .inputSchema(listGitClonesSchema)
   .action(async ({ parsedInput, ctx }): Promise<GitCloneDiscoveryActionResult> => {

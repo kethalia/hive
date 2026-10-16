@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
+import { MessageChannel } from "node:worker_threads";
 import { describe, expect, it, vi } from "vitest";
 
 function worker(visible = false) {
@@ -25,7 +26,13 @@ function worker(visible = false) {
       listeners[name] = callback;
     },
   };
-  runInNewContext(readFileSync("public/sw.js", "utf8"), { self, URL });
+  runInNewContext(readFileSync("public/sw.js", "utf8"), {
+    self,
+    URL,
+    MessageChannel,
+    setTimeout,
+    clearTimeout,
+  });
   async function emit(name: string, data: Record<string, unknown>) {
     let finished: Promise<void> | undefined;
     listeners[name]({
@@ -40,6 +47,22 @@ function worker(visible = false) {
 }
 
 describe("notification service worker", () => {
+  it("navigates an existing dashboard without reloading it when the app acknowledges", async () => {
+    const { client, emit } = worker();
+    client.postMessage.mockImplementation((_data, ports) =>
+      ports[0].postMessage({ type: "hive:navigated" }),
+    );
+    await emit("notificationclick", {
+      notification: { close: vi.fn(), data: { url: "/workspaces/w/terminal?session=dev" } },
+    });
+    expect(client.postMessage.mock.calls[0][0]).toEqual({
+      type: "hive:navigate",
+      url: "/workspaces/w/terminal?session=dev",
+    });
+    expect(client.postMessage.mock.calls[0][1]).toHaveLength(1);
+    expect(client.navigate).not.toHaveBeenCalled();
+    expect(client.focus).toHaveBeenCalledOnce();
+  });
   it("shows background questions persistently with a terminal deep link", async () => {
     const { self, emit } = worker();
     await emit("push", {

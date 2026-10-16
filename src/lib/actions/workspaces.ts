@@ -189,10 +189,11 @@ export const getWorkspaceAgentAction = authActionClient
   .inputSchema(getWorkspaceAgentSchema)
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
-    const [workspace, resources] = await Promise.all([
-      client.getWorkspace(parsedInput.workspaceId),
-      client.getWorkspaceResources(parsedInput.workspaceId),
-    ]);
+    const workspace = await client.getWorkspace(parsedInput.workspaceId);
+    const resources = await client.getWorkspaceResources(
+      parsedInput.workspaceId,
+      workspace.latest_build.id,
+    );
     for (const resource of resources) {
       if (resource.agents && resource.agents.length > 0) {
         return {
@@ -301,7 +302,11 @@ export const getWorkspaceSessionsAction = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
 
-    const resources = await client.getWorkspaceResources(parsedInput.workspaceId);
+    const workspace = await client.getWorkspace(parsedInput.workspaceId);
+    const resources = await client.getWorkspaceResources(
+      parsedInput.workspaceId,
+      workspace.latest_build.id,
+    );
     const agent = resources.flatMap((resource) => resource.agents ?? [])[0];
     if (!agent) return [];
     if (agent.status !== "connected") {
@@ -310,22 +315,7 @@ export const getWorkspaceSessionsAction = authActionClient
       );
     }
 
-    let agentTarget: string;
-    try {
-      agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/no agents? found/i.test(message)) {
-        console.log(
-          `[workspaces] No agents found for workspace ${parsedInput.workspaceId}, returning empty sessions`,
-        );
-        return [];
-      }
-      console.log(
-        `[workspaces] Failed to resolve agent for workspace ${parsedInput.workspaceId}: ${message}`,
-      );
-      throw new Error(`Failed to resolve workspace agent: ${message}`);
-    }
+    const agentTarget = `${workspace.name}.${agent.name}`;
 
     const result = await execInWorkspace(
       agentTarget,

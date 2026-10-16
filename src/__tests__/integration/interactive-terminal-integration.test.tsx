@@ -352,6 +352,7 @@ vi.mock("@/components/ui/alert", () => ({
 vi.mock("lucide-react", () => ({
   Activity: () => null,
   AlertCircle: () => null,
+  Upload: () => null,
   ArrowDown: () => null,
   ArrowLeft: () => null,
   ArrowRight: () => null,
@@ -939,6 +940,44 @@ function terminalRecoveryState(
     ...overrides,
   };
 }
+
+describe("InteractiveTerminal file drop feedback", () => {
+  it("detects files, keeps feedback across child transitions, clears it on drop and exit", async () => {
+    mockUseTerminalWebSocket.mockReturnValue({
+      send: mockSend,
+      resize: mockResize,
+      connectionState: "connected",
+    });
+    await renderTerminal({ onComposeRequest: vi.fn() });
+    const host = document.querySelector('[data-terminal-surface="true"]')!;
+    const child = document.querySelector('[data-testid="terminal-fit-host"]')!;
+    const transfer = { types: ["Files"], dropEffect: "none", items: [{ kind: "file" }] };
+    fireEvent.dragOver(host, { dataTransfer: transfer });
+    expect(
+      document.querySelector('[data-testid="terminal-file-drop-indicator"]'),
+    ).toHaveTextContent("Drop files to upload");
+    expect(transfer.dropEffect).toBe("copy");
+    const leave = new Event("dragleave", { bubbles: true });
+    Object.defineProperty(leave, "relatedTarget", { value: child });
+    fireEvent(host, leave);
+    expect(
+      document.querySelector('[data-testid="terminal-file-drop-indicator"]'),
+    ).toBeInTheDocument();
+    fireEvent.drop(host, { dataTransfer: transfer });
+    expect(
+      document.querySelector('[data-testid="terminal-file-drop-indicator"]'),
+    ).not.toBeInTheDocument();
+    fireEvent.dragOver(host, { dataTransfer: transfer });
+    fireEvent.dragLeave(host);
+    expect(
+      document.querySelector('[data-testid="terminal-file-drop-indicator"]'),
+    ).not.toBeInTheDocument();
+    fireEvent.dragOver(host, { dataTransfer: { types: ["text/plain"] } });
+    expect(
+      document.querySelector('[data-testid="terminal-file-drop-indicator"]'),
+    ).not.toBeInTheDocument();
+  });
+});
 
 describe("InteractiveTerminal integration — Connection state banners", () => {
   it("drops xterm device answerbacks before forwarding terminal input", async () => {

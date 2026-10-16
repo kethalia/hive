@@ -24,6 +24,7 @@ import {
   listGitClonesAction,
   resolveGitCloneNotificationAction,
   resolveGitCloneTerminalAction,
+  restoreGitCloneTerminalsAction,
 } from "@/lib/actions/git-clones";
 import { getRequestSession, getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
@@ -120,6 +121,63 @@ describe("listGitClonesAction", () => {
       stderr: "",
       exitCode: 0,
     });
+  });
+
+  it("restores multiple Git panes from one scan with fresh, session-bound proofs", async () => {
+    mockedExecInWorkspace.mockResolvedValueOnce({
+      stdout: "kethalia/hive\nkethalia/other\n",
+      stderr: "",
+      exitCode: 0,
+    });
+    const result = await restoreGitCloneTerminalsAction({
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      panes: ["hive", "other", "missing"].map((repo) => ({
+        cloneSessionKey: `git-clone:kethalia/${repo}`,
+        relativePath: `kethalia/${repo}`,
+      })),
+    });
+    expect(mockedExecInWorkspace).toHaveBeenCalledTimes(1);
+    expect(result?.serverError).toBeUndefined();
+    expect(result?.data?.identities).toHaveLength(2);
+    for (const identity of result?.data?.identities ?? []) {
+      expect(
+        verifyCloneTerminalProof(
+          identity.cloneProof,
+          {
+            workspaceId: WORKSPACE_ID,
+            agentId: AGENT_ID,
+            sessionId: MOCK_SESSION.session.sessionId,
+            sessionName: identity.sessionName,
+            clonePath: identity.clonePath,
+          },
+          COOKIE_SECRET,
+        ).ok,
+      ).toBe(true);
+    }
+    expect(JSON.stringify(result?.data?.tree)).not.toContain(PRIVATE_ROOT);
+  });
+
+  it("refuses batch restoration for another workspace's agent or unsafe pane metadata", async () => {
+    const input = {
+      workspaceId: WORKSPACE_ID,
+      agentId: OTHER_AGENT_ID,
+      panes: [{ cloneSessionKey: "git-clone:kethalia/hive", relativePath: "kethalia/hive" }],
+    };
+    expect((await restoreGitCloneTerminalsAction(input))?.data).toBeUndefined();
+    expect(
+      (
+        await restoreGitCloneTerminalsAction({
+          ...input,
+          agentId: AGENT_ID,
+          panes: [{ ...input.panes[0], relativePath: "../private" }],
+        })
+      )?.validationErrors,
+    ).toBeDefined();
+    mockedGetRequestSession.mockResolvedValueOnce(null);
+    expect(
+      (await restoreGitCloneTerminalsAction({ ...input, agentId: AGENT_ID }))?.serverError,
+    ).toBe("Not authenticated");
   });
 
   it("returns a sanitized clone tree with diagnostics for an authenticated user", async () => {

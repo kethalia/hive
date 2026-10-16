@@ -15,7 +15,7 @@ export function useTerminalClipboardFeedback() {
     setStatus(nextStatus);
     const feedback = clipboardFeedback(nextStatus);
     const id = pendingToasts.current.get(nextStatus.action);
-    const toastId = toast[feedback.tone](feedback.message, { id, position: "top-center" });
+    const toastId = toast[feedback.tone](feedback.message, { id, position: "bottom-right" });
     if (feedback.tone === "loading") {
       pendingToasts.current.set(nextStatus.action, toastId);
     } else {

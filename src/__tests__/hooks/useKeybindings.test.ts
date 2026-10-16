@@ -17,6 +17,14 @@ function makeKeyEvent(opts: Partial<KeyboardEventInit> & { key: string }): Keybo
 }
 
 describe("normalizeKeyCombo", () => {
+  it("recognizes the physical workspace key when macOS Option changes its character", () => {
+    expect(
+      normalizeKeyCombo(makeKeyEvent({ key: "†", code: "KeyT", metaKey: true, altKey: true })),
+    ).toBe("cmd+alt+t");
+    expect(
+      normalizeKeyCombo(makeKeyEvent({ key: "∑", code: "KeyW", metaKey: true, altKey: true })),
+    ).toBe("cmd+alt+w");
+  });
   it("normalizes ctrl+c", () => {
     const e = makeKeyEvent({ key: "c", ctrlKey: true });
     expect(normalizeKeyCombo(e)).toBe("ctrl+c");

@@ -3,6 +3,7 @@ import {
   handleTerminalPasteOutcome,
   normalizeClipboardText,
   readClipboardApiOutcome,
+  readDataTransferOutcome,
   type TerminalComposeRequest,
   type TerminalPasteController,
   type TerminalPasteOutcome,
@@ -448,7 +449,6 @@ export async function dropDataTransferToTerminal(
     onStatus?: (status: TerminalPasteStatus) => void;
   },
 ): Promise<void> {
-  const { readDataTransferOutcome } = await import("@/lib/terminal/clipboard");
   const outcome = readDataTransferOutcome(event.dataTransfer);
   if (outcome.kind !== "empty") {
     event.preventDefault();

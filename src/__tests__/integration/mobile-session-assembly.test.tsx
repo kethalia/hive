@@ -6,6 +6,11 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/workspaces",
+}));
+
 const mobileState = vi.hoisted(() => ({ isMobile: true }));
 const motionState = vi.hoisted(() => ({ reduced: false }));
 
