@@ -2063,21 +2063,6 @@ export function AppSidebar() {
               </Collapsible>
             </SidebarMenu>
           </SidebarGroup>
-
-          <SidebarGroup className="pt-0">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/terminal/status" />}
-                  isActive={pathname === "/terminal/status"}
-                  aria-current={pathname === "/terminal/status" ? "page" : undefined}
-                >
-                  <Stethoscope className="h-4 w-4" />
-                  <span>Diagnostics</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroup>
         </nav>
       </SidebarContent>
 
@@ -2095,6 +2080,16 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link href="/terminal/status" />}
+              isActive={pathname === "/terminal/status"}
+              aria-current={pathname === "/terminal/status" ? "page" : undefined}
+            >
+              <Stethoscope className="h-4 w-4" />
+              <span>Diagnostics</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               render={<Link href="/settings" />}
