@@ -54,7 +54,8 @@ def main():
     body = json.dumps({"kind": kind, "agent": agent, "eventId": event_id,
                        "sessionName": session[:200]}).encode()
     request = urllib.request.Request(config["url"], data=body, headers={
-        "Authorization": "Bearer " + config["token"], "Content-Type": "application/json"
+        "Authorization": "Bearer " + config["token"], "Content-Type": "application/json",
+        "User-Agent": "Hive-Agent-Notifications/1.0",
     })
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
