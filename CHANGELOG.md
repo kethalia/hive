@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.21.2
+
+### Patch Changes
+
+- ccc2ad7: Identify agent notification callbacks with a Hive user-agent so Cloudflare accepts their requests instead of rejecting Python's default client signature.
+
 ## 2.21.1
 
 ### Patch Changes
