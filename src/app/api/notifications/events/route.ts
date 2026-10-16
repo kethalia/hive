@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       sourceId: source.id,
       payload: {
         kind: event.kind,
-        title: `Hive · ${notificationLabels[event.kind]}`,
+        title: notificationLabels[event.kind],
         body: `${event.agent === "codex" ? "Codex" : "Claude Code"} in ${source.workspaceName}${event.sessionName ? ` · ${event.sessionName}` : ""}`,
         tag: `hive-${source.id}-${event.eventId}`,
         url: url.pathname + url.search,

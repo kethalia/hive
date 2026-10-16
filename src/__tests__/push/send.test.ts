@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFindMany = vi.hoisted(() => vi.fn());
 const mockDelete = vi.hoisted(() => vi.fn());
@@ -9,9 +9,11 @@ const mockSetVapidDetails = vi.hoisted(() => vi.fn());
 const MockWebPushError = vi.hoisted(() => {
   class WebPushError extends Error {
     statusCode: number;
-    constructor(message: string, statusCode: number) {
+    body: string;
+    constructor(message: string, statusCode: number, body = "") {
       super(message);
       this.statusCode = statusCode;
+      this.body = body;
       this.name = "WebPushError";
     }
   }
@@ -55,9 +57,13 @@ const makeSub = (id: string, endpoint: string) => ({
   createdAt: new Date(),
 });
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("sendPushToUser", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.test");
+    vi.stubEnv("VAPID_SUBJECT", "");
     mockGetVapidKeys.mockResolvedValue(vapidKeys);
     mockFindMany.mockResolvedValue([]);
     mockSendNotification.mockResolvedValue({});
@@ -85,10 +91,55 @@ describe("sendPushToUser", () => {
       { TTL: 3600, timeout: 10_000, urgency: "high" },
     );
     expect(mockSetVapidDetails).toHaveBeenCalledWith(
-      "mailto:noreply@hive.local",
+      "https://hive.test",
       vapidKeys.publicKey,
       vapidKeys.privateKey,
     );
+  });
+
+  it("supports an explicit VAPID contact without changing subscription keys", async () => {
+    vi.stubEnv("VAPID_SUBJECT", "mailto:admin@example.com");
+    await sendPushToUser("user-1", { title: "Test", body: "Hello", tag: "test" });
+    expect(mockSetVapidDetails).toHaveBeenCalledWith(
+      "mailto:admin@example.com",
+      vapidKeys.publicKey,
+      vapidKeys.privateKey,
+    );
+  });
+
+  it("reports missing server configuration rather than asking the user to repair their phone", async () => {
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "");
+    const result = await sendPushToUser(
+      "user-1",
+      { title: "Test", body: "Hello", tag: "test" },
+      false,
+      "https://web.push.apple.com/test",
+    );
+    expect(result.error).toContain("server's public origin");
+    expect(mockSendNotification).not.toHaveBeenCalled();
+  });
+
+  it("reports bounded Apple rejection details without exposing subscription or provider bodies", async () => {
+    mockFindMany.mockResolvedValue([makeSub("s1", "https://web.push.apple.com/secret-endpoint")]);
+    mockSendNotification.mockRejectedValue(
+      new MockWebPushError(
+        "secret request details",
+        403,
+        JSON.stringify({ reason: "BadJwtToken", secret: "private-body" }),
+      ),
+    );
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await sendPushToUser(
+      "user-1",
+      { title: "Test", body: "Hello", tag: "test" },
+      false,
+      "https://web.push.apple.com/secret-endpoint",
+    );
+    expect(result.error).toContain("BadJwtToken");
+    expect(JSON.stringify([result, log.mock.calls])).not.toMatch(
+      /secret-endpoint|private-body|secret request details/,
+    );
+    log.mockRestore();
   });
 
   it("cleans up subscription on 410 Gone", async () => {

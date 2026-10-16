@@ -22,8 +22,8 @@ export const testPushAction = authActionClient
     return sendPushToUser(
       ctx.user.id,
       {
-        title: "Hive · Test notification",
-        body: "Push is connected. Your agents can reach you here.",
+        title: "Test notification",
+        body: "This device can receive push notifications.",
         tag: "hive-test",
         url: "/notifications",
       },

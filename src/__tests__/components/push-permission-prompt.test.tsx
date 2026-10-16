@@ -4,11 +4,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetVapidPublicKeyAction = vi.hoisted(() => vi.fn());
+const mockTestPushAction = vi.hoisted(() => vi.fn());
 const mockSubscribePushAction = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/push/actions", () => ({
   getVapidPublicKeyAction: (...args: unknown[]) => mockGetVapidPublicKeyAction(...args),
-  testPushAction: vi.fn(),
+  testPushAction: mockTestPushAction,
 }));
 
 const mockGetPreferences = vi.hoisted(() => vi.fn());
@@ -125,6 +126,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   for (const key of Object.keys(mockLocalStorage)) {
     delete mockLocalStorage[key];
   }
@@ -418,5 +420,54 @@ describe("notification controls stay synchronized", () => {
     expect(screen.queryByText("Stay notified")).toBeNull();
     expect(mockLocalStorage["hive-push-disabled-v1"]).toBe("true");
     expect(mockSubscribePushAction).toHaveBeenCalledOnce();
+  });
+});
+
+describe("notification settings feedback", () => {
+  it("shows provider rejection beside the device controls without claiming the phone needs repair", async () => {
+    setNotificationPermission("granted");
+    mockTestPushAction.mockResolvedValue({
+      data: {
+        sent: 0,
+        cleaned: 0,
+        error: "The push provider rejected Hive's delivery credentials (BadJwtToken).",
+      },
+    });
+    render(
+      <NotificationSettings connectedWorkspaceIds={[]} workspaces={[]} workspaceError={false} />,
+    );
+    await screen.findByText("Push connected on this device.");
+    expect(screen.queryByRole("button", { name: "Repair connection" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Send test push" }));
+    const error = await screen.findByRole("alert");
+    expect(error.textContent).toContain("BadJwtToken");
+    expect(error.closest('[data-slot="card"]')?.textContent).toContain("This device");
+  });
+  it("keeps failed hook setup visibly incomplete, and only marks it installed after a successful retry", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ error: "Workspace setup timed out" }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) });
+    vi.stubGlobal("fetch", fetch);
+    render(
+      <NotificationSettings
+        connectedWorkspaceIds={["workspace"]}
+        pendingWorkspaceIds={["workspace"]}
+        workspaces={[{ id: "workspace", name: "ai-dev-01", running: true }]}
+        workspaceError={false}
+      />,
+    );
+    expect(screen.getByText("Setup incomplete — retry installation")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Retry setup" }));
+    const error = await screen.findByRole("alert");
+    expect(error.textContent).toContain("timed out");
+    expect(error.closest('[data-slot="card"]')?.textContent).toContain("Agent workspaces");
+    expect(screen.queryByText("Hooks installed")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry setup" }));
+    await screen.findByText("Hooks installed");
+    expect(screen.queryByText("Setup incomplete — retry installation")).toBeNull();
   });
 });

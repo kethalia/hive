@@ -63,7 +63,7 @@ export async function processTokenRotation(_job: Job<TokenRotationJobData>): Pro
     if (hoursRemaining <= PUSH_NOTIFICATION_HOURS) {
       try {
         await sendPushToUser(token.userId, {
-          title: "Hive: Token Expiring",
+          title: "Token expiring",
           body: `Your Coder API token expires in ${Math.round(hoursRemaining)}h. Tap to re-authenticate.`,
           tag: PUSH_NOTIFICATION_TAG,
           kind: "token",

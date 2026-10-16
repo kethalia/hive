@@ -69,6 +69,7 @@ describe("agent event ingress", () => {
         sourceId: "source-1",
         payload: expect.objectContaining({
           kind: "question",
+          title: "Question waiting",
           url: "/workspaces/workspace-1/terminal?session=dev+%26+ops",
         }),
       }),

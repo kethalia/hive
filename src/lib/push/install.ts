@@ -35,14 +35,37 @@ export async function installNotificationHooks(
   ]);
   const command = `python3 -c '${installer.replace(/'/g, "'\\''")}'`;
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("coder", ["ssh", "--wait=no", target, "--", command], {
-      env: {
-        ...process.env,
-        CODER_URL: client.getBaseUrl(),
-        CODER_SESSION_TOKEN: client.getSessionToken(),
+    // Use an SSH exec channel without a PTY. The pinned Coder CLI's interactive
+    // stdin forwarding can echo the credential and leave json.load waiting for EOF.
+    const child = spawn(
+      /* turbopackIgnore: true */
+      "ssh",
+      [
+        "-T",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "LogLevel=ERROR",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "ProxyCommand=coder ssh --stdio --wait=no %h",
+        target,
+        command,
+      ],
+      {
+        env: {
+          ...process.env,
+          CODER_URL: client.getBaseUrl(),
+          CODER_SESSION_TOKEN: client.getSessionToken(),
+        },
+        stdio: ["pipe", "ignore", "pipe"],
       },
-      stdio: ["pipe", "ignore", "ignore"],
-    });
+    );
+    // Drain diagnostics without logging commands or callback credentials.
+    child.stderr.resume();
     const timer = setTimeout(() => {
       child.kill();
       reject(new Error("Workspace setup timed out"));

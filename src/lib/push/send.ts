@@ -8,19 +8,27 @@ export async function sendPushToUser(
   payload: PushPayload,
   retryFailures = false,
   endpoint?: string,
-): Promise<{ sent: number; cleaned: number }> {
+): Promise<{ sent: number; cleaned: number; error?: string }> {
   let keys: { publicKey: string; privateKey: string };
   try {
     keys = await getVapidKeys();
+    // Apple rejects local-only VAPID subjects such as noreply@hive.local.
+    const subject = process.env.VAPID_SUBJECT?.trim() || process.env.HIVE_PUBLIC_ORIGIN?.trim();
+    if (!subject) throw new Error("Set HIVE_PUBLIC_ORIGIN or VAPID_SUBJECT for push delivery");
+    webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
   } catch (err) {
     console.error(
-      `[push] Failed to get VAPID keys: ${err instanceof Error ? err.message : String(err)}`,
+      `[push] Failed to configure delivery: ${err instanceof Error ? err.message : String(err)}`,
     );
     if (retryFailures) throw err;
-    return { sent: 0, cleaned: 0 };
+    return {
+      sent: 0,
+      cleaned: 0,
+      ...(endpoint
+        ? { error: "Push delivery is not configured. Check the server's public origin." }
+        : {}),
+    };
   }
-
-  webpush.setVapidDetails("mailto:noreply@hive.local", keys.publicKey, keys.privateKey);
 
   const db = getDb();
   const subscriptions = await db.pushSubscription.findMany({
@@ -29,6 +37,7 @@ export async function sendPushToUser(
 
   let sent = 0;
   let cleaned = 0;
+  let deliveryError: string | undefined;
 
   let failed = false;
   for (const sub of subscriptions) {
@@ -50,6 +59,21 @@ export async function sendPushToUser(
       sent++;
     } catch (err) {
       const statusCode = err instanceof webpush.WebPushError ? err.statusCode : undefined;
+      // Provider bodies and endpoints can contain sensitive data. Only surface a
+      // bounded reason code, never raw request details, credentials or responses.
+      let reason: string | undefined;
+      if (err instanceof webpush.WebPushError) {
+        try {
+          const value = JSON.parse(err.body).reason;
+          if (typeof value === "string" && /^[A-Za-z0-9_]{1,80}$/.test(value)) reason = value;
+        } catch {}
+      }
+      deliveryError =
+        statusCode === 404 || statusCode === 410
+          ? "This device's push subscription has expired. Disable notifications on this device, then enable them again."
+          : statusCode === 401 || statusCode === 403
+            ? `The push provider rejected Hive's delivery credentials${reason ? ` (${reason})` : ""}. Check the server's push configuration.`
+            : "The push provider is unavailable. Try sending a test again shortly.";
 
       if (statusCode === 410 || statusCode === 404) {
         try {
@@ -66,7 +90,7 @@ export async function sendPushToUser(
         failed = true;
         const domain = new URL(sub.endpoint).hostname;
         console.error(
-          `[push] Failed to send to endpoint domain ${domain}: ${err instanceof Error ? err.message : String(err)}`,
+          `[push] Failed to send to endpoint domain ${domain}: status=${statusCode ?? "unknown"} reason=${reason ?? "unavailable"}`,
         );
       }
     }
@@ -77,5 +101,5 @@ export async function sendPushToUser(
   );
 
   if (failed && retryFailures) throw new Error("Push delivery failed; retrying");
-  return { sent, cleaned };
+  return { sent, cleaned, ...(endpoint && deliveryError ? { error: deliveryError } : {}) };
 }
