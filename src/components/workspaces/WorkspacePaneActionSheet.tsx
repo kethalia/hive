@@ -91,9 +91,15 @@ export function WorkspacePaneActionSheet({
 }: WorkspacePaneActionSheetProps) {
   const isMobile = useIsMobile();
   const anchorRef = useRef(anchor);
+  const restoreAnchorFocusRef = useRef(false);
+  const selectedFocusRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (anchor) anchorRef.current = anchor;
-  }, [anchor]);
+    if (open) {
+      restoreAnchorFocusRef.current = false;
+      selectedFocusRef.current = null;
+    }
+  }, [anchor, open]);
   const { bindDragHandle, sheetStyle } = useSwipeToDismiss({
     enabled: isMobile,
     maxHeight: "min(42rem, calc(var(--app-visual-viewport-height) - 2rem))",
@@ -103,13 +109,38 @@ export function WorkspacePaneActionSheet({
 
   if (!isMobile) {
     return (
-      <DropdownMenu open={open} onOpenChange={onOpenChange} modal={false}>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(nextOpen, details) => {
+          const target =
+            details.reason === "focus-out" && "relatedTarget" in details.event
+              ? details.event.relatedTarget
+              : details.event.target;
+          if (
+            !nextOpen &&
+            (details.reason === "outside-press" || details.reason === "focus-out") &&
+            target instanceof Node &&
+            anchorRef.current?.contains(target)
+          ) {
+            // The More button handles its own toggle on click. Keep the current
+            // target until then so pointer/focus dismissal cannot reopen it.
+            details.cancel();
+            return;
+          }
+          restoreAnchorFocusRef.current = details.reason === "escape-key";
+          onOpenChange(nextOpen);
+        }}
+        modal={false}
+      >
         <DropdownMenuContent
           anchor={anchor ?? anchorRef.current}
           align="end"
           className="w-72 max-w-[calc(100vw-1rem)]"
           aria-label={`Actions for ${label}`}
-          finalFocus={() => anchorRef.current ?? false}
+          finalFocus={() => {
+            if (selectedFocusRef.current?.isConnected) return selectedFocusRef.current;
+            return restoreAnchorFocusRef.current ? (anchorRef.current ?? false) : false;
+          }}
           data-sidebar-gesture-ignore="true"
           data-testid="workspace-pane-action-menu"
         >
@@ -128,8 +159,19 @@ export function WorkspacePaneActionSheet({
                 variant={action.destructive ? "destructive" : "default"}
                 className="gap-2 px-2 py-1.5"
                 data-testid={`workspace-pane-action-${action.id}`}
-                onClick={() => {
+                onClick={(event) => {
+                  restoreAnchorFocusRef.current = false;
                   action.onSelect();
+                  // Base UI focuses the clicked item after this handler. Preserve
+                  // any focus the action chose outside the menu when it closes.
+                  const doc = event.currentTarget.ownerDocument;
+                  const focusTarget = doc.activeElement;
+                  selectedFocusRef.current =
+                    focusTarget instanceof HTMLElement &&
+                    focusTarget !== doc.body &&
+                    !event.currentTarget.closest('[role="menu"]')?.contains(focusTarget)
+                      ? focusTarget
+                      : null;
                   onOpenChange(false);
                 }}
               >

@@ -4201,6 +4201,10 @@ export function MultiSessionWorkspace({
     });
   };
 
+  const togglePaneActions = (target: WorkspacePaneActionTarget) => {
+    setPaneActionTarget((current) => (current?.anchor === target.anchor ? null : target));
+  };
+
   const paneActionModel = paneActionTarget
     ? boardRenderModels.find((model) => model.board.key === paneActionTarget.boardKey)
     : undefined;
@@ -4425,7 +4429,7 @@ export function MultiSessionWorkspace({
               dragHandleListeners={dragHandleListeners}
               actionsOpen={paneActionTarget?.windowId === toolPane.key}
               onOpenActions={(anchor) =>
-                setPaneActionTarget({
+                togglePaneActions({
                   anchor,
                   boardKey: model.board.key,
                   kind: "tool",
@@ -4574,7 +4578,7 @@ export function MultiSessionWorkspace({
               paneActionTarget?.boardKey === model.board.key
             }
             onOpenActions={(anchor) =>
-              setPaneActionTarget({
+              togglePaneActions({
                 anchor,
                 boardKey: model.board.key,
                 boardPaneKey: visibleSession?.boardPaneKey,

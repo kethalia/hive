@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
@@ -168,5 +168,57 @@ describe("WorkspacePaneActionSheet", () => {
     fireEvent.keyDown(document.activeElement ?? menu, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("preserves terminal focus selected by an action after dismissing and reopening the menu", async () => {
+    mockUseIsMobile.mockReturnValue(false);
+    function Harness() {
+      const [anchor, setAnchor] = React.useState<HTMLButtonElement | null>(null);
+      const terminalRef = React.useRef<HTMLTextAreaElement>(null);
+      return (
+        <>
+          <button type="button" onClick={(event) => setAnchor(event.currentTarget)}>
+            More
+          </button>
+          <textarea ref={terminalRef} aria-label="Terminal input" />
+          <WorkspacePaneActionSheet
+            open={anchor !== null}
+            anchor={anchor}
+            onOpenChange={(open) => {
+              if (!open) setAnchor(null);
+            }}
+            label="Terminal one"
+            actions={[
+              {
+                id: "activate",
+                label: "Activate pane",
+                icon: "activate",
+                onSelect: () => terminalRef.current?.focus(),
+              },
+            ]}
+          />
+        </>
+      );
+    }
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "More" });
+    fireEvent.click(trigger);
+    fireEvent.keyDown(await screen.findByRole("menu"), { key: "Escape" });
+    await waitFor(() => expect(trigger).toHaveFocus());
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Activate pane" }));
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    const terminalInput = screen.getByRole("textbox", { name: "Terminal input" });
+    expect(terminalInput).toHaveFocus();
+
+    fireEvent.click(trigger);
+    await screen.findByRole("menu");
+    fireEvent.pointerDown(terminalInput, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(terminalInput, { button: 0 });
+    act(() => terminalInput.focus());
+    fireEvent.mouseUp(terminalInput, { button: 0 });
+    fireEvent.click(terminalInput);
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(terminalInput).toHaveFocus();
   });
 });

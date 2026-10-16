@@ -1922,9 +1922,20 @@ describe("MultiSessionWorkspace", () => {
     const more = screen.getByTestId("workspace-pane-main-session-actions");
     fireEvent.click(more);
 
-    expect(await screen.findByRole("menu", { name: "Actions for main-session" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("menu", { name: "Actions for main-session" }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-action-sheet")).not.toBeInTheDocument();
     expect(more).toHaveAttribute("aria-expanded", "true");
+    fireEvent.pointerDown(more, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(more, { button: 0 });
+    act(() => more.focus());
+    fireEvent.mouseUp(more, { button: 0 });
+    fireEvent.click(more);
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
+    await screen.findByRole("menu");
     fireEvent.click(screen.getByTestId("workspace-pane-action-logs"));
 
     const toolMore = await screen.findByTestId("workspace-tool-pane-logs-actions");
@@ -1932,6 +1943,15 @@ describe("MultiSessionWorkspace", () => {
     expect(await screen.findByTestId("workspace-pane-action-menu")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-action-sheet")).not.toBeInTheDocument();
     expect(toolMore).toHaveAttribute("aria-expanded", "true");
+    fireEvent.pointerDown(toolMore, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(toolMore, { button: 0 });
+    act(() => toolMore.focus());
+    fireEvent.mouseUp(toolMore, { button: 0 });
+    fireEvent.click(toolMore);
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(toolMore).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toolMore);
+    await screen.findByRole("menu");
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
     expect(toolMore).toHaveAttribute("aria-expanded", "false");
