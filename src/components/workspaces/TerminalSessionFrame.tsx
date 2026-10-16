@@ -1,7 +1,7 @@
 "use client";
 
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
-import { Ellipsis, GripVertical, Lock, Minus, Plus, X } from "lucide-react";
+import { Ellipsis, GripVertical, Minus, Plus, X } from "lucide-react";
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -135,8 +135,6 @@ interface TerminalSessionFrameProps {
   onClose?: (event: MouseEvent<HTMLButtonElement>) => void;
   onMouseMove?: () => void;
   onFocusActivate?: boolean;
-  disabled?: boolean;
-  disabledLabel?: string;
   closeLabel?: string;
   closeTestId?: string;
   headerActions?: ReactNode;
@@ -164,8 +162,6 @@ export function TerminalSessionFrame({
   onClose,
   onMouseMove,
   onFocusActivate = false,
-  disabled = false,
-  disabledLabel,
   closeLabel,
   closeTestId,
   headerActions,
@@ -179,11 +175,10 @@ export function TerminalSessionFrame({
   paneState,
 }: TerminalSessionFrameProps) {
   const actionsButtonRef = useRef<HTMLButtonElement>(null);
-  const interactive = Boolean(onActivate) && !disabled;
-  const draggableHeader = !disabled && Boolean(dragHandleListeners);
+  const interactive = Boolean(onActivate);
+  const draggableHeader = Boolean(dragHandleListeners);
 
   function handleFrameClick(event: MouseEvent<HTMLDivElement>) {
-    if (disabled) return;
     if (!onActivate) return;
     const target = event.target;
     if (target instanceof HTMLElement && target.closest("[data-terminal-surface='true']")) return;
@@ -191,13 +186,12 @@ export function TerminalSessionFrame({
   }
 
   function handleFrameFocus(event: FocusEvent<HTMLDivElement>) {
-    if (disabled || isHeaderControl(event.target, event.currentTarget)) return;
+    if (isHeaderControl(event.target, event.currentTarget)) return;
     if (!onFocusActivate || event.currentTarget !== event.target) return;
     onActivate?.();
   }
 
   function handleFrameKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (disabled) return;
     if (!interactive || event.currentTarget !== event.target) return;
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
@@ -213,7 +207,7 @@ export function TerminalSessionFrame({
   }
 
   function handleHeaderContextMenu(event: MouseEvent<HTMLDivElement>) {
-    if (disabled || !onOpenActions) return;
+    if (!onOpenActions) return;
     const target = event.target;
     const interactiveTarget =
       target instanceof Element
@@ -235,12 +229,9 @@ export function TerminalSessionFrame({
         active ? "border-primary ring-1 ring-primary" : "border-border",
         isDropTarget && "border-primary/80 ring-2 ring-inset ring-primary/60",
         isDragging && "shadow-xl shadow-black/40",
-        disabled && "border-white/10 opacity-45 grayscale-[0.35] saturate-50",
         className,
       )}
-      aria-disabled={disabled || undefined}
       data-active={active ? "true" : "false"}
-      data-compose-disabled={disabled ? "true" : "false"}
       data-pane-label={label}
       data-pane-mode={layoutMode}
       data-pane-state={paneState}
@@ -250,7 +241,7 @@ export function TerminalSessionFrame({
       onClick={handleFrameClick}
       onFocus={handleFrameFocus}
       onKeyDown={handleFrameKeyDown}
-      onMouseMove={disabled ? undefined : onMouseMove}
+      onMouseMove={onMouseMove}
     >
       {showHeader ? (
         <div
@@ -305,7 +296,6 @@ export function TerminalSessionFrame({
               aria-haspopup={touchOptimizedActions ? "dialog" : "menu"}
               aria-expanded={actionsOpen}
               data-testid={dataTestId ? `${dataTestId}-actions` : undefined}
-              disabled={disabled}
               onClick={(event) => {
                 event.stopPropagation();
                 onOpenActions(event.currentTarget);
@@ -325,7 +315,6 @@ export function TerminalSessionFrame({
               )}
               aria-label={closeLabel ?? `Close ${label}`}
               data-testid={closeTestId}
-              disabled={disabled}
               onClick={onClose}
             >
               <X className="size-3" />
@@ -334,26 +323,11 @@ export function TerminalSessionFrame({
         </div>
       ) : null}
       <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-hidden",
-          disabled && "pointer-events-none",
-          contentClassName,
-        )}
+        className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", contentClassName)}
         data-terminal-frame-content="true"
       >
         {children}
       </div>
-      {disabled ? (
-        <div
-          className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end bg-black/35 p-2"
-          data-testid={dataTestId ? `${dataTestId}-disabled-overlay` : undefined}
-        >
-          <span className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-black/80 px-2 py-1 font-mono text-[10px] text-white/80 shadow-sm">
-            <Lock className="size-3" />
-            {disabledLabel ?? "Compose locked"}
-          </span>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -114,7 +114,7 @@ describe("InteractiveTerminal safe fit", () => {
     expect(prime).toHaveBeenCalledOnce();
   });
 
-  it("Compose and touch submission prime playback without microphone approval", async () => {
+  it("Touch submission prime playback without microphone approval", async () => {
     const onTerminalReady = vi.fn();
     const { container } = render(
       <InteractiveTerminal

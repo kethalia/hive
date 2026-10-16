@@ -58,7 +58,7 @@ const {
   mockResolveGitCloneTerminalAction,
   mockSetActiveTerminal,
   mockUnregisterKeybinding,
-  mockUseIsComposeSheet,
+  mockUseIsMobile,
   mockUseKeybindings,
   mockUseVisualViewportKeyboardOffset,
   navigationState,
@@ -84,7 +84,7 @@ const {
     mockResolveGitCloneTerminalAction: vi.fn(),
     mockSetActiveTerminal: setActiveTerminal,
     mockUnregisterKeybinding: unregister,
-    mockUseIsComposeSheet: vi.fn(() => false),
+    mockUseIsMobile: vi.fn(() => false),
     mockUseKeybindings: vi.fn<
       () => {
         activeSend: unknown;
@@ -302,8 +302,8 @@ vi.mock("@/lib/actions/user-settings", () => ({
   getTerminalSettingsAction: mockGetTerminalSettingsAction,
 }));
 
-vi.mock("@/hooks/use-compose-sheet", () => ({
-  useIsComposeSheet: mockUseIsComposeSheet,
+vi.mock("@/hooks/use-mobile", () => ({
+  useIsMobile: mockUseIsMobile,
 }));
 
 vi.mock("@/hooks/useFavoriteWindowNavigation", () => ({
@@ -372,25 +372,6 @@ vi.mock("lucide-react", () => ({
   Minus: () => null,
   Plus: () => null,
   X: () => null,
-}));
-
-vi.mock("@/components/terminal/ComposePanel", () => ({
-  ComposePanel: ({
-    hideHeader,
-    initialDraft = "",
-    targetLabel,
-  }: {
-    hideHeader?: boolean;
-    initialDraft?: string;
-    targetLabel?: string;
-  }) => (
-    <div
-      data-hide-header={hideHeader ? "true" : "false"}
-      data-initial-draft={initialDraft}
-      data-target-label={targetLabel ?? ""}
-      data-testid="compose-panel"
-    />
-  ),
 }));
 
 vi.mock("@/components/terminal/CommandPalette", () => ({
@@ -629,12 +610,12 @@ vi.mock("@/components/ui/resizable", () => ({
 vi.mock("@/components/ui/sheet", () => ({
   Sheet: ({ children, open }: React.PropsWithChildren<{ open?: boolean }>) =>
     open ? (
-      <div data-open={open ? "true" : "false"} data-testid="compose-sheet">
+      <div data-open={open ? "true" : "false"} data-testid="sheet">
         {children}
       </div>
     ) : null,
   SheetContent: ({ children, side }: React.PropsWithChildren<{ side?: string }>) => (
-    <section data-side={side} data-testid="compose-sheet-content">
+    <section data-side={side} data-testid="sheet-content">
       {children}
     </section>
   ),
@@ -722,8 +703,8 @@ beforeEach(() => {
   mockUnregisterKeybinding.mockClear();
   mockHandleKeyEvent.mockClear();
   mockSetActiveTerminal.mockClear();
-  mockUseIsComposeSheet.mockReset();
-  mockUseIsComposeSheet.mockReturnValue(false);
+  mockUseIsMobile.mockReset();
+  mockUseIsMobile.mockReturnValue(false);
   mockUseVisualViewportKeyboardOffset.mockReset();
   mockUseVisualViewportKeyboardOffset.mockReturnValue({
     isKeyboardVisible: false,
@@ -782,7 +763,6 @@ type RenderTerminalOptions = {
   cloneProof?: string;
   layoutSignal?: unknown;
   mobileInputMode?: boolean;
-  onComposeRequest?: (request: unknown) => void;
   onClipboardStatus?: (status: import("@/lib/terminal/actions").ClipboardActionStatus) => void;
   onConnectionStateChange?: (state: ConnectionState) => void;
   onRecoveryStateChange?: (state: TerminalRecoveryState) => void;
@@ -948,7 +928,7 @@ describe("InteractiveTerminal file drop feedback", () => {
       resize: mockResize,
       connectionState: "connected",
     });
-    await renderTerminal({ onComposeRequest: vi.fn() });
+    await renderTerminal();
     const host = document.querySelector('[data-terminal-surface="true"]')!;
     const child = document.querySelector('[data-testid="terminal-fit-host"]')!;
     const transfer = { types: ["Files"], dropEffect: "none", items: [{ kind: "file" }] };
@@ -1845,8 +1825,8 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     unmount();
   });
 
-  it("enables bottom-preserving refits on mobile compose-sheet terminal routes", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+  it("enables bottom-preserving refits on mobile terminal routes", async () => {
+    mockUseIsMobile.mockReturnValue(true);
 
     const { getByTestId, unmount } = await renderTerminalClient("session=main");
 
@@ -1862,7 +1842,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("keeps keyboard-visible visual viewport height and offset in the mobile layout signal", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     mockUseVisualViewportKeyboardOffset.mockReturnValue({
       isKeyboardVisible: true,
       liftPx: 0,
@@ -1887,7 +1867,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("updates mobile copy availability when terminal selection changes", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     let selected = false;
     let selectionChangeHandler: (() => void) | null = null;
     const disposeSelectionChange = vi.fn();
@@ -1934,7 +1914,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("wires mobile clipboard buttons to the active terminal and sender with redacted status", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     const activeTerminal = {
       clearSelection: vi.fn(),
       getSelection: vi.fn(() => "non-empty-selection"),
@@ -1987,7 +1967,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     "clipboard-api-unavailable",
     "unknown-error",
   ])("describes native selection after a %s clipboard failure", async (reason) => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     mockUseKeybindings.mockReturnValue({
       activeTerminal: { getSelection: () => "selected text" },
       activeSend: vi.fn(),
@@ -2010,63 +1990,8 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
     unmount();
   });
 
-  it("stages multiple pasted file paths in compose on regular single terminal routes", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
-    const activeTerminal = {
-      clearSelection: vi.fn(),
-      getSelection: vi.fn(() => ""),
-    };
-    const activeSend = vi.fn();
-    mockUseKeybindings.mockReturnValue({
-      activeSend,
-      activeTerminal,
-      getAll: vi.fn(() => []),
-      handleKeyEvent: mockHandleKeyEvent,
-      register: mockRegisterKeybinding,
-      setActiveTerminal: mockSetActiveTerminal,
-      unregister: mockUnregisterKeybinding,
-    });
-    mockPasteClipboardApiToTerminal.mockImplementation((_term, _send, options) => {
-      options?.onCompose?.({
-        draft: "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
-        append: true,
-        targetLabel: "main",
-      });
-      options?.onStatus?.({ action: "paste", outcome: "pasted", method: "clipboard-api" });
-      return false;
-    });
-
-    const { getByTestId, unmount } = await renderTerminalClient("session=main");
-
-    await waitFor(() => {
-      expect(getByTestId("terminal-mobile-controls")).toHaveAttribute(
-        "data-paste-disabled",
-        "false",
-      );
-    });
-    fireEvent.click(getByTestId("terminal-paste-clipboard"));
-
-    expect(mockPasteClipboardApiToTerminal).toHaveBeenCalledWith(
-      activeTerminal,
-      activeSend,
-      expect.objectContaining({
-        onCompose: expect.any(Function),
-        targetLabel: "main",
-        workspaceId: "test-ws",
-      }),
-    );
-    expect(activeSend).not.toHaveBeenCalled();
-    expect(getByTestId("compose-panel")).toHaveAttribute(
-      "data-initial-draft",
-      "/tmp/hive-terminal-paste/one.png\n/tmp/hive-terminal-paste/two.txt",
-    );
-    expect(getByTestId("compose-panel")).toHaveAttribute("data-target-label", "main");
-    expect(getByTestId("terminal-clipboard-status")).toHaveTextContent("Paste complete");
-    unmount();
-  });
-
   it("keeps mobile clipboard actions disabled until the active terminal and sender are available", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
 
     const { getByTestId, unmount } = await renderTerminalClient("session=main");
 
@@ -2089,7 +2014,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("enables direct mobile selection without a selection-mode toggle", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     const { getByTestId, unmount } = await renderTerminalClient("session=main");
     expect(getByTestId("interactive-terminal")).toHaveAttribute("data-mobile-input-mode", "true");
     expect(getByTestId("interactive-terminal")).toHaveAttribute(
@@ -2103,7 +2028,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("passes favorite-window navigation state to mobile controls", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     mockUseFavoriteWindowNavigation.mockReturnValue({
       sessions: [
         { id: "fav-alpha", name: "alpha" },
@@ -2143,7 +2068,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("selects previous and next favorite windows by id", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     const selectFavoriteWindow = vi.fn(() => true);
     mockUseFavoriteWindowNavigation.mockReturnValue({
       sessions: [
@@ -2181,7 +2106,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("opens the existing command palette picker and routes favorite selection without enabling creation", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     const selectFavoriteWindow = vi.fn(() => true);
     mockUseFavoriteWindowNavigation.mockReturnValue({
       sessions: [
@@ -2226,7 +2151,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("shows an empty favorite picker state instead of navigating when there are no favorite windows", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
 
     const { getByTestId, queryByTestId, unmount } = await renderTerminalClient("session=missing");
 
@@ -2245,7 +2170,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("selects favorite windows from an active clone URL without generic session fallback", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     const selectFavoriteWindow = vi.fn(() => true);
     mockUseFavoriteWindowNavigation.mockReturnValue({
       sessions: [
@@ -2285,7 +2210,7 @@ describe("TerminalClient integration — Mobile terminal route props", () => {
   });
 
   it("surfaces loading and server-error favorite navigation states without leaving the active route", async () => {
-    mockUseIsComposeSheet.mockReturnValue(true);
+    mockUseIsMobile.mockReturnValue(true);
     mockUseFavoriteWindowNavigation.mockReturnValue({
       sessions: [],
       current: null,
@@ -2529,9 +2454,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
   });
 
   it("intercepts terminal Ctrl+V through the browser clipboard before xterm sends it", async () => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
     const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
@@ -2551,7 +2475,6 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       terminal,
       expect.any(Function),
       expect.objectContaining({
-        onCompose: onComposeRequest,
         workspaceId: "test-ws",
       }),
     );
@@ -2574,9 +2497,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
   });
 
   it("intercepts terminal Ctrl+Shift+V before xterm injects multiline text", async () => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const terminal = terminalInstances.at(-1);
     const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
 
@@ -2594,7 +2516,6 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       terminal,
       expect.any(Function),
       expect.objectContaining({
-        onCompose: onComposeRequest,
         workspaceId: "test-ws",
       }),
     );
@@ -2606,9 +2527,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     false,
     true,
   ])("replays native text when shifted Clipboard API paste fails (failure first: %s)", async (failureFirst) => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const terminal = terminalInstances.at(-1);
     const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
 
@@ -2635,19 +2555,16 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
     expect(nativePaste.defaultPrevented).toBe(true);
     if (!failureFirst) {
-      expect(onComposeRequest).not.toHaveBeenCalled();
       expect(pasteOptions?.onPasteFailure?.()).toBe(true);
     }
 
-    expect(onComposeRequest).not.toHaveBeenCalled();
     expect(mockSend).toHaveBeenCalledExactlyOnceWith("echo first\necho second");
     unmount();
   });
 
   it("keeps overlapping shifted paste fallbacks isolated by request", async () => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
     const shiftedPasteEvent = {
       type: "keydown",
@@ -2686,9 +2603,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
   });
 
   it("replays cached native text on timeout and ignores the late API outcome", async () => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const timeoutSpy = vi.spyOn(window, "setTimeout");
     const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
 
@@ -2707,11 +2623,9 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     });
     document.querySelector(".xterm")?.dispatchEvent(nativePaste);
 
-    expect(onComposeRequest).not.toHaveBeenCalled();
     if (typeof timeoutCallback !== "function") throw new Error("Paste timeout was not scheduled.");
     act(() => timeoutCallback());
 
-    expect(onComposeRequest).not.toHaveBeenCalled();
     expect(mockSend).toHaveBeenCalledExactlyOnceWith("cached one\ncached two");
     const pasteOptions = mockPasteClipboardApiToTerminal.mock.calls.at(-1)?.[2];
     expect(
@@ -2723,9 +2637,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
   });
 
   it("routes a synchronous exec fallback event to its rejecting attempt", async () => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
     const shiftedPasteEvent = {
       type: "keydown",
@@ -2768,7 +2681,6 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
   });
 
   it("prefers a captured native file over a successful API text representation", async () => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
     vi.stubGlobal(
       "fetch",
@@ -2777,7 +2689,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
         json: vi.fn().mockResolvedValue({ paths: ["/tmp/hive-terminal-paste/native.png"] }),
       }),
     );
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
     keyHandler?.({
       type: "keydown",
@@ -2815,9 +2727,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
   });
 
   it("lets native file paste through after terminal Ctrl+V when clipboard item reads are unavailable", async () => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(true);
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const terminal = terminalInstances.at(-1);
     const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
 
@@ -2847,7 +2758,6 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     expect(mockPasteNativeClipboardEventToTerminal).toHaveBeenCalledWith(
       nativePaste,
       expect.objectContaining({
-        onCompose: onComposeRequest,
         workspaceId: "test-ws",
       }),
     );
@@ -2859,9 +2769,8 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       value: { read: vi.fn() },
       configurable: true,
     });
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const terminal = terminalInstances.at(-1);
     const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
 
@@ -2895,7 +2804,6 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
   });
 
   it("uses captured native files when Clipboard API paste does not provide files", async () => {
-    const onComposeRequest = vi.fn();
     mockPasteClipboardApiToTerminal.mockReturnValue(false);
     vi.stubGlobal(
       "fetch",
@@ -2904,7 +2812,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
         json: vi.fn().mockResolvedValue({ paths: ["/tmp/hive-terminal-paste/pasted.txt"] }),
       }),
     );
-    const { unmount } = await renderTerminal({ onComposeRequest });
+    const { unmount } = await renderTerminal({});
     const terminal = terminalInstances.at(-1);
     const keyHandler = terminal?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
 
@@ -2958,7 +2866,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
       options.onStatus({ action: "paste", outcome: "reading", method: "clipboard-api" });
       return false;
     });
-    const { unmount } = await renderTerminal({ onComposeRequest: vi.fn(), onClipboardStatus });
+    const { unmount } = await renderTerminal({ onClipboardStatus });
     const timer = vi.spyOn(window, "setTimeout");
     const keyHandler = terminalInstances.at(-1)?.attachCustomKeyEventHandler.mock.calls.at(-1)?.[0];
     act(() =>

@@ -4,7 +4,6 @@ import {
   normalizeClipboardText,
   readClipboardApiOutcome,
   readDataTransferOutcome,
-  type TerminalComposeRequest,
   type TerminalPasteController,
   type TerminalPasteOutcome,
   type TerminalPasteStatus,
@@ -58,11 +57,9 @@ export type ClipboardStatusCallback = (status: ClipboardActionStatus) => void;
 
 export interface ClipboardActionOptions {
   onStatus?: ClipboardStatusCallback;
-  onCompose?: (request: TerminalComposeRequest) => void;
   onPasteOutcome?: (outcome: TerminalPasteOutcome) => boolean | undefined;
   onPasteFailure?: () => boolean | undefined;
   runPasteFallback?: (fallback: () => boolean) => boolean;
-  targetLabel?: string;
   workspaceId?: string;
 }
 
@@ -253,9 +250,7 @@ function createTerminalPasteController(
   return {
     term,
     send,
-    openCompose: (request) => options?.onCompose?.(request),
     workspaceId: options?.workspaceId,
-    targetLabel: options?.targetLabel,
     onStatus: (status) => emitStatus(options, status),
   };
 }
@@ -416,9 +411,7 @@ export async function pasteNativeClipboardEventToTerminal(
   controller: {
     term: Terminal | null;
     send: (data: string) => void;
-    onCompose: (request: TerminalComposeRequest) => void;
     workspaceId?: string;
-    targetLabel?: string;
     onStatus?: (status: TerminalPasteStatus) => void;
   },
 ): Promise<void> {
@@ -431,9 +424,7 @@ export async function pasteNativeClipboardEventToTerminal(
   await handleTerminalPasteOutcome(outcome, {
     term: controller.term,
     send: controller.send,
-    openCompose: controller.onCompose,
     workspaceId: controller.workspaceId,
-    targetLabel: controller.targetLabel,
     onStatus: controller.onStatus,
   });
 }
@@ -443,9 +434,7 @@ export async function dropDataTransferToTerminal(
   controller: {
     term: Terminal | null;
     send: (data: string) => void;
-    onCompose: (request: TerminalComposeRequest) => void;
     workspaceId?: string;
-    targetLabel?: string;
     onStatus?: (status: TerminalPasteStatus) => void;
   },
 ): Promise<void> {
@@ -456,9 +445,7 @@ export async function dropDataTransferToTerminal(
   await handleTerminalPasteOutcome(outcome, {
     term: controller.term,
     send: controller.send,
-    openCompose: controller.onCompose,
     workspaceId: controller.workspaceId,
-    targetLabel: controller.targetLabel,
     onStatus: controller.onStatus,
   });
 }

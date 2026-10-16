@@ -6,7 +6,6 @@ import {
   normalizeClipboardText,
   pasteTextToXterm,
   readClipboardApiOutcome,
-  submitTerminalComposeDraft,
 } from "@/lib/terminal/clipboard";
 
 describe("terminal clipboard normalization", () => {
@@ -84,34 +83,19 @@ describe("terminal paste dispatch", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it("submits compose drafts through xterm paste before sending enter", () => {
-    const term = { paste: vi.fn() };
-    const send = vi.fn();
-
-    submitTerminalComposeDraft(term as never, send, "one\ntwo");
-
-    expect(term.paste).toHaveBeenCalledWith("one\ntwo");
-    expect(send).toHaveBeenCalledOnce();
-    expect(send).toHaveBeenCalledWith("\r");
-    expect(term.paste.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
-  });
-
-  it("pastes multiline text without opening compose or submitting", async () => {
-    const openCompose = vi.fn();
+  it("pastes multiline text without submitting", async () => {
     const send = vi.fn();
 
     await handleTerminalPasteOutcome(
       { kind: "text", text: "one\ntwo", multiline: true },
-      { term: null, send, openCompose, targetLabel: "main" },
+      { term: null, send },
     );
 
     expect(send).toHaveBeenCalledExactlyOnceWith("one\ntwo");
-    expect(openCompose).not.toHaveBeenCalled();
   });
 
   it("pastes a single uploaded file path directly to the terminal", async () => {
     const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
-    const openCompose = vi.fn();
     const onStatus = vi.fn();
     const send = vi.fn();
     vi.stubGlobal(
@@ -129,14 +113,12 @@ describe("terminal paste dispatch", () => {
       {
         term: null,
         send,
-        openCompose,
         workspaceId: "workspace-1",
         onStatus,
       },
     );
 
     expect(send).toHaveBeenCalledWith("/tmp/hive-terminal-paste/pasted.png");
-    expect(openCompose).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith({
       action: "paste",
       outcome: "uploading",
@@ -149,10 +131,9 @@ describe("terminal paste dispatch", () => {
     });
   });
 
-  it("pastes multiple uploaded file paths without opening compose", async () => {
+  it("pastes multiple uploaded file paths without submitting", async () => {
     const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
     const textFile = new File(["txt"], "notes.txt", { type: "text/plain" });
-    const openCompose = vi.fn();
     const onStatus = vi.fn();
     const send = vi.fn();
     vi.stubGlobal(
@@ -170,9 +151,7 @@ describe("terminal paste dispatch", () => {
       {
         term: null,
         send,
-        openCompose,
         workspaceId: "workspace-1",
-        targetLabel: "main",
         onStatus,
       },
     );
@@ -180,7 +159,6 @@ describe("terminal paste dispatch", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith(
       "/tmp/hive-terminal-paste/pasted.png\n/tmp/hive-terminal-paste/notes.txt",
     );
-    expect(openCompose).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith({
       action: "paste",
       outcome: "uploading",
@@ -195,7 +173,6 @@ describe("terminal paste dispatch", () => {
 
   it("reports image upload failure without throwing", async () => {
     const imageFile = new File(["png"], "pasted.png", { type: "image/png" });
-    const openCompose = vi.fn();
     const onStatus = vi.fn();
     vi.stubGlobal(
       "fetch",
@@ -210,13 +187,11 @@ describe("terminal paste dispatch", () => {
       {
         term: null,
         send: vi.fn(),
-        openCompose,
         workspaceId: "workspace-1",
         onStatus,
       },
     );
 
-    expect(openCompose).not.toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith({
       action: "paste",
       outcome: "failed",
@@ -229,16 +204,13 @@ describe("terminal paste dispatch", () => {
 it("pastes a complete multiline prompt once and never sends Enter", async () => {
   const term = { paste: vi.fn() };
   const send = vi.fn();
-  const openCompose = vi.fn();
   const prompt = "First instruction\r\nSecond instruction\nFinal instruction\n";
   await handleTerminalPasteOutcome(normalizeClipboardText(prompt), {
     term: term as never,
     send,
-    openCompose,
   });
   expect(term.paste).toHaveBeenCalledExactlyOnceWith(prompt);
   expect(send).not.toHaveBeenCalled();
-  expect(openCompose).not.toHaveBeenCalled();
 });
 
 it("prevents pasted escape sequences from ending bracketed paste early", () => {
@@ -269,7 +241,7 @@ it("rejects an aggregate paste over 20 MiB before making an upload request", asy
   const send = vi.fn();
   await handleTerminalPasteOutcome(
     { kind: "asset-files", files },
-    { term: null, send, openCompose: vi.fn(), workspaceId: "workspace-1", onStatus },
+    { term: null, send, workspaceId: "workspace-1", onStatus },
   );
   expect(fetch).not.toHaveBeenCalled();
   expect(send).not.toHaveBeenCalled();

@@ -5,11 +5,9 @@ import { Pencil, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
-import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { connectionBadgeProps } from "@/components/workspaces/InteractiveTerminal";
 import { KeepAliveWarning } from "@/components/workspaces/KeepAliveWarning";
 import { useKeybindings } from "@/hooks/useKeybindings";
@@ -21,8 +19,6 @@ import {
   renameSessionAction,
 } from "@/lib/actions/workspaces";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
-import { submitTerminalComposeDraft, type TerminalComposeRequest } from "@/lib/terminal/clipboard";
-import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 import { forgetTerminalSession } from "@/lib/terminal/session-lifetime";
@@ -99,9 +95,6 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [composeOpen, setComposeOpen] = useState(false);
-  const [composeDraft, setComposeDraft] = useState("");
-  const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
 
   const [connStates, setConnStates] = useState<Record<string, ConnectionState>>({});
   const keybindingsCtx = useKeybindings();
@@ -294,27 +287,6 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
     [tabs, workspaceId, agentId],
   );
 
-  const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
-    setComposeTargetLabel(request.targetLabel);
-    setComposeDraft((current) => {
-      if (!request.append || !current) return request.draft;
-      return `${current.replace(/\s*$/, "")}\n${request.draft}`;
-    });
-    setComposeOpen(true);
-  }, []);
-
-  const closeCompose = useCallback(() => {
-    setComposeOpen(false);
-    setComposeDraft("");
-    setComposeTargetLabel(undefined);
-  }, []);
-
-  const sendComposeDraft = useCallback((draft: string) => {
-    const entry = activeTabIdRef.current ? terminalsRef.current.get(activeTabIdRef.current) : null;
-    if (!entry) return;
-    submitTerminalComposeDraft(entry.term, entry.send, draft);
-  }, []);
-
   const { register, unregister } = keybindingsCtx;
 
   const handlePaletteSelectTab = useCallback((tabId: string) => {
@@ -334,16 +306,6 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
       }),
     [handleCreateTab, handlePaletteSelectTab, tabs, workspaceId],
   );
-
-  useEffect(() => {
-    const handleComposeToggle = () => {
-      setComposeOpen((open) => !open);
-    };
-    window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
-    return () => {
-      window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
-    };
-  }, []);
 
   useEffect(() => {
     const createTabBinding = {
@@ -569,45 +531,28 @@ export function TerminalTabManager({ agentId, workspaceId }: TerminalTabManagerP
           })()}
       </div>
 
-      <ResizablePanelGroup orientation="vertical" className="flex-1">
-        <ResizablePanel defaultSize={composeOpen ? 75 : 100} minSize={30}>
-          <div className="relative h-full">
-            {tabs.map((tab) => (
-              <div
-                key={tab.id}
-                className={cn("absolute inset-0", activeTabId !== tab.id && "pointer-events-none")}
-                style={{ display: activeTabId === tab.id ? "block" : "none" }}
-              >
-                <InteractiveTerminal
-                  agentId={agentId}
-                  workspaceId={workspaceId}
-                  sessionName={tab.sessionName}
-                  className="h-full"
-                  onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
-                  onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
-                  onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
-                  onComposeRequest={openComposeWithDraft}
-                  targetLabel={tab.sessionName}
-                />
-              </div>
-            ))}
-          </div>
-        </ResizablePanel>
-        {composeOpen && (
-          <>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={25} minSize={10} maxSize={50}>
-              <TerminalSessionCompose
-                variant="inline"
-                initialDraft={composeDraft}
-                targetLabel={composeTargetLabel}
-                onSend={sendComposeDraft}
-                onClose={closeCompose}
+      <div className="min-h-0 flex-1">
+        <div className="relative h-full">
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              className={cn("absolute inset-0", activeTabId !== tab.id && "pointer-events-none")}
+              style={{ display: activeTabId === tab.id ? "block" : "none" }}
+            >
+              <InteractiveTerminal
+                agentId={agentId}
+                workspaceId={workspaceId}
+                sessionName={tab.sessionName}
+                className="h-full"
+                onConnectionStateChange={(state) => handleConnectionStateChange(tab.id, state)}
+                onTerminalReady={(term, send) => handleTerminalReady(tab.id, term, send)}
+                onTerminalDestroy={() => handleTerminalDestroy(tab.id)}
+                targetLabel={tab.sessionName}
               />
-            </ResizablePanel>
-          </>
-        )}
-      </ResizablePanelGroup>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <CommandPalette
         open={paletteOpen}

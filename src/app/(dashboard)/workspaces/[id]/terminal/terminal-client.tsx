@@ -8,13 +8,12 @@ import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { MobileTerminalControls } from "@/components/terminal/MobileTerminalControls";
 import { MobileTerminalDiagnosticsOverlay } from "@/components/terminal/MobileTerminalDiagnosticsOverlay";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
-import { TerminalSessionCompose } from "@/components/terminal/TerminalSessionCompose";
 import { Button } from "@/components/ui/button";
 import {
   SingleTerminalSessionHeader,
   TerminalSessionFrame,
 } from "@/components/workspaces/TerminalSessionFrame";
-import { useIsComposeSheet } from "@/hooks/use-compose-sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useFavoriteWindowNavigation } from "@/hooks/useFavoriteWindowNavigation";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import { useTerminalClipboardFeedback } from "@/hooks/useTerminalClipboardFeedback";
@@ -33,12 +32,7 @@ import {
   getTerminalSelectionText,
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
-import {
-  handleTerminalPasteOutcome,
-  submitTerminalComposeDraft,
-  type TerminalComposeRequest,
-} from "@/lib/terminal/clipboard";
-import { TERMINAL_COMPOSE_OPEN_EVENT, TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
+import { handleTerminalPasteOutcome } from "@/lib/terminal/clipboard";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -104,9 +98,6 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
   const terminalDisplaySubtitle = gitRepositoryPresentation?.subtitle;
   const debugViewportEnabled = searchParams.get("debugViewport") === "1";
   const { setActiveTerminal, activeTerminal, activeSend } = useKeybindings();
-  const [composeOpen, setComposeOpen] = useState(false);
-  const [composeDraft, setComposeDraft] = useState("");
-  const [composeTargetLabel, setComposeTargetLabel] = useState<string | undefined>();
   const [windowSwitcherOpen, setWindowSwitcherOpen] = useState(false);
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
   const {
@@ -128,7 +119,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     cloneProof: routeCloneProof,
   }));
   const previousSessionRef = useRef(session);
-  const isComposeSheet = useIsComposeSheet();
+  const isMobile = useIsMobile();
   const {
     liftPx: visualKeyboardLiftPx,
     isKeyboardVisible: visualKeyboardVisible = false,
@@ -146,8 +137,8 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     },
     [favoriteWindowNavigation],
   );
-  const isMobileKeyboardVisible = isComposeSheet && visualKeyboardVisible;
-  const keyboardLiftPx = isComposeSheet ? visualKeyboardLiftPx : 0;
+  const isMobileKeyboardVisible = isMobile && visualKeyboardVisible;
+  const keyboardLiftPx = isMobile ? visualKeyboardLiftPx : 0;
   const mobileLayoutSignal = isMobileKeyboardVisible
     ? `keyboard:${visualViewportHeightPx}:${visualViewportOffsetTopPx}`
     : `lift:${keyboardLiftPx}`;
@@ -167,12 +158,6 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
       isExpectedCloneSessionKey(routeCloneSessionKey) &&
       isSafeCloneRelativePath(routeRelativePath),
   );
-
-  const closeCompose = useCallback(() => {
-    setComposeOpen(false);
-    setComposeDraft("");
-    setComposeTargetLabel(undefined);
-  }, []);
 
   const refreshCloneTerminalIdentity = useCallback(async () => {
     if (
@@ -227,39 +212,13 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     copyTerminalSelection(activeTerminal, { onStatus: handleClipboardActionStatus });
   }, [activeTerminal, handleClipboardActionStatus]);
 
-  const openComposeWithDraft = useCallback((request: TerminalComposeRequest) => {
-    setComposeTargetLabel(request.targetLabel);
-    setComposeDraft((current) => {
-      if (!request.append || !current) return request.draft;
-      return `${current.replace(/\s*$/, "")}\n${request.draft}`;
-    });
-    setComposeOpen(true);
-  }, []);
-
-  const sendComposeDraft = useCallback(
-    (draft: string) => {
-      if (!activeSend) return;
-      submitTerminalComposeDraft(activeTerminal, activeSend, draft);
-    },
-    [activeSend, activeTerminal],
-  );
-
   const handleMobilePaste = useCallback(() => {
     if (!activeSend) return;
     pasteClipboardApiToTerminal(activeTerminal ?? null, activeSend, {
       onStatus: handleClipboardActionStatus,
-      onCompose: openComposeWithDraft,
-      targetLabel: session ?? undefined,
       workspaceId,
     });
-  }, [
-    activeSend,
-    activeTerminal,
-    handleClipboardActionStatus,
-    openComposeWithDraft,
-    session,
-    workspaceId,
-  ]);
+  }, [activeSend, activeTerminal, handleClipboardActionStatus, workspaceId]);
 
   const handleMobileUpload = useCallback(
     async (files: File[]) => {
@@ -269,25 +228,16 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         {
           term: activeTerminal,
           send: activeSend,
-          openCompose: openComposeWithDraft,
           workspaceId,
-          targetLabel: session ?? undefined,
           onStatus: handleClipboardActionStatus,
         },
       );
     },
-    [
-      activeSend,
-      activeTerminal,
-      handleClipboardActionStatus,
-      openComposeWithDraft,
-      session,
-      workspaceId,
-    ],
+    [activeSend, activeTerminal, handleClipboardActionStatus, workspaceId],
   );
 
   useEffect(() => {
-    if (!session || isComposeSheet || composeOpen || !activeTerminal) {
+    if (!session || isMobile || !activeTerminal) {
       return;
     }
 
@@ -297,7 +247,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [activeTerminal, composeOpen, isComposeSheet, session]);
+  }, [activeTerminal, isMobile, session]);
 
   useEffect(() => {
     setCloneIdentity({
@@ -332,21 +282,6 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
       document.removeEventListener("selectionchange", updateSelectionState);
     };
   }, [activeTerminal]);
-
-  useEffect(() => {
-    const handleComposeOpen = () => {
-      setComposeOpen(true);
-    };
-    const handleComposeToggle = () => {
-      setComposeOpen((open) => !open);
-    };
-    window.addEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
-    window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
-    return () => {
-      window.removeEventListener(TERMINAL_COMPOSE_OPEN_EVENT, handleComposeOpen);
-      window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, handleComposeToggle);
-    };
-  }, []);
 
   useEffect(() => {
     if (session) {
@@ -443,7 +378,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
       </div>
     );
 
-    if (isComposeSheet) {
+    if (isMobile) {
       return (
         <MobileTerminalShell
           className="items-center justify-center"
@@ -481,12 +416,11 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         className="h-full rounded-none border-0"
         onTerminalReady={handleTerminalReady}
         onTerminalDestroy={handleTerminalDestroy}
-        onComposeRequest={openComposeWithDraft}
         onClipboardStatus={handleClipboardActionStatus}
         targetLabel={terminalDisplayLabel}
         layoutSignal={mobileLayoutSignal}
-        mobileInputMode={isComposeSheet}
-        pinToBottomOnResize={isComposeSheet}
+        mobileInputMode={isMobile}
+        pinToBottomOnResize={isMobile}
       />
     </div>
   );
@@ -520,7 +454,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     />
   );
 
-  if (isComposeSheet) {
+  if (isMobile) {
     return (
       <MobileTerminalShell
         diagnosticsEnabled={debugViewportEnabled}
@@ -545,22 +479,6 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           </div>
           {terminalControls}
         </div>
-        <TerminalSessionCompose
-          variant="sheet"
-          open={composeOpen}
-          onOpenChange={(open) => {
-            if (open) {
-              setComposeOpen(true);
-            } else {
-              closeCompose();
-            }
-          }}
-          isKeyboardVisible={isMobileKeyboardVisible}
-          initialDraft={composeDraft}
-          targetLabel={composeTargetLabel}
-          onSend={sendComposeDraft}
-          onClose={closeCompose}
-        />
         <CommandPalette
           open={windowSwitcherOpen}
           onOpenChange={setWindowSwitcherOpen}
@@ -596,17 +514,6 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
             {terminalPane}
           </TerminalSessionFrame>
         </div>
-        {composeOpen ? (
-          <div className="h-72 min-h-56 shrink-0 p-1 pt-0">
-            <TerminalSessionCompose
-              variant="inline"
-              initialDraft={composeDraft}
-              targetLabel={composeTargetLabel}
-              onSend={sendComposeDraft}
-              onClose={closeCompose}
-            />
-          </div>
-        ) : null}
       </div>
       <MobileTerminalDiagnosticsOverlay enabled={debugViewportEnabled} />
     </div>

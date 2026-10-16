@@ -121,7 +121,6 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
 
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
-import { TERMINAL_COMPOSE_TOGGLE_EVENT } from "@/lib/terminal/events";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 
 function workspacePayload() {
@@ -183,7 +182,6 @@ describe("DashboardKeyboardController", () => {
 
     expect(registeredBindings.get("dashboard:command-palette")?.keys).toEqual(["ctrl+k", "cmd+k"]);
     expect(registeredBindings.get("dashboard:toggle-sidebar")?.keys).toEqual(["ctrl+b", "cmd+b"]);
-    expect(registeredBindings.get("dashboard:toggle-compose")?.keys).toEqual(["ctrl+`", "cmd+`"]);
     expect(registeredBindings.get("dashboard:toggle-fullscreen")?.keys).toEqual([
       "ctrl+enter",
       "cmd+enter",
@@ -203,7 +201,6 @@ describe("DashboardKeyboardController", () => {
     for (const id of [
       "dashboard:command-palette",
       "dashboard:toggle-sidebar",
-      "dashboard:toggle-compose",
       "dashboard:toggle-fullscreen",
       "dashboard:navigate-workspaces",
       "dashboard:navigate-templates",
@@ -281,25 +278,19 @@ describe("DashboardKeyboardController", () => {
     cleanupSource();
   });
 
-  it("runs sidebar, compose, and fullscreen actions globally", () => {
-    const composeListener = vi.fn();
-    window.addEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, composeListener);
+  it("runs sidebar and fullscreen actions globally", () => {
     render(<DashboardKeyboardController />);
 
     act(() => {
       expect(registeredBindings.get("dashboard:toggle-sidebar")?.action(null, null)).toBe(false);
-      expect(registeredBindings.get("dashboard:toggle-compose")?.action(null, null)).toBe(false);
       expect(registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null)).toBe(false);
     });
 
     expect(mockToggleSidebar).toHaveBeenCalled();
-    expect(composeListener).toHaveBeenCalled();
     expect(mockSetOpen).toHaveBeenCalledWith(false);
     expect(mockSetOpenMobile).toHaveBeenCalledWith(false);
     expect(mockSetOpenMobileRight).toHaveBeenCalledWith(false);
     expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
-
-    window.removeEventListener(TERMINAL_COMPOSE_TOGGLE_EVENT, composeListener);
   });
 
   it("enters browser fullscreen and keeps the app layout on a dispatched Escape", async () => {

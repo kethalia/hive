@@ -38,7 +38,6 @@ import { terminalAuthProtocols } from "@/lib/terminal/auth-transport";
 import {
   handleTerminalPasteOutcome,
   readNativePasteOutcome,
-  type TerminalComposeRequest,
   type TerminalPasteOutcome,
 } from "@/lib/terminal/clipboard";
 import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
@@ -107,7 +106,6 @@ export interface InteractiveTerminalProps {
   onTerminalReady?: (term: Terminal, send: (data: string) => void) => void;
   onTerminalDestroy?: () => void;
   onUserFocusRequest?: () => void;
-  onComposeRequest?: (request: TerminalComposeRequest) => void;
   onFileAction?: TerminalFileActionHandler;
   onClipboardStatus?: (status: ClipboardActionStatus) => void;
   targetLabel?: string;
@@ -409,7 +407,6 @@ function TerminalRuntime({
   onTerminalReady,
   onTerminalDestroy,
   onUserFocusRequest,
-  onComposeRequest,
   onClipboardStatus,
   onFileAction,
   targetLabel,
@@ -447,12 +444,8 @@ function TerminalRuntime({
   onTerminalReadyRef.current = onTerminalReady;
   const onTerminalDestroyRef = useRef(onTerminalDestroy);
   onTerminalDestroyRef.current = onTerminalDestroy;
-  const onComposeRequestRef = useRef(onComposeRequest);
-  onComposeRequestRef.current = onComposeRequest;
   const onClipboardStatusRef = useRef(onClipboardStatus);
   onClipboardStatusRef.current = onClipboardStatus;
-  const targetLabelRef = useRef(targetLabel);
-  targetLabelRef.current = targetLabel;
   const [reconnectId] = useState(() => {
     const RECONNECT_TTL_MS = 24 * 60 * 60 * 1000;
     const storageKey = `terminal:reconnect:${agentId}:${sessionName}`;
@@ -1016,19 +1009,16 @@ function TerminalRuntime({
       }
 
       const sendRaw = (text: string) => {
-        // Compose and touch Enter send outside xterm's keyboard event surface.
+        // Touch Enter sends outside xterm's keyboard event surface.
         if (text.includes("\r")) primeTerminalAudio(containerRef.current);
         sendRef.current(encodeInput(text));
       };
       onTerminalReadyRef.current?.(term, sendRaw);
       const handleCapturedNativePaste = (outcome: TerminalPasteOutcome) => {
-        if (!onComposeRequestRef.current) return;
         void handleTerminalPasteOutcome(outcome, {
           term,
           send: sendRaw,
-          openCompose: onComposeRequestRef.current,
           workspaceId,
-          targetLabel: targetLabelRef.current,
           onStatus: onClipboardStatusRef.current,
         });
       };
@@ -1084,7 +1074,6 @@ function TerminalRuntime({
         return false;
       };
       const pasteFromBrowserClipboard = () => {
-        if (!onComposeRequestRef.current) return true;
         const attempt: NativePasteAttempt = {
           active: true,
           apiOutcome: null,
@@ -1096,9 +1085,7 @@ function TerminalRuntime({
         };
         nativePasteAttemptsRef.current.push(attempt);
         const shouldContinue = pasteClipboardApiToTerminal(term, sendRaw, {
-          onCompose: onComposeRequestRef.current,
           workspaceId,
-          targetLabel: targetLabelRef.current,
           onPasteFailure: () => preferCapturedNativePaste(attempt),
           onPasteOutcome: (outcome) => {
             if (!attempt.active) return attempt.nativeHandled;
@@ -1184,22 +1171,18 @@ function TerminalRuntime({
           }
           return;
         }
-        if (!onComposeRequestRef.current) return;
         void pasteNativeClipboardEventToTerminal(event, {
           term,
           send: sendRaw,
-          onCompose: onComposeRequestRef.current,
           workspaceId,
-          targetLabel: targetLabelRef.current,
           onStatus: onClipboardStatusRef.current,
         });
       };
       const handleDragOver = (event: DragEvent) => {
-        if (!onComposeRequestRef.current || !event.dataTransfer?.items.length) return;
+        if (!event.dataTransfer?.items.length) return;
         event.preventDefault();
       };
       const handleDrop = (event: DragEvent) => {
-        if (!onComposeRequestRef.current) return;
         if (connectionStateRef.current !== "connected") {
           event.preventDefault();
           return;
@@ -1207,9 +1190,7 @@ function TerminalRuntime({
         void dropDataTransferToTerminal(event, {
           term,
           send: sendRaw,
-          onCompose: onComposeRequestRef.current,
           workspaceId,
-          targetLabel: targetLabelRef.current,
           onStatus: onClipboardStatusRef.current,
         });
       };
@@ -1295,7 +1276,7 @@ function TerminalRuntime({
       data-connection-state={connectionState}
       data-terminal-surface="true"
       onDragOverCapture={(event) => {
-        if (!onComposeRequest || !Array.from(event.dataTransfer.types).includes("Files")) return;
+        if (!Array.from(event.dataTransfer.types).includes("Files")) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = connectionState === "connected" ? "copy" : "none";
         setFileDragActive(true);
@@ -1310,16 +1291,14 @@ function TerminalRuntime({
       }}
       onDropCapture={(event) => {
         setFileDragActive(false);
-        if (!onComposeRequest || !Array.from(event.dataTransfer.types).includes("Files")) return;
+        if (!Array.from(event.dataTransfer.types).includes("Files")) return;
         event.preventDefault();
         event.stopPropagation();
         if (connectionState !== "connected" || !termRef.current) return;
         void dropDataTransferToTerminal(event.nativeEvent, {
           term: termRef.current,
           send: (text) => sendRef.current(encodeInput(text)),
-          onCompose: onComposeRequest,
           workspaceId,
-          targetLabel,
           onStatus: onClipboardStatus,
         });
       }}

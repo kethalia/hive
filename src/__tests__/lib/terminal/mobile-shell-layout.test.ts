@@ -3,8 +3,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   applyMobileViewportLock,
-  COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET,
-  composeSheetKeyboardStyle,
   MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
   MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
   mobileTerminalFrameStyle,
@@ -30,12 +28,6 @@ describe("mobile shell layout", () => {
       maxHeight: MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
       top: MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
     });
-    expect(composeSheetKeyboardStyle(false)).toEqual({
-      bottom: "0px",
-      height: "var(--app-visual-viewport-height)",
-      maxHeight: "var(--app-visual-viewport-height)",
-      paddingBottom: "var(--safe-area-inset-bottom)",
-    });
   });
 
   it("uses visual viewport height and offset-aware bottom when the keyboard is visible", () => {
@@ -45,15 +37,6 @@ describe("mobile shell layout", () => {
       maxHeight: MOBILE_TERMINAL_FRAME_HEIGHT_WITH_VISUAL_VIEWPORT,
       top: MOBILE_TERMINAL_TOP_OFFSET_WITH_VISUAL_VIEWPORT,
     });
-    expect(composeSheetKeyboardStyle(true)).toEqual({
-      bottom: COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET,
-      height: "var(--app-visual-viewport-height)",
-      maxHeight: "var(--app-visual-viewport-height)",
-      paddingBottom: "var(--safe-area-inset-bottom)",
-    });
-    expect(COMPOSE_SHEET_KEYBOARD_BOTTOM_OFFSET).toBe(
-      "calc(var(--app-viewport-height) - var(--app-visual-viewport-height) - var(--app-visual-viewport-offset-top))",
-    );
   });
 
   it("locks html and body to the active mobile viewport and restores previous styles", () => {

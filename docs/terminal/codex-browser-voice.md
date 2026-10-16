@@ -21,13 +21,13 @@ HTTPS (or localhost) and Web Audio/AudioWorklet
 support are required. Pressing Enter in the terminal enables playback under
 browser autoplay rules.
 
-The focused terminal can start a new call. When Compose or another control has
+The focused terminal can start a new call. When a toolbar control has
 focus outside the terminal, the selected pane can start it instead. Changing
 pane, workspace, tab, or window focus keeps existing calls connected and pauses
 microphone input and speaker playback in every unfocused pane. Only the focused,
 selected pane sends your voice and plays replies. Returning to a paused pane
 resumes the same call without another claim or microphone permission request.
-Enter, Compose send, and touch Enter only unlock speaker playback. They never
+Enter and touch Enter only unlock speaker playback. They never
 approve microphone capture. Approval applies to the current pending request in
 the selected terminal, and is not retained after capture ends, a connection
 fails, or the terminal's audio bridge remounts. If a request ends before you
@@ -155,7 +155,7 @@ that session is gone. Workspace shutdown terminates these processes normally.
   viewport tests cover PCM in both directions, denial, parking without disconnecting,
   per-terminal microphone ownership across windows, concurrent terminal calls,
   unused-device observers, takeover rejection, focus gating, focused microphone and
-  speaker routing, pending permission cancellation, and Compose send outside xterm.
+  speaker routing, pending permission cancellation, and touch input outside xterm.
 - A separate live probe used the unmodified Codex **0.161.0** native voice helper,
   an isolated ephemeral Codex thread, and the production PulseAudio broker. Spoken
   output produced measurable speaker samples; a synthetic tone reached native

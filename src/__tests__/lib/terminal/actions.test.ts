@@ -194,22 +194,18 @@ describe("pasteToTerminal", () => {
     expect(warningText()).not.toContain("pasted terminal payload");
   });
 
-  it("pastes multiline clipboard text directly even with a compose target", async () => {
+  it("pastes multiline clipboard text directly", async () => {
     readText.mockResolvedValue("echo one\necho two");
     const send = vi.fn();
-    const onCompose = vi.fn();
     const onStatus = vi.fn();
 
     const result = pasteToTerminal(null, send, {
-      onCompose,
       onStatus,
-      targetLabel: "main",
     });
 
     expect(result).toBe(false);
     await vi.waitFor(() => {
       expect(send).toHaveBeenCalledExactlyOnceWith("echo one\necho two");
-      expect(onCompose).not.toHaveBeenCalled();
       expect(onStatus).toHaveBeenCalledWith({
         action: "paste",
         outcome: "pasted",
@@ -328,15 +324,12 @@ describe("pasteClipboardApiToTerminal", () => {
         json: vi.fn().mockResolvedValue({ paths: ["/tmp/hive-terminal-paste/image.png"] }),
       }),
     );
-    const onCompose = vi.fn();
     const onStatus = vi.fn();
     const send = vi.fn();
 
     const result = pasteClipboardApiToTerminal(null, send, {
-      onCompose,
       onStatus,
       workspaceId: "workspace-1",
-      targetLabel: "main",
     });
 
     expect(result).toBe(false);
@@ -360,7 +353,6 @@ describe("pasteClipboardApiToTerminal", () => {
         method: "clipboard-api",
       });
     });
-    expect(onCompose).not.toHaveBeenCalled();
   });
 
   it("falls back to native handling when the Clipboard API cannot read", () => {
@@ -445,14 +437,11 @@ describe("pasteNativeClipboardEventToTerminal", () => {
     const stopImmediatePropagation = vi.spyOn(event, "stopImmediatePropagation");
     const term = { paste: vi.fn() };
     const send = vi.fn();
-    const onCompose = vi.fn();
 
     await pasteNativeClipboardEventToTerminal(event, {
       term: term as never,
       send,
-      onCompose,
       workspaceId: "ws-1",
-      targetLabel: "main",
     });
 
     expect(event.defaultPrevented).toBe(true);
@@ -461,7 +450,6 @@ describe("pasteNativeClipboardEventToTerminal", () => {
     expect(term.paste).toHaveBeenCalledOnce();
     expect(term.paste).toHaveBeenCalledWith("printf ok");
     expect(send).not.toHaveBeenCalled();
-    expect(onCompose).not.toHaveBeenCalled();
   });
 });
 
