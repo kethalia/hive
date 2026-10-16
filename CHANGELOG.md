@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.22.2
+
+### Patch Changes
+
+- 23960b3: Move Diagnostics into the sidebar footer directly above Settings.
+
 ## 2.22.1
 
 ### Patch Changes
