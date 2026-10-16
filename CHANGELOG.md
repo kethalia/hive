@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.21.5
+
+### Patch Changes
+
+- c27be33: Show terminal file-drop feedback and bottom-right clipboard toasts, add numbered workspace shortcuts, and reduce notification and workspace restoration latency by preserving live terminals and batching Git pane authorization.
+
 ## 2.21.4
 
 ### Patch Changes
