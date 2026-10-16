@@ -90,7 +90,10 @@ import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { triggerHapticFeedback } from "@/lib/device/haptics";
 import { DRAG_LONG_PRESS_MOVE_PX } from "@/lib/gestures/conventions";
 import type { GitCloneTerminalIdentity, PublicCloneTree } from "@/lib/git/clone-actions-contract";
-import { getGitRepositoryPresentation } from "@/lib/git/clone-public-identifiers";
+import {
+  getGitRepositoryPresentation,
+  isSafePublicCloneIdentifier,
+} from "@/lib/git/clone-public-identifiers";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import {
   eventTargetElement,
@@ -582,6 +585,7 @@ function readPersistedGitPaneRefs(persistedJson: string | null): PersistedGitPan
       const cloneSessionKey = normalizeSessionName(pane.cloneSessionKey);
       const relativePath = normalizeSessionName(pane.relativePath);
       if (!cloneSessionKey || !relativePath) return [];
+      if (!isSafePublicCloneIdentifier({ cloneSessionKey, relativePath })) return [];
       const identity = gitPaneIdentity(cloneSessionKey, relativePath);
       if (seen.has(identity)) return [];
       seen.add(identity);
@@ -2663,6 +2667,10 @@ export function MultiSessionWorkspace({
   const focusNotificationSession = useCallback(
     (sessionName: string) => {
       if (loading || loadedWorkspaceRef.current !== workspaceId) return false;
+      const lockedSessionName = composeOpen
+        ? (composeTargetSessionName ?? activeSessionNameRef.current)
+        : null;
+      if (lockedSessionName && sessionName !== lockedSessionName) return false;
       const target = sessions.find((session) => session.sessionName === sessionName);
       const current = boardStateRef.current;
       const board = current.boards.find((board) =>
@@ -2676,7 +2684,15 @@ export function MultiSessionWorkspace({
       selectSession(target.sessionName);
       return true;
     },
-    [loading, persistBoardState, selectSession, sessions, workspaceId],
+    [
+      composeOpen,
+      composeTargetSessionName,
+      loading,
+      persistBoardState,
+      selectSession,
+      sessions,
+      workspaceId,
+    ],
   );
 
   useEffect(() => {

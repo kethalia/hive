@@ -27,6 +27,7 @@ const mockGetWorkspaceSessionTools = vi.fn();
 const mockKillSession = vi.fn();
 const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
+const mockRestoreGitCloneTerminals = vi.fn();
 const mockCloseGitCloneTerminal = vi.fn();
 const mockListNavigationFavorites = vi.fn();
 const mockSetActiveTerminal = vi.fn();
@@ -281,6 +282,7 @@ vi.mock("@/lib/actions/git-clones", () => ({
     agentId: string;
     panes: Array<{ cloneSessionKey: string; relativePath: string }>;
   }) => {
+    mockRestoreGitCloneTerminals({ workspaceId, agentId, panes });
     const discovery = await mockListGitClones({ workspaceId });
     if (!discovery?.data?.ok) return {};
     const nodes = JSON.stringify(discovery.data.tree.nodes);
@@ -2875,6 +2877,75 @@ describe("MultiSessionWorkspace", () => {
     expect(mockGetSessions).toHaveBeenLastCalledWith({ workspaceId: "ws-2" });
   });
 
+  it.each([
+    { mobile: false, separateBoards: false },
+    { mobile: false, separateBoards: true },
+    { mobile: true, separateBoards: false },
+    { mobile: true, separateBoards: true },
+  ])("leaves notification focus unhandled while compose is locked ($mobile, $separateBoards)", async ({
+    mobile,
+    separateBoards,
+  }) => {
+    mockUseIsComposeSheet.mockReturnValue(mobile);
+    if (separateBoards) {
+      window.localStorage.setItem(
+        "workspace-board-state:workspace:ws-1",
+        JSON.stringify({
+          version: 1,
+          activeBoardKey: "default",
+          boards: [
+            {
+              key: "default",
+              name: "Default",
+              order: 0,
+              panes: [{ kind: "terminal", key: "main", sessionName: "main-session", order: 0 }],
+            },
+            {
+              key: "review",
+              name: "Review",
+              order: 1,
+              panes: [{ kind: "terminal", key: "dev", sessionName: "dev-server", order: 0 }],
+            },
+          ],
+        }),
+      );
+    }
+    await renderTwoSessionWorkspace();
+    act(() =>
+      terminalProps
+        .get("main-session")
+        ?.onComposeRequest?.({ draft: "unsent command", targetLabel: "main-session" }),
+    );
+    function focus(sessionName: string) {
+      const event = new CustomEvent(TERMINAL_NOTIFICATION_FOCUS_EVENT, {
+        cancelable: true,
+        detail: { workspaceId: "ws-1", sessionName },
+      });
+      let unhandled = true;
+      act(() => {
+        unhandled = window.dispatchEvent(event);
+      });
+      return unhandled;
+    }
+    expect(focus("dev-server")).toBe(true);
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(screen.getByPlaceholderText("Type multi-line command...")).toHaveValue("unsent command");
+    expect(focus("main-session")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(focus("dev-server")).toBe(false);
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    if (separateBoards)
+      expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    expect(mockGetSessions).toHaveBeenCalledTimes(1);
+  });
+
   it("changes notification route focus without rerunning session restoration", async () => {
     mockGetSessions.mockResolvedValueOnce(twoSessionPayload());
     const view = render(<MultiSessionWorkspace {...defaultProps} />);
@@ -3377,6 +3448,89 @@ describe("MultiSessionWorkspace", () => {
     );
     expect(screen.queryByTestId("session-load-error")).not.toBeInTheDocument();
     expect(screen.queryByText(/secret discovery|\/home\/coder|token-123/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    "board",
+    "legacy",
+  ])("restores valid Git panes alongside malformed %s metadata", async (storage) => {
+    const valid = {
+      kind: "git",
+      key: "valid",
+      sessionName: "stale-hive",
+      cloneSessionKey: "git-clone:kethalia/hive",
+      relativePath: "kethalia/hive",
+      order: 0,
+    };
+    const invalidRefs = [
+      { cloneSessionKey: "not-a-clone", relativePath: "kethalia/hive" },
+      { cloneSessionKey: "git-clone:../private", relativePath: "kethalia/hive" },
+      { cloneSessionKey: valid.cloneSessionKey, relativePath: "../private" },
+      { cloneSessionKey: valid.cloneSessionKey, relativePath: "/home/coder/private" },
+      { cloneSessionKey: valid.cloneSessionKey, relativePath: "kethalia//hive" },
+      { cloneSessionKey: valid.cloneSessionKey, relativePath: "kethalia\\hive" },
+    ];
+    const panes = [
+      valid,
+      ...invalidRefs.map((ref, i) => ({
+        ...valid,
+        ...ref,
+        key: `invalid-${i}`,
+        sessionName: `invalid-${i}`,
+        order: i + 1,
+      })),
+    ];
+    const state =
+      storage === "board"
+        ? {
+            version: 1,
+            activeBoardKey: "default",
+            boards: [{ key: "default", name: "Default", order: 0, panes }],
+          }
+        : { version: 1, panes };
+    window.localStorage.setItem(
+      storage === "board" ? "workspace-board-state:git:ws-1" : "multi-session-layout:git:ws-1",
+      JSON.stringify(state),
+    );
+    mockListGitClones.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              id: "hive",
+              kind: "repository",
+              label: "hive",
+              cloneSessionKey: valid.cloneSessionKey,
+              relativePath: valid.relativePath,
+              relativePathSegments: ["kethalia", "hive"],
+              displaySegments: ["Git", "home", "kethalia", "hive"],
+            },
+          ],
+        },
+      },
+    });
+    mockResolveGitCloneTerminal.mockResolvedValueOnce({
+      data: {
+        sessionName: "git-clone-safe-hive",
+        cloneSessionKey: valid.cloneSessionKey,
+        clonePath: valid.relativePath,
+        cloneProof: "fresh-proof",
+      },
+    });
+    render(<MultiSessionWorkspace {...defaultProps} source="unified" />);
+    expect(await screen.findByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
+      "data-clone-proof",
+      "fresh-proof",
+    );
+    expect(mockRestoreGitCloneTerminals).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: "ws-1",
+      agentId: "agent-1",
+      panes: [{ cloneSessionKey: valid.cloneSessionKey, relativePath: valid.relativePath }],
+    });
+    expect(mockResolveGitCloneTerminal).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId("git-session-restore-error")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-load-error")).not.toBeInTheDocument();
   });
 
   it("shows sanitized board repair diagnostics for malformed board storage", async () => {
