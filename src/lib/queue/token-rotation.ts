@@ -66,6 +66,8 @@ export async function processTokenRotation(_job: Job<TokenRotationJobData>): Pro
           title: "Hive: Token Expiring",
           body: `Your Coder API token expires in ${Math.round(hoursRemaining)}h. Tap to re-authenticate.`,
           tag: PUSH_NOTIFICATION_TAG,
+          kind: "token",
+          url: "/login",
         });
         console.log(
           `[token-rotation] Push notification triggered for user ${userId} (${Math.round(hoursRemaining)}h remaining)`,

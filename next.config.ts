@@ -11,7 +11,11 @@ const nextConfig: NextConfig = {
   // Next can resolve the ESM condition at runtime even when its file tracer
   // only discovers the CommonJS helper. Ship every conditional export.
   outputFileTracingIncludes: {
-    "/*": ["./node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**/*"],
+    "/*": [
+      "./node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**/*",
+      "./scripts/notifications/install.py",
+      "./scripts/notifications/agent-hook.py",
+    ],
   },
   async headers() {
     return [

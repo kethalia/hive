@@ -20,6 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   AlertCircle,
+  Bell,
   ChevronDown,
   ChevronRight,
   Code,
@@ -2136,6 +2137,15 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link href="/notifications" />}
+              isActive={pathname === "/notifications"}
+            >
+              <Bell className="h-4 w-4" />
+              <span>Notifications</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
             <SidebarMenuItem>
               <SidebarMenuButton render={<CollapsibleTrigger />}>

@@ -1,10 +1,13 @@
 import { getDb } from "@hive/db";
 import webpush from "web-push";
 import { getVapidKeys } from "@/lib/push/vapid";
+import { notificationPreferencesSchema, type PushPayload } from "./types";
 
 export async function sendPushToUser(
   userId: string,
-  payload: { title: string; body: string; tag: string },
+  payload: PushPayload,
+  retryFailures = false,
+  endpoint?: string,
 ): Promise<{ sent: number; cleaned: number }> {
   let keys: { publicKey: string; privateKey: string };
   try {
@@ -13,6 +16,7 @@ export async function sendPushToUser(
     console.error(
       `[push] Failed to get VAPID keys: ${err instanceof Error ? err.message : String(err)}`,
     );
+    if (retryFailures) throw err;
     return { sent: 0, cleaned: 0 };
   }
 
@@ -20,13 +24,16 @@ export async function sendPushToUser(
 
   const db = getDb();
   const subscriptions = await db.pushSubscription.findMany({
-    where: { userId },
+    where: { userId, ...(endpoint ? { endpoint } : {}) },
   });
 
   let sent = 0;
   let cleaned = 0;
 
+  let failed = false;
   for (const sub of subscriptions) {
+    const preferences = notificationPreferencesSchema.parse(sub.preferences ?? {});
+    if (payload.kind && !preferences[payload.kind]) continue;
     try {
       await webpush.sendNotification(
         {
@@ -34,6 +41,11 @@ export async function sendPushToUser(
           keys: { p256dh: sub.p256dh, auth: sub.auth },
         },
         JSON.stringify(payload),
+        {
+          TTL: 3600,
+          urgency: payload.kind === "ready" || payload.kind === "template" ? "normal" : "high",
+          timeout: 10_000,
+        },
       );
       sent++;
     } catch (err) {
@@ -51,6 +63,7 @@ export async function sendPushToUser(
           );
         }
       } else {
+        failed = true;
         const domain = new URL(sub.endpoint).hostname;
         console.error(
           `[push] Failed to send to endpoint domain ${domain}: ${err instanceof Error ? err.message : String(err)}`,
@@ -63,5 +76,6 @@ export async function sendPushToUser(
     `[push] Sent ${sent} notifications, cleaned ${cleaned} stale subscriptions for user ${userId}`,
   );
 
+  if (failed && retryFailures) throw new Error("Push delivery failed; retrying");
   return { sent, cleaned };
 }
