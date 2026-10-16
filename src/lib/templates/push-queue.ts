@@ -187,7 +187,7 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
   const notify = (job: Job<TemplatePushJobData>, success: boolean) => {
     void sendPushToUser(job.data.userId, {
       kind: "template",
-      title: success ? "Hive · Template published" : "Hive · Template push failed",
+      title: success ? "Template published" : "Template push failed",
       body: `${job.data.templateName}: ${success ? "ready to use" : "open Hive to review the error"}`,
       tag: `hive-template-${job.data.jobId}`,
       url: `/templates/${encodeURIComponent(job.data.templateName)}`,

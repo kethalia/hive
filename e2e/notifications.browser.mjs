@@ -52,6 +52,9 @@ try {
   for (const [name, viewport] of [
     ["desktop", { width: 1280, height: 1000 }],
     ["mobile", { width: 390, height: 844 }],
+    ["small-mobile", { width: 320, height: 740 }],
+    ["tablet", { width: 768, height: 1024 }],
+    ["wide-desktop", { width: 2048, height: 1152 }],
   ]) {
     const context = await browser.newContext({ viewport, permissions: ["notifications"] });
     const page = await context.newPage();
@@ -78,20 +81,46 @@ try {
     await page.getByRole("button", { name: "Preview ready" }).click();
     await page.getByRole("switch", { name: "Agent ready" }).click();
     await page.waitForFunction(() => window.savedPreferences?.ready === false);
-    await page.getByRole("button", { name: "Connect", exact: true }).first().click();
+    await page.getByRole("button", { name: "Retry setup", exact: true }).first().click();
     await page
-      .getByText("Workspace connected. Restart agents and trust the Hive hooks in Codex /hooks.")
+      .getByText("Hooks installed. Restart agents, then trust the Hive hooks in Codex /hooks once.")
       .waitFor();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
     assert.equal(overflow, false, `${name} has horizontal overflow`);
+    assert.equal(
+      await page.getByRole("button", { name: "Toggle Sidebar", exact: true }).count(),
+      1,
+      "Only the page header should toggle the sidebar",
+    );
+    const layout = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('[data-slot="card"]')].map((card) => ({
+        left: card.getBoundingClientRect().left,
+        right: card.getBoundingClientRect().right,
+      }));
+      return { cards, bodyOverflow: document.body.scrollWidth > innerWidth };
+    });
+    assert.equal(layout.bodyOverflow, false);
+    assert.ok(
+      layout.cards.every((card) => card.left >= 0 && card.right <= viewport.width),
+      `${name} cards fit viewport`,
+    );
+    if (name === "desktop")
+      assert.ok(
+        layout.cards[2].left > layout.cards[0].left + 100,
+        "Desktop cards use both columns",
+      );
+    const scroll = page.locator("div.overflow-y-auto").first();
+    await scroll.evaluate((element) => (element.scrollTop = 0));
     await page.screenshot({ path: join(root, `${name}.png`), fullPage: true });
+    await scroll.evaluate((element) => (element.scrollTop = element.scrollHeight));
+    await page.screenshot({ path: join(root, `${name}-bottom.png`), fullPage: true });
     const worker = context.serviceWorkers()[0] || (await context.waitForEvent("serviceworker"));
     await worker.evaluate(async () => {
       let finished;
       self.hiveTestHandlers.push({
         data: {
           json: () => ({
-            title: "Hive · Question waiting",
+            title: "Question waiting",
             body: "Codex in ai-dev-01",
             kind: "question",
             tag: "fixture-question",

@@ -111,7 +111,7 @@ describe("token rotation push notification integration", () => {
     await processTokenRotation(makeJob());
 
     expect(mockSendPushToUser).toHaveBeenCalledWith("user-1", {
-      title: "Hive: Token Expiring",
+      title: "Token expiring",
       body: expect.stringContaining("expires in"),
       tag: PUSH_NOTIFICATION_TAG,
       kind: "token",

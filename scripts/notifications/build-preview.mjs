@@ -37,6 +37,14 @@ await build({
     {
       name: "notification-action-fixtures",
       setup(build) {
+        build.onResolve({ filter: /^next\/navigation$/ }, () => ({
+          path: "fixture-navigation",
+          namespace: "fixture",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+          contents: 'export const usePathname = () => "/notifications";',
+          loader: "js",
+        }));
         build.onLoad({ filter: /src\/lib\/push\/(actions|subscribe)\.ts$/ }, () => ({
           contents: mockActions,
           loader: "ts",

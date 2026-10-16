@@ -32,6 +32,12 @@ describe("DashboardSidebarTrigger", () => {
     expect(screen.getByTestId("dashboard-sidebar-trigger")).toHaveClass("mt-1", "shrink-0");
   });
 
+  it("does not duplicate the notifications page navbar trigger", () => {
+    mockPathname = "/notifications";
+    const { container } = render(<DashboardSidebarTrigger />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("does not render on templates routes that own the page navbar", () => {
     mockPathname = "/templates/browser-testing";
 
