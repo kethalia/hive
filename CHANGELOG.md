@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.21.1
+
+### Patch Changes
+
+- ac1ec7f: Fix iOS push delivery and workspace notification hook installation. Improve the notification settings layout and setup feedback, and remove redundant app-name prefixes from notification titles.
+
 ## 2.21.0
 
 ### Minor Changes
