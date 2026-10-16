@@ -1,5 +1,18 @@
 # hive-orchestrator
 
+## 2.21.0
+
+### Minor Changes
+
+- 7efebce: Add mobile and desktop PWA push alerts for Codex and Claude Code questions, approvals, and ready reports, with Claude failure, template result, and token-expiry alerts. Add per-device preferences, CRT sound previews, workspace hook setup and revocation, secure callback delivery, notification badges, and terminal deep links.
+
+### Patch Changes
+
+- c3c5097: Fix template descriptions overlapping table columns, add a confirmed Push all action with independent progress, and restore desktop and mobile scrolling when multiple push panels are open. Keep queued and active pushes pending until their actual result is known instead of reporting log-wait timeouts as failures. Reconnect interrupted streams without enqueuing another job, and coalesce status scans after bulk pushes. Drain final local output before reporting queue completion.
+- 2a17d10: Show pane actions in an anchored dropdown on desktop while retaining the bottom drawer on mobile. Let the More button toggle the menu and preserve terminal focus selected by pane actions.
+- Updated dependencies [7efebce]
+  - @hive/db@0.3.0
+
 ## 2.20.8
 
 ### Patch Changes
