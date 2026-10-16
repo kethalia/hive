@@ -70,7 +70,7 @@ export async function sendPushToUser(
       }
       deliveryError =
         statusCode === 404 || statusCode === 410
-          ? "This device's push subscription has expired. Reconnect this device and retry."
+          ? "This device's push subscription has expired. Disable notifications on this device, then enable them again."
           : statusCode === 401 || statusCode === 403
             ? `The push provider rejected Hive's delivery credentials${reason ? ` (${reason})` : ""}. Check the server's push configuration.`
             : "The push provider is unavailable. Try sending a test again shortly.";
