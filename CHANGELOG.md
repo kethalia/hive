@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.22.1
+
+### Patch Changes
+
+- d0420c4: Fix scrolling on the terminal diagnostics page so workspace details remain reachable on desktop and mobile.
+
 ## 2.22.0
 
 ### Minor Changes
