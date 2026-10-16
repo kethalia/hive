@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.22.0
+
+### Minor Changes
+
+- a1e47c1: Add a Settings page with separated notification sections and installed app version checks and updates. Replace the sidebar settings disclosure, notification link, refresh control, and update shortcut with a direct Settings link. Preserve push subscriptions when updating.
+
 ## 2.21.6
 
 ### Patch Changes
