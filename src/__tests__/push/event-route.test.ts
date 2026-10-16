@@ -70,7 +70,7 @@ describe("agent event ingress", () => {
         payload: expect.objectContaining({
           kind: "question",
           title: "Question waiting",
-          url: "/workspaces/workspace-1/terminal?session=dev+%26+ops",
+          url: "/workspaces/workspace-1/terminal?session=dev+%26+ops&notification=event-1",
         }),
       }),
       "event-1",
@@ -93,9 +93,11 @@ describe("agent event ingress", () => {
     ).toBe(202);
     const { payload } = mocks.enqueue.mock.calls[0][0];
     expect(payload.title).toBe("Agent ready");
-    expect(payload.body).toBe("codex-creative-studio\nCodex · dev");
+    expect(payload.body).toBe("Codex has finished its turn in codex-creative-studio on dev.");
     expect(payload.body).not.toContain(sessionName);
-    expect(payload.url).toBe(`/workspaces/workspace-1/terminal?session=${sessionName}`);
+    expect(payload.url).toBe(
+      `/workspaces/workspace-1/terminal?session=${sessionName}&notification=ready-1`,
+    );
   });
   it("keeps custom session names alongside the project for Claude Code", async () => {
     await POST(
@@ -108,7 +110,7 @@ describe("agent event ingress", () => {
       }),
     );
     expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe(
-      "hive · release-fix\nClaude Code · dev",
+      "Claude Code has a question for you in hive (release-fix) on dev.",
     );
   });
   it("does not repeat a session named after its project", async () => {
@@ -121,7 +123,9 @@ describe("agent event ingress", () => {
         sessionName: "hive",
       }),
     );
-    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe("hive\nCodex · dev");
+    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe(
+      "Codex has finished its turn in hive on dev.",
+    );
   });
   it("accepts older senders without exposing clone hashes", async () => {
     await POST(
@@ -132,11 +136,13 @@ describe("agent event ingress", () => {
         sessionName: `git-clone-${"b".repeat(32)}`,
       }),
     );
-    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe("Codex · dev");
+    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe("Codex has finished its turn on dev.");
     await POST(
       request({ kind: "ready", agent: "codex", eventId: "legacy-2", sessionName: "build" }),
     );
-    expect(mocks.enqueue.mock.calls[1][0].payload.body).toBe("build\nCodex · dev");
+    expect(mocks.enqueue.mock.calls[1][0].payload.body).toBe(
+      "Codex has finished its turn in build on dev.",
+    );
   });
   it("normalizes display whitespace and bounds project labels", async () => {
     await POST(
@@ -149,7 +155,7 @@ describe("agent event ingress", () => {
       }),
     );
     expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe(
-      "creative studio · feature work\nCodex · dev",
+      "Codex has finished its turn in creative studio (feature work) on dev.",
     );
     expect(
       (
@@ -159,6 +165,17 @@ describe("agent event ingress", () => {
       ).status,
     ).toBe(400);
     expect(mocks.enqueue).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ["question", "has a question for you"],
+    ["approval", "is waiting for your approval"],
+    ["ready", "has finished its turn"],
+    ["failure", "stopped because of an error"],
+  ])("writes %s alerts as a sentence", async (kind, message) => {
+    await POST(request({ kind, agent: "claude", eventId: "message", projectName: "hive" }));
+    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe(
+      `Claude Code ${message} in hive on dev.`,
+    );
   });
   it("bounds body size and validates event kinds", async () => {
     expect((await POST(request({ text: "x".repeat(5000) }))).status).toBe(413);

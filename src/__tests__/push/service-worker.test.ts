@@ -9,9 +9,10 @@ function worker(visible = false) {
     visibilityState: visible ? "visible" : "hidden",
     focused: visible,
     postMessage: vi.fn(),
-    navigate: vi.fn().mockResolvedValue(null),
+    navigate: vi.fn(),
     focus: vi.fn(),
   };
+  client.navigate.mockResolvedValue(client);
   const self = {
     location: { origin: "https://hive.test" },
     navigator: {},
@@ -76,6 +77,63 @@ describe("notification service worker", () => {
     });
     expect(client.navigate).toHaveBeenCalledWith("/workspaces");
     expect(client.focus).toHaveBeenCalledOnce();
+  });
+  it("reuses the matching workspace instead of an unrelated first window", async () => {
+    const { self, client, emit } = worker();
+    const wrong = {
+      ...client,
+      url: "https://hive.test/workspaces/other/terminal/workspace",
+      navigate: vi.fn(),
+    };
+    client.url = "https://hive.test/workspaces/w/terminal/workspace";
+    self.clients.matchAll.mockResolvedValue([wrong, client]);
+    await emit("notificationclick", {
+      notification: {
+        close: vi.fn(),
+        data: { url: "/workspaces/w/terminal/workspace?session=review" },
+      },
+    });
+    expect(wrong.navigate).not.toHaveBeenCalled();
+    expect(client.navigate).toHaveBeenCalledWith("/workspaces/w/terminal/workspace?session=review");
+    expect(client.focus).toHaveBeenCalledOnce();
+  });
+  it("prefers an exact destination when several windows share a workspace", async () => {
+    const { self, client, emit } = worker();
+    const other = {
+      ...client,
+      url: "https://hive.test/workspaces/w/terminal/workspace?session=other",
+      navigate: vi.fn(),
+    };
+    client.url = "https://hive.test/workspaces/w/terminal/workspace?session=review";
+    self.clients.matchAll.mockResolvedValue([other, client]);
+    await emit("notificationclick", {
+      notification: {
+        close: vi.fn(),
+        data: { url: "/workspaces/w/terminal/workspace?session=review" },
+      },
+    });
+    expect(other.navigate).not.toHaveBeenCalled();
+    expect(client.navigate).toHaveBeenCalledOnce();
+  });
+  it.each([
+    "closed",
+    "rejected",
+    "none",
+  ])("opens the destination if the old window is %s", async (mode) => {
+    const { self, client, emit } = worker();
+    if (mode === "closed") client.navigate.mockResolvedValue(null);
+    if (mode === "rejected") client.navigate.mockRejectedValue(new Error("Window closed"));
+    if (mode === "none") self.clients.matchAll.mockResolvedValue([]);
+    await emit("notificationclick", {
+      notification: {
+        close: vi.fn(),
+        data: { url: "/workspaces/w/terminal/workspace?session=review" },
+      },
+    });
+    expect(self.clients.openWindow).toHaveBeenCalledWith(
+      "/workspaces/w/terminal/workspace?session=review",
+    );
+    expect(client.focus).not.toHaveBeenCalled();
   });
   it("keeps legacy token alerts linked to login and handles malformed data", async () => {
     const { self, emit } = worker();

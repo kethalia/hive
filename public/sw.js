@@ -62,11 +62,18 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil((async () => {
     const url = notificationUrl(event.notification.data?.url);
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const target = clients.find(client => new URL(client.url).origin === self.location.origin);
+    const destination = new URL(url, self.location.origin);
+    const workspace = destination.pathname.match(/^\/workspaces\/([^/]+)(?:\/|$)/)?.[1];
+    const appClients = clients.filter(client => new URL(client.url).origin === self.location.origin);
+    const target = appClients.find(client => client.url === destination.href) ||
+      appClients.find(client => workspace && (new URL(client.url).pathname === `/workspaces/${workspace}` || new URL(client.url).pathname.startsWith(`/workspaces/${workspace}/`))) ||
+      appClients.find(client => client.focused && client.visibilityState === "visible") || appClients[0];
+    let navigated;
     if (target) {
-      const navigated = await target.navigate(url);
-      await (navigated || target).focus();
-    } else await self.clients.openWindow(url);
+      try { navigated = await target.navigate(url); } catch {}
+    }
+    if (navigated) await navigated.focus();
+    else await self.clients.openWindow(url);
     await updateBadge().catch(() => {});
   })());
 });

@@ -499,6 +499,34 @@ describe("workspace board shortcut integration", () => {
     vi.restoreAllMocks();
   });
 
+  it("selects the notifying session on an inactive board without duplicating it", async () => {
+    mockStandaloneDisplayMode(false);
+    seedTwoBoardState();
+    render(
+      <KeybindingProvider>
+        <MultiSessionWorkspace
+          agentId="agent-1"
+          workspaceId="ws-1"
+          source="unified"
+          notificationSession="dev-server"
+        />
+      </KeybindingProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Review Board Pane");
+    const state = readStoredBoardState();
+    expect(
+      state.boards
+        .flatMap((board: { panes: { sessionName?: string }[] }) => board.panes)
+        .filter((pane: { sessionName?: string }) => pane.sessionName === "dev-server"),
+    ).toHaveLength(1);
+    expect(mockRouterPush).not.toHaveBeenCalled();
+  });
   it("releases the views of an explicitly deleted populated board without killing sessions", async () => {
     seedTwoBoardState();
     mockStandaloneDisplayMode(false);

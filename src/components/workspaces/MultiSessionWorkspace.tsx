@@ -320,6 +320,7 @@ interface MultiSessionWorkspaceProps {
   templateName?: string;
   className?: string;
   source?: "workspace" | "unified";
+  notificationSession?: string;
 }
 
 type SessionLoadResult =
@@ -1165,6 +1166,7 @@ export function MultiSessionWorkspace({
   templateName,
   className,
   source = "workspace",
+  notificationSession,
 }: MultiSessionWorkspaceProps) {
   const templateCapabilities = workspaceTemplateCapabilities(templateName ?? "");
   const canOpenCode = templateCapabilities.editor;
@@ -2539,7 +2541,7 @@ export function MultiSessionWorkspace({
         setGitRestoreFailed(parsed.gitRestoreFailed === true);
 
         if (parsed.status === "success") {
-          const nextBoardState = reconcileGitPaneSessionNames(
+          let nextBoardState = reconcileGitPaneSessionNames(
             resolveWorkspaceBoardState({
               persistedBoardJson: storedBoard.raw,
               legacyPaneLayoutJson: storedLayout.raw,
@@ -2547,6 +2549,45 @@ export function MultiSessionWorkspace({
             }),
             parsed.sessions,
           );
+          if (notificationSession) {
+            const target = parsed.sessions.find(
+              (session) => session.sessionName === notificationSession,
+            );
+            if (target) {
+              const board = nextBoardState.boards.find((board) =>
+                board.panes.some((pane) => pane.sessionName === target.sessionName),
+              );
+              const pane = board?.panes.find((pane) => pane.sessionName === target.sessionName);
+              if (!board || !pane) {
+                const query = new URLSearchParams({ session: target.sessionName });
+                if (
+                  target.clonePath &&
+                  target.cloneProof &&
+                  target.cloneSessionKey &&
+                  target.relativePath
+                ) {
+                  query.set("clonePath", target.clonePath);
+                  query.set("cloneProof", target.cloneProof);
+                  query.set("cloneSessionKey", target.cloneSessionKey);
+                  query.set("relativePath", target.relativePath);
+                }
+                window.location.replace(
+                  `/workspaces/${encodeURIComponent(workspaceId)}/terminal?${query}`,
+                );
+                return;
+              }
+              nextBoardState = selectWorkspaceBoardPane(
+                selectWorkspaceBoard(nextBoardState, board.key),
+                board.key,
+                pane.key,
+              );
+              persistBoardState(nextBoardState);
+            } else {
+              toast.error(
+                "This notification's terminal is no longer available. Reopen it from the sidebar.",
+              );
+            }
+          }
           const nextActiveBoard = findActiveWorkspaceBoard(nextBoardState);
           const nextVisibleSessions = deriveVisibleSessionsFromBoard(
             parsed.sessions,
@@ -2566,6 +2607,10 @@ export function MultiSessionWorkspace({
         }
 
         if (parsed.status === "empty") {
+          if (notificationSession)
+            toast.error(
+              "This notification's terminal is no longer available. Reopen it from the sidebar.",
+            );
           const nextBoardState = resolveWorkspaceBoardState({
             persistedBoardJson: storedBoard.raw,
             legacyPaneLayoutJson: storedLayout.raw,
@@ -2595,7 +2640,17 @@ export function MultiSessionWorkspace({
       pendingTerminalFocusSessionNameRef.current = null;
       clearActiveTerminal();
     };
-  }, [agentId, canOpenCode, canOpenFiles, clearActiveTerminal, reloadKey, source, workspaceId]);
+  }, [
+    agentId,
+    canOpenCode,
+    canOpenFiles,
+    clearActiveTerminal,
+    reloadKey,
+    source,
+    workspaceId,
+    notificationSession,
+    persistBoardState,
+  ]);
 
   useEffect(() => {
     if (!gitSearchOpen) return;
