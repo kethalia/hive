@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.21.3
+
+### Patch Changes
+
+- 6911537: Show the project and readable session name in agent notifications, with the workspace on a separate line. Keep opaque terminal IDs for notification routing instead of displaying them as task locations.
+
 ## 2.21.2
 
 ### Patch Changes
