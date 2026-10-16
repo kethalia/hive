@@ -12,6 +12,7 @@ export interface KeybindingEntry {
   enabledInBrowser: boolean;
   global?: boolean;
   allowTextEntry?: boolean;
+  allowRepeat?: boolean;
 }
 
 export interface KeybindingContextValue {
@@ -37,11 +38,16 @@ function normalizeShortcutKey(e: KeyboardEvent): string {
 
   const digitMatch = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
   if (digitMatch) return digitMatch[1];
+  // Option changes event.key on macOS (for example Option+T is †).
+  const letterMatch = e.altKey && (e.ctrlKey || e.metaKey) && /^Key([A-Z])$/.exec(e.code);
+  if (letterMatch) return letterMatch[1].toLowerCase();
 
   return key;
 }
 
 export function normalizeKeyCombo(e: KeyboardEvent): string {
+  // AltGr is character input even when the host reports it as Ctrl+Alt.
+  if (e.getModifierState("AltGraph")) return "";
   const parts: string[] = [];
   if (e.ctrlKey) parts.push("ctrl");
   if (e.metaKey) parts.push("cmd");

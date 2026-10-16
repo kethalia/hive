@@ -43,7 +43,7 @@ describe("terminal clipboard feedback", () => {
     expect(result.current.busyAction).toBe("copy");
     expect(mockToast.loading).toHaveBeenCalledWith("Copying selection...", {
       id: undefined,
-      position: "top-center",
+      position: "bottom-right",
     });
     expect(mockToast.success).not.toHaveBeenCalled();
     await act(async () => finishCopy?.());
@@ -51,7 +51,7 @@ describe("terminal clipboard feedback", () => {
     expect(result.current.message).toBe("Selection copied");
     expect(mockToast.success).toHaveBeenCalledWith("Selection copied", {
       id: "pending-toast",
-      position: "top-center",
+      position: "bottom-right",
     });
   });
 
@@ -89,7 +89,7 @@ describe("terminal clipboard feedback", () => {
     expect(result.current.busyAction).toBe("paste");
     expect(mockToast.loading).toHaveBeenLastCalledWith("Reading clipboard...", {
       id: undefined,
-      position: "top-center",
+      position: "bottom-right",
     });
 
     await act(async () => {
@@ -103,7 +103,7 @@ describe("terminal clipboard feedback", () => {
     expect(result.current.message).toBe("Uploading files...");
     expect(mockToast.loading).toHaveBeenLastCalledWith("Uploading files...", {
       id: "pending-toast",
-      position: "top-center",
+      position: "bottom-right",
     });
     expect(send).not.toHaveBeenCalled();
     await act(async () => {
@@ -113,7 +113,7 @@ describe("terminal clipboard feedback", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith("/tmp/document.png");
     expect(mockToast.success).toHaveBeenCalledWith("Paste complete", {
       id: "pending-toast",
-      position: "top-center",
+      position: "bottom-right",
     });
   });
 
@@ -130,7 +130,7 @@ describe("terminal clipboard feedback", () => {
     await waitFor(() => expect(result.current.busyAction).toBeUndefined());
     expect(mockToast.info).toHaveBeenCalledWith(
       "Clipboard is empty. Use Upload files for PDFs and other documents.",
-      { id: "pending-toast", position: "top-center" },
+      { id: "pending-toast", position: "bottom-right" },
     );
     expect(send).not.toHaveBeenCalled();
     expect(mockToast.success).not.toHaveBeenCalled();
@@ -153,7 +153,7 @@ describe("terminal clipboard feedback", () => {
     await waitFor(() => expect(result.current.busyAction).toBeUndefined());
     expect(mockToast.error).toHaveBeenCalledWith(
       "Clipboard permission was denied. Use the browser paste control or Upload files.",
-      { id: "pending-toast", position: "top-center" },
+      { id: "pending-toast", position: "bottom-right" },
     );
     expect(mockToast.success).not.toHaveBeenCalled();
   });

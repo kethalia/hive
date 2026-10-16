@@ -258,7 +258,15 @@ export class CoderClient {
   /**
    * Fetch provisioned resources (and their agents) for a workspace's latest build.
    */
-  async getWorkspaceResources(workspaceId: string): Promise<WorkspaceResource[]> {
+  async getWorkspaceResources(
+    workspaceId: string,
+    latestBuildId?: string,
+  ): Promise<WorkspaceResource[]> {
+    if (latestBuildId) {
+      return this.request<WorkspaceResource[]>(
+        `/api/v2/workspacebuilds/${latestBuildId}/resources`,
+      );
+    }
     const ws = await this.getWorkspace(workspaceId);
     const buildId = ws.latest_build.id;
     return this.request<WorkspaceResource[]>(`/api/v2/workspacebuilds/${buildId}/resources`);

@@ -112,6 +112,32 @@ vi.mock("next/dynamic", () => ({
 vi.mock("@/lib/actions/git-clones", () => ({
   closeGitCloneTerminalAction: (...args: unknown[]) => mockCloseGitCloneTerminal(...args),
   listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
+  restoreGitCloneTerminalsAction: async ({
+    workspaceId,
+    agentId,
+    panes,
+  }: {
+    workspaceId: string;
+    agentId: string;
+    panes: Array<{ cloneSessionKey: string; relativePath: string }>;
+  }) => {
+    const discovery = await mockListGitClones({ workspaceId });
+    if (!discovery?.data?.ok) return {};
+    const nodes = JSON.stringify(discovery.data.tree.nodes);
+    const resolved = await Promise.allSettled(
+      panes
+        .filter((pane) => nodes.includes(pane.cloneSessionKey))
+        .map((pane) => mockResolveGitCloneTerminal({ workspaceId, agentId, ...pane })),
+    );
+    return {
+      data: {
+        tree: discovery.data.tree,
+        identities: resolved.flatMap((result) =>
+          result.status === "fulfilled" && result.value?.data ? [result.value.data] : [],
+        ),
+      },
+    };
+  },
   resolveGitCloneTerminalAction: (...args: unknown[]) => mockResolveGitCloneTerminal(...args),
 }));
 

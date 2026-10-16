@@ -48,6 +48,22 @@ describe("notification terminal destination", () => {
     );
     expect(mocks.resolve).not.toHaveBeenCalled();
   });
+  it("opens an exact saved Git session immediately while board restoration handles authorization", async () => {
+    seedBoard({
+      kind: "git",
+      sessionName: session,
+      cloneSessionKey: identity.cloneSessionKey,
+      relativePath: identity.clonePath,
+    });
+    mocks.resolve.mockReturnValue(new Promise(() => {}));
+    render(<NotificationTerminalLink agentId="a" workspaceId="w" sessionName={session} />);
+    await waitFor(() =>
+      expect(mocks.router.replace).toHaveBeenCalledWith(
+        `/workspaces/w/terminal/workspace?session=${session}`,
+      ),
+    );
+    expect(mocks.resolve).not.toHaveBeenCalled();
+  });
   it("authorizes a Git terminal absent from all boards before opening its standalone view", async () => {
     render(<NotificationTerminalLink agentId="a" workspaceId="w" sessionName={session} />);
     await waitFor(() => expect(mocks.router.replace).toHaveBeenCalledOnce());

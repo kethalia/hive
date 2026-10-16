@@ -55,6 +55,7 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       const combo = normalizeKeyCombo(e);
       const entry = registryRef.current.get(combo);
       if (!entry) return true;
+      if (e.repeat && entry.allowRepeat === false) return false;
       return entry.action(activeTerminal, activeSend);
     },
     [activeTerminal, activeSend],
@@ -96,7 +97,10 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       }
       if (!entry.enabledInBrowser && !isPwaStandalone()) return;
 
-      const shouldContinue = entry.action(activeTerminal, activeSend);
+      const shouldContinue =
+        event.repeat && entry.allowRepeat === false
+          ? false
+          : entry.action(activeTerminal, activeSend);
       if (!shouldContinue) {
         event.preventDefault();
         event.stopPropagation();

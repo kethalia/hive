@@ -28,6 +28,24 @@ async function updateBadge() {
   else await self.navigator.clearAppBadge();
 }
 
+// Keep the app and its connected terminals alive when an existing dashboard
+// can handle navigation. Older pages still use the normal navigation fallback.
+function navigateInApp(client, url) {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const finish = (handled) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      channel.port2.close();
+      resolve(handled);
+    };
+    const timer = setTimeout(() => finish(false), 800);
+    channel.port1.onmessage = (event) => finish(event.data?.type === "hive:navigated");
+    try { client.postMessage({ type: "hive:navigate", url }, [channel.port2]); }
+    catch { finish(false); }
+  });
+}
+
 self.addEventListener("push", (event) => {
   event.waitUntil((async () => {
     let payload = {};
@@ -70,6 +88,11 @@ self.addEventListener("notificationclick", (event) => {
       appClients.find(client => client.focused && client.visibilityState === "visible") || appClients[0];
     let navigated;
     if (target) {
+      if (workspace && await navigateInApp(target, url)) {
+        await target.focus();
+        await updateBadge().catch(() => {});
+        return;
+      }
       try { navigated = await target.navigate(url); } catch {}
     }
     if (navigated) await navigated.focus();

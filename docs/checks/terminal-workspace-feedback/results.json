@@ -1,0 +1,18 @@
+{
+  "workspace": "hive-terminal-browser",
+  "provenance": "created disposable",
+  "checks": [
+    "File hover shows upload indicator in Chrome",
+    "File drop uploads once and progress/success toast appears at bottom right",
+    "Browser fallback shortcuts create and remove numbered workspace",
+    "Notification focus switches board without discovery, terminal teardown, or extra WebSocket connections",
+    "Mobile layout has visible file feedback and no horizontal overflow"
+  ],
+  "metrics": {
+    "sessionLoads": 1,
+    "restoreLoads": 1,
+    "webSocketConnections": 4
+  },
+  "pageErrors": [],
+  "result": "passed"
+}

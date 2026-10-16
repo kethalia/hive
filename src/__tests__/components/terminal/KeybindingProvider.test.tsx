@@ -91,6 +91,53 @@ describe("KeybindingProvider", () => {
     expect(stopImmediatePropagation).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { key: "ŧ", code: "KeyT" },
+    { key: "w", code: "KeyW" },
+  ])("passes AltGr input through global and terminal shortcut handlers: $code", ({ key, code }) => {
+    const probe = renderWithProbe(
+      <div className="xterm">
+        <textarea className="xterm-helper-textarea" />
+      </div>,
+    );
+    const action = vi.fn(() => false);
+    act(() =>
+      probe.context?.register({
+        id: "workspace-shortcut",
+        keys: ["ctrl+alt+t", "ctrl+alt+w"],
+        action,
+        description: "Manage workspace",
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+      }),
+    );
+    const event = makeKeyEvent({
+      key,
+      code,
+      ctrlKey: true,
+      altKey: true,
+      modifierAltGraph: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => document.querySelector("textarea")?.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(false);
+    expect(probe.context?.handleKeyEvent(event)).toBe(true);
+    expect(action).not.toHaveBeenCalled();
+    const shortcut = makeKeyEvent({
+      key: code.slice(3).toLowerCase(),
+      code,
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => document.querySelector("textarea")?.dispatchEvent(shortcut));
+    expect(shortcut.defaultPrevented).toBe(true);
+    expect(action).toHaveBeenCalledOnce();
+  });
+
   it("skips global shortcuts that were already handled by a capture fallback", async () => {
     const probe = renderWithProbe();
     const action = vi.fn(() => false);

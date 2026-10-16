@@ -95,6 +95,7 @@ describe("workspace server actions", () => {
       getApplicationsHost: mockGetApplicationsHost.mockResolvedValue("*.coder.example.com"),
       getApplicationAuthRedirect: mockGetApplicationAuthRedirect,
     } as never);
+    mockGetWorkspace.mockResolvedValue({ name: "dev", latest_build: { id: "build-1" } });
     mockGetWorkspaceResources.mockResolvedValue([
       {
         id: "resource-1",
@@ -400,7 +401,6 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction returns parsed sessions for running workspace", async () => {
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "main:1712345678:3\ndev:1712345700:1",
       stderr: "",
@@ -410,7 +410,9 @@ describe("workspace server actions", () => {
     const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
     const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
 
-    expect(mockGetWorkspaceAgentName).toHaveBeenCalledWith("ws-1");
+    expect(mockGetWorkspaceAgentName).not.toHaveBeenCalled();
+    expect(mockGetWorkspace).toHaveBeenCalledTimes(1);
+    expect(mockGetWorkspaceResources).toHaveBeenCalledExactlyOnceWith("ws-1", "build-1");
     expect(mockedExec).toHaveBeenCalledWith(
       "dev.main",
       "tmux -L web list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
@@ -426,7 +428,6 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction filters reserved clone terminal sessions from mixed tmux output", async () => {
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "main:1712345678:3\ngit-clone-abc123:1712345700:1\nbuild:1712345800:2",
       stderr: "",
@@ -443,7 +444,6 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction returns an empty list when tmux output contains only clone sessions", async () => {
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "git-clone-abc123:1712345678:1\ngit-clone-def456:1712345700:2",
       stderr: "",
@@ -558,7 +558,6 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction returns empty array when tmux server is not running", async () => {
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "",
       stderr: "no server running on /tmp/tmux-1000/default",
@@ -572,7 +571,6 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction recognizes no-server tmux output from stdout", async () => {
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "no server running on /tmp/tmux-1000/default",
       stderr: "",
@@ -586,7 +584,6 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction does not collapse blank command failures into unknown error", async () => {
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "",
       stderr: "",
@@ -603,13 +600,12 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction propagates agent lookup failures that are not no-agent cases", async () => {
-    mockGetWorkspaceAgentName.mockRejectedValueOnce(new Error("Coder API unreachable"));
+    mockGetWorkspaceResources.mockRejectedValueOnce(new Error("Coder API unreachable"));
 
     const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
     const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
 
     expect(result?.data).toBeUndefined();
-    expect(result?.serverError).toMatch(/Failed to resolve workspace agent/i);
     expect(result?.serverError).toMatch(/Coder API unreachable/i);
     expect(mockedExec).not.toHaveBeenCalled();
   });
@@ -619,7 +615,6 @@ describe("workspace server actions", () => {
     // must NOT look like "user has zero sessions" to the client — that caused
     // TerminalTabManager to auto-create a phantom session and hide the real
     // tmux sessions still running on the workspace.
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "",
       stderr: "ssh: connect to host dev.main port 22: Connection refused",
@@ -635,7 +630,6 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction surfaces missing Coder CLI diagnostics instead of creating an empty list", async () => {
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "",
       stderr: "spawn coder ENOENT",
@@ -651,7 +645,6 @@ describe("workspace server actions", () => {
   });
 
   it("getWorkspaceSessionsAction surfaces serverError on timeout (not empty)", async () => {
-    mockGetWorkspaceAgentName.mockResolvedValueOnce("dev.main");
     mockedExec.mockResolvedValueOnce({
       stdout: "",
       stderr: "Command timed out after 10000ms",

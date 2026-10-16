@@ -2,7 +2,7 @@
 
 import type { FitAddon } from "@xterm/addon-fit";
 import type { Terminal } from "@xterm/xterm";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
   type MouseEvent as ReactMouseEvent,
@@ -421,6 +421,7 @@ function TerminalRuntime({
 }: InteractiveTerminalProps) {
   const { terminalWsUrl } = useRuntimeConfig();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [fileDragActive, setFileDragActive] = useState(false);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const pinnedToBottomRef = useRef(true);
@@ -1199,6 +1200,10 @@ function TerminalRuntime({
       };
       const handleDrop = (event: DragEvent) => {
         if (!onComposeRequestRef.current) return;
+        if (connectionStateRef.current !== "connected") {
+          event.preventDefault();
+          return;
+        }
         void dropDataTransferToTerminal(event, {
           term,
           send: sendRaw,
@@ -1289,10 +1294,59 @@ function TerminalRuntime({
       className={cn("relative flex flex-col bg-[#0a0a0a] overflow-hidden", className)}
       data-connection-state={connectionState}
       data-terminal-surface="true"
+      onDragOverCapture={(event) => {
+        if (!onComposeRequest || !Array.from(event.dataTransfer.types).includes("Files")) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = connectionState === "connected" ? "copy" : "none";
+        setFileDragActive(true);
+      }}
+      onDragLeaveCapture={(event) => {
+        if (
+          event.relatedTarget instanceof Node &&
+          event.currentTarget.contains(event.relatedTarget)
+        )
+          return;
+        setFileDragActive(false);
+      }}
+      onDropCapture={(event) => {
+        setFileDragActive(false);
+        if (!onComposeRequest || !Array.from(event.dataTransfer.types).includes("Files")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (connectionState !== "connected" || !termRef.current) return;
+        void dropDataTransferToTerminal(event.nativeEvent, {
+          term: termRef.current,
+          send: (text) => sendRef.current(encodeInput(text)),
+          onCompose: onComposeRequest,
+          workspaceId,
+          targetLabel,
+          onStatus: onClipboardStatus,
+        });
+      }}
+      onDragEndCapture={() => setFileDragActive(false)}
       onKeyDownCapture={(event) => {
         if (event.key === "Enter") primeTerminalAudio(event.currentTarget);
       }}
     >
+      {fileDragActive && (
+        <div
+          className="pointer-events-none absolute inset-1 z-30 flex items-center justify-center rounded-md border-2 border-dashed border-primary bg-background/90 p-6 text-center"
+          role="status"
+          data-testid="terminal-file-drop-indicator"
+        >
+          <div className="flex flex-col items-center gap-2 text-sm font-medium">
+            <Upload className="size-6 text-primary" />
+            <span>
+              {connectionState === "connected"
+                ? "Drop files to upload"
+                : "Connect the terminal to upload files"}
+            </span>
+            {connectionState === "connected" && targetLabel && (
+              <span className="text-xs text-muted-foreground">{targetLabel}</span>
+            )}
+          </div>
+        </div>
+      )}
       {connectionState === "connected" ? (
         <TerminalAudioBridge
           proxyUrl={terminalWsUrl}
