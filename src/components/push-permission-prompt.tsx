@@ -4,49 +4,13 @@ import { Bell, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { getVapidPublicKeyAction } from "@/lib/push/actions";
-import { subscribePushAction } from "@/lib/push/subscribe";
+import { DEVICE_DISABLED_KEY, subscribeToNotifications } from "@/lib/push/client";
 
 const DISMISS_KEY = "push-prompt-dismissed";
 const STILL_BLOCKED_MESSAGE =
   "Notifications are still blocked. Open your browser's site settings, allow notifications for this site, then retry.";
 const RETRY_SUBSCRIBE_FAILURE_MESSAGE =
   "We could not restore notifications. Please try again after checking this site's notification settings.";
-
-function base64urlToUint8Array(base64url: string): Uint8Array<ArrayBuffer> {
-  const padding = "=".repeat((4 - (base64url.length % 4)) % 4);
-  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/") + padding;
-  const raw = atob(base64);
-  const buffer = new ArrayBuffer(raw.length);
-  const arr = new Uint8Array(buffer);
-  for (let i = 0; i < raw.length; i++) {
-    arr[i] = raw.charCodeAt(i);
-  }
-  return arr;
-}
-
-async function subscribeToNotifications() {
-  const result = await getVapidPublicKeyAction();
-  if (!result?.data?.publicKey) {
-    throw new Error("Failed to get VAPID public key");
-  }
-
-  const registration = await navigator.serviceWorker.ready;
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: base64urlToUint8Array(result.data.publicKey),
-  });
-
-  const json = subscription.toJSON();
-  const subscribeResult = await subscribePushAction({
-    endpoint: subscription.endpoint,
-    p256dh: json.keys?.p256dh ?? "",
-    auth: json.keys?.auth ?? "",
-  });
-  if (!subscribeResult?.data?.success) {
-    throw new Error("Failed to save push subscription");
-  }
-}
 
 export function PushPermissionPrompt() {
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
@@ -57,20 +21,15 @@ export function PushPermissionPrompt() {
   useEffect(() => {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
 
+    if (localStorage.getItem(DEVICE_DISABLED_KEY) === "true") return;
     setPermission(Notification.permission);
     setDismissed(localStorage.getItem(DISMISS_KEY) === "true");
 
     if (Notification.permission === "granted") {
-      navigator.serviceWorker.ready
-        .then((reg) => reg.pushManager.getSubscription())
-        .then((sub) => {
-          if (!sub) {
-            subscribeToNotifications().catch((err) => {
-              console.error("[push] Auto-subscribe failed:", err);
-            });
-          }
-        })
-        .catch(() => {});
+      subscribeToNotifications().catch(() => {
+        setDismissed(false);
+        setError(RETRY_SUBSCRIBE_FAILURE_MESSAGE);
+      });
     }
   }, []);
 
@@ -191,7 +150,8 @@ export function PushPermissionPrompt() {
           </Button>
         </div>
         <AlertDescription className="mt-1 pr-6">
-          Get notified when your Coder token is about to expire so you never lose access.
+          Get alerts for agent questions, approvals, ready reports, failures, and expiring access.
+          Configure workspaces and sounds in Notifications.
           {error && <p className="text-destructive mt-1">{error}</p>}
         </AlertDescription>
         <div className="mt-2 flex justify-end">

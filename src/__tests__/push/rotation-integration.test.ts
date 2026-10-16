@@ -114,6 +114,8 @@ describe("token rotation push notification integration", () => {
       title: "Hive: Token Expiring",
       body: expect.stringContaining("expires in"),
       tag: PUSH_NOTIFICATION_TAG,
+      kind: "token",
+      url: "/login",
     });
   });
 

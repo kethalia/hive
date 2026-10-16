@@ -22,6 +22,7 @@ export interface CoderWorkspace {
   name: string;
   template_id: string;
   owner_name: string;
+  owner_id?: string;
   template_name?: string;
   template_display_name?: string;
   template_icon?: string;

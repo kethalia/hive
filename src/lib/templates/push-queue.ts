@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { type Job, Queue, Worker } from "bullmq";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { sendPushToUser } from "@/lib/push/send";
 import { getRedisConnection } from "@/lib/queue/connection";
 
 const execFileAsync = promisify(execFile);
@@ -110,7 +111,7 @@ async function findCoderBinary(): Promise<string> {
  *   5. Resolves/rejects based on exit code
  */
 export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
-  return new Worker<TemplatePushJobData>(
+  const worker = new Worker<TemplatePushJobData>(
     TEMPLATE_PUSH_QUEUE,
     async (job: Job<TemplatePushJobData>) => {
       const { templateName, jobId, userId } = job.data;
@@ -183,4 +184,18 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
       concurrency: 2,
     },
   );
+  const notify = (job: Job<TemplatePushJobData>, success: boolean) => {
+    void sendPushToUser(job.data.userId, {
+      kind: "template",
+      title: success ? "Hive · Template published" : "Hive · Template push failed",
+      body: `${job.data.templateName}: ${success ? "ready to use" : "open Hive to review the error"}`,
+      tag: `hive-template-${job.data.jobId}`,
+      url: `/templates/${encodeURIComponent(job.data.templateName)}`,
+    }).catch(() => console.warn("[template-push] Notification delivery failed"));
+  };
+  worker.on("completed", (job) => notify(job, true));
+  worker.on("failed", (job) => {
+    if (job) notify(job, false);
+  });
+  return worker;
 }

@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AppViewportSize } from "@/components/app-viewport-size";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger";
+import { NotificationListener } from "@/components/notification-listener";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { RuntimeConfigProvider } from "@/components/runtime-config-provider";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
@@ -31,6 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {serializeRuntimeConfig(runtimeConfig)}
       </script>
       <ServiceWorkerRegister />
+      <NotificationListener />
       <AppViewportSize />
       <TooltipProvider>
         <SidebarProvider>

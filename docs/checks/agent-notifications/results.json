@@ -1,0 +1,56 @@
+[
+  {
+    "name": "desktop",
+    "viewport": {
+      "width": 1280,
+      "height": 1000
+    },
+    "horizontalOverflow": false,
+    "errors": [],
+    "notifications": [
+      {
+        "title": "Hive · Question waiting",
+        "data": {
+          "url": "/workspaces/fixture/terminal?session=dev",
+          "kind": "question"
+        },
+        "silent": true
+      }
+    ],
+    "checks": [
+      "device setup",
+      "question and ready audio synthesis",
+      "preference save",
+      "workspace setup",
+      "native service-worker notification",
+      "foreground toast"
+    ]
+  },
+  {
+    "name": "mobile",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "horizontalOverflow": false,
+    "errors": [],
+    "notifications": [
+      {
+        "title": "Hive · Question waiting",
+        "data": {
+          "url": "/workspaces/fixture/terminal?session=dev",
+          "kind": "question"
+        },
+        "silent": true
+      }
+    ],
+    "checks": [
+      "device setup",
+      "question and ready audio synthesis",
+      "preference save",
+      "workspace setup",
+      "native service-worker notification",
+      "foreground toast"
+    ]
+  }
+]

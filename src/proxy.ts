@@ -31,7 +31,11 @@ export function proxy(request: NextRequest) {
     return withContentSecurityPolicy(NextResponse.next());
   }
 
-  if (pathname === "/" || PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
+  if (
+    pathname === "/api/notifications/events" ||
+    pathname === "/" ||
+    PUBLIC_PATHS.some((path) => pathname.startsWith(path))
+  ) {
     return withContentSecurityPolicy(NextResponse.next());
   }
 

@@ -325,4 +325,20 @@ describe("PushPermissionPrompt", () => {
     });
     expect(screen.queryByText("Notifications blocked")).toBeNull();
   });
+  it("does not re-enable an explicitly disabled device on reload", async () => {
+    setNotificationPermission("granted");
+    mockLocalStorage["hive-push-disabled-v1"] = "true";
+    render(<PushPermissionPrompt />);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockSubscribePushAction).not.toHaveBeenCalled();
+    expect(screen.queryByText("Stay notified")).toBeNull();
+  });
+
+  it("restores the server registration for an existing browser subscription", async () => {
+    setNotificationPermission("granted");
+    mockPushManager.getSubscription.mockResolvedValue(fakePushSubscription);
+    render(<PushPermissionPrompt />);
+    await waitFor(() => expect(mockSubscribePushAction).toHaveBeenCalledOnce());
+    expect(mockPushManager.subscribe).not.toHaveBeenCalled();
+  });
 });

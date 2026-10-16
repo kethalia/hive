@@ -15,6 +15,9 @@ export async function register() {
     "@/lib/queue/token-rotation"
   );
 
+  const { createNotificationWorker } = await import("@/lib/push/event-queue");
+  createNotificationWorker();
+
   createTemplatePushWorker();
   console.log("[instrumentation] Template push worker started");
 

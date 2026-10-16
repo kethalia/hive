@@ -82,6 +82,7 @@ describe("sendPushToUser", () => {
     expect(mockSendNotification).toHaveBeenCalledWith(
       { endpoint: subs[0].endpoint, keys: { p256dh: "p256dh-key", auth: "auth-key" } },
       JSON.stringify({ title: "Test", body: "Hello", tag: "test-tag" }),
+      { TTL: 3600, timeout: 10_000, urgency: "high" },
     );
     expect(mockSetVapidDetails).toHaveBeenCalledWith(
       "mailto:noreply@hive.local",
@@ -193,5 +194,37 @@ describe("sendPushToUser", () => {
 
     expect(result).toEqual({ sent: 0, cleaned: 0 });
     expect(mockSendNotification).not.toHaveBeenCalled();
+  });
+  it("respects device event preferences and still delivers to other devices", async () => {
+    mockFindMany.mockResolvedValue([
+      { ...makeSub("muted", "https://fcm.googleapis.com/send/a"), preferences: { ready: false } },
+      makeSub("enabled", "https://fcm.googleapis.com/send/b"),
+    ]);
+    expect(
+      await sendPushToUser("user-1", { title: "Ready", body: "Done", tag: "ready", kind: "ready" }),
+    ).toEqual({ sent: 1, cleaned: 0 });
+    expect(mockSendNotification).toHaveBeenCalledTimes(1);
+    expect(mockSendNotification.mock.calls[0][0].endpoint).toContain("/b");
+    expect(mockSendNotification.mock.calls[0][2].urgency).toBe("normal");
+  });
+
+  it("reports transient failure to the worker so delivery is retried", async () => {
+    mockFindMany.mockResolvedValue([makeSub("s1", "https://fcm.googleapis.com/send/a")]);
+    mockSendNotification.mockRejectedValue(new MockWebPushError("Unavailable", 503));
+    await expect(
+      sendPushToUser("user-1", { title: "Question", body: "Waiting", tag: "question" }, true),
+    ).rejects.toThrow("retrying");
+  });
+
+  it("limits a test push query to the selected device", async () => {
+    await sendPushToUser(
+      "user-1",
+      { title: "Test", body: "Test", tag: "test" },
+      false,
+      "https://fcm.googleapis.com/send/a",
+    );
+    expect(mockFindMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", endpoint: "https://fcm.googleapis.com/send/a" },
+    });
   });
 });

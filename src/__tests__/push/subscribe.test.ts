@@ -58,6 +58,12 @@ describe("subscribePushAction", () => {
     });
 
     expect(result?.data).toEqual({ success: true });
+    expect(mockDeleteMany).toHaveBeenCalledWith({
+      where: {
+        endpoint: "https://fcm.googleapis.com/fcm/send/abc123",
+        userId: { not: "user-123" },
+      },
+    });
     expect(mockUpsert).toHaveBeenCalledWith({
       where: {
         userId_endpoint: {

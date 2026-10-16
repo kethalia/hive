@@ -227,6 +227,7 @@ vi.mock("@/components/ui/switch", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Bell: () => <span>Bell</span>,
   GitBranch: () => <span>GitBranch</span>,
   GripVertical: () => <span>GripVertical</span>,
   ListTodo: () => <span>ListTodo</span>,
