@@ -64,13 +64,28 @@ class NotificationHookTests(unittest.TestCase):
             self.assertEqual(json.loads(claude.read_text())["theme"], "dark")
             self.assertEqual((home / ".local/share/hive/notifications/config.json").stat().st_mode & 0o777, 0o600)
 
+    def test_late_install_cannot_overwrite_a_newer_credential(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            base = {"url": "https://hive.test/api/notifications/events", "hook": "# fixture", "sourceId": "source", "createdAt": "2026-10-16T00:00:00Z"}
+            for generation in (2, 1, 2, 3):
+                bundle = {**base, "generation": generation, "token": "token-" + str(generation)}
+                with patch("pathlib.Path.home", return_value=home), patch.dict("os.environ", {}, clear=True), patch("sys.stdin", io.StringIO(json.dumps(bundle))), contextlib.redirect_stdout(io.StringIO()):
+                    try:
+                        runpy.run_path(str(ROOT / "install.py"))
+                    except SystemExit as error:
+                        self.assertEqual(error.code, 0)
+                current = json.loads((home / ".local/share/hive/notifications/config.json").read_text())
+                self.assertEqual(current["generation"], max(2, generation))
+                self.assertEqual(current["token"], "token-" + str(max(2, generation)))
+
     def test_invalid_configuration_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
             path = home / ".codex/hooks.json"
             path.parent.mkdir()
             path.write_text("invalid user JSON")
-            with patch("pathlib.Path.home", return_value=home), patch.dict("os.environ", {}, clear=True), patch("sys.stdin", io.StringIO('{}')):
+            with patch("pathlib.Path.home", return_value=home), patch.dict("os.environ", {}, clear=True), patch("sys.stdin", io.StringIO(json.dumps({"url": "https://hive.test/api/notifications/events", "token": "secret", "hook": "# fixture"}))):
                 with self.assertRaises(json.JSONDecodeError):
                     runpy.run_path(str(ROOT / "install.py"))
             self.assertEqual(path.read_text(), "invalid user JSON")

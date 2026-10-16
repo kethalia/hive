@@ -15,8 +15,9 @@ const eventSchema = z.object({
 export async function POST(request: Request) {
   const token = request.headers.get("authorization")?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
   if (!token) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const source = await getDb().notificationSource.findUnique({
-    where: { tokenHash: createHash("sha256").update(token).digest("hex") },
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const source = await getDb().notificationSource.findFirst({
+    where: { OR: [{ tokenHash }, { pendingTokenHash: tokenHash }] },
   });
   if (!source) return Response.json({ error: "Unauthorized" }, { status: 401 });
   // Hard bound even chunked bodies before parsing.

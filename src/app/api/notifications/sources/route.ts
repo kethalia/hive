@@ -1,8 +1,12 @@
-import { createHash, randomBytes } from "node:crypto";
 import { getDb } from "@hive/db";
 import { z } from "zod";
 import { getRequestSession } from "@/lib/auth/session";
-import { installNotificationHooks } from "@/lib/push/install";
+import { installNotificationHooks, prepareNotificationWorkspace } from "@/lib/push/install";
+
+import {
+  confirmNotificationCredential,
+  stageNotificationCredential,
+} from "@/lib/push/source-credentials";
 
 export const runtime = "nodejs";
 export async function POST(request: Request) {
@@ -15,24 +19,24 @@ export async function POST(request: Request) {
     .safeParse(await request.json().catch(() => null));
   if (!parsed.success) return new Response(null, { status: 400 });
   const { workspaceId } = parsed.data;
-  const token = randomBytes(32).toString("hex");
   try {
-    const workspaceName = await installNotificationHooks(
+    const prepared = await prepareNotificationWorkspace(session.user.id, workspaceId);
+    const { source, token } = await stageNotificationCredential(
       session.user.id,
       workspaceId,
-      `${origin}/api/notifications/events`,
-      token,
+      prepared.workspaceName,
     );
-    await getDb().notificationSource.upsert({
-      where: { userId_workspaceId: { userId: session.user.id, workspaceId } },
-      create: {
-        userId: session.user.id,
-        workspaceId,
-        workspaceName,
-        tokenHash: createHash("sha256").update(token).digest("hex"),
-      },
-      update: { workspaceName, tokenHash: createHash("sha256").update(token).digest("hex") },
+    await installNotificationHooks(prepared, `${origin}/api/notifications/events`, token, {
+      sourceId: source.id,
+      generation: source.credentialGeneration,
+      createdAt: source.createdAt.toISOString(),
     });
+    await confirmNotificationCredential(
+      source.id,
+      source.credentialGeneration,
+      token,
+      prepared.workspaceName,
+    );
     return Response.json({ success: true });
   } catch (error) {
     return Response.json(

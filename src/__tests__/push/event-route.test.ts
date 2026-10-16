@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   expire: vi.fn(),
 }));
 vi.mock("@hive/db", () => ({
-  getDb: () => ({ notificationSource: { findUnique: mocks.source } }),
+  getDb: () => ({ notificationSource: { findFirst: mocks.source } }),
 }));
 vi.mock("@/lib/push/event-queue", () => ({ enqueueNotification: mocks.enqueue }));
 vi.mock("@/lib/queue/connection", () => ({
@@ -56,7 +56,12 @@ describe("agent event ingress", () => {
     );
     expect(response.status).toBe(202);
     expect(mocks.source).toHaveBeenCalledWith({
-      where: { tokenHash: createHash("sha256").update(token).digest("hex") },
+      where: {
+        OR: [
+          { tokenHash: createHash("sha256").update(token).digest("hex") },
+          { pendingTokenHash: createHash("sha256").update(token).digest("hex") },
+        ],
+      },
     });
     expect(mocks.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({

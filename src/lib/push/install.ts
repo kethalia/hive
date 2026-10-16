@@ -3,12 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
-export async function installNotificationHooks(
-  userId: string,
-  workspaceId: string,
-  url: string,
-  token: string,
-) {
+export async function prepareNotificationWorkspace(userId: string, workspaceId: string) {
   const client = await getCoderClientForUser(userId);
   const workspace = await client.getWorkspace(workspaceId);
   // Only the owner can install account-wide hooks into this workspace's home.
@@ -24,6 +19,16 @@ export async function installNotificationHooks(
   const target = `${workspace.owner_name}/${workspace.name}.${agent.name}`;
   if (!/^[a-zA-Z0-9._/-]+$/.test(target) || target.startsWith("-"))
     throw new Error("Invalid workspace target");
+  return { client, target, workspaceName: workspace.name };
+}
+
+export async function installNotificationHooks(
+  prepared: Awaited<ReturnType<typeof prepareNotificationWorkspace>>,
+  url: string,
+  token: string,
+  version: { sourceId: string; generation: number; createdAt: string },
+) {
+  const { client, target } = prepared;
   const [installer, hook] = await Promise.all([
     readFile(join(process.cwd(), "scripts/notifications/install.py"), "utf8"),
     readFile(join(process.cwd(), "scripts/notifications/agent-hook.py"), "utf8"),
@@ -54,7 +59,7 @@ export async function installNotificationHooks(
     });
     child.stdin.on("error", () => {});
     // Keep the scoped callback credential out of commands, logs, and URLs.
-    child.stdin.end(JSON.stringify({ hook, token, url }));
+    child.stdin.end(JSON.stringify({ hook, token, url, ...version }));
   });
-  return workspace.name;
+  return prepared.workspaceName;
 }
