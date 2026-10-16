@@ -289,6 +289,7 @@ interface RemoveWorkspacePaneTarget {
 }
 
 interface WorkspacePaneActionTarget {
+  anchor: HTMLButtonElement;
   boardKey: string;
   boardPaneKey?: string;
   kind: "terminal" | "tool";
@@ -4422,8 +4423,10 @@ export function MultiSessionWorkspace({
               layoutMode="tiled"
               paneState={toolPane.loadState}
               dragHandleListeners={dragHandleListeners}
-              onOpenActions={() =>
+              actionsOpen={paneActionTarget?.windowId === toolPane.key}
+              onOpenActions={(anchor) =>
                 setPaneActionTarget({
+                  anchor,
                   boardKey: model.board.key,
                   kind: "tool",
                   label: presentation.title,
@@ -4566,8 +4569,13 @@ export function MultiSessionWorkspace({
             }
             layoutMode="tiled"
             dragHandleListeners={dragHandleListeners}
-            onOpenActions={() =>
+            actionsOpen={
+              paneActionTarget?.windowId === pane.sessionName &&
+              paneActionTarget?.boardKey === model.board.key
+            }
+            onOpenActions={(anchor) =>
               setPaneActionTarget({
+                anchor,
                 boardKey: model.board.key,
                 boardPaneKey: visibleSession?.boardPaneKey,
                 kind: "terminal",
@@ -4878,6 +4886,7 @@ export function MultiSessionWorkspace({
       {mobileComposeSheet}
       <WorkspacePaneActionSheet
         actions={paneActions}
+        anchor={paneActionTarget?.anchor}
         description={paneActionTarget?.subtitle}
         label={paneActionTarget?.label ?? "Pane actions"}
         open={paneActionTarget !== null}

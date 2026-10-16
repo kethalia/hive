@@ -3,6 +3,7 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { Ellipsis, GripVertical, Lock, Minus, Plus, X } from "lucide-react";
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
@@ -140,7 +141,8 @@ interface TerminalSessionFrameProps {
   closeTestId?: string;
   headerActions?: ReactNode;
   dragHandleListeners?: DraggableSyntheticListeners;
-  onOpenActions?: () => void;
+  onOpenActions?: (anchor: HTMLButtonElement) => void;
+  actionsOpen?: boolean;
   touchOptimizedActions?: boolean;
   isDragging?: boolean;
   isDropTarget?: boolean;
@@ -169,12 +171,14 @@ export function TerminalSessionFrame({
   headerActions,
   dragHandleListeners,
   onOpenActions,
+  actionsOpen = false,
   touchOptimizedActions = false,
   isDragging = false,
   isDropTarget = false,
   style,
   paneState,
 }: TerminalSessionFrameProps) {
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
   const interactive = Boolean(onActivate) && !disabled;
   const draggableHeader = !disabled && Boolean(dragHandleListeners);
 
@@ -219,7 +223,7 @@ export function TerminalSessionFrame({
       return;
     }
     event.preventDefault();
-    onOpenActions();
+    if (actionsButtonRef.current) onOpenActions(actionsButtonRef.current);
   }
 
   return (
@@ -289,6 +293,7 @@ export function TerminalSessionFrame({
           {touchOptimizedActions ? null : headerActions}
           {onOpenActions ? (
             <Button
+              ref={actionsButtonRef}
               type="button"
               variant="ghost"
               size="xs"
@@ -297,11 +302,13 @@ export function TerminalSessionFrame({
                 touchOptimizedActions ? "size-11 min-h-11 px-0" : "h-6 min-h-0 px-1.5",
               )}
               aria-label={`Open actions for ${label}`}
+              aria-haspopup={touchOptimizedActions ? "dialog" : "menu"}
+              aria-expanded={actionsOpen}
               data-testid={dataTestId ? `${dataTestId}-actions` : undefined}
               disabled={disabled}
               onClick={(event) => {
                 event.stopPropagation();
-                onOpenActions();
+                onOpenActions(event.currentTarget);
               }}
             >
               <Ellipsis className="size-3" />

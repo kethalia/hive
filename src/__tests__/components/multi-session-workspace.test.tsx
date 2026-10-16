@@ -36,6 +36,7 @@ const mockToastLoading = vi.hoisted(() => vi.fn(() => "clipboard-pending"));
 const mockToastSuccess = vi.hoisted(() => vi.fn());
 const mockToastDismiss = vi.hoisted(() => vi.fn());
 const mockUseIsComposeSheet = vi.hoisted(() => vi.fn(() => false));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mockUseIsComposeSheet() }));
 const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
 const mockCopyTerminalSelection = vi.hoisted(() => vi.fn());
 const mockPasteClipboardApiToTerminal = vi.hoisted(() => vi.fn());
@@ -1884,7 +1885,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("git-terminal-font-size-controls")).not.toBeInTheDocument();
     fireEvent.click(more);
 
-    expect(screen.getByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
+    expect(await screen.findByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-action-activate")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-action-files")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-action-remove")).toBeInTheDocument();
@@ -1916,6 +1917,26 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 
+  it("opens dropdown actions for desktop terminals and tool panes", async () => {
+    await renderTwoSessionWorkspace();
+    const more = screen.getByTestId("workspace-pane-main-session-actions");
+    fireEvent.click(more);
+
+    expect(await screen.findByRole("menu", { name: "Actions for main-session" })).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-sheet")).not.toBeInTheDocument();
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByTestId("workspace-pane-action-logs"));
+
+    const toolMore = await screen.findByTestId("workspace-tool-pane-logs-actions");
+    fireEvent.click(toolMore);
+    expect(await screen.findByTestId("workspace-pane-action-menu")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-sheet")).not.toBeInTheDocument();
+    expect(toolMore).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(toolMore).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("clears an open pane action target when the workspace identity changes", async () => {
     mockUseIsComposeSheet.mockReturnValue(true);
     mockGetSessions.mockResolvedValue(twoSessionPayload());
@@ -1923,7 +1944,7 @@ describe("MultiSessionWorkspace", () => {
     await screen.findByTestId("workspace-pane-main-session");
 
     fireEvent.click(screen.getByTestId("workspace-pane-main-session-actions"));
-    expect(screen.getByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
+    expect(await screen.findByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
 
     rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" source="unified" />);
     await screen.findByTestId("workspace-pane-main-session");
