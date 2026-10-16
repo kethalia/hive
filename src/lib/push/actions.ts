@@ -25,7 +25,7 @@ export const testPushAction = authActionClient
         title: "Test notification",
         body: "This device can receive push notifications.",
         tag: "hive-test",
-        url: "/notifications",
+        url: "/settings#notifications",
       },
       false,
       endpoint,
