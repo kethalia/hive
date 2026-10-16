@@ -11,6 +11,7 @@ const eventSchema = z.object({
   kind: z.enum(["question", "approval", "ready", "failure"]),
   agent: z.enum(["codex", "claude"]),
   sessionName: z.string().max(200).default(""),
+  projectName: z.string().max(200).default(""),
 });
 export async function POST(request: Request) {
   const token = request.headers.get("authorization")?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
@@ -48,6 +49,13 @@ export async function POST(request: Request) {
   if (rate > 60) return new Response(null, { status: 429 });
   const url = new URL(`/workspaces/${source.workspaceId}/terminal`, "https://hive.local");
   if (event.sessionName) url.searchParams.set("session", event.sessionName);
+  const project = event.projectName.replace(/\s+/g, " ").trim();
+  // Clone session IDs are routing identifiers, not useful notification labels.
+  const session = /^git-clone-[a-f0-9]{32}$/.test(event.sessionName)
+    ? ""
+    : event.sessionName.replace(/\s+/g, " ").trim();
+  const location = [project, session === project ? "" : session].filter(Boolean).join(" · ");
+  const agent = event.agent === "codex" ? "Codex" : "Claude Code";
   await enqueueNotification(
     {
       userId: source.userId,
@@ -55,7 +63,7 @@ export async function POST(request: Request) {
       payload: {
         kind: event.kind,
         title: notificationLabels[event.kind],
-        body: `${event.agent === "codex" ? "Codex" : "Claude Code"} in ${source.workspaceName}${event.sessionName ? ` · ${event.sessionName}` : ""}`,
+        body: `${location ? `${location}\n` : ""}${agent} · ${source.workspaceName}`,
         tag: `hive-${source.id}-${event.eventId}`,
         url: url.pathname + url.search,
       },

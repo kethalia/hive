@@ -333,7 +333,8 @@ export function NotificationSettings({
                 <CardTitle>Agent workspaces</CardTitle>
                 <CardDescription>
                   Connect each workspace once for Codex and Claude Code. This installs notification
-                  hooks for your agents. Only event type, agent, and session name are sent to Hive.
+                  hooks for your agents. Only event type, agent, project name, and session name are
+                  sent to Hive.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

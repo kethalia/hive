@@ -76,6 +76,90 @@ describe("agent event ingress", () => {
       "event-1",
     );
   });
+  it("puts the project first while retaining the opaque session only in the deep link", async () => {
+    const sessionName = `git-clone-${"a".repeat(32)}`;
+    expect(
+      (
+        await POST(
+          request({
+            kind: "ready",
+            agent: "codex",
+            eventId: "ready-1",
+            sessionName,
+            projectName: "codex-creative-studio",
+          }),
+        )
+      ).status,
+    ).toBe(202);
+    const { payload } = mocks.enqueue.mock.calls[0][0];
+    expect(payload.title).toBe("Agent ready");
+    expect(payload.body).toBe("codex-creative-studio\nCodex · dev");
+    expect(payload.body).not.toContain(sessionName);
+    expect(payload.url).toBe(`/workspaces/workspace-1/terminal?session=${sessionName}`);
+  });
+  it("keeps custom session names alongside the project for Claude Code", async () => {
+    await POST(
+      request({
+        kind: "question",
+        agent: "claude",
+        eventId: "question-1",
+        projectName: "hive",
+        sessionName: "release-fix",
+      }),
+    );
+    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe(
+      "hive · release-fix\nClaude Code · dev",
+    );
+  });
+  it("does not repeat a session named after its project", async () => {
+    await POST(
+      request({
+        kind: "ready",
+        agent: "codex",
+        eventId: "same",
+        projectName: "hive",
+        sessionName: "hive",
+      }),
+    );
+    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe("hive\nCodex · dev");
+  });
+  it("accepts older senders without exposing clone hashes", async () => {
+    await POST(
+      request({
+        kind: "ready",
+        agent: "codex",
+        eventId: "legacy-1",
+        sessionName: `git-clone-${"b".repeat(32)}`,
+      }),
+    );
+    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe("Codex · dev");
+    await POST(
+      request({ kind: "ready", agent: "codex", eventId: "legacy-2", sessionName: "build" }),
+    );
+    expect(mocks.enqueue.mock.calls[1][0].payload.body).toBe("build\nCodex · dev");
+  });
+  it("normalizes display whitespace and bounds project labels", async () => {
+    await POST(
+      request({
+        kind: "ready",
+        agent: "codex",
+        eventId: "spacing",
+        projectName: "  creative\nstudio  ",
+        sessionName: " feature\twork ",
+      }),
+    );
+    expect(mocks.enqueue.mock.calls[0][0].payload.body).toBe(
+      "creative studio · feature work\nCodex · dev",
+    );
+    expect(
+      (
+        await POST(
+          request({ kind: "ready", agent: "codex", eventId: "long", projectName: "a".repeat(201) }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(mocks.enqueue).toHaveBeenCalledTimes(1);
+  });
   it("bounds body size and validates event kinds", async () => {
     expect((await POST(request({ text: "x".repeat(5000) }))).status).toBe(413);
     expect(

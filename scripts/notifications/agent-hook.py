@@ -31,6 +31,20 @@ def classify(event):
     return None
 
 
+def project_name(directory):
+    """Use repository metadata only; never send absolute paths or Git remotes."""
+    if not isinstance(directory, str) or not directory:
+        return ""
+    try:
+        root = subprocess.check_output(
+            ["git", "-C", directory, "rev-parse", "--show-toplevel"],
+            timeout=0.5, stderr=subprocess.DEVNULL, text=True,
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        root = directory
+    return " ".join(Path(root).name.split())[:200]
+
+
 def main():
     agent = sys.argv[1]
     event = json.load(sys.stdin)
@@ -52,7 +66,8 @@ def main():
     # receive a new id. No prompt or tool content leaves the workspace.
     event_id = hashlib.sha256((identity + str(time.time_ns())).encode()).hexdigest()
     body = json.dumps({"kind": kind, "agent": agent, "eventId": event_id,
-                       "sessionName": session[:200]}).encode()
+                       "sessionName": session[:200],
+                       "projectName": project_name(event.get("cwd") or os.getcwd())}).encode()
     request = urllib.request.Request(config["url"], data=body, headers={
         "Authorization": "Bearer " + config["token"], "Content-Type": "application/json",
         "User-Agent": "Hive-Agent-Notifications/1.0",
