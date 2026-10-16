@@ -14,12 +14,6 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(mockNavigationState.searchParams),
 }));
 
-const mockRefreshInstalledApp = vi.hoisted(() => vi.fn());
-
-vi.mock("@/lib/app-update", () => ({
-  refreshInstalledApp: mockRefreshInstalledApp,
-}));
-
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
 }));
@@ -280,7 +274,7 @@ vi.mock("@/components/ui/switch", () => ({
 vi.mock("lucide-react", () => ({
   Bell: () => <span>Bell</span>,
   Ellipsis: () => <span>Ellipsis</span>,
-  Settings: () => <span>Settings</span>,
+  Settings: () => <span aria-hidden="true">Settings</span>,
   Hexagon: () => <span>Hexagon</span>,
   LayoutTemplate: () => <span>LayoutTemplate</span>,
   Monitor: () => <span>Monitor</span>,
@@ -632,22 +626,31 @@ describe("AppSidebar", () => {
 
   it("does not offer or fetch the removed desktop terminal controls setting", async () => {
     render(<AppSidebar />);
-    await screen.findByTestId("update-installed-app");
+    await screen.findByRole("link", { name: "Settings" });
     expect(
       screen.queryByRole("switch", { name: "Show terminal controls beyond phone" }),
     ).toBeNull();
     expect(mockGetTerminalSettings).not.toHaveBeenCalled();
   });
 
-  it("offers an app update action from settings", async () => {
+  it("links directly to settings without notifications, refresh, or update controls", async () => {
     render(<AppSidebar />);
+    const settings = await screen.findByRole("link", { name: "Settings" });
+    expect(settings).toHaveAttribute("href", "/settings");
+    const footer = screen.getByTestId("sidebar-footer");
+    expect(footer.querySelector("button[title='Refresh']")).toBeNull();
+    expect(screen.queryByText("Notifications")).toBeNull();
+    expect(screen.queryByTestId("update-installed-app")).toBeNull();
+    expect(screen.queryByTestId("last-refreshed")).toBeNull();
+  });
 
-    const updateButton = await screen.findByTestId("update-installed-app");
-    expect(updateButton).toHaveTextContent("Update");
-
-    fireEvent.click(updateButton);
-
-    expect(mockRefreshInstalledApp).toHaveBeenCalledTimes(1);
+  it("marks the settings link active on the settings page", async () => {
+    mockNavigationState.pathname = "/settings";
+    render(<AppSidebar />);
+    expect(await screen.findByRole("link", { name: "Settings" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("renders template names when data loads", async () => {
@@ -1256,41 +1259,6 @@ describe("AppSidebar", () => {
     expect(mockListGitClones).not.toHaveBeenCalled();
   });
 
-  it("includes open workspace Git discovery in the explicit footer refresh", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-    });
-    const gitSection = await screen.findByTestId("git-section-ws-1");
-    const gitTrigger = gitSection.querySelector("[data-testid='collapsible-trigger']");
-    expect(gitTrigger).not.toBeNull();
-    fireEvent.click(gitTrigger!);
-    await waitFor(() => {
-      expect(screen.getByTestId("git-section-ws-1")).toHaveAttribute("data-open", "true");
-    });
-
-    mockListWorkspaces.mockClear();
-    mockListTemplates.mockClear();
-    mockListGitClones.mockClear();
-
-    const footer = screen.getByTestId("sidebar-footer");
-    const refreshButton = footer.querySelector("button[title='Refresh']");
-    expect(refreshButton).not.toBeNull();
-    fireEvent.click(refreshButton!);
-
-    await waitFor(() => {
-      expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
-      expect(mockListTemplates).toHaveBeenCalledTimes(1);
-      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-    });
-  });
-
   it("renders error alert with retry button on workspace fetch failure", async () => {
     mockListWorkspaces.mockResolvedValue({
       serverError: "Connection refused",
@@ -1344,50 +1312,6 @@ describe("AppSidebar", () => {
 
     await waitFor(() => {
       expect(screen.getByText("recovered-box")).toBeInTheDocument();
-    });
-  });
-
-  it("renders refresh button in footer", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    const footer = screen.getByTestId("sidebar-footer");
-    const refreshIcon = footer.querySelector('[data-testid="refresh-icon"]');
-    expect(refreshIcon).toBeInTheDocument();
-  });
-
-  it("shows relative last-refreshed time in footer after data loads", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    const lastRefreshed = screen.getByTestId("last-refreshed");
-    expect(lastRefreshed.textContent).toMatch(/Just now|ago/);
-  });
-
-  it("calls both fetch actions when refresh button is clicked", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    mockListWorkspaces.mockClear();
-    mockListTemplates.mockClear();
-
-    const footer = screen.getByTestId("sidebar-footer");
-    const refreshButton = footer.querySelector("button[title='Refresh']");
-    expect(refreshButton).not.toBeNull();
-    fireEvent.click(refreshButton!);
-
-    await waitFor(() => {
-      expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
-      expect(mockListTemplates).toHaveBeenCalledTimes(1);
     });
   });
 

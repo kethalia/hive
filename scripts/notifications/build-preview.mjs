@@ -6,6 +6,7 @@ import postcss from "postcss";
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve("tsx"))("esbuild");
 const destination = process.argv[2];
+const settingsPreview = process.argv.includes("--settings");
 if (!destination) throw new Error("Supply a preview output directory");
 await mkdir(destination, { recursive: true });
 const preferences = {
@@ -25,14 +26,20 @@ export const getPushPreferencesAction = async () => ({ data: ${JSON.stringify(pr
 export const updatePushPreferencesAction = async (input) => { window.savedPreferences = input.preferences; return { data: { success: true } }; };
 `;
 await build({
-  entryPoints: ["e2e/fixtures/notification-settings.tsx"],
+  entryPoints: [
+    settingsPreview ? "e2e/fixtures/settings.tsx" : "e2e/fixtures/notification-settings.tsx",
+  ],
   bundle: true,
   outfile: `${destination}/bundle.js`,
   platform: "browser",
   format: "iife",
   jsx: "automatic",
   tsconfig: "tsconfig.json",
-  define: { "process.env.NODE_ENV": '"development"' },
+  define: {
+    "process.env.NODE_ENV": '"development"',
+    "process.env.NEXT_PUBLIC_HIVE_APP_VERSION": '"2.21.6"',
+    "process.env.NEXT_PUBLIC_HIVE_APP_BUILD": '"fixture-loaded-build"',
+  },
   plugins: [
     {
       name: "notification-action-fixtures",
@@ -42,7 +49,7 @@ await build({
           namespace: "fixture",
         }));
         build.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
-          contents: 'export const usePathname = () => "/notifications";',
+          contents: `export const usePathname = () => "${settingsPreview ? "/settings" : "/notifications"}"; export const useRouter = () => ({ push: (url) => { window.location.href = url; } });`,
           loader: "js",
         }));
         build.onLoad({ filter: /src\/lib\/push\/(actions|subscribe)\.ts$/ }, () => ({
@@ -68,4 +75,7 @@ await writeFile(
 );
 await mkdir(`${destination}/icons`, { recursive: true });
 await copyFile("public/icons/icon-192.png", `${destination}/icons/icon-192.png`);
-await copyFile("e2e/notifications.browser.mjs", `${destination}/validate.mjs`);
+await copyFile(
+  settingsPreview ? "e2e/settings.browser.mjs" : "e2e/notifications.browser.mjs",
+  `${destination}/validate.mjs`,
+);

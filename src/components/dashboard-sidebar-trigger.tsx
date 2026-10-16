@@ -17,6 +17,7 @@ function hasPageNavbar(pathname: string | null): boolean {
   return (
     pathname === "/workspaces" ||
     pathname === "/notifications" ||
+    pathname === "/settings" ||
     pathname === "/templates" ||
     pathname.startsWith("/templates/") ||
     pathname === "/terminal/status"

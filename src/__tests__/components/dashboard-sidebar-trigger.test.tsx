@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
-let mockPathname = "/settings";
+let mockPathname = "/other";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -23,13 +23,19 @@ import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger"
 describe("DashboardSidebarTrigger", () => {
   afterEach(() => {
     cleanup();
-    mockPathname = "/settings";
+    mockPathname = "/other";
   });
 
   it("renders on ordinary dashboard routes", () => {
     render(<DashboardSidebarTrigger />);
 
     expect(screen.getByTestId("dashboard-sidebar-trigger")).toHaveClass("mt-1", "shrink-0");
+  });
+
+  it("does not duplicate the settings page navbar trigger", () => {
+    mockPathname = "/settings";
+    const { container } = render(<DashboardSidebarTrigger />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("does not duplicate the notifications page navbar trigger", () => {

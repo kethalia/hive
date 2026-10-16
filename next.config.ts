@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { NextConfig } from "next";
+import { version } from "./package.json";
 import {
   buildContentSecurityPolicy,
   buildPermissionsPolicy,
@@ -6,8 +8,17 @@ import {
 
 export const contentSecurityPolicy = buildContentSecurityPolicy();
 
+// Reuse one identity across Next's config loads and build workers.
+const appBuildId = process.env.HIVE_APP_BUILD_ID ?? randomUUID();
+process.env.HIVE_APP_BUILD_ID = appBuildId;
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  generateBuildId: async () => appBuildId,
+  env: {
+    NEXT_PUBLIC_HIVE_APP_VERSION: version,
+    NEXT_PUBLIC_HIVE_APP_BUILD: process.env.NODE_ENV === "production" ? appBuildId : "development",
+  },
   // Next can resolve the ESM condition at runtime even when its file tracer
   // only discovers the CommonJS helper. Ship every conditional export.
   outputFileTracingIncludes: {

@@ -93,6 +93,13 @@ describe("notification service worker", () => {
     expect(options.vibrate).toBeUndefined();
     expect(options.requireInteraction).toBe(false);
   });
+  it("opens the notification section in settings with its anchor intact", async () => {
+    const { client, emit } = worker();
+    await emit("notificationclick", {
+      notification: { close: vi.fn(), data: { url: "/settings#notifications" } },
+    });
+    expect(client.navigate).toHaveBeenCalledWith("/settings#notifications");
+  });
   it("rejects cross-origin notification navigation", async () => {
     const { client, emit } = worker();
     await emit("notificationclick", {

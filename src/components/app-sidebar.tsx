@@ -20,7 +20,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   AlertCircle,
-  Bell,
   ChevronDown,
   ChevronRight,
   Code,
@@ -36,7 +35,6 @@ import {
   Monitor,
   Pencil,
   Plus,
-  RefreshCw,
   Monitor as ScreenIcon,
   Settings,
   Star,
@@ -105,7 +103,6 @@ import {
   renameSessionAction,
   restartWorkspaceAction,
 } from "@/lib/actions/workspaces";
-import { refreshInstalledApp } from "@/lib/app-update";
 import { getSessionAction } from "@/lib/auth/actions";
 import type { CoderWorkspace, WorkspaceAgentStatus } from "@/lib/coder/types";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
@@ -124,25 +121,6 @@ import type { TmuxSession } from "@/lib/workspaces/sessions";
 import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
 
 const POLL_INTERVAL_MS = 30_000;
-
-function useRelativeTime(date: Date | null, enabled: boolean): string {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!date || !enabled) return;
-    const id = setInterval(() => setNow(Date.now()), 10_000);
-    return () => clearInterval(id);
-  }, [date, enabled]);
-
-  if (!date) return "Never";
-  const diffSec = Math.max(0, Math.floor((now - date.getTime()) / 1_000));
-  if (diffSec < 5) return "Just now";
-  if (diffSec < 60) return `${diffSec}s ago`;
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  return `${diffHr}h ago`;
-}
 
 interface SectionState<T> {
   data: T[];
@@ -874,7 +852,6 @@ export function AppSidebar() {
   const activeSession = searchParams.get("session");
   const activeClonePath = searchParams.get("clonePath");
   const [sidebarMode] = useSidebarMode();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
     email: string;
     coderUrl: string;
@@ -922,9 +899,6 @@ export function AppSidebar() {
   const [workspaceGitTerminalErrors, setWorkspaceGitTerminalErrors] = useState<
     Record<string, string | null>
   >({});
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-
-  const relativeTime = useRelativeTime(lastRefreshed, settingsOpen);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
   const [expandedGitSections, setExpandedGitSections] = useState<Record<string, boolean>>({});
   const [expandedTerminals, setExpandedTerminals] = useState<Record<string, boolean>>({});
@@ -944,7 +918,6 @@ export function AppSidebar() {
       const result = await listWorkspacesAction();
       if (result?.data) {
         setWorkspaces({ data: result.data, isLoading: false, error: null });
-        setLastRefreshed(new Date());
       } else {
         const msg = result?.serverError ?? "Failed to fetch workspaces";
         setWorkspaces((prev) => ({ ...prev, isLoading: false, error: msg }));
@@ -961,7 +934,6 @@ export function AppSidebar() {
       const result = await listTemplateStatusesAction();
       if (result?.data) {
         setTemplates({ data: result.data, isLoading: false, error: null });
-        setLastRefreshed(new Date());
       } else {
         const msg = result?.serverError ?? "Failed to fetch templates";
         setTemplates((prev) => ({ ...prev, isLoading: false, error: msg }));
@@ -1156,24 +1128,10 @@ export function AppSidebar() {
 
   const expandedWorkspacesRef = useRef(expandedWorkspaces);
   expandedWorkspacesRef.current = expandedWorkspaces;
-  const expandedGitSectionsRef = useRef(expandedGitSections);
-  expandedGitSectionsRef.current = expandedGitSections;
-
-  const refreshExpandedGitClones = useCallback(() => {
-    for (const [wsId, isExpanded] of Object.entries(expandedGitSectionsRef.current)) {
-      if (isExpanded) fetchGitClones(wsId);
-    }
-  }, [fetchGitClones]);
-
   const fetchWorkspaceAndTemplates = useCallback(() => {
     fetchWorkspaces();
     fetchTemplates();
   }, [fetchWorkspaces, fetchTemplates]);
-
-  const fetchAll = useCallback(() => {
-    fetchWorkspaceAndTemplates();
-    refreshExpandedGitClones();
-  }, [fetchWorkspaceAndTemplates, refreshExpandedGitClones]);
 
   useEffect(() => {
     fetchWorkspaceAndTemplates();
@@ -2139,65 +2097,14 @@ export function AppSidebar() {
           )}
           <SidebarMenuItem>
             <SidebarMenuButton
-              render={<Link href="/notifications" />}
-              isActive={pathname === "/notifications"}
+              render={<Link href="/settings" />}
+              isActive={pathname === "/settings"}
+              aria-current={pathname === "/settings" ? "page" : undefined}
             >
-              <Bell className="h-4 w-4" />
-              <span>Notifications</span>
+              <Settings className="h-4 w-4" />
+              <span>Settings</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <SidebarMenuItem>
-              <SidebarMenuButton render={<CollapsibleTrigger />}>
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-                <ChevronRight
-                  className={`ml-auto h-4 w-4 transition-transform ${settingsOpen ? "rotate-90" : ""}`}
-                />
-              </SidebarMenuButton>
-              <CollapsibleContent>
-                <div className="space-y-3 px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs text-muted-foreground">Refresh</span>
-                      <p
-                        className="text-[10px] text-muted-foreground/60"
-                        data-testid="last-refreshed"
-                      >
-                        {relativeTime}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={fetchAll}
-                      className="rounded p-1 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                      title="Refresh"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="rounded-md border border-sidebar-border p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <span className="text-xs text-muted-foreground">App update</span>
-                        <p className="text-[10px] leading-snug text-muted-foreground/60">
-                          Clear installed app caches and reload the newest build.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void refreshInstalledApp()}
-                        className="min-h-9 shrink-0 rounded border border-sidebar-border px-2 text-[10px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                        data-testid="update-installed-app"
-                      >
-                        Update
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </SidebarMenuItem>
-          </Collapsible>
         </SidebarMenu>
         {sessionUser && (
           <DropdownMenu>

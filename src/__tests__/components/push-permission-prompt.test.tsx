@@ -441,7 +441,7 @@ describe("notification settings feedback", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send test push" }));
     const error = await screen.findByRole("alert");
     expect(error.textContent).toContain("BadJwtToken");
-    expect(error.closest('[data-slot="card"]')?.textContent).toContain("This device");
+    expect(error.closest("section")?.textContent).toContain("This device");
   });
   it("keeps failed hook setup visibly incomplete, and only marks it installed after a successful retry", async () => {
     const fetch = vi
@@ -464,7 +464,7 @@ describe("notification settings feedback", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry setup" }));
     const error = await screen.findByRole("alert");
     expect(error.textContent).toContain("timed out");
-    expect(error.closest('[data-slot="card"]')?.textContent).toContain("Agent workspaces");
+    expect(error.closest("section")?.textContent).toContain("Agent workspaces");
     expect(screen.queryByText("Hooks installed")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry setup" }));
     await screen.findByText("Hooks installed");

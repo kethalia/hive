@@ -12,10 +12,10 @@ function notificationUrl(value) {
   try {
     const url = new URL(value || "/workspaces", self.location.origin);
     if (url.origin === self.location.origin &&
-        (url.pathname === "/login" || url.pathname === "/notifications" ||
+        (url.pathname === "/login" || url.pathname === "/notifications" || url.pathname === "/settings" ||
          url.pathname === "/templates" || url.pathname.startsWith("/templates/") ||
          url.pathname === "/workspaces" || url.pathname.startsWith("/workspaces/"))) {
-      return url.pathname + url.search;
+      return url.pathname + url.search + url.hash;
     }
   } catch {}
   return "/workspaces";

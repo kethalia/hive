@@ -93,22 +93,17 @@ try {
       "Only the page header should toggle the sidebar",
     );
     const layout = await page.evaluate(() => {
-      const cards = [...document.querySelectorAll('[data-slot="card"]')].map((card) => ({
-        left: card.getBoundingClientRect().left,
-        right: card.getBoundingClientRect().right,
+      const sections = [...document.querySelectorAll("section")].map((section) => ({
+        left: section.getBoundingClientRect().left,
+        right: section.getBoundingClientRect().right,
       }));
-      return { cards, bodyOverflow: document.body.scrollWidth > innerWidth };
+      return { sections, bodyOverflow: document.body.scrollWidth > innerWidth };
     });
     assert.equal(layout.bodyOverflow, false);
     assert.ok(
-      layout.cards.every((card) => card.left >= 0 && card.right <= viewport.width),
-      `${name} cards fit viewport`,
+      layout.sections.every((section) => section.left >= 0 && section.right <= viewport.width),
+      `${name} sections fit viewport`,
     );
-    if (name === "desktop")
-      assert.ok(
-        layout.cards[2].left > layout.cards[0].left + 100,
-        "Desktop cards use both columns",
-      );
     const scroll = page.locator("div.overflow-y-auto").first();
     await scroll.evaluate((element) => (element.scrollTop = 0));
     await page.screenshot({ path: join(root, `${name}.png`), fullPage: true });
