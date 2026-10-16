@@ -13,7 +13,16 @@ import {
   X,
 } from "lucide-react";
 import type { CSSProperties } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -50,6 +59,7 @@ export interface WorkspacePaneAction {
 
 interface WorkspacePaneActionSheetProps {
   actions: readonly WorkspacePaneAction[];
+  anchor?: HTMLElement | null;
   description?: string;
   label: string;
   onOpenChange: (open: boolean) => void;
@@ -73,12 +83,23 @@ function ActionIcon({ icon }: { icon: WorkspacePaneActionIcon }) {
 
 export function WorkspacePaneActionSheet({
   actions,
+  anchor,
   description,
   label,
   onOpenChange,
   open,
 }: WorkspacePaneActionSheetProps) {
   const isMobile = useIsMobile();
+  const anchorRef = useRef(anchor);
+  const restoreAnchorFocusRef = useRef(false);
+  const selectedFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (anchor) anchorRef.current = anchor;
+    if (open) {
+      restoreAnchorFocusRef.current = false;
+      selectedFocusRef.current = null;
+    }
+  }, [anchor, open]);
   const { bindDragHandle, sheetStyle } = useSwipeToDismiss({
     enabled: isMobile,
     maxHeight: "min(42rem, calc(var(--app-visual-viewport-height) - 2rem))",
@@ -86,31 +107,114 @@ export function WorkspacePaneActionSheet({
     open,
   });
 
+  if (!isMobile) {
+    return (
+      <DropdownMenu
+        open={open}
+        onOpenChange={(nextOpen, details) => {
+          const target =
+            details.reason === "focus-out" && "relatedTarget" in details.event
+              ? details.event.relatedTarget
+              : details.event.target;
+          if (
+            !nextOpen &&
+            (details.reason === "outside-press" || details.reason === "focus-out") &&
+            target instanceof Node &&
+            anchorRef.current?.contains(target)
+          ) {
+            // The More button handles its own toggle on click. Keep the current
+            // target until then so pointer/focus dismissal cannot reopen it.
+            details.cancel();
+            return;
+          }
+          restoreAnchorFocusRef.current = details.reason === "escape-key";
+          onOpenChange(nextOpen);
+        }}
+        modal={false}
+      >
+        <DropdownMenuContent
+          anchor={anchor ?? anchorRef.current}
+          align="end"
+          className="w-72 max-w-[calc(100vw-1rem)]"
+          aria-label={`Actions for ${label}`}
+          finalFocus={() => {
+            if (selectedFocusRef.current?.isConnected) return selectedFocusRef.current;
+            return restoreAnchorFocusRef.current ? (anchorRef.current ?? false) : false;
+          }}
+          data-sidebar-gesture-ignore="true"
+          data-testid="workspace-pane-action-menu"
+        >
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>
+              <span className="block truncate text-foreground">{label}</span>
+              {description ? (
+                <span className="block truncate font-normal">{description}</span>
+              ) : null}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {actions.map((action) => (
+              <DropdownMenuItem
+                key={action.id}
+                disabled={action.disabled}
+                variant={action.destructive ? "destructive" : "default"}
+                className="gap-2 px-2 py-1.5"
+                data-testid={`workspace-pane-action-${action.id}`}
+                onClick={(event) => {
+                  restoreAnchorFocusRef.current = false;
+                  action.onSelect();
+                  // Base UI focuses the clicked item after this handler. Preserve
+                  // any focus the action chose outside the menu when it closes.
+                  const doc = event.currentTarget.ownerDocument;
+                  const focusTarget = doc.activeElement;
+                  selectedFocusRef.current =
+                    focusTarget instanceof HTMLElement &&
+                    focusTarget !== doc.body &&
+                    !event.currentTarget.closest('[role="menu"]')?.contains(focusTarget)
+                      ? focusTarget
+                      : null;
+                  onOpenChange(false);
+                }}
+              >
+                <ActionIcon icon={action.icon} />
+                <span className="min-w-0">
+                  <span className="block">{action.label}</span>
+                  {action.description ? (
+                    <span className="block text-xs font-normal opacity-70">
+                      {action.description}
+                    </span>
+                  ) : null}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? "bottom" : "right"}
+        side="bottom"
         showCloseButton={false}
         className={cn(
           "gap-0 overflow-hidden overscroll-contain p-0 motion-reduce:transition-none motion-reduce:duration-0",
-          isMobile && "rounded-t-2xl pb-safe",
+          "rounded-t-2xl pb-safe",
         )}
         style={sheetStyle}
         data-sidebar-gesture-ignore="true"
         data-testid="workspace-pane-action-sheet"
       >
-        {isMobile ? (
-          <button
-            {...bindDragHandle()}
-            type="button"
-            aria-label="Drag to dismiss pane actions"
-            className="flex h-11 w-full shrink-0 items-center justify-center border-0 bg-transparent p-0 text-inherit"
-            style={dragHandleStyle}
-            onClick={() => onOpenChange(false)}
-          >
-            <span className="h-1 w-10 rounded-full bg-muted-foreground/35" aria-hidden="true" />
-          </button>
-        ) : null}
+        <button
+          {...bindDragHandle()}
+          type="button"
+          aria-label="Drag to dismiss pane actions"
+          className="flex h-11 w-full shrink-0 items-center justify-center border-0 bg-transparent p-0 text-inherit"
+          style={dragHandleStyle}
+          onClick={() => onOpenChange(false)}
+        >
+          <span className="h-1 w-10 rounded-full bg-muted-foreground/35" aria-hidden="true" />
+        </button>
         <SheetHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b">
           <div className="min-w-0">
             <SheetTitle className="truncate">{label}</SheetTitle>

@@ -105,10 +105,12 @@ describe("TerminalSessionFrame", () => {
     expect(more).toHaveClass("size-11", "min-h-11");
     fireEvent.click(more);
     expect(onOpenActions).toHaveBeenCalledTimes(1);
+    expect(onOpenActions).toHaveBeenLastCalledWith(more);
 
     const header = screen.getByTestId("terminal-one-header");
     fireEvent.contextMenu(header);
     expect(onOpenActions).toHaveBeenCalledTimes(2);
+    expect(onOpenActions).toHaveBeenLastCalledWith(more);
 
     fireEvent.touchStart(header, {
       touches: [{ identifier: 7, clientX: 40, clientY: 20 }],

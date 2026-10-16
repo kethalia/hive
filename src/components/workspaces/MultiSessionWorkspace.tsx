@@ -289,6 +289,7 @@ interface RemoveWorkspacePaneTarget {
 }
 
 interface WorkspacePaneActionTarget {
+  anchor: HTMLButtonElement;
   boardKey: string;
   boardPaneKey?: string;
   kind: "terminal" | "tool";
@@ -4200,6 +4201,10 @@ export function MultiSessionWorkspace({
     });
   };
 
+  const togglePaneActions = (target: WorkspacePaneActionTarget) => {
+    setPaneActionTarget((current) => (current?.anchor === target.anchor ? null : target));
+  };
+
   const paneActionModel = paneActionTarget
     ? boardRenderModels.find((model) => model.board.key === paneActionTarget.boardKey)
     : undefined;
@@ -4422,8 +4427,10 @@ export function MultiSessionWorkspace({
               layoutMode="tiled"
               paneState={toolPane.loadState}
               dragHandleListeners={dragHandleListeners}
-              onOpenActions={() =>
-                setPaneActionTarget({
+              actionsOpen={paneActionTarget?.windowId === toolPane.key}
+              onOpenActions={(anchor) =>
+                togglePaneActions({
+                  anchor,
                   boardKey: model.board.key,
                   kind: "tool",
                   label: presentation.title,
@@ -4566,8 +4573,13 @@ export function MultiSessionWorkspace({
             }
             layoutMode="tiled"
             dragHandleListeners={dragHandleListeners}
-            onOpenActions={() =>
-              setPaneActionTarget({
+            actionsOpen={
+              paneActionTarget?.windowId === pane.sessionName &&
+              paneActionTarget?.boardKey === model.board.key
+            }
+            onOpenActions={(anchor) =>
+              togglePaneActions({
+                anchor,
                 boardKey: model.board.key,
                 boardPaneKey: visibleSession?.boardPaneKey,
                 kind: "terminal",
@@ -4878,6 +4890,7 @@ export function MultiSessionWorkspace({
       {mobileComposeSheet}
       <WorkspacePaneActionSheet
         actions={paneActions}
+        anchor={paneActionTarget?.anchor}
         description={paneActionTarget?.subtitle}
         label={paneActionTarget?.label ?? "Pane actions"}
         open={paneActionTarget !== null}
