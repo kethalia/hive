@@ -207,7 +207,7 @@ export function TerminalSessionStatusClient({
   ).length;
 
   return (
-    <DashboardPageShell className="flex h-full min-h-0 w-full flex-1 touch-pan-y flex-col gap-4 space-y-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
+    <DashboardPageShell className="h-full min-h-0 min-w-0 w-full flex-1 touch-pan-y space-y-4 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
       <DashboardPageHeader
         title="Terminal status"
         description="Aggregated keepalive status for terminal sessions authorized by your Coder account."
@@ -287,7 +287,10 @@ export function TerminalSessionStatusClient({
           </CardDescription>
         </CardHeader>
         <CardContent className="flex h-[28rem] min-h-0 p-0">
-          <TerminalSessionEventLog workspaceId={highlightedWorkspaceId} />
+          <TerminalSessionEventLog
+            workspaceId={highlightedWorkspaceId}
+            className="[&_[role=log]]:overscroll-y-auto"
+          />
         </CardContent>
       </Card>
 
