@@ -117,7 +117,7 @@ try {
     });
     await context.close();
   }
-  await writeFile(join(root, "results.json"), JSON.stringify(evidence, null, 2));
+  await writeFile(join(root, "results.json"), `${JSON.stringify(evidence, null, 2)}\n`);
   console.log(JSON.stringify(evidence, null, 2));
 } finally {
   await browser.close();
