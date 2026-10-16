@@ -10,7 +10,7 @@ export default async function NotificationsPage() {
   const [sources, workspaceResult] = await Promise.all([
     getDb().notificationSource.findMany({
       where: { userId: session.user.id },
-      select: { workspaceId: true, workspaceName: true },
+      select: { workspaceId: true, workspaceName: true, pendingTokenHash: true },
     }),
     getCoderClientForUser(session.user.id)
       .then((client) => client.listWorkspaces({ owner: "me" }))
@@ -30,6 +30,9 @@ export default async function NotificationsPage() {
   return (
     <NotificationSettings
       connectedWorkspaceIds={sources.map((source) => source.workspaceId)}
+      pendingWorkspaceIds={sources
+        .filter((source) => source.pendingTokenHash)
+        .map((source) => source.workspaceId)}
       workspaces={workspaces}
       workspaceError={!workspaceResult}
     />

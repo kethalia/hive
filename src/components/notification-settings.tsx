@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { testPushAction } from "@/lib/push/actions";
-import { DEVICE_DISABLED_KEY, subscribeToNotifications } from "@/lib/push/client";
+import {
+  DEVICE_DISABLED_KEY,
+  notifyPushDeviceChange,
+  PUSH_DEVICE_CHANGE_EVENT,
+  subscribeToNotifications,
+} from "@/lib/push/client";
 import { playNotificationSound, SOUND_KEY, unlockNotificationAudio } from "@/lib/push/sound";
 import {
   getPushPreferencesAction,
@@ -26,9 +31,15 @@ interface Props {
   connectedWorkspaceIds: string[];
   workspaces: { id: string; name: string; running: boolean }[];
   workspaceError: boolean;
+  pendingWorkspaceIds?: string[];
 }
 
-export function NotificationSettings({ connectedWorkspaceIds, workspaces, workspaceError }: Props) {
+export function NotificationSettings({
+  connectedWorkspaceIds,
+  workspaces,
+  workspaceError,
+  pendingWorkspaceIds = [],
+}: Props) {
   const [status, setStatus] = useState("Checking this device…");
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
   const [preferences, setPreferences] = useState<NotificationPreferences>(() =>
@@ -40,6 +51,7 @@ export function NotificationSettings({ connectedWorkspaceIds, workspaces, worksp
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(connectedWorkspaceIds);
+  const [pending, setPending] = useState(pendingWorkspaceIds);
 
   useEffect(() => {
     setSound(localStorage.getItem(SOUND_KEY) !== "false");
@@ -55,35 +67,50 @@ export function NotificationSettings({ connectedWorkspaceIds, workspaces, worksp
       );
       return;
     }
+    let active = true;
+    let revision = 0;
+    const synchronize = (event: Event) => {
+      const sub = (event as CustomEvent<PushSubscription | null>).detail;
+      const current = ++revision;
+      setError("");
+      if (!sub) {
+        setSubscription(null);
+        setStatus("Notifications are off on this device.");
+        return;
+      }
+      void getPushPreferencesAction({ endpoint: sub.endpoint })
+        .then((result) => {
+          if (!active || current !== revision) return;
+          if (!result?.data) throw new Error("Could not load device preferences");
+          setSubscription(sub);
+          setPreferences(result.data);
+          setStatus("Push connected on this device.");
+        })
+        .catch(() => {
+          if (active && current === revision)
+            setError("Could not load device preferences. Retry setup.");
+        });
+    };
+    window.addEventListener(PUSH_DEVICE_CHANGE_EVENT, synchronize);
     setStatus(
       Notification.permission === "denied"
         ? "Blocked — allow Hive in your browser or system notification settings, then retry."
         : "Notifications are off on this device.",
     );
     if (
-      Notification.permission !== "granted" ||
-      localStorage.getItem(DEVICE_DISABLED_KEY) === "true"
-    )
-      return;
-    let active = true;
-    subscribeToNotifications()
-      .then(async (sub) => {
-        const result = await getPushPreferencesAction({ endpoint: sub.endpoint });
-        if (!result?.data) throw new Error("Could not load device preferences");
-        if (active) {
-          setSubscription(sub);
-          setPreferences(result.data);
-          setStatus("Push connected on this device.");
-        }
-      })
-      .catch(() => {
+      Notification.permission === "granted" &&
+      localStorage.getItem(DEVICE_DISABLED_KEY) !== "true"
+    ) {
+      subscribeToNotifications().catch(() => {
         if (active)
           setStatus(
             "Permission is allowed, but push setup needs repair. Enable notifications to retry.",
           );
       });
+    }
     return () => {
       active = false;
+      window.removeEventListener(PUSH_DEVICE_CHANGE_EVENT, synchronize);
     };
   }, []);
 
@@ -129,12 +156,7 @@ export function NotificationSettings({ connectedWorkspaceIds, workspaces, worksp
                     void run(async () => {
                       if ((await permission) !== "granted")
                         throw new Error("Allow notifications in browser settings, then retry.");
-                      const sub = await subscribeToNotifications();
-                      const result = await getPushPreferencesAction({ endpoint: sub.endpoint });
-                      if (!result?.data) throw new Error("Could not load device preferences");
-                      setPreferences(result.data);
-                      setSubscription(sub);
-                      setStatus("Push connected on this device.");
+                      await subscribeToNotifications();
                     });
                   }}
                 >
@@ -169,6 +191,7 @@ export function NotificationSettings({ connectedWorkspaceIds, workspaces, worksp
                         if (!result?.data?.success)
                           throw new Error("Could not disable this device");
                         localStorage.setItem(DEVICE_DISABLED_KEY, "true");
+                        notifyPushDeviceChange(null);
                         if (!(await subscription.unsubscribe()))
                           throw new Error(
                             "Could not remove browser subscription. Retry disabling notifications.",
@@ -294,7 +317,9 @@ export function NotificationSettings({ connectedWorkspaceIds, workspaces, worksp
                     <p className="text-sm font-medium">{workspace.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {connected.includes(workspace.id)
-                        ? "Connected"
+                        ? pending.includes(workspace.id)
+                          ? "Setup pending — reconnect to finish"
+                          : "Connected"
                         : workspace.running
                           ? "Ready to connect"
                           : "Start workspace to connect"}
@@ -315,6 +340,7 @@ export function NotificationSettings({ connectedWorkspaceIds, workspaces, worksp
                           if (!response.ok)
                             throw new Error(result.error || "Could not connect workspace");
                           setConnected((previous) => [...new Set([...previous, workspace.id])]);
+                          setPending((previous) => previous.filter((id) => id !== workspace.id));
                           setMessage(
                             "Workspace connected. Restart agents and trust the Hive hooks in Codex /hooks.",
                           );

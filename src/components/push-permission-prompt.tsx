@@ -4,7 +4,11 @@ import { Bell, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DEVICE_DISABLED_KEY, subscribeToNotifications } from "@/lib/push/client";
+import {
+  DEVICE_DISABLED_KEY,
+  PUSH_DEVICE_CHANGE_EVENT,
+  subscribeToNotifications,
+} from "@/lib/push/client";
 
 const DISMISS_KEY = "push-prompt-dismissed";
 const STILL_BLOCKED_MESSAGE =
@@ -21,16 +25,23 @@ export function PushPermissionPrompt() {
   useEffect(() => {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
 
-    if (localStorage.getItem(DEVICE_DISABLED_KEY) === "true") return;
-    setPermission(Notification.permission);
-    setDismissed(localStorage.getItem(DISMISS_KEY) === "true");
-
-    if (Notification.permission === "granted") {
-      subscribeToNotifications().catch(() => {
-        setDismissed(false);
-        setError(RETRY_SUBSCRIBE_FAILURE_MESSAGE);
-      });
+    const synchronize = (event: Event) => {
+      const subscription = (event as CustomEvent<PushSubscription | null>).detail;
+      setPermission(subscription ? "granted" : null);
+      setError(null);
+    };
+    window.addEventListener(PUSH_DEVICE_CHANGE_EVENT, synchronize);
+    if (localStorage.getItem(DEVICE_DISABLED_KEY) !== "true") {
+      setPermission(Notification.permission);
+      setDismissed(localStorage.getItem(DISMISS_KEY) === "true");
+      if (Notification.permission === "granted") {
+        subscribeToNotifications().catch(() => {
+          setDismissed(false);
+          setError(RETRY_SUBSCRIBE_FAILURE_MESSAGE);
+        });
+      }
     }
+    return () => window.removeEventListener(PUSH_DEVICE_CHANGE_EVENT, synchronize);
   }, []);
 
   const handleEnable = useCallback(async () => {

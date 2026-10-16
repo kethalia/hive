@@ -1,7 +1,12 @@
 import { getVapidPublicKeyAction } from "./actions";
-export const DEVICE_DISABLED_KEY = "hive-push-disabled-v1";
-
 import { subscribePushAction } from "./subscribe";
+export const DEVICE_DISABLED_KEY = "hive-push-disabled-v1";
+export const PUSH_DEVICE_CHANGE_EVENT = "hive:push-device-change";
+
+export function notifyPushDeviceChange(subscription: PushSubscription | null) {
+  window.dispatchEvent(new CustomEvent(PUSH_DEVICE_CHANGE_EVENT, { detail: subscription }));
+}
+let subscribing: Promise<PushSubscription> | null = null;
 
 export async function savePushSubscription(subscription: PushSubscription) {
   const json = subscription.toJSON();
@@ -12,7 +17,13 @@ export async function savePushSubscription(subscription: PushSubscription) {
   });
   if (!saved?.data?.success) throw new Error("Could not save this device's push subscription");
 }
-export async function subscribeToNotifications(): Promise<PushSubscription> {
+export function subscribeToNotifications(): Promise<PushSubscription> {
+  subscribing ??= subscribeDevice().finally(() => {
+    subscribing = null;
+  });
+  return subscribing;
+}
+async function subscribeDevice(): Promise<PushSubscription> {
   const result = await getVapidPublicKeyAction();
   if (!result?.data?.publicKey) throw new Error("Could not get push configuration");
   const key = result.data.publicKey;
@@ -36,5 +47,6 @@ export async function subscribeToNotifications(): Promise<PushSubscription> {
     (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey }));
   await savePushSubscription(subscription);
   localStorage.removeItem(DEVICE_DISABLED_KEY);
+  notifyPushDeviceChange(subscription);
   return subscription;
 }

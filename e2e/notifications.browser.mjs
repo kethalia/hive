@@ -58,7 +58,22 @@ try {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(origin);
+    await page.getByText("Stay notified").waitFor();
+    const enableFrom = name === "desktop" ? "prompt" : "settings";
+    await page
+      .getByRole("button", { name: "Enable notifications", exact: true })
+      .nth(enableFrom === "prompt" ? 0 : 1)
+      .click();
     await page.getByText("Push connected on this device.").waitFor();
+    assert.equal(
+      await page.getByText("Stay notified").count(),
+      0,
+      "Permission prompt should disappear after either control enables push",
+    );
+    assert.equal(
+      await page.getByRole("switch", { name: "Agent ready" }).getAttribute("aria-disabled"),
+      null,
+    );
     await page.getByRole("button", { name: "Preview question" }).click();
     await page.getByRole("button", { name: "Preview ready" }).click();
     await page.getByRole("switch", { name: "Agent ready" }).click();
@@ -102,12 +117,14 @@ try {
     assert.deepEqual(errors, []);
     evidence.push({
       name,
+      enableFrom,
       viewport,
       horizontalOverflow: overflow,
       errors,
       notifications,
       checks: [
         "device setup",
+        "permission prompt/settings synchronization",
         "question and ready audio synthesis",
         "preference save",
         "workspace setup",
