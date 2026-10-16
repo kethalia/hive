@@ -41,6 +41,7 @@ class NotificationHookTests(unittest.TestCase):
         self.assertEqual(set(payload), {"kind", "agent", "eventId", "sessionName"})
         self.assertNotIn("private prompt", request.data.decode())
         self.assertEqual(request.get_header("Authorization"), "Bearer scoped-secret")
+        self.assertEqual(request.get_header("User-agent"), "Hive-Agent-Notifications/1.0")
 
     def test_install_preserves_user_configuration_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as temp:
