@@ -1,5 +1,12 @@
 # hive-auth
 
+## 1.1.4
+
+### Patch Changes
+
+- Updated dependencies [7efebce]
+  - @hive/db@0.3.0
+
 ## 1.1.3
 
 ### Patch Changes

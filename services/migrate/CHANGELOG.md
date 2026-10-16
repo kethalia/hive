@@ -1,5 +1,12 @@
 # hive-migrate
 
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [7efebce]
+  - @hive/db@0.3.0
+
 ## 0.1.8
 
 ### Patch Changes
