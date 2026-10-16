@@ -2890,6 +2890,45 @@ describe("MultiSessionWorkspace", () => {
     expect(mockGetSessions).toHaveBeenCalledTimes(1);
   });
 
+  it("focuses the notification's inactive board after retrying failed session loading", async () => {
+    window.localStorage.setItem(
+      "workspace-board-state:workspace:ws-1",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "default",
+        boards: [
+          {
+            key: "default",
+            name: "Default",
+            order: 0,
+            panes: [{ kind: "terminal", key: "main", sessionName: "main-session", order: 0 }],
+          },
+          {
+            key: "review",
+            name: "Review",
+            order: 1,
+            panes: [{ kind: "terminal", key: "dev", sessionName: "dev-server", order: 0 }],
+          },
+        ],
+      }),
+    );
+    mockGetSessions
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockResolvedValueOnce(twoSessionPayload());
+    render(<MultiSessionWorkspace {...defaultProps} notificationSession="dev-server" />);
+    await screen.findByTestId("session-load-error");
+    expect(mockToastError).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("retry-load-sessions"));
+    await screen.findByTestId("workspace-pane-dev-server");
+    expect(screen.getByTestId("workspace-board-tab-review")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(mockGetSessions).toHaveBeenCalledTimes(2);
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
   it("creates, selects, deletes, and persists numbered local workspaces without terminal side effects", async () => {
     await renderTwoSessionWorkspace();
 
@@ -5162,6 +5201,42 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.keyDown(host, { key: "w", ctrlKey: true, altKey: true });
     expect(screen.queryByTestId("workspace-board-tab-workspace-2")).not.toBeInTheDocument();
     input.remove();
+  });
+
+  it.each([
+    { key: "ŧ", code: "KeyT" },
+    { key: "ł", code: "KeyW" },
+    { key: "t", code: "KeyT" },
+    { key: "w", code: "KeyW" },
+  ])("does not intercept terminal AltGr input for workspace shortcuts: $key", async ({
+    key,
+    code,
+  }) => {
+    await renderTwoSessionWorkspace();
+    fireEvent.click(screen.getByTestId("workspace-board-new"));
+    fireEvent.click(screen.getByTestId("workspace-board-tab-default"));
+    const textarea = screen.getByTestId("terminal-input-main-session");
+    const onInputKey = vi.fn();
+    textarea.addEventListener("keydown", onInputKey);
+    const event = new KeyboardEvent("keydown", {
+      key,
+      code,
+      ctrlKey: true,
+      altKey: true,
+      modifierAltGraph: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(textarea, event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(onInputKey).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("workspace-board-tab-default")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("workspace-board-tab-workspace-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-board-tab-workspace-3")).not.toBeInTheDocument();
+    textarea.removeEventListener("keydown", onInputKey);
   });
 
   it("shows Git terminal font size controls that update mounted terminals", async () => {

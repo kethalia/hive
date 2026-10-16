@@ -373,6 +373,7 @@ type WorkspaceShortcutEvent = Pick<
   | "code"
   | "ctrlKey"
   | "defaultPrevented"
+  | "getModifierState"
   | "key"
   | "metaKey"
   | "preventDefault"
@@ -2213,6 +2214,7 @@ export function MultiSessionWorkspace({
   const handleWorkspaceShortcutKeyDown = useCallback(
     (event: WorkspaceShortcutEvent) => {
       if (event.defaultPrevented) return false;
+      if (event.getModifierState("AltGraph")) return false;
       if (!(event.ctrlKey || event.metaKey)) return false;
       if (event.shiftKey) return false;
 
@@ -2688,7 +2690,8 @@ export function MultiSessionWorkspace({
   }, [focusNotificationSession, workspaceId]);
 
   useEffect(() => {
-    if (loading || loadedWorkspaceRef.current !== workspaceId || !notificationSession) return;
+    if (loading || loadFailed || loadedWorkspaceRef.current !== workspaceId || !notificationSession)
+      return;
     const requestKey = `${workspaceId}:${notificationSession}`;
     if (handledNotificationRef.current === requestKey) return;
     handledNotificationRef.current = requestKey;
@@ -2708,7 +2711,15 @@ export function MultiSessionWorkspace({
         "This notification's terminal is no longer available. Reopen it from the sidebar.",
       );
     }
-  }, [focusNotificationSession, loading, notificationSession, router, sessions, workspaceId]);
+  }, [
+    focusNotificationSession,
+    loadFailed,
+    loading,
+    notificationSession,
+    router,
+    sessions,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     if (!gitSearchOpen) return;

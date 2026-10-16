@@ -180,6 +180,28 @@ describe("listGitClonesAction", () => {
     ).toBe("Not authenticated");
   });
 
+  it("restores all 201 repositories exposed by discovery in one request", async () => {
+    const paths = Array.from({ length: 201 }, (_, i) => `kethalia/repo-${i}`);
+    mockedExecInWorkspace.mockResolvedValueOnce({
+      stdout: paths.join("\n"),
+      stderr: "",
+      exitCode: 0,
+    });
+    const result = await restoreGitCloneTerminalsAction({
+      workspaceId: WORKSPACE_ID,
+      agentId: AGENT_ID,
+      panes: paths.map((relativePath) => ({
+        relativePath,
+        cloneSessionKey: `git-clone:${relativePath}`,
+      })),
+    });
+    expect(result?.validationErrors).toBeUndefined();
+    expect(result?.serverError).toBeUndefined();
+    expect(result?.data?.tree.diagnostics.repoCount).toBe(201);
+    expect(result?.data?.identities.map((identity) => identity.clonePath)).toEqual(paths);
+    expect(mockedExecInWorkspace).toHaveBeenCalledOnce();
+  });
+
   it("returns a sanitized clone tree with diagnostics for an authenticated user", async () => {
     const result = await listGitClonesAction({ workspaceId: WORKSPACE_ID });
 

@@ -46,6 +46,8 @@ function normalizeShortcutKey(e: KeyboardEvent): string {
 }
 
 export function normalizeKeyCombo(e: KeyboardEvent): string {
+  // AltGr is character input even when the host reports it as Ctrl+Alt.
+  if (e.getModifierState("AltGraph")) return "";
   const parts: string[] = [];
   if (e.ctrlKey) parts.push("ctrl");
   if (e.metaKey) parts.push("cmd");

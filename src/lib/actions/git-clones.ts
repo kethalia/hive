@@ -89,7 +89,7 @@ export const restoreGitCloneTerminalsAction = authActionClient
               relativePath: true,
             }),
           )
-          .max(200),
+          .max(WORKSPACE_CLONE_SCAN_LIMIT),
       })
       .strict(),
   )
