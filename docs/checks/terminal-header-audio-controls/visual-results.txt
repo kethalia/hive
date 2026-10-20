@@ -1,0 +1,14 @@
+
+Running 9 tests using 1 worker
+
+  ✓  1 [desktop-chromium] › e2e/terminal-audio.spec.mjs:611:1 › header menus connect without typing, mute devices independently, and reconnect (1.5s)
+  ✓  2 [desktop-chromium] › e2e/terminal-audio.spec.mjs:645:1 › holding either header icon toggles pause without opening its menu (3.5s)
+  ✓  3 [desktop-chromium] › e2e/terminal-audio.spec.mjs:672:1 › background sound shows a navigation toast while only the selected pane is audible (1.2s)
+  ✓  4 [tablet-chromium] › e2e/terminal-audio.spec.mjs:611:1 › header menus connect without typing, mute devices independently, and reconnect (1.6s)
+  ✓  5 [tablet-chromium] › e2e/terminal-audio.spec.mjs:645:1 › holding either header icon toggles pause without opening its menu (3.6s)
+  ✓  6 [tablet-chromium] › e2e/terminal-audio.spec.mjs:672:1 › background sound shows a navigation toast while only the selected pane is audible (1.4s)
+  ✓  7 [mobile-chromium] › e2e/terminal-audio.spec.mjs:611:1 › header menus connect without typing, mute devices independently, and reconnect (1.8s)
+  ✓  8 [mobile-chromium] › e2e/terminal-audio.spec.mjs:645:1 › holding either header icon toggles pause without opening its menu (3.7s)
+  ✓  9 [mobile-chromium] › e2e/terminal-audio.spec.mjs:672:1 › background sound shows a navigation toast while only the selected pane is audible (1.4s)
+
+  9 passed (22.8s)

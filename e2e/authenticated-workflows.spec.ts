@@ -72,7 +72,7 @@ async function verifyTabletLandscapeSafeArea(page: Page, testInfo: TestInfo) {
   await expect(header).toBeVisible();
   const metrics = await header.evaluate((element) => {
     const styles = getComputedStyle(element);
-    const label = element.querySelector('[data-testid="active-pane-label"]');
+    const label = element.querySelector('[data-testid="workspace-header-left"] button');
     return {
       height: element.getBoundingClientRect().height,
       labelTop: label?.getBoundingClientRect().top ?? 0,
@@ -447,7 +447,7 @@ async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   const frame = activeTerminalFrame(page);
   const paneHeader = frame.locator('[data-testid$="-header"]');
   const moreButton = frame.getByRole("button", { name: /^Open actions for / });
-  await expect(paneHeader.getByRole("button")).toHaveCount(1);
+  await expect(paneHeader.getByRole("button")).toHaveCount(4);
   await expect(paneHeader.locator('[data-testid$="-drag-icon"]')).toHaveCount(1);
   await expect(page.getByTestId("git-terminal-font-size-controls")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Decrease font size" })).toBeVisible();
@@ -462,7 +462,7 @@ async function verifyNativePaneActions(page: Page, testInfo: TestInfo) {
   await expect(actionSheet).toBeVisible();
   await expect(actionSheet.locator("[cmdk-root]")).toHaveCount(0);
   const directActions = actionSheet.locator("fieldset > button");
-  await expect.poll(() => directActions.count()).toBeGreaterThanOrEqual(5);
+  await expect.poll(() => directActions.count()).toBeGreaterThanOrEqual(3);
   await expect(actionSheet.locator('[data-testid^="workspace-pane-action-move-"]')).toHaveCount(0);
   expect(
     await directActions.evaluateAll((buttons) =>
@@ -481,11 +481,7 @@ async function cleanupTestSession(page: Page, sessionName: string) {
   await page.keyboard.press("Escape").catch(() => undefined);
   const workspacePane = page.locator(`[data-workspace-window-id="${sessionName}"]`);
   if (await workspacePane.isVisible().catch(() => false)) {
-    await workspacePane.getByRole("button", { name: /^Open actions for / }).click();
-    await page
-      .getByTestId("workspace-pane-action-sheet")
-      .getByRole("button", { name: /^Remove terminal/ })
-      .click();
+    await workspacePane.getByRole("button", { name: /^Remove / }).click();
     await expect(workspacePane).toHaveCount(0);
   }
   const revealActions = page.getByTestId(`show-terminal-session-actions-${sessionName}`);
@@ -592,22 +588,13 @@ async function verifyEmbeddedToolsOpenInParallel(
 ) {
   const previousFileBrowserLoadCount = getSuccessfulFileBrowserLoads();
   const previousVsCodeLoadCount = getSuccessfulVsCodeLoads();
-  const fileBrowserButton = page.getByRole("button", { name: /^Browse files for / }).first();
-  const vsCodeButton = page.getByRole("button", { name: /^Open VS Code for / }).first();
-  const mobilePaneActions = page
+  const paneActions = page
     .locator('[data-testid^="workspace-pane-"][data-testid$="-actions"]:visible')
     .first();
-
-  if (await mobilePaneActions.isVisible().catch(() => false)) {
-    await mobilePaneActions.click();
-    await page.getByTestId("workspace-pane-action-files").click();
-    await mobilePaneActions.click();
-    await page.getByTestId("workspace-pane-action-code").click();
-  } else {
-    await fileBrowserButton.click();
-    await expect(vsCodeButton).toBeEnabled();
-    await vsCodeButton.click();
-  }
+  await paneActions.click();
+  await page.getByTestId("workspace-pane-action-files").click();
+  await paneActions.click();
+  await page.getByTestId("workspace-pane-action-code").click();
 
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
@@ -1062,7 +1049,7 @@ async function verifyEmbeddedToolsSurviveRefresh(
     await inactiveTerminalPane.dispatchEvent("click");
   }
   const explicitlyFocusedLabel = (
-    await page.getByTestId("active-pane-label").textContent()
+    await page.locator('[data-pane-mode][data-active="true"]').getAttribute("data-pane-label")
   )?.trim();
   expect(explicitlyFocusedLabel).toBeTruthy();
 
@@ -1075,7 +1062,10 @@ async function verifyEmbeddedToolsSurviveRefresh(
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("multi-session-workspace")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("multi-session-loading")).toHaveCount(0);
-  await expect(page.getByTestId("active-pane-label")).toHaveText(explicitlyFocusedLabel ?? "");
+  await expect(page.locator('[data-pane-mode][data-active="true"]')).toHaveAttribute(
+    "data-pane-label",
+    explicitlyFocusedLabel ?? "",
+  );
   await expect(page.getByTestId("workspace-tool-pane-files")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("workspace-tool-pane-code")).toBeVisible({ timeout: 30_000 });
   await Promise.all([
@@ -1093,7 +1083,10 @@ async function verifyEmbeddedToolsSurviveRefresh(
     "data-pane-state",
     "ready",
   );
-  await expect(page.getByTestId("active-pane-label")).toHaveText(explicitlyFocusedLabel ?? "");
+  await expect(page.locator('[data-pane-mode][data-active="true"]')).toHaveAttribute(
+    "data-pane-label",
+    explicitlyFocusedLabel ?? "",
+  );
 
   const restoredCodeUrl = await page.getByTestId("workspace-tool-frame-code").getAttribute("src");
   expect(restoredCodeUrl).toMatch(/code-server--/);
@@ -1102,7 +1095,9 @@ async function verifyEmbeddedToolsSurviveRefresh(
 }
 
 async function verifyPaletteToolAndOpenActions(page: Page, testInfo: TestInfo) {
-  const sessionLabel = (await page.getByTestId("active-pane-label").textContent())?.trim();
+  const sessionLabel = (
+    await page.locator('[data-pane-mode][data-active="true"]').getAttribute("data-pane-label")
+  )?.trim();
   expect(sessionLabel).toBeTruthy();
   await page.keyboard.press("Control+K");
   await page.getByPlaceholder(/Search terminal sessions/).fill(sessionLabel ?? "");

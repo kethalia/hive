@@ -81,7 +81,7 @@ test.beforeAll(async () => {
     } else {
       res.setHeader("Content-Type", "text/html");
       res.end(
-        '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="app"></div><script src="/bundle.js"></script></body></html>',
+        '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="app"></div><script src="/bundle.js"></script></body></html>',
       );
     }
   });
@@ -173,10 +173,16 @@ async function voice(page, sessionName = "test") {
     name: sessionName === "test" ? "Terminal input" : `${sessionName} terminal input`,
   });
   const pane = page.locator(`[data-session="${sessionName}"]`);
-  const stopping = (await pane.getByRole("button", { name: "Stop microphone" }).count()) > 0;
+  const stopping = (await pane.locator('[data-audio-device="microphone"]').getAttribute("data-state")) !== "disconnected";
   await terminal.fill("/voice");
   await terminal.press("Enter");
-  if (!stopping) await pane.getByRole("button", { name: "Enable microphone" }).click();
+  if (!stopping) await approveMicrophone(page, sessionName);
+}
+
+async function approveMicrophone(page, sessionName = "test") {
+  await page.locator(`[data-session="${sessionName}"] [data-audio-device="microphone"]`).click();
+  await page.getByRole("button", { name: "Connect microphone", exact: true }).click();
+  await page.keyboard.press("Escape");
 }
 
 test("background capture after ordinary Enter cannot use an already-granted microphone", async ({
@@ -209,12 +215,17 @@ test("background capture after ordinary Enter cannot use an already-granted micr
   expect(observation.permissionRequests).toBe(0);
   expect(microphoneFrames).toBe(0);
   expect(owners.size).toBe(0);
-  await expect(page.getByRole("button", { name: "Enable microphone" })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("microphone-approval-required.png") });
-  await page.getByRole("button", { name: "Enable microphone" }).click();
+  await expect(page.locator('[data-audio-device="microphone"]')).toHaveAttribute("data-state", "disconnected");
+  await page.screenshot({ animations: "disabled", path: testInfo.outputPath("microphone-approval-required.png") });
+  await approveMicrophone(page);
   await expect(page.getByRole("status")).toHaveText("Voice connected");
   await expect.poll(() => microphoneFrames).toBeGreaterThan(5);
+  await page.locator('[data-audio-device="microphone"]').click();
   await page.getByRole("button", { name: "Stop microphone" }).click();
+  await page.keyboard.press("Escape");
+  await page.locator('[data-audio-device="speaker"]').click();
+  await page.getByRole("button", { name: "Stop speakers" }).click();
+  await page.keyboard.press("Escape");
   await expect
     .poll(() =>
       page.evaluate(() => window.audioProbe.tracks.every((track) => track.readyState === "ended")),
@@ -222,7 +233,7 @@ test("background capture after ordinary Enter cannot use an already-granted micr
     .toBe(true);
   await expect.poll(() => connections.size).toBe(1);
   await request.post(`${url}/native?sessionName=test`, { data: "/voice" });
-  await expect(page.getByRole("button", { name: "Enable microphone" })).toBeVisible();
+  await expect(page.locator('[data-audio-device="microphone"]')).toHaveAttribute("data-state", "disconnected");
   await input.press("Enter");
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => window.audioProbe.requests)).toBe(1);
@@ -251,7 +262,7 @@ test("native /voice requires approval, exchanges PCM, and releases media on end"
     )
     .toBeGreaterThan(10);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: testInfo.outputPath("native-voice-connected.png") });
+  await page.screenshot({ animations: "disabled", path: testInfo.outputPath("native-voice-connected.png") });
   await voice(page);
   await expect(page.getByRole("status")).toHaveCount(0);
   await expect
@@ -442,7 +453,7 @@ test("different terminal calls stay connected and only the focused pane transmit
   expect(owners.get("first")).toBe(firstOwner);
   expect(owners.get("second")).toBe(secondOwner);
   expect(connections.size).toBe(2);
-  await page.screenshot({ path: testInfo.outputPath("voice-follows-focused-pane.png") });
+  await page.screenshot({ animations: "disabled", path: testInfo.outputPath("voice-follows-focused-pane.png") });
   await voice(page, "first");
   await expect(page.locator('[data-session="first"]').getByRole("status")).toHaveCount(0);
   await expect(page.locator('[data-session="second"]').getByRole("status")).toHaveText(
@@ -535,10 +546,7 @@ test("external toolbar focus uses the selected pane to choose a new call", async
     "Codex terminal",
   );
   await page.getByRole("button", { name: "Send voice to selected pane" }).click();
-  await page
-    .locator('[data-session="second"]')
-    .getByRole("button", { name: "Enable microphone" })
-    .click();
+  await approveMicrophone(page, "second");
   await expect(page.locator('[data-session="second"]').getByRole("status")).toHaveText(
     "Voice connected",
   );
@@ -563,7 +571,7 @@ test("an unused device cannot own a session or interrupt the current device's ca
     await expect(page.getByRole("status")).toHaveText("Voice connected");
     await expect.poll(() => microphoneFrames).toBeGreaterThan(5);
     expect(await unused.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
-    await expect(unused.getByRole("button", { name: "Enable microphone" })).toBeVisible();
+    await expect(unused.locator('[data-audio-device="microphone"]')).toHaveAttribute("data-state", "disconnected");
     const frames = microphoneFrames;
     await otherContext.close();
     await expect.poll(() => microphoneFrames).toBeGreaterThan(frames + 5);
@@ -589,7 +597,7 @@ test("another device cannot take over a live call in the same terminal", async (
     // Enter on the other device cannot claim the current call.
     await other.getByRole("textbox", { name: "Terminal input" }).press("Enter");
     expect(await other.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
-    await other.getByRole("button", { name: "Enable microphone" }).click();
+    await approveMicrophone(other);
     await expect(other.getByRole("status")).toContainText("another view");
     expect(await other.evaluate(() => window.audioProbe.tracks.length)).toBe(0);
     const frames = microphoneFrames;
@@ -598,4 +606,107 @@ test("another device cannot take over a live call in the same terminal", async (
   } finally {
     await otherContext.close();
   }
+});
+
+test("header menus connect without typing, mute devices independently, and reconnect", async ({ page }, testInfo) => {
+  await page.goto(url);
+  const mic = page.locator('[data-terminal-audio-slot] [data-audio-device="microphone"]');
+  const speaker = page.locator('[data-terminal-audio-slot] [data-audio-device="speaker"]');
+  await expect(mic).toHaveAttribute("data-state", "disconnected");
+  await mic.click();
+  await page.getByRole("button", { name: "Connect microphone", exact: true }).click();
+  await expect(mic).toHaveAttribute("data-state", "connected");
+  await page.getByRole("button", { name: "Pause microphone", exact: true }).click();
+  await expect(mic).toHaveAttribute("data-state", "paused");
+  await expect(speaker).toHaveAttribute("data-state", "connected");
+  await page.getByRole("button", { name: "Resume microphone", exact: true }).click();
+  await expect(mic).toHaveAttribute("data-state", "connected");
+  await page.getByRole("button", { name: "Stop microphone", exact: true }).click();
+  await expect(mic).toHaveAttribute("data-state", "disconnected");
+  await expect(speaker).toHaveAttribute("data-state", "connected");
+  await page.getByRole("button", { name: "Connect microphone", exact: true }).click();
+  await expect(mic).toHaveAttribute("data-state", "connected");
+  await page.keyboard.press("Escape");
+  await speaker.click();
+  await page.getByRole("button", { name: "Pause speakers", exact: true }).click();
+  await expect(speaker).toHaveAttribute("data-state", "paused");
+  await expect(mic).toHaveAttribute("data-state", "connected");
+  await page.getByRole("button", { name: "Resume speakers", exact: true }).click();
+  await page.getByRole("button", { name: "Stop speakers", exact: true }).click();
+  await expect(speaker).toHaveAttribute("data-state", "disconnected");
+  await expect(mic).toHaveAttribute("data-state", "connected");
+  await page.getByRole("button", { name: "Connect speakers", exact: true }).click();
+  await expect(speaker).toHaveAttribute("data-state", "connected");
+  expect(await page.evaluate(() => window.audioProbe.requests)).toBe(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ animations: "disabled", path: testInfo.outputPath("header-audio-menu.png") });
+});
+
+test("holding either header icon toggles pause without opening its menu", async ({ page }, testInfo) => {
+  await page.goto(url);
+  await voice(page);
+  const touch = testInfo.project.use.hasTouch;
+  const cdp = touch ? await page.context().newCDPSession(page) : null;
+  const hold = async (box) => {
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    if (cdp) await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1 }] });
+    else { await page.mouse.move(x, y); await page.mouse.down(); }
+    await page.waitForTimeout(650);
+    if (cdp) await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    else await page.mouse.up();
+  };
+  for (const device of ["microphone", "speaker"]) {
+    const icon = page.locator(`[data-terminal-audio-slot] [data-audio-device="${device}"]`);
+    const box = await icon.boundingBox();
+    await hold(box);
+    await expect(icon).toHaveAttribute("data-state", "paused");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await hold(box);
+    await expect(icon).toHaveAttribute("data-state", "connected");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
+  await page.screenshot({ animations: "disabled", path: testInfo.outputPath("header-audio-connected.png") });
+});
+
+test("background sound shows a navigation toast while only the selected pane is audible", async ({ page }, testInfo) => {
+  await page.goto(`${url}/panes`);
+  await voice(page, "first");
+  await voice(page, "second");
+  const first = page.locator('[data-session="first"]');
+  await expect(first.locator('[data-audio-device="speaker"]')).toHaveAttribute("data-streaming", "true");
+  await expect(page.getByText("first is streaming sound", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const values = new Uint8Array(window.audioProbe.analysers[0].fftSize);
+    window.audioProbe.analysers[0].getByteTimeDomainData(values);
+    return Math.max(...values.map((value) => Math.abs(value - 128)));
+  })).toBeLessThan(2);
+  const go = page.getByRole("button", { name: "Go to pane", exact: true });
+  await page.screenshot({ animations: "disabled", path: testInfo.outputPath("background-sound-toast.png") });
+  await go.click();
+  await expect(first.locator('[data-audio-device="speaker"]')).toHaveAttribute("data-state", "connected");
+  await expect.poll(() => page.evaluate(() => {
+    const values = new Uint8Array(window.audioProbe.analysers[0].fftSize);
+    window.audioProbe.analysers[0].getByteTimeDomainData(values);
+    return Math.max(...values.map((value) => Math.abs(value - 128)));
+  })).toBeGreaterThan(10);
+});
+
+
+test("speaker-only connection never requests microphone permission", async ({ page }) => {
+  await page.goto(url);
+  const speaker = page.locator('[data-audio-device="speaker"]');
+  const mic = page.locator('[data-audio-device="microphone"]');
+  await speaker.click();
+  await page.getByRole("button", { name: "Connect speakers", exact: true }).click();
+  await expect(speaker).toHaveAttribute("data-state", "connected");
+  await expect(speaker).toHaveAttribute("data-streaming", "true");
+  await expect(mic).toHaveAttribute("data-state", "disconnected");
+  expect(await page.evaluate(() => window.audioProbe.requests)).toBe(0);
+  await expect.poll(() => page.evaluate(() => {
+    const analyser = window.audioProbe.analysers[0];
+    const values = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(values);
+    return Math.max(...values.map((value) => Math.abs(value - 128)));
+  })).toBeGreaterThan(10);
 });

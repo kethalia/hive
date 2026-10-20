@@ -113,6 +113,7 @@ export function SingleTerminalSessionHeader({
         className="flex min-w-0 items-center justify-end gap-1"
         data-testid="single-terminal-header-right"
       >
+        <div data-terminal-audio-slot="true" className="flex shrink-0" />
         {showFontSizeControls ? (
           <TerminalFontSizeControls label="Single terminal font size controls" />
         ) : null}
@@ -232,6 +233,7 @@ export function TerminalSessionFrame({
         className,
       )}
       data-active={active ? "true" : "false"}
+      data-terminal-audio-frame="true"
       data-pane-label={label}
       data-pane-mode={layoutMode}
       data-pane-state={paneState}
@@ -281,6 +283,7 @@ export function TerminalSessionFrame({
               ) : null}
             </span>
           </div>
+          <div data-terminal-audio-slot="true" className="flex shrink-0" />
           {touchOptimizedActions ? null : headerActions}
           {onOpenActions ? (
             <Button
@@ -304,7 +307,7 @@ export function TerminalSessionFrame({
               <Ellipsis className="size-3" />
             </Button>
           ) : null}
-          {!touchOptimizedActions && onClose ? (
+          {onClose ? (
             <Button
               type="button"
               variant="destructive"

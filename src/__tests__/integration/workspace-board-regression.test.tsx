@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Terminal } from "@xterm/xterm";
 import type * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -546,7 +546,7 @@ describe("workspace board shortcut integration", () => {
         "true",
       ),
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Review Board Pane");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Review Board Pane");
     const state = readStoredBoardState();
     expect(
       state.boards
@@ -601,7 +601,7 @@ describe("workspace board shortcut integration", () => {
       "false",
     );
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Main Board Pane");
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
       "main:terminal:main-session:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
@@ -627,7 +627,7 @@ describe("workspace board shortcut integration", () => {
       "true",
     );
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Review Board Pane");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Review Board Pane");
     expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
       "data-layout-signal",
       "review:terminal:dev-server:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
@@ -649,7 +649,7 @@ describe("workspace board shortcut integration", () => {
     expect(metaSpies.stopImmediatePropagation).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("workspace-board-tab-main")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Main Board Pane");
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
       "main:terminal:main-session:1:1:1 / 1 / span 1 / span 1:viewport:0:0",
@@ -766,8 +766,10 @@ describe("workspace board shortcut integration", () => {
       "kethalia/hive",
     );
     expect(screen.queryByTestId("interactive-terminal-stale-session-name")).not.toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("hive");
-    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/hive");
+    expect(activePane()).toHaveAttribute("data-pane-label", "hive");
+    expect(activePane()?.querySelector('[data-testid$="-subtitle"]')).toHaveTextContent(
+      "kethalia/hive",
+    );
     expect(
       screen.queryByText(/persisted-proof|fresh-proof|stale-session-name|\/home\/coder|token/),
     ).not.toBeInTheDocument();
@@ -817,7 +819,7 @@ describe("workspace board shortcut integration", () => {
     expect(mockResolveGitCloneTerminal.mock.calls[0][0]).not.toHaveProperty("sessionName");
 
     fireEvent.click(screen.getByTestId("workspace-board-tab-main"));
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Main Board Pane");
     const storedAfterRemountSelection = readStoredBoardState();
     expect(storedAfterRemountSelection.activeBoardKey).toBe("main");
     expect(
@@ -834,11 +836,14 @@ describe("workspace board shortcut integration", () => {
     expect(
       await screen.findByTestId("workspace-pane-git-clone-safe-hive-fresh-b"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("workspace-pane-git-clone-safe-hive-fresh-b-actions"));
     const removedViewKey = terminalProps.get("git-clone-safe-hive-fresh-b")?.viewKey;
     expect(removedViewKey).toBeDefined();
     const dispatch = vi.spyOn(window, "dispatchEvent");
-    fireEvent.click(screen.getByTestId("workspace-pane-action-remove"));
+    fireEvent.click(
+      within(screen.getByTestId("workspace-pane-git-clone-safe-hive-fresh-b")).getByRole("button", {
+        name: /^Remove /,
+      }),
+    );
     expect(dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         type: TERMINAL_VIEWS_FORGET_EVENT,
@@ -882,3 +887,7 @@ describe("workspace board shortcut integration", () => {
     expect(mockRouterPush).not.toHaveBeenCalled();
   });
 });
+
+function activePane() {
+  return document.querySelector('[data-pane-mode][data-active="true"]');
+}

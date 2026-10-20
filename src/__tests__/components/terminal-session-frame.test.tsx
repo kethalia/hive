@@ -118,7 +118,7 @@ describe("TerminalSessionFrame", () => {
     expect(onOpenActions).toHaveBeenCalledTimes(2);
   });
 
-  it("shows only the More action while keeping touch header dragging", () => {
+  it("keeps More and Close controls available alongside touch header dragging", () => {
     const onHeaderTouchStart = vi.fn();
 
     render(
@@ -137,10 +137,10 @@ describe("TerminalSessionFrame", () => {
     );
 
     const header = screen.getByTestId("terminal-one-header");
-    expect(header.querySelectorAll("button")).toHaveLength(1);
+    expect(header.querySelectorAll("button")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Open actions for Terminal one" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Files" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Close Terminal one" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close Terminal one" })).toBeVisible();
     expect(screen.getByTestId("terminal-one-drag-icon")).toBeInTheDocument();
     expect(header).toHaveAttribute("data-window-drag-surface", "true");
     expect(header).toHaveClass("touch-none");
