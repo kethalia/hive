@@ -68,3 +68,22 @@ Validation after these corrections:
   Cloudflare, template, and runtime checks.
 - Recursive package coverage passed: 141 auth-service tests and 235
   terminal-proxy tests.
+
+## Review follow-up
+
+Speaker-only connections work when microphone capture APIs are unavailable.
+Unplugging or revoking an active microphone releases input and reports its error
+while preserving a connected speaker; if speakers were already stopped, the relay
+is released. Reconnecting the microphone continues using the same speaker worklet.
+
+Keyboard users can move the focused pane with **Ctrl/Cmd+Alt+Shift+Arrow**.
+These bindings appear in shortcut help and persist the same tiled layout changes
+as dragging. The header tooltip documents them. Normal text fields retain their
+keyboard behavior, and the removed Move menu entries stay removed.
+
+Regression tests cover missing microphone APIs, microphone track termination with
+speakers connected or stopped, all four keyboard move directions, saved layout,
+focus retention, and text-field boundaries.
+
+After the review fixes, repository format/lint checks, typechecking, and full
+application coverage passed again: 1,987 tests across 165 files.

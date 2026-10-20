@@ -257,6 +257,11 @@ export function TerminalSessionFrame({
         >
           <div
             className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch"
+            title={
+              draggableHeader
+                ? "Drag to rearrange. Ctrl/Cmd+Alt+Shift+Arrow moves the focused pane."
+                : undefined
+            }
             {...dragHandleListeners}
           >
             {draggableHeader ? (

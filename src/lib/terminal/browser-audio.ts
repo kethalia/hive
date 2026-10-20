@@ -594,7 +594,7 @@ export class TerminalAudio {
         throw new Error("Voice is already connected in another view of this terminal.");
       if (
         !window.isSecureContext ||
-        !navigator.mediaDevices?.getUserMedia ||
+        (microphone && !navigator.mediaDevices?.getUserMedia) ||
         !window.AudioWorkletNode
       )
         throw new Error("Voice needs HTTPS and a browser with microphone and Web Audio support.");
@@ -726,6 +726,8 @@ export class TerminalAudio {
     this.microphoneConnecting = true;
     this.publishDevices();
     try {
+      if (!navigator.mediaDevices?.getUserMedia)
+        throw new Error("Microphone access is unavailable in this browser.");
       this.pendingMicrophone = true;
       let stream: MediaStream;
       try {
@@ -750,7 +752,12 @@ export class TerminalAudio {
       this.updateMediaFocus();
       for (const track of stream.getTracks())
         track.onended = () => {
-          if (current()) this.fail("Microphone access ended. Run /voice again to reconnect.");
+          if (!current()) return;
+          const message = "Microphone access ended. Connect the microphone again to retry.";
+          if (this.worklet && !this.speakerStopped) {
+            this.stopMicrophone();
+            this.onStatus({ phase: "error", message });
+          } else this.fail(message);
         };
       this.microphoneMuted = false;
       if (this.context && this.worklet) {

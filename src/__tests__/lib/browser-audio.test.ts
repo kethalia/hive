@@ -1187,6 +1187,64 @@ describe("header device controls", () => {
     expect(socket.close).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    undefined,
+    {},
+  ])("supports speaker-only browsers with mediaDevices=%s", async (mediaDevices) => {
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: mediaDevices });
+    const { audio, socket, status } = session();
+    audio.connectDevice("speaker", vi.fn());
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(Worklet.instances).toHaveLength(1);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    audio.connectDevice("microphone", vi.fn());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(status).toHaveBeenLastCalledWith({
+      phase: "error",
+      message: "Microphone access is unavailable in this browser.",
+    });
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(Worklet.instances[0].disconnect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    false,
+    true,
+  ])("cleans up an ended microphone with speakers stopped=%s", async (speakerStopped) => {
+    const track = { enabled: true, stop, onended: null as (() => void) | null };
+    getUserMedia.mockResolvedValue({ getTracks: () => [track] });
+    const { audio, socket, status } = session();
+    approveVoice(socket);
+    await vi.advanceTimersByTimeAsync(0);
+    if (speakerStopped) audio.stopSpeaker();
+    track.onended?.();
+    expect(stop).toHaveBeenCalledOnce();
+    expect(status).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        phase: "error",
+        message: expect.stringContaining("Microphone access ended"),
+      }),
+    );
+    if (speakerStopped) {
+      expect(socket.close).toHaveBeenCalledOnce();
+      expect(Worklet.instances[0].disconnect).toHaveBeenCalledOnce();
+    } else {
+      expect(socket.close).not.toHaveBeenCalled();
+      expect(Worklet.instances[0].disconnect).not.toHaveBeenCalled();
+      const pcm = btoa(String.fromCharCode(...new Uint8Array(960)));
+      socket.emit({ type: "speaker", pcm });
+      expect(Worklet.instances[0].port.postMessage).toHaveBeenLastCalledWith(
+        expect.any(ArrayBuffer),
+        expect.any(Array),
+      );
+      audio.connectDevice("microphone", vi.fn());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(getUserMedia).toHaveBeenCalledTimes(2);
+      expect(Worklet.instances).toHaveLength(1);
+    }
+  });
+
   it("detects background sound without playing it and clears the indicator after silence", async () => {
     let focused = true;
     const devices = vi.fn();

@@ -2257,6 +2257,108 @@ describe("MultiSessionWorkspace", () => {
   });
 
   it.each([
+    {
+      direction: "left",
+      key: "ArrowLeft",
+      session: "dev-server",
+      width: 1200,
+      height: 800,
+      property: "left",
+      expected: "0%",
+      metaKey: false,
+    },
+    {
+      direction: "right",
+      key: "ArrowRight",
+      session: "main-session",
+      width: 1200,
+      height: 800,
+      property: "left",
+      expected: "50%",
+      metaKey: true,
+    },
+    {
+      direction: "up",
+      key: "ArrowUp",
+      session: "dev-server",
+      width: 600,
+      height: 1000,
+      property: "top",
+      expected: "0%",
+      metaKey: false,
+    },
+    {
+      direction: "down",
+      key: "ArrowDown",
+      session: "main-session",
+      width: 600,
+      height: 1000,
+      property: "top",
+      expected: "50%",
+      metaKey: true,
+    },
+  ])("rearranges the focused pane $direction with the keyboard and persists the layout", async ({
+    direction,
+    key,
+    session,
+    width,
+    height,
+    property,
+    expected,
+    metaKey,
+  }) => {
+    mockWorkspaceViewport(width, height);
+    await renderTwoSessionWorkspace();
+    const workspace = screen.getByTestId("multi-session-workspace");
+    fireEvent.click(screen.getByTestId(`workspace-pane-${session}`));
+    const pane = document.querySelector<HTMLElement>(`[data-workspace-window-id="${session}"]`)!;
+    const previousLayout = window.localStorage.getItem("workspace-window-layout:workspace:ws-1");
+    expect(pane.style.getPropertyValue(property)).not.toBe(expected);
+    const event = new KeyboardEvent("keydown", {
+      key,
+      ctrlKey: !metaKey,
+      metaKey,
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(workspace, event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(pane.style.getPropertyValue(property)).toBe(expected);
+    expect(activePane()).toHaveAttribute("data-pane-label", session);
+    expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).not.toBe(
+      previousLayout,
+    );
+    const binding = lastRegisteredEntry(`multi-session:ws-1:move-${direction}-pane`);
+    expect(binding.keys).toEqual([
+      `ctrl+alt+shift+arrow${direction}`,
+      `cmd+alt+shift+arrow${direction}`,
+    ]);
+  });
+
+  it("does not rearrange panes when the shortcut is used in a text field", async () => {
+    await renderTwoSessionWorkspace();
+    const input = document.createElement("input");
+    screen.getByTestId("multi-session-workspace").append(input);
+    const previousLayout = window.localStorage.getItem("workspace-window-layout:workspace:ws-1");
+    const event = new KeyboardEvent("keydown", {
+      key: "ArrowRight",
+      ctrlKey: true,
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(input, event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).toBe(
+      previousLayout,
+    );
+    input.remove();
+  });
+
+  it.each([
     "click",
     "shortcut",
     "delayed",

@@ -356,6 +356,7 @@ type BoardPersistenceNotice = {
 };
 
 const CREATE_TERMINAL_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
+const WORKSPACE_WINDOW_DIRECTIONS = ["left", "right", "up", "down"] as const;
 const WORKSPACE_BOARD_INDEXES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 type WorkspaceBoardIndex = (typeof WORKSPACE_BOARD_INDEXES)[number];
 
@@ -2009,6 +2010,38 @@ export function MultiSessionWorkspace({
     [activeBoardRenderModel, selectWorkspaceWindow],
   );
 
+  const moveWorkspaceWindowInDirection = useCallback(
+    (direction: WorkspaceWindowDirection) => {
+      const windowId = activeWindowIdRef.current;
+      if (!windowId || !activeBoardRenderModel?.windowLayoutRoot) return;
+      const neighbor = findWorkspaceWindowInDirection(
+        activeBoardRenderModel.windowRects,
+        windowId,
+        direction,
+      );
+      if (!neighbor) return;
+      const root = moveWorkspaceWindow(
+        activeBoardRenderModel.windowLayoutRoot,
+        windowId,
+        neighbor,
+        direction === "up" ? "top" : direction === "down" ? "bottom" : direction,
+      );
+      persistWindowLayoutState({
+        ...resolvedWindowLayoutState,
+        boards: resolvedWindowLayoutState.boards.map((board) =>
+          board.boardKey === activeBoardRenderModel.board.key ? { ...board, root } : board,
+        ),
+      });
+      selectWorkspaceWindow(windowId);
+    },
+    [
+      activeBoardRenderModel,
+      persistWindowLayoutState,
+      resolvedWindowLayoutState,
+      selectWorkspaceWindow,
+    ],
+  );
+
   const openWorkspaceCommandPalette = useCallback(() => {
     if (isMobile) {
       setGitSearchQuery("");
@@ -2112,10 +2145,16 @@ export function MultiSessionWorkspace({
       if (event.defaultPrevented) return false;
       if (event.getModifierState("AltGraph")) return false;
       if (!(event.ctrlKey || event.metaKey)) return false;
-      if (event.shiftKey) return false;
-
       const isTextEntryTarget = isTextEntryEventTarget(event.target);
       const isTerminalHelperTarget = isTerminalHelperTextAreaTarget(event.target);
+      if (event.shiftKey) {
+        const direction = workspaceArrowDirectionFromShortcutEvent(event);
+        if (!event.altKey || !direction || (isTextEntryTarget && !isTerminalHelperTarget))
+          return false;
+        event.preventDefault();
+        if (!event.repeat && !loading) moveWorkspaceWindowInDirection(direction);
+        return true;
+      }
       const workspaceIndex = workspaceIndexFromShortcutEvent(event);
       if (!event.altKey && workspaceIndex && (!isTextEntryTarget || isTerminalHelperTarget)) {
         event.preventDefault();
@@ -2155,6 +2194,7 @@ export function MultiSessionWorkspace({
     [
       activeBoard,
       focusWorkspaceWindowInDirection,
+      moveWorkspaceWindowInDirection,
       handleCreateBoard,
       handleDeleteBoard,
       loading,
@@ -2264,6 +2304,20 @@ export function MultiSessionWorkspace({
       category: "terminal",
       enabledInBrowser: true,
     });
+    for (const direction of WORKSPACE_WINDOW_DIRECTIONS) {
+      register({
+        id: `multi-session:${workspaceId}:move-${direction}-pane`,
+        keys: [`ctrl+alt+shift+arrow${direction}`, `cmd+alt+shift+arrow${direction}`],
+        allowRepeat: false,
+        action: () => {
+          if (!loading) moveWorkspaceWindowInDirection(direction);
+          return false;
+        },
+        description: `Move the focused pane ${direction}`,
+        category: "terminal",
+        enabledInBrowser: true,
+      });
+    }
     register({
       id: `multi-session:${workspaceId}:previous-board`,
       keys: ["cmd+alt+arrowleft", "ctrl+alt+arrowleft", "cmd+alt+arrowup", "ctrl+alt+arrowup"],
@@ -2314,6 +2368,8 @@ export function MultiSessionWorkspace({
       unregister(`multi-session:${workspaceId}:focus-right-pane`);
       unregister(`multi-session:${workspaceId}:focus-up-pane`);
       unregister(`multi-session:${workspaceId}:focus-down-pane`);
+      for (const direction of WORKSPACE_WINDOW_DIRECTIONS)
+        unregister(`multi-session:${workspaceId}:move-${direction}-pane`);
       unregister(`multi-session:${workspaceId}:previous-board`);
       unregister(`multi-session:${workspaceId}:next-board`);
       for (const workspaceIndex of WORKSPACE_BOARD_INDEXES) {
@@ -2323,6 +2379,7 @@ export function MultiSessionWorkspace({
   }, [
     activeBoard,
     focusWorkspaceWindowInDirection,
+    moveWorkspaceWindowInDirection,
     handleCreateBoard,
     handleDeleteBoard,
     loading,
