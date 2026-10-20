@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Toaster } from "sonner";
 import { TerminalAudioBridge } from "../../src/components/terminal/TerminalAudioBridge";
+import { Toaster } from "../../src/components/ui/sonner";
 import { TerminalSessionFrame } from "../../src/components/workspaces/TerminalSessionFrame";
 import { primeTerminalAudio } from "../../src/lib/terminal/audio-interaction";
 import { TERMINAL_NOTIFICATION_FOCUS_EVENT } from "../../src/lib/terminal/events";

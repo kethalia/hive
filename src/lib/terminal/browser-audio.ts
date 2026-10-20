@@ -11,7 +11,11 @@ export type TerminalAudioDevices = {
   focused: boolean;
   microphoneMuted: boolean;
   speakerMuted: boolean;
+  listeningHere: boolean;
 };
+
+// Native audio supplies PCM without reply boundaries; a quiet interval ends the exception.
+const REPLY_SILENCE_MS = 2000;
 
 const microphoneOwners = new Map<string, TerminalAudio>();
 
@@ -20,6 +24,8 @@ export class TerminalAudio {
   private microphoneMuted = false;
   private speakerStopped = false;
   private speakerMuted = false;
+  private listeningHere = false;
+  private listenTimer: ReturnType<typeof setTimeout> | undefined;
   private monitorPaused: boolean | undefined;
   private playbackPaused: boolean | undefined;
   private pageActive = true;
@@ -93,7 +99,7 @@ export class TerminalAudio {
       speaker: this.speakerStopped
         ? "disconnected"
         : this.worklet
-          ? this.speakerMuted || !this.mediaFocused() || !running
+          ? this.speakerMuted || (!this.mediaFocused() && !this.listeningHere) || !running
             ? "paused"
             : "connected"
           : (!this.worklet && this.ownsCall) || this.startDevice === "speaker"
@@ -103,6 +109,7 @@ export class TerminalAudio {
       focused: this.mediaFocused(),
       microphoneMuted: this.microphoneMuted,
       speakerMuted: this.speakerMuted,
+      listeningHere: this.listeningHere,
     });
   }
 
@@ -167,6 +174,58 @@ export class TerminalAudio {
     this.updateMediaFocus();
     if (!this.stream && !this.pendingMicrophone && !this.microphoneConnecting)
       this.stopMicrophone();
+  }
+
+  /** Play this live reply without changing the selected pane or enabling its microphone. */
+  listenToCurrentReply() {
+    if (
+      this.disposed ||
+      !this.worklet ||
+      !this.context ||
+      !this.ownsCall ||
+      !this.pageActive ||
+      this.frozen ||
+      this.speakerStopped ||
+      this.speakerMuted ||
+      Date.now() - this.lastSound >= REPLY_SILENCE_MS
+    )
+      return false;
+    if (this.listeningHere) return true;
+    this.listeningHere = true;
+    const context = this.context;
+    if (context.state !== "running") {
+      void context.resume().then(
+        () => {
+          if (this.context === context) this.updateMediaFocus();
+        },
+        () => {
+          if (this.context !== context) return;
+          this.cancelListenHere();
+          this.updateMediaFocus();
+          this.onStatus({
+            phase: "error",
+            message: "Could not play this reply. Try listening again.",
+          });
+        },
+      );
+    }
+    const check = () => {
+      const remaining = REPLY_SILENCE_MS - (Date.now() - this.lastSound);
+      if (remaining > 0) this.listenTimer = setTimeout(check, remaining);
+      else {
+        this.cancelListenHere();
+        this.updateMediaFocus();
+      }
+    };
+    this.listenTimer = setTimeout(check, REPLY_SILENCE_MS - (Date.now() - this.lastSound));
+    this.updateMediaFocus();
+    return true;
+  }
+
+  private cancelListenHere() {
+    clearTimeout(this.listenTimer);
+    this.listenTimer = undefined;
+    this.listeningHere = false;
   }
 
   private clearSound() {
@@ -281,7 +340,9 @@ export class TerminalAudio {
     const paused = !focused || this.microphoneMuted || !this.stream || suspended;
     const monitorPaused =
       this.frozen || !this.pageActive || this.speakerStopped || this.speakerMuted || suspended;
-    const playbackPaused = !focused || monitorPaused;
+    if (focused || this.frozen || !this.pageActive || this.speakerStopped || this.speakerMuted)
+      this.cancelListenHere();
+    const playbackPaused = (!focused && !this.listeningHere) || monitorPaused;
     this.publishDevices();
     for (const track of this.stream?.getTracks() ?? []) track.enabled = !paused;
     if (!this.worklet) return;
@@ -333,6 +394,10 @@ export class TerminalAudio {
         playbackPaused,
         generation: this.mediaGeneration,
       });
+    }
+    if (this.listeningHere && !focused) {
+      this.onStatus({ phase: "active", message: "Listening to this reply here" });
+      return;
     }
     this.onStatus(
       paused
@@ -520,7 +585,7 @@ export class TerminalAudio {
                 break;
               }
             }
-            if (!this.playbackPaused && this.mediaFocused())
+            if (!this.playbackPaused && (this.mediaFocused() || this.listeningHere))
               this.worklet.port.postMessage(bytes.buffer, [bytes.buffer]);
           }
         } catch {
@@ -839,6 +904,7 @@ export class TerminalAudio {
   private releaseMedia() {
     this.cancelStart();
     this.clearSound();
+    this.cancelListenHere();
     this.generation++;
     this.microphoneConnecting = false;
     this.ownsCall = false;

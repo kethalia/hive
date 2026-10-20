@@ -45,6 +45,7 @@ export function TerminalAudioBridge({
     focused: false,
     microphoneMuted: false,
     speakerMuted: false,
+    listeningHere: false,
   });
   const callbacks = useRef({ onStartVoice, onNavigate, label });
   callbacks.current = { onStartVoice, onNavigate, label };
@@ -82,14 +83,33 @@ export function TerminalAudioBridge({
             ? previous
             : next,
         );
-        if (next.focused || next.speaker === "disconnected" || next.speakerMuted) dismissToast();
+        // Returning to a pane consumes its notice; leaving it can notify again immediately.
+        if (next.focused) lastToast = -Infinity;
+        if (
+          next.focused ||
+          next.listeningHere ||
+          next.speaker === "disconnected" ||
+          next.speakerMuted
+        )
+          dismissToast();
         else if (next.playing && Date.now() - lastToast > 15_000) {
           lastToast = Date.now();
           dismissToast();
           notification = toast(`${callbacks.current.label} is streaming sound`, {
             position: "bottom-right",
-            description: "Switch to this pane to listen.",
+            description: "Go to the pane or listen to this reply here.",
             duration: 10_000,
+            style: { display: "grid", gridTemplateColumns: "1fr auto" },
+            classNames: { content: "col-span-2 min-w-0" },
+            cancelButtonStyle: { marginLeft: "auto" },
+            actionButtonStyle: { marginLeft: 0 },
+            cancel: {
+              label: "Listen here",
+              onClick: () => {
+                if (!audio.listenToCurrentReply())
+                  toast("This reply is no longer available.", { position: "bottom-right" });
+              },
+            },
             action: {
               label: "Go to pane",
               onClick: () => {
@@ -119,7 +139,7 @@ export function TerminalAudioBridge({
           shell?.querySelector('[data-terminal-audio-slot="true"]') ??
           null,
       );
-      audio.setPageActive(document.visibilityState === "visible");
+      audio.setPageActive(document.visibilityState === "visible" && document.hasFocus());
       audio.setVisible(inView && !terminal.closest("[inert]"));
       audio.refreshFocus();
     };
@@ -196,7 +216,13 @@ export function TerminalAudioBridge({
       <AudioDeviceControl
         device="speaker"
         muted={devices.speakerMuted}
-        message={status.phase === "error" ? status.message : undefined}
+        message={
+          status.phase === "error"
+            ? status.message
+            : devices.listeningHere
+              ? "Playing this reply here. Later replies follow the focused pane."
+              : undefined
+        }
         phase={devices.speaker}
         playing={devices.playing}
         onConnect={() => connect("speaker")}

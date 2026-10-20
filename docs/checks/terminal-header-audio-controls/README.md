@@ -87,3 +87,42 @@ focus retention, and text-field boundaries.
 
 After the review fixes, repository format/lint checks, typechecking, and full
 application coverage passed again: 1,987 tests across 165 files.
+
+## Listen here
+
+Background sound notifications offer **Go to pane** and **Listen here**. The first
+selects the speaking pane. The second plays the live remainder of its current
+reply while preserving the selected pane, keyboard focus, and microphone routing.
+It does not replay audio produced before the click.
+
+The relay provides PCM without reply boundaries, so two seconds without audible
+samples ends temporary listening. Later replies use normal focus-only playback.
+Pausing or stopping speakers, hiding the browser, freezing the page, ending the
+call, or selecting the speaking pane also clears the temporary exception.
+
+Validated in disposable Browser Testing workspace `hive-audio-listen`, using real
+Chrome audio APIs and an emulated relay. Browser assertions check both buttons,
+audible output from the background pane, unchanged focus and microphone routing,
+silence timeout, and silent output for the next reply.
+
+The notice rearms when its pane is selected, so leaving a still-speaking pane can
+show it again immediately. The browser fixture waits for the microphone popover
+to close and returns focus to its terminal before checking background playback.
+It uses the application's theme-aware toaster, including the two-row action layout.
+
+Repository format/lint checks and typechecking passed. Full application coverage
+passed with 1,996 tests across 165 files, including nine temporary-playback
+regressions.
+
+All 54 Chrome audio cases passed across desktop, tablet, and mobile; see
+[results](listen-browser-results.txt). After adding immediate notice rearming,
+the six navigation/listening cases passed again across all three viewports;
+see [follow-up results](listen-rearm-results.txt). Screenshots below reflect
+this final run. Evidence was preserved before stopping and deleting the
+task's disposable browser workspace.
+
+| Viewport | Two-action sound notification |
+| --- | --- |
+| Desktop | [Toast](desktop-listen-toast.png) |
+| Tablet | [Toast](tablet-listen-toast.png) |
+| Mobile | [Toast](mobile-listen-toast.png) |

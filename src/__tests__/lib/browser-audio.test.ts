@@ -1305,3 +1305,101 @@ describe("header device controls", () => {
     expect(Worklet.instances).toHaveLength(1);
   });
 });
+
+describe("temporary background reply playback", () => {
+  async function backgroundReply() {
+    let focused = true;
+    const track = { enabled: true, stop, onended: null };
+    getUserMedia.mockResolvedValue({ getTracks: () => [track] });
+    const { audio, socket } = session(() => focused);
+    approveVoice(socket);
+    await vi.advanceTimersByTimeAsync(0);
+    focused = false;
+    audio.refreshFocus();
+    const port = Worklet.instances[0].port;
+    const pcm = btoa(String.fromCharCode(...new Uint8Array(new Int16Array(480).fill(8192).buffer)));
+    socket.emit({ type: "speaker", pcm });
+    port.postMessage.mockClear();
+    return {
+      audio,
+      socket,
+      track,
+      port,
+      pcm,
+      focus: () => {
+        focused = true;
+        audio.refreshFocus();
+      },
+    };
+  }
+
+  it("plays the live reply without enabling the background microphone or selecting its pane", async () => {
+    const { audio, socket, track, port, pcm } = await backgroundReply();
+    expect(audio.listenToCurrentReply()).toBe(true);
+    expect(track.enabled).toBe(false);
+    expect(port.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ paused: true, playbackPaused: false }),
+    );
+    port.postMessage.mockClear();
+    socket.emit({ type: "speaker", pcm });
+    expect(port.postMessage).toHaveBeenLastCalledWith(expect.any(ArrayBuffer), expect.any(Array));
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("ends the exception after two seconds of silence and keeps later replies silent", async () => {
+    const { audio, socket, port, pcm } = await backgroundReply();
+    audio.listenToCurrentReply();
+    await vi.advanceTimersByTimeAsync(1000);
+    socket.emit({ type: "speaker", pcm });
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(
+      port.postMessage.mock.calls.filter(([data]) => data?.type === "pause").at(-1)?.[0]
+        .playbackPaused,
+    ).toBe(false);
+    await vi.advanceTimersByTimeAsync(501);
+    expect(port.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ paused: true, playbackPaused: true }),
+    );
+    expect(audio.listenToCurrentReply()).toBe(false);
+    port.postMessage.mockClear();
+    socket.emit({ type: "speaker", pcm });
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "mute",
+    "stop",
+    "hide",
+    "freeze",
+    "end",
+    "dispose",
+  ])("cancels temporary listening on %s", async (action) => {
+    const { audio, socket, port, pcm } = await backgroundReply();
+    audio.listenToCurrentReply();
+    if (action === "mute") audio.toggleSpeaker();
+    else if (action === "stop") audio.stopSpeaker();
+    else if (action === "hide") audio.setPageActive(false);
+    else if (action === "freeze") audio.setFrozen(true);
+    else if (action === "end") socket.emit({ type: "active", active: false });
+    else audio.dispose();
+    if (action === "mute") audio.toggleSpeaker();
+    if (action === "stop") audio.connectDevice("speaker", vi.fn());
+    if (action === "hide") audio.setPageActive(true);
+    if (action === "freeze") audio.setFrozen(false);
+    port.postMessage.mockClear();
+    socket.emit({ type: "speaker", pcm });
+    expect(port.postMessage).not.toHaveBeenCalled();
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it("returns to normal routing after focusing the source pane", async () => {
+    const reply = await backgroundReply();
+    reply.audio.listenToCurrentReply();
+    reply.focus();
+    expect(reply.track.enabled).toBe(true);
+    reply.audio.setVisible(false);
+    expect(reply.port.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ paused: true, playbackPaused: true }),
+    );
+  });
+});

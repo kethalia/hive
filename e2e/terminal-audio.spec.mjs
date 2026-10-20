@@ -14,6 +14,7 @@ let connections = new Set();
 let microphoneFrames = 0;
 let speakerTimer;
 const activeCalls = new Map();
+const quietSessions = new Set();
 const sessionNames = new WeakMap();
 const sessionFrames = new Map();
 const owners = new Map();
@@ -65,6 +66,9 @@ test.beforeAll(async () => {
     } else if (req.url.startsWith("/native?")) {
       let command = "";
       for await (const part of req) command += part;
+      const targetSession = new URL(req.url, "http://localhost").searchParams.get("sessionName");
+      if (command === "/quiet") quietSessions.add(targetSession);
+      if (command === "/speak") quietSessions.delete(targetSession);
       if (command === "/voice") {
         const sessionName = new URL(req.url, "http://localhost").searchParams.get("sessionName");
         const active = !activeCalls.get(sessionName);
@@ -137,6 +141,7 @@ test.beforeAll(async () => {
     for (const socket of connections)
       if (
         activeCalls.get(sessionNames.get(socket)) &&
+        !quietSessions.has(sessionNames.get(socket)) &&
         owners.get(sessionNames.get(socket)) === socket &&
         playback.get(socket)?.enabled
       )
@@ -155,6 +160,7 @@ test.beforeAll(async () => {
 test.beforeEach(() => {
   microphoneFrames = 0;
   activeCalls.clear();
+  quietSessions.clear();
   sessionFrames.clear();
   owners.clear();
 });
@@ -178,7 +184,11 @@ async function voice(page, sessionName = "test") {
     "disconnected";
   await terminal.fill("/voice");
   await terminal.press("Enter");
-  if (!stopping) await approveMicrophone(page, sessionName);
+  if (!stopping) {
+    await approveMicrophone(page, sessionName);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await terminal.focus();
+  }
 }
 
 async function approveMicrophone(page, sessionName = "test") {
@@ -728,6 +738,7 @@ test("background sound shows a navigation toast while only the selected pane is 
     )
     .toBeLessThan(2);
   const go = page.getByRole("button", { name: "Go to pane", exact: true });
+  await expect(page.getByRole("button", { name: "Listen here", exact: true })).toBeVisible();
   await page.screenshot({
     animations: "disabled",
     path: testInfo.outputPath("background-sound-toast.png"),
@@ -746,6 +757,11 @@ test("background sound shows a navigation toast while only the selected pane is 
       }),
     )
     .toBeGreaterThan(10);
+  await page.getByRole("button", { name: "Select second pane", exact: true }).click();
+  // Dismissed notices remain mounted during Sonner's exit animation.
+  await expect(go).toHaveCount(1);
+  await expect(page.getByText("first is streaming sound", { exact: true })).toBeVisible();
+  await expect(go).toBeVisible();
 });
 
 test("speaker-only connection never requests microphone permission", async ({ page }) => {
@@ -768,4 +784,51 @@ test("speaker-only connection never requests microphone permission", async ({ pa
       }),
     )
     .toBeGreaterThan(10);
+});
+
+test("Listen here plays only the current background reply without changing focus or microphone routing", async ({
+  page,
+  request,
+}, testInfo) => {
+  await page.goto(`${url}/panes`);
+  await voice(page, "first");
+  await voice(page, "second");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const first = page.locator('[data-session="first"]');
+  const second = page.locator('[data-session="second"]');
+  const input = page.getByRole("textbox", { name: "second terminal input" });
+  await input.focus();
+  const speaker = first.locator('[data-audio-device="speaker"]');
+  await expect(speaker).toHaveAttribute("data-streaming", "true");
+  await expect(page.getByRole("button", { name: "Go to pane", exact: true })).toBeVisible();
+  const listen = page.getByRole("button", { name: "Listen here", exact: true });
+  await expect(listen).toBeVisible();
+  await page.screenshot({
+    animations: "disabled",
+    path: testInfo.outputPath("two-action-sound-toast.png"),
+  });
+  await listen.click();
+  await expect(speaker).toHaveAttribute("data-state", "connected");
+  await expect(second.locator("[data-pane-mode]")).toHaveAttribute("data-active", "true");
+  await expect(input).toBeFocused();
+  expect(await page.evaluate(() => window.audioProbe.tracks.map((track) => track.enabled))).toEqual(
+    [false, true],
+  );
+  const amplitude = () =>
+    page.evaluate(() => {
+      const analyser = window.audioProbe.analysers[0];
+      const values = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(values);
+      return Math.max(...values.map((value) => Math.abs(value - 128)));
+    });
+  await expect.poll(amplitude).toBeGreaterThan(10);
+  await request.post(`${url}/native?sessionName=first`, { data: "/quiet" });
+  await expect(speaker).toHaveAttribute("data-state", "paused");
+  await expect.poll(amplitude).toBeLessThan(2);
+  await request.post(`${url}/native?sessionName=first`, { data: "/speak" });
+  await expect(speaker).toHaveAttribute("data-streaming", "true");
+  await expect(speaker).toHaveAttribute("data-state", "paused");
+  await expect.poll(amplitude).toBeLessThan(2);
+  await expect(input).toBeFocused();
+  expect(await page.evaluate(() => window.audioProbe.requests)).toBe(2);
 });
