@@ -51,7 +51,7 @@ Screenshots:
 
 These fixtures do not exercise a live Codex account or physical microphone
 acoustics. Safari/iOS and production deployment were not tested. Menu connection
-requires Codex running at an empty prompt in the target terminal.
+requires Codex running with its default F8 voice shortcut in the target terminal.
 
 ## CI follow-up
 
@@ -126,3 +126,19 @@ task's disposable browser workspace.
 | Desktop | [Toast](desktop-listen-toast.png) |
 | Tablet | [Toast](tablet-listen-toast.png) |
 | Mobile | [Toast](mobile-listen-toast.png) |
+
+## Additional review corrections
+
+Connect sends Codex's F8 voice function key instead of inserting `/voice` and
+Enter, preserving unsent drafts. The binding was verified against the
+[Codex 0.163 source](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/tui/src/keymap.rs).
+Mobile audio controls select the pane without focusing xterm's hidden input.
+
+Failed microphone reattachment releases both the stream and any partially
+connected source while retaining healthy speakers. The microphone can be
+connected again after the failure. Regression tests cover source creation and
+connection failures, desktop voice dispatch, and mobile focus behavior.
+
+Repository format/lint and typechecks passed again. The 192 targeted tests passed,
+followed by full application coverage: 2,000 tests across 165 files, plus the
+Cloudflare, template, and runtime checks.

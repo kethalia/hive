@@ -1337,10 +1337,11 @@ function TerminalRuntime({
           label={targetLabel}
           onFocusTerminal={() => {
             onUserFocusRequest?.();
-            termRef.current?.focus();
+            if (!mobileInputModeRef.current) termRef.current?.focus();
           }}
           onStartVoice={() => {
-            sendRef.current(encodeInput("/voice\r"));
+            // Codex's F8 voice action preserves the composer, including unsent drafts.
+            sendRef.current(encodeInput("\x1b[19~"));
           }}
           onNavigate={(url) => router.push(url)}
         />

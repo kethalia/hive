@@ -1245,6 +1245,42 @@ describe("header device controls", () => {
     }
   });
 
+  it.each([
+    "create",
+    "connect",
+  ])("releases a failed microphone reattachment at %s and permits retry with speakers retained", async (stage) => {
+    const { audio, socket, status } = session();
+    audio.connectDevice("speaker", vi.fn());
+    socket.emit({ type: "active", active: true });
+    await vi.advanceTimersByTimeAsync(0);
+    const context = Context.instances[0];
+    const source = { connect: vi.fn(), disconnect: vi.fn() };
+    const error = new Error("The microphone track ended during attachment");
+    if (stage === "create")
+      context.createMediaStreamSource.mockImplementationOnce(() => {
+        throw error;
+      });
+    else {
+      source.connect.mockImplementationOnce(() => {
+        throw error;
+      });
+      context.createMediaStreamSource.mockReturnValueOnce(source);
+    }
+    audio.connectDevice("microphone", vi.fn());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stop).toHaveBeenCalledOnce();
+    if (stage === "connect") expect(source.disconnect).toHaveBeenCalledOnce();
+    expect(status).toHaveBeenLastCalledWith({ phase: "error", message: error.message });
+    expect(Worklet.instances[0].disconnect).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+    audio.connectDevice("microphone", vi.fn());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(context.createMediaStreamSource).toHaveBeenCalledTimes(2);
+    expect(Worklet.instances).toHaveLength(1);
+    expect(status).toHaveBeenLastCalledWith({ phase: "active", message: "Voice connected" });
+  });
+
   it("detects background sound without playing it and clears the indicator after silence", async () => {
     let focused = true;
     const devices = vi.fn();

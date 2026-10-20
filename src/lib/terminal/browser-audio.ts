@@ -138,7 +138,7 @@ export class TerminalAudio {
       this.cancelStart();
       this.onStatus({
         phase: "error",
-        message: "Voice did not start. Open Codex in this terminal and connect again.",
+        message: "Voice did not start. Open Codex and check that its F8 voice shortcut is enabled.",
       });
     }, 8000);
     startNativeVoice();
@@ -841,8 +841,8 @@ export class TerminalAudio {
             : "Could not connect voice audio.";
       this.microphoneConnecting = false;
       if (this.worklet) {
+        this.stopMicrophone();
         this.onStatus({ phase: "error", message });
-        this.publishDevices();
       } else this.fail(message);
     }
   }

@@ -6,7 +6,8 @@ Microphone and speaker controls live in each pane's header.
 
 ## Use
 
-1. Open Codex in the terminal and leave its prompt empty and ready for input.
+1. Open Codex in the terminal. Codex 0.163 or later with the default **F8** voice
+   shortcut is supported; any unsent draft stays in the composer.
 2. Click the header microphone icon, then **Connect microphone**. Hive starts
    native voice in that pane; you do not need to type `/voice` yourself.
 3. Allow microphone access when the browser prompts. Alternatively, native
@@ -17,6 +18,12 @@ Microphone and speaker controls live in each pane's header.
    releases its browser tracks; speakers can remain connected, and vice versa.
 5. **Connect speakers** can start a listen-only connection without microphone
    permission. Connect the microphone separately when you want to speak.
+
+Menu connection sends the function key for Codex's
+[native voice action](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/tui/src/keymap.rs),
+without inserting command text or pressing Enter. If F8 is remapped or disabled,
+restore that binding before connecting from Hive. Touch audio controls select
+the pane without focusing the terminal input or summoning its keyboard.
 
 Red icons mean disconnected, orange slashed icons mean paused, and green means
 connected. A connected microphone pulses; a small pulsing green dot on the speaker
@@ -40,9 +47,14 @@ pane, workspace, tab, or window focus keeps existing calls connected and pauses
 microphone input and speaker playback in every unfocused pane. Only the focused,
 selected pane sends your voice and plays replies. Connected background panes
 continue observing incoming speaker frames without playing or buffering them.
-Non-silent audio in another pane shows a bottom-right toast with **Go to pane**.
-The toast focuses an existing pane or navigates to its workspace and session;
-notifications are limited to one per terminal every fifteen seconds. Muted or
+Non-silent audio in another pane shows a bottom-right toast with **Go to pane**
+and **Listen here**. The first focuses an existing pane or navigates to its
+workspace and session. The second plays the live remainder of the current reply
+without changing focus or microphone routing. Two seconds without audible samples
+ends temporary listening, because PCM frames have no reply boundaries. Earlier
+audio is not replayed; later replies follow normal focus-only routing.
+Notifications are limited to one per background terminal every fifteen seconds;
+selecting that terminal rearms its notice immediately. Muted or
 stopped speakers do not trigger notifications. Returning to a paused pane
 resumes the same call without another claim or microphone permission request.
 Enter and touch Enter only unlock speaker playback. They never
