@@ -52,3 +52,19 @@ Screenshots:
 These fixtures do not exercise a live Codex account or physical microphone
 acoustics. Safari/iOS and production deployment were not tested. Menu connection
 requires Codex running at an empty prompt in the target terminal.
+
+## CI follow-up
+
+Updated the microphone consent component tests to open the new header popover,
+query its portal, and verify that stopping the microphone retains speakers.
+Standalone terminal tests now supply the app-router mock used by the notification
+navigation callback. Formatted the browser spec with the repository formatter.
+
+Validation after these corrections:
+
+- `pnpm format:check` and `pnpm lint` passed across the repository.
+- `pnpm typecheck` and recursive package typechecks passed.
+- `pnpm test:coverage` passed: 1,978 application tests across 165 files, plus the
+  Cloudflare, template, and runtime checks.
+- Recursive package coverage passed: 141 auth-service tests and 235
+  terminal-proxy tests.

@@ -14,6 +14,10 @@ const mockTerminalState = vi.hoisted(() => ({
   terminalInstances: [] as Array<{ rows: number; cols: number; options: { fontSize?: number } }>,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 vi.mock("@xterm/addon-fit", () => {
   class FitAddon {
     fit = mockTerminalState.fit;

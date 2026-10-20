@@ -106,7 +106,7 @@ async function mount() {
       agentId="agent"
       sessionName="terminal"
     />,
-    { container },
+    { container, baseElement: document.body },
   );
   await act(async () => {
     await vi.advanceTimersByTimeAsync(0);
@@ -124,9 +124,18 @@ async function emit(socket: Socket, value: unknown) {
   });
 }
 
-async function approve(view: ReturnType<typeof render>) {
+async function openMicrophoneMenu(view: ReturnType<typeof render>) {
+  if (view.queryByRole("button", { name: /^(Connect|Stop) microphone$/ })) return;
   await act(async () => {
-    fireEvent.click(view.getByRole("button", { name: "Enable microphone" }));
+    fireEvent.click(view.getByRole("button", { name: /^Microphone:/ }));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
+async function approve(view: ReturnType<typeof render>) {
+  await openMicrophoneMenu(view);
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Connect microphone" }));
     await vi.advanceTimersByTimeAsync(0);
   });
 }
@@ -151,7 +160,7 @@ describe("explicit terminal microphone approval", () => {
     await emit(socket, { type: "claimed" });
     expect(socket.claims()).toBe(0);
     expect(getUserMedia).not.toHaveBeenCalled();
-    expect(view.getByRole("button", { name: "Enable microphone" })).toBeDefined();
+    expect(view.getByRole("button", { name: "Microphone: disconnected" })).toBeDefined();
     await approve(view);
     if (claimRequired) await emit(socket, { type: "claimed" });
     expect(getUserMedia).toHaveBeenCalledOnce();
@@ -165,6 +174,7 @@ describe("explicit terminal microphone approval", () => {
     input.focus();
     const { socket, view } = await mount();
     await start(view, socket);
+    act(() => input.focus());
     await act(async () => {
       surface.dataset.active = "false";
       await vi.advanceTimersByTimeAsync(0);
@@ -251,7 +261,7 @@ describe("explicit terminal microphone approval", () => {
     await emit(retry, { type: "active", active: true });
     expect(retry.claims()).toBe(0);
     expect(getUserMedia).not.toHaveBeenCalled();
-    expect(view.getByRole("button", { name: "Enable microphone" })).toBeDefined();
+    expect(view.getByRole("button", { name: "Microphone: disconnected" })).toBeDefined();
   });
 
   it("does not reuse approval when the bridge remounts", async () => {
@@ -267,7 +277,8 @@ describe("explicit terminal microphone approval", () => {
   it("a queued click cannot approve a replacement capture before its prompt renders", async () => {
     const { socket, view } = await mount();
     await emit(socket, { type: "active", active: true });
-    const button = view.getByRole("button", { name: "Enable microphone" });
+    await openMicrophoneMenu(view);
+    const button = view.getByRole("button", { name: "Connect microphone" });
     act(() => {
       socket.emit({ type: "active", active: false });
       socket.emit({ type: "active", active: true });
@@ -283,7 +294,8 @@ describe("explicit terminal microphone approval", () => {
   it("a queued click cannot approve a replacement terminal before its prompt renders", async () => {
     const { socket, view } = await mount();
     await emit(socket, { type: "active", active: true });
-    const button = view.getByRole("button", { name: "Enable microphone" });
+    await openMicrophoneMenu(view);
+    const button = view.getByRole("button", { name: "Connect microphone" });
     view.rerender(
       <TerminalAudioBridge
         proxyUrl="wss://hive"
@@ -307,7 +319,7 @@ describe("explicit terminal microphone approval", () => {
     expect(getUserMedia).toHaveBeenCalledOnce();
   });
 
-  it("stops an approved call and refuses a new capture without approval", async () => {
+  it("stops an approved microphone, retains speakers, and requires fresh approval after native capture ends", async () => {
     const stop = vi.fn();
     getUserMedia.mockResolvedValue({ getTracks: () => [{ stop }] });
     const { socket, view } = await mount();
@@ -317,12 +329,12 @@ describe("explicit terminal microphone approval", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(stop).toHaveBeenCalledOnce();
-    expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
-    const retry = Socket.instances.at(-1)!;
-    await emit(retry, { type: "ready", claimRequired: true });
-    await emit(retry, { type: "active", active: false });
-    await emit(retry, { type: "active", active: true });
-    expect(retry.claims()).toBe(0);
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+    expect(view.getByRole("button", { name: "Microphone: disconnected" })).toBeDefined();
+    expect(view.getByRole("button", { name: "Speakers: connected" })).toBeDefined();
+    await emit(socket, { type: "active", active: false });
+    await emit(socket, { type: "active", active: true });
+    expect(socket.claims()).toBe(1);
     expect(getUserMedia).toHaveBeenCalledOnce();
   });
 

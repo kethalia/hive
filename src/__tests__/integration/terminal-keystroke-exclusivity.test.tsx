@@ -9,6 +9,10 @@ const { mockFit, mockFocus } = vi.hoisted(() => ({
   mockFocus: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 vi.mock("@/lib/terminal/browser-integration", () => ({
   installTerminalBrowserIntegration: vi.fn(() => vi.fn()),
 }));
