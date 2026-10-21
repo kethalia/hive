@@ -16,7 +16,15 @@ import {
 } from "@dnd-kit/core";
 import { getEventCoordinates } from "@dnd-kit/utilities";
 import type { Terminal } from "@xterm/xterm";
-import { AlertCircle, ExternalLink, Loader2, Plus, Search, TerminalSquare } from "lucide-react";
+import {
+  AlertCircle,
+  Bot,
+  ExternalLink,
+  Loader2,
+  Plus,
+  Search,
+  TerminalSquare,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
@@ -210,6 +218,10 @@ interface InteractiveTerminalComponentProps {
   pinToBottomOnResize?: boolean;
   selectionModeEnabled?: boolean;
 }
+
+const AgentToolsDialog = dynamic(() =>
+  import("./AgentToolsDialog").then((module) => module.AgentToolsDialog),
+);
 
 const InteractiveTerminal = dynamic<InteractiveTerminalComponentProps>(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -1173,6 +1185,7 @@ export function MultiSessionWorkspace({
   const [gitFavoritesFailed, setGitFavoritesFailed] = useState(false);
   const [gitSearchOpen, setGitSearchOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [agentToolsOpen, setAgentToolsOpen] = useState(false);
   const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
   const {
     status: clipboardActionStatus,
@@ -3469,7 +3482,16 @@ export function MultiSessionWorkspace({
   const workspacePaletteActions = useMemo<CommandPaletteAction[]>(() => {
     if (!isUnifiedSource) return [];
 
-    const actions: CommandPaletteAction[] = [];
+    const actions: CommandPaletteAction[] = [
+      {
+        id: "workspace:agent-tools",
+        label: "Agent tools and sessions",
+        description: "Check connections and resume an agent conversation",
+        group: "Actions",
+        value: "agent tools codex claude connections plugins health resume recovery conversations",
+        onSelect: () => setAgentToolsOpen(true),
+      },
+    ];
     const typedSessionName =
       paletteQuery.length > 0 && SAFE_IDENTIFIER_RE.test(paletteQuery) ? paletteQuery : undefined;
     const typedCreateAction: CommandPaletteAction = {
@@ -4034,6 +4056,17 @@ export function MultiSessionWorkspace({
             {visibleSessions.length}
           </span>
           {renderGitFontControls()}
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="h-7 min-h-0 px-2 text-xs"
+            onClick={() => setAgentToolsOpen(true)}
+            aria-label="Open agent tools and sessions"
+          >
+            <Bot className="size-3" />
+            <span className="hidden sm:inline">Agents</span>
+          </Button>
           {renderGitRepositoryButton()}
           {canCreateSession && !isUnifiedSource ? (
             <Button
@@ -4055,6 +4088,31 @@ export function MultiSessionWorkspace({
       {renderGitRepositorySearchModal()}
       {renderGitAddFailureStatus()}
       {renderGitRestoreFailureStatus()}
+      {agentToolsOpen ? (
+        <AgentToolsDialog
+          key={workspaceId}
+          workspaceId={workspaceId}
+          open={agentToolsOpen}
+          onOpenChange={setAgentToolsOpen}
+          onOpenSession={(sessionName) => {
+            const existing = sessions.find((session) => session.sessionName === sessionName);
+            if (existing) {
+              handleAddExistingTerminalToBoard(existing);
+            } else if (sessionName.startsWith("git-clone-")) {
+              router.push(
+                `/workspaces/${encodeURIComponent(workspaceId)}/terminal?${new URLSearchParams({ session: sessionName, notification: "1" })}`,
+              );
+            } else {
+              const session = { sessionName, label: sessionName };
+              setSessions((current) => uniqueSessions([...current, session]));
+              handleAddExistingTerminalToBoard(session);
+            }
+            window.dispatchEvent(
+              new CustomEvent("hive:sidebar-refresh", { detail: { workspaceId } }),
+            );
+          }}
+        />
+      ) : null}
       {!isMobile ? (
         <CommandPalette
           open={paletteOpen}

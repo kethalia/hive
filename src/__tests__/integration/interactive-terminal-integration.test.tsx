@@ -350,6 +350,7 @@ vi.mock("@/components/ui/alert", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Bot: () => <span data-testid="icon-bot" />,
   Activity: () => null,
   AlertCircle: () => null,
   Upload: () => null,

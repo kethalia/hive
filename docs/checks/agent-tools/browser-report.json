@@ -1,0 +1,26 @@
+[
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "search": "passed",
+    "recoveryRouting": "passed",
+    "trackingControls": "passed",
+    "failureState": "passed",
+    "horizontalOverflow": false,
+    "pageErrors": []
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "search": "passed",
+    "recoveryRouting": "passed",
+    "trackingControls": "passed",
+    "failureState": "passed",
+    "horizontalOverflow": false,
+    "pageErrors": []
+  }
+]

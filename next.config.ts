@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
       "./node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**/*",
       "./scripts/notifications/install.py",
       "./scripts/notifications/agent-hook.py",
+      "./templates/ai-dev-k8s/scripts/agent-tools.py",
     ],
   },
   async headers() {

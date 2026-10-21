@@ -239,6 +239,19 @@ resource "coder_script" "tools_ai" {
   script             = file("${path.module}/scripts/tools-ai.sh")
 }
 
+resource "coder_script" "agent_integrations" {
+  count              = local.profile.id == "software" ? 1 : 0
+  agent_id           = coder_agent.main.id
+  display_name       = "Agent integrations"
+  icon               = "/icon/terminal.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  script = join("\n", [
+    "export HIVE_AGENT_TOOLS_SOURCE_B64='${base64encode(file("${path.module}/scripts/agent-tools.py"))}'",
+    file("${path.module}/scripts/agent-integrations.sh"),
+  ])
+}
+
 resource "coder_script" "tools_browser" {
   count              = local.profile.capabilities.browser ? 1 : 0
   agent_id           = coder_agent.main.id
