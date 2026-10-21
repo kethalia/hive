@@ -859,7 +859,7 @@ describe("MultiSessionWorkspace", () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     await renderTwoSessionWorkspace();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Browse files for main-session" }));
+    await openPaneTool("main-session", "files");
     const filesPane = await screen.findByTestId("workspace-tool-pane-files");
     expect(filesPane).toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-frame-files")).toHaveAttribute(
@@ -873,7 +873,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-tool-dialog")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+    await openPaneTool("main-session", "code");
     expect(await screen.findByTestId("workspace-tool-pane-code")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-tool-frame-code")).toHaveAttribute(
       "src",
@@ -920,15 +920,10 @@ describe("MultiSessionWorkspace", () => {
 
     await screen.findByTestId("workspace-pane-main-session");
 
-    expect(
-      screen.queryByRole("button", { name: "Browse files for main-session" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Open VS Code for main-session" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Open session logs for main-session" }),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("workspace-pane-main-session-actions"));
+    expect(screen.queryByTestId("workspace-pane-action-files")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-code")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-pane-action-logs")).toBeInTheDocument();
     expect(mockGetWorkspaceSessionTools).not.toHaveBeenCalled();
   });
 
@@ -937,7 +932,7 @@ describe("MultiSessionWorkspace", () => {
     const firstRender = render(<MultiSessionWorkspace {...defaultProps} />);
     await screen.findByTestId("workspace-pane-main-session");
 
-    fireEvent.click(screen.getByRole("button", { name: "Open session logs for main-session" }));
+    await openPaneTool("main-session", "logs");
 
     expect(await screen.findByTestId("workspace-tool-pane-logs")).toBeInTheDocument();
     expect(screen.getByTestId("mock-session-event-log")).toHaveTextContent("ws-1:main-session");
@@ -957,8 +952,8 @@ describe("MultiSessionWorkspace", () => {
   it("activates embedded tool windows from iframe focus and pointer entry", async () => {
     await renderTwoSessionWorkspace();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Browse files for main-session" }));
-    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+    await openPaneTool("main-session", "files");
+    await openPaneTool("main-session", "code");
 
     const filesPane = await screen.findByTestId("workspace-tool-pane-files");
     const codePane = await screen.findByTestId("workspace-tool-pane-code");
@@ -1006,9 +1001,9 @@ describe("MultiSessionWorkspace", () => {
       expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    await openPaneTool("main-session", "files");
     await screen.findByTestId("workspace-tool-pane-files");
-    fireEvent.click(screen.getByRole("button", { name: "Open VS Code for main-session" }));
+    await openPaneTool("main-session", "code");
     await screen.findByTestId("workspace-tool-pane-code");
 
     const persisted = window.localStorage.getItem("workspace-tool-panes:workspace:ws-1");
@@ -1112,7 +1107,7 @@ describe("MultiSessionWorkspace", () => {
     expect(mockGetWorkspaceSessionTools).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByTestId("workspace-pane-dev-server"));
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
 
     await act(async () => {
       codeRequest.resolve({
@@ -1138,7 +1133,7 @@ describe("MultiSessionWorkspace", () => {
       "data-pane-state",
       "authorizing",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
 
     fireEvent.load(screen.getByTestId("workspace-tool-frame-code"));
     expect(screen.getByTestId("workspace-tool-pane-code")).toHaveAttribute(
@@ -1163,7 +1158,7 @@ describe("MultiSessionWorkspace", () => {
       "data-pane-state",
       "ready",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
   });
 
   it("does not reload for a restored tool pane closed while authorization is pending", async () => {
@@ -1261,7 +1256,7 @@ describe("MultiSessionWorkspace", () => {
     });
     await renderTwoSessionWorkspace();
 
-    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    await openPaneTool("main-session", "files");
     await waitFor(() => {
       expect(mockReloadForWorkspaceTool).toHaveBeenCalledWith({
         workspaceId: "ws-1",
@@ -1422,7 +1417,7 @@ describe("MultiSessionWorkspace", () => {
     mockGetWorkspaceSessionTools.mockReturnValueOnce(pending.promise);
     await renderTwoSessionWorkspace();
 
-    fireEvent.click(screen.getByRole("button", { name: "Browse files for dev-server" }));
+    await openPaneTool("dev-server", "files");
     fireEvent.click(screen.getByTestId("workspace-board-new"));
     expect(screen.getByTestId("workspace-board-tab-workspace-2")).toHaveAttribute(
       "aria-selected",
@@ -1523,7 +1518,7 @@ describe("MultiSessionWorkspace", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole("button", { name: "Browse files for main-session" }));
+    await openPaneTool("main-session", "files");
     expect(await screen.findByTestId("workspace-tool-pane-files")).toBeInTheDocument();
 
     rerender(<MultiSessionWorkspace agentId="agent-2" workspaceId="ws-2" source="unified" />);
@@ -1610,7 +1605,7 @@ describe("MultiSessionWorkspace", () => {
       "data-workspace-id",
       "ws-1",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
     expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
       "data-pane-mode",
       "tiled",
@@ -1651,7 +1646,7 @@ describe("MultiSessionWorkspace", () => {
     markSessionConnected("main-session");
 
     expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
 
     markSessionConnected("dev-server");
 
@@ -1664,7 +1659,7 @@ describe("MultiSessionWorkspace", () => {
       "data-suppress-auto-focus",
       "true",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
   });
 
   it("mounts hidden board sessions without blocking the active workspace", async () => {
@@ -1717,7 +1712,7 @@ describe("MultiSessionWorkspace", () => {
     markSessionConnected("dev-server");
 
     expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
   });
 
   it("does not focus terminals when sessions mount from passive load or recovery", async () => {
@@ -1730,7 +1725,7 @@ describe("MultiSessionWorkspace", () => {
       terminalProps.get("main-session")?.onTerminalReady?.(mainTerm, mainSend);
     });
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(mainTerm, mainSend);
     expect(focusMainTerminal).not.toHaveBeenCalled();
   });
@@ -1773,7 +1768,7 @@ describe("MultiSessionWorkspace", () => {
     );
 
     fireEvent.click(screen.getByTestId("terminal-window-next"));
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(mainTerm.focus).not.toHaveBeenCalled();
   });
 
@@ -1826,7 +1821,7 @@ describe("MultiSessionWorkspace", () => {
     });
 
     fireEvent.click(screen.getByTestId("terminal-window-next"));
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     await act(async () => {
       finishRequest?.(
         new Response(JSON.stringify({ paths: ["/tmp/hive-terminal-paste/document.pdf"] })),
@@ -1891,18 +1886,18 @@ describe("MultiSessionWorkspace", () => {
     const more = screen.getByTestId("workspace-pane-main-session-actions");
     expect(more).toHaveClass("size-11", "min-h-11");
     const header = screen.getByTestId("workspace-pane-main-session-header");
-    expect(header.querySelectorAll("button")).toHaveLength(1);
+    expect(header.querySelectorAll("button")).toHaveLength(2);
     expect(screen.queryByTestId("workspace-tools-main-session")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("remove-pane-pane-main-session")).not.toBeInTheDocument();
+    expect(screen.getByTestId("remove-pane-pane-main-session")).toBeInTheDocument();
     expect(header).toHaveAttribute("data-window-drag-surface", "true");
     expect(header.querySelector('[data-testid="icon-grip"]')).toBeInTheDocument();
     expect(screen.queryByTestId("git-terminal-font-size-controls")).not.toBeInTheDocument();
     fireEvent.click(more);
 
     expect(await screen.findByTestId("workspace-pane-action-sheet")).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-pane-action-activate")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-activate")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-action-files")).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-pane-action-remove")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-pane-action-remove")).not.toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-action-move-left")).not.toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-action-move-right")).not.toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-action-move-up")).not.toBeInTheDocument();
@@ -1917,9 +1912,9 @@ describe("MultiSessionWorkspace", () => {
     });
 
     const toolHeader = await screen.findByTestId("workspace-tool-pane-files-header");
-    expect(toolHeader.querySelectorAll("button")).toHaveLength(1);
+    expect(toolHeader.querySelectorAll("button")).toHaveLength(2);
     expect(screen.queryByTestId("pop-out-workspace-tool-files")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("remove-workspace-tool-files")).not.toBeInTheDocument();
+    expect(screen.getByTestId("remove-workspace-tool-files")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("workspace-tool-pane-files-actions"));
     expect(screen.getByTestId("workspace-pane-action-pop-out")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-action-move-left")).not.toBeInTheDocument();
@@ -2123,12 +2118,12 @@ describe("MultiSessionWorkspace", () => {
     const devPane = screen.getByTestId("workspace-pane-dev-server");
     fireEvent.mouseEnter(devPane);
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
     expect(focusDevTerminal).not.toHaveBeenCalled();
 
     fireEvent.mouseMove(devPane);
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
     expect(focusDevTerminal).toHaveBeenCalledTimes(1);
     expect(
@@ -2138,7 +2133,7 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.mouseMove(screen.getByTestId("workspace-pane-main-session"));
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
   });
 
   it("activates inactive panes when the terminal surface requests focus", async () => {
@@ -2153,7 +2148,7 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.click(screen.getByTestId("interactive-terminal-dev-server"));
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(devTerm, devSend);
     expect(focusDevTerminal).not.toHaveBeenCalled();
   });
@@ -2165,7 +2160,7 @@ describe("MultiSessionWorkspace", () => {
     const devSend = makeSender("dev-server");
 
     fireEvent.click(screen.getByTestId("workspace-pane-dev-server"));
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(null, null);
 
     act(() => {
@@ -2243,22 +2238,124 @@ describe("MultiSessionWorkspace", () => {
     });
 
     fireEvent.keyDown(workspace, { key: "ArrowRight", ctrlKey: true });
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(devTerm.focus).toHaveBeenCalled();
 
     fireEvent.keyDown(workspace, { key: "ArrowLeft", metaKey: true });
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
 
     const nextBinding = lastRegisteredEntry("multi-session:ws-1:focus-right-pane");
     act(() => {
       expect(nextBinding.action(null, null)).toBe(false);
     });
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
 
     act(() => {
       expect(nextBinding.action(null, null)).toBe(false);
     });
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
+  });
+
+  it.each([
+    {
+      direction: "left",
+      key: "ArrowLeft",
+      session: "dev-server",
+      width: 1200,
+      height: 800,
+      property: "left",
+      expected: "0%",
+      metaKey: false,
+    },
+    {
+      direction: "right",
+      key: "ArrowRight",
+      session: "main-session",
+      width: 1200,
+      height: 800,
+      property: "left",
+      expected: "50%",
+      metaKey: true,
+    },
+    {
+      direction: "up",
+      key: "ArrowUp",
+      session: "dev-server",
+      width: 600,
+      height: 1000,
+      property: "top",
+      expected: "0%",
+      metaKey: false,
+    },
+    {
+      direction: "down",
+      key: "ArrowDown",
+      session: "main-session",
+      width: 600,
+      height: 1000,
+      property: "top",
+      expected: "50%",
+      metaKey: true,
+    },
+  ])("rearranges the focused pane $direction with the keyboard and persists the layout", async ({
+    direction,
+    key,
+    session,
+    width,
+    height,
+    property,
+    expected,
+    metaKey,
+  }) => {
+    mockWorkspaceViewport(width, height);
+    await renderTwoSessionWorkspace();
+    const workspace = screen.getByTestId("multi-session-workspace");
+    fireEvent.click(screen.getByTestId(`workspace-pane-${session}`));
+    const pane = document.querySelector<HTMLElement>(`[data-workspace-window-id="${session}"]`)!;
+    const previousLayout = window.localStorage.getItem("workspace-window-layout:workspace:ws-1");
+    expect(pane.style.getPropertyValue(property)).not.toBe(expected);
+    const event = new KeyboardEvent("keydown", {
+      key,
+      ctrlKey: !metaKey,
+      metaKey,
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(workspace, event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(pane.style.getPropertyValue(property)).toBe(expected);
+    expect(activePane()).toHaveAttribute("data-pane-label", session);
+    expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).not.toBe(
+      previousLayout,
+    );
+    const binding = lastRegisteredEntry(`multi-session:ws-1:move-${direction}-pane`);
+    expect(binding.keys).toEqual([
+      `ctrl+alt+shift+arrow${direction}`,
+      `cmd+alt+shift+arrow${direction}`,
+    ]);
+  });
+
+  it("does not rearrange panes when the shortcut is used in a text field", async () => {
+    await renderTwoSessionWorkspace();
+    const input = document.createElement("input");
+    screen.getByTestId("multi-session-workspace").append(input);
+    const previousLayout = window.localStorage.getItem("workspace-window-layout:workspace:ws-1");
+    const event = new KeyboardEvent("keydown", {
+      key: "ArrowRight",
+      ctrlKey: true,
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(input, event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(window.localStorage.getItem("workspace-window-layout:workspace:ws-1")).toBe(
+      previousLayout,
+    );
+    input.remove();
   });
 
   it.each([
@@ -2418,7 +2515,7 @@ describe("MultiSessionWorkspace", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Main Board Pane");
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-layout-signal",
@@ -2455,7 +2552,7 @@ describe("MultiSessionWorkspace", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Review Board Pane");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Review Board Pane");
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
     expect(screen.getByTestId("interactive-terminal-dev-server")).toHaveAttribute(
       "data-layout-signal",
@@ -2474,7 +2571,7 @@ describe("MultiSessionWorkspace", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Main Board Pane");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Main Board Pane");
     expect(
       JSON.parse(window.localStorage.getItem("workspace-board-state:workspace:ws-1") ?? "{}")
         .activeBoardKey,
@@ -2763,7 +2860,7 @@ describe("MultiSessionWorkspace", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(mockGetSessions).toHaveBeenCalledTimes(2);
     expect(mockToastError).not.toHaveBeenCalled();
   });
@@ -2781,7 +2878,7 @@ describe("MultiSessionWorkspace", () => {
       "This workspace has no panes yet.",
     );
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("0");
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("No active pane");
+    expect(activePane()).toBeNull();
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-dev-server")).not.toBeInTheDocument();
     expect(screen.getByTestId("create-session-button")).toBeInTheDocument();
@@ -2871,7 +2968,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(window.localStorage.getItem("workspace-board-state:workspace:ws-1")).toContain(
       "stale-session",
     );
@@ -2937,7 +3034,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("interactive-terminal-main-session")).toBeInTheDocument();
     expect(screen.getByTestId("interactive-terminal-dev-server")).toBeInTheDocument();
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(screen.queryByTestId("multi-session-loading")).not.toBeInTheDocument();
     expect(mockGetSessions).toHaveBeenCalledTimes(1);
     expect(terminalDestroyCounts.get("main-session") ?? 0).toBe(0);
@@ -2969,7 +3066,7 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-default-pane-main-session")).toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("1");
     const storedState = JSON.parse(
       window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "{}",
@@ -3179,8 +3276,10 @@ describe("MultiSessionWorkspace", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("hive");
-    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/hive");
+    expect(activePane()).toHaveAttribute("data-pane-label", "hive");
+    expect(activePane()?.querySelector('[data-testid$="-subtitle"]')).toHaveTextContent(
+      "kethalia/hive",
+    );
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
       agentId: "agent-1",
@@ -3416,7 +3515,7 @@ describe("MultiSessionWorkspace", () => {
       screen.getByTestId("multi-session-grid").querySelectorAll("[data-workspace-window-id]"),
     ).map((pane) => pane.getAttribute("data-workspace-window-id"));
     expect(windowIds).toEqual(["dev-server", "main-session"]);
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
   });
 
   it("restores focus from the active board instead of stale legacy layout state", async () => {
@@ -3463,7 +3562,7 @@ describe("MultiSessionWorkspace", () => {
 
     await renderTwoSessionWorkspace();
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
   });
 
   it("creates generic workspace sessions while unified source creation lives in the command palette", async () => {
@@ -3541,7 +3640,7 @@ describe("MultiSessionWorkspace", () => {
 
     fireEvent.click(screen.getByTestId("palette-action-workspace:session:dev-server"));
 
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
   });
 
   it("opens session logs from the command palette immediately after the Files action", async () => {
@@ -3629,8 +3728,10 @@ describe("MultiSessionWorkspace", () => {
     expect(screen.getByTestId("workspace-tool-pane-logs-subtitle")).toHaveTextContent(
       "kethalia/hive",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("Session Logs · hive");
-    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/hive");
+    expect(activePane()).toHaveAttribute("data-pane-label", "Session Logs · hive");
+    expect(activePane()?.querySelector('[data-testid$="-subtitle"]')).toHaveTextContent(
+      "kethalia/hive",
+    );
 
     fireEvent.mouseMove(screen.getByTestId("workspace-pane-main-session"));
     expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
@@ -3763,7 +3864,7 @@ describe("MultiSessionWorkspace", () => {
     });
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
 
@@ -3785,7 +3886,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
 
@@ -3800,7 +3901,7 @@ describe("MultiSessionWorkspace", () => {
     fireEvent.click(screen.getByTestId("palette-option-workspace:session:main-session-add"));
 
     expect(screen.getByTestId("workspace-pane-main-session")).toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("main-session");
+    expect(activePane()).toHaveAttribute("data-pane-label", "main-session");
     expect(mockSetActiveTerminal).toHaveBeenLastCalledWith(mainTerm, mainSend);
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
@@ -3831,7 +3932,7 @@ describe("MultiSessionWorkspace", () => {
     expect(devTerm.focus).toHaveBeenCalled();
     expect(screen.queryByTestId("workspace-pane-main-session")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-pane-dev-server")).toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("dev-server");
+    expect(activePane()).toHaveAttribute("data-pane-label", "dev-server");
 
     const stored = window.localStorage.getItem("workspace-board-state:git:ws-1");
     expect(stored).not.toContain("main-session");
@@ -3890,7 +3991,7 @@ describe("MultiSessionWorkspace", () => {
 
     expect(screen.getByTestId("active-board-empty")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-default-pane-main-session")).toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("No active pane");
+    expect(activePane()).toBeNull();
     expect(mockKillSession).not.toHaveBeenCalled();
     expect(mockCloseGitCloneTerminal).not.toHaveBeenCalled();
   });
@@ -3975,8 +4076,10 @@ describe("MultiSessionWorkspace", () => {
     });
 
     expect(screen.getByTestId("workspace-pane-git-clone-safe-hive")).toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("hive");
-    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/hive");
+    expect(activePane()).toHaveAttribute("data-pane-label", "hive");
+    expect(activePane()?.querySelector('[data-testid$="-subtitle"]')).toHaveTextContent(
+      "kethalia/hive",
+    );
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledTimes(1);
 
     const stored = window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "";
@@ -4455,8 +4558,10 @@ describe("MultiSessionWorkspace", () => {
       "unified",
     );
     expect(screen.queryByTestId("multi-session-command-palette")).not.toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("hive");
-    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/hive");
+    expect(activePane()).toHaveAttribute("data-pane-label", "hive");
+    expect(activePane()?.querySelector('[data-testid$="-subtitle"]')).toHaveTextContent(
+      "kethalia/hive",
+    );
     expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
       "data-clone-path",
       "kethalia/hive",
@@ -4586,7 +4691,7 @@ describe("MultiSessionWorkspace", () => {
       "data-clone-proof",
       "stale-proof-token",
     );
-    const activeLabelBefore = screen.getByTestId("active-pane-label").textContent;
+    const activeLabelBefore = activePane()?.getAttribute("data-pane-label");
     const mainLayoutSignal = screen
       .getByTestId("interactive-terminal-main-session")
       .getAttribute("data-layout-signal");
@@ -4665,7 +4770,7 @@ describe("MultiSessionWorkspace", () => {
     expect(
       screen.getByTestId("workspace-pane-git-clone-safe-hive").firstElementChild,
     ).toHaveTextContent("kethalia/hive");
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent(activeLabelBefore ?? "");
+    expect(activePane()).toHaveAttribute("data-pane-label", activeLabelBefore ?? "");
     expect(screen.getByTestId("workspace-pane-main-session")).toHaveAttribute(
       "data-active",
       "true",
@@ -4743,7 +4848,7 @@ describe("MultiSessionWorkspace", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("workspace-recovery-status")).not.toBeInTheDocument();
     });
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent(activeLabelBefore ?? "");
+    expect(activePane()).toHaveAttribute("data-pane-label", activeLabelBefore ?? "");
     expect(screen.getByTestId("interactive-terminal-git-clone-safe-hive")).toHaveAttribute(
       "data-layout-signal",
       gitLayoutSignal ?? "",
@@ -4870,8 +4975,10 @@ describe("MultiSessionWorkspace", () => {
       "data-clone-proof",
       "fresh-proof-token",
     );
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("hive");
-    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/hive");
+    expect(activePane()).toHaveAttribute("data-pane-label", "hive");
+    expect(activePane()?.querySelector('[data-testid$="-subtitle"]')).toHaveTextContent(
+      "kethalia/hive",
+    );
 
     const stored = window.localStorage.getItem("workspace-board-state:git:ws-1") ?? "";
     expect(stored).toContain("git-clone:kethalia/hive");
@@ -5339,8 +5446,10 @@ describe("MultiSessionWorkspace", () => {
       "fresh-proof-token",
     );
     expect(screen.queryByTestId("interactive-terminal-stale-docs-session")).not.toBeInTheDocument();
-    expect(screen.getByTestId("active-pane-label")).toHaveTextContent("docs");
-    expect(screen.getByTestId("active-pane-subtitle")).toHaveTextContent("kethalia/docs");
+    expect(activePane()).toHaveAttribute("data-pane-label", "docs");
+    expect(activePane()?.querySelector('[data-testid$="-subtitle"]')).toHaveTextContent(
+      "kethalia/docs",
+    );
     expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
       agentId: "agent-1",
       workspaceId: "ws-1",
@@ -5406,3 +5515,12 @@ describe("MultiSessionWorkspace", () => {
     );
   });
 });
+
+function activePane() {
+  return document.querySelector('[data-pane-mode][data-active="true"]');
+}
+
+async function openPaneTool(sessionName: string, tool: "files" | "code" | "logs") {
+  fireEvent.click(screen.getByTestId(`workspace-pane-${sessionName}-actions`));
+  fireEvent.click(await screen.findByTestId(`workspace-pane-action-${tool}`));
+}

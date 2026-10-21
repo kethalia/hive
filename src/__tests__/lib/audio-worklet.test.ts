@@ -78,3 +78,21 @@ describe("terminal audio focus pausing", () => {
     expect(tick()[0]).toBe(0.25);
   });
 });
+
+it("can mute capture independently of playback", () => {
+  const audio = processor();
+  const output = new Float32Array(128);
+  audio.port.onmessage({
+    data: { type: "pause", paused: true, playbackPaused: false, generation: 1 },
+  });
+  audio.port.onmessage({ data: new Int16Array(480).fill(8192).buffer });
+  audio.process([[new Float32Array(128).fill(0.5)]], [[output]]);
+  expect(output[0]).toBe(0.25);
+  expect(audio.port.postMessage).not.toHaveBeenCalled();
+  audio.port.onmessage({
+    data: { type: "pause", paused: false, playbackPaused: true, generation: 2 },
+  });
+  for (let at = 0; at < 4; at++) audio.process([[new Float32Array(128).fill(0.5)]], [[output]]);
+  expect(output.every((sample) => sample === 0)).toBe(true);
+  expect(audio.port.postMessage).toHaveBeenCalledOnce();
+});

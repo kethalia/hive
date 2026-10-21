@@ -461,7 +461,10 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
         isKeyboardVisible={isMobileKeyboardVisible}
         reserveDashboardTrigger={false}
       >
-        <div className="flex h-full min-h-0 flex-col overflow-hidden overscroll-none bg-background">
+        <div
+          data-terminal-audio-shell="true"
+          className="flex h-full min-h-0 flex-col overflow-hidden overscroll-none bg-background"
+        >
           <SingleTerminalSessionHeader
             sessionLabel={terminalDisplayLabel}
             sessionSubtitle={terminalDisplaySubtitle}
@@ -496,6 +499,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
     <div
       data-testid="terminal-desktop-shell"
       data-terminal-shell="true"
+      data-terminal-audio-shell="true"
       className={`${TERMINAL_SHELL_CLASS_NAME} flex flex-col overflow-hidden bg-background`}
       onKeyDown={(e) => e.stopPropagation()}
     >

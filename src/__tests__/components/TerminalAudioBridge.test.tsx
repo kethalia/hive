@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TerminalAudioBridge } from "@/components/terminal/TerminalAudioBridge";
 import { primeTerminalAudio } from "@/lib/terminal/audio-interaction";
+import { TerminalAudio } from "@/lib/terminal/browser-audio";
 
 const ticket = `fixture.${"a".repeat(43)}`;
 
@@ -48,9 +49,11 @@ const originalMediaDevices = navigator.mediaDevices;
 const originalLocks = navigator.locks;
 let surface: HTMLDivElement;
 let getUserMedia: ReturnType<typeof vi.fn>;
+let containers: HTMLElement[];
 
 beforeEach(() => {
   vi.useFakeTimers();
+  containers = [];
   Socket.instances = [];
   vi.stubGlobal(
     "fetch",
@@ -85,6 +88,7 @@ beforeEach(() => {
 afterEach(async () => {
   cleanup();
   surface.remove();
+  for (const container of containers) container.remove();
   await vi.advanceTimersByTimeAsync(0);
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -106,7 +110,7 @@ async function mount() {
       agentId="agent"
       sessionName="terminal"
     />,
-    { container },
+    { container, baseElement: document.body },
   );
   await act(async () => {
     await vi.advanceTimersByTimeAsync(0);
@@ -124,9 +128,18 @@ async function emit(socket: Socket, value: unknown) {
   });
 }
 
-async function approve(view: ReturnType<typeof render>) {
+async function openMicrophoneMenu(view: ReturnType<typeof render>) {
+  if (view.queryByRole("button", { name: /^(Connect|Stop) microphone$/ })) return;
   await act(async () => {
-    fireEvent.click(view.getByRole("button", { name: "Enable microphone" }));
+    fireEvent.click(view.getByRole("button", { name: /^Microphone:/ }));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
+async function approve(view: ReturnType<typeof render>) {
+  await openMicrophoneMenu(view);
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Connect microphone" }));
     await vi.advanceTimersByTimeAsync(0);
   });
 }
@@ -136,6 +149,102 @@ async function start(view: ReturnType<typeof render>, socket: Socket) {
   await approve(view);
   await emit(socket, { type: "claimed" });
 }
+
+function frame() {
+  const owner = document.createElement("div");
+  owner.dataset.terminalAudioFrame = "true";
+  owner.dataset.paneMode = "tiled";
+  owner.dataset.active = "true";
+  const header = document.createElement("header");
+  const slot = document.createElement("div");
+  slot.dataset.terminalAudioSlot = "true";
+  header.append(slot);
+  owner.append(header);
+  document.body.append(owner);
+  containers.push(owner);
+  return { owner, slot, header };
+}
+
+describe("audio bridge location observation", () => {
+  it("ignores output, popover, toast, and other-pane mutations", async () => {
+    const current = frame();
+    current.owner.append(surface);
+    const { view, socket } = await mount();
+    await start(view, socket);
+    const refresh = vi.spyOn(TerminalAudio.prototype, "refreshFocus");
+    await act(async () => {
+      for (let i = 0; i < 100; i++) surface.append(document.createElement("span"));
+      current.slot.append(document.createElement("div"));
+      const unrelated = frame();
+      unrelated.owner.dataset.active = "false";
+      unrelated.owner.append(document.createElement("span"));
+      const toast = document.createElement("div");
+      document.body.append(toast);
+      toast.append(document.createElement("span"));
+      toast.remove();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(socket.close).not.toHaveBeenCalled();
+  });
+
+  it("rebinds after ancestor moves, follows headers, and retains the call through parking", async () => {
+    const first = frame();
+    const second = frame();
+    const host = document.createElement("div");
+    host.append(surface);
+    first.owner.append(host);
+    const { view, socket } = await mount();
+    await start(view, socket);
+    expect(first.slot.querySelector('[data-audio-device="microphone"]')).not.toBeNull();
+    await act(async () => {
+      second.owner.append(host);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(first.slot.children).toHaveLength(0);
+    expect(second.slot.querySelector('[data-audio-device="microphone"]')).not.toBeNull();
+    const refresh = vi.spyOn(TerminalAudio.prototype, "refreshFocus");
+    await act(async () => {
+      first.owner.dataset.active = "false";
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => {
+      second.owner.dataset.active = "false";
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.getByRole("status").textContent).toContain("Voice paused");
+    const parking = document.createElement("div");
+    parking.setAttribute("inert", "");
+    document.body.append(parking);
+    containers.push(parking);
+    await act(async () => {
+      parking.append(host);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(second.slot.children).toHaveLength(0);
+    await act(async () => {
+      second.owner.dataset.active = "true";
+      second.owner.append(host);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(second.slot.querySelector('[data-audio-device="microphone"]')).not.toBeNull();
+    expect(view.getByRole("status").textContent).toBe("Voice connected");
+    // Replacing a frame's header also moves the audio portal to its new slot.
+    const newHeader = second.header.cloneNode(false) as HTMLElement;
+    const newSlot = document.createElement("div");
+    newSlot.dataset.terminalAudioSlot = "true";
+    newHeader.append(newSlot);
+    await act(async () => {
+      second.header.replaceWith(newHeader);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(newSlot.querySelector('[data-audio-device="microphone"]')).not.toBeNull();
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(socket.claims()).toBe(1);
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+});
 
 describe("explicit terminal microphone approval", () => {
   it.each([
@@ -151,7 +260,7 @@ describe("explicit terminal microphone approval", () => {
     await emit(socket, { type: "claimed" });
     expect(socket.claims()).toBe(0);
     expect(getUserMedia).not.toHaveBeenCalled();
-    expect(view.getByRole("button", { name: "Enable microphone" })).toBeDefined();
+    expect(view.getByRole("button", { name: "Microphone: disconnected" })).toBeDefined();
     await approve(view);
     if (claimRequired) await emit(socket, { type: "claimed" });
     expect(getUserMedia).toHaveBeenCalledOnce();
@@ -165,6 +274,7 @@ describe("explicit terminal microphone approval", () => {
     input.focus();
     const { socket, view } = await mount();
     await start(view, socket);
+    act(() => input.focus());
     await act(async () => {
       surface.dataset.active = "false";
       await vi.advanceTimersByTimeAsync(0);
@@ -251,7 +361,7 @@ describe("explicit terminal microphone approval", () => {
     await emit(retry, { type: "active", active: true });
     expect(retry.claims()).toBe(0);
     expect(getUserMedia).not.toHaveBeenCalled();
-    expect(view.getByRole("button", { name: "Enable microphone" })).toBeDefined();
+    expect(view.getByRole("button", { name: "Microphone: disconnected" })).toBeDefined();
   });
 
   it("does not reuse approval when the bridge remounts", async () => {
@@ -267,7 +377,8 @@ describe("explicit terminal microphone approval", () => {
   it("a queued click cannot approve a replacement capture before its prompt renders", async () => {
     const { socket, view } = await mount();
     await emit(socket, { type: "active", active: true });
-    const button = view.getByRole("button", { name: "Enable microphone" });
+    await openMicrophoneMenu(view);
+    const button = view.getByRole("button", { name: "Connect microphone" });
     act(() => {
       socket.emit({ type: "active", active: false });
       socket.emit({ type: "active", active: true });
@@ -283,7 +394,8 @@ describe("explicit terminal microphone approval", () => {
   it("a queued click cannot approve a replacement terminal before its prompt renders", async () => {
     const { socket, view } = await mount();
     await emit(socket, { type: "active", active: true });
-    const button = view.getByRole("button", { name: "Enable microphone" });
+    await openMicrophoneMenu(view);
+    const button = view.getByRole("button", { name: "Connect microphone" });
     view.rerender(
       <TerminalAudioBridge
         proxyUrl="wss://hive"
@@ -307,7 +419,7 @@ describe("explicit terminal microphone approval", () => {
     expect(getUserMedia).toHaveBeenCalledOnce();
   });
 
-  it("stops an approved call and refuses a new capture without approval", async () => {
+  it("stops an approved microphone, retains speakers, and requires fresh approval after native capture ends", async () => {
     const stop = vi.fn();
     getUserMedia.mockResolvedValue({ getTracks: () => [{ stop }] });
     const { socket, view } = await mount();
@@ -317,12 +429,12 @@ describe("explicit terminal microphone approval", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(stop).toHaveBeenCalledOnce();
-    expect(socket.send).toHaveBeenCalledWith('{"type":"release"}');
-    const retry = Socket.instances.at(-1)!;
-    await emit(retry, { type: "ready", claimRequired: true });
-    await emit(retry, { type: "active", active: false });
-    await emit(retry, { type: "active", active: true });
-    expect(retry.claims()).toBe(0);
+    expect(socket.send).not.toHaveBeenCalledWith('{"type":"release"}');
+    expect(view.getByRole("button", { name: "Microphone: disconnected" })).toBeDefined();
+    expect(view.getByRole("button", { name: "Speakers: connected" })).toBeDefined();
+    await emit(socket, { type: "active", active: false });
+    await emit(socket, { type: "active", active: true });
+    expect(socket.claims()).toBe(1);
     expect(getUserMedia).toHaveBeenCalledOnce();
   });
 

@@ -11,7 +11,37 @@ const mockTerminalState = vi.hoisted(() => ({
   fit: vi.fn(),
   resize: vi.fn(),
   send: vi.fn(),
-  terminalInstances: [] as Array<{ rows: number; cols: number; options: { fontSize?: number } }>,
+  connectionState: "disconnected",
+  terminalInstances: [] as Array<{
+    rows: number;
+    cols: number;
+    options: { fontSize?: number };
+    focus: ReturnType<typeof vi.fn>;
+  }>,
+}));
+
+vi.mock("@/components/terminal/TerminalAudioBridge", () => ({
+  TerminalAudioBridge: ({
+    onFocusTerminal,
+    onStartVoice,
+  }: {
+    onFocusTerminal: () => void;
+    onStartVoice: () => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() => {
+        onFocusTerminal();
+        onStartVoice();
+      }}
+    >
+      Connect voice
+    </button>
+  ),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock("@xterm/addon-fit", () => {
@@ -58,7 +88,7 @@ vi.mock("@/hooks/useKeybindings", () => ({
 
 vi.mock("@/hooks/useTerminalWebSocket", () => ({
   useTerminalWebSocket: () => ({
-    connectionState: "disconnected",
+    connectionState: mockTerminalState.connectionState,
     resize: mockTerminalState.resize,
     send: mockTerminalState.send,
   }),
@@ -86,6 +116,7 @@ beforeEach(() => {
   mockTerminalState.fit.mockImplementation(() => undefined);
   mockTerminalState.resize.mockClear();
   mockTerminalState.send.mockClear();
+  mockTerminalState.connectionState = "disconnected";
   mockTerminalState.terminalInstances.length = 0;
   window.localStorage.clear();
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
@@ -103,6 +134,34 @@ afterEach(() => {
 });
 
 describe("InteractiveTerminal safe fit", () => {
+  it.each([
+    false,
+    true,
+  ])("starts voice without submitting a draft or opening mobile input (mobile=%s)", async (mobileInputMode) => {
+    mockTerminalState.connectionState = "connected";
+    const onTerminalReady = vi.fn();
+    const onUserFocusRequest = vi.fn();
+    const view = render(
+      <InteractiveTerminal
+        agentId="agent-1"
+        workspaceId="workspace-1"
+        sessionName="main"
+        mobileInputMode={mobileInputMode}
+        onTerminalReady={onTerminalReady}
+        onUserFocusRequest={onUserFocusRequest}
+      />,
+    );
+    await waitFor(() => expect(onTerminalReady).toHaveBeenCalledOnce());
+    const terminal = mockTerminalState.terminalInstances[0];
+    terminal.focus.mockClear();
+    mockTerminalState.send.mockClear();
+    fireEvent.click(view.getByRole("button", { name: "Connect voice" }));
+    expect(onUserFocusRequest).toHaveBeenCalledOnce();
+    expect(terminal.focus).toHaveBeenCalledTimes(mobileInputMode ? 0 : 1);
+    // A function key never inserts slash-command text or submits the composer.
+    expect(mockTerminalState.send.mock.calls).toEqual([[JSON.stringify({ data: "\x1b[19~" })]]);
+  });
+
   it("Enter primes playback before the asynchronous audio bridge mounts", async () => {
     const { container } = render(
       <InteractiveTerminal agentId="agent-1" workspaceId="workspace-1" sessionName="main" />,

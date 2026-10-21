@@ -1,22 +1,42 @@
 # Native Codex voice through the browser
 
 Hive forwards browser microphone and speaker audio to the virtual audio devices
-of each workspace terminal. Codex uses its own native `/voice` command and its
-current session. Microphone approval appears inside the requesting terminal.
+of each workspace terminal. Codex uses its native voice mode and current session.
+Microphone and speaker controls live in each pane's header.
 
 ## Use
 
-1. Focus the Hive window and the terminal containing Codex, then type `/voice`.
-2. Click **Enable microphone** in that terminal.
-3. Allow microphone access to the Hive website or installed PWA when prompted.
-4. Speak normally. Codex replies play through the browser. Click **Stop microphone**
-   or use Codex's `/voice` command to end voice.
+1. Open Codex in the terminal. Codex 0.163 or later with the default **F8** voice
+   shortcut is supported; any unsent draft stays in the composer.
+2. Click the header microphone icon, then **Connect microphone**. Hive starts
+   native voice in that pane; you do not need to type `/voice` yourself.
+3. Allow microphone access when the browser prompts. Alternatively, native
+   `/voice` still works and asks for approval through the same header menu.
+4. Click either icon for its connection status and **Pause**/**Resume** and
+   **Stop** buttons. Holding an icon for half a second toggles its pause state.
+   Pausing mutes the device while retaining its connection. Stopping the microphone
+   releases its browser tracks; speakers can remain connected, and vice versa.
+5. **Connect speakers** can start a listen-only connection without microphone
+   permission. Connect the microphone separately when you want to speak.
+
+Menu connection sends the function key for Codex's
+[native voice action](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/tui/src/keymap.rs),
+without inserting command text or pressing Enter. If F8 is remapped or disabled,
+restore that binding before connecting from Hive. Touch audio controls select
+the pane without focusing the terminal input or summoning its keyboard.
+
+Red icons mean disconnected, orange slashed icons mean paused, and green means
+connected. A connected microphone pulses; a small pulsing green dot on the speaker
+icon identifies a pane currently streaming sound. Reduced-motion preferences
+suppress the animations. Errors and native microphone requests appear in the menu.
 
 The bridge is enabled by default. Opening a native capture stream requests audio;
 the browser only starts microphone access after explicit approval in Hive.
-An idle terminal does not request or hold the microphone. A small status message
-appears for a request, connection, active call, paused call, or error. Hive requires
-approval for every new call, even when browser permission is already granted.
+An idle terminal does not request or hold the microphone. The header menus show
+connection state and errors. Hive requires explicit
+approval for every new microphone call, even when browser permission is already
+granted. A menu start approves one native call for at most eight seconds while
+that pane stays focused; timeout, focus loss, or relay replacement cancels it.
 HTTPS (or localhost) and Web Audio/AudioWorklet
 support are required. Pressing Enter in the terminal enables playback under
 browser autoplay rules.
@@ -25,10 +45,21 @@ The focused terminal can start a new call. When a toolbar control has
 focus outside the terminal, the selected pane can start it instead. Changing
 pane, workspace, tab, or window focus keeps existing calls connected and pauses
 microphone input and speaker playback in every unfocused pane. Only the focused,
-selected pane sends your voice and plays replies. Returning to a paused pane
+selected pane sends your voice and plays replies. Connected background panes
+continue observing incoming speaker frames without playing or buffering them.
+Non-silent audio in another pane shows a bottom-right toast with **Go to pane**
+and **Listen here**. The first focuses an existing pane or navigates to its
+workspace and session. The second plays the live remainder of the current reply
+without changing focus or microphone routing. Two seconds without audible samples
+ends temporary listening, because PCM frames have no reply boundaries. Earlier
+audio is not replayed; later replies follow normal focus-only routing.
+Notifications are limited to one per background terminal every fifteen seconds;
+selecting that terminal rearms its notice immediately. Muted or
+stopped speakers do not trigger notifications. Returning to a paused pane
 resumes the same call without another claim or microphone permission request.
 Enter and touch Enter only unlock speaker playback. They never
-approve microphone capture. Approval applies to the current pending request in
+approve microphone capture. Approval applies to the current pending request or
+the bounded menu start in
 the selected terminal, and is not retained after capture ends, a connection
 fails, or the terminal's audio bridge remounts. If a request ends before you
 approve it, run `/voice` again. A view left open on an unused device cannot claim
@@ -114,8 +145,10 @@ The browser opens an authenticated audio WebSocket for a visible, focused termin
 An owned call retains its connection across pane, workspace, tab, and window
 focus changes, with browser microphone and playback paused while unfocused.
 The matching terminal proxy advertises support for playback focus generations.
-It suppresses speaker delivery while paused and tags subsequent frames with the
-current generation. The browser rejects older generations, including messages
+It suppresses speaker delivery while explicitly muted, stopped, or the page is
+hidden/frozen, and tags subsequent frames with the current generation. Unfocused
+connected panes receive frames only to detect sound; those samples are discarded
+before the AudioWorklet so returning cannot replay background speech. The browser rejects older generations, including messages
 queued while its tab was frozen. Older clients retain their previous frame format;
 deploy both the web client and terminal proxy to enable this protection.
 The AudioWorklet also tags microphone packets with their capture generation, so

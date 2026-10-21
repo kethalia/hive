@@ -1,0 +1,11 @@
+
+Running 6 tests using 1 worker
+
+  ✓  1 [desktop-chromium] › e2e/terminal-audio.spec.mjs:719:1 › background sound shows a navigation toast while only the selected pane is audible (1.8s)
+  ✓  2 [desktop-chromium] › e2e/terminal-audio.spec.mjs:789:1 › Listen here plays only the current background reply without changing focus or microphone routing (4.0s)
+  ✓  3 [tablet-chromium] › e2e/terminal-audio.spec.mjs:719:1 › background sound shows a navigation toast while only the selected pane is audible (2.0s)
+  ✓  4 [tablet-chromium] › e2e/terminal-audio.spec.mjs:789:1 › Listen here plays only the current background reply without changing focus or microphone routing (4.1s)
+  ✓  5 [mobile-chromium] › e2e/terminal-audio.spec.mjs:719:1 › background sound shows a navigation toast while only the selected pane is audible (2.0s)
+  ✓  6 [mobile-chromium] › e2e/terminal-audio.spec.mjs:789:1 › Listen here plays only the current background reply without changing focus or microphone routing (4.0s)
+
+  6 passed (20.9s)

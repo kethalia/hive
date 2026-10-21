@@ -4,6 +4,7 @@ import type { FitAddon } from "@xterm/addon-fit";
 import type { Terminal } from "@xterm/xterm";
 import { AlertCircle, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -599,6 +600,7 @@ function TerminalRuntime({
     onConnectionStateChange?.(connectionState);
   }, [connectionState, onConnectionStateChange]);
 
+  const router = useRouter();
   const sendRef = useRef(send);
   const resizeRef = useRef(resize);
   sendRef.current = send;
@@ -1332,6 +1334,16 @@ function TerminalRuntime({
           workspaceId={workspaceId}
           agentId={agentId}
           sessionName={sessionName}
+          label={targetLabel}
+          onFocusTerminal={() => {
+            onUserFocusRequest?.();
+            if (!mobileInputModeRef.current) termRef.current?.focus();
+          }}
+          onStartVoice={() => {
+            // Codex's F8 voice action preserves the composer, including unsent drafts.
+            sendRef.current(encodeInput("\x1b[19~"));
+          }}
+          onNavigate={(url) => router.push(url)}
         />
       ) : null}
       {connectionState === "workspace-offline" && (

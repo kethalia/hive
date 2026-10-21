@@ -3,10 +3,39 @@ export type TerminalAudioStatus =
   | { phase: "request"; message: string; requestId: number }
   | { phase: "connecting" | "active" | "paused" | "error"; message: string };
 
+export type AudioDevicePhase = "disconnected" | "connecting" | "connected" | "paused";
+export type TerminalAudioDevices = {
+  microphone: AudioDevicePhase;
+  speaker: AudioDevicePhase;
+  playing: boolean;
+  focused: boolean;
+  microphoneMuted: boolean;
+  speakerMuted: boolean;
+  listeningHere: boolean;
+};
+
+// Native audio supplies PCM without reply boundaries; a quiet interval ends the exception.
+const REPLY_SILENCE_MS = 2000;
+
 const microphoneOwners = new Map<string, TerminalAudio>();
 
 /** Native activity requests audio; only explicit browser approval starts capture. */
 export class TerminalAudio {
+  private microphoneMuted = false;
+  private speakerStopped = false;
+  private speakerMuted = false;
+  private listeningHere = false;
+  private listenTimer: ReturnType<typeof setTimeout> | undefined;
+  private monitorPaused: boolean | undefined;
+  private playbackPaused: boolean | undefined;
+  private pageActive = true;
+  private playing = false;
+  private lastSound = 0;
+  private soundTimer: ReturnType<typeof setTimeout> | undefined;
+  private startTimer: ReturnType<typeof setTimeout> | undefined;
+  private startDevice: "microphone" | "speaker" | null = null;
+  private microphoneConnecting = false;
+  private microphoneAttempt = 0;
   private socket: WebSocket | null = null;
   private context: AudioContext | null = null;
   private stream: MediaStream | null = null;
@@ -54,7 +83,171 @@ export class TerminalAudio {
     private onStatus: (status: TerminalAudioStatus) => void,
     private canStart: () => boolean = () => true,
     private authorizeConnection?: (url: string) => Promise<string[]>,
+    private onDevices?: (devices: TerminalAudioDevices) => void,
   ) {}
+
+  private publishDevices() {
+    const running = this.context?.state === "running" && !this.frozen && this.pageActive;
+    this.onDevices?.({
+      microphone: this.stream
+        ? this.microphoneMuted || !this.mediaFocused() || !running
+          ? "paused"
+          : "connected"
+        : this.microphoneConnecting || this.startDevice === "microphone"
+          ? "connecting"
+          : "disconnected",
+      speaker: this.speakerStopped
+        ? "disconnected"
+        : this.worklet
+          ? this.speakerMuted || (!this.mediaFocused() && !this.listeningHere) || !running
+            ? "paused"
+            : "connected"
+          : (!this.worklet && this.ownsCall) || this.startDevice === "speaker"
+            ? "connecting"
+            : "disconnected",
+      playing: this.playing,
+      focused: this.mediaFocused(),
+      microphoneMuted: this.microphoneMuted,
+      speakerMuted: this.speakerMuted,
+      listeningHere: this.listeningHere,
+    });
+  }
+
+  /** A menu click approves one bounded start, canceled on focus loss or replacement. */
+  connectDevice(device: "microphone" | "speaker", startNativeVoice: () => void) {
+    if (this.disposed || !this.mediaFocused() || this.pendingMicrophone || this.startDevice) return;
+    this.prime();
+    if (device === "speaker") this.speakerStopped = false;
+    if (this.worklet) {
+      if (device === "speaker") {
+        this.speakerStopped = this.speakerMuted = false;
+        this.updateMediaFocus();
+      } else if (!this.stream) void this.attachMicrophone(this.generation);
+      return;
+    }
+    if (this.ownsCall) return;
+    this.failed = this.ownerRejected = false;
+    if (this.nativeActive) {
+      void this.activate(device === "microphone");
+      return;
+    }
+    this.startDevice = device;
+    this.onStatus({ phase: "connecting", message: "Starting native voice…" });
+    this.publishDevices();
+    this.startTimer = setTimeout(() => {
+      this.cancelStart();
+      this.onStatus({
+        phase: "error",
+        message: "Voice did not start. Open Codex and check that its F8 voice shortcut is enabled.",
+      });
+    }, 8000);
+    startNativeVoice();
+  }
+
+  private cancelStart() {
+    clearTimeout(this.startTimer);
+    this.startTimer = undefined;
+    this.startDevice = null;
+    this.publishDevices();
+  }
+
+  setPageActive(active: boolean) {
+    if (this.disposed || this.pageActive === active) return;
+    this.pageActive = active;
+    this.refreshFocus();
+  }
+
+  toggleMicrophone() {
+    if (!this.stream) return;
+    this.microphoneMuted = !this.microphoneMuted;
+    this.updateMediaFocus();
+  }
+
+  toggleSpeaker() {
+    if (!this.worklet || this.speakerStopped) return;
+    this.speakerMuted = !this.speakerMuted;
+    this.updateMediaFocus();
+  }
+
+  stopSpeaker() {
+    this.speakerStopped = true;
+    this.updateMediaFocus();
+    if (!this.stream && !this.pendingMicrophone && !this.microphoneConnecting)
+      this.stopMicrophone();
+  }
+
+  /** Play this live reply without changing the selected pane or enabling its microphone. */
+  listenToCurrentReply() {
+    if (
+      this.disposed ||
+      !this.worklet ||
+      !this.context ||
+      !this.ownsCall ||
+      !this.pageActive ||
+      this.frozen ||
+      this.speakerStopped ||
+      this.speakerMuted ||
+      Date.now() - this.lastSound >= REPLY_SILENCE_MS
+    )
+      return false;
+    if (this.listeningHere) return true;
+    this.listeningHere = true;
+    const context = this.context;
+    if (context.state !== "running") {
+      void context.resume().then(
+        () => {
+          if (this.context === context) this.updateMediaFocus();
+        },
+        () => {
+          if (this.context !== context) return;
+          this.cancelListenHere();
+          this.updateMediaFocus();
+          this.onStatus({
+            phase: "error",
+            message: "Could not play this reply. Try listening again.",
+          });
+        },
+      );
+    }
+    const check = () => {
+      const remaining = REPLY_SILENCE_MS - (Date.now() - this.lastSound);
+      if (remaining > 0) this.listenTimer = setTimeout(check, remaining);
+      else {
+        this.cancelListenHere();
+        this.updateMediaFocus();
+      }
+    };
+    this.listenTimer = setTimeout(check, REPLY_SILENCE_MS - (Date.now() - this.lastSound));
+    this.updateMediaFocus();
+    return true;
+  }
+
+  private cancelListenHere() {
+    clearTimeout(this.listenTimer);
+    this.listenTimer = undefined;
+    this.listeningHere = false;
+  }
+
+  private clearSound() {
+    clearTimeout(this.soundTimer);
+    this.soundTimer = undefined;
+    this.playing = false;
+  }
+
+  private markSound() {
+    this.lastSound = Date.now();
+    if (this.playing) return;
+    this.playing = true;
+    this.publishDevices();
+    const check = () => {
+      if (Date.now() - this.lastSound < 200) this.soundTimer = setTimeout(check, 200);
+      else {
+        this.clearSound();
+        this.publishDevices();
+      }
+    };
+    this.soundTimer = setTimeout(check, 200);
+  }
 
   /** Called synchronously from Enter so playback can use the browser's user activation. */
   prime() {
@@ -85,6 +278,20 @@ export class TerminalAudio {
 
   stopMicrophone() {
     if (this.disposed) return;
+    this.cancelStart();
+    this.microphoneAttempt++;
+    this.microphoneConnecting = false;
+    for (const track of this.stream?.getTracks() ?? []) {
+      track.onended = null;
+      track.stop();
+    }
+    this.stream = null;
+    this.source?.disconnect();
+    this.source = null;
+    if (this.worklet && !this.speakerStopped) {
+      this.updateMediaFocus();
+      return;
+    }
     this.failed = false;
     this.disconnect();
     this.refreshFocus();
@@ -109,6 +316,10 @@ export class TerminalAudio {
     const focused = this.mediaFocused();
     if (focused && !this.focused && this.ownsCall) this.probeHeartbeat();
     this.focused = focused;
+    if (!focused && this.startDevice) {
+      this.cancelStart();
+      this.onStatus({ phase: "standby" });
+    }
     this.updateMediaFocus();
     if (this.ownsCall || this.pendingMicrophone) return;
     if (focused) {
@@ -118,17 +329,30 @@ export class TerminalAudio {
   }
 
   private mediaFocused() {
-    return this.visible && !this.frozen && this.canStart();
+    return this.visible && this.pageActive && !this.frozen && this.canStart();
   }
 
   private updateMediaFocus() {
     this.updateClaimFocus?.();
     this.resumePending?.updateFocus();
     const focused = this.mediaFocused();
-    const paused = !focused || (this.context !== null && this.context.state !== "running");
+    const suspended = this.context !== null && this.context.state !== "running";
+    const paused = !focused || this.microphoneMuted || !this.stream || suspended;
+    const monitorPaused =
+      this.frozen || !this.pageActive || this.speakerStopped || this.speakerMuted || suspended;
+    if (focused || this.frozen || !this.pageActive || this.speakerStopped || this.speakerMuted)
+      this.cancelListenHere();
+    const playbackPaused = (!focused && !this.listeningHere) || monitorPaused;
+    this.publishDevices();
     for (const track of this.stream?.getTracks() ?? []) track.enabled = !paused;
     if (!this.worklet) return;
-    if (focused && this.context && this.context.state !== "running" && !this.resumePending) {
+    if (
+      this.pageActive &&
+      !this.frozen &&
+      this.context &&
+      this.context.state !== "running" &&
+      !this.resumePending
+    ) {
       const context = this.context;
       void this.resumeContext(context).then(
         () => {
@@ -140,20 +364,47 @@ export class TerminalAudio {
         },
       );
     }
-    if (this.mediaPaused === paused && this.mediaFocus === focused) return;
+    if (
+      this.mediaPaused === paused &&
+      this.mediaFocus === focused &&
+      this.playbackPaused === playbackPaused &&
+      this.monitorPaused === monitorPaused
+    )
+      return;
     this.mediaFocus = focused;
-    if (this.mediaPaused !== paused) {
+    if (
+      this.mediaPaused !== paused ||
+      this.playbackPaused !== playbackPaused ||
+      this.monitorPaused !== monitorPaused
+    ) {
+      this.monitorPaused = monitorPaused;
       this.mediaPaused = paused;
+      this.playbackPaused = playbackPaused;
+      if (monitorPaused) {
+        this.clearSound();
+        this.publishDevices();
+      }
       this.mediaGeneration++;
       if (this.generationSupported)
-        this.send({ type: "playback", enabled: !paused, generation: this.mediaGeneration });
+        this.send({ type: "playback", enabled: !monitorPaused, generation: this.mediaGeneration });
       // Clear both audio buffers so resuming cannot replay speech from before pausing.
-      this.worklet.port.postMessage({ type: "pause", paused, generation: this.mediaGeneration });
+      this.worklet.port.postMessage({
+        type: "pause",
+        paused,
+        playbackPaused,
+        generation: this.mediaGeneration,
+      });
+    }
+    if (this.listeningHere && !focused) {
+      this.onStatus({ phase: "active", message: "Listening to this reply here" });
+      return;
     }
     this.onStatus(
       paused
         ? focused
-          ? { phase: "connecting", message: "Resuming voice…" }
+          ? suspended
+            ? { phase: "connecting", message: "Resuming voice…" }
+            : { phase: "paused", message: this.stream ? "Microphone paused" : "Speakers connected" }
           : { phase: "paused", message: "Voice paused — focus this pane to resume" }
         : { phase: "active", message: "Voice connected" },
     );
@@ -303,7 +554,10 @@ export class TerminalAudio {
         }
         this.nativeActive = value.active;
         if (value.active) {
-          this.requestMicrophone();
+          const device = this.startDevice;
+          this.cancelStart();
+          if (device && this.mediaFocused()) void this.activate(device === "microphone");
+          else this.requestMicrophone();
         } else {
           const preserveError = this.failed && !this.ownerRejected;
           this.releaseMedia();
@@ -313,16 +567,27 @@ export class TerminalAudio {
         }
       } else if (value?.type === "speaker" && typeof value.pcm === "string" && this.worklet) {
         if (
-          !this.mediaFocused() ||
-          this.mediaPaused ||
+          this.frozen ||
+          !this.pageActive ||
+          this.speakerStopped ||
+          this.speakerMuted ||
           value.pcm.length > 1280 ||
           (this.generationSupported && value.generation !== this.mediaGeneration)
         )
           return;
         try {
           const bytes = Uint8Array.from(atob(value.pcm), (char) => char.charCodeAt(0));
-          if (bytes.length <= 960 && bytes.length % 2 === 0)
-            this.worklet.port.postMessage(bytes.buffer, [bytes.buffer]);
+          if (bytes.length <= 960 && bytes.length % 2 === 0) {
+            const samples = new DataView(bytes.buffer);
+            for (let at = 0; at < bytes.length; at += 2) {
+              if (Math.abs(samples.getInt16(at, true)) > 256) {
+                this.markSound();
+                break;
+              }
+            }
+            if (!this.playbackPaused && (this.mediaFocused() || this.listeningHere))
+              this.worklet.port.postMessage(bytes.buffer, [bytes.buffer]);
+          }
         } catch {
           /* Reject malformed media without retaining it. */
         }
@@ -376,9 +641,8 @@ export class TerminalAudio {
       });
   }
 
-  // Only approveMicrophone calls this, for one live request. No permission is
-  // carried into the next capture, relay reconnect, or component instance.
-  private async activate() {
+  // Explicit approval or a bounded menu start owns exactly one native call.
+  private async activate(microphone = true) {
     if (this.pendingMicrophone) {
       this.fail("Finish the microphone permission request, then run /voice again.");
       return;
@@ -395,11 +659,14 @@ export class TerminalAudio {
         throw new Error("Voice is already connected in another view of this terminal.");
       if (
         !window.isSecureContext ||
-        !navigator.mediaDevices?.getUserMedia ||
+        (microphone && !navigator.mediaDevices?.getUserMedia) ||
         !window.AudioWorkletNode
       )
         throw new Error("Voice needs HTTPS and a browser with microphone and Web Audio support.");
+      this.speakerStopped = this.speakerMuted = this.microphoneMuted = false;
       this.ownsCall = true;
+      this.microphoneConnecting = microphone;
+      this.publishDevices();
       microphoneOwners.set(this.url, this);
       // The same origin's tabs and installed PWA windows share this lock.
       if (navigator.locks) {
@@ -459,10 +726,73 @@ export class TerminalAudio {
         if (!current()) return;
       }
       this.failed = false;
-      this.onStatus({
-        phase: "connecting",
-        message: "Connecting voice… Allow microphone access when prompted.",
+      this.microphoneConnecting = microphone;
+      this.publishDevices();
+      this.onStatus({ phase: "connecting", message: "Connecting voice…" });
+      if (microphone) await this.attachMicrophone(generation);
+      if (!current()) return;
+      this.context ??= new AudioContext({ sampleRate: 48_000 });
+      const context = this.context;
+      context.onstatechange = () => {
+        if (this.context !== context) return;
+        this.resumePending?.checkRunning();
+        this.updateMediaFocus();
+      };
+      if (context.sampleRate !== 48_000)
+        throw new Error("This browser does not support the voice audio format.");
+      await context.audioWorklet.addModule("/hive-audio-worklet.js?independent-devices=2");
+      if (!current()) return;
+      await this.resumeContext(context);
+      if (!current()) return;
+      if (context.state !== "running") throw new Error("Click Connect to enable spoken replies.");
+      const worklet = new AudioWorkletNode(context, "hive-terminal-audio", {
+        outputChannelCount: [1],
       });
+      this.worklet = worklet;
+      worklet.port.onmessage = ({ data }) => {
+        if (
+          !current() ||
+          !this.mediaFocused() ||
+          this.mediaPaused ||
+          !this.stream ||
+          data?.generation !== this.mediaGeneration ||
+          !(data?.pcm instanceof ArrayBuffer) ||
+          data.pcm.byteLength !== 960
+        )
+          return;
+        this.send({
+          type: "microphone",
+          pcm: btoa(String.fromCharCode(...new Uint8Array(data.pcm))),
+        });
+      };
+      worklet.onprocessorerror = () => {
+        if (current()) this.fail("Voice audio stopped. Connect again to retry.");
+      };
+      if (this.stream) {
+        this.source = context.createMediaStreamSource(this.stream);
+        this.source.connect(worklet);
+      }
+      this.updateMediaFocus();
+      worklet.connect(context.destination);
+    } catch (error) {
+      if (!current()) return;
+      this.fail(error instanceof Error ? error.message : "Could not connect voice audio.");
+    }
+  }
+
+  private async attachMicrophone(generation: number) {
+    if (this.pendingMicrophone || this.stream || !this.mediaFocused()) return;
+    const attempt = ++this.microphoneAttempt;
+    const current = () =>
+      !this.disposed &&
+      this.ownsCall &&
+      generation === this.generation &&
+      attempt === this.microphoneAttempt;
+    this.microphoneConnecting = true;
+    this.publishDevices();
+    try {
+      if (!navigator.mediaDevices?.getUserMedia)
+        throw new Error("Microphone access is unavailable in this browser.");
       this.pendingMicrophone = true;
       let stream: MediaStream;
       try {
@@ -475,7 +805,7 @@ export class TerminalAudio {
         // getUserMedia cannot be canceled. Keep its reservation until it settles,
         // even when the terminal was hidden or native capture ended meanwhile.
         if (!current()) {
-          this.releaseOwnership();
+          if (!this.ownsCall || generation !== this.generation) this.releaseOwnership();
           this.refreshFocus();
         }
       }
@@ -487,61 +817,33 @@ export class TerminalAudio {
       this.updateMediaFocus();
       for (const track of stream.getTracks())
         track.onended = () => {
-          if (current()) this.fail("Microphone access ended. Run /voice again to reconnect.");
+          if (!current()) return;
+          const message = "Microphone access ended. Connect the microphone again to retry.";
+          if (this.worklet && !this.speakerStopped) {
+            this.stopMicrophone();
+            this.onStatus({ phase: "error", message });
+          } else this.fail(message);
         };
-      this.context ??= new AudioContext({ sampleRate: 48_000 });
-      const context = this.context;
-      context.onstatechange = () => {
-        if (this.context !== context) return;
-        this.resumePending?.checkRunning();
-        this.updateMediaFocus();
-      };
-      if (context.sampleRate !== 48_000)
-        throw new Error("This browser does not support the voice audio format.");
-      // A distinct URL prevents cached older worklets from using untagged capture.
-      await context.audioWorklet.addModule("/hive-audio-worklet.js?capture-generation=1");
-      if (!current()) return;
-      await this.resumeContext(context);
-      if (!current()) return;
-      if (context.state !== "running")
-        throw new Error(
-          "Press Enter in the terminal to enable spoken replies, then run /voice again.",
-        );
-      const worklet = new AudioWorkletNode(context, "hive-terminal-audio", {
-        outputChannelCount: [1],
-      });
-      this.worklet = worklet;
-      worklet.port.onmessage = ({ data }) => {
-        if (
-          !current() ||
-          !this.mediaFocused() ||
-          this.mediaPaused ||
-          data?.generation !== this.mediaGeneration ||
-          !(data?.pcm instanceof ArrayBuffer) ||
-          data.pcm.byteLength !== 960
-        )
-          return;
-        this.send({
-          type: "microphone",
-          pcm: btoa(String.fromCharCode(...new Uint8Array(data.pcm))),
-        });
-      };
-      worklet.onprocessorerror = () => {
-        if (current()) this.fail("Voice audio stopped. Run /voice again to reconnect.");
-      };
-      this.source = context.createMediaStreamSource(stream);
+      this.microphoneMuted = false;
+      if (this.context && this.worklet) {
+        this.source = this.context.createMediaStreamSource(stream);
+        this.source.connect(this.worklet);
+      }
+      this.microphoneConnecting = false;
       this.updateMediaFocus();
-      this.source.connect(worklet);
-      worklet.connect(context.destination);
     } catch (error) {
       if (!current()) return;
-      this.fail(
+      const message =
         error instanceof DOMException && error.name === "NotAllowedError"
           ? "Microphone access was denied. Allow it in your browser, then run /voice again."
           : error instanceof Error
             ? error.message
-            : "Could not connect voice audio.",
-      );
+            : "Could not connect voice audio.";
+      this.microphoneConnecting = false;
+      if (this.worklet) {
+        this.stopMicrophone();
+        this.onStatus({ phase: "error", message });
+      } else this.fail(message);
     }
   }
 
@@ -600,9 +902,15 @@ export class TerminalAudio {
   }
 
   private releaseMedia() {
+    this.cancelStart();
+    this.clearSound();
+    this.cancelListenHere();
     this.generation++;
+    this.microphoneConnecting = false;
     this.ownsCall = false;
     this.mediaPaused = undefined;
+    this.playbackPaused = undefined;
+    this.monitorPaused = undefined;
     this.mediaFocus = undefined;
     this.pendingPlayback = null;
     clearTimeout(this.playbackRetry);
@@ -632,6 +940,7 @@ export class TerminalAudio {
       this.context = null;
     }
     this.releaseOwnership();
+    this.publishDevices();
   }
 
   private releaseOwnership() {
