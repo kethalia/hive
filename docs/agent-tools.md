@@ -7,6 +7,8 @@ and the TypeScript language-server binary. Refresh runs the checks again; the pa
 not poll in the background. Only the Coder workspace owner can read this inventory
 or change agent setup.
 
+Connection inventories are limited to 200 entries per agent.
+
 Configured does not mean connected. Use `/mcp` inside the relevant agent for live
 connection status, reconnecting, OAuth, and project-specific or plugin-provided
 tools. Codex hook trust remains in `/hooks`. Inventory never starts an MCP server,
@@ -29,6 +31,8 @@ including symlink targets and custom configuration directories, are preserved.
 Restart agents afterward and review the new Codex hooks in `/hooks`. Tracking is
 independent of push notifications. **Disable tracking** removes only these hooks;
 restart agents to apply the change. Previously recorded sessions remain available.
+Tracking setup and notification Connect/Reconnect share a configuration lock so
+concurrent updates preserve both sets of hooks and unrelated user configuration.
 
 Sessions appear after tracking is enabled. Existing conversations are recorded
 when resumed in the native agent; Hive does not import or parse old transcripts.

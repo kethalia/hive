@@ -1,10 +1,15 @@
+import concurrent.futures
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
+import runpy
 import stat
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 import uuid
@@ -72,6 +77,63 @@ class AgentToolsTests(unittest.TestCase):
             tools.install(SOURCE.read_text())
         self.assertFalse(tools.hook_configs()["codex"].exists())
         self.assertFalse((tools.root() / "agent-tools.py").exists())
+
+    def test_tracking_mutations_serialize_with_notification_install(self):
+        installer = SOURCE.parents[3] / "scripts/notifications/install.py"
+        bundle = {"url": "https://hive.test/api/notifications/events", "token": "fixture", "hook": "# fixture"}
+        for operation in ("install", "disable"):
+            with self.subTest(operation=operation):
+                for path in tools.hook_configs().values():
+                    self.write(path, {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "user-custom"}]}]}})
+                if operation == "disable":
+                    tools.install(SOURCE.read_text())
+                notification_ready = threading.Event()
+                release_notification = threading.Event()
+                tracking_progress = threading.Event()
+                replace = os.replace
+                flock = tools.fcntl.flock
+
+                def pause_notification(source, target):
+                    if Path(target).name == "agent-hook.py":
+                        notification_ready.set()
+                        if not release_notification.wait(5):
+                            raise TimeoutError("Notification test synchronization timed out")
+                    return replace(source, target)
+
+                def observe_lock(handle, mode):
+                    try:
+                        return flock(handle, mode)
+                    except BlockingIOError:
+                        tracking_progress.set()
+                        raise
+
+                def change_tracking():
+                    try:
+                        return tools.install(SOURCE.read_text()) if operation == "install" else tools.disable_tracking()
+                    finally:
+                        tracking_progress.set()
+
+                with patch.object(os, "replace", side_effect=pause_notification), \
+                        patch.object(tools.fcntl, "flock", side_effect=observe_lock), \
+                        patch("sys.stdin", io.StringIO(json.dumps(bundle))), \
+                        contextlib.redirect_stdout(io.StringIO()), \
+                        concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                    notification = pool.submit(runpy.run_path, str(installer))
+                    try:
+                        self.assertTrue(notification_ready.wait(5))
+                        tracking = pool.submit(change_tracking)
+                        self.assertTrue(tracking_progress.wait(5))
+                    finally:
+                        release_notification.set()
+                    notification.result(timeout=5)
+                    tracking.result(timeout=5)
+
+                for agent, path in tools.hook_configs().items():
+                    hooks = json.loads(path.read_text())["hooks"]["Stop"]
+                    commands = [hook["command"] for group in hooks for hook in group["hooks"]]
+                    self.assertIn("user-custom", commands)
+                    self.assertTrue(any("agent-hook.py" in command for command in commands))
+                    self.assertEqual(tools.hook_command(agent) in commands, operation == "install")
 
     def test_hook_records_only_metadata_and_reports_offline_after_process_exit(self):
         event = {"session_id": self.id, "cwd": str(self.cwd), "hook_event_name": "PreToolUse",
@@ -161,6 +223,21 @@ class AgentToolsTests(unittest.TestCase):
         self.assertEqual(result["auth"], "signed-in")
         self.assertEqual(result["plugins"][0]["enabled"], False)
         self.assertEqual(result["connections"][0]["name"], "vendor")
+
+    def test_codex_inventory_bounds_connections_without_exposing_credentials(self):
+        for count in (0, 200, 205):
+            with self.subTest(count=count):
+                entries = [{"name": f"server-{i}", "enabled": i % 2 == 0, "auth_status": "unsupported",
+                            "env": {"TOKEN": "secret"}} for i in range(count)]
+                outputs = [(0, "codex-cli 0.163.0"), (0, "Logged in"), (0, json.dumps(entries)), (0, '[]')]
+                with patch.object(tools, "run", side_effect=outputs):
+                    result = tools.inventory("codex")
+                self.assertEqual(result["connections"], [
+                    {"name": item["name"], "enabled": item["enabled"], "auth": "unsupported"}
+                    for item in entries[:200]
+                ])
+                self.assertEqual(result["warnings"], [])
+                self.assertNotIn("secret", json.dumps(result))
 
     def test_coder_setup_uses_read_only_allowlist_and_preserves_user_entry(self):
         self.write(tools.claude_user_config(), {"mcpServers": {"hive_coder": {"command": "custom"}}})

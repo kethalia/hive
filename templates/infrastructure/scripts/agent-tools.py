@@ -70,13 +70,14 @@ def atomic_write(path, content):
 
 
 @contextlib.contextmanager
-def locked():
-    directory = root()
+def locked(path=None):
+    path = path or root() / "lock"
+    directory = path.parent
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     if directory.is_symlink():
         raise ValueError("Agent storage must be a private directory")
     directory.chmod(0o700)
-    with (directory / "lock").open("a") as lock:
+    with path.open("a") as lock:
         deadline = time.monotonic() + 3
         while True:
             try:
@@ -124,8 +125,15 @@ def hook_configs():
             "claude": config_dir("claude") / "settings.json"}
 
 
+def hook_config_lock():
+    # Share the existing notification installer lock, including deployed versions.
+    # Acquire this before the agent lock so notification setup does not hold up
+    # session metadata writes while a tracking configuration change waits.
+    return locked(Path.home() / ".local/share/hive/notifications/install.lock")
+
+
 def install(source):
-    with locked():
+    with hook_config_lock(), locked():
         updates = []
         # Validate both files before writing anything; merge only our exact hooks.
         for agent, path in hook_configs().items():
@@ -148,7 +156,7 @@ def install(source):
 
 
 def disable_tracking():
-    with locked():
+    with hook_config_lock(), locked():
         updates = []
         for agent, path in hook_configs().items():
             config = read_json(path)
@@ -287,7 +295,7 @@ def inventory(agent):
         try:
             if code != 0:
                 raise ValueError()
-            for entry in json.loads(output):
+            for entry in json.loads(output)[:200]:
                 result["connections"].append({"name": text(entry["name"]), "enabled": entry.get("enabled", True),
                     "auth": text(entry.get("auth_status", "unknown"))})
         except (ValueError, KeyError, TypeError, AttributeError):
