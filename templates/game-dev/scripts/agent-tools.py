@@ -254,10 +254,13 @@ def public_sessions():
             if not directory.is_absolute() or not directory.is_relative_to(Path.home()):
                 continue
             running = alive(record)
+            state = record["state"]
+            if not running and state not in ("ended", "failed"):
+                state = "offline"
             result.append({"key": key, "agent": record["agent"], "id": record["id"],
                            "directory": str(directory.relative_to(Path.home())) or ".",
                            "project": text(record["project"]), "updatedAt": record["updatedAt"],
-                           "state": record["state"] if running else "offline", "running": running,
+                           "state": state, "running": running,
                            "directoryExists": directory.is_dir()})
         return sorted(result, key=lambda item: item["updatedAt"], reverse=True)[:200]
     except (OSError, ValueError, TypeError, KeyError):
@@ -297,13 +300,24 @@ def inventory(agent):
             result["auth"] = "signed-in" if auth.get("loggedIn") is True else ("signed-out" if auth.get("loggedIn") is False else "unknown")
         except (ValueError, TypeError, AttributeError):
             pass
-        try:
-            # User configuration only; project overrides and plugin tools remain visible in /mcp.
-            settings = read_json(claude_user_config())
-            for name in settings.get("mcpServers", {}):
-                result["connections"].append({"name": text(name), "enabled": True, "auth": "unknown"})
-        except (OSError, ValueError, TypeError, AttributeError):
-            result["warnings"].append("User MCP configuration could not be read.")
+        # Include the home-level files seeded by init.sh even with a custom config
+        # directory. Project overrides and plugin tools remain visible in /mcp.
+        paths = dict.fromkeys((claude_user_config(), config_dir("claude") / "mcp.json",
+                              Path.home() / ".claude/mcp.json", Path.home() / ".mcp.json"))
+        names = set()
+        unreadable = False
+        for path in paths:
+            try:
+                servers = read_json(path).get("mcpServers", {})
+                if not isinstance(servers, dict):
+                    raise ValueError("Invalid MCP configuration")
+                names.update(text(name) for name in servers if text(name))
+            except (OSError, ValueError, TypeError, AttributeError):
+                unreadable = True
+        result["connections"] = [{"name": name, "enabled": True, "auth": "unknown"}
+                                 for name in sorted(names)[:200]]
+        if unreadable:
+            result["warnings"].append("Some Claude MCP configuration could not be read.")
         code, output = run(["claude", "plugin", "list", "--json"])
     try:
         if code != 0:

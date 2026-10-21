@@ -234,7 +234,7 @@ export function AgentToolsDialog({
                         ))}
                       </ul>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        User-level inventory. Check /mcp in this agent for live connections and
+                        Workspace and user configuration. Check /mcp for live connections and
                         project-specific tools.
                       </p>
                     </details>

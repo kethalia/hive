@@ -2,8 +2,8 @@
 
 Open **Agents** in a workspace terminal header, or **Agent tools and sessions** in
 the workspace command palette. The panel checks installed CLI versions, agent
-sign-in, user-level MCP configuration, installed plugins, tracking hooks, and the
-TypeScript language-server binary. Refresh runs the checks again; the panel does
+sign-in, workspace and user MCP configuration, installed plugins, tracking hooks,
+and the TypeScript language-server binary. Refresh runs the checks again; the panel does
 not poll in the background. Only the Coder workspace owner can read this inventory
 or change agent setup.
 
@@ -13,6 +13,13 @@ tools. Codex hook trust remains in `/hooks`. Inventory never starts an MCP serve
 changes approval rules, or automatically authenticates an account. Unsupported
 CLI commands are reported as unavailable. An installed language-server binary and
 plugin are prerequisites, not proof that a particular project has loaded its LSP.
+
+Claude inventory combines its user configuration with the workspace-managed
+`~/.claude/mcp.json` and `~/.mcp.json` files, plus `mcp.json` under a custom
+`CLAUDE_CONFIG_DIR` when set. Duplicate server names appear once. Only names are
+read into the inventory; server URLs, arguments, environment values, and headers
+are excluded. An unreadable file produces a warning while other files remain
+visible.
 
 ## Tracking and recovery
 
@@ -42,8 +49,10 @@ a missing directory or a directory outside the workspace home. Missing native
 conversation data is handled by the native agent's resume interface.
 
 Lifecycle status reflects the last observed hook. Ready does not guarantee that
-the broader task is complete. Process identity includes the Linux boot ID and
-start time, so workspace restarts and PID reuse cannot keep an old process marked
+the broader task is complete. Ended and failed states remain visible after process
+exit; other inactive sessions appear as not running. The separate `running` flag
+controls whether the panel offers Open or Resume. Process identity includes the
+Linux boot ID and start time, so workspace restarts and PID reuse cannot keep an old process marked
 running. Workspace shutdown ends terminals; the local session index survives on
 the persistent home volume. Shell jobs and old terminal output are not restored.
 

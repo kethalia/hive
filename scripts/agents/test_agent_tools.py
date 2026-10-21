@@ -95,6 +95,24 @@ class AgentToolsTests(unittest.TestCase):
         self.assertEqual(len(tools.public_sessions()), 1)
         self.assertFalse(tools.public_sessions()[0]["running"])
 
+    def test_terminal_hook_states_survive_process_exit(self):
+        for event_name, state in [("SessionEnd", "ended"), ("StopFailure", "failed")]:
+            with self.subTest(event=event_name):
+                with patch.object(tools, "agent_process", return_value=(111, "boot:1")):
+                    tools.track("claude", {"session_id": self.id, "cwd": str(self.cwd),
+                                           "hook_event_name": event_name})
+                with patch.object(tools, "process_identity", return_value=None):
+                    row = tools.public_sessions()[0]
+                self.assertEqual(row["state"], state)
+                self.assertFalse(row["running"])
+
+    def test_failed_turn_keeps_live_process_available(self):
+        self.record(state="failed", pid=111, processIdentity="boot:1")
+        with patch.object(tools, "process_identity", return_value="boot:1"):
+            row = tools.public_sessions()[0]
+        self.assertEqual(row["state"], "failed")
+        self.assertTrue(row["running"])
+
     def test_resume_uses_fixed_argument_vector_and_recorded_directory(self):
         key = self.record()
         with patch.object(tools.shutil, "which", side_effect=lambda name: "/bin/codex" if name == "codex" else None), \
@@ -156,6 +174,41 @@ class AgentToolsTests(unittest.TestCase):
         self.assertNotIn("task", args[-1])
         self.assertNotIn("create", args[-1])
         self.assertEqual(json.loads(tools.claude_user_config().read_text())["mcpServers"]["hive_coder"], {"command": "custom"})
+
+    def test_claude_inventory_combines_managed_and_custom_configs_without_secrets(self):
+        custom = self.home / "custom-claude"
+        definition = {"url": "https://private.example", "args": ["secret-argument"],
+                      "env": {"TOKEN": "secret-token"}, "headers": {"Authorization": "secret-header"}}
+        with patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(custom)}):
+            for path, names in [
+                (tools.claude_user_config(), ["hive_coder", "hive_playwright"]),
+                (custom / "mcp.json", ["custom_tool"]),
+                (self.home / ".claude/mcp.json", ["hive_playwright", "claude_tool"]),
+                (self.home / ".mcp.json", ["hive_playwright", "home_tool"]),
+            ]:
+                self.write(path, {"mcpServers": {name: definition for name in names}})
+            with patch.object(tools, "run", side_effect=[(0, "2.1.170"), (0, '{"loggedIn": true}'), (0, '[]')]):
+                result = tools.inventory("claude")
+        self.assertEqual(result["connections"], [
+            {"name": name, "enabled": True, "auth": "unknown"}
+            for name in ["claude_tool", "custom_tool", "hive_coder", "hive_playwright", "home_tool"]
+        ])
+        self.assertNotIn("secret", json.dumps(result))
+        self.assertNotIn("private", json.dumps(result))
+        self.assertEqual(result["warnings"], [])
+
+    def test_claude_inventory_reads_other_configs_when_one_is_malformed(self):
+        self.write(self.home / ".mcp.json", {"mcpServers": {"hive_playwright": {}}})
+        path = tools.claude_user_config()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        for content in ['invalid "secret"', '{"mcpServers": ["secret"]}']:
+            with self.subTest(content=content):
+                path.write_text(content)
+                with patch.object(tools, "run", side_effect=[(0, "2.1.170"), (0, '{"loggedIn": true}'), (0, '[]')]):
+                    result = tools.inventory("claude")
+                self.assertEqual([item["name"] for item in result["connections"]], ["hive_playwright"])
+                self.assertEqual(result["warnings"], ["Some Claude MCP configuration could not be read."])
+                self.assertNotIn("secret", json.dumps(result))
 
     def test_specialists_cannot_configure_coder(self):
         with patch.dict(os.environ, {"HIVE_WORKSPACE_PROFILE": "browser"}), patch.object(tools, "run") as run:
