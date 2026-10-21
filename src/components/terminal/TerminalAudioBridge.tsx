@@ -131,9 +131,11 @@ export function TerminalAudioBridge({
     );
     controller.current = audio;
     let inView = false;
+    let headerOwner: Element | null = null;
     const update = () => {
       const frame = terminal.closest('[data-terminal-audio-frame="true"]');
       const shell = terminal.closest('[data-terminal-audio-shell="true"]');
+      headerOwner = frame ?? shell;
       setHeader(
         frame?.querySelector('[data-terminal-audio-slot="true"]') ??
           shell?.querySelector('[data-terminal-audio-slot="true"]') ??
@@ -144,19 +146,43 @@ export function TerminalAudioBridge({
       audio.refreshFocus();
     };
     const focus = () => queueMicrotask(update);
+    // Watch the ancestor chain without subscribing to xterm output or other panes.
+    // A move removes one of these nodes from its old parent; then rebind to the
+    // new frame/parking ancestors, including their inert and active attributes.
+    const ancestors = new Set<Node>();
+    const parking = new MutationObserver((records) => {
+      const relocated = records.some(
+        (record) =>
+          record.type === "childList" &&
+          [...record.addedNodes, ...record.removedNodes].some((node) => ancestors.has(node)),
+      );
+      if (relocated) observeAncestors();
+      if (
+        relocated ||
+        records.some((record) => record.type === "attributes" || record.target === headerOwner)
+      )
+        update();
+    });
+    const observeAncestors = () => {
+      parking.disconnect();
+      ancestors.clear();
+      for (let node: HTMLElement | null = terminal; node; node = node.parentElement) {
+        ancestors.add(node);
+        parking.observe(node, {
+          childList: node !== terminal,
+          attributes: true,
+          attributeFilter: ["inert", "data-active"],
+        });
+      }
+    };
+    observeAncestors();
     const observer = new IntersectionObserver(([entry]) => {
       inView = entry.isIntersecting;
+      // Visibility also detects reattachment after a detached interval.
+      observeAncestors();
       update();
     });
     observer.observe(terminal);
-    // Persistent terminal surfaces move between headers and parking without remounting.
-    const parking = new MutationObserver(update);
-    parking.observe(document.body, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: ["inert", "data-active"],
-    });
     const prime = () => audio.prime();
     const freeze = () => audio.setFrozen(true);
     const resume = () => {

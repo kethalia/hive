@@ -142,3 +142,15 @@ connection failures, desktop voice dispatch, and mobile focus behavior.
 Repository format/lint and typechecks passed again. The 192 targeted tests passed,
 followed by full application coverage: 2,000 tests across 165 files, plus the
 Cloudflare, template, and runtime checks.
+
+## Audio observer performance
+
+The audio bridge observes direct changes on its terminal's ancestor chain,
+without watching descendant trees. Output rendering, popovers, toasts, and
+other-pane mutations do not refresh audio state. Moving the terminal or an
+ancestor rebinds observation to the new frame or parking container. Header
+replacement still relocates the controls, and active/inert changes on the
+current ancestors still update routing.
+
+The 102 focused audio, bridge, and persistent-terminal tests passed, including
+unrelated DOM churn, ancestor moves, header replacement, parking, and reattachment.
