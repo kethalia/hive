@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
 const SOURCE_PATH = join(process.cwd(), "templates/ai-dev-k8s/scripts/agent-tools.py");
-const MAX_OUTPUT = 256 * 1024;
+// Covers agentToolsSnapshotSchema at its limits, including six-byte JSON escapes:
+// 200 maximum-length session directories alone can require about 4.7 MiB.
+const MAX_OUTPUT = 8 * 1024 * 1024;
 
 export async function runWorkspaceAgentOperation(
   user: { id: string; coderUserId: string },

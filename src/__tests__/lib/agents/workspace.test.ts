@@ -6,6 +6,7 @@ vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 vi.mock("@/lib/coder/user-client", () => ({ getCoderClientForUser: vi.fn() }));
 
 import { spawn } from "node:child_process";
+import { agentToolsSnapshotSchema } from "@/lib/agents/types";
 import { runWorkspaceAgentOperation } from "@/lib/agents/workspace";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
@@ -17,7 +18,7 @@ const client = {
   getSessionToken: () => "private-token",
 };
 
-function child(reply: unknown, code = 0) {
+function child(reply: unknown, code = 0, chunkSize = 16 * 1024) {
   const process = Object.assign(new EventEmitter(), {
     stdin: new PassThrough(),
     stdout: new PassThrough(),
@@ -29,7 +30,10 @@ function child(reply: unknown, code = 0) {
     request += chunk.toString();
   });
   process.stdin.on("finish", () => {
-    process.stdout.write(JSON.stringify(reply));
+    const output = Buffer.from(JSON.stringify(reply));
+    for (let offset = 0; offset < output.length; offset += chunkSize) {
+      process.stdout.write(output.subarray(offset, offset + chunkSize));
+    }
     process.emit("close", code);
   });
   vi.mocked(spawn).mockReturnValue(process as never);
@@ -103,5 +107,62 @@ describe("workspace agent operations", () => {
     await expect(runWorkspaceAgentOperation(user, "workspace", "inspect")).rejects.toThrow(
       "Agent operation failed.",
     );
+  });
+
+  it("accepts a full snapshot with maximum-length JSON-escaped fields", async () => {
+    // Each character requires six bytes in JSON, including Python's ASCII output.
+    const escaped = (length: number) => "\u0001".repeat(length);
+    const snapshot = agentToolsSnapshotSchema.parse({
+      profile: escaped(160),
+      checkedAt: 1,
+      coderMcpSupported: true,
+      typescriptServerInstalled: true,
+      agents: ["codex", "claude"].map((agent) => ({
+        agent,
+        installed: true,
+        version: escaped(80),
+        auth: "signed-in",
+        tracking: true,
+        connections: Array.from({ length: 200 }, () => ({
+          name: escaped(160),
+          enabled: true,
+          auth: escaped(160),
+        })),
+        plugins: Array.from({ length: 100 }, () => ({ name: escaped(160), enabled: true })),
+        warnings: Array.from({ length: 10 }, () => escaped(200)),
+      })),
+      sessions: Array.from({ length: 200 }, (_, index) => {
+        const id = `11111111-1111-4111-8111-${String(index).padStart(12, "0")}`;
+        return {
+          key: `claude-${id}`,
+          id,
+          agent: "claude",
+          directory: escaped(4096),
+          project: escaped(160),
+          updatedAt: 1,
+          state: "needs-approval",
+          running: false,
+          directoryExists: true,
+        };
+      }),
+    });
+    const reply = { ok: true, data: snapshot };
+    expect(Buffer.byteLength(JSON.stringify(reply))).toBeGreaterThan(5 * 1024 * 1024);
+    const run = child(reply);
+    const result = agentToolsSnapshotSchema.parse(
+      await runWorkspaceAgentOperation(user, "workspace", "inspect"),
+    );
+    expect(result.sessions).toHaveLength(200);
+    expect(result.sessions[199].directory).toBe(escaped(4096));
+    expect(result.agents[1].connections).toHaveLength(200);
+    expect(run.process.kill).not.toHaveBeenCalled();
+  });
+
+  it("still kills the SSH process when cumulative output exceeds the limit", async () => {
+    const run = child({ ok: true, data: "x".repeat(8 * 1024 * 1024) });
+    await expect(runWorkspaceAgentOperation(user, "workspace", "inspect")).rejects.toThrow(
+      "Agent tools returned too much data.",
+    );
+    expect(run.process.kill).toHaveBeenCalled();
   });
 });
