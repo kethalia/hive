@@ -1,5 +1,16 @@
 # hive-orchestrator
 
+## 2.24.0
+
+### Minor Changes
+
+- bae3ca0: Add workspace agent setup diagnostics, optional local session tracking, and native conversation recovery. Configure read-only Coder MCP tools and TypeScript code intelligence in the software profile without blocking terminal login.
+
+### Patch Changes
+
+- d0b49aa: Release all four application images with the Node.js 22.23.4 security update.
+  The web image also includes the patched Next.js 16.4.1 runtime.
+
 ## 2.23.0
 
 ### Minor Changes
