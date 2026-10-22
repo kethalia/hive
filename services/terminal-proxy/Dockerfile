@@ -1,5 +1,5 @@
 ARG PNPM_VERSION=10.32.1
-ARG NODE_IMAGE=public.ecr.aws/docker/library/node:20-alpine
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:22.23.4-alpine
 
 FROM ${NODE_IMAGE} AS deps
 ARG PNPM_VERSION
