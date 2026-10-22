@@ -28,6 +28,7 @@ def atomic_write(path, text):
 
 # Serialize remote writes and reject stale generations. A late SSH process must
 # never restore a credential that a newer, confirmed rotation already revoked.
+# Agent tracking setup shares this lock for all Hive hook-config mutations.
 lock = (root / "install.lock").open("a")
 fcntl.flock(lock, fcntl.LOCK_EX)
 try:

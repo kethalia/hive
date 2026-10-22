@@ -4,6 +4,10 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 
 const standaloneRoot = resolve(process.cwd(), ".next/standalone");
+assert.ok(
+  existsSync(join(standaloneRoot, "templates/ai-dev-k8s/scripts/agent-tools.py")),
+  "standalone output is missing workspace agent tooling",
+);
 const nextPackagePath = realpathSync(join(standaloneRoot, "node_modules/next/package.json"));
 const requireFromNext = createRequire(nextPackagePath);
 const helpersPackagePath = requireFromNext.resolve("@swc/helpers/package.json");
