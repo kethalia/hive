@@ -32,8 +32,8 @@ jobs:
       # Use the upstream official Node image for CI; Dockerfile defaults remain overridable.
       services: |
         [
-          {"image": "hive-web", "dockerfile": "Dockerfile", "build-args": "NODE_IMAGE=docker.io/library/node:20-alpine"},
-          {"image": "hive-terminal", "dockerfile": "services/terminal-proxy/Dockerfile", "build-args": "NODE_IMAGE=docker.io/library/node:20-alpine"},
-          {"image": "hive-auth", "dockerfile": "services/auth/Dockerfile", "build-args": "NODE_IMAGE=docker.io/library/node:20-alpine"},
-          {"image": "hive-migrate", "dockerfile": "services/migrate/Dockerfile", "build-args": "NODE_IMAGE=docker.io/library/node:20-alpine"}
+          {"image": "hive-web", "dockerfile": "Dockerfile", "build-args": "NODE_IMAGE=docker.io/library/node:22.23.4-alpine"},
+          {"image": "hive-terminal", "dockerfile": "services/terminal-proxy/Dockerfile", "build-args": "NODE_IMAGE=docker.io/library/node:22.23.4-alpine"},
+          {"image": "hive-auth", "dockerfile": "services/auth/Dockerfile", "build-args": "NODE_IMAGE=docker.io/library/node:22.23.4-alpine"},
+          {"image": "hive-migrate", "dockerfile": "services/migrate/Dockerfile", "build-args": "NODE_IMAGE=docker.io/library/node:22.23.4-alpine"}
         ]
