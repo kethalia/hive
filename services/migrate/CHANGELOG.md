@@ -1,5 +1,12 @@
 # hive-migrate
 
+## 0.1.10
+
+### Patch Changes
+
+- d0b49aa: Release all four application images with the Node.js 22.23.4 security update.
+  The web image also includes the patched Next.js 16.4.1 runtime.
+
 ## 0.1.9
 
 ### Patch Changes
