@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppViewportSize } from "@/components/app-viewport-size";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger";
+import { DiscoveryProvider } from "@/components/discovery/DiscoveryProvider";
 import { NotificationListener } from "@/components/notification-listener";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { RuntimeConfigProvider } from "@/components/runtime-config-provider";
@@ -16,6 +18,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getTokenStatusAction } from "@/lib/auth/actions";
+import { getRequestSession } from "@/lib/auth/session";
 import {
   getServerRuntimeConfig,
   RUNTIME_CONFIG_ELEMENT_ID,
@@ -23,54 +26,59 @@ import {
 } from "@/lib/runtime-config";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const bannerStatus = await getTokenStatusAction();
+  const [bannerStatus, session] = await Promise.all([getTokenStatusAction(), getRequestSession()]);
+  const cacheScope = createHash("sha256")
+    .update(session?.session.sessionId ?? "anonymous")
+    .digest("hex");
   const runtimeConfig = getServerRuntimeConfig();
 
   return (
-    <RuntimeConfigProvider config={runtimeConfig}>
-      <script id={RUNTIME_CONFIG_ELEMENT_ID} type="application/json">
-        {serializeRuntimeConfig(runtimeConfig)}
-      </script>
-      <ServiceWorkerRegister />
-      <NotificationListener />
-      <AppViewportSize />
-      <TooltipProvider>
-        <SidebarProvider>
-          <KeybindingProvider>
-            <PersistentTerminalProvider>
-              <Suspense fallback={null}>
-                <AppSidebar />
-              </Suspense>
-              <SidebarEdgeHandle />
-              <SidebarInset className="h-[var(--app-viewport-height)] min-h-0 overflow-hidden">
-                <main
-                  id="main-content"
-                  className="crt-grid crt-scanlines flex h-full min-h-0 flex-1 overflow-hidden"
-                  data-dashboard-main=""
-                >
-                  <div
-                    className="flex h-full min-h-0 w-full flex-1 items-stretch gap-0"
-                    data-dashboard-content-row=""
+    <DiscoveryProvider key={cacheScope}>
+      <RuntimeConfigProvider config={runtimeConfig}>
+        <script id={RUNTIME_CONFIG_ELEMENT_ID} type="application/json">
+          {serializeRuntimeConfig(runtimeConfig)}
+        </script>
+        <ServiceWorkerRegister />
+        <NotificationListener />
+        <AppViewportSize />
+        <TooltipProvider>
+          <SidebarProvider>
+            <KeybindingProvider>
+              <PersistentTerminalProvider>
+                <Suspense fallback={null}>
+                  <AppSidebar />
+                </Suspense>
+                <SidebarEdgeHandle />
+                <SidebarInset className="h-[var(--app-viewport-height)] min-h-0 overflow-hidden">
+                  <main
+                    id="main-content"
+                    className="crt-grid crt-scanlines flex h-full min-h-0 flex-1 overflow-hidden"
+                    data-dashboard-main=""
                   >
-                    <DashboardSidebarTrigger />
                     <div
-                      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-                      data-dashboard-content=""
+                      className="flex h-full min-h-0 w-full flex-1 items-stretch gap-0"
+                      data-dashboard-content-row=""
                     >
-                      {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
-                      <PushPermissionPrompt />
-                      {children}
+                      <DashboardSidebarTrigger />
+                      <div
+                        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                        data-dashboard-content=""
+                      >
+                        {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
+                        <PushPermissionPrompt />
+                        {children}
+                      </div>
                     </div>
-                  </div>
-                </main>
-              </SidebarInset>
-              <DashboardKeyboardController />
-              <HelpOverlay />
-            </PersistentTerminalProvider>
-          </KeybindingProvider>
-        </SidebarProvider>
-      </TooltipProvider>
-      <Toaster />
-    </RuntimeConfigProvider>
+                  </main>
+                </SidebarInset>
+                <DashboardKeyboardController />
+                <HelpOverlay />
+              </PersistentTerminalProvider>
+            </KeybindingProvider>
+          </SidebarProvider>
+        </TooltipProvider>
+        <Toaster />
+      </RuntimeConfigProvider>
+    </DiscoveryProvider>
   );
 }

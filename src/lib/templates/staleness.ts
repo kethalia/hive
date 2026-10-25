@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import extract from "tar-stream";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { cachedDiscovery, discoveryCacheKey } from "@/lib/discovery/server-cache";
 import { KNOWN_TEMPLATES, type KnownTemplate } from "@/lib/templates/catalog";
 
 /** Deployable templates maintained by Hive. */
@@ -206,8 +207,17 @@ export async function compareTemplates(names: string[], userId: string): Promise
     // Fetch version and download tar
     try {
       const version = await client.getTemplateVersion(remote.activeVersionId);
-      const tarBuffer = await client.fetchTemplateFiles(version.fileId);
-      remoteHash = await hashRemoteTar(tarBuffer);
+      remoteHash = await cachedDiscovery({
+        key: discoveryCacheKey([
+          "template-hash",
+          client.getBaseUrl(),
+          userId,
+          remote.activeVersionId,
+          version.fileId,
+        ]),
+        ttl: 86_400_000,
+        load: async () => hashRemoteTar(await client.fetchTemplateFiles(version.fileId)),
+      });
     } catch (err) {
       console.error(
         `[staleness] ${name}: remote hash failed: ${err instanceof Error ? err.message : String(err)}`,

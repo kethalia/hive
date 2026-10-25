@@ -1,14 +1,18 @@
 "use client";
 
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { createSessionAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { discoveryOptions } from "@/lib/discovery/queries";
+import { isDiscoveryDenied } from "@/lib/discovery/types";
+import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import type { GeneralPane } from "@/lib/workspaces/general-workspace";
 import {
-  loadWorkspaceTerminals,
+  repositories,
   repositoryTerminalPane,
   terminalNameError,
 } from "@/lib/workspaces/terminal-selection";
@@ -26,11 +30,9 @@ export function useGeneralWorkspaceCommands({
   onStart: (workspaceId: string) => Promise<void>;
   onAgents: (workspaceId: string) => void;
 }) {
+  const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [retry, setRetry] = useState(0);
-  const [data, setData] = useState<Awaited<ReturnType<typeof loadWorkspaceTerminals>>[]>([]);
-  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [starting, setStarting] = useState<string | null>(null);
@@ -44,26 +46,67 @@ export function useGeneralWorkspaceCommands({
       .map((w) => [w.id, w.latest_build.id])
       .sort(),
   );
-  // biome-ignore lint/correctness/useExhaustiveDependencies: retry explicitly refreshes discovery.
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setLoading(true);
-    setData([]);
-    const ids = (JSON.parse(targets) as [string, string][]).map(([id]) => id);
-    let remaining = ids.length;
-    if (!remaining) setLoading(false);
-    for (const id of ids) {
-      void loadWorkspaceTerminals(id).then((result) => {
-        if (cancelled) return;
-        setData((current) => [...current, result]);
-        if (--remaining === 0) setLoading(false);
-      });
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [open, targets, retry]);
+  const selected = useMemo(
+    () =>
+      (JSON.parse(targets) as [string, string][]).map(([workspaceId, buildId]) => ({
+        workspaceId,
+        buildId,
+      })),
+    [targets],
+  );
+  const sessions = useQueries({
+    queries: selected.map((target) => ({
+      ...discoveryOptions("sessions", target),
+      enabled: open,
+      refetchInterval: open ? 5_000 : (false as const),
+    })),
+    combine: (results) => results.map(({ data, error, isPending }) => ({ data, error, isPending })),
+  });
+  const clones = useQueries({
+    queries: selected.map((target) => ({
+      ...discoveryOptions("repositories", target),
+      enabled: open,
+      refetchInterval: open ? 60_000 : (false as const),
+    })),
+    combine: (results) => results.map(({ data, error, isPending }) => ({ data, error, isPending })),
+  });
+  const loading = open && [...sessions, ...clones].some((result) => result.isPending);
+  const data = useMemo(
+    () =>
+      selected.map((target, index) => {
+        const denied = [sessions[index].error, clones[index].error].some(isDiscoveryDenied);
+        return {
+          workspaceId: target.workspaceId,
+          sessions: denied
+            ? []
+            : (sessions[index].data ?? [])
+                .map((session) => session.name)
+                .filter((name) => !isCloneTerminalSessionName(name)),
+          repositories: denied ? [] : repositories(clones[index].data?.nodes ?? []),
+          error:
+            sessions[index].error || clones[index].error
+              ? "Could not refresh some results. Previously loaded results are still shown. Retry to update them."
+              : undefined,
+        };
+      }),
+    [selected, sessions, clones],
+  );
+
+  const retryWorkspace = useCallback(
+    (workspaceId: string) => {
+      const target = selected.find((item) => item.workspaceId === workspaceId);
+      if (!target) return;
+      for (const resource of ["sessions", "repositories"] as const) {
+        void client
+          .fetchQuery({
+            ...discoveryOptions(resource, target, true),
+            staleTime: 0,
+          })
+          .catch(() => {});
+      }
+    },
+    [client, selected],
+  );
 
   const run = useCallback(
     async (operation: () => Promise<GeneralPane>) => {
@@ -247,7 +290,9 @@ export function useGeneralWorkspaceCommands({
           value: `${name} retry ${workspace.name}`,
           icon: "search",
           closeOnSelect: false,
-          onSelect: () => setRetry((value) => value + 1),
+          onSelect: () => {
+            retryWorkspace(workspace.id);
+          },
         });
       return results;
     });
@@ -262,6 +307,7 @@ export function useGeneralWorkspaceCommands({
     starting,
     startError,
     startWorkspace,
+    retryWorkspace,
   ]);
 
   useEffect(

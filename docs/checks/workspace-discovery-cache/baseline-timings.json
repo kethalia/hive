@@ -1,0 +1,72 @@
+[
+  {
+    "operation": "tmux_direct",
+    "sample": 1,
+    "duration_ms": 5,
+    "exit_code": 0,
+    "output_lines": 5
+  },
+  {
+    "operation": "tmux_direct",
+    "sample": 2,
+    "duration_ms": 4,
+    "exit_code": 0,
+    "output_lines": 5
+  },
+  {
+    "operation": "tmux_via_coder_ssh",
+    "sample": 1,
+    "duration_ms": 268,
+    "exit_code": 0,
+    "output_lines": 5
+  },
+  {
+    "operation": "tmux_via_coder_ssh",
+    "sample": 2,
+    "duration_ms": 320,
+    "exit_code": 0,
+    "output_lines": 5
+  },
+  {
+    "operation": "repository_scan_direct",
+    "sample": 1,
+    "duration_ms": 1401,
+    "exit_code": 0,
+    "output_lines": 74
+  },
+  {
+    "operation": "repository_scan_direct",
+    "sample": 2,
+    "duration_ms": 1411,
+    "exit_code": 0,
+    "output_lines": 74
+  },
+  {
+    "operation": "repository_scan_via_coder_ssh",
+    "sample": 1,
+    "duration_ms": 1548,
+    "exit_code": 0,
+    "output_lines": 74
+  },
+  {
+    "operation": "repository_scan_via_coder_ssh",
+    "sample": 2,
+    "duration_ms": 1644,
+    "exit_code": 0,
+    "output_lines": 74
+  },
+  {
+    "operation": "agent_inspection_direct",
+    "sample": 1,
+    "duration_ms": 6638,
+    "exit_code": 0,
+    "output_lines": 1
+  },
+  {
+    "operation": "agent_inspection_direct",
+    "sample": 2,
+    "duration_ms": 6923,
+    "exit_code": 0,
+    "output_lines": 1
+  }
+]

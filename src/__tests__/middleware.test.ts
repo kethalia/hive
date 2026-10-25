@@ -149,3 +149,9 @@ describe("proxy", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 });
+
+it("lets discovery routes return their own JSON authentication errors instead of login HTML", () => {
+  const response = proxy(new NextRequest("https://hive.example/api/discovery/workspaces"));
+  expect(response.headers.get("location")).toBeNull();
+  expect(response.headers.get("x-middleware-next")).toBe("1");
+});

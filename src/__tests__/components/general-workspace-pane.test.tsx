@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "../helpers/discovery";
 import "@testing-library/jest-dom/vitest";
 
 const actions = vi.hoisted(() => ({
@@ -59,6 +60,8 @@ import { PersistentTerminalProvider } from "@/components/terminal/PersistentTerm
 
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { useDiscovery } from "@/lib/discovery/queries";
+import { DiscoveryError } from "@/lib/discovery/types";
 import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
 
 function props(): ComponentProps<typeof GeneralWorkspacePane> {
@@ -85,6 +88,15 @@ function props(): ComponentProps<typeof GeneralWorkspacePane> {
   };
 }
 
+function AgentDiscovery() {
+  const query = useDiscovery("agent", { workspaceId: "software", buildId: "build-1" });
+  return (
+    <button type="button" onClick={() => void query.refresh().catch(() => {})}>
+      Refresh agent: {query.error?.message ?? query.data?.agentId ?? "pending"}
+    </button>
+  );
+}
+
 describe("GeneralWorkspacePane connections", () => {
   afterEach(cleanup);
   beforeEach(() => {
@@ -108,6 +120,36 @@ describe("GeneralWorkspacePane connections", () => {
     expect(actions.app).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Close VS Code window" }));
     expect(initial.onClose).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    "code",
+    "files",
+    "desktop",
+  ] as const)("preserves the %s iframe while other consumers populate and refresh the agent query", async (tool) => {
+    actions.app.mockResolvedValue({ data: { url: "https://app.coder.example/app-auth" } });
+    const initial = props();
+    const pane = { ...initial.pane, kind: "app" as const, tool, label: tool };
+    const { rerender } = render(<GeneralWorkspacePane {...initial} pane={pane} />);
+    const frame = await screen.findByTitle(`${tool} · ai-dev-01`);
+    expect(actions.agent).not.toHaveBeenCalled();
+    rerender(
+      <>
+        <GeneralWorkspacePane {...initial} pane={pane} />
+        <AgentDiscovery />
+      </>,
+    );
+    await screen.findByRole("button", { name: "Refresh agent: agent-1" });
+    expect(screen.getByTitle(`${tool} · ai-dev-01`)).toBe(frame);
+    actions.agent.mockResolvedValue({ data: { agentId: "agent-2", agentStatus: "connected" } });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh agent: agent-1" }));
+    await screen.findByRole("button", { name: "Refresh agent: agent-2" });
+    expect(screen.getByTitle(`${tool} · ai-dev-01`)).toBe(frame);
+    actions.agent.mockRejectedValue(new DiscoveryError("denied", 403));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh agent: agent-2" }));
+    await screen.findByRole("button", { name: "Refresh agent: denied" });
+    expect(screen.getByTitle(`${tool} · ai-dev-01`)).toBe(frame);
+    expect(actions.app).toHaveBeenCalledOnce();
   });
 
   it("discards a late app response after the Coder build has changed", async () => {
@@ -225,7 +267,7 @@ describe("GeneralWorkspacePane connections", () => {
     expect(actions.mount.mock.calls.filter(([key]) => key === '["board-1","pane-2"]')).toHaveLength(
       1,
     );
-    expect(actions.agent).toHaveBeenCalledTimes(3);
+    expect(actions.agent).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -441,3 +483,8 @@ describe("GeneralWorkspacePane connections", () => {
     open.mockRestore();
   });
 });
+
+vi.mock(
+  "@/lib/discovery/transport",
+  async () => (await import("../helpers/discovery-transport")).discoveryTransport,
+);

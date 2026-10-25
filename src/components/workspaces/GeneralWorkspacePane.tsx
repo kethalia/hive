@@ -13,11 +13,11 @@ import {
 } from "@/components/workspaces/WorkspacePaneActionSheet";
 import { resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import {
-  getWorkspaceAgentAction,
   getWorkspaceAppToolAction,
   getWorkspaceSessionToolsAction,
 } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { useDiscovery } from "@/lib/discovery/queries";
 import {
   WORKSPACE_APP_FRAME_ALLOW,
   WORKSPACE_APP_FRAME_SANDBOX,
@@ -97,6 +97,18 @@ export function GeneralWorkspacePane({
   const sessionName = pane.kind === "terminal" ? pane.sessionName : undefined;
   const file = pane.kind === "app" ? pane.file : undefined;
   const tool = pane.kind === "app" ? pane.tool : undefined;
+  const agentQuery = useDiscovery(
+    "agent",
+    { workspaceId: pane.workspaceId, buildId: workspace?.latest_build.id },
+    { enabled: running && pane.kind === "terminal" },
+  );
+  // Disabled queries still observe shared cache updates. App frames must not reconnect
+  // when a terminal or sidebar consumer discovers or refreshes this workspace's agent.
+  const agentId = pane.kind === "terminal" ? agentQuery.data?.agentId : undefined;
+  const agentStatus = pane.kind === "terminal" ? agentQuery.data?.agentStatus : undefined;
+  const agentPending = pane.kind === "terminal" && agentQuery.isPending;
+  const agentError =
+    pane.kind === "terminal" && !agentQuery.data ? agentQuery.error?.message : undefined;
   const refreshClone = useCallback(async () => {
     if (!cloneSessionKey || !relativePath) throw new Error("Repository terminal is unavailable.");
     const result = await resolveGitCloneTerminalAction({
@@ -111,7 +123,7 @@ export function GeneralWorkspacePane({
   // A new Coder build or explicit retry requires fresh agent/app credentials.
   // biome-ignore lint/correctness/useExhaustiveDependencies: Build and retry are explicit invalidation signals.
   useEffect(() => {
-    if (!running) return;
+    if (!running || agentPending) return;
     let cancelled = false;
     setConnection(null);
     async function connect() {
@@ -139,11 +151,10 @@ export function GeneralWorkspacePane({
           throw new Error(result?.serverError ?? "Could not open this workspace app.");
         return result.data;
       }
-      const result = await getWorkspaceAgentAction({ workspaceId: pane.workspaceId });
-      if (!result?.data || result.data.agentStatus !== "connected")
-        throw new Error(result?.serverError ?? "The workspace agent is not connected yet.");
+      if (!agentId || agentStatus !== "connected")
+        throw new Error(agentError ?? "The workspace agent is not connected yet.");
       const identity = cloneSessionKey ? await refreshClone() : { sessionName };
-      return { agentId: result.data.agentId, ...identity };
+      return { agentId, ...identity };
     }
     void connect()
       .then((data) => {
@@ -158,6 +169,10 @@ export function GeneralWorkspacePane({
     };
   }, [
     running,
+    agentId,
+    agentStatus,
+    agentPending,
+    agentError,
     workspace?.latest_build.id,
     pane.workspaceId,
     tool,
@@ -168,8 +183,10 @@ export function GeneralWorkspacePane({
     retry,
   ]);
   const reconnect = () => {
-    if (pane.kind === "terminal")
+    if (pane.kind === "terminal") {
       forgetTerminalViews(pane.workspaceId, [terminalPaneViewKey(boardKey, pane.id)]);
+      void agentQuery.refresh().catch(() => {});
+    }
     setConnection(null);
     setRetry((value) => value + 1);
   };

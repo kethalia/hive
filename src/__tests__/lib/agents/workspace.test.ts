@@ -166,3 +166,57 @@ describe("workspace agent operations", () => {
     expect(run.process.kill).toHaveBeenCalled();
   });
 });
+
+it("caches inventory but checks ownership and reads live sessions on every inspection", async () => {
+  const { inspectWorkspaceAgentTools } = await import("@/lib/agents/workspace");
+  const operations: string[] = [];
+  const snapshot = {
+    profile: "software",
+    agents: [],
+    sessions: [],
+    coderMcpSupported: true,
+    typescriptServerInstalled: true,
+    checkedAt: 1,
+  };
+  vi.mocked(spawn).mockImplementation(() => {
+    const process = Object.assign(new EventEmitter(), {
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      kill: vi.fn(),
+    });
+    let request = "";
+    process.stdin.on("data", (chunk) => {
+      request += chunk.toString();
+    });
+    process.stdin.on("finish", () => {
+      const operation = JSON.parse(request).operation;
+      operations.push(operation);
+      process.stdout.write(
+        JSON.stringify({
+          ok: true,
+          data:
+            operation === "install"
+              ? { message: "Installed" }
+              : { ...snapshot, checkedAt: operations.length },
+        }),
+      );
+      process.emit("close", 0);
+    });
+    return process as never;
+  });
+  const first = await inspectWorkspaceAgentTools(user, "cache-test", true);
+  const second = await inspectWorkspaceAgentTools(user, "cache-test");
+  expect(operations.filter((x) => x === "inventory")).toHaveLength(1);
+  expect(operations.filter((x) => x === "sessions")).toHaveLength(2);
+  expect(second.checkedAt).toBeGreaterThan(first.checkedAt);
+  expect(client.getWorkspace).toHaveBeenCalledTimes(2);
+  client.getWorkspace.mockResolvedValueOnce({ owner_id: "other-owner" });
+  await expect(inspectWorkspaceAgentTools(user, "cache-test")).rejects.toThrow(
+    "Only the workspace owner",
+  );
+  expect(operations).toHaveLength(3);
+  await runWorkspaceAgentOperation(user, "cache-test", "install");
+  await inspectWorkspaceAgentTools(user, "cache-test");
+  expect(operations.filter((x) => x === "inventory")).toHaveLength(2);
+});

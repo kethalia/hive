@@ -1,0 +1,36 @@
+[
+  {
+    "width": 1440,
+    "searchReopenMs": 308,
+    "agentsReopenMs": 67,
+    "counts": {
+      "agent:software": 3,
+      "sessions:browser": 2,
+      "sessions:software": 2,
+      "repositories:browser": 2,
+      "repositories:software": 2,
+      "workspaces:null": 2,
+      "agent-tools:software": 1
+    },
+    "terminalMounts": {
+      "software:hive": 1
+    }
+  },
+  {
+    "width": 390,
+    "searchReopenMs": 306,
+    "agentsReopenMs": 49,
+    "counts": {
+      "agent:software": 4,
+      "sessions:browser": 2,
+      "sessions:software": 2,
+      "repositories:browser": 2,
+      "repositories:software": 2,
+      "workspaces:null": 2,
+      "agent-tools:software": 1
+    },
+    "terminalMounts": {
+      "software:hive": 1
+    }
+  }
+]

@@ -45,6 +45,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hive/auth": "workspace:*",
     "@hive/db": "workspace:*",
+    "@tanstack/react-query": "^5.104.5",
     "@tanstack/react-virtual": "^3.13.23",
     "@use-gesture/react": "^10.3.1",
     "@xterm/addon-clipboard": "^0.2.0",

@@ -11,12 +11,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  configureAgentToolsAction,
-  inspectAgentToolsAction,
-  resumeAgentSessionAction,
-} from "@/lib/actions/agent-tools";
-import { type AgentSession, type AgentToolsSnapshot, agentLabels } from "@/lib/agents/types";
+import { configureAgentToolsAction, resumeAgentSessionAction } from "@/lib/actions/agent-tools";
+import { type AgentSession, agentLabels } from "@/lib/agents/types";
+import { useDiscovery } from "@/lib/discovery/queries";
 
 const states: Record<AgentSession["state"], string> = {
   working: "Working",
@@ -36,6 +33,7 @@ const authLabels = {
 
 interface AgentToolsDialogProps {
   workspaceId: string;
+  buildId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenSession: (sessionName: string) => void;
@@ -43,18 +41,24 @@ interface AgentToolsDialogProps {
 
 export function AgentToolsDialog({
   workspaceId,
+  buildId,
   open,
   onOpenChange,
   onOpenSession,
 }: AgentToolsDialogProps) {
-  const [snapshot, setSnapshot] = useState<AgentToolsSnapshot | null>(null);
-  const [loading, setLoading] = useState(false);
+  const inspection = useDiscovery(
+    "agent-tools",
+    { workspaceId, buildId },
+    { enabled: open, poll: open },
+  );
+  const snapshot = inspection.data;
+  const loading = inspection.isFetching;
   const [pending, setPending] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [operationError, setError] = useState<string | null>(null);
+  const error = operationError ?? inspection.error?.message;
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [refresh, setRefresh] = useState(0);
-  const generation = useRef(0);
+
   const latest = useRef({ workspaceId, open });
   latest.current = { workspaceId, open };
 
@@ -67,35 +71,11 @@ export function AgentToolsDialog({
 
   useEffect(() => {
     void workspaceId;
-    setSnapshot(null);
     setQuery("");
     setNotice(null);
+    setError(null);
     setPending(null);
   }, [workspaceId]);
-
-  useEffect(() => {
-    void refresh;
-    const request = ++generation.current;
-    if (!open) return;
-    setLoading(true);
-    setError(null);
-    void inspectAgentToolsAction({ workspaceId })
-      .then((result) => {
-        if (generation.current !== request) return;
-        if (result?.data) setSnapshot(result.data);
-        else setError(result?.serverError ?? "Could not read agent tools. Refresh to try again.");
-      })
-      .catch(() => {
-        if (generation.current === request)
-          setError("Could not read agent tools. Refresh to try again.");
-      })
-      .finally(() => {
-        if (generation.current === request) setLoading(false);
-      });
-    return () => {
-      generation.current++;
-    };
-  }, [open, refresh, workspaceId]);
 
   async function configure(operation: "install" | "disable" | "configure-coder") {
     setPending(operation);
@@ -107,7 +87,7 @@ export function AgentToolsDialog({
       if (latest.current.workspaceId !== requestWorkspace || !latest.current.open) return;
       if (!result?.data) throw new Error(result?.serverError ?? "Could not update agent tools.");
       setNotice(result.data.message);
-      setRefresh((value) => value + 1);
+      await inspection.refresh();
     } catch (error) {
       if (latest.current.workspaceId === requestWorkspace && latest.current.open) {
         setError(error instanceof Error ? error.message : "Could not update agent tools.");
@@ -126,6 +106,7 @@ export function AgentToolsDialog({
       if (latest.current.workspaceId !== requestWorkspace || !latest.current.open) return;
       if (!result?.data)
         throw new Error(result?.serverError ?? "Could not resume this conversation.");
+      window.dispatchEvent(new Event("hive:sidebar-refresh"));
       onOpenSession(result.data.sessionName);
       onOpenChange(false);
     } catch (error) {
@@ -172,7 +153,10 @@ export function AgentToolsDialog({
             variant="outline"
             size="sm"
             disabled={loading || Boolean(pending)}
-            onClick={() => setRefresh((value) => value + 1)}
+            onClick={() => {
+              setError(null);
+              void inspection.refresh().catch(() => {});
+            }}
           >
             {loading ? (
               <Loader2 className="size-4 animate-spin" />

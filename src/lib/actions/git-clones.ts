@@ -4,6 +4,8 @@ import { createCloneTerminalProof } from "@hive/auth";
 import { z } from "zod";
 import type { WorkspaceAgent } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { discoveryErrorStatus } from "@/lib/discovery/error-status";
+import { cachedDiscovery, discoveryCacheKey } from "@/lib/discovery/server-cache";
 import {
   type GitCloneDiscoveryActionResult,
   type GitCloneDiscoveryErrorCode,
@@ -51,6 +53,7 @@ type GitCloneTerminalResolveStatus =
 
 const listGitClonesSchema = z
   .object({
+    refresh: z.boolean().optional(),
     workspaceId: z.string().trim().min(1, "workspaceId is required"),
   })
   .strict();
@@ -143,6 +146,7 @@ export const listGitClonesAction = authActionClient
         ctx.user.id,
         projectsRootPath,
         parsedInput.workspaceId,
+        { refresh: parsedInput.refresh },
       );
       const publicTree = toPublicCloneTree(tree);
       const rootSkippedReason = getRootSkippedReason(tree.diagnostics);
@@ -179,6 +183,7 @@ export const listGitClonesAction = authActionClient
         error: null,
       };
     } catch (error) {
+      if (error instanceof Error && discoveryErrorStatus(error.message) !== 503) throw error;
       console.error(`[git-clones] Discovery scan failed (${describeErrorForLogs(error)})`);
       return createErrorResult("scan-failed", SCAN_FAILED_MESSAGE, null);
     }
@@ -367,6 +372,7 @@ async function discoverWorkspaceCloneTree(
   userId: string,
   projectsRootPath: string,
   workspaceId: string,
+  cache?: { refresh?: boolean },
 ): Promise<CloneTree> {
   const client = await getCoderClientForUser(userId);
   const workspace = await client.getWorkspace(workspaceId);
@@ -375,38 +381,59 @@ async function discoverWorkspaceCloneTree(
     return createCloneTreeFromRepositoryRelativePaths(projectsRootPath, []);
   }
 
-  const agentTarget = await client.getWorkspaceAgentName(workspace.id);
-  const result = await execInWorkspace(
-    agentTarget,
-    buildWorkspaceCloneDiscoveryCommand(projectsRootPath),
-    {
-      coderUrl: client.getBaseUrl(),
-      sessionToken: client.getSessionToken(),
-      timeoutMs: WORKSPACE_DISCOVERY_TIMEOUT_MS,
-    },
-  );
-
-  if (result.exitCode !== 0) {
-    console.error(
-      `[git-clones] Workspace discovery failed: workspace=${workspace.id} exit=${result.exitCode}`,
+  // Every request checks Coder access and current build before consulting metadata caches.
+  if (cache && workspace.latest_build.status !== "running")
+    throw new Error("Start this workspace first.");
+  const scan = async () => {
+    const agentTarget = await client.getWorkspaceAgentName(workspace.id);
+    const result = await execInWorkspace(
+      agentTarget,
+      buildWorkspaceCloneDiscoveryCommand(projectsRootPath),
+      {
+        coderUrl: client.getBaseUrl(),
+        sessionToken: client.getSessionToken(),
+        timeoutMs: WORKSPACE_DISCOVERY_TIMEOUT_MS,
+      },
     );
-    throw new Error("workspace_clone_discovery_failed");
-  }
 
-  const lines = result.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+    if (result.exitCode !== 0) {
+      console.error(
+        `[git-clones] Workspace discovery failed: workspace=${workspace.id} exit=${result.exitCode}`,
+      );
+      throw new Error("workspace_clone_discovery_failed");
+    }
 
-  if (lines.includes(WORKSPACE_ROOT_MISSING_SENTINEL)) {
-    return createCloneTreeWithMissingRoot(projectsRootPath);
-  }
+    const lines = result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
 
-  const safeRelativePaths = lines
-    .filter(isSafeCloneRelativePath)
-    .slice(0, WORKSPACE_CLONE_SCAN_LIMIT);
-  return createCloneTreeFromRepositoryRelativePaths(projectsRootPath, safeRelativePaths, {
-    maxRepositories: WORKSPACE_CLONE_SCAN_LIMIT,
+    if (lines.includes(WORKSPACE_ROOT_MISSING_SENTINEL)) {
+      return createCloneTreeWithMissingRoot(projectsRootPath);
+    }
+
+    const safeRelativePaths = lines
+      .filter(isSafeCloneRelativePath)
+      .slice(0, WORKSPACE_CLONE_SCAN_LIMIT);
+    return createCloneTreeFromRepositoryRelativePaths(projectsRootPath, safeRelativePaths, {
+      maxRepositories: WORKSPACE_CLONE_SCAN_LIMIT,
+    });
+  };
+  // Terminal proofs/restoration use the uncached scan to verify the repository still exists.
+  if (!cache) return scan();
+  return cachedDiscovery({
+    key: discoveryCacheKey([
+      "repositories",
+      client.getBaseUrl(),
+      userId,
+      workspaceId,
+      workspace.latest_build.id,
+      projectsRootPath,
+    ]),
+    ttl: 60_000,
+    refresh: cache.refresh,
+    load: scan,
+    cacheable: (tree) => !getRootSkippedReason(tree.diagnostics),
   });
 }
 

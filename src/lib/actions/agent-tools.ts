@@ -1,22 +1,16 @@
 "use server";
 
 import { z } from "zod";
-import {
-  agentResumeResultSchema,
-  agentSessionKeySchema,
-  agentToolsSnapshotSchema,
-} from "@/lib/agents/types";
-import { runWorkspaceAgentOperation } from "@/lib/agents/workspace";
+import { agentResumeResultSchema, agentSessionKeySchema } from "@/lib/agents/types";
+import { inspectWorkspaceAgentTools, runWorkspaceAgentOperation } from "@/lib/agents/workspace";
 import { authActionClient } from "@/lib/safe-action";
 
 const workspaceInput = z.object({ workspaceId: z.string().uuid() }).strict();
 
 export const inspectAgentToolsAction = authActionClient
-  .inputSchema(workspaceInput)
+  .inputSchema(workspaceInput.extend({ refresh: z.boolean().optional() }))
   .action(async ({ ctx, parsedInput }) =>
-    agentToolsSnapshotSchema.parse(
-      await runWorkspaceAgentOperation(ctx.user, parsedInput.workspaceId, "inspect"),
-    ),
+    inspectWorkspaceAgentTools(ctx.user, parsedInput.workspaceId, parsedInput.refresh),
   );
 
 export const configureAgentToolsAction = authActionClient

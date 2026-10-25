@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Loader2,
@@ -39,16 +40,15 @@ import {
   ListCardRows,
   ListCardTitle,
 } from "@/components/ui/list-card";
-
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import {
   createWorkspaceAction,
   deleteWorkspaceAction,
-  listWorkspaceTemplatesAction,
   startWorkspaceAction,
   stopWorkspaceAction,
 } from "@/lib/actions/workspaces";
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
+import { useDiscovery } from "@/lib/discovery/queries";
 import { formatRelativeDate, statusVariant } from "@/lib/helpers/format";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
@@ -290,12 +290,17 @@ export function WorkspaceListContent({
 }: WorkspaceListContentProps) {
   const hasError = Boolean(error);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(launchOnMount);
-  const [templates, setTemplates] = useState<WorkspaceTemplateOption[]>([]);
+  const templateQuery = useDiscovery("template-options", {}, { enabled: createOpen });
+  const templates = useMemo(
+    () => (templateQuery.data ?? []).filter(isWorkspaceTemplateOption),
+    [templateQuery.data],
+  );
   const [templateId, setTemplateId] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
-  const [templatesLoading, setTemplatesLoading] = useState(false);
-  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  const templatesLoading = templateQuery.isPending;
+  const templatesError = templateQuery.error?.message;
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingOperation, setPendingOperation] = useState<PendingWorkspaceOperation | null>(null);
@@ -303,6 +308,11 @@ export function WorkspaceListContent({
   const [deleteTarget, setDeleteTarget] = useState<CoderWorkspace | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [, startRefreshTransition] = useTransition();
+  const refreshWorkspaces = useCallback(() => {
+    // Server navigation refreshes do not replace an already initialized browser query.
+    void queryClient.invalidateQueries({ queryKey: ["discovery", "workspaces"] });
+    startRefreshTransition(() => router.refresh());
+  }, [queryClient, router]);
 
   const profileGroups = useMemo(
     () =>
@@ -340,39 +350,8 @@ export function WorkspaceListContent({
   });
 
   useEffect(() => {
-    if (!createOpen || templates.length > 0) return;
-
-    let cancelled = false;
-    setTemplatesLoading(true);
-    setTemplatesError(null);
-
-    async function loadTemplates() {
-      try {
-        const result = await listWorkspaceTemplatesAction();
-        if (cancelled) return;
-        const parsed = Array.isArray(result?.data)
-          ? result.data.filter(isWorkspaceTemplateOption)
-          : [];
-        setTemplates(parsed);
-        setTemplateId((currentTemplateId) => currentTemplateId || parsed[0]?.id || "");
-        if (result?.serverError) {
-          setTemplatesError(result.serverError);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setTemplatesError(err instanceof Error ? err.message : "Failed to load templates");
-        }
-      } finally {
-        if (!cancelled) setTemplatesLoading(false);
-      }
-    }
-
-    void loadTemplates();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [createOpen, templates.length]);
+    if (templates.length) setTemplateId((current) => current || templates[0].id);
+  }, [templates]);
 
   const handleCreateWorkspace = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -398,14 +377,14 @@ export function WorkspaceListContent({
         }
         setWorkspaceName("");
         setCreateOpen(false);
-        startRefreshTransition(() => router.refresh());
+        refreshWorkspaces();
       } catch (err) {
         setCreateError(err instanceof Error ? err.message : "Failed to create workspace.");
       } finally {
         setCreating(false);
       }
     },
-    [router, templateId, workspaceName],
+    [refreshWorkspaces, templateId, workspaceName],
   );
 
   const runWorkspaceOperation = useCallback(
@@ -424,7 +403,7 @@ export function WorkspaceListContent({
           );
           return;
         }
-        startRefreshTransition(() => router.refresh());
+        refreshWorkspaces();
       } catch (err) {
         setLifecycleError(
           err instanceof Error
@@ -435,7 +414,7 @@ export function WorkspaceListContent({
         setPendingOperation(null);
       }
     },
-    [router],
+    [refreshWorkspaces],
   );
 
   const openDeleteDialog = useCallback((workspace: CoderWorkspace) => {
@@ -467,7 +446,7 @@ export function WorkspaceListContent({
         return;
       }
       closeDeleteDialog();
-      startRefreshTransition(() => router.refresh());
+      refreshWorkspaces();
     } catch (err) {
       setLifecycleError(
         err instanceof Error ? err.message : `Failed to delete workspace ${deleteTarget.name}.`,
@@ -475,7 +454,7 @@ export function WorkspaceListContent({
     } finally {
       setPendingOperation(null);
     }
-  }, [closeDeleteDialog, deleteConfirmation, deleteTarget, router]);
+  }, [closeDeleteDialog, deleteConfirmation, deleteTarget, refreshWorkspaces]);
 
   const launchButton = (
     <Button
