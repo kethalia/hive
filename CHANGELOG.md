@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.26.1
+
+### Patch Changes
+
+- 48da71e: Restore repository and named-terminal actions in shared workspace search, keep keyboard-selected commands clear of scroll indicators, show Coder workspaces as responsive cards, align terminal control hover states, and place shortcut keys in right-aligned tooltip footers.
+
 ## 2.26.0
 
 ### Minor Changes
