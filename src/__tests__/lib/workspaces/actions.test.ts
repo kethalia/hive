@@ -114,6 +114,7 @@ describe("workspace server actions", () => {
   it.each([
     "filebrowser",
     "kasmvnc",
+    "code",
   ] as const)("authorizes the %s tool on its isolated Coder app origin", async (tool) => {
     mockGetWorkspace.mockResolvedValueOnce({
       name: "dev-box",
@@ -126,7 +127,7 @@ describe("workspace server actions", () => {
       tool,
       documentFrameHosts: ["https://coder.example.com"],
     });
-    const expected = `https://${tool === "filebrowser" ? "filebrowser" : "kasm-vnc"}--main--dev-box--alice.coder.example.com/`;
+    const expected = `https://${tool === "filebrowser" ? "filebrowser" : tool === "code" ? "code-server" : "kasm-vnc"}--main--dev-box--alice.coder.example.com/`;
     expect(result?.data).toEqual({
       url: expected,
       directUrl: expected.slice(0, -1),
@@ -154,14 +155,16 @@ describe("workspace server actions", () => {
   });
 
   it.each([
-    "browser-testing",
-    "infrastructure",
-  ])("rejects file services for the %s helper", async (template) => {
+    ["browser-testing", "filebrowser"],
+    ["infrastructure", "filebrowser"],
+    ["browser-testing", "code"],
+    ["infrastructure", "code"],
+  ] as const)("rejects unprovisioned %s helper service %s", async (template, tool) => {
     mockGetWorkspace.mockResolvedValueOnce({ name: "helper", template_name: template });
     const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
     const result = await getWorkspaceAppToolAction({
       workspaceId: "ws-1",
-      tool: "filebrowser",
+      tool,
       documentFrameHosts: [],
     });
     expect(result?.serverError).toContain("not provisioned");

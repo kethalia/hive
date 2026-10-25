@@ -59,6 +59,7 @@ import {
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
 import { formatRelativeDate, statusVariant } from "@/lib/helpers/format";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
 import { WORKSPACE_PROFILES, workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
 interface WorkspaceListContentProps {
@@ -97,7 +98,7 @@ function isWorkspaceTemplateOption(value: unknown): value is WorkspaceTemplateOp
 }
 
 function terminalHref(workspaceId: string): string {
-  return `/workspaces/${encodeURIComponent(workspaceId)}/terminal/workspace`;
+  return generalWorkspaceHref(workspaceId, "terminal");
 }
 
 function fieldOrUnknown(value: string | null | undefined): string {
@@ -772,7 +773,7 @@ export function WorkspaceListContent({
                       {healthLabel(workspace)}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex flex-nowrap justify-end gap-2">
                         {workspace.latest_build.status === "running" ? (
                           <Button
                             variant="outline"

@@ -1,0 +1,62 @@
+[
+  {
+    "width": 1440,
+    "mixedWindows": 4,
+    "appTargets": [
+      {
+        "action": "app",
+        "workspaceId": "software",
+        "tool": "filebrowser",
+        "documentFrameHosts": []
+      },
+      {
+        "action": "app",
+        "workspaceId": "browser",
+        "tool": "kasmvnc",
+        "documentFrameHosts": []
+      },
+      {
+        "action": "app",
+        "workspaceId": "software",
+        "tool": "code",
+        "documentFrameHosts": []
+      }
+    ],
+    "boardsPreserveMountedPanes": true,
+    "reloadRestoresWindows": true,
+    "fontChangesIsolated": true,
+    "stoppedWorkspaceStarted": true,
+    "popups": 0,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "mixedWindows": 4,
+    "appTargets": [
+      {
+        "action": "app",
+        "workspaceId": "software",
+        "tool": "filebrowser",
+        "documentFrameHosts": []
+      },
+      {
+        "action": "app",
+        "workspaceId": "browser",
+        "tool": "kasmvnc",
+        "documentFrameHosts": []
+      },
+      {
+        "action": "app",
+        "workspaceId": "software",
+        "tool": "code",
+        "documentFrameHosts": []
+      }
+    ],
+    "boardsPreserveMountedPanes": true,
+    "reloadRestoresWindows": true,
+    "fontChangesIsolated": true,
+    "stoppedWorkspaceStarted": true,
+    "popups": 0,
+    "errors": []
+  }
+]

@@ -1,30 +1,31 @@
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
+import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
-import { WorkspaceListContent } from "./workspace-list-content";
-import { WorkspaceListPoller } from "./workspace-list-poller";
+import { getSessionAction } from "@/lib/auth/actions";
 
-interface WorkspacesPageProps {
-  searchParams?: Promise<{ launch?: string }>;
-}
-
-export default async function WorkspacesPage({ searchParams }: WorkspacesPageProps = {}) {
-  const result = await listWorkspacesAction();
-  const query = await searchParams;
-  const workspaces = result?.data ?? [];
-  const shouldPoll = workspaces.some((workspace) =>
-    ["pending", "starting", "stopping", "deleting", "canceling"].includes(
-      workspace.latest_build.status,
-    ),
-  );
-
+export default async function WorkspacesPage() {
+  const [result, session] = await Promise.all([listWorkspacesAction(), getSessionAction()]);
+  if (!session?.data?.user)
+    return (
+      <p role="alert" className="p-4">
+        Sign in to open your workspace.
+      </p>
+    );
   return (
-    <WorkspaceListPoller shouldPoll={shouldPoll}>
-      <WorkspaceListContent
-        workspaces={workspaces}
-        error={result?.serverError ?? null}
-        launchOnMount={query?.launch === "1"}
+    <Suspense
+      fallback={
+        <p role="status" className="p-4">
+          Loading workspace…
+        </p>
+      }
+    >
+      <GeneralWorkspace
+        userId={session.data.user.id}
+        initialWorkspaces={result?.data ?? []}
+        error={result?.serverError}
       />
-    </WorkspaceListPoller>
+    </Suspense>
   );
 }

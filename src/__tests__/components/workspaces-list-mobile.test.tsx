@@ -183,7 +183,7 @@ describe("workspaces mobile list", () => {
     const terminalLink = within(cards[0]).getByRole("link", {
       name: "Open workspace for mobile-dev",
     });
-    expect(terminalLink).toHaveAttribute("href", "/workspaces/workspace-1/terminal/workspace");
+    expect(terminalLink).toHaveAttribute("href", "/workspaces?workspace=workspace-1&tool=terminal");
     expect(terminalLink).toHaveClass("min-h-11", "touch-manipulation", "text-sm");
 
     const desktopTable = screen.getByTestId("workspaces-desktop-table");
@@ -432,17 +432,9 @@ describe("workspaces mobile list", () => {
     expect(screen.queryByTestId("delete-workspace-modal")).not.toBeInTheDocument();
   });
 
-  it("auto-opens the launch flow from the workspaces query contract", async () => {
-    mocks.listWorkspacesAction.mockResolvedValueOnce({ data: [makeWorkspace()] });
+  it("auto-opens the launch flow in the management dialog", async () => {
     mocks.listWorkspaceTemplatesAction.mockResolvedValueOnce({ data: [] });
-    const { default: WorkspacesPage } = await import("@/app/(dashboard)/workspaces/page");
-
-    render(
-      await WorkspacesPage({
-        searchParams: Promise.resolve({ launch: "1" }),
-      }),
-    );
-
+    render(<WorkspaceListContent workspaces={[makeWorkspace()]} launchOnMount />);
     expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
   });
 
@@ -460,18 +452,9 @@ describe("workspaces mobile list", () => {
     );
   });
 
-  it("renders listWorkspacesAction serverError as an in-page alert", async () => {
-    mocks.listWorkspacesAction.mockResolvedValueOnce({ serverError: "Not authenticated" });
-    const { default: WorkspacesPage } = await import("@/app/(dashboard)/workspaces/page");
-
-    render(await WorkspacesPage());
-
-    expect(mocks.listWorkspacesAction).toHaveBeenCalledTimes(1);
-    const refreshSurface = screen.getByTestId("pull-to-refresh");
-    expect(within(refreshSurface).getByRole("alert")).toHaveTextContent(
-      "Unable to load workspaces",
-    );
-    expect(within(refreshSurface).getByRole("alert")).toHaveTextContent("Not authenticated");
+  it("renders management errors as an in-page alert", () => {
+    render(<WorkspaceListContent workspaces={[]} error="Not authenticated" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Not authenticated");
     expect(screen.queryByTestId("workspaces-empty-state")).not.toBeInTheDocument();
   });
 

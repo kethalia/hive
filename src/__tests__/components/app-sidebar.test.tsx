@@ -56,6 +56,7 @@ vi.mock("@/components/ui/sidebar", async () => {
     );
   };
   return {
+    useSidebar: () => ({ setOpenMobile: vi.fn() }),
     Sidebar: Passthrough,
     SidebarContent: Passthrough,
     SidebarFooter: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
@@ -328,15 +329,6 @@ vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: (...args: unknown[]) => mockCreateSession(...args),
   killSessionAction: (...args: unknown[]) => mockKillSession(...args),
   renameSessionAction: (...args: unknown[]) => mockRenameSession(...args),
-}));
-
-vi.mock("@/lib/workspaces/urls", () => ({
-  buildWorkspaceUrls: (_ws: unknown, _agent: string, _url: string) => ({
-    filebrowser: "https://filebrowser.test",
-    kasmvnc: "https://kasmvnc.test",
-    codeServer: "https://code-server.test",
-    dashboard: "https://dashboard.test",
-  }),
 }));
 
 vi.mock("@/lib/actions/templates", () => ({
@@ -692,22 +684,20 @@ describe("AppSidebar", () => {
 
     expect(screen.getByText("Files").closest("a")).toHaveAttribute(
       "href",
-      "https://filebrowser.test",
+      "/workspaces?workspace=ws-1&tool=files",
     );
-    expect(screen.getByText("Files").closest("a")).toHaveAttribute("target", "_blank");
-    expect(screen.getByText("Files").closest("a")).toHaveAccessibleName(
-      "Files (opens in a new tab)",
-    );
+    expect(screen.getByText("Files").closest("a")).not.toHaveAttribute("target");
+    expect(screen.getByText("Files").closest("a")).toHaveAccessibleName("Open Files in workspace");
     expect(screen.getByText("Desktop").closest("a")).toHaveAttribute(
       "href",
-      "https://kasmvnc.test",
+      "/workspaces?workspace=ws-1&tool=desktop",
     );
-    expect(screen.getByText("Desktop").closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("Desktop").closest("a")).not.toHaveAttribute("target");
     expect(screen.getByText("VS Code").closest("a")).toHaveAttribute(
       "href",
-      "https://code-server.test",
+      "/workspaces?workspace=ws-1&tool=code",
     );
-    expect(screen.getByText("VS Code").closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("VS Code").closest("a")).not.toHaveAttribute("target");
   });
 
   it("shows only provisioned apps for headless workspace profiles", async () => {
@@ -745,7 +735,7 @@ describe("AppSidebar", () => {
     await screen.findByText("dev-box");
 
     const workspaceLink = screen.getByTestId("workspace-link-ws-1");
-    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces?workspace=ws-1");
     expect(workspaceLink).toHaveTextContent("dev-box");
     expect(workspaceLink).toHaveAttribute("data-active", "false");
 
@@ -760,7 +750,7 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
 
     const workspaceLink = await screen.findByTestId("workspace-link-ws-1");
-    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces?workspace=ws-1");
     expect(workspaceLink).toHaveAttribute("data-active", "true");
 
     cleanup();
@@ -802,7 +792,7 @@ describe("AppSidebar", () => {
 
     expect(screen.getByTestId("workspace-link-ws-1")).toHaveAttribute(
       "href",
-      "/workspaces/ws-1/terminal/workspace",
+      "/workspaces?workspace=ws-1",
     );
     expect(mockGetWorkspaceSessions).not.toHaveBeenCalled();
   });
@@ -816,7 +806,7 @@ describe("AppSidebar", () => {
 
     const workspaceLink = await screen.findByTestId("workspace-link-ws-1");
     expect(workspaceLink).toHaveAttribute("data-active", "true");
-    expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
+    expect(workspaceLink).toHaveAttribute("href", "/workspaces?workspace=ws-1");
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
