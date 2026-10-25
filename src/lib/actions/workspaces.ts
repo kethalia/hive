@@ -327,15 +327,19 @@ export const getWorkspaceSessionsAction = authActionClient
     );
 
     if (result.exitCode !== 0) {
-      // "no server running" is the legitimate empty case — tmux exits non-zero
-      // when no sessions exist on the configured socket. Treat anything else
-      // (ssh failures, timeouts, agent unreachable) as a real error so callers
-      // don't confuse a transient outage with "user has zero sessions".
+      // tmux exits non-zero when its server has stopped or the web socket has
+      // never been created. Both mean this workspace has no Hive sessions.
+      // Match the missing socket narrowly so missing-tool, SSH, and timeout
+      // failures cannot be confused with "user has zero sessions".
       const diagnostic = [result.stderr, result.stdout]
         .map((part) => part.trim())
         .filter(Boolean)
         .join("\n");
-      if (/no server running/i.test(diagnostic)) {
+      if (
+        /no server running/i.test(diagnostic) ||
+        (result.exitCode === 1 &&
+          /^error connecting to \/[^\r\n]+\/web \(No such file or directory\)$/m.test(diagnostic))
+      ) {
         return [];
       }
       const message = diagnostic || "no diagnostics returned by workspace command";

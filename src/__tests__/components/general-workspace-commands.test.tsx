@@ -255,8 +255,22 @@ describe("general workspace search", () => {
     await open();
     expect(action("session:browser:slow")).toBeUndefined();
     expect(action("app:browser:desktop")).toBeDefined();
+    expect(source().loadingText).toBe("Loading terminals and repositories…");
+    search("hive");
+    expect(source().loadingText).toBe("Loading terminals and repositories…");
     await act(async () => finish({ data: [{ name: "slow" }] }));
     expect(action("session:browser:slow")).toBeDefined();
+    expect(source().loadingText).toBeUndefined();
+  });
+
+  it("does not offer retry for a workspace with no sessions or repositories", async () => {
+    mocks.sessions.mockResolvedValue({ data: [] });
+    mocks.clones.mockResolvedValue({ data: { ok: true, tree: { nodes: [] } } });
+    setup();
+    act(() => source().onOpenChange!(true));
+    await waitFor(() => expect(source().loadingText).toBeUndefined());
+    expect(source().actions!.some((item) => item.id.startsWith("retry-terminals:"))).toBe(false);
+    expect(action("new-terminal:browser")).toBeDefined();
   });
   it("only starts a stopped workspace when selected, keeps search open, then discovers its terminals", async () => {
     const { rerender, onStart, onOpenPane, onError, onAgents } = setup();

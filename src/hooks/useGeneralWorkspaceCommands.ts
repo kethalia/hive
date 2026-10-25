@@ -274,9 +274,8 @@ export function useGeneralWorkspaceCommands({
         onSearchValueChange: setQuery,
         onOpenChange: setOpen,
         searchPlaceholder: "Search terminals, repositories, apps, and commands…",
-        emptyText: loading
-          ? "Loading terminals and repositories…"
-          : "No matching windows or commands.",
+        emptyText: "No matching windows or commands.",
+        loadingText: loading ? "Loading terminals and repositories…" : undefined,
       }),
     [actions, query, loading],
   );

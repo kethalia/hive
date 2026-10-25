@@ -11,6 +11,7 @@ export interface GlobalCommandPaletteSource {
   onOpenChange?: (open: boolean) => void;
   searchPlaceholder?: string;
   emptyText?: string;
+  loadingText?: string;
   groupHeading?: string;
   handlesWorkspaces?: boolean;
 }
