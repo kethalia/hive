@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
-  CardStack,
   ListCard,
   ListCardAction,
   ListCardActions,
@@ -40,14 +39,7 @@ import {
   ListCardRows,
   ListCardTitle,
 } from "@/components/ui/list-card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import {
   createWorkspaceAction,
@@ -66,6 +58,7 @@ interface WorkspaceListContentProps {
   workspaces: CoderWorkspace[];
   error?: string | null;
   launchOnMount?: boolean;
+  embedded?: boolean;
 }
 
 interface WorkspaceTemplateOption {
@@ -193,12 +186,6 @@ function operationIsPending(
   return pendingOperation?.workspaceId === workspaceId && pendingOperation.operation === operation;
 }
 
-function WorkspaceStatusBadge({ workspace }: { workspace: CoderWorkspace }) {
-  const status = workspaceStatus(workspace);
-
-  return <Badge variant={statusVariant[status] ?? "secondary"}>{status}</Badge>;
-}
-
 interface WorkspaceListCardProps {
   workspace: CoderWorkspace;
   pendingOperation: PendingWorkspaceOperation | null;
@@ -221,10 +208,10 @@ function WorkspaceListCard({
   const profile = workspaceProfile(workspace);
 
   return (
-    <ListCard data-testid="workspace-mobile-card">
+    <ListCard role="presentation" className="h-full min-w-0" data-testid="workspace-card">
       <ListCardHeader>
         <ListCardTitle>
-          <span className="break-words text-foreground">{workspaceName}</span>
+          <span className="break-all text-foreground">{workspaceName}</span>
         </ListCardTitle>
         <ListCardMeta>
           <ListCardMetaBadge variant={statusVariant[status] ?? "secondary"}>
@@ -233,18 +220,19 @@ function WorkspaceListCard({
           <span>{lastUsedLabel(workspace.last_used_at)}</span>
         </ListCardMeta>
       </ListCardHeader>
-      <ListCardRows>
-        <ListCardRow label="Profile">{profile.label}</ListCardRow>
+      <ListCardRows className="grid-cols-2 [&_[data-list-card-slot=row-value]]:break-words">
+        <ListCardRow className="col-span-2" label="Profile">
+          {profile.label}
+        </ListCardRow>
         <ListCardRow label="Template">{templateLabel(workspace)}</ListCardRow>
         <ListCardRow label="Owner">{fieldOrUnknown(workspace.owner_name)}</ListCardRow>
-        <ListCardRow label="Last used">{lastUsedLabel(workspace.last_used_at)}</ListCardRow>
         <ListCardRow label="Health">{healthLabel(workspace)}</ListCardRow>
       </ListCardRows>
-      <ListCardActions>
+      <ListCardActions className="mt-auto">
         {status === "running" ? (
           <ListCardAction as={Link} href={href} aria-label={`Open workspace for ${workspaceName}`}>
             <TerminalSquare className="h-4 w-4" aria-hidden="true" />
-            Open workspace
+            Open
           </ListCardAction>
         ) : null}
         {status === "stopped" ? (
@@ -298,6 +286,7 @@ export function WorkspaceListContent({
   workspaces,
   error,
   launchOnMount = false,
+  embedded = false,
 }: WorkspaceListContentProps) {
   const hasError = Boolean(error);
   const router = useRouter();
@@ -488,26 +477,34 @@ export function WorkspaceListContent({
     }
   }, [closeDeleteDialog, deleteConfirmation, deleteTarget, router]);
 
+  const launchButton = (
+    <Button
+      type="button"
+      size="sm"
+      onClick={openCreateDialog}
+      data-testid="open-create-workspace-modal"
+    >
+      <Plus data-icon="inline-start" />
+      Launch workspace
+      <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">
+        {formatShortcut(CREATE_WORKSPACE_SHORTCUT_KEYS)}
+      </span>
+    </Button>
+  );
   return (
-    <DashboardPageShell>
-      <DashboardPageHeader
-        title="Workspaces"
-        description="Interactive, persistent environments organized by use case. Open one to resume its TUI sessions."
-        actions={
-          <Button
-            type="button"
-            size="sm"
-            onClick={openCreateDialog}
-            data-testid="open-create-workspace-modal"
-          >
-            <Plus data-icon="inline-start" />
-            Launch workspace
-            <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">
-              {formatShortcut(CREATE_WORKSPACE_SHORTCUT_KEYS)}
-            </span>
-          </Button>
-        }
-      />
+    <DashboardPageShell className={embedded ? "min-w-0 px-0 sm:px-0 lg:px-0" : undefined}>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">{workspaces.length} Coder workspaces</p>
+          {launchButton}
+        </div>
+      ) : (
+        <DashboardPageHeader
+          title="Workspaces"
+          description="Manage the environments behind your windows."
+          actions={launchButton}
+        />
+      )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent data-testid="create-workspace-modal">
@@ -716,11 +713,14 @@ export function WorkspaceListContent({
           </CardContent>
         </Card>
       ) : (
-        <>
-          <CardStack aria-label="Workspaces" data-testid="workspaces-mobile-card-stack">
-            {workspaces.map((workspace) => (
+        <ul
+          aria-label="Workspaces"
+          data-testid="workspaces-card-grid"
+          className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4 pb-4"
+        >
+          {workspaces.map((workspace) => (
+            <li key={workspace.id} className="min-w-0">
               <WorkspaceListCard
-                key={workspace.id}
                 workspace={workspace}
                 pendingOperation={pendingOperation}
                 onStart={(selectedWorkspace) =>
@@ -731,115 +731,9 @@ export function WorkspaceListContent({
                 }
                 onDelete={openDeleteDialog}
               />
-            ))}
-          </CardStack>
-
-          <Card className="hidden md:block" data-testid="workspaces-desktop-table">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Status</TableHead>
-                  <TableHead>Workspace</TableHead>
-                  <TableHead>Profile</TableHead>
-                  <TableHead>Template</TableHead>
-                  <TableHead>Owner</TableHead>
-                  <TableHead>Last used</TableHead>
-                  <TableHead>Health</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {workspaces.map((workspace) => (
-                  <TableRow key={workspace.id}>
-                    <TableCell>
-                      <WorkspaceStatusBadge workspace={workspace} />
-                    </TableCell>
-                    <TableCell className="font-medium text-foreground">
-                      {fieldOrUnknown(workspace.name)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {workspaceProfile(workspace).label}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {templateLabel(workspace)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {fieldOrUnknown(workspace.owner_name)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {lastUsedLabel(workspace.last_used_at)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {healthLabel(workspace)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-nowrap justify-end gap-2">
-                        {workspace.latest_build.status === "running" ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            nativeButton={false}
-                            render={<Link href={terminalHref(workspace.id)} />}
-                          >
-                            <TerminalSquare data-icon="inline-start" />
-                            Open
-                          </Button>
-                        ) : null}
-                        {workspace.latest_build.status === "stopped" ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void runWorkspaceOperation(workspace, "start")}
-                            disabled={pendingOperation !== null}
-                            aria-label={`Start workspace ${fieldOrUnknown(workspace.name)}`}
-                          >
-                            {operationIsPending(pendingOperation, workspace.id, "start") ? (
-                              <Loader2 data-icon="inline-start" className="animate-spin" />
-                            ) : (
-                              <Play data-icon="inline-start" />
-                            )}
-                            Start
-                          </Button>
-                        ) : null}
-                        {workspace.latest_build.status === "running" ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void runWorkspaceOperation(workspace, "stop")}
-                            disabled={pendingOperation !== null}
-                            aria-label={`Stop workspace ${fieldOrUnknown(workspace.name)}`}
-                          >
-                            {operationIsPending(pendingOperation, workspace.id, "stop") ? (
-                              <Loader2 data-icon="inline-start" className="animate-spin" />
-                            ) : (
-                              <Square data-icon="inline-start" />
-                            )}
-                            Stop
-                          </Button>
-                        ) : null}
-                        {!NON_DELETABLE_STATUSES.has(workspace.latest_build.status) ? (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => openDeleteDialog(workspace)}
-                            disabled={pendingOperation !== null}
-                            aria-label={`Delete workspace ${fieldOrUnknown(workspace.name)}`}
-                          >
-                            <Trash2 data-icon="inline-start" />
-                            Delete
-                          </Button>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </>
+            </li>
+          ))}
+        </ul>
       )}
     </DashboardPageShell>
   );

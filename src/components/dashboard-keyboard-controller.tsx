@@ -100,6 +100,11 @@ export function DashboardKeyboardController() {
   }, [activePaletteSource, isMobile, setOpenMobileRight]);
 
   const commandPaletteOpen = isMobile ? openMobileRight : paletteOpen;
+  const onSourceOpenChange = activePaletteSource?.onOpenChange;
+  useEffect(() => {
+    onSourceOpenChange?.(commandPaletteOpen);
+    return () => onSourceOpenChange?.(false);
+  }, [commandPaletteOpen, onSourceOpenChange]);
   const setCommandPaletteOpen = useCallback(
     (nextOpen: boolean) => {
       if (isMobile) {

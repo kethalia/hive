@@ -405,6 +405,32 @@ function expandableMobileActions(add: () => void, open: () => void): CommandPale
 }
 
 describe("CommandPalette", () => {
+  it.each([false, true])("keeps retry actions open (mobile: %s)", (mobile) => {
+    mobileState.isMobile = mobile;
+    const retry = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <CommandPalette
+        open
+        onOpenChange={onOpenChange}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        mobileSide="right"
+        actions={[
+          {
+            id: "retry",
+            label: "Retry discovery",
+            group: "Terminals",
+            closeOnSelect: false,
+            onSelect: retry,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByText("Retry discovery"));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mobileState.isMobile = false;

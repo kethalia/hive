@@ -9,7 +9,11 @@ import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { WorkspaceSidebarButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
-import { TERMINAL_CONTROL_BUTTON_CLASS_NAME } from "@/lib/terminal/pane-controls";
+import {
+  TERMINAL_CLOSE_HOVER_CLASS_NAME,
+  TERMINAL_CONTROL_BUTTON_CLASS_NAME,
+  TERMINAL_CONTROL_HOVER_CLASS_NAME,
+} from "@/lib/terminal/pane-controls";
 import { cn } from "@/lib/utils";
 
 interface TerminalFontSizeControlsProps {
@@ -312,7 +316,8 @@ export function TerminalSessionFrame({
                   size="xs"
                   className={cn(
                     TERMINAL_CONTROL_BUTTON_CLASS_NAME,
-                    "text-white hover:bg-white/10 hover:text-white",
+                    TERMINAL_CONTROL_HOVER_CLASS_NAME,
+                    "text-foreground hover:text-foreground",
                     touchOptimizedActions && "size-11 min-h-11",
                   )}
                   aria-label={`Open actions for ${label}`}
@@ -341,6 +346,7 @@ export function TerminalSessionFrame({
                   size="xs"
                   className={cn(
                     TERMINAL_CONTROL_BUTTON_CLASS_NAME,
+                    TERMINAL_CLOSE_HOVER_CLASS_NAME,
                     touchOptimizedActions && "size-11 min-h-11",
                   )}
                   aria-label={closeLabel ?? `Close ${label}`}
