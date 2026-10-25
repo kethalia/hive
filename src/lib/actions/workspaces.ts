@@ -303,6 +303,7 @@ export const getWorkspaceSessionsAction = authActionClient
     const client = await getCoderClientForUser(ctx.user.id);
 
     const workspace = await client.getWorkspace(parsedInput.workspaceId);
+    if (workspace.latest_build.status !== "running") throw new Error("Start this workspace first.");
     const resources = await client.getWorkspaceResources(
       parsedInput.workspaceId,
       workspace.latest_build.id,
@@ -321,6 +322,7 @@ export const getWorkspaceSessionsAction = authActionClient
       agentTarget,
       "tmux -L web list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
       {
+        timeoutMs: 8_000,
         coderUrl: client.getBaseUrl(),
         sessionToken: client.getSessionToken(),
       },

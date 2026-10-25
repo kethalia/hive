@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "../helpers/discovery";
 import "@testing-library/jest-dom/vitest";
 
 const actions = vi.hoisted(() => ({
@@ -225,7 +226,7 @@ describe("GeneralWorkspacePane connections", () => {
     expect(actions.mount.mock.calls.filter(([key]) => key === '["board-1","pane-2"]')).toHaveLength(
       1,
     );
-    expect(actions.agent).toHaveBeenCalledTimes(3);
+    expect(actions.agent).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -441,3 +442,8 @@ describe("GeneralWorkspacePane connections", () => {
     open.mockRestore();
   });
 });
+
+vi.mock(
+  "@/lib/discovery/transport",
+  async () => (await import("../helpers/discovery-transport")).discoveryTransport,
+);

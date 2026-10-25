@@ -95,7 +95,10 @@ describe("workspace server actions", () => {
       getApplicationsHost: mockGetApplicationsHost.mockResolvedValue("*.coder.example.com"),
       getApplicationAuthRedirect: mockGetApplicationAuthRedirect,
     } as never);
-    mockGetWorkspace.mockResolvedValue({ name: "dev", latest_build: { id: "build-1" } });
+    mockGetWorkspace.mockResolvedValue({
+      name: "dev",
+      latest_build: { id: "build-1", status: "running" },
+    });
     mockGetWorkspaceResources.mockResolvedValue([
       {
         id: "resource-1",
@@ -435,6 +438,7 @@ describe("workspace server actions", () => {
       "dev.main",
       "tmux -L web list-sessions -F '#{session_name}:#{session_created}:#{session_windows}'",
       {
+        timeoutMs: 8_000,
         coderUrl: "https://coder.example.com",
         sessionToken: "coder-session-token",
       },

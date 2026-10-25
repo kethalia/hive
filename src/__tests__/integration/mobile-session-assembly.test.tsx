@@ -747,3 +747,8 @@ describe("mobile session assembly", () => {
     });
   });
 });
+
+vi.mock("@/lib/auth/session", () => ({
+  getRequestSession: async () => ({ session: { sessionId: "fixture-session" } }),
+}));
+vi.mock("@/lib/discovery/transport", () => ({ readDiscovery: async () => [] }));

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { readFileSync } from "node:fs";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type * as React from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "../helpers/discovery";
 import "@testing-library/jest-dom/vitest";
 
 import { WorkspaceListContent } from "@/app/(dashboard)/workspaces/workspace-list-content";
@@ -562,3 +562,8 @@ describe("workspace card grid", () => {
     }
   });
 });
+
+vi.mock(
+  "@/lib/discovery/transport",
+  async () => (await import("../helpers/discovery-transport")).discoveryTransport,
+);

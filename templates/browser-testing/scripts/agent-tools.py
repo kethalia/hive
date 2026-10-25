@@ -343,15 +343,22 @@ def inventory(agent):
     return result
 
 
-def inspect():
+def inspect_inventory():
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         agents = list(pool.map(inventory, AGENTS))
     profile = os.environ.get("HIVE_WORKSPACE_PROFILE", "unknown")
     _, help_text = run(["coder", "exp", "mcp", "server", "--help"], timeout=3)
-    return {"profile": text(profile), "agents": agents, "sessions": public_sessions(),
+    return {"profile": text(profile), "agents": agents,
             "coderMcpSupported": profile == "software" and "--allowed-tools" in help_text,
-            "typescriptServerInstalled": bool(shutil.which("typescript-language-server")),
-            "checkedAt": int(time.time())}
+            "typescriptServerInstalled": bool(shutil.which("typescript-language-server"))}
+
+
+def inspect_sessions():
+    return {"sessions": public_sessions(), "checkedAt": int(time.time())}
+
+
+def inspect():
+    return {**inspect_inventory(), **inspect_sessions()}
 
 
 def configure_coder():
@@ -431,6 +438,10 @@ def main():
     try:
         if operation == "inspect":
             result = inspect()
+        elif operation == "inventory":
+            result = inspect_inventory()
+        elif operation == "sessions":
+            result = inspect_sessions()
         elif operation == "install":
             result = install(request["source"])
         elif operation == "configure-coder":

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "../helpers/discovery";
 
 vi.mock("@/lib/actions/agent-tools", () => ({
   inspectAgentToolsAction: vi.fn(),
@@ -140,3 +140,8 @@ describe("agent tools dialog", () => {
     expect(screen.queryByRole("button", { name: "Connect Coder" })).not.toBeInTheDocument();
   });
 });
+
+vi.mock(
+  "@/lib/discovery/transport",
+  async () => (await import("../helpers/discovery-transport")).discoveryTransport,
+);

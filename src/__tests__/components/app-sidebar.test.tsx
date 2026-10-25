@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "../helpers/discovery";
 import "@testing-library/jest-dom/vitest";
 
 const mockUseIsMobile = vi.hoisted(() => vi.fn(() => false));
@@ -530,7 +530,7 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("does not scan Git clones on initial load or workspace/template polling", async () => {
+  it("does not poll independently or inspect templates while collapsed", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -545,8 +545,8 @@ describe("AppSidebar", () => {
     await vi.advanceTimersByTimeAsync(30_000);
 
     await waitFor(() => {
-      expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
-      expect(mockListTemplates).toHaveBeenCalledTimes(1);
+      expect(mockListWorkspaces).not.toHaveBeenCalled();
+      expect(mockListTemplates).not.toHaveBeenCalled();
     });
     expect(mockListGitClones).not.toHaveBeenCalled();
   });
@@ -860,3 +860,8 @@ describe("AppSidebar", () => {
     expect(mockGetWorkspaceSessions).not.toHaveBeenCalled();
   });
 });
+
+vi.mock(
+  "@/lib/discovery/transport",
+  async () => (await import("../helpers/discovery-transport")).discoveryTransport,
+);

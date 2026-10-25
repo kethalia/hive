@@ -39,16 +39,15 @@ import {
   ListCardRows,
   ListCardTitle,
 } from "@/components/ui/list-card";
-
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import {
   createWorkspaceAction,
   deleteWorkspaceAction,
-  listWorkspaceTemplatesAction,
   startWorkspaceAction,
   stopWorkspaceAction,
 } from "@/lib/actions/workspaces";
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
+import { useDiscovery } from "@/lib/discovery/queries";
 import { formatRelativeDate, statusVariant } from "@/lib/helpers/format";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
@@ -291,11 +290,15 @@ export function WorkspaceListContent({
   const hasError = Boolean(error);
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(launchOnMount);
-  const [templates, setTemplates] = useState<WorkspaceTemplateOption[]>([]);
+  const templateQuery = useDiscovery("template-options", {}, { enabled: createOpen });
+  const templates = useMemo(
+    () => (templateQuery.data ?? []).filter(isWorkspaceTemplateOption),
+    [templateQuery.data],
+  );
   const [templateId, setTemplateId] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
-  const [templatesLoading, setTemplatesLoading] = useState(false);
-  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  const templatesLoading = templateQuery.isPending;
+  const templatesError = templateQuery.error?.message;
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [pendingOperation, setPendingOperation] = useState<PendingWorkspaceOperation | null>(null);
@@ -340,39 +343,8 @@ export function WorkspaceListContent({
   });
 
   useEffect(() => {
-    if (!createOpen || templates.length > 0) return;
-
-    let cancelled = false;
-    setTemplatesLoading(true);
-    setTemplatesError(null);
-
-    async function loadTemplates() {
-      try {
-        const result = await listWorkspaceTemplatesAction();
-        if (cancelled) return;
-        const parsed = Array.isArray(result?.data)
-          ? result.data.filter(isWorkspaceTemplateOption)
-          : [];
-        setTemplates(parsed);
-        setTemplateId((currentTemplateId) => currentTemplateId || parsed[0]?.id || "");
-        if (result?.serverError) {
-          setTemplatesError(result.serverError);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setTemplatesError(err instanceof Error ? err.message : "Failed to load templates");
-        }
-      } finally {
-        if (!cancelled) setTemplatesLoading(false);
-      }
-    }
-
-    void loadTemplates();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [createOpen, templates.length]);
+    if (templates.length) setTemplateId((current) => current || templates[0].id);
+  }, [templates]);
 
   const handleCreateWorkspace = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {

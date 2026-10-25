@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "../helpers/discovery";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KeybindingEntry } from "@/hooks/useKeybindings";
@@ -626,3 +626,8 @@ describe("DashboardKeyboardController", () => {
     expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
   });
 });
+
+vi.mock(
+  "@/lib/discovery/transport",
+  async () => (await import("../helpers/discovery-transport")).discoveryTransport,
+);

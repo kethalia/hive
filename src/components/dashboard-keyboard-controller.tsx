@@ -8,7 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useDashboardFullscreen } from "@/hooks/useDashboardFullscreen";
 import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
-import { listWorkspacesAction } from "@/lib/actions/workspaces";
+import { useDiscovery } from "@/lib/discovery/queries";
 import { formatRelativeDate } from "@/lib/helpers/format";
 import {
   formatShortcut,
@@ -36,10 +36,6 @@ type DashboardWorkspace = {
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function actionData(value: unknown): unknown {
-  return isObjectRecord(value) && "data" in value ? value.data : undefined;
 }
 
 function stringValue(value: unknown): string | null {
@@ -82,9 +78,6 @@ export function DashboardKeyboardController() {
   const isMobile = useIsMobile();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
-  const [workspaces, setWorkspaces] = useState<DashboardWorkspace[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
   const { fullscreen: appFullscreen, toggleFullscreen } = useDashboardFullscreen();
   const [paletteSources, setPaletteSources] = useState(getGlobalCommandPaletteSources);
   const previousIsMobileRef = useRef(isMobile);
@@ -154,33 +147,17 @@ export function DashboardKeyboardController() {
     }
   }, [appFullscreen, toggleFullscreen, setOpen, setOpenMobile, setOpenMobileRight]);
 
-  useEffect(() => {
-    if (!commandPaletteOpen || handlesWorkspaces) {
-      setLoading(false);
-      setLoadFailed(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setLoadFailed(false);
-
-    listWorkspacesAction()
-      .then((workspaceResult) => {
-        if (cancelled) return;
-        setWorkspaces(parseArray(actionData(workspaceResult), parseWorkspace));
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setLoadFailed(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [commandPaletteOpen, handlesWorkspaces]);
+  const workspaceQuery = useDiscovery(
+    "workspaces",
+    {},
+    { enabled: commandPaletteOpen && !handlesWorkspaces },
+  );
+  const workspaces = useMemo(
+    () => parseArray(workspaceQuery.data, parseWorkspace),
+    [workspaceQuery.data],
+  );
+  const loading = commandPaletteOpen && !handlesWorkspaces && workspaceQuery.isPending;
+  const loadFailed = Boolean(workspaceQuery.error);
 
   useEffect(
     () =>

@@ -3,17 +3,19 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
+import {
+  cachedDiscovery,
+  discoveryCacheKey,
+  invalidateDiscovery,
+} from "@/lib/discovery/server-cache";
+import { agentToolsSnapshotSchema } from "./types";
+
 const SOURCE_PATH = join(process.cwd(), "templates/ai-dev-k8s/scripts/agent-tools.py");
 // Covers agentToolsSnapshotSchema at its limits, including six-byte JSON escapes:
 // 200 maximum-length session directories alone can require about 4.7 MiB.
 const MAX_OUTPUT = 8 * 1024 * 1024;
 
-export async function runWorkspaceAgentOperation(
-  user: { id: string; coderUserId: string },
-  workspaceId: string,
-  operation: "inspect" | "install" | "disable" | "configure-coder" | "resume",
-  key?: string,
-): Promise<unknown> {
+async function authorize(user: { id: string; coderUserId: string }, workspaceId: string) {
   const client = await getCoderClientForUser(user.id);
   const workspace = await client.getWorkspace(workspaceId);
   // Agent accounts and conversation metadata are private to the workspace owner.
@@ -29,6 +31,69 @@ export async function runWorkspaceAgentOperation(
   const target = `${workspace.owner_name}/${workspace.name}.${agent.name}`;
   if (!/^[a-zA-Z0-9._/-]+$/.test(target) || target.startsWith("-"))
     throw new Error("Invalid workspace target.");
+  return {
+    client,
+    target,
+    cacheKey: discoveryCacheKey([
+      "agent-inventory",
+      client.getBaseUrl(),
+      user.id,
+      workspaceId,
+      workspace.latest_build.id,
+    ]),
+  };
+}
+
+type Operation =
+  | "inspect"
+  | "inventory"
+  | "sessions"
+  | "install"
+  | "disable"
+  | "configure-coder"
+  | "resume";
+export async function runWorkspaceAgentOperation(
+  user: { id: string; coderUserId: string },
+  workspaceId: string,
+  operation: Operation,
+  key?: string,
+): Promise<unknown> {
+  const authorized = await authorize(user, workspaceId);
+  const result = await execute(authorized, operation, key);
+  if (["install", "disable", "configure-coder"].includes(operation))
+    await invalidateDiscovery(authorized.cacheKey);
+  return result;
+}
+
+export async function inspectWorkspaceAgentTools(
+  user: { id: string; coderUserId: string },
+  workspaceId: string,
+  refresh = false,
+) {
+  const authorized = await authorize(user, workspaceId);
+  const [inventory, live] = await Promise.all([
+    cachedDiscovery({
+      key: authorized.cacheKey,
+      ttl: 300_000,
+      refresh,
+      load: async () =>
+        agentToolsSnapshotSchema
+          .omit({ sessions: true, checkedAt: true })
+          .parse(await execute(authorized, "inventory")),
+    }),
+    execute(authorized, "sessions"),
+  ]);
+  return agentToolsSnapshotSchema.parse({
+    ...inventory,
+    ...agentToolsSnapshotSchema.pick({ sessions: true, checkedAt: true }).parse(live),
+  });
+}
+
+async function execute(
+  { client, target }: Awaited<ReturnType<typeof authorize>>,
+  operation: Operation,
+  key?: string,
+): Promise<unknown> {
   const source = await readFile(SOURCE_PATH, "utf8");
   const command = `python3 -c '${source.replace(/'/g, "'\\''")}'`;
   const payload = {

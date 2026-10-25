@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { HiveLogo } from "@/components/hive-logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -47,30 +47,16 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
-import { listTemplateStatusesAction } from "@/lib/actions/templates";
-import { getWorkspaceAgentAction, listWorkspacesAction } from "@/lib/actions/workspaces";
 import { getSessionAction } from "@/lib/auth/actions";
-import type { CoderWorkspace, WorkspaceAgentStatus } from "@/lib/coder/types";
+import type { CoderWorkspace } from "@/lib/coder/types";
+import { useDiscovery } from "@/lib/discovery/queries";
 import { workspaceTemplateCapabilities, workspaceTemplatePurpose } from "@/lib/templates/catalog";
-import type { TemplateStatus } from "@/lib/templates/staleness";
 import { cn } from "@/lib/utils";
 import {
   GENERAL_WORKSPACE_OPEN_EVENT,
   type GeneralWorkspaceTool,
   generalWorkspaceHref,
 } from "@/lib/workspaces/general-workspace";
-
-const POLL_INTERVAL_MS = 30_000;
-interface SectionState<T> {
-  data: T[];
-  isLoading: boolean;
-  error: string | null;
-}
-interface AgentInfo {
-  agentId: string;
-  agentName: string;
-  agentStatus: WorkspaceAgentStatus;
-}
 
 function WorkspaceNavigationItem({
   workspace,
@@ -83,9 +69,6 @@ function WorkspaceNavigationItem({
   const href = generalWorkspaceHref(workspace.id);
   const active = pathname.startsWith(`/workspaces/${encodeURIComponent(workspace.id)}/`);
   const [open, setOpen] = useState(active);
-  const [agent, setAgent] = useState<AgentInfo | null>(null);
-  const [agentError, setAgentError] = useState(false);
-  const [retry, setRetry] = useState(0);
   const running = workspace.latest_build.status === "running";
   const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
   const hasTools = capabilities.editor || capabilities.fileBrowser || capabilities.desktop;
@@ -93,25 +76,13 @@ function WorkspaceNavigationItem({
   useEffect(() => {
     if (active) setOpen(true);
   }, [active]);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: A new build or explicit retry invalidates the agent lookup.
-  useEffect(() => {
-    if (!open || !running || !hasTools) return;
-    let cancelled = false;
-    setAgent(null);
-    setAgentError(false);
-    getWorkspaceAgentAction({ workspaceId: workspace.id })
-      .then((result) => {
-        if (cancelled) return;
-        if (result?.data) setAgent(result.data);
-        else setAgentError(true);
-      })
-      .catch(() => {
-        if (!cancelled) setAgentError(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, running, hasTools, workspace.id, workspace.latest_build.id, retry]);
+  const agentQuery = useDiscovery(
+    "agent",
+    { workspaceId: workspace.id, buildId: workspace.latest_build.id },
+    { enabled: open && running && hasTools },
+  );
+  const agent = agentQuery.data;
+  const agentError = agentQuery.error;
 
   const tools: { label: string; tool: GeneralWorkspaceTool; icon: typeof FolderOpen }[] =
     agent && running
@@ -198,7 +169,9 @@ function WorkspaceNavigationItem({
                 <button
                   type="button"
                   className="px-2 py-1 text-xs underline"
-                  onClick={() => setRetry((value) => value + 1)}
+                  onClick={() => {
+                    void agentQuery.refresh().catch(() => {});
+                  }}
                 >
                   Retry workspace tools
                 </button>
@@ -234,16 +207,24 @@ export function AppSidebar() {
   const [sessionUser, setSessionUser] = useState<{ email: string; coderUrl: string } | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [workspaces, setWorkspaces] = useState<SectionState<CoderWorkspace>>({
-    data: [],
-    isLoading: true,
-    error: null,
-  });
-  const [templates, setTemplates] = useState<SectionState<TemplateStatus>>({
-    data: [],
-    isLoading: true,
-    error: null,
-  });
+  const workspaceQuery = useDiscovery("workspaces");
+  const templateQuery = useDiscovery("templates", {}, { enabled: templatesOpen });
+  const workspaces = {
+    data: workspaceQuery.data ?? [],
+    isLoading: !workspaceQuery.data && workspaceQuery.isPending,
+    error: workspaceQuery.error?.message,
+  };
+  const templates = {
+    data: templateQuery.data ?? [],
+    isLoading: !templateQuery.data && templateQuery.isPending,
+    error: templateQuery.error?.message,
+  };
+  const fetchWorkspaces = () => {
+    void workspaceQuery.refresh().catch(() => {});
+  };
+  const fetchTemplates = () => {
+    void templateQuery.refresh().catch(() => {});
+  };
   const coderUrl = sessionUser?.coderUrl;
   useEffect(() => {
     getSessionAction()
@@ -252,52 +233,6 @@ export function AppSidebar() {
       })
       .catch(() => {});
   }, []);
-  const fetchWorkspaces = useCallback(async () => {
-    setWorkspaces((prev) => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const result = await listWorkspacesAction();
-      if (result?.data) {
-        setWorkspaces({ data: result.data, isLoading: false, error: null });
-      } else {
-        const msg = result?.serverError ?? "Failed to fetch workspaces";
-        setWorkspaces((prev) => ({ ...prev, isLoading: false, error: msg }));
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to fetch workspaces";
-      setWorkspaces((prev) => ({ ...prev, isLoading: false, error: msg }));
-    }
-  }, []);
-
-  const fetchTemplates = useCallback(async () => {
-    setTemplates((prev) => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const result = await listTemplateStatusesAction();
-      if (result?.data) {
-        setTemplates({ data: result.data, isLoading: false, error: null });
-      } else {
-        const msg = result?.serverError ?? "Failed to fetch templates";
-        setTemplates((prev) => ({ ...prev, isLoading: false, error: msg }));
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to fetch templates";
-      setTemplates((prev) => ({ ...prev, isLoading: false, error: msg }));
-    }
-  }, []);
-
-  useEffect(() => {
-    const refresh = () => {
-      void fetchWorkspaces();
-      void fetchTemplates();
-    };
-    refresh();
-    const timer = setInterval(refresh, POLL_INTERVAL_MS);
-    window.addEventListener("hive:sidebar-refresh", refresh);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener("hive:sidebar-refresh", refresh);
-    };
-  }, [fetchWorkspaces, fetchTemplates]);
-
   return (
     <Sidebar variant={sidebarMode} collapsible="offcanvas">
       <SidebarHeader className="h-14 shrink-0 flex-row items-center border-b border-sidebar-border px-4">
@@ -502,6 +437,7 @@ export function AppSidebar() {
                 onClick={async () => {
                   setIsLoggingOut(true);
                   try {
+                    window.dispatchEvent(new Event("hive:discovery-clear"));
                     await fetch("/api/auth/logout", { method: "POST" });
                   } finally {
                     router.push("/login");

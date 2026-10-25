@@ -40,6 +40,7 @@ vi.mock("@/lib/coder/user-client", () => {
   }
   return {
     getCoderClientForUser: vi.fn().mockImplementation(async () => ({
+      getBaseUrl: () => "https://coder.example.com",
       listTemplates: (...args: unknown[]) => mockListTemplates(...args),
       getTemplateVersion: (...args: unknown[]) => mockGetTemplateVersion(...args),
       fetchTemplateFiles: (...args: unknown[]) => mockFetchTemplateFiles(...args),
@@ -352,3 +353,9 @@ describe("compareTemplates", () => {
     expect(results[0].remoteHash).toBeNull();
   });
 });
+
+// Cache behavior is covered separately; isolate these action/hash contract fixtures.
+vi.mock("@/lib/discovery/server-cache", () => ({
+  discoveryCacheKey: (parts: string[]) => JSON.stringify(parts),
+  cachedDiscovery: ({ load }: { load: () => Promise<unknown> }) => load(),
+}));

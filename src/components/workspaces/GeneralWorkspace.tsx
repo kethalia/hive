@@ -27,8 +27,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
-import { listWorkspacesAction, startWorkspaceAction } from "@/lib/actions/workspaces";
+import { startWorkspaceAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { useDiscovery } from "@/lib/discovery/queries";
 import {
   GLOBAL_COMMAND_PALETTE_KEYS,
   MANAGE_WORKSPACES_KEYS,
@@ -79,7 +80,8 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const stateRef = useRef(state);
   stateRef.current = state;
   const [loaded, setLoaded] = useState(false);
-  const [workspaces, setWorkspaces] = useState(initialWorkspaces);
+  const workspaceQuery = useDiscovery("workspaces", {}, { initialData: initialWorkspaces });
+  const workspaces = workspaceQuery.data ?? [];
   const initialWorkspacesRef = useRef(initialWorkspaces);
   initialWorkspacesRef.current = initialWorkspaces;
   const [notice, setNotice] = useState<string | null>(error ?? null);
@@ -130,26 +132,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     }
     setLoaded(true);
   }, [storageKey]);
-  useEffect(() => {
-    setWorkspaces(initialWorkspaces);
-  }, [initialWorkspaces]);
-  useEffect(() => {
-    let cancelled = false;
-    const refresh = () => {
-      void listWorkspacesAction()
-        .then((result) => {
-          if (!cancelled && result?.data) setWorkspaces(result.data);
-        })
-        .catch(() => {});
-    };
-    const timer = setInterval(refresh, 15000);
-    window.addEventListener("hive:sidebar-refresh", refresh);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-      window.removeEventListener("hive:sidebar-refresh", refresh);
-    };
-  }, []);
   const update = useCallback(
     (change: (current: GeneralWorkspaceState) => GeneralWorkspaceState) => {
       const changed = change(stateRef.current);
@@ -253,13 +235,15 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     setActiveTerminal(entry?.term ?? null, entry?.send ?? null);
   }, [active, board.key, setActiveTerminal]);
   useEffect(() => () => setActiveTerminal(null, null), [setActiveTerminal]);
-  const start = useCallback(async (workspaceId: string) => {
-    const result = await startWorkspaceAction({ workspaceId });
-    if (!result?.data) throw new Error(result?.serverError ?? "Could not start workspace.");
-    const refreshed = await listWorkspacesAction();
-    if (refreshed?.data) setWorkspaces(refreshed.data);
-    window.dispatchEvent(new Event("hive:sidebar-refresh"));
-  }, []);
+  const start = useCallback(
+    async (workspaceId: string) => {
+      const result = await startWorkspaceAction({ workspaceId });
+      if (!result?.data) throw new Error(result?.serverError ?? "Could not start workspace.");
+      await workspaceQuery.refresh();
+      window.dispatchEvent(new Event("hive:sidebar-refresh"));
+    },
+    [workspaceQuery.refresh],
+  );
   useGeneralWorkspaceCommands({
     workspaces,
     onOpenPane: openPane,
@@ -606,6 +590,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         >
           <AgentToolsDialog
             workspaceId={agents}
+            buildId={workspaces.find((workspace) => workspace.id === agents)?.latest_build.id}
             open
             onOpenChange={(open) => {
               if (!open) setAgents(null);

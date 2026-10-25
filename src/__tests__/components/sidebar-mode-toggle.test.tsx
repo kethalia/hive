@@ -1,15 +1,7 @@
 // @vitest-environment jsdom
 
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  renderHook,
-  screen,
-  waitFor,
-} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "../helpers/discovery";
 import "@testing-library/jest-dom/vitest";
 
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
@@ -467,3 +459,8 @@ describe("AppSidebar integrated mode", () => {
     expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
   });
 });
+
+vi.mock(
+  "@/lib/discovery/transport",
+  async () => (await import("../helpers/discovery-transport")).discoveryTransport,
+);

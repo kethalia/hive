@@ -705,3 +705,9 @@ const directoryNode = {
   displaySegments: ["Git", "home", "kethalia"],
   children: [repositoryNode],
 } satisfies CloneTreeNode;
+
+// Cache behavior is covered separately; isolate these action/hash contract fixtures.
+vi.mock("@/lib/discovery/server-cache", () => ({
+  discoveryCacheKey: (parts: string[]) => JSON.stringify(parts),
+  cachedDiscovery: ({ load }: { load: () => Promise<unknown> }) => load(),
+}));

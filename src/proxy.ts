@@ -32,6 +32,8 @@ export function proxy(request: NextRequest) {
   }
 
   if (
+    // Discovery authenticates in its route and must return JSON 401, not login HTML.
+    pathname.startsWith("/api/discovery/") ||
     pathname === "/api/notifications/events" ||
     pathname === "/" ||
     PUBLIC_PATHS.some((path) => pathname.startsWith(path))

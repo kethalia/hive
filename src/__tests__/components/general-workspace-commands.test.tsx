@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { getGlobalCommandPaletteSources } from "@/lib/terminal/global-command-palette";
+import { act, cleanup, renderHook, waitFor } from "../helpers/discovery";
 
 const mocks = vi.hoisted(() => ({
   sessions: vi.fn(),
@@ -259,7 +260,7 @@ describe("general workspace search", () => {
     search("hive");
     expect(source().loadingText).toBe("Loading terminals and repositories…");
     await act(async () => finish({ data: [{ name: "slow" }] }));
-    expect(action("session:browser:slow")).toBeDefined();
+    await waitFor(() => expect(action("session:browser:slow")).toBeDefined());
     expect(source().loadingText).toBeUndefined();
   });
 
@@ -314,7 +315,7 @@ describe("general workspace search", () => {
     expect(action("start-workspace:infra").description).toBe("Start failed");
     expect(action("start-workspace:infra").disabled).toBe(false);
   });
-  it("does not apply stale discovery results after closing and reopening search", async () => {
+  it("does not apply stale discovery results after a workspace rebuild", async () => {
     let finish!: (result: unknown) => void;
     mocks.sessions.mockImplementationOnce(
       () =>
@@ -322,12 +323,30 @@ describe("general workspace search", () => {
           finish = resolve;
         }),
     );
-    setup();
+    const { rerender, onOpenPane, onError, onStart, onAgents } = setup();
     await open();
-    act(() => source().onOpenChange!(false));
-    await open();
+    rerender({
+      workspaces: workspaces.map((w) =>
+        w.id === "browser" ? { ...w, latest_build: { ...w.latest_build, id: "new-build" } } : w,
+      ),
+      onOpenPane,
+      onError,
+      onStart,
+      onAgents,
+    });
+    await waitFor(() => expect(action("session:browser:main")).toBeDefined());
     await act(async () => finish({ data: [{ name: "stale" }] }));
     expect(action("session:browser:stale")).toBeUndefined();
     expect(action("session:browser:main")).toBeDefined();
   });
 });
+
+vi.mock("@/lib/discovery/transport", () => ({
+  readDiscovery: async (resource: string, target: { workspaceId: string }) => {
+    const input = { workspaceId: target.workspaceId };
+    const result = await (resource === "sessions" ? mocks.sessions(input) : mocks.clones(input));
+    if (resource === "sessions" && result?.data) return result.data;
+    if (resource === "repositories" && result?.data?.ok) return result.data.tree;
+    throw new Error(result?.serverError ?? "Discovery unavailable");
+  },
+}));
