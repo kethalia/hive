@@ -5,7 +5,7 @@ import type { Terminal } from "@xterm/xterm";
 import { Bot, Ellipsis, Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
 import {
@@ -582,28 +582,56 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         />
       ) : null}
       {agents ? (
-        <AgentToolsDialog
-          workspaceId={agents}
-          open
-          onOpenChange={(open) => {
-            if (!open) setAgents(null);
-          }}
-          onOpenSession={(sessionName) => {
-            const existing = state.boards
-              .flatMap((b) => b.windows)
-              .find(
-                (pane) =>
-                  pane.workspaceId === agents &&
-                  pane.kind === "terminal" &&
-                  pane.sessionName === sessionName,
-              );
-            if (existing) openPane(existing);
-            else if (sessionName.startsWith("git-clone-")) openGlobalCommandPalette();
-            else
-              openPane({ kind: "terminal", workspaceId: agents, sessionName, label: sessionName });
-            setAgents(null);
-          }}
-        />
+        <Suspense
+          fallback={
+            <Dialog
+              open
+              onOpenChange={(open) => {
+                if (!open) setAgents(null);
+              }}
+            >
+              <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Agent tools and sessions</DialogTitle>
+                  <DialogDescription>
+                    Check your workspace setup and return to a conversation.
+                  </DialogDescription>
+                </DialogHeader>
+                <p role="status" className="text-sm text-muted-foreground">
+                  Loading agent tools…
+                </p>
+              </DialogContent>
+            </Dialog>
+          }
+        >
+          <AgentToolsDialog
+            workspaceId={agents}
+            open
+            onOpenChange={(open) => {
+              if (!open) setAgents(null);
+            }}
+            onOpenSession={(sessionName) => {
+              const existing = state.boards
+                .flatMap((b) => b.windows)
+                .find(
+                  (pane) =>
+                    pane.workspaceId === agents &&
+                    pane.kind === "terminal" &&
+                    pane.sessionName === sessionName,
+                );
+              if (existing) openPane(existing);
+              else if (sessionName.startsWith("git-clone-")) openGlobalCommandPalette();
+              else
+                openPane({
+                  kind: "terminal",
+                  workspaceId: agents,
+                  sessionName,
+                  label: sessionName,
+                });
+              setAgents(null);
+            }}
+          />
+        </Suspense>
       ) : null}
       <Dialog open={manage} onOpenChange={setManage}>
         <DialogContent
@@ -616,7 +644,15 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
               Launch and manage the environments behind your windows.
             </DialogDescription>
           </DialogHeader>
-          <WorkspaceListContent workspaces={workspaces} launchOnMount={launch} embedded />
+          <Suspense
+            fallback={
+              <p role="status" className="text-sm text-muted-foreground">
+                Loading workspace controls…
+              </p>
+            }
+          >
+            <WorkspaceListContent workspaces={workspaces} launchOnMount={launch} embedded />
+          </Suspense>
         </DialogContent>
       </Dialog>
     </section>
