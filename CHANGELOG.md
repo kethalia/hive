@@ -1,5 +1,26 @@
 # hive-orchestrator
 
+## 2.26.0
+
+### Minor Changes
+
+- 491d2fc: Replace the workspace list landing page with a shared canvas for terminals, Files, VS Code, and Desktop from multiple Coder workspaces. Open sidebar tools inside Hive, preserve numbered boards across reloads, and keep environment management available from the canvas menu.
+
+  Unify workspace header and terminal audio controls with matching square buttons, a disconnected microphone X icon, and themed tooltips showing working, platform-specific keyboard shortcuts for the focused pane.
+
+  Preserve mobile keyboard sizing, scoped file-link actions, and explicit terminal reconnects in the shared workspace canvas.
+
+  Allow mobile scrolling in the window picker, open-window tabs, and workspace-management dialog while keeping background scrolling locked.
+
+  Resolve file-window targets to absolute paths before saving them, and keep mobile workspace header controls below the device safe area.
+
+  Preserve distinct file targets when importing legacy Files panes and reattach canvas size observation when responsive layouts replace the canvas element.
+
+### Patch Changes
+
+- d21aa2d: Use a compact, readable font-size control and remember font size separately for each terminal session, including mobile controls.
+- 66f0b89: Keep workspace table actions on one line so opening the sidebar does not increase row heights.
+
 ## 2.25.0
 
 ### Minor Changes
