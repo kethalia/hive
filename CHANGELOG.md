@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.28.1
+
+### Patch Changes
+
+- f757b20: Improve launcher relevance across tools, apps, sessions, projects, and commands. Prioritize names, order groups by their best match, support common aliases and limited typos, and exclude unrelated scattered-letter matches.
+
 ## 2.28.0
 
 ### Minor Changes
