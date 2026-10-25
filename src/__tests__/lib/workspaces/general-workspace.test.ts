@@ -31,6 +31,19 @@ describe("general workspace state", () => {
     expect(state.boards[0].windows).toHaveLength(2);
     expect(state.boards[0].activeWindowId).toBe("first");
   });
+  it("keeps project tools separate and restores their folder selection", () => {
+    const base = { kind: "app", workspaceId: "one", tool: "code", label: "VS Code" } as const;
+    let state = addGeneralWindow(emptyGeneralWorkspace(), base, "root");
+    for (const projectPath of ["projects/org/one", "projects/org/two"]) {
+      state = addGeneralWindow(state, { ...base, projectPath }, projectPath);
+    }
+    state = addGeneralWindow(state, { ...base, projectPath: "projects/org/one" }, "duplicate");
+    expect(state.boards[0].windows).toHaveLength(3);
+    expect(state.boards[0].activeWindowId).toBe("projects/org/one");
+    expect(parseGeneralWorkspace(JSON.stringify(state))?.boards[0].windows).toEqual(
+      state.boards[0].windows,
+    );
+  });
   it("round-trips mixed app/terminal boards and strips transient credentials", () => {
     let state = addGeneralWindow(emptyGeneralWorkspace(), terminal("one"), "first");
     state = addGeneralWindow(

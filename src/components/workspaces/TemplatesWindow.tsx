@@ -25,8 +25,8 @@ export function TemplatesWindow({ template }: { template?: string }) {
     );
   const status = query.data.find((s) => s.name === selected);
   return (
-    <div className="space-y-4 pb-4">
-      <label className="block space-y-2 p-4 text-sm">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 pb-4">
+      <label className="block shrink-0 space-y-2 p-4 text-sm">
         Template
         <select
           value={status?.name ?? ""}

@@ -194,7 +194,7 @@ describe("workspace card grid", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("opens the launch workspace modal from the button and Cmd/Ctrl+Alt+N", async () => {
+  it("opens the launch workspace screen from the button and Cmd/Ctrl+Alt+N", async () => {
     mocks.listWorkspaceTemplatesAction.mockResolvedValue({
       data: [
         {
@@ -212,25 +212,31 @@ describe("workspace card grid", () => {
       </KeybindingProvider>,
     );
 
-    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
-    expect(await screen.findByTestId("create-workspace-modal")).toHaveTextContent(
+    fireEvent.click(screen.getByTestId("open-create-workspace-screen"));
+    expect(await screen.findByTestId("create-workspace-screen")).toHaveTextContent(
       "Launch workspace",
     );
     expect(await screen.findByTestId("selected-workspace-profile")).toHaveTextContent(
       "Development & orchestration",
     );
     expect(mocks.listWorkspaceTemplatesAction).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspaces-card-grid")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("create-workspace-name"), {
+      target: { value: "my-draft" },
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: /close/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to workspaces" }));
     await waitFor(() => {
-      expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("create-workspace-screen")).not.toBeInTheDocument();
     });
 
     fireEvent.keyDown(window, { key: "n", metaKey: true });
-    expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("create-workspace-screen")).not.toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "n", metaKey: true, altKey: true });
-    expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
+    expect(await screen.findByTestId("create-workspace-screen")).toBeInTheDocument();
+    expect(screen.getByTestId("create-workspace-name")).toHaveValue("my-draft");
   });
 
   it("keeps non-retired orchestration-named external templates launchable", async () => {
@@ -255,7 +261,7 @@ describe("workspace card grid", () => {
 
     render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
 
-    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
+    fireEvent.click(screen.getByTestId("open-create-workspace-screen"));
     await waitFor(() => {
       expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-external");
     });
@@ -299,8 +305,8 @@ describe("workspace card grid", () => {
 
     render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
 
-    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
-    await screen.findByTestId("create-workspace-modal");
+    fireEvent.click(screen.getByTestId("open-create-workspace-screen"));
+    await screen.findByTestId("create-workspace-screen");
     await waitFor(() => {
       expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-1");
     });
@@ -338,8 +344,8 @@ describe("workspace card grid", () => {
 
     render(<CachedWorkspaceList initialWorkspaces={[makeWorkspace()]} />);
 
-    fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
-    await screen.findByTestId("create-workspace-modal");
+    fireEvent.click(screen.getByTestId("open-create-workspace-screen"));
+    await screen.findByTestId("create-workspace-screen");
     await waitFor(() => {
       expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-1");
     });
@@ -356,7 +362,7 @@ describe("workspace card grid", () => {
       name: "new-dev",
     });
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
-    expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("create-workspace-screen")).not.toBeInTheDocument();
     expect(await screen.findByText("new-dev")).toBeInTheDocument();
     expect(mocks.listWorkspacesAction).toHaveBeenCalledOnce();
   });
@@ -441,10 +447,10 @@ describe("workspace card grid", () => {
     expect(mocks.listWorkspacesAction).toHaveBeenCalledOnce();
   });
 
-  it("auto-opens the launch flow in the management dialog", async () => {
+  it("auto-opens the launch flow in the management window", async () => {
     mocks.listWorkspaceTemplatesAction.mockResolvedValueOnce({ data: [] });
     render(<WorkspaceListContent workspaces={[makeWorkspace()]} launchOnMount />);
-    expect(await screen.findByTestId("create-workspace-modal")).toBeInTheDocument();
+    expect(await screen.findByTestId("create-workspace-screen")).toBeInTheDocument();
   });
 
   it("keeps the empty state inside the pull-to-refresh surface", () => {

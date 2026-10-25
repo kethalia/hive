@@ -148,6 +148,32 @@ describe("general workspace search", () => {
       label: "main",
     });
   });
+  it("opens Files and VS Code for a project and scopes Logs to its terminal", async () => {
+    const { onOpenPane } = setup();
+    await open();
+    for (const tool of ["files", "code"]) {
+      act(() => action(`project-app:software:${tool}:${repository.cloneSessionKey}`).onSelect());
+      expect(onOpenPane).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          kind: "app",
+          workspaceId: "software",
+          tool,
+          projectPath: repository.relativePath,
+        }),
+      );
+      expect(action(`project-app:browser:${tool}:${repository.cloneSessionKey}`)).toBeUndefined();
+    }
+    await act(async () => action(`project-logs:software:${repository.cloneSessionKey}`).onSelect());
+    expect(onOpenPane).toHaveBeenLastCalledWith({
+      kind: "hive",
+      tool: "logs",
+      label: "Logs",
+      workspaceId: "software",
+      sessionName: "git-clone-hive",
+    });
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   it("only offers repositories whose name or path contains the query, ignoring case and surrounding spaces", async () => {
     const names = [
       "hive",

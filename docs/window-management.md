@@ -17,12 +17,21 @@ nested pages and inline prompts:
   a GitHub organization/owner, then a repository name, inside the command palette. It uses that
   workspace's GitHub authentication to clone into `~/projects/<owner>/<repo>`
   and opens a terminal there. Existing folders are never overwritten. Existing projects open directly.
-- **Files, VS Code, Desktops**: each supported Coder workspace supplies an app window.
-- **Hive**: Agents, Settings, Diagnostics, Logs, Templates, and Manage Coder workspaces are native
+- **Files and VS Code**: choose a workspace root or a discovered project. Project windows open
+  at that repository folder, retain it across reloads, and reuse the matching project/tool window.
+- **Desktops**: each supported Coder workspace supplies an app window.
+- **Logs**: choose all terminal events or a project's terminal events.
+- **Hive**: Agents, Settings, Diagnostics, Templates, and Manage Coder workspaces are native
   canvas windows. Agent conversations are shown first; setup details stay collapsed until expanded.
 - **Commands**: layout, focus, movement, and workspace actions remain searchable.
 
+**Manage Coder workspaces → Launch workspace** opens a screen inside the same window.
+Back returns to the list and preserves the unfinished name/profile; successful creation returns
+to the list. Templates keeps its selector visible while the list or template details scrolls.
+
 The blank home screen shows categories and Hive tools; typing still searches across all targets.
+Launcher results and the Launch workspace button omit shortcut labels; existing shortcuts remain
+available in Cmd/Ctrl+? and control tooltips.
 Every nested screen has a Back button. Forward navigation slides right to left, and Back reverses
 it while restoring the parent’s query. Escape goes back one level (dismisses at home); Backspace
 also goes back when the input is empty. Reduced-motion preferences disable these transitions.

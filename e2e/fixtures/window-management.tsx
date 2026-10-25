@@ -92,6 +92,20 @@ export const fixtureWorkspaces = [
     latest_build: { id: "build-3", status: "stopped" },
   },
 ];
+export const fixtureTemplates = [
+  "ai-dev-k8s",
+  "browser-testing",
+  "game-dev",
+  "electronics",
+  "infrastructure",
+].map((name) => ({
+  name,
+  stale: false,
+  lastPushed: null,
+  activeVersionId: null,
+  localHash: "fixture",
+  remoteHash: null,
+}));
 export const fixtureAgents = {
   checkedAt: 1790000000,
   profile: "software",

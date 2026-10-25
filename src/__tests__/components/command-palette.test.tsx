@@ -835,6 +835,7 @@ describe("CommandPalette", () => {
     expect(screen.getByText("New terminal session named api")).toBeInTheDocument();
     expect(screen.getByText("Create and focus this session in the workspace")).toBeInTheDocument();
     expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(screen.queryByTestId("command-shortcut")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("command-item-action:workspace:new"));
 
@@ -1010,7 +1011,7 @@ describe("CommandPalette", () => {
     expect(onSearchValueChange).toHaveBeenCalledWith("worker");
   });
 
-  it("shows 'New Session' command item with shortcut", () => {
+  it("shows 'New Session' without an inline shortcut", () => {
     render(
       <CommandPalette
         open={true}
@@ -1022,7 +1023,7 @@ describe("CommandPalette", () => {
     );
 
     expect(screen.getByText("New Session")).toBeInTheDocument();
-    expect(screen.getByTestId("command-shortcut")).toHaveTextContent("Ctrl + Shift + N");
+    expect(screen.queryByTestId("command-shortcut")).not.toBeInTheDocument();
   });
 
   it("calls onCreateSession and closes when 'New Session' is selected", () => {

@@ -30,11 +30,13 @@ See [window management](window-management.md) for controls, shortcuts, limits an
 
 | Feature | Current behavior | Implementation / coverage |
 | --- | --- | --- |
-| One search | Cmd/Ctrl+K opens a launcher with nested Terminal, Projects, Files, VS Code, Desktop, and command screens; Hive tools remain directly accessible. Back/Escape restores the parent query with a reverse slide; reduced motion is respected. The header search button and mobile swipe open the same launcher. | `CommandPalette`; general-workspace-commands tests |
+| One search | Cmd/Ctrl+K opens a launcher with nested Terminal, Projects, Files, VS Code, Logs, Desktop, and command screens; Hive tools remain directly accessible. Back/Escape restores the parent query with a reverse slide; reduced motion is respected. The header search button and mobile swipe open the same launcher. | `CommandPalette`; general-workspace-commands tests |
 | Repository search | Literal query matching excludes unrelated repositories; repository terminals resolve current clone identity before connecting. | literal-repository-search checks; git-clones action tests |
 | Creation | Create terminal and New project use inline command input steps, including a nested workspace picker, loading/error feedback and Enter to submit. No separate creation dialogs. | command-palette-creation; clone-project tests |
 | Native tools | Agents, Settings, Diagnostics, Logs, Templates, and Manage Coder workspaces open as movable, resizable canvas windows. Opening an existing target focuses its window across boards. | general-workspace-windows tests; browser checks |
-| Workspace apps | Files, VS Code and Desktop open inside the canvas when supported by the template. | general-workspace-pane tests; workspace-app-isolation browser suite |
+| Workspace apps | Files, VS Code and Desktop open inside the canvas when supported by the template. Files and VS Code also open project-specific folders with separate saved identities. | general-workspace-pane tests; workspace-app-isolation browser suite |
+| Workspace management | Launch workspace is a screen inside Manage Coder workspaces with Back navigation and retained drafts. Template lists and details scroll inside their window. | workspaces-list-mobile tests; workspace-tools browser checks |
+| Project logs | Logs offers all terminal events or events for a discovered project’s terminal. | general-workspace-commands tests; workspace-tools browser checks |
 | Cached discovery | Shared, user-scoped workspace/agent/repository/session data, deduplicated requests and background refresh. Cached content remains usable during refresh. | discovery tests; workspace-discovery-cache checks |
 | Loading/error feedback | Initial discovery, app connection and lazy tool windows have local loading states. Errors and explicit retry do not blank the whole canvas. | general-workspace-windows tests; terminal-workspace-feedback checks |
 | Tooltips | Fixed width, wrapping description above a separate right-aligned shortcut footer. | `ShortcutTooltip`; unified-workspace-search checks |
