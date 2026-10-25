@@ -13,6 +13,7 @@ import {
   parseWorkspaceWindowLayoutState,
   reconcileWorkspaceWindowLayout,
   type WorkspaceWindowLayoutNode,
+  workspaceWindowIds,
 } from "@/lib/workspaces/workspace-window-layout";
 import {
   newWindowManager,
@@ -138,6 +139,40 @@ export function generalPaneIdentity(pane: GeneralPane) {
     pane.kind === "app" ? pane.file : undefined,
   ]);
 }
+
+/** Remove a pane and keep focus next to its former position in the visible order. */
+export function removeGeneralWindow(
+  board: GeneralBoard,
+  id: string,
+  order?: readonly string[],
+): GeneralBoard {
+  const ids = board.windows.map((w) => w.id);
+  if (!ids.includes(id)) return board;
+  const manager = reconcileWindowManager(board.manager, ids);
+  const tiledOrder =
+    manager.mode === "strip"
+      ? [
+          ...manager.columns.filter((c) => c.pin === "left"),
+          ...manager.columns.filter((c) => !c.pin),
+          ...manager.columns.filter((c) => c.pin === "right"),
+        ].flatMap((c) => c.windows)
+      : board.layout
+        ? workspaceWindowIds(board.layout)
+        : ids;
+  const ordered = [...new Set([...(order ?? tiledOrder), ...ids])].filter((key) =>
+    ids.includes(key),
+  );
+  const index = ordered.indexOf(id);
+  return {
+    ...board,
+    windows: board.windows.filter((w) => w.id !== id),
+    activeWindowId:
+      (board.activeWindowId ?? ids[0]) === id
+        ? (ordered[index - 1] ?? ordered[index + 1])
+        : board.activeWindowId,
+  };
+}
+
 export function addGeneralWindow(
   state: GeneralWorkspaceState,
   pane: GeneralPane,

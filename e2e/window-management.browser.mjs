@@ -783,20 +783,53 @@ try {
     assert.equal(await navigation.locator('[data-action-id^="session:"]').count(), 0);
     assert.equal(await navigation.locator('[data-action-id^="repository:"]').count(), 0);
     await navigation.getByRole("combobox").fill("term");
-    await navigation.locator('[data-action-id="section:Terminals"]').click();
+    // Measure the rendered motion, not only the animation name. Autofocus and
+    // cmdk scrollIntoView used to scroll the slide container and cancel its offset.
+    const slide = async (trigger, direction) => {
+      const frames = await trigger.evaluate(
+        (element) =>
+          new Promise((done) => {
+            const frames = [];
+            const start = performance.now();
+            function sample() {
+              const panel = document.querySelector("[data-command-page]");
+              const rect = panel.getBoundingClientRect();
+              const scroll = [];
+              for (let parent = panel.parentElement; parent; parent = parent.parentElement)
+                scroll.push(parent.scrollLeft);
+              frames.push({ x: rect.x, width: rect.width, scroll });
+              if (performance.now() - start < 260) requestAnimationFrame(sample);
+              else done(frames);
+            }
+            element.click();
+            requestAnimationFrame(sample);
+          }),
+      );
+      assert(frames.length > 2);
+      const end = frames.at(-1).x;
+      assert(frames.some((frame) => (frame.x - end) * direction > frame.width * 0.08));
+      assert(frames.every((frame) => frame.scroll.every((offset) => offset === 0)));
+      for (let i = 1; i < frames.length; i++)
+        assert((frames[i].x - frames[i - 1].x) * direction <= 1);
+      assert.equal(
+        await navigation.getByRole("combobox").evaluate((el) => el === document.activeElement),
+        true,
+      );
+    };
+    await slide(navigation.locator('[data-action-id="section:Terminals"]'), 1);
     const panel = navigation.locator("[data-command-page]");
     assert.equal(
       await panel.evaluate((el) => getComputedStyle(el).animationName),
       "command-page-forward",
     );
-    await navigation.locator('[data-action-id="new-terminal"]').click();
+    await slide(navigation.locator('[data-action-id="new-terminal"]'), 1);
     await navigation
       .getByRole("combobox", { name: "Session name", exact: true })
       .fill("saved-draft");
     await navigation.keyboard.press("Control+k");
     assert.equal(await navigation.getByRole("combobox").inputValue(), "saved-draft");
-    await navigation.locator('[data-action-id="creation-workspace"]').click();
-    await navigation.getByRole("button", { name: "Back", exact: true }).click();
+    await slide(navigation.locator('[data-action-id="creation-workspace"]'), 1);
+    await slide(navigation.getByRole("button", { name: "Back", exact: true }), -1);
     assert.equal(
       await panel.evaluate((el) => getComputedStyle(el).animationName),
       "command-page-back",
@@ -813,7 +846,7 @@ try {
     await navigation.locator('[data-action-id="new-terminal"]').click();
     await navigation
       .getByRole("combobox", { name: "Session name", exact: true })
-      .fill("keyboard-check");
+      .pressSequentially("keyboard-check");
     await navigation.keyboard.press("Enter");
     await navigation.getByLabel("keyboard-check input").waitFor();
     await navigation.getByRole("dialog").waitFor({ state: "hidden" });
@@ -822,6 +855,140 @@ try {
       `${mobile ? "mobile" : "desktop"}: inline name entry, forward/back slides, Escape/empty Backspace, draft restoration, repeated Cmd+K, reduced motion, and Enter submission`,
     );
     await navigationContext.close();
+  }
+  // Mixed tool/terminal windows must share one keyboard focus target. Closing
+  // follows the current layout, while closing a background pane keeps selection.
+  for (const mode of ["grid", "strip"]) {
+    for (const modifier of ["Control", "Meta"]) {
+      const platform = modifier === "Meta" ? "Macintosh" : "Windows NT 10.0";
+      const closeContext = await browser.newContext({
+        viewport: { width: 1440, height: 900 },
+        userAgent: `Mozilla/5.0 (${platform}) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36`,
+      });
+      await closeContext.addInitScript((mode) => {
+        const ids = ["codex", "settings", "agents"];
+        localStorage.setItem(
+          "general-workspace:v1:fixture",
+          JSON.stringify({
+            version: 1,
+            activeBoardKey: "board-1",
+            boards: [
+              {
+                key: "board-1",
+                name: "1",
+                order: 0,
+                activeWindowId: "codex",
+                windows: [
+                  {
+                    id: "codex",
+                    kind: "terminal",
+                    workspaceId: "software",
+                    sessionName: "codex",
+                    label: "codex",
+                  },
+                  ...["settings", "agents"].map((tool) => ({
+                    id: tool,
+                    kind: "hive",
+                    tool,
+                    label: tool,
+                  })),
+                ],
+                manager: {
+                  mode,
+                  floating: {},
+                  scroll: 0,
+                  shortcuts: "primary+alt",
+                  columns: ids.map((id) => ({
+                    id,
+                    windows: [id],
+                    width: 0.4,
+                    weights: {},
+                    tabbed: false,
+                  })),
+                },
+                layout: {
+                  type: "split",
+                  axis: "y",
+                  first: { type: "leaf", id: "codex" },
+                  second: {
+                    type: "split",
+                    axis: "y",
+                    first: { type: "leaf", id: "settings" },
+                    second: { type: "leaf", id: "agents" },
+                  },
+                },
+              },
+            ],
+          }),
+        );
+      }, mode);
+      const closing = await closeContext.newPage();
+      closing.on("pageerror", (error) => report.errors.push(error.message));
+      await closing.goto("http://127.0.0.1:8831");
+      await closing.getByLabel("codex input").focus();
+      const focused = async (label) =>
+        closing.waitForFunction(
+          (label) => {
+            const frame = document.querySelector('[data-active="true"][data-pane-label]');
+            return (
+              frame?.getAttribute("data-pane-label") === label &&
+              frame.contains(document.activeElement)
+            );
+          },
+          label,
+          { timeout: 5000 },
+        );
+      await closing.keyboard.press(`${modifier}+ArrowRight`);
+      await focused("Settings");
+      await closing.keyboard.press(`${modifier}+ArrowRight`);
+      await focused("Agents");
+      await closing.keyboard.press(`${modifier}+Alt+x`);
+      await closing.getByTestId("hive-window-agents").waitFor({ state: "detached" });
+      await focused("Settings");
+      assert.deepEqual(await closing.evaluate(() => window.fixture.destroys), {});
+      await closing.getByRole("button", { name: "Close Settings", exact: true }).click();
+      await focused("codex");
+      // Clicking nonfocusable tool content can leave the textarea focused. The
+      // selected pane must still win over that stale DOM focus for shortcuts.
+      await closing.evaluate(() =>
+        window.dispatchEvent(new CustomEvent("hive:window-open", { detail: { tool: "settings" } })),
+      );
+      await focused("Settings");
+      await closing.getByLabel("codex input").focus();
+      await closing
+        .getByTestId("hive-window-settings")
+        .getByText("Account", { exact: true })
+        .click();
+      assert.equal(
+        await closing.getByTestId("hive-window-settings").getAttribute("data-active"),
+        "true",
+      );
+      await closing.keyboard.press(`${modifier}+Alt+x`);
+      await focused("codex");
+      assert.deepEqual(await closing.evaluate(() => window.fixture.destroys), {});
+      await closing.evaluate(() =>
+        window.dispatchEvent(new CustomEvent("hive:window-open", { detail: { tool: "agents" } })),
+      );
+      await focused("Agents");
+      // Close a background terminal via its own close button, retaining Agents.
+      await closing.getByRole("button", { name: "Close codex window", exact: true }).click();
+      await focused("Agents");
+      assert.equal((await closing.evaluate(() => window.fixture)).destroys.codex, 1);
+      await closing.evaluate(() =>
+        window.dispatchEvent(new CustomEvent("hive:window-open", { detail: { tool: "settings" } })),
+      );
+      await focused("Settings");
+      await closing.getByTestId("hive-window-agents").focus();
+      await focused("Agents");
+      await closing.getByRole("button", { name: "Close Agents", exact: true }).click();
+      await focused("Settings");
+      await closing.getByRole("button", { name: "Close Settings", exact: true }).click();
+      await closing.getByRole("heading", { name: "Your workspace" }).waitFor();
+      report.checks.push(
+        `${mode}/${modifier}: mixed window focus, tool close shortcuts/buttons, previous/next neighbor, background close, and last close`,
+      );
+      await closeContext.close();
+    }
   }
   for (const viewport of [
     { width: 1440, height: 900 },

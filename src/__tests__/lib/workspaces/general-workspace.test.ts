@@ -3,11 +3,13 @@ import {
   addGeneralFileWindow,
   addGeneralWindow,
   emptyGeneralWorkspace,
+  type GeneralBoard,
   type GeneralPane,
   generalWorkspaceHref,
   generalWorkspaceStorageKey,
   importLegacyWorkspaceBoards,
   parseGeneralWorkspace,
+  removeGeneralWindow,
 } from "@/lib/workspaces/general-workspace";
 import {
   workspaceBoardStorageKey,
@@ -210,5 +212,81 @@ describe("general workspace state", () => {
     expect(state.activeBoardKey).toBe("board-file-2");
     expect(state.boards[2].windows[0]).toMatchObject(file);
     expect(addGeneralFileWindow(state, file, "deleted", true, "file-3")).toBe(state);
+  });
+});
+
+describe("closing workspace windows", () => {
+  const board = (activeWindowId = "third"): GeneralBoard => ({
+    ...emptyGeneralWorkspace().boards[0],
+    activeWindowId,
+    windows: ["first", "second", "third"].map((id) => ({ ...terminal(id), id })),
+  });
+  it.each([
+    ["third", "second"],
+    ["second", "first"],
+    ["first", "second"],
+  ])("closing %s selects %s", (closed, selected) => {
+    const original = board(closed);
+    const next = removeGeneralWindow(original, closed);
+    expect(next.activeWindowId).toBe(selected);
+    expect(next.windows.map((w) => w.id)).not.toContain(closed);
+    expect(original.windows).toHaveLength(3);
+  });
+  it("preserves selection when closing a background window and ignores missing IDs", () => {
+    const original = board();
+    expect(removeGeneralWindow(original, "first").activeWindowId).toBe("third");
+    expect(removeGeneralWindow(original, "missing")).toBe(original);
+  });
+  it("handles an implicit selection and closing the last remaining window", () => {
+    const implicit = { ...board(), activeWindowId: undefined };
+    expect(removeGeneralWindow(implicit, "first").activeWindowId).toBe("second");
+    const last = { ...board("first"), windows: board().windows.slice(0, 1) };
+    expect(removeGeneralWindow(last, "first")).toMatchObject({
+      activeWindowId: undefined,
+      windows: [],
+    });
+  });
+  it("uses the reordered grid, while mobile can use its tab order", () => {
+    const reordered: GeneralBoard = {
+      ...board(),
+      manager: undefined,
+      layout: {
+        type: "split",
+        axis: "x",
+        first: { type: "leaf", id: "second" },
+        second: {
+          type: "split",
+          axis: "y",
+          first: { type: "leaf", id: "first" },
+          second: { type: "leaf", id: "third" },
+        },
+      },
+    };
+    expect(removeGeneralWindow(reordered, "third").activeWindowId).toBe("first");
+    expect(
+      removeGeneralWindow(reordered, "third", ["first", "second", "third"]).activeWindowId,
+    ).toBe("second");
+  });
+  it.each([
+    false,
+    true,
+  ])("uses reordered strip columns and stacked/tabbed order (tabbed=%s)", (tabbed) => {
+    const reordered: GeneralBoard = {
+      ...board("first"),
+      manager: {
+        mode: "strip",
+        floating: {},
+        scroll: 0,
+        shortcuts: "primary+alt",
+        columns: [
+          { id: "a", windows: ["second", "first"], width: 0.5, weights: {}, tabbed },
+          { id: "b", windows: ["third"], width: 0.5, weights: {}, tabbed: false },
+        ],
+      },
+    };
+    expect(removeGeneralWindow(reordered, "first").activeWindowId).toBe("second");
+    reordered.manager!.columns[1].pin = "left";
+    reordered.activeWindowId = "second";
+    expect(removeGeneralWindow(reordered, "second").activeWindowId).toBe("third");
   });
 });

@@ -95,7 +95,7 @@ interface CommandPaletteProps {
 }
 
 const mobileCommandClassName =
-  "rounded-none bg-transparent shadow-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2";
+  "overflow-clip rounded-none bg-transparent shadow-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2";
 
 const dragHandleStyle: CSSProperties = {
   ...NO_TOUCH_STYLE,
@@ -555,7 +555,6 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState("");
-  const query = searchValue ?? localSearch;
   const changeSearch = useCallback(
     (value: string) => {
       setLocalSearch(value);
@@ -583,6 +582,9 @@ export function CommandPalette({
         emptyText: "No options are currently available.",
       })
     : undefined;
+  // Discovery publishes search updates through an effect. Creation drafts must
+  // update immediately, without an older search snapshot replacing typed text.
+  const query = page?.input ? localSearch : (searchValue ?? localSearch);
   const navigate = useCallback(
     (navigation: CommandPaletteNavigation) => {
       if (pending.current) return;

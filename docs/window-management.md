@@ -45,6 +45,8 @@ restores categories at home, or the creation-first order inside Terminal and Pro
 Existing targets are focused across all boards instead of duplicated. Tool windows resize, move,
 float, close, and restore like terminal/app windows. Their loading/error states stay within the pane;
 opening them preserves existing terminal and app instances. Settings contains Open Coder and sign-out.
+Closing the focused window selects its previous neighbor in the current layout, or the next window
+when there is no previous one. Closing a background window keeps the current selection.
 On mobile the same search opens in a bottom sheet; a deliberate leftward swipe also opens it.
 
 ## Resize and arrange

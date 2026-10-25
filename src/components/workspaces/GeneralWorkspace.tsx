@@ -43,6 +43,7 @@ import {
   moveGeneralWindowToAdjacentBoard,
   openHiveWindow,
   parseGeneralWorkspace,
+  removeGeneralWindow,
 } from "@/lib/workspaces/general-workspace";
 import { applyWindowAction } from "@/lib/workspaces/window-actions";
 import { focusWorkspaceWindow } from "@/lib/workspaces/window-focus";
@@ -411,25 +412,33 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     additionalActions: windowActions,
   });
   function closeWindow(boardKey: string, id: string) {
-    const target = stateRef.current.boards
-      .find((b) => b.key === boardKey)
-      ?.windows.find((w) => w.id === id);
+    const board = stateRef.current.boards.find((b) => b.key === boardKey);
+    const target = board?.windows.find((w) => w.id === id);
+    const restoreFocus =
+      boardKey === stateRef.current.activeBoardKey &&
+      ((board?.activeWindowId ?? board?.windows[0]?.id) === id ||
+        document.activeElement
+          ?.closest("[data-workspace-window-id]")
+          ?.getAttribute("data-workspace-window-id") === id);
     if (target?.kind === "hive" && target.tool === "workspaces") setLaunchRequest(0);
     if (target?.kind === "terminal")
       forgetTerminalViews(target.workspaceId, [terminalPaneViewKey("general", id)]);
-    update((current) => ({
+    const next = update((current) => ({
       ...current,
       boards: current.boards.map((b) =>
         b.key === boardKey
-          ? {
-              ...b,
-              windows: b.windows.filter((w) => w.id !== id),
-              activeWindowId:
-                b.activeWindowId === id ? b.windows.find((w) => w.id !== id)?.id : b.activeWindowId,
-            }
+          ? removeGeneralWindow(b, id, mobile ? b.windows.map((w) => w.id) : undefined)
           : b,
       ),
     }));
+    if (restoreFocus) {
+      const active = next.boards.find((b) => b.key === next.activeBoardKey)?.activeWindowId;
+      const entry = active
+        ? entries.current.get(terminalPaneViewKey("general", active))
+        : undefined;
+      setActiveTerminal(entry?.term ?? null, entry?.send ?? null);
+      setFocusRequest((value) => value + 1);
+    }
   }
   function createBoard() {
     if (stateRef.current.boards.length >= MAX_GENERAL_BOARDS) {
@@ -507,14 +516,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         ),
       };
     });
-    requestAnimationFrame(() => {
-      const b = stateRef.current.boards.find((b) => b.key === stateRef.current.activeBoardKey);
-      const entry = b?.activeWindowId
-        ? entries.current.get(terminalPaneViewKey("general", b.activeWindowId))
-        : undefined;
-      setActiveTerminal(entry?.term ?? null, entry?.send ?? null);
-      entry?.term.focus();
-    });
+    setFocusRequest((value) => value + 1);
   }
   useRegisterKeybinding({
     id: "general-workspace:agents",
