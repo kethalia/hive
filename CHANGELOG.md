@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.29.0
+
+### Minor Changes
+
+- 5f68025: Keep terminal and project creation inside a nested command launcher, with searchable categories, inline name prompts, animated Back navigation, and keyboard controls.
+
 ## 2.28.2
 
 ### Patch Changes
