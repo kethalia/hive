@@ -772,7 +772,7 @@ export function WorkspaceListContent({
                       {healthLabel(workspace)}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex flex-nowrap justify-end gap-2">
                         {workspace.latest_build.status === "running" ? (
                           <Button
                             variant="outline"

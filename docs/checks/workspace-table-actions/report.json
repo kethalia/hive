@@ -1,0 +1,54 @@
+[
+  {
+    "viewportWidth": 2560,
+    "closedRowHeights": [57, 57, 56.5],
+    "openRowHeights": [57, 57, 56.5],
+    "singleLineActions": true,
+    "actionsReachableByTableScroll": true,
+    "pageOverflow": false,
+    "browserErrors": []
+  },
+  {
+    "viewportWidth": 1920,
+    "closedRowHeights": [57, 57, 56.5],
+    "openRowHeights": [57, 57, 56.5],
+    "singleLineActions": true,
+    "actionsReachableByTableScroll": true,
+    "pageOverflow": false,
+    "browserErrors": []
+  },
+  {
+    "viewportWidth": 1440,
+    "closedRowHeights": [57, 57, 56.5],
+    "openRowHeights": [57, 57, 56.5],
+    "singleLineActions": true,
+    "actionsReachableByTableScroll": true,
+    "pageOverflow": false,
+    "browserErrors": [],
+    "originalWrappingRowHeights": [153, 153, 104.5]
+  },
+  {
+    "viewportWidth": 1280,
+    "closedRowHeights": [57, 57, 56.5],
+    "openRowHeights": [57, 57, 56.5],
+    "singleLineActions": true,
+    "actionsReachableByTableScroll": true,
+    "pageOverflow": false,
+    "browserErrors": []
+  },
+  {
+    "viewportWidth": 1100,
+    "closedRowHeights": [57, 57, 56.5],
+    "openRowHeights": [57, 57, 56.5],
+    "singleLineActions": true,
+    "actionsReachableByTableScroll": true,
+    "pageOverflow": false,
+    "browserErrors": []
+  },
+  {
+    "width": 390,
+    "mobileCards": 3,
+    "tableHidden": true,
+    "pageOverflow": false
+  }
+]
