@@ -90,7 +90,15 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const [dragging, setDragging] = useState(false);
   const [visited, setVisited] = useState<Set<string>>(() => new Set());
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
-  const body = useRef<HTMLDivElement>(null);
+  const observeBody = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width && entry.contentRect.height)
+        setViewport({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const entries = useRef(
     new Map<string, { term: Terminal; send: (data: string) => void; sessionName: string }>(),
   );
@@ -143,15 +151,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       window.removeEventListener("hive:sidebar-refresh", refresh);
     };
   }, []);
-  useEffect(() => {
-    if (!loaded || !body.current) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry.contentRect.width && entry.contentRect.height)
-        setViewport({ width: entry.contentRect.width, height: entry.contentRect.height });
-    });
-    observer.observe(body.current);
-    return () => observer.disconnect();
-  }, [loaded]);
   const update = useCallback(
     (change: (current: GeneralWorkspaceState) => GeneralWorkspaceState) => {
       const changed = change(stateRef.current);
@@ -463,7 +462,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         </nav>
       ) : null}
       <div
-        ref={body}
+        ref={observeBody}
         className={`relative min-h-0 flex-1 ${dragging ? "[&_iframe]:pointer-events-none" : ""}`}
       >
         {!board.windows.length ? (

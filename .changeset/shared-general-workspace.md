@@ -11,3 +11,5 @@ Preserve mobile keyboard sizing, scoped file-link actions, and explicit terminal
 Allow mobile scrolling in the window picker, open-window tabs, and workspace-management dialog while keeping background scrolling locked.
 
 Resolve file-window targets to absolute paths before saving them, and keep mobile workspace header controls below the device safe area.
+
+Preserve distinct file targets when importing legacy Files panes and reattach canvas size observation when responsive layouts replace the canvas element.

@@ -10,6 +10,7 @@ import {
   parseGeneralWorkspace,
 } from "@/lib/workspaces/general-workspace";
 import { workspaceBoardStorageKey } from "@/lib/workspaces/workspace-board-state";
+import { workspaceToolPaneStorageKey } from "@/lib/workspaces/workspace-tool-pane-state";
 
 const terminal = (workspaceId: string): GeneralPane => ({
   kind: "terminal",
@@ -95,6 +96,79 @@ describe("general workspace state", () => {
       "one",
       "two",
     ]);
+    expect([...store]).toEqual(snapshot);
+  });
+  it.each([
+    "workspace",
+    "unified",
+  ] as const)("preserves distinct legacy file targets and deduplicates complete identities from %s", (source) => {
+    const store = new Map<string, string>();
+    store.set(
+      workspaceBoardStorageKey("one", source),
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "old",
+        boards: [{ key: "old", name: "1", order: 0, panes: [] }],
+      }),
+    );
+    const descriptor = {
+      boardKey: "old",
+      sessionName: "main",
+      tool: "files",
+      label: "README.md",
+      filePath: "/home/coder/projects/hive/README.md",
+    };
+    store.set(
+      workspaceToolPaneStorageKey("one", source),
+      JSON.stringify({
+        version: 1,
+        panes: [
+          { ...descriptor, paneId: "readme" },
+          {
+            ...descriptor,
+            paneId: "index",
+            label: "index.ts",
+            filePath: "/home/coder/projects/hive/index.ts",
+          },
+          { ...descriptor, paneId: "duplicate" },
+          { ...descriptor, paneId: "other-session", sessionName: "other" },
+          { boardKey: "old", sessionName: "main", tool: "files", label: "Files" },
+          { boardKey: "old", sessionName: "main", tool: "code", label: "VS Code" },
+          { boardKey: "old", sessionName: "main", tool: "logs", label: "Logs" },
+          { ...descriptor, paneId: "invalid", sessionName: "bad;session" },
+          { ...descriptor, paneId: "other-board", boardKey: "missing" },
+        ],
+      }),
+    );
+    const snapshot = [...store];
+    const imported = importLegacyWorkspaceBoards(["one"], (key) => store.get(key) ?? null);
+    expect(imported.boards).toHaveLength(1);
+    expect(imported.boards[0].windows.map(({ id: _id, ...pane }) => pane)).toEqual([
+      {
+        kind: "app",
+        workspaceId: "one",
+        tool: "files",
+        label: "README.md",
+        file: { sessionName: "main", path: descriptor.filePath },
+      },
+      {
+        kind: "app",
+        workspaceId: "one",
+        tool: "files",
+        label: "index.ts",
+        file: { sessionName: "main", path: "/home/coder/projects/hive/index.ts" },
+      },
+      {
+        kind: "app",
+        workspaceId: "one",
+        tool: "files",
+        label: "README.md",
+        file: { sessionName: "other", path: descriptor.filePath },
+      },
+      { kind: "app", workspaceId: "one", tool: "files", label: "Files" },
+      { kind: "app", workspaceId: "one", tool: "code", label: "VS Code" },
+    ]);
+    expect(new Set(imported.boards[0].windows.map((pane) => pane.id)).size).toBe(5);
     expect([...store]).toEqual(snapshot);
   });
   it("namespaces layout storage by signed-in user and uses internal app links", () => {

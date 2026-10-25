@@ -1,0 +1,41 @@
+{
+  "dimensions": [
+    {
+      "label": "initial desktop",
+      "width": 1264,
+      "height": 843,
+      "activeObservers": 1
+    },
+    {
+      "label": "mobile",
+      "width": 390,
+      "height": 727,
+      "activeObservers": 1
+    },
+    {
+      "label": "tall desktop",
+      "width": 1064,
+      "height": 1743,
+      "activeObservers": 1
+    },
+    {
+      "label": "wide desktop",
+      "width": 1464,
+      "height": 743,
+      "activeObservers": 1
+    }
+  ],
+  "oldObserversDisconnected": true,
+  "newSplitAxes": {
+    "tall": "x",
+    "wide": "y"
+  },
+  "legacyFileTargets": [
+    "/home/coder/projects/hive/README.md",
+    "/home/coder/projects/hive/index.ts"
+  ],
+  "duplicateRemoved": true,
+  "legacyStoragePreserved": true,
+  "freshFileAuthorization": true,
+  "errors": []
+}

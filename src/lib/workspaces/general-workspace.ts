@@ -259,15 +259,22 @@ export function importLegacyWorkspaceBoards(
         for (const tool of tools.filter(
           (tool) => tool.boardKey === old.key && tool.tool !== "logs",
         )) {
-          if (windows.some((p) => p.kind === "app" && p.tool === tool.tool)) continue;
           if (tool.tool === "logs") continue;
-          windows.push({
-            id: `${key}-${windows.length + 1}`,
+          const data = generalPaneSchema.safeParse({
             kind: "app",
             workspaceId,
             tool: tool.tool,
-            label: tool.tool === "code" ? "VS Code" : "Files",
+            label: tool.label,
+            ...(tool.tool === "files" && tool.filePath
+              ? { file: { sessionName: tool.sessionName, path: tool.filePath } }
+              : {}),
           });
+          if (
+            !data.success ||
+            windows.some((pane) => generalPaneIdentity(pane) === generalPaneIdentity(data.data))
+          )
+            continue;
+          windows.push({ ...data.data, id: `${key}-${windows.length + 1}` });
         }
         if (windows.length)
           boards.push({
