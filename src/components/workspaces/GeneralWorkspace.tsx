@@ -1,26 +1,14 @@
 "use client";
 
 import type { Terminal } from "@xterm/xterm";
-import { Bot, Ellipsis, Search } from "lucide-react";
-import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { GeneralWorkspaceMobileControls } from "@/components/workspaces/GeneralWorkspaceMobileControls";
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
-import {
-  WorkspaceHeaderButton,
-  WorkspaceSidebarButton,
-} from "@/components/workspaces/WorkspaceHeaderButton";
+import { WorkspaceSearchButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
@@ -30,11 +18,7 @@ import { useWorkspaceNotifications } from "@/hooks/useWorkspaceNotifications";
 import { startWorkspaceAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { useDiscovery } from "@/lib/discovery/queries";
-import {
-  GLOBAL_COMMAND_PALETTE_KEYS,
-  MANAGE_WORKSPACES_KEYS,
-  WORKSPACE_AGENTS_KEYS,
-} from "@/lib/keyboard-shortcuts";
+import { MANAGE_WORKSPACES_KEYS, WORKSPACE_AGENTS_KEYS } from "@/lib/keyboard-shortcuts";
 import { openGlobalCommandPalette } from "@/lib/terminal/global-command-palette";
 import { forgetTerminalViews, terminalPaneViewKey } from "@/lib/terminal/session-lifetime";
 import type { GeneralBoard } from "@/lib/workspaces/general-workspace";
@@ -46,15 +30,22 @@ import {
   type GeneralPane,
   type GeneralWorkspaceState,
   type GeneralWorkspaceTool,
+  generalPaneIdentity,
   generalToolSchema,
   generalWorkspaceStorageKey,
+  HIVE_WINDOW_OPEN_EVENT,
+  type HiveWindowRequest,
+  hiveToolSchema,
+  hiveWindowRequestSchema,
   importLegacyWorkspaceBoards,
   MAX_GENERAL_BOARDS,
   MAX_GENERAL_WINDOWS,
-  moveGeneralWindowToNextBoard,
+  moveGeneralWindowToAdjacentBoard,
+  openHiveWindow,
   parseGeneralWorkspace,
 } from "@/lib/workspaces/general-workspace";
 import { applyWindowAction } from "@/lib/workspaces/window-actions";
+import { focusWorkspaceWindow } from "@/lib/workspaces/window-focus";
 import {
   newWindowManager,
   reconcileWindowManager,
@@ -63,16 +54,12 @@ import {
   windowGeometry,
 } from "@/lib/workspaces/window-manager";
 import { reconcileWorkspaceWindowLayout } from "@/lib/workspaces/workspace-window-layout";
+import { CreateWindowDialog } from "./CreateWindowDialog";
+import { HiveWorkspacePane } from "./HiveWorkspacePane";
 import { WindowCanvas } from "./WindowCanvas";
 import { WindowLayoutControls } from "./WindowLayoutControls";
 import { WindowShortcutHelp } from "./WindowShortcutHelp";
 
-const WorkspaceListContent = dynamic(() =>
-  import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
-);
-const AgentToolsDialog = dynamic(() =>
-  import("./AgentToolsDialog").then((m) => m.AgentToolsDialog),
-);
 const labels = { files: "Files", code: "VS Code", desktop: "Desktop" };
 interface Props {
   userId: string;
@@ -93,9 +80,8 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const initialWorkspacesRef = useRef(initialWorkspaces);
   initialWorkspacesRef.current = initialWorkspaces;
   const [notice, setNotice] = useState<string | null>(error ?? null);
-  const [manage, setManage] = useState(false);
-  const [launch, setLaunch] = useState(false);
-  const [agents, setAgents] = useState<string | null>(null);
+  const [launchRequest, setLaunchRequest] = useState(0);
+  const [creating, setCreating] = useState<"terminal" | "project" | null>(null);
   const [visited, setVisited] = useState<Set<string>>(() => new Set());
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
   const observeBody = useCallback((node: HTMLDivElement | null) => {
@@ -256,11 +242,24 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     const entry = entries.current.get(terminalPaneViewKey("general", id));
     setActiveTerminal(entry?.term ?? null, entry?.send ?? null);
   }
+  const [focusRequest, setFocusRequest] = useState(0);
+  useEffect(() => {
+    if (!focusRequest) return;
+    const frame = requestAnimationFrame(focusWorkspaceWindow);
+    return () => cancelAnimationFrame(frame);
+  }, [focusRequest]);
   const openPane = useCallback(
     (pane: GeneralPane) => {
+      setFocusRequest((value) => value + 1);
       update(
         (current) => {
-          const next = addGeneralWindow(current, pane, crypto.randomUUID());
+          const existingBoard = current.boards.find((b) =>
+            b.windows.some((w) => generalPaneIdentity(w) === generalPaneIdentity(pane)),
+          );
+          const next =
+            pane.kind === "hive"
+              ? openHiveWindow(current, pane, crypto.randomUUID())
+              : addGeneralWindow(current, pane, crypto.randomUUID(), existingBoard?.key);
           if (next === current)
             setNotice(`The workspace supports up to ${MAX_GENERAL_WINDOWS} open windows.`);
           return next;
@@ -269,6 +268,26 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       );
     },
     [update],
+  );
+  const openHiveTool = useCallback(
+    (request: HiveWindowRequest) => {
+      setFocusRequest((value) => value + 1);
+      update(
+        (current) => {
+          const next = openHiveWindow(current, request, crypto.randomUUID());
+          if (next === current)
+            setNotice(`The workspace supports up to ${MAX_GENERAL_WINDOWS} open windows.`);
+          return next;
+        },
+        { revealActiveWindow: true },
+      );
+      if (request.tool === "workspaces" && request.launch) setLaunchRequest((value) => value + 1);
+    },
+    [update],
+  );
+  const openAgents = useCallback(
+    (workspaceId?: string) => openHiveTool({ tool: "agents", workspaceId }),
+    [openHiveTool],
   );
   const openTool = useCallback(
     (workspaceId: string, tool: GeneralWorkspaceTool) => {
@@ -282,7 +301,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   );
   const requestOpen = useCallback(
     (workspaceId: string, tool?: GeneralWorkspaceTool) => {
-      setManage(false);
       if (tool && tool !== "terminal") openTool(workspaceId, tool);
       else openGlobalCommandPalette();
     },
@@ -307,14 +325,21 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     const workspaceId = query.get("workspace");
     const tool = generalToolSchema.safeParse(query.get("tool"));
     const sessionName = query.get("session");
-    if (workspaceId && sessionName) void notification.open(workspaceId, sessionName);
+    const panel = hiveToolSchema.safeParse(query.get("panel"));
+    if (panel.success)
+      openHiveTool({
+        tool: panel.data,
+        sessionName: panel.data === "logs" ? (sessionName ?? undefined) : undefined,
+        template: query.get("template") ?? undefined,
+        workspaceId: workspaceId ?? undefined,
+        launch: query.get("launch") === "1",
+      });
+    else if (workspaceId && sessionName) void notification.open(workspaceId, sessionName);
     else if (workspaceId) requestOpen(workspaceId, tool.success ? tool.data : undefined);
-    if (query.get("launch") === "1") {
-      setLaunch(true);
-      setManage(true);
-    }
+    if (!panel.success && (query.get("launch") === "1" || query.get("manage") === "1"))
+      openHiveTool({ tool: "workspaces", launch: query.get("launch") === "1" });
     router.replace("/workspaces", { scroll: false });
-  }, [loaded, request, requestOpen, router, notification.open]);
+  }, [loaded, request, requestOpen, router, notification.open, openHiveTool]);
   useEffect(() => {
     if (!request) consumed.current = null;
   }, [request]);
@@ -329,6 +354,14 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     return () => window.removeEventListener(GENERAL_WORKSPACE_OPEN_EVENT, handler);
   }, [requestOpen]);
   useEffect(() => {
+    const handler = (event: Event) => {
+      const request = hiveWindowRequestSchema.safeParse((event as CustomEvent).detail);
+      if (request.success) openHiveTool(request.data);
+    };
+    window.addEventListener(HIVE_WINDOW_OPEN_EVENT, handler);
+    return () => window.removeEventListener(HIVE_WINDOW_OPEN_EVENT, handler);
+  }, [openHiveTool]);
+  useEffect(() => {
     const entry = active
       ? entries.current.get(terminalPaneViewKey("general", active.id))
       : undefined;
@@ -340,7 +373,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       const result = await startWorkspaceAction({ workspaceId });
       if (!result?.data) throw new Error(result?.serverError ?? "Could not start workspace.");
       await workspaceQuery.refresh();
-      window.dispatchEvent(new Event("hive:sidebar-refresh"));
+      window.dispatchEvent(new Event("hive:discovery-refresh"));
     },
     [workspaceQuery.refresh],
   );
@@ -376,14 +409,16 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     onOpenPane: openPane,
     onError: setNotice,
     onStart: start,
-    onAgents: setAgents,
+    onCreate: setCreating,
     additionalActions: windowActions,
   });
   function closeWindow(boardKey: string, id: string) {
     const target = stateRef.current.boards
       .find((b) => b.key === boardKey)
       ?.windows.find((w) => w.id === id);
-    if (target) forgetTerminalViews(target.workspaceId, [terminalPaneViewKey("general", id)]);
+    if (target?.kind === "hive" && target.tool === "workspaces") setLaunchRequest(0);
+    if (target?.kind === "terminal")
+      forgetTerminalViews(target.workspaceId, [terminalPaneViewKey("general", id)]);
     update((current) => ({
       ...current,
       boards: current.boards.map((b) =>
@@ -420,12 +455,16 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     }));
   }
   function deleteBoard(key: string) {
-    if (stateRef.current.boards.length <= 1) return;
     const removed = stateRef.current.boards.find((b) => b.key === key);
+    if (!removed) return;
+    if (removed.windows.some((pane) => pane.kind === "hive" && pane.tool === "workspaces"))
+      setLaunchRequest(0);
     for (const pane of removed?.windows ?? [])
-      forgetTerminalViews(pane.workspaceId, [terminalPaneViewKey("general", pane.id)]);
+      if (pane.kind === "terminal")
+        forgetTerminalViews(pane.workspaceId, [terminalPaneViewKey("general", pane.id)]);
     update((current) => {
       const boards = current.boards.filter((b) => b.key !== key);
+      if (!boards.length) return emptyGeneralWorkspace();
       return {
         ...current,
         boards,
@@ -455,8 +494,12 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           ? { ...current, activeBoardKey: current.boards[target].key }
           : current;
       }
-      if (action === "next-board")
-        return moveGeneralWindowToNextBoard(current, crypto.randomUUID());
+      if (action === "next-board" || action === "previous-board")
+        return moveGeneralWindowToAdjacentBoard(
+          current,
+          crypto.randomUUID(),
+          action === "previous-board" ? -1 : 1,
+        );
       return {
         ...current,
         boards: current.boards.map((b) =>
@@ -479,8 +522,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     id: "general-workspace:agents",
     keys: [...WORKSPACE_AGENTS_KEYS],
     action: () => {
-      if (active) setAgents(active.workspaceId);
-      else openGlobalCommandPalette();
+      openAgents(active?.workspaceId);
       return false;
     },
     description: "Open agent tools and sessions",
@@ -492,8 +534,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     id: "general-workspace:manage",
     keys: [...MANAGE_WORKSPACES_KEYS],
     action: () => {
-      setLaunch(false);
-      setManage(true);
+      openHiveTool({ tool: "workspaces" });
       return false;
     },
     description: "Manage Coder workspaces",
@@ -514,9 +555,18 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       data-dashboard-full-bleed=""
       data-testid="general-workspace"
     >
+      {creating ? (
+        <CreateWindowDialog
+          kind={creating}
+          workspaces={workspaces}
+          initialWorkspaceId={active?.workspaceId}
+          onClose={() => setCreating(null)}
+          onOpenPane={openPane}
+        />
+      ) : null}
       <WindowShortcutHelp shortcuts={manager.shortcuts} onChange={changeShortcuts} />
       <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)]">
-        <WorkspaceSidebarButton />
+        <WorkspaceSearchButton />
         <WorkspaceBoardBar
           boards={state.boards}
           activeBoardKey={board.key}
@@ -528,31 +578,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         />
         <div className="flex items-center gap-1">
           {!mobile ? <WindowLayoutControls manager={manager} onAction={runWindowAction} /> : null}
-          <WorkspaceHeaderButton
-            label="Agents"
-            shortcuts={WORKSPACE_AGENTS_KEYS}
-            aria-label="Agent tools"
-            onClick={() => (active ? setAgents(active.workspaceId) : openGlobalCommandPalette())}
-          >
-            <Bot className="size-4" />
-          </WorkspaceHeaderButton>
-          <WorkspaceHeaderButton
-            label="Add window"
-            shortcuts={GLOBAL_COMMAND_PALETTE_KEYS}
-            onClick={() => openGlobalCommandPalette()}
-          >
-            <Search className="size-4" />
-          </WorkspaceHeaderButton>
-          <WorkspaceHeaderButton
-            label="Manage Coder workspaces"
-            shortcuts={MANAGE_WORKSPACES_KEYS}
-            onClick={() => {
-              setLaunch(false);
-              setManage(true);
-            }}
-          >
-            <Ellipsis className="size-4" />
-          </WorkspaceHeaderButton>
         </div>
       </header>
       {notification.opening ? (
@@ -581,7 +606,10 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
               onClick={() => activate(board.key, pane.id)}
               className="shrink-0"
             >
-              {workspaces.find((w) => w.id === pane.workspaceId)?.name} · {pane.label}
+              {pane.kind !== "hive"
+                ? `${workspaces.find((w) => w.id === pane.workspaceId)?.name ?? "Workspace"} · `
+                : ""}
+              {pane.label}
             </Button>
           ))}
         </nav>
@@ -605,6 +633,50 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           onBoardChange={changeBoard}
           onActivate={activate}
           renderPane={(b, pane, visible, rect, dragHandleListeners) => {
+            if (pane.kind === "hive")
+              return (
+                <HiveWorkspacePane
+                  pane={pane}
+                  userId={userId}
+                  workspaces={workspaces}
+                  active={pane.id === b.activeWindowId}
+                  visible={visible}
+                  launchRequest={launchRequest}
+                  dragHandleListeners={mobile ? undefined : dragHandleListeners}
+                  onActivate={() => activate(b.key, pane.id)}
+                  onClose={() => closeWindow(b.key, pane.id)}
+                  onWorkspaceChange={(workspaceId) =>
+                    changeBoard(b.key, (current) => ({
+                      ...current,
+                      windows: current.windows.map((w) =>
+                        w.id === pane.id ? { ...w, workspaceId } : w,
+                      ),
+                    }))
+                  }
+                  onOpenSession={(workspaceId, sessionName) => {
+                    const current = stateRef.current;
+                    const existingBoard = current.boards.find((b) =>
+                      b.windows.some(
+                        (w) =>
+                          w.kind === "terminal" &&
+                          w.workspaceId === workspaceId &&
+                          w.sessionName === sessionName,
+                      ),
+                    );
+                    const existing = existingBoard?.windows.find(
+                      (w) =>
+                        w.kind === "terminal" &&
+                        w.workspaceId === workspaceId &&
+                        w.sessionName === sessionName,
+                    );
+                    if (existing) openPane(existing);
+                    else if (sessionName.startsWith("git-clone-"))
+                      void notification.open(workspaceId, sessionName);
+                    else
+                      openPane({ kind: "terminal", workspaceId, sessionName, label: sessionName });
+                  }}
+                />
+              );
             const viewKey = terminalPaneViewKey("general", pane.id);
             return (
               <GeneralWorkspacePane
@@ -673,81 +745,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           }
         />
       ) : null}
-      {agents ? (
-        <Suspense
-          fallback={
-            <Dialog
-              open
-              onOpenChange={(open) => {
-                if (!open) setAgents(null);
-              }}
-            >
-              <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Agent tools and sessions</DialogTitle>
-                  <DialogDescription>
-                    Check your workspace setup and return to a conversation.
-                  </DialogDescription>
-                </DialogHeader>
-                <p role="status" className="text-sm text-muted-foreground">
-                  Loading agent tools…
-                </p>
-              </DialogContent>
-            </Dialog>
-          }
-        >
-          <AgentToolsDialog
-            workspaceId={agents}
-            buildId={workspaces.find((workspace) => workspace.id === agents)?.latest_build.id}
-            open
-            onOpenChange={(open) => {
-              if (!open) setAgents(null);
-            }}
-            onOpenSession={(sessionName) => {
-              const existing = state.boards
-                .flatMap((b) => b.windows)
-                .find(
-                  (pane) =>
-                    pane.workspaceId === agents &&
-                    pane.kind === "terminal" &&
-                    pane.sessionName === sessionName,
-                );
-              if (existing) openPane(existing);
-              else if (sessionName.startsWith("git-clone-")) openGlobalCommandPalette();
-              else
-                openPane({
-                  kind: "terminal",
-                  workspaceId: agents,
-                  sessionName,
-                  label: sessionName,
-                });
-              setAgents(null);
-            }}
-          />
-        </Suspense>
-      ) : null}
-      <Dialog open={manage} onOpenChange={setManage}>
-        <DialogContent
-          className="max-h-[85dvh] overflow-y-auto sm:max-w-6xl"
-          data-mobile-scroll-allow="true"
-        >
-          <DialogHeader>
-            <DialogTitle>Coder workspaces</DialogTitle>
-            <DialogDescription>
-              Launch and manage the environments behind your windows.
-            </DialogDescription>
-          </DialogHeader>
-          <Suspense
-            fallback={
-              <p role="status" className="text-sm text-muted-foreground">
-                Loading workspace controls…
-              </p>
-            }
-          >
-            <WorkspaceListContent workspaces={workspaces} launchOnMount={launch} embedded />
-          </Suspense>
-        </DialogContent>
-      </Dialog>
     </section>
   );
   return mobile ? (

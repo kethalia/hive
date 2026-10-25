@@ -12,7 +12,7 @@ function GestureHarness({ enabled = true, onOpen }: { enabled?: boolean; onOpen:
       <div data-testid="pane-header" data-window-drag-surface="true">
         Pane header
       </div>
-      <div data-sidebar-gesture-ignore="true" data-testid="terminal-controls">
+      <div data-launcher-gesture-ignore="true" data-testid="terminal-controls">
         Terminal controls
       </div>
       <div data-mobile-scroll-allow="true" data-testid="workspace-tabs">

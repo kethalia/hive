@@ -57,11 +57,11 @@ vi.mock("@/components/workspaces/WorkspacePaneActionSheet", () => ({
 }));
 
 import { PersistentTerminalProvider } from "@/components/terminal/PersistentTerminalProvider";
-
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { useDiscovery } from "@/lib/discovery/queries";
 import { DiscoveryError } from "@/lib/discovery/types";
+import { HIVE_WINDOW_OPEN_EVENT } from "@/lib/workspaces/general-workspace";
 import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
 
 function props(): ComponentProps<typeof GeneralWorkspacePane> {
@@ -150,6 +150,37 @@ describe("GeneralWorkspacePane connections", () => {
     await screen.findByRole("button", { name: "Refresh agent: denied" });
     expect(screen.getByTitle(`${tool} · ai-dev-01`)).toBe(frame);
     expect(actions.app).toHaveBeenCalledOnce();
+  });
+
+  it("opens pane logs as a scoped workspace window without mounting a dialog", async () => {
+    const listener = vi.fn();
+    window.addEventListener(HIVE_WINDOW_OPEN_EVENT, listener);
+    try {
+      const initial = props();
+      render(
+        <GeneralWorkspacePane
+          {...initial}
+          pane={{
+            id: "pane-1",
+            kind: "terminal",
+            workspaceId: "software",
+            sessionName: "review",
+            label: "review",
+          }}
+        />,
+      );
+      await screen.findByTestId("terminal-connection");
+      fireEvent.click(screen.getByRole("button", { name: "Open actions for review" }));
+      fireEvent.click(screen.getByRole("button", { name: "Session logs" }));
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: { tool: "logs", workspaceId: "software", sessionName: "review" },
+        }),
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      window.removeEventListener(HIVE_WINDOW_OPEN_EVENT, listener);
+    }
   });
 
   it("discards a late app response after the Coder build has changed", async () => {

@@ -24,7 +24,7 @@ try {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("http://127.0.0.1:4187");
-    await page.getByRole("heading", { name: "Agent tools and sessions" }).waitFor();
+    await page.getByRole("heading", { name: "Recent conversations" }).waitFor();
     await page.getByText("hive · Codex").waitFor();
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),

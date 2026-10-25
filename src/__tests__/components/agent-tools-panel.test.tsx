@@ -10,7 +10,7 @@ vi.mock("@/lib/actions/agent-tools", () => ({
   resumeAgentSessionAction: vi.fn(),
 }));
 
-import { AgentToolsDialog } from "@/components/workspaces/AgentToolsDialog";
+import { AgentToolsPanel } from "@/components/workspaces/AgentToolsPanel";
 import {
   configureAgentToolsAction,
   inspectAgentToolsAction,
@@ -54,16 +54,9 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("agent tools dialog", () => {
+describe("agent tools panel", () => {
   it("does not scan or mutate when closed", () => {
-    render(
-      <AgentToolsDialog
-        workspaceId={id}
-        open={false}
-        onOpenChange={vi.fn()}
-        onOpenSession={vi.fn()}
-      />,
-    );
+    render(<AgentToolsPanel workspaceId={id} open={false} onOpenSession={vi.fn()} />);
     expect(inspectAgentToolsAction).not.toHaveBeenCalled();
     expect(configureAgentToolsAction).not.toHaveBeenCalled();
   });
@@ -71,7 +64,7 @@ describe("agent tools dialog", () => {
   it("searches session metadata and resumes the selected ID only", async () => {
     const open = vi.fn();
     vi.mocked(resumeAgentSessionAction).mockResolvedValue({ data: { sessionName: "recovered" } });
-    render(<AgentToolsDialog workspaceId={id} open onOpenChange={vi.fn()} onOpenSession={open} />);
+    render(<AgentToolsPanel workspaceId={id} open onOpenSession={open} />);
     await screen.findByText("hive · Codex");
     fireEvent.change(screen.getByLabelText("Search agent sessions"), {
       target: { value: "missing" },
@@ -86,16 +79,16 @@ describe("agent tools dialog", () => {
     expect(configureAgentToolsAction).not.toHaveBeenCalled();
   });
 
-  it("keeps the dialog open when recovery fails", async () => {
-    const close = vi.fn();
+  it("keeps the panel open when recovery fails", async () => {
+    const open = vi.fn();
     vi.mocked(resumeAgentSessionAction).mockResolvedValue({ serverError: "Folder unavailable" });
-    render(<AgentToolsDialog workspaceId={id} open onOpenChange={close} onOpenSession={vi.fn()} />);
+    render(<AgentToolsPanel workspaceId={id} open onOpenSession={open} />);
     fireEvent.click(await screen.findByRole("button", { name: "Resume" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Folder unavailable");
-    expect(close).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
   });
 
-  it("ignores a recovery response after the dialog unmounts", async () => {
+  it("ignores a recovery response after the panel unmounts", async () => {
     const open = vi.fn();
     let resolve!: (value: { data: { sessionName: string } }) => void;
     vi.mocked(resumeAgentSessionAction).mockReturnValue(
@@ -105,7 +98,7 @@ describe("agent tools dialog", () => {
     );
     const view = render(
       <StrictMode>
-        <AgentToolsDialog workspaceId={id} open onOpenChange={vi.fn()} onOpenSession={open} />
+        <AgentToolsPanel workspaceId={id} open onOpenSession={open} />
       </StrictMode>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Resume" }));
@@ -118,9 +111,7 @@ describe("agent tools dialog", () => {
     vi.mocked(configureAgentToolsAction).mockResolvedValue({
       data: { message: "Review Codex /hooks" },
     });
-    render(
-      <AgentToolsDialog workspaceId={id} open onOpenChange={vi.fn()} onOpenSession={vi.fn()} />,
-    );
+    render(<AgentToolsPanel workspaceId={id} open onOpenSession={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Enable tracking" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Review Codex /hooks");
     expect(configureAgentToolsAction).toHaveBeenCalledWith({
@@ -133,9 +124,7 @@ describe("agent tools dialog", () => {
     vi.mocked(inspectAgentToolsAction).mockResolvedValue({
       data: { ...snapshot, profile: "browser", coderMcpSupported: false },
     });
-    render(
-      <AgentToolsDialog workspaceId={id} open onOpenChange={vi.fn()} onOpenSession={vi.fn()} />,
-    );
+    render(<AgentToolsPanel workspaceId={id} open onOpenSession={vi.fn()} />);
     await screen.findByText("Available in the software workspace.");
     expect(screen.queryByRole("button", { name: "Connect Coder" })).not.toBeInTheDocument();
   });

@@ -73,7 +73,7 @@ describe("WorkspacePaneActionSheet", () => {
     const sheet = screen.getByTestId("workspace-pane-action-sheet");
     expect(sheet).toBeInTheDocument();
     expect(sheet).toHaveAttribute("data-side", "bottom");
-    expect(sheet).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+    expect(sheet).toHaveAttribute("data-launcher-gesture-ignore", "true");
     expect(sheet.style.maxHeight).toBe(
       "min(42rem, calc(var(--app-visual-viewport-height) - 2rem))",
     );

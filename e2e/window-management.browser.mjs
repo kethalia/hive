@@ -371,9 +371,12 @@ try {
 
   await review.getByRole("button", { name: "Strip layout", exact: true }).click();
   await review.keyboard.press("Control+k");
-  const search = review.getByPlaceholder("Search terminals, repositories, apps, and commands…");
+  const search = review.getByRole("combobox");
   await search.fill("hive");
-  await review.getByText("hive", { exact: true }).waitFor();
+  await review
+    .getByRole("option")
+    .filter({ hasText: "ai-dev-01 · projects/kethalia/hive" })
+    .waitFor();
   await search.fill("Use Grid layout");
   await review.getByText("Use Grid layout", { exact: true }).click();
   assert.equal(
@@ -382,10 +385,11 @@ try {
   );
   await review.keyboard.press("Control+Shift+Slash");
   await review.getByLabel("Layout shortcuts").selectOption("off");
-  await review.keyboard.press("Escape");
+  await review.getByRole("button", { name: "Close", exact: true }).click();
+  await review.getByRole("dialog").waitFor({ state: "hidden" });
   await review.keyboard.press("Control+k");
-  await search.fill("custom-terminal");
-  await review.getByText("New terminal “custom-terminal”", { exact: true }).waitFor();
+  await search.fill("New session");
+  await review.getByRole("option").filter({ hasText: "New session" }).waitFor();
   await search.fill("claude");
   await review.getByRole("option").filter({ hasText: "claude" }).first().waitFor();
   await search.fill("Files");
@@ -466,30 +470,9 @@ try {
   navigation.on("pageerror", (error) => report.errors.push(error.message));
   await navigation.goto("http://127.0.0.1:8831");
   await navigation.getByLabel("codex input").waitFor();
-  const paneRects = () =>
-    navigation.locator("[data-workspace-window-id]").evaluateAll((panes) =>
-      panes.map((pane) => {
-        const { x, y, width, height } = pane.getBoundingClientRect();
-        return { x, y, width, height };
-      }),
-    );
-  for (const mode of ["Grid", "Strip"]) {
-    await navigation.getByRole("button", { name: `${mode} layout`, exact: true }).click();
-    await navigation.waitForTimeout(200);
-    const rects = await paneRects();
-    await navigation.keyboard.press("Control+b");
-    await navigation.waitForTimeout(250);
-    assert.deepEqual(await paneRects(), rects, "sidebar opening must not move or resize windows");
-    assert(
-      await navigation.evaluate(
-        () => !!document.elementFromPoint(100, 180)?.closest('[data-slot="sidebar-inner"]'),
-      ),
-    );
-    await navigation.keyboard.press("Escape");
-    await navigation.waitForTimeout(250);
-    assert.deepEqual(await paneRects(), rects, "sidebar closing must not move or resize windows");
-  }
-  report.checks.push("sidebar overlays Grid and Strip panes without changing their geometry");
+  assert.equal(await navigation.locator('[data-slot="sidebar"]').count(), 0);
+  await navigation.getByRole("button", { name: "Strip layout", exact: true }).click();
+  await navigation.waitForTimeout(200);
   assert.equal(await navigation.getByRole("slider", { name: "Scroll windows" }).count(), 0);
   assert.equal(await navigation.getByRole("toolbar", { name: "Strip overview" }).count(), 0);
   await navigation.getByLabel("codex input").focus();
@@ -552,6 +535,251 @@ try {
     "horizontal wheel capture accumulates bursts, normalizes line deltas, and preserves vertical scroll and zoom",
   );
   await navigationContext.close();
+  for (const [platform, modifier] of [
+    ["Macintosh", "Meta"],
+    ["Windows NT 10.0", "Control"],
+  ]) {
+    const shortcutsContext = await browser.newContext({
+      viewport: { width: 1200, height: 800 },
+      userAgent: `Mozilla/5.0 (${platform}) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36`,
+    });
+    const shortcuts = await shortcutsContext.newPage();
+    shortcuts.on("pageerror", (error) => report.errors.push(error.message));
+    await shortcuts.goto("http://127.0.0.1:8831");
+    await shortcuts.getByLabel("codex input").waitFor();
+    const state = () =>
+      shortcuts
+        .waitForTimeout(180)
+        .then(() =>
+          shortcuts.evaluate(() =>
+            JSON.parse(localStorage.getItem("general-workspace:v1:fixture")),
+          ),
+        );
+    await shortcuts.getByLabel("codex input").focus();
+    await shortcuts.keyboard.press(`${modifier}+Alt+Enter`);
+    await shortcuts.waitForFunction(
+      () => JSON.parse(localStorage.getItem("general-workspace:v1:fixture")).boards.length === 2,
+    );
+    await shortcuts.keyboard.press(`${modifier}+Alt+Enter`);
+    await shortcuts.waitForFunction(
+      () => JSON.parse(localStorage.getItem("general-workspace:v1:fixture")).boards.length === 3,
+    );
+    assert.equal((await state()).boards.length, 3);
+    await shortcuts.keyboard.press(`${modifier}+1`);
+    await shortcuts.getByLabel("codex input").focus();
+    const originalInput = await shortcuts.getByLabel("codex input").elementHandle();
+    const third = (await state()).boards[2].key;
+    await shortcuts.keyboard.press(`${modifier}+Alt+Shift+KeyN`);
+    assert.equal(
+      (await state()).activeBoardKey,
+      third,
+      "previous wraps from first to last workspace",
+    );
+    assert.equal(await originalInput.evaluate((el) => el === document.activeElement), true);
+    await shortcuts.keyboard.press(`${modifier}+Alt+KeyN`);
+    assert.equal((await state()).activeBoardKey, "board-1");
+    assert.equal((await shortcuts.evaluate(() => window.fixture)).mounts.codex, 1);
+    assert.deepEqual((await shortcuts.evaluate(() => window.fixture)).destroys, {});
+
+    await shortcuts.keyboard.press(`${modifier}+k`);
+    await shortcuts.getByRole("combobox").fill("Move window to previous workspace");
+    await shortcuts.getByText("Move window to previous workspace", { exact: true }).click();
+    await shortcuts.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.equal((await state()).activeBoardKey, third);
+    await shortcuts.getByLabel("codex input").focus();
+    await shortcuts.keyboard.press(`${modifier}+w`);
+    assert.equal((await state()).boards.length, 2);
+    assert.equal((await shortcuts.evaluate(() => window.fixture)).destroys.codex, 1);
+    await shortcuts.keyboard.press(`${modifier}+k`);
+    await shortcuts.getByRole("combobox").fill("Close current workspace");
+    await shortcuts.getByText("Close current workspace", { exact: true }).click();
+    await shortcuts.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.equal((await state()).boards.length, 1);
+    await shortcuts.keyboard.press(`${modifier}+Alt+Backspace`);
+    assert.equal((await state()).boards.length, 1);
+    assert.deepEqual((await state()).boards[0].windows, []);
+    report.checks.push(
+      `${platform}: previous/next moves preserve the terminal, search exposes both actions, W closes and fallback leaves an empty workspace`,
+    );
+    await shortcutsContext.close();
+  }
+  // Exercise the launcher's real selection, creation dialogs, and focus handoff.
+  const launcherContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const launcher = await launcherContext.newPage();
+  launcher.on("pageerror", (error) => report.errors.push(error.message));
+  await launcher.goto("http://127.0.0.1:8831");
+  await launcher.getByLabel("codex input").focus();
+  await launcher.frameLocator("iframe").getByLabel("File draft").click();
+  await launcher.waitForTimeout(120);
+  assert.equal(
+    await launcher.locator("iframe").evaluate((el) => el.closest("[data-active]").dataset.active),
+    "true",
+  );
+  await launcher.getByLabel("codex input").focus();
+  const find = async (query) => {
+    await launcher.keyboard.press("Control+k");
+    await launcher.getByRole("combobox").fill(query);
+  };
+  await find("Terminals");
+  await launcher.getByRole("option").filter({ hasText: "codex" }).first().waitFor();
+  assert.match(await launcher.getByRole("option").first().innerText(), /New session/);
+  await launcher.waitForTimeout(250);
+  await launcher.screenshot({ path: resolve(evidence, "spotlight-terminals.png") });
+  await launcher.getByRole("option").filter({ hasText: "New session" }).click();
+  await launcher.getByLabel("Session name").fill("review-shell");
+  await launcher.getByRole("button", { name: "Open session", exact: true }).click();
+  await launcher.getByLabel("review-shell input").waitFor();
+  await launcher.getByRole("dialog").waitFor({ state: "hidden" });
+  await launcher.waitForTimeout(250);
+  assert.equal(
+    await launcher
+      .getByLabel("review-shell input")
+      .evaluate((el) => el.closest("[data-active]").dataset.active),
+    "true",
+  );
+  await find("codex");
+  await launcher
+    .getByRole("option")
+    .filter({ hasText: "codex" })
+    .filter({ hasText: "ai-dev-01" })
+    .click();
+  await launcher.getByRole("dialog").waitFor({ state: "hidden" });
+  await launcher.waitForTimeout(250);
+  assert.equal(
+    await launcher.getByTestId("general-window-codex").getAttribute("data-active"),
+    "true",
+  );
+  assert.equal(await launcher.getByLabel("codex input").count(), 1);
+  await find("Projects");
+  assert.match(await launcher.getByRole("option").first().innerText(), /New project/);
+  await launcher.getByRole("option").filter({ hasText: "New project" }).click();
+  await launcher.getByLabel("Organization or owner").fill("kethalia");
+  await launcher.getByLabel("Repository", { exact: true }).fill("sample-project");
+  await launcher.waitForTimeout(250);
+  await launcher.screenshot({ path: resolve(evidence, "new-project.png") });
+  await launcher.getByRole("button", { name: "Clone and open", exact: true }).click();
+  await launcher.getByLabel("cloned-project input").waitFor();
+  await launcher.getByRole("dialog").waitFor({ state: "hidden" });
+  assert.equal(await launcher.evaluate(() => window.fixture.clones), 1);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await find("hive");
+    await launcher
+      .getByRole("option")
+      .filter({ hasText: "projects/kethalia/hive" })
+      .filter({ hasText: "ai-dev-01" })
+      .click();
+    await launcher.getByRole("dialog").waitFor({ state: "hidden" });
+    await launcher.getByLabel("git-clone-fixture input").waitFor();
+    assert.equal(await launcher.getByLabel("git-clone-fixture input").count(), 1);
+  }
+  await find("Settings");
+  await launcher.getByRole("option").filter({ hasText: "Account, app updates" }).click();
+  await launcher
+    .getByTestId("hive-window-settings")
+    .getByText("App updates", { exact: true })
+    .waitFor();
+  await launcher.getByRole("dialog").waitFor({ state: "hidden" });
+  await launcher.waitForTimeout(250);
+  assert.equal(
+    await launcher.getByTestId("hive-window-settings").getAttribute("data-active"),
+    "true",
+  );
+  await find("does-not-exist");
+  await launcher.getByText("No matching windows or commands.").waitFor();
+  assert.equal(await launcher.getByRole("option").count(), 0);
+  assert.deepEqual(await launcher.evaluate(() => window.fixture.destroys), {});
+  report.checks.push(
+    "Spotlight groups, explicit creation forms, session and project reuse, iframe/tool focus, empty results, and preserved terminal instances",
+  );
+  await launcherContext.close();
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    const toolsContext = await browser.newContext({ viewport });
+    const toolsPage = await toolsContext.newPage();
+    toolsPage.on("pageerror", (error) => report.errors.push(error.message));
+    await toolsPage.goto("http://127.0.0.1:8831");
+    await toolsPage.getByLabel("codex input").waitFor();
+    const openTool = async (tool) => {
+      await toolsPage.evaluate(
+        (tool) => window.dispatchEvent(new CustomEvent("hive:window-open", { detail: { tool } })),
+        tool,
+      );
+      await toolsPage.getByTestId(`hive-window-${tool}`).waitFor();
+    };
+    await openTool("agents");
+    const agents = toolsPage.getByTestId("hive-window-agents");
+    await agents.getByRole("heading", { name: "Recent conversations" }).waitFor();
+    assert.equal(await toolsPage.getByRole("dialog").count(), 0);
+    assert.equal(await agents.locator("details").first().getAttribute("open"), null);
+    await agents.getByRole("button", { name: "Open", exact: true }).click();
+    assert.equal(await toolsPage.getByTestId("general-window-codex").count(), 1);
+    await toolsPage.waitForFunction(
+      () => document.activeElement?.getAttribute("aria-label") === "codex input",
+    );
+    await openTool("agents");
+    await agents.getByLabel("Agent workspace").selectOption("infra");
+    await agents.getByText("Start a Coder workspace to view its agent conversations.").waitFor();
+    await agents.getByLabel("Agent workspace").selectOption("software");
+    for (const tool of ["settings", "diagnostics", "workspaces", "templates", "logs"]) {
+      await openTool(tool);
+      const pane = toolsPage.getByTestId(`hive-window-${tool}`);
+      await pane.getByRole("button").first().waitFor();
+      if (tool === "settings") await pane.getByText("App updates", { exact: true }).waitFor();
+      if (tool === "diagnostics") await pane.getByText("Workspace rows", { exact: true }).waitFor();
+      if (tool === "workspaces") await pane.getByTestId("workspace-card").first().waitFor();
+      assert.equal(await pane.evaluate((el) => el.scrollWidth > el.clientWidth + 1), false);
+    }
+    assert.equal(await toolsPage.getByRole("dialog").count(), 0);
+    if (viewport.width > 500) {
+      const settings = toolsPage.getByTestId("hive-window-settings");
+      await settings.focus();
+      await toolsPage.keyboard.press("Control+Alt+KeyT");
+      const resize = toolsPage.getByRole("separator", { name: "Resize floating width" });
+      await resize.focus();
+      await toolsPage.waitForTimeout(250);
+      const beforeWidth = (await settings.boundingBox()).width;
+      await toolsPage.keyboard.press("ArrowRight");
+      await toolsPage.waitForTimeout(220);
+      assert((await settings.boundingBox()).width > beforeWidth);
+      await toolsPage.screenshot({ path: resolve(evidence, "native-tool-windows-desktop.png") });
+      // Moving an existing tool to another workspace and reopening focuses it there.
+      await settings.focus();
+      await toolsPage.keyboard.press("Control+Alt+KeyN");
+      await toolsPage.waitForTimeout(180);
+      const target = await toolsPage.evaluate(
+        () => JSON.parse(localStorage.getItem("general-workspace:v1:fixture")).activeBoardKey,
+      );
+      await toolsPage.keyboard.press("Control+1");
+      await openTool("settings");
+      await toolsPage.waitForTimeout(180);
+      assert.equal(
+        await toolsPage.evaluate(
+          () => JSON.parse(localStorage.getItem("general-workspace:v1:fixture")).activeBoardKey,
+        ),
+        target,
+      );
+      assert.equal(await toolsPage.getByTestId("hive-window-settings").count(), 1);
+    } else {
+      await openTool("agents");
+      await toolsPage.screenshot({ path: resolve(evidence, "native-tool-windows-mobile.png") });
+    }
+    assert.deepEqual(await toolsPage.evaluate(() => window.fixture.destroys), {});
+    await toolsPage.waitForTimeout(180);
+    await toolsPage.reload();
+    await openTool("settings");
+    await toolsPage.getByText("App updates", { exact: true }).waitFor();
+    assert.equal(await toolsPage.getByTestId("hive-window-settings").count(), 1);
+    assert.equal(
+      await toolsPage.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+      false,
+    );
+    report.checks.push(
+      `${viewport.width}px: native tool windows, agent resume and workspace selection, resize/move, deduplication, restoration, no horizontal overflow`,
+    );
+    await toolsContext.close();
+  }
   assert.deepEqual(report.errors, []);
 } finally {
   await writeFile(resolve(evidence, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

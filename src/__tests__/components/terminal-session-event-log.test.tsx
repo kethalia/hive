@@ -3,7 +3,7 @@ vi.mock("@/lib/terminal/auth-transport", () => ({
   fetchTerminal: (url: string, options: RequestInit) => fetch(url, options),
 }));
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { TerminalSessionEventLog } from "@/components/workspaces/TerminalSessionEventLog";
@@ -89,6 +89,30 @@ describe("TerminalSessionEventLog", () => {
 
     expect(screen.queryByText("browser_error")).not.toBeInTheDocument();
     expect(screen.getByText("session=session-new")).toBeInTheDocument();
+  });
+
+  it("retains events but pauses polling while its workspace window is hidden", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () =>
+        eventResponse("workspace-1", "terminal-1", "upstream_connected"),
+      );
+    const view = render(<TerminalSessionEventLog workspaceId="workspace-1" />);
+    await screen.findByText("upstream_connected");
+    vi.useFakeTimers();
+    try {
+      view.rerender(<TerminalSessionEventLog workspaceId="workspace-1" visible={false} />);
+      const calls = fetchMock.mock.calls.length;
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      expect(fetchMock).toHaveBeenCalledTimes(calls);
+      expect(screen.getByText("upstream_connected")).toBeInTheDocument();
+      view.rerender(<TerminalSessionEventLog workspaceId="workspace-1" visible />);
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+      expect(fetchMock).toHaveBeenCalledTimes(calls + 1);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("does not overlap one-second polling requests", async () => {

@@ -50,6 +50,7 @@ interface PushState {
 
 interface TemplatesClientProps {
   initialStatuses: TemplateStatus[];
+  embedded?: boolean;
 }
 
 /** Format an ISO date string as a human-readable relative time. */
@@ -79,7 +80,7 @@ function runtimeLabel(templateName: string): string {
   return "External";
 }
 
-export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
+export function TemplatesClient({ initialStatuses, embedded = false }: TemplatesClientProps) {
   const [statuses, setStatuses] = useState<TemplateStatus[]>(initialStatuses);
   const [pushStates, setPushStates] = useState<Record<string, PushState>>({});
   const [templatesPendingPush, setTemplatesPendingPush] = useState<string[] | null>(null);
@@ -293,7 +294,10 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
         data-refresh-surface="templates-status-list"
         style={{ touchAction: "pan-x pan-y" }}
       >
-        <Card className="hidden md:block" data-testid="templates-desktop-table">
+        <Card
+          className={embedded ? "hidden" : "hidden md:block"}
+          data-testid="templates-desktop-table"
+        >
           <Table className="min-w-[60rem]">
             <TableHeader>
               <TableRow>
@@ -386,7 +390,11 @@ export function TemplatesClient({ initialStatuses }: TemplatesClientProps) {
           </Table>
         </Card>
 
-        <CardStack aria-label="Template statuses" data-testid="templates-mobile-card-stack">
+        <CardStack
+          className={embedded ? "!grid" : undefined}
+          aria-label="Template statuses"
+          data-testid="templates-mobile-card-stack"
+        >
           {statuses.length === 0 ? (
             <ListCard data-testid="templates-empty-card">
               <ListCardHeader>

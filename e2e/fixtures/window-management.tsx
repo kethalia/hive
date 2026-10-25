@@ -5,9 +5,7 @@ import { createRoot } from "react-dom/client";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
-import { Sidebar, SidebarHeader, SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
-import { WorkspaceSidebarButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import {
   emptyGeneralWorkspace,
   generalWorkspaceStorageKey,
@@ -60,14 +58,14 @@ export function FixtureTerminal({
   }, [sessionName]);
   return (
     <div className="flex h-full flex-col p-4 font-mono text-sm">
-      <p className="text-primary">{sessionName} · connected</p>
-      <p className="mt-3 text-muted-foreground">
+      <p className="shrink-0 truncate text-primary">{sessionName} · connected</p>
+      <p className="mt-2 shrink-0 truncate text-muted-foreground">
         A persistent terminal pane. Resize, move, and switch layouts without reconnecting.
       </p>
       <textarea
         ref={input}
         aria-label={`${sessionName} input`}
-        className="xterm-helper-textarea mt-4 min-h-0 flex-1 resize-none bg-black outline-none"
+        className="xterm-helper-textarea mt-2 min-h-0 flex-1 resize-none bg-black outline-none"
         onFocus={onUserFocusRequest}
         defaultValue={`$ ${sessionName}\n`}
       />
@@ -81,7 +79,48 @@ export const fixtureWorkspaces = [
     template_name: "ai-dev-k8s",
     latest_build: { id: "build-1", status: "running" },
   },
+  {
+    id: "browser",
+    name: "browser-helper",
+    template_name: "browser-testing",
+    latest_build: { id: "build-2", status: "running" },
+  },
+  {
+    id: "infra",
+    name: "infrastructure-helper",
+    template_name: "infrastructure",
+    latest_build: { id: "build-3", status: "stopped" },
+  },
 ];
+export const fixtureAgents = {
+  checkedAt: 1790000000,
+  profile: "software",
+  coderMcpSupported: true,
+  typescriptServerInstalled: true,
+  agents: ["codex", "claude"].map((agent) => ({
+    agent,
+    installed: true,
+    version: "1.2.3",
+    auth: "signed-in",
+    tracking: true,
+    connections: [{ name: "hive_coder", enabled: true }],
+    plugins: [{ name: "a-long-plugin-name@openai-curated-remote", enabled: true }],
+    warnings: [],
+  })),
+  sessions: [
+    {
+      key: "codex-test",
+      id: "test",
+      agent: "codex",
+      project: "hive",
+      directory: "projects/kethalia/hive",
+      updatedAt: 1790000000,
+      state: "working",
+      running: true,
+      directoryExists: true,
+    },
+  ],
+};
 const storage = generalWorkspaceStorageKey("fixture");
 if (!localStorage.getItem(storage)) {
   const state = emptyGeneralWorkspace();
@@ -111,14 +150,8 @@ if (root)
     <QueryClientProvider client={new QueryClient()}>
       <KeybindingProvider>
         <HelpOverlay />
-        <SidebarProvider defaultOpen={false}>
-          <Sidebar variant="overlay">
-            <SidebarHeader>
-              <WorkspaceSidebarButton />
-            </SidebarHeader>
-            <p className="p-4">Workspace navigation</p>
-          </Sidebar>
-          <SidebarInset>
+        <div className="h-dvh w-full overflow-hidden">
+          <div>
             <main className="h-dvh w-full bg-background text-foreground">
               {new URLSearchParams(location.search).has("collapsible") ? (
                 <Collapsible className="w-64 m-4">
@@ -138,8 +171,8 @@ if (root)
                 </>
               )}
             </main>
-          </SidebarInset>
-        </SidebarProvider>
+          </div>
+        </div>
       </KeybindingProvider>
     </QueryClientProvider>,
   );

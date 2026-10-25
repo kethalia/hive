@@ -27,14 +27,6 @@ vi.mock("lucide-react", () => ({
   RefreshCw: () => <span data-testid="refresh-icon" />,
 }));
 
-vi.mock("@/components/ui/sidebar", () => ({
-  SidebarTrigger: ({ className }: { className?: string }) => (
-    <button type="button" className={className} data-testid="dashboard-page-sidebar-trigger">
-      Toggle sidebar
-    </button>
-  ),
-}));
-
 function sessionEventsResponse() {
   return new Response(
     JSON.stringify({
@@ -113,7 +105,6 @@ function expectDiagnosticsLayout() {
     "[-webkit-overflow-scrolling:touch]",
   );
   expect(pageShell).not.toHaveClass("max-w-5xl", "mx-auto");
-  expect(screen.getByText("Terminal diagnostics").parentElement).toHaveClass("hidden", "sm:block");
 }
 
 describe("TerminalSessionStatusClient", () => {

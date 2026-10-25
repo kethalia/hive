@@ -3,8 +3,8 @@
 import { useEffect, useRef } from "react";
 import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
 import {
-  isSidebarGestureIgnoredTarget,
-  isSidebarGestureSelectionTarget,
+  isLauncherGestureIgnoredTarget,
+  isLauncherGestureSelectionTarget,
   resolveHorizontalSwipe,
 } from "@/lib/gestures/horizontal-swipe";
 
@@ -49,7 +49,7 @@ export function useGlobalCommandPaletteGesture({
       }
 
       const touch = event.touches[0];
-      if (isSidebarGestureIgnoredTarget(event.target)) {
+      if (isLauncherGestureIgnoredTarget(event.target)) {
         reset();
         return;
       }
@@ -76,7 +76,7 @@ export function useGlobalCommandPaletteGesture({
       if (!touchStart) return;
       if (
         Date.now() - touchStart.startedAt >= LONG_PRESS_MS ||
-        isSidebarGestureSelectionTarget(touchStart.target)
+        isLauncherGestureSelectionTarget(touchStart.target)
       ) {
         reset();
         return;

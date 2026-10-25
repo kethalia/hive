@@ -8,10 +8,6 @@ import {
   TerminalSessionFrame,
 } from "@/components/workspaces/TerminalSessionFrame";
 
-vi.mock("@/components/ui/sidebar", () => ({
-  SidebarTrigger: () => <button type="button">Open navigation</button>,
-}));
-
 describe("SingleTerminalSessionHeader", () => {
   afterEach(cleanup);
 
@@ -161,5 +157,24 @@ describe("TerminalSessionFrame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close Terminal" }));
     expect(onClose).toHaveBeenCalledOnce();
     expect(onActivate).not.toHaveBeenCalled();
+  });
+
+  it("activates a window when its frame receives keyboard focus, without activating on header-control focus", () => {
+    const onActivate = vi.fn();
+    render(
+      <TerminalSessionFrame
+        label="Settings"
+        dataTestId="settings-frame"
+        onActivate={onActivate}
+        onFocusActivate
+        onClose={vi.fn()}
+      >
+        <div />
+      </TerminalSessionFrame>,
+    );
+    fireEvent.focus(screen.getByTestId("settings-frame"));
+    expect(onActivate).toHaveBeenCalledOnce();
+    fireEvent.focus(screen.getByRole("button", { name: "Close Settings" }));
+    expect(onActivate).toHaveBeenCalledOnce();
   });
 });

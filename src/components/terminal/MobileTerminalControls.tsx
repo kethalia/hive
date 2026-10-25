@@ -100,7 +100,7 @@ export function MobileTerminalControls({
         "min-w-0 shrink-0 bg-background/95 px-2 pt-1",
         isKeyboardVisible ? "pb-1" : "pb-[max(0.25rem,var(--safe-area-inset-bottom))]",
       )}
-      data-sidebar-gesture-ignore="true"
+      data-launcher-gesture-ignore="true"
     >
       <input
         ref={fileInputRef}

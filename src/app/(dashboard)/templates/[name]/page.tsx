@@ -1,38 +1,6 @@
-import { notFound, redirect } from "next/navigation";
-import { TemplateDetailClient } from "@/components/templates/TemplateDetailClient";
-import { getRequestSession } from "@/lib/auth/session";
-import { compareTemplates, KNOWN_TEMPLATES } from "@/lib/templates/staleness";
-
-interface Props {
-  params: Promise<{ name: string }>;
-}
-
-export default async function TemplateDetailPage({ params }: Props) {
+import { redirect } from "next/navigation";
+import { hiveWindowHref } from "@/lib/workspaces/general-workspace";
+export default async function TemplatePage({ params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
-  const session = await getRequestSession();
-  if (!session) {
-    redirect("/login");
-  }
-
-  if (!KNOWN_TEMPLATES.some((templateName) => templateName === name)) {
-    notFound();
-  }
-
-  const [status] = await compareTemplates([name], session.user.id).catch((err) => {
-    console.error(
-      `[templates/${name}] Failed to load status: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return [
-      {
-        name,
-        stale: false,
-        lastPushed: null,
-        activeVersionId: null,
-        localHash: "",
-        remoteHash: null,
-      },
-    ];
-  });
-
-  return <TemplateDetailClient status={status} />;
+  redirect(hiveWindowHref({ tool: "templates", template: name }));
 }

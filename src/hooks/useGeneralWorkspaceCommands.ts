@@ -3,7 +3,6 @@
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CommandPaletteAction } from "@/components/terminal/CommandPalette";
-import { createSessionAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { discoveryOptions } from "@/lib/discovery/queries";
 import { isDiscoveryDenied } from "@/lib/discovery/types";
@@ -11,25 +10,21 @@ import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import type { GeneralPane } from "@/lib/workspaces/general-workspace";
-import {
-  repositories,
-  repositoryTerminalPane,
-  terminalNameError,
-} from "@/lib/workspaces/terminal-selection";
+import { repositories, repositoryTerminalPane } from "@/lib/workspaces/terminal-selection";
 
 export function useGeneralWorkspaceCommands({
   workspaces,
   onOpenPane,
   onError,
   onStart,
-  onAgents,
+  onCreate,
   additionalActions,
 }: {
   workspaces: CoderWorkspace[];
   onOpenPane: (pane: GeneralPane) => void;
   onError: (message: string) => void;
   onStart: (workspaceId: string) => Promise<void>;
-  onAgents: (workspaceId: string) => void;
+  onCreate: (kind: "terminal" | "project") => void;
   additionalActions?: CommandPaletteAction[];
 }) {
   const client = useQueryClient();
@@ -153,8 +148,7 @@ export function useGeneralWorkspaceCommands({
   const actions = useMemo<CommandPaletteAction[]>(() => {
     const name = query.trim();
     const repositoryQuery = name.toLowerCase();
-    const nameError = name ? terminalNameError(name) : null;
-    return workspaces.flatMap((workspace) => {
+    const resultsByWorkspace = workspaces.flatMap<CommandPaletteAction>((workspace) => {
       const status = workspace.latest_build.status;
       const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
       const apps = [
@@ -189,8 +183,9 @@ export function useGeneralWorkspaceCommands({
       for (const repository of found?.repositories ?? []) {
         // Restrict repository results before cmdk's fuzzy ranking can match unrelated names.
         if (
-          ![repository.label, repository.relativePath].some((value) =>
-            value.toLowerCase().includes(repositoryQuery),
+          ![repository.label, repository.relativePath].some(
+            (value) =>
+              value.toLowerCase().includes(repositoryQuery) || "projects".includes(repositoryQuery),
           )
         )
           continue;
@@ -198,7 +193,7 @@ export function useGeneralWorkspaceCommands({
           id: `repository:${workspace.id}:${repository.cloneSessionKey}`,
           label: repository.label,
           description: `${workspace.name} · ${repository.relativePath}`,
-          group: "Repositories",
+          group: "Projects",
           value: `${repository.label} ${repository.relativePath} ${workspace.name}`,
           rightLabel: "Open terminal",
           icon: "terminal",
@@ -233,7 +228,7 @@ export function useGeneralWorkspaceCommands({
           id: `app:${workspace.id}:${app.tool}`,
           label: app.label,
           description: workspace.name,
-          group: "Apps",
+          group: app.label === "Desktop" ? "Desktops" : app.label,
           value: `${app.label} ${workspace.name} ${app.tool} app`,
           icon: app.tool,
           disabled: busy,
@@ -246,43 +241,6 @@ export function useGeneralWorkspaceCommands({
             }),
         });
       }
-      results.push({
-        id: `agents:${workspace.id}`,
-        label: "Agents",
-        description: workspace.name,
-        group: "Apps",
-        value: `agents tools ${workspace.name}`,
-        icon: "agents",
-        disabled: busy,
-        onSelect: () => onAgents(workspace.id),
-      });
-      if (!name || !found?.sessions.includes(name))
-        results.push({
-          id: `new-terminal:${workspace.id}`,
-          label: name ? `New terminal “${name}”` : "New terminal",
-          description: nameError ? `${workspace.name} · ${nameError}` : workspace.name,
-          group: "Create terminal",
-          value: `${name} new terminal ${workspace.name}`,
-          icon: "plus",
-          disabled: busy || Boolean(nameError),
-          onSelect: () => {
-            void run(async () => {
-              if (nameError) throw new Error(nameError);
-              const result = await createSessionAction({
-                workspaceId: workspace.id,
-                ...(name ? { sessionName: name } : {}),
-              });
-              if (!result?.data)
-                throw new Error(result?.serverError ?? "Could not create terminal.");
-              return {
-                kind: "terminal",
-                workspaceId: workspace.id,
-                sessionName: result.data.name,
-                label: result.data.name,
-              };
-            });
-          },
-        });
       if (found?.error)
         results.push({
           id: `retry-terminals:${workspace.id}`,
@@ -298,6 +256,33 @@ export function useGeneralWorkspaceCommands({
         });
       return results;
     });
+    return [
+      {
+        id: "new-terminal",
+        label: "New session",
+        description: "Name a terminal session and choose its Coder workspace",
+        group: "Terminals",
+        value: "new session terminal",
+        icon: "plus",
+        disabled: busy,
+        onSelect: () => onCreate("terminal"),
+      },
+      ...resultsByWorkspace.filter((action) => action.group === "Terminals"),
+      {
+        id: "new-project",
+        label: "New project",
+        description: "Clone a GitHub organization/repository",
+        group: "Projects",
+        value: "new project clone github repository",
+        icon: "plus",
+        disabled: busy,
+        onSelect: () => onCreate("project"),
+      },
+      ...resultsByWorkspace.filter((action) => action.group === "Projects"),
+      ...resultsByWorkspace.filter(
+        (action) => action.group !== "Terminals" && action.group !== "Projects",
+      ),
+    ];
   }, [
     data,
     query,
@@ -305,7 +290,7 @@ export function useGeneralWorkspaceCommands({
     busy,
     run,
     onOpenPane,
-    onAgents,
+    onCreate,
     starting,
     startError,
     startWorkspace,
@@ -321,7 +306,7 @@ export function useGeneralWorkspaceCommands({
         searchValue: query,
         onSearchValueChange: setQuery,
         onOpenChange: setOpen,
-        searchPlaceholder: "Search terminals, repositories, apps, and commands…",
+        searchPlaceholder: "Search Hive…",
         emptyText: "No matching windows or commands.",
         loadingText: loading ? "Loading terminals and repositories…" : undefined,
       }),

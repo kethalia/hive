@@ -7,17 +7,21 @@ import type { WindowManager } from "@/lib/workspaces/window-manager";
 import { useKeybindings } from "./useKeybindings";
 
 const BOARD_ACTIONS = [
-  { id: "create-board", label: "Create board", keys: ["ctrl+alt+enter", "cmd+alt+enter"] },
+  { id: "create-board", label: "Create workspace", keys: ["ctrl+alt+enter", "cmd+alt+enter"] },
   {
     id: "close-board",
-    label: "Close current board",
-    keys: ["ctrl+alt+backspace", "cmd+alt+backspace"],
+    label: "Close current workspace",
+    keys: ["ctrl+w", "cmd+w", "ctrl+alt+backspace", "cmd+alt+backspace"],
   },
-  { id: "board-previous", label: "Previous board", keys: ["ctrl+alt+pageup", "cmd+alt+pageup"] },
-  { id: "board-next", label: "Next board", keys: ["ctrl+alt+pagedown", "cmd+alt+pagedown"] },
+  {
+    id: "board-previous",
+    label: "Previous workspace",
+    keys: ["ctrl+alt+pageup", "cmd+alt+pageup"],
+  },
+  { id: "board-next", label: "Next workspace", keys: ["ctrl+alt+pagedown", "cmd+alt+pagedown"] },
   ...Array.from({ length: 9 }, (_, i) => ({
     id: `board-${i + 1}`,
-    label: `Switch to board ${i + 1}`,
+    label: `Switch to workspace ${i + 1}`,
     keys: [`ctrl+${i + 1}`, `cmd+${i + 1}`],
   })),
 ];
@@ -34,7 +38,12 @@ export function useWindowManagerCommands(manager: WindowManager, run: (id: strin
         category: "window layout",
         disabled: !!a.stripOnly && mode !== "strip",
       })),
-      ...BOARD_ACTIONS.map((a) => ({ ...a, category: "boards", disabled: false, repeat: false })),
+      ...BOARD_ACTIONS.map((a) => ({
+        ...a,
+        category: "workspaces",
+        disabled: false,
+        repeat: false,
+      })),
     ],
     [mode, shortcuts],
   );

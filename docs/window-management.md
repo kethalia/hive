@@ -6,8 +6,22 @@ A **Coder workspace** supplies the running environments behind the windows.
 New boards use Strip; existing saved arrangements retain Grid. Switch with the Grid/Strip header
 buttons. Both modes keep the same mounted panes, connections, unsaved app state and terminal font
 preferences. Layout changes do not refetch repositories, agents or sessions.
-The sidebar overlays the workspace; opening or closing it never changes pane dimensions.
-Dismiss it with its toggle, Cmd/Ctrl+B, Escape, or a click outside.
+There is no sidebar. Cmd/Ctrl+K or the header search button opens one grouped launcher:
+
+- **Terminals**: New session asks for a name and running Coder workspace; existing sessions open
+  directly as windows.
+- **Projects**: New project asks for a GitHub organization/owner, repository name, and running
+  workspace. It uses that workspace's GitHub authentication to clone into `~/projects/<owner>/<repo>`
+  and opens a terminal there. Existing folders are never overwritten. Existing projects open directly.
+- **Files, VS Code, Desktops**: each supported Coder workspace supplies an app window.
+- **Hive**: Agents, Settings, Diagnostics, Logs, Templates, and Manage Coder workspaces are native
+  canvas windows. Agent conversations are shown first; setup details stay collapsed until expanded.
+- **Commands**: layout, focus, movement, and workspace actions remain searchable.
+
+Existing targets are focused across all boards instead of duplicated. Tool windows resize, move,
+float, close, and restore like terminal/app windows. Their loading/error states stay within the pane;
+opening them preserves existing terminal and app instances. Settings contains Open Coder and sign-out.
+On mobile the same search opens in a bottom sheet; a deliberate leftward swipe also opens it.
 
 ## Resize and arrange
 
@@ -35,6 +49,9 @@ target focuses its existing window and retains the source window, preserving bot
 Explicit close releases that pane's client but keeps
 its tmux session running. Limits are nine boards and 32 windows; notifications never evict existing
 work to make room. On mobile, one pane is visible at a time and desktop geometry remains stored.
+Search and keyboard help call boards **workspaces**, matching the numbered workspace tabs.
+Moving a window to the previous/next workspace wraps at either end. With just one workspace,
+either action creates a second one. Closing the last workspace leaves a fresh empty workspace.
 
 ## Shortcuts
 
@@ -65,15 +82,14 @@ Existing system/browser shortcuts may take precedence; all actions are also in C
 | M + Shift + Right bracket / Left bracket | Detach right/left |
 | M + Shift + T | Toggle stack/tabs |
 | M + T | Toggle floating |
-| M + N | Move the pane to the next Hive board, creating a second board when needed |
+| M + N / Shift+N | Move the window to the next/previous Hive workspace |
 | M + Q | Disable layout shortcuts; re-enable through search or keyboard help |
 | Ctrl/Cmd + 1–9 | Select board (browser tab bindings may take precedence) |
 | Ctrl/Cmd + Alt + PageUp/PageDown | Previous/next board |
 | Ctrl/Cmd + Alt + Enter | Create board |
-| Ctrl/Cmd + Alt + Backspace | Close board, preserving underlying sessions |
+| Cmd/Ctrl + W, or Cmd/Ctrl + Alt + Backspace | Close current workspace, preserving underlying sessions |
 | Cmd/Ctrl + K | Unified search |
 | Cmd/Ctrl + ? (Shift+/), or Cmd/Ctrl + / | Keyboard help and layout shortcut settings |
-| Cmd/Ctrl + B | Sidebar |
 | Cmd/Ctrl + Alt + A | Agents |
 | Cmd/Ctrl + Alt + G | Manage Coder workspaces |
 | Cmd/Ctrl + Alt + M / S | Microphone / speaker controls |
@@ -87,6 +103,9 @@ The executable source is `src/lib/workspaces/window-actions.ts`; registrations, 
 keyboard help use that source. Repeating focus/resize keys is supported; toggles and destructive
 actions do not repeat. Modals and ordinary text fields suppress layout shortcuts. AltGr remains
 character input. Symbol keys are normalized for Option-modified keyboard events.
+Cmd/Ctrl+W is handled when the browser delivers it to Hive. Browsers that reserve it for closing
+their tab/window require Cmd/Ctrl+Alt+Backspace or **Close current workspace** in Cmd/Ctrl+K.
+Embedded apps keep their own keyboard focus; focus a Hive pane header to use these commands.
 
 This adapts [ChainYourMac's interactions](https://chainyourmac.com/) to browser panes. Moving to
 a physical display and quitting a native window manager have no direct browser equivalent. Hive's

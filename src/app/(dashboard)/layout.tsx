@@ -1,20 +1,16 @@
+import "@/styles/xterm.css";
 import { createHash } from "node:crypto";
-import { Suspense } from "react";
-import { AppSidebar } from "@/components/app-sidebar";
 import { AppViewportSize } from "@/components/app-viewport-size";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
-import { DashboardSidebarTrigger } from "@/components/dashboard-sidebar-trigger";
 import { DiscoveryProvider } from "@/components/discovery/DiscoveryProvider";
 import { NotificationListener } from "@/components/notification-listener";
 import { PushPermissionPrompt } from "@/components/push-permission-prompt";
 import { RuntimeConfigProvider } from "@/components/runtime-config-provider";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
-import { SidebarEdgeHandle } from "@/components/sidebar-edge-handle";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
 import { PersistentTerminalProvider } from "@/components/terminal/PersistentTerminalProvider";
 import { TokenExpiryBanner } from "@/components/token-expiry-banner";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getTokenStatusAction } from "@/lib/auth/actions";
@@ -42,40 +38,33 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <NotificationListener />
         <AppViewportSize />
         <TooltipProvider>
-          <SidebarProvider>
-            <KeybindingProvider>
-              <PersistentTerminalProvider>
-                <Suspense fallback={null}>
-                  <AppSidebar />
-                </Suspense>
-                <SidebarEdgeHandle />
-                <SidebarInset className="h-[var(--app-viewport-height)] min-h-0 overflow-hidden">
-                  <main
-                    id="main-content"
-                    className="crt-grid crt-scanlines flex h-full min-h-0 flex-1 overflow-hidden"
-                    data-dashboard-main=""
+          <KeybindingProvider>
+            <PersistentTerminalProvider>
+              <div className="h-[var(--app-viewport-height)] min-h-0 overflow-hidden">
+                <main
+                  id="main-content"
+                  className="crt-grid crt-scanlines flex h-full min-h-0 flex-1 overflow-hidden"
+                  data-dashboard-main=""
+                >
+                  <div
+                    className="flex h-full min-h-0 w-full flex-1 items-stretch gap-0"
+                    data-dashboard-content-row=""
                   >
                     <div
-                      className="flex h-full min-h-0 w-full flex-1 items-stretch gap-0"
-                      data-dashboard-content-row=""
+                      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                      data-dashboard-content=""
                     >
-                      <DashboardSidebarTrigger />
-                      <div
-                        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-                        data-dashboard-content=""
-                      >
-                        {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
-                        <PushPermissionPrompt />
-                        {children}
-                      </div>
+                      {bannerStatus?.data && <TokenExpiryBanner status={bannerStatus.data} />}
+                      <PushPermissionPrompt />
+                      {children}
                     </div>
-                  </main>
-                </SidebarInset>
-                <DashboardKeyboardController />
-                <HelpOverlay />
-              </PersistentTerminalProvider>
-            </KeybindingProvider>
-          </SidebarProvider>
+                  </div>
+                </main>
+              </div>
+              <DashboardKeyboardController />
+              <HelpOverlay />
+            </PersistentTerminalProvider>
+          </KeybindingProvider>
         </TooltipProvider>
         <Toaster />
       </RuntimeConfigProvider>

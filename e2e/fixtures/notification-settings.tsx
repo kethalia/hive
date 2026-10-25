@@ -1,10 +1,7 @@
-import type { CSSProperties } from "react";
 import { createRoot } from "react-dom/client";
-import { DashboardSidebarTrigger } from "../../src/components/dashboard-sidebar-trigger";
 import { NotificationListener } from "../../src/components/notification-listener";
 import { NotificationSettings } from "../../src/components/notification-settings";
 import { PushPermissionPrompt } from "../../src/components/push-permission-prompt";
-import { Sidebar, SidebarInset, SidebarProvider } from "../../src/components/ui/sidebar";
 import { Toaster } from "../../src/components/ui/sonner";
 
 const subscription = {
@@ -31,16 +28,9 @@ void navigator.serviceWorker.register("/sw.js");
 const root = document.getElementById("app");
 if (!root) throw new Error("Missing fixture root");
 createRoot(root).render(
-  <SidebarProvider
-    className="h-dvh overflow-hidden"
-    style={{ "--app-viewport-height": "100dvh" } as CSSProperties}
-  >
-    <Sidebar collapsible="none" className="hidden w-64 shrink-0 md:flex">
-      <p className="p-4">Hive navigation</p>
-    </Sidebar>
-    <SidebarInset className="h-dvh min-h-0 overflow-hidden">
+  <div className="h-dvh w-full overflow-hidden">
+    <div className="h-dvh min-h-0 overflow-hidden">
       <main className="crt-grid flex h-full min-h-0 overflow-hidden">
-        <DashboardSidebarTrigger />
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <NotificationListener />
           <PushPermissionPrompt />
@@ -59,7 +49,7 @@ createRoot(root).render(
           />
         </div>
       </main>
-    </SidebarInset>
+    </div>
     <Toaster />
-  </SidebarProvider>,
+  </div>,
 );

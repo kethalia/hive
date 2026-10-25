@@ -9,8 +9,8 @@ export interface HorizontalSwipeProgress {
   horizontalIntent: boolean;
 }
 
-const SIDEBAR_GESTURE_IGNORE_SELECTOR = [
-  '[data-sidebar-gesture-ignore="true"]',
+const LAUNCHER_GESTURE_IGNORE_SELECTOR = [
+  '[data-launcher-gesture-ignore="true"]',
   '[data-terminal-touch-selecting="true"]',
   '[data-mobile-scroll-allow="true"]',
   '[data-window-drag-surface="true"]',
@@ -21,16 +21,11 @@ const SIDEBAR_GESTURE_IGNORE_SELECTOR = [
 ].join(", ");
 
 /** Returns true when a nested horizontal interaction owns the touch sequence. */
-export function isSidebarGestureIgnoredTarget(target: EventTarget | null): boolean {
+export function isLauncherGestureIgnoredTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  if (target.closest(SIDEBAR_GESTURE_IGNORE_SELECTOR)) return true;
+  if (target.closest(LAUNCHER_GESTURE_IGNORE_SELECTOR)) return true;
 
-  const dialog = target.closest('[role="dialog"]');
-  if (!dialog) return false;
-
-  // The coordinated sidebars intentionally replace one another with horizontal
-  // swipes. Other dialogs own their touch sequences and must remain isolated.
-  return target.closest('[data-sidebar="sidebar"][data-mobile="true"]') === null;
+  return target.closest('[role="dialog"]') !== null;
 }
 
 /** Resolves a one-finger horizontal swipe using the shared intent and distance rules. */
@@ -53,7 +48,7 @@ export function resolveHorizontalSwipe(
 }
 
 /** Only the selected surface owns selection-handle drags. */
-export function isSidebarGestureSelectionTarget(target: EventTarget | null): boolean {
+export function isLauncherGestureSelectionTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || !selection.rangeCount) return false;

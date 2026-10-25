@@ -6,7 +6,7 @@ import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } 
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
-import { WorkspaceSidebarButton } from "@/components/workspaces/WorkspaceHeaderButton";
+import { WorkspaceSearchButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
 import {
@@ -99,13 +99,13 @@ export function SingleTerminalSessionHeader({
   return (
     <header
       className={cn(
-        "grid min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-sidebar-border px-[max(0.25rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.25rem,var(--safe-area-inset-right))]",
+        "grid min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-border px-[max(0.25rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.25rem,var(--safe-area-inset-right))]",
         className,
       )}
       data-testid="single-terminal-header"
     >
       <div className="flex min-w-0 items-center gap-1" data-testid="single-terminal-header-left">
-        <WorkspaceSidebarButton />
+        <WorkspaceSearchButton />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-mono text-xs" data-testid="active-pane-label">
             {sessionLabel}
@@ -201,7 +201,6 @@ export function TerminalSessionFrame({
   }
 
   function handleFrameFocus(event: FocusEvent<HTMLDivElement>) {
-    if (isHeaderControl(event.target, event.currentTarget)) return;
     if (!onFocusActivate || event.currentTarget !== event.target) return;
     onActivate?.();
   }
@@ -211,14 +210,6 @@ export function TerminalSessionFrame({
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     onActivate?.();
-  }
-
-  function isHeaderControl(target: EventTarget | null, header: HTMLDivElement) {
-    const interactiveTarget =
-      target instanceof Element
-        ? target.closest("button, a, input, select, textarea, [role='button'], [role='link']")
-        : null;
-    return Boolean(interactiveTarget && header.contains(interactiveTarget));
   }
 
   function handleHeaderContextMenu(event: MouseEvent<HTMLDivElement>) {

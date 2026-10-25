@@ -3,7 +3,6 @@
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +17,7 @@ import {
 import { fetchTerminal } from "@/lib/terminal/auth-transport";
 
 interface TerminalSessionStatusClientProps {
+  visible?: boolean;
   highlightedWorkspaceId?: string;
 }
 
@@ -135,6 +135,7 @@ function MetricCard({ label, value }: { label: string; value: number }) {
 }
 
 export function TerminalSessionStatusClient({
+  visible = true,
   highlightedWorkspaceId,
 }: TerminalSessionStatusClientProps) {
   const { terminalWsUrl } = useRuntimeConfig();
@@ -183,13 +184,14 @@ export function TerminalSessionStatusClient({
 
   useEffect(() => {
     mountedRef.current = true;
+    if (!visible) return;
     void refresh();
     const intervalId = setInterval(() => void refresh(), POLL_INTERVAL_MS);
     return () => {
       mountedRef.current = false;
       clearInterval(intervalId);
     };
-  }, [refresh]);
+  }, [refresh, visible]);
 
   const workspaceEntries = Object.entries(state.workspaces).sort(([left], [right]) =>
     left.localeCompare(right),
@@ -208,25 +210,17 @@ export function TerminalSessionStatusClient({
 
   return (
     <DashboardPageShell className="h-full min-h-0 min-w-0 w-full flex-1 touch-pan-y space-y-4 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
-      <DashboardPageHeader
-        title="Terminal status"
-        description="Aggregated keepalive status for terminal sessions authorized by your Coder account."
-        leading={<p className="text-sm text-muted-foreground">Terminal diagnostics</p>}
-        hideLeadingOnMobile
-        actions={
-          <>
-            <Link className={buttonVariants({ variant: "outline" })} href="/workspaces">
-              Workspaces
-            </Link>
-            <Button onClick={() => void refresh()} disabled={state.isLoading}>
-              <RefreshCw className="mr-2 size-4" />
-              Refresh
-            </Button>
-          </>
-        }
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
+        <p className="text-sm text-muted-foreground">
+          Connection health for your terminal sessions.
+        </p>
+        <Button onClick={() => void refresh()} disabled={state.isLoading}>
+          <RefreshCw className="mr-2 size-4" />
+          Refresh
+        </Button>
+      </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr))]">
         <MetricCard label="Workspace rows" value={workspaceEntries.length} />
         <MetricCard label="Active terminal connections" value={activeConnectionCount} />
         <MetricCard label="Failing rows" value={failingCount} />
@@ -288,6 +282,7 @@ export function TerminalSessionStatusClient({
         </CardHeader>
         <CardContent className="flex h-[28rem] min-h-0 p-0">
           <TerminalSessionEventLog
+            visible={visible}
             workspaceId={highlightedWorkspaceId}
             className="[&_[role=log]]:overscroll-y-auto"
           />
