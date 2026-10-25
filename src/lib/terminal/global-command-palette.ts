@@ -1,4 +1,7 @@
-import type { CommandPaletteAction } from "@/components/terminal/CommandPalette";
+import type {
+  CommandPaletteAction,
+  CommandPalettePage,
+} from "@/components/terminal/CommandPalette";
 
 export interface GlobalCommandPaletteSource {
   id: string;
@@ -6,6 +9,7 @@ export interface GlobalCommandPaletteSource {
   onSelectTab?: (tabId: string) => void;
   onCreateSession?: () => void;
   actions?: CommandPaletteAction[];
+  pages?: Record<string, CommandPalettePage>;
   searchValue?: string;
   onSearchValueChange?: (value: string) => void;
   onOpenChange?: (open: boolean) => void;

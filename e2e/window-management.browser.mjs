@@ -389,7 +389,7 @@ try {
   await review.getByRole("dialog").waitFor({ state: "hidden" });
   await review.keyboard.press("Control+k");
   await search.fill("New session");
-  await review.getByRole("option").filter({ hasText: "New session" }).waitFor();
+  await review.getByRole("option").filter({ hasText: "Create terminal" }).waitFor();
   await search.fill("claude");
   await review.getByRole("option").filter({ hasText: "claude" }).first().waitFor();
   await search.fill("Files");
@@ -669,7 +669,7 @@ try {
     );
     await shortcutsContext.close();
   }
-  // Exercise the launcher's real selection, creation dialogs, and focus handoff.
+  // Exercise the launcher's real selection, nested creation screens, and focus handoff.
   const launcherContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const launcher = await launcherContext.newPage();
   launcher.on("pageerror", (error) => report.errors.push(error.message));
@@ -686,14 +686,25 @@ try {
     await launcher.keyboard.press("Control+k");
     await launcher.getByRole("combobox").fill(query);
   };
-  await find("Terminals");
+  await find("");
+  await launcher.locator('[data-action-id="section:Terminals"]').click();
+  await launcher.locator('[data-command-page="section:Terminals"]').waitFor();
+  assert.equal(await launcher.getByRole("dialog").count(), 1);
+  assert.equal(
+    await launcher.getByRole("combobox").evaluate((el) => el === document.activeElement),
+    true,
+  );
   await launcher.getByRole("option").filter({ hasText: "codex" }).first().waitFor();
-  assert.match(await launcher.getByRole("option").first().innerText(), /New session/);
+  assert.match(await launcher.getByRole("option").first().innerText(), /Create terminal/);
   await launcher.waitForTimeout(250);
   await launcher.screenshot({ path: resolve(evidence, "spotlight-terminals.png") });
-  await launcher.getByRole("option").filter({ hasText: "New session" }).click();
+  await launcher.getByRole("option").filter({ hasText: "Create terminal" }).click();
   await launcher.getByLabel("Session name").fill("review-shell");
-  await launcher.getByRole("button", { name: "Open session", exact: true }).click();
+  // Switching destination stays in the same palette and restores the typed draft.
+  await launcher.locator('[data-action-id="creation-workspace"]').click();
+  await launcher.locator('[data-action-id="choose-workspace:software"]').click();
+  assert.equal(await launcher.getByLabel("Session name").inputValue(), "review-shell");
+  await launcher.keyboard.press("Enter");
   await launcher.getByLabel("review-shell input").waitFor();
   await launcher.getByRole("dialog").waitFor({ state: "hidden" });
   await launcher.waitForTimeout(250);
@@ -716,14 +727,16 @@ try {
     "true",
   );
   assert.equal(await launcher.getByLabel("codex input").count(), 1);
-  await find("Projects");
+  await find("");
+  await launcher.locator('[data-action-id="section:Projects"]').click();
   assert.match(await launcher.getByRole("option").first().innerText(), /New project/);
   await launcher.getByRole("option").filter({ hasText: "New project" }).click();
   await launcher.getByLabel("Organization or owner").fill("kethalia");
+  await launcher.keyboard.press("Enter");
   await launcher.getByLabel("Repository", { exact: true }).fill("sample-project");
   await launcher.waitForTimeout(250);
   await launcher.screenshot({ path: resolve(evidence, "new-project.png") });
-  await launcher.getByRole("button", { name: "Clone and open", exact: true }).click();
+  await launcher.keyboard.press("Enter");
   await launcher.getByLabel("cloned-project input").waitFor();
   await launcher.getByRole("dialog").waitFor({ state: "hidden" });
   assert.equal(await launcher.evaluate(() => window.fixture.clones), 1);
@@ -755,9 +768,61 @@ try {
   assert.equal(await launcher.getByRole("option").count(), 0);
   assert.deepEqual(await launcher.evaluate(() => window.fixture.destroys), {});
   report.checks.push(
-    "Spotlight groups, explicit creation forms, session and project reuse, iframe/tool focus, empty results, and preserved terminal instances",
+    "Nested launcher, inline creation, session and project reuse, iframe/tool focus, empty results, and preserved terminal instances",
   );
   await launcherContext.close();
+  for (const mobile of [false, true]) {
+    const navigationContext = await browser.newContext({
+      viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+    });
+    const navigation = await navigationContext.newPage();
+    navigation.on("pageerror", (error) => report.errors.push(error.message));
+    await navigation.goto("http://127.0.0.1:8831");
+    await navigation.getByLabel("codex input").waitFor();
+    await navigation.keyboard.press("Control+k");
+    assert.equal(await navigation.locator('[data-action-id^="session:"]').count(), 0);
+    assert.equal(await navigation.locator('[data-action-id^="repository:"]').count(), 0);
+    await navigation.getByRole("combobox").fill("term");
+    await navigation.locator('[data-action-id="section:Terminals"]').click();
+    const panel = navigation.locator("[data-command-page]");
+    assert.equal(
+      await panel.evaluate((el) => getComputedStyle(el).animationName),
+      "command-page-forward",
+    );
+    await navigation.locator('[data-action-id="new-terminal"]').click();
+    await navigation
+      .getByRole("combobox", { name: "Session name", exact: true })
+      .fill("saved-draft");
+    await navigation.keyboard.press("Control+k");
+    assert.equal(await navigation.getByRole("combobox").inputValue(), "saved-draft");
+    await navigation.locator('[data-action-id="creation-workspace"]').click();
+    await navigation.getByRole("button", { name: "Back", exact: true }).click();
+    assert.equal(
+      await panel.evaluate((el) => getComputedStyle(el).animationName),
+      "command-page-back",
+    );
+    assert.equal(await navigation.getByRole("combobox").inputValue(), "saved-draft");
+    await navigation.keyboard.press("Escape");
+    await navigation.locator('[data-command-page="section:Terminals"]').waitFor();
+    await navigation.keyboard.press("Backspace");
+    await navigation.locator('[data-command-page="root"]').waitFor();
+    assert.equal(await navigation.getByRole("combobox").inputValue(), "term");
+    await navigation.emulateMedia({ reducedMotion: "reduce" });
+    await navigation.locator('[data-action-id="section:Terminals"]').click();
+    assert.equal(await panel.evaluate((el) => getComputedStyle(el).animationName), "none");
+    await navigation.locator('[data-action-id="new-terminal"]').click();
+    await navigation
+      .getByRole("combobox", { name: "Session name", exact: true })
+      .fill("keyboard-check");
+    await navigation.keyboard.press("Enter");
+    await navigation.getByLabel("keyboard-check input").waitFor();
+    await navigation.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.deepEqual(await navigation.evaluate(() => window.fixture.destroys), {});
+    report.checks.push(
+      `${mobile ? "mobile" : "desktop"}: inline name entry, forward/back slides, Escape/empty Backspace, draft restoration, repeated Cmd+K, reduced motion, and Enter submission`,
+    );
+    await navigationContext.close();
+  }
   for (const viewport of [
     { width: 1440, height: 900 },
     { width: 390, height: 844 },

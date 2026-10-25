@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowLeft,
   Bot,
   Code,
   Folder,
@@ -35,6 +36,25 @@ import { restoreWorkspaceFocus } from "@/lib/workspaces/window-focus";
 
 const CREATE_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
 
+export type CommandPaletteNavigation = { page: string } | { back: true };
+
+export interface CommandPalettePage {
+  title: string;
+  actions: CommandPaletteAction[];
+  searchPlaceholder?: string;
+  loadingText?: string;
+  emptyText?: string;
+  input?: {
+    label: string;
+    maxLength: number;
+    submitLabel: string;
+    pendingLabel: string;
+    onSubmit: (
+      value: string,
+    ) => Promise<void> | Promise<CommandPaletteNavigation> | CommandPaletteNavigation;
+  };
+}
+
 export interface CommandPaletteAction {
   id: string;
   label: string;
@@ -47,7 +67,7 @@ export interface CommandPaletteAction {
   disabled?: boolean;
   closeOnSelect?: boolean;
   icon?: "plus" | "search" | "terminal" | "files" | "code" | "desktop" | "agents";
-  onSelect: () => void;
+  onSelect: (() => void) | (() => CommandPaletteNavigation);
   options?: CommandPaletteActionOption[];
 }
 
@@ -65,6 +85,7 @@ interface CommandPaletteProps {
   onSelectTab: (tabId: string) => void;
   onCreateSession?: () => void;
   actions?: CommandPaletteAction[];
+  pages?: Record<string, CommandPalettePage>;
   searchValue?: string;
   onSearchValueChange?: (value: string) => void;
   searchPlaceholder?: string;
@@ -93,6 +114,12 @@ interface CommandPaletteBodyProps {
   emptyText: string;
   loadingText?: string;
   groupHeading: string;
+  page?: CommandPalettePage;
+  onBack?: () => void;
+  onNavigate: (navigation: CommandPaletteNavigation) => void;
+  onSubmit: (value: string) => void;
+  busy: boolean;
+  error: string;
 }
 
 function PaletteLoading({ text }: { text?: string }) {
@@ -147,8 +174,15 @@ function CommandPaletteBody({
   emptyText,
   loadingText,
   groupHeading,
+  page,
+  onBack,
+  onNavigate,
+  onSubmit,
+  busy,
+  error,
 }: CommandPaletteBodyProps) {
   const commandListRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
 
@@ -177,6 +211,7 @@ function CommandPaletteBody({
     () => new Map(),
   );
 
+  const filterQuery = page?.input ? "" : searchValue;
   const actionGroups = useMemo(() => {
     const entries = [
       ...actions.map((action) => ({ ...action, kind: "action" as const, action })),
@@ -197,8 +232,8 @@ function CommandPaletteBody({
           ]
         : []),
     ];
-    return rankCommandGroups(entries, searchValue ?? "");
-  }, [actions, tabs, groupHeading, onCreateSession, searchValue]);
+    return rankCommandGroups(entries, filterQuery ?? "");
+  }, [actions, tabs, groupHeading, onCreateSession, filterQuery]);
 
   useLayoutEffect(() => {
     updateScrollHints();
@@ -235,11 +270,19 @@ function CommandPaletteBody({
         if (option.disabled) return;
         option.onSelect();
       } else {
-        action.onSelect();
+        const navigation = action.onSelect();
+        if (
+          navigation &&
+          typeof navigation === "object" &&
+          ("page" in navigation || "back" in navigation)
+        ) {
+          onNavigate(navigation);
+          return;
+        }
       }
       if (action.closeOnSelect !== false) onOpenChange(false);
     },
-    [onOpenChange, selectedOptionIndexes],
+    [onOpenChange, onNavigate, selectedOptionIndexes],
   );
 
   const handleActionKey = useCallback(
@@ -286,14 +329,72 @@ function CommandPaletteBody({
   );
 
   return (
-    <div onKeyDownCapture={handleActionKey}>
+    <div
+      onKeyDownCapture={(event) => {
+        if (
+          onBack &&
+          !event.nativeEvent.isComposing &&
+          (event.key === "Escape" ||
+            (event.key === "Backspace" &&
+              !event.altKey &&
+              !event.metaKey &&
+              !event.ctrlKey &&
+              !searchValue &&
+              event.target instanceof HTMLInputElement))
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!busy) onBack();
+          return;
+        }
+        if (
+          page?.input &&
+          event.key === "Enter" &&
+          !event.nativeEvent.isComposing &&
+          event.target === inputRef.current &&
+          !event.currentTarget.querySelector('[cmdk-item][aria-selected="true"]')
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          onSubmit(inputRef.current?.value ?? "");
+          return;
+        }
+        handleActionKey(event);
+      }}
+    >
+      {onBack ? (
+        <div className="flex items-center gap-2 border-b px-3 py-2">
+          <button
+            type="button"
+            aria-label="Back"
+            disabled={busy}
+            onClick={onBack}
+            className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{page?.title}</span>
+          <span className="text-xs text-muted-foreground">Esc to go back</span>
+        </div>
+      ) : null}
       <CommandInput
-        aria-label="Search Hive"
+        ref={inputRef}
+        autoFocus
+        aria-label={page?.input?.label ?? "Search Hive"}
+        maxLength={page?.input?.maxLength}
+        readOnly={busy}
+        aria-invalid={!!error}
+        aria-describedby={error ? "command-page-error" : undefined}
         placeholder={searchPlaceholder}
         value={searchValue}
         onValueChange={onSearchValueChange}
       />
-      <PaletteLoading text={loadingText} />
+      <PaletteLoading text={busy ? page?.input?.pendingLabel : loadingText} />
+      {error ? (
+        <p id="command-page-error" role="alert" className="px-4 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
       <div className="flex min-h-0 flex-col">
         <div
           aria-hidden="true"
@@ -311,7 +412,20 @@ function CommandPaletteBody({
           className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onScroll={updateScrollHints}
         >
-          {!loadingText ? <CommandEmpty>{emptyText}</CommandEmpty> : null}
+          {!loadingText && !page?.input ? <CommandEmpty>{emptyText}</CommandEmpty> : null}
+          {page?.input ? (
+            <CommandGroup>
+              <CommandItem
+                value="submit-page"
+                disabled={busy}
+                onSelect={() => onSubmit(inputRef.current?.value ?? searchValue ?? "")}
+              >
+                <Plus className="mr-2 size-4" />
+                <span className="min-w-0 flex-1 truncate">{page.input.submitLabel}</span>
+                <CommandShortcut>Enter</CommandShortcut>
+              </CommandItem>
+            </CommandGroup>
+          ) : null}
           {actionGroups.map(([heading, groupActions]) => (
             <CommandGroup key={heading} heading={heading}>
               {groupActions.map((entry) => {
@@ -348,10 +462,10 @@ function CommandPaletteBody({
                     tabIndex={0}
                     value={`action:${action.id}`}
                     onSelect={() => {
-                      if (action.disabled) return;
+                      if (busy || action.disabled) return;
                       selectAction(action);
                     }}
-                    disabled={action.disabled}
+                    disabled={busy || action.disabled}
                   >
                     {actionIcon(action.icon)}
                     <span className="min-w-0 flex-1">
@@ -431,6 +545,7 @@ export function CommandPalette({
   onSelectTab,
   onCreateSession,
   actions = [],
+  pages = {},
   searchValue,
   onSearchValueChange,
   searchPlaceholder = "Search sessions…",
@@ -448,21 +563,127 @@ export function CommandPalette({
     },
     [onSearchValueChange],
   );
+  const [stack, setStack] = useState<Array<{ id: string; query: string }>>([]);
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const pending = useRef(false);
+  const mounted = useRef(true);
   useEffect(() => {
-    if (!open) setLocalSearch("");
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const pageId = stack.at(-1)?.id;
+  const page = pageId
+    ? (pages[pageId] ?? {
+        title: pageId.replace(/^section:/, ""),
+        actions: [],
+        emptyText: "No options are currently available.",
+      })
+    : undefined;
+  const navigate = useCallback(
+    (navigation: CommandPaletteNavigation) => {
+      if (pending.current) return;
+      setError("");
+      if ("back" in navigation) {
+        const previous = stack.at(-1);
+        if (!previous) return;
+        setDirection("back");
+        setStack(stack.slice(0, -1));
+        changeSearch(previous.query);
+      } else {
+        setDirection("forward");
+        setStack([...stack, { id: navigation.page, query }]);
+        changeSearch("");
+      }
+    },
+    [stack, query, changeSearch],
+  );
+  const changeOpen = useCallback(
+    (next: boolean) => {
+      if (!pending.current) onOpenChange(next);
+    },
+    [onOpenChange],
+  );
+  async function submit(value: string) {
+    if (!page?.input || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const navigation = await page.input.onSubmit(value.trim());
+      if (!mounted.current) return;
+      pending.current = false;
+      if (navigation) navigate(navigation);
+      else onOpenChange(false);
+    } catch (reason) {
+      if (mounted.current)
+        setError(reason instanceof Error ? reason.message : "Could not open the window.");
+    } finally {
+      pending.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (!open) {
+      setLocalSearch("");
+      setStack([]);
+      setError("");
+      setDirection("forward");
+    }
   }, [open]);
+  const body = (
+    <div
+      key={pageId ?? "root"}
+      data-command-page={pageId ?? "root"}
+      data-direction={direction}
+      className={cn(
+        "command-page",
+        (pageId || direction === "back") && `command-page-${direction}`,
+      )}
+    >
+      <CommandPaletteBody
+        tabs={page ? [] : tabs}
+        onSelectTab={onSelectTab}
+        onOpenChange={changeOpen}
+        onCreateSession={page ? undefined : onCreateSession}
+        actions={page?.actions ?? actions}
+        searchValue={query}
+        onSearchValueChange={(value) => {
+          if (!pending.current) {
+            setError("");
+            changeSearch(value);
+          }
+        }}
+        searchPlaceholder={page?.searchPlaceholder ?? searchPlaceholder}
+        emptyText={page?.emptyText ?? emptyText}
+        loadingText={page ? page.loadingText : loadingText}
+        groupHeading={groupHeading}
+        page={page}
+        onBack={page ? () => navigate({ back: true }) : undefined}
+        onNavigate={navigate}
+        onSubmit={(value) => {
+          void submit(value);
+        }}
+        busy={busy}
+        error={error}
+      />
+    </div>
+  );
   const { height } = useVisualViewportHeight();
   const sheetMaxHeight = height !== null ? `${height}px` : "100dvh";
   const { bindDragHandle, sheetStyle } = useSwipeToDismiss({
     enabled: isMobile,
     maxHeight: sheetMaxHeight,
-    onDismiss: () => onOpenChange(false),
+    onDismiss: () => changeOpen(false),
     open,
   });
 
   if (isMobile) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet open={open} onOpenChange={changeOpen}>
         <SheetContent
           side="bottom"
           finalFocus={restoreWorkspaceFocus}
@@ -478,24 +699,18 @@ export function CommandPalette({
             aria-label="Drag to dismiss command palette"
             className="flex h-11 w-full shrink-0 items-center justify-center border-0 bg-transparent p-0 text-inherit"
             style={dragHandleStyle}
-            onClick={() => onOpenChange(false)}
+            onClick={() => changeOpen(false)}
           >
             <span className="h-1 w-10 rounded-full bg-muted-foreground/35" aria-hidden="true" />
           </button>
-          <Command className={mobileCommandClassName} shouldFilter={false}>
-            <CommandPaletteBody
-              tabs={tabs}
-              onSelectTab={onSelectTab}
-              onOpenChange={onOpenChange}
-              onCreateSession={onCreateSession}
-              actions={actions}
-              searchValue={query}
-              onSearchValueChange={changeSearch}
-              searchPlaceholder={searchPlaceholder}
-              emptyText={emptyText}
-              loadingText={loadingText}
-              groupHeading={groupHeading}
-            />
+          <Command
+            key={pageId ?? "root"}
+            defaultValue={page?.input ? "submit-page" : undefined}
+            label={page?.input?.label ?? page?.title ?? "Search Hive"}
+            className={mobileCommandClassName}
+            shouldFilter={false}
+          >
+            {body}
           </Command>
         </SheetContent>
       </Sheet>
@@ -504,25 +719,16 @@ export function CommandPalette({
 
   return (
     <CommandDialog
+      commandKey={pageId ?? "root"}
+      commandLabel={page?.input?.label ?? page?.title ?? "Search Hive"}
+      commandDefaultValue={page?.input ? "submit-page" : undefined}
       commandShouldFilter={false}
       finalFocus={restoreWorkspaceFocus}
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={changeOpen}
       contentClassName="max-w-2xl top-[min(20vh,10rem)] translate-y-0 rounded-2xl border-primary/20 shadow-2xl"
     >
-      <CommandPaletteBody
-        tabs={tabs}
-        onSelectTab={onSelectTab}
-        onOpenChange={onOpenChange}
-        onCreateSession={onCreateSession}
-        actions={actions}
-        searchValue={query}
-        onSearchValueChange={changeSearch}
-        searchPlaceholder={searchPlaceholder}
-        emptyText={emptyText}
-        loadingText={loadingText}
-        groupHeading={groupHeading}
-      />
+      {body}
     </CommandDialog>
   );
 }

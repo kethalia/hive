@@ -54,7 +54,6 @@ import {
   windowGeometry,
 } from "@/lib/workspaces/window-manager";
 import { reconcileWorkspaceWindowLayout } from "@/lib/workspaces/workspace-window-layout";
-import { CreateWindowDialog } from "./CreateWindowDialog";
 import { HiveWorkspacePane } from "./HiveWorkspacePane";
 import { WindowCanvas } from "./WindowCanvas";
 import { WindowLayoutControls } from "./WindowLayoutControls";
@@ -81,7 +80,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   initialWorkspacesRef.current = initialWorkspaces;
   const [notice, setNotice] = useState<string | null>(error ?? null);
   const [launchRequest, setLaunchRequest] = useState(0);
-  const [creating, setCreating] = useState<"terminal" | "project" | null>(null);
   const [visited, setVisited] = useState<Set<string>>(() => new Set());
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
   const observeBody = useCallback((node: HTMLDivElement | null) => {
@@ -409,7 +407,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     onOpenPane: openPane,
     onError: setNotice,
     onStart: start,
-    onCreate: setCreating,
+    initialWorkspaceId: active?.workspaceId,
     additionalActions: windowActions,
   });
   function closeWindow(boardKey: string, id: string) {
@@ -555,15 +553,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       data-dashboard-full-bleed=""
       data-testid="general-workspace"
     >
-      {creating ? (
-        <CreateWindowDialog
-          kind={creating}
-          workspaces={workspaces}
-          initialWorkspaceId={active?.workspaceId}
-          onClose={() => setCreating(null)}
-          onOpenPane={openPane}
-        />
-      ) : null}
       <WindowShortcutHelp shortcuts={manager.shortcuts} onChange={changeShortcuts} />
       <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)]">
         <WorkspaceSearchButton />

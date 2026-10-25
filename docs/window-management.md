@@ -6,17 +6,31 @@ A **Coder workspace** supplies the running environments behind the windows.
 New boards use Strip; existing saved arrangements retain Grid. Switch with the Grid/Strip header
 buttons. Both modes keep the same mounted panes, connections, unsaved app state and terminal font
 preferences. Layout changes do not refetch repositories, agents or sessions.
-There is no sidebar. Cmd/Ctrl+K or the header search button opens one grouped launcher:
+There is no sidebar. Cmd/Ctrl+K or the header search button opens one launcher inspired by
+[PowerToys Command Palette](https://learn.microsoft.com/en-us/windows/powertoys/command-palette/overview)’s
+nested pages and inline prompts:
 
-- **Terminals**: New session asks for a name and running Coder workspace; existing sessions open
-  directly as windows.
-- **Projects**: New project asks for a GitHub organization/owner, repository name, and running
-  workspace. It uses that workspace's GitHub authentication to clone into `~/projects/<owner>/<repo>`
+- **Terminal**: opens a searchable session list with **Create terminal** first. Create terminal
+  opens a name prompt in the same command input; type a name and press Enter. Existing sessions
+  open directly as windows.
+- **Projects**: opens a searchable project list with **New project** first. New project asks for
+  a GitHub organization/owner, then a repository name, inside the command palette. It uses that
+  workspace's GitHub authentication to clone into `~/projects/<owner>/<repo>`
   and opens a terminal there. Existing folders are never overwritten. Existing projects open directly.
 - **Files, VS Code, Desktops**: each supported Coder workspace supplies an app window.
 - **Hive**: Agents, Settings, Diagnostics, Logs, Templates, and Manage Coder workspaces are native
   canvas windows. Agent conversations are shown first; setup details stay collapsed until expanded.
 - **Commands**: layout, focus, movement, and workspace actions remain searchable.
+
+The blank home screen shows categories and Hive tools; typing still searches across all targets.
+Every nested screen has a Back button. Forward navigation slides right to left, and Back reverses
+it while restoring the parent’s query. Escape goes back one level (dismisses at home); Backspace
+also goes back when the input is empty. Reduced-motion preferences disable these transitions.
+
+Creation defaults to the focused running Coder workspace, then the development workspace or first
+running workspace. The **Workspace** item opens a searchable destination picker and restores the
+name you typed when returning. Enter submits the name; progress and errors remain inline. During
+creation, duplicate submits and dismissal are blocked. Closing and reopening returns to home.
 
 Search ranks exact names before prefixes, phrases, aliases, categories, and descriptive context.
 Each group is ordered by its strongest match, so a matching Hive tool can appear above terminals or
@@ -26,7 +40,7 @@ and aliases are low-priority fallbacks, not scattered-letter matches across desc
 App aliases also find stopped workspaces that support those apps, so search can start them.
 Background metadata refreshes preserve the selected result while it still matches; if it disappears,
 selection moves to the first available match. Projects stay literal name/path matches, including queries such as `projects hive`. Clearing search
-restores the browsing order with New session and New project first in their respective groups.
+restores categories at home, or the creation-first order inside Terminal and Projects.
 
 Existing targets are focused across all boards instead of duplicated. Tool windows resize, move,
 float, close, and restore like terminal/app windows. Their loading/error states stay within the pane;
