@@ -342,12 +342,18 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     },
     [workspaceQuery.refresh],
   );
+  const manager = reconcileWindowManager(
+    board.manager,
+    board.windows.map((w) => w.id),
+  );
+  const windowActions = useWindowManagerCommands(manager, runWindowAction);
   useGeneralWorkspaceCommands({
     workspaces,
     onOpenPane: openPane,
     onError: setNotice,
     onStart: start,
     onAgents: setAgents,
+    additionalActions: windowActions,
   });
   function closeWindow(boardKey: string, id: string) {
     const target = stateRef.current.boards
@@ -445,11 +451,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       entry?.term.focus();
     });
   }
-  const manager = reconcileWindowManager(
-    board.manager,
-    board.windows.map((w) => w.id),
-  );
-  useWindowManagerCommands(manager, runWindowAction);
   useRegisterKeybinding({
     id: "general-workspace:agents",
     keys: [...WORKSPACE_AGENTS_KEYS],

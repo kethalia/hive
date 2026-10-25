@@ -282,15 +282,73 @@ export function WindowCanvas({
                         : undefined
                     }
                   >
-                    {({ dragHandleListeners }) =>
-                      renderPane(
-                        b,
-                        pane,
-                        visible,
-                        JSON.stringify(rect),
-                        mobile ? undefined : dragHandleListeners,
-                      )
-                    }
+                    {({ dragHandleListeners }) => (
+                      <>
+                        {renderPane(
+                          b,
+                          pane,
+                          visible,
+                          JSON.stringify(rect),
+                          mobile ? undefined : dragHandleListeners,
+                        )}
+                        {!mobile && visible && !dragId && !m.maximized && m.floating[pane.id]
+                          ? (["width", "height"] as const).map((axis) => (
+                              <WindowResizeHandle
+                                key={axis}
+                                label={`Resize floating ${axis}`}
+                                axis={axis}
+                                value={rect[axis] / (axis === "width" ? width : canvasHeight)}
+                                min={
+                                  axis === "width"
+                                    ? Math.min(1, 280 / width)
+                                    : Math.min(1, 160 / canvasHeight)
+                                }
+                                max={
+                                  1 - (axis === "width" ? rect.x / width : rect.y / canvasHeight)
+                                }
+                                extent={axis === "width" ? width : canvasHeight}
+                                style={
+                                  axis === "width"
+                                    ? {
+                                        left: rect.width - 6,
+                                        top: 35,
+                                        width: 6,
+                                        height: rect.height - 35,
+                                      }
+                                    : {
+                                        left: 0,
+                                        top: rect.height - 6,
+                                        width: rect.width,
+                                        height: 6,
+                                      }
+                                }
+                                onInteraction={(active) => {
+                                  setResizing(active);
+                                  if (active) onActivate(b.key, pane.id);
+                                }}
+                                onChange={(value) =>
+                                  onBoardChange(b.key, (board) => ({
+                                    ...board,
+                                    activeWindowId: pane.id,
+                                    manager: {
+                                      ...m,
+                                      floating: {
+                                        ...m.floating,
+                                        [pane.id]: {
+                                          ...m.floating[pane.id],
+                                          x: rect.x / width,
+                                          y: rect.y / canvasHeight,
+                                          [axis]: value,
+                                        },
+                                      },
+                                    },
+                                  }))
+                                }
+                              />
+                            ))
+                          : null}
+                      </>
+                    )}
                   </WorkspaceWindow>
                 );
               });
@@ -368,60 +426,6 @@ export function WindowCanvas({
                   ))}
                 </div>
               ))
-            : null}
-          {!mobile && !manager.maximized
-            ? Object.entries(manager.floating).flatMap(([id, r]) => {
-                const rect = activeGeometry.rects.get(id);
-                if (!rect) return [];
-                return (["width", "height"] as const).map((axis) => (
-                  <WindowResizeHandle
-                    key={`${id}-${axis}`}
-                    label={`Resize floating ${axis}`}
-                    axis={axis}
-                    value={rect[axis] / (axis === "width" ? width : canvasHeight)}
-                    min={
-                      axis === "width" ? Math.min(1, 280 / width) : Math.min(1, 160 / canvasHeight)
-                    }
-                    max={1 - (axis === "width" ? rect.x / width : rect.y / canvasHeight)}
-                    extent={axis === "width" ? width : canvasHeight}
-                    style={
-                      axis === "width"
-                        ? {
-                            left: rect.x + rect.width - 6,
-                            top: rect.y + 35,
-                            width: 6,
-                            height: rect.height - 35,
-                            zIndex: 46,
-                          }
-                        : {
-                            left: rect.x,
-                            top: rect.y + rect.height - 6,
-                            width: rect.width,
-                            height: 6,
-                            zIndex: 46,
-                          }
-                    }
-                    onInteraction={setResizing}
-                    onChange={(value) =>
-                      onBoardChange(activeBoardKey, (b) => ({
-                        ...b,
-                        manager: {
-                          ...manager,
-                          floating: {
-                            ...manager.floating,
-                            [id]: {
-                              ...r,
-                              x: rect.x / width,
-                              y: rect.y / canvasHeight,
-                              [axis]: value,
-                            },
-                          },
-                        },
-                      }))
-                    }
-                  />
-                ));
-              })
             : null}
         </div>
       </div>

@@ -26,11 +26,10 @@ await build({
             'const search = new URLSearchParams(); const router = {replace() {},push() {}}; export const useRouter = () => router; export const useSearchParams = () => search; export const usePathname = () => "/workspaces";',
           "next/dynamic":
             'import {lazy,Suspense} from "react"; export default function dynamic(load) { const C = lazy(async () => ({default: await load()})); return function Dynamic(props) { return <Suspense fallback={<p>Loading…</p>}><C {...props}/></Suspense> }; }',
-          "@/hooks/useGeneralWorkspaceCommands": "export function useGeneralWorkspaceCommands() {}",
-          "@/lib/discovery/queries":
-            'const workspaces=[{id:"software",name:"ai-dev-01",template_name:"ai-dev-k8s",latest_build:{id:"build-1",status:"running"}}]; const refresh=async()=>{}; export function useDiscovery(kind) {return {data:kind === "workspaces" ? workspaces : {agentId:"agent",agentStatus:"connected"},refresh,isPending:false};}',
+          "@/lib/discovery/transport":
+            'const workspaces=[{id:"software",name:"ai-dev-01",template_name:"ai-dev-k8s",latest_build:{id:"build-1",status:"running"}}]; export async function readDiscovery(kind) {if(kind === "workspaces") return workspaces; if(kind === "sessions") return [{name:"codex"},{name:"claude"}]; if(kind === "repositories") return {nodes:[{kind:"repository",id:"repo",label:"hive",cloneSessionKey:"git-clone:projects/kethalia/hive",relativePath:"projects/kethalia/hive"}]}; return {agentId:"agent",agentStatus:"connected"};}',
           "@/lib/actions/workspaces":
-            'export async function startWorkspaceAction(){return {data:{}};} export async function getWorkspaceSessionToolsAction(){return {data:{}};} export async function getWorkspaceAppToolAction(input){window.fixture.appRequests++;return {data:{url:"http://127.0.0.1:8832/"+input.tool}};}',
+            'export async function startWorkspaceAction(){return {data:{}};} export async function createSessionAction(input){return {data:{name:input.sessionName || "new-session"}};} export async function getWorkspaceSessionToolsAction(){return {data:{}};} export async function getWorkspaceAppToolAction(input){window.fixture.appRequests++;return {data:{url:"http://127.0.0.1:8832/"+input.tool}};}',
           "@/lib/actions/git-clones":
             'export async function resolveGitCloneTerminalAction(){return {data:{}};} export async function resolveGitCloneNotificationAction(){return {serverError:"Fixture repository unavailable"};}',
           "@/app/(dashboard)/workspaces/workspace-list-content":
@@ -39,12 +38,14 @@ await build({
           "./InteractiveTerminal":
             'export { FixtureTerminal as InteractiveTerminal } from "@/fixtures/window-management";',
         };
-        build.onResolve({ filter: /.*/ }, ({ path }) =>
-          path in mocks
-            ? { path, namespace: "mock" }
-            : path === "@/fixtures/window-management"
-              ? { path: resolve("e2e/fixtures/window-management.tsx") }
-              : undefined,
+        build.onResolve({ filter: /.*/ }, ({ path, importer }) =>
+          path === "./transport" && importer === resolve("src/lib/discovery/queries.ts")
+            ? { path: "@/lib/discovery/transport", namespace: "mock" }
+            : path in mocks
+              ? { path, namespace: "mock" }
+              : path === "@/fixtures/window-management"
+                ? { path: resolve("e2e/fixtures/window-management.tsx") }
+                : undefined,
         );
         build.onLoad({ filter: /.*/, namespace: "mock" }, ({ path }) => ({
           contents: mocks[path],

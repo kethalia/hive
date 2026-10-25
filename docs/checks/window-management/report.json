@@ -23,7 +23,11 @@
     "clicked tab selection survives focus leaving the column and reload",
     "keyboard tab selection stays visible after directional focus leaves the column",
     "opening a new app transfers Grid maximization to the visible active pane",
-    "reopening an existing app transfers Grid maximization to the visible active pane"
+    "reopening an existing app transfers Grid maximization to the visible active pane",
+    "production Cmd+K retains discovery and layout actions across layout and shortcut-preset changes",
+    "overlapping floating width handles resize only their foreground owner",
+    "overlapping floating height handles resize only their foreground owner",
+    "background floating resize handles cannot intercept foreground content"
   ],
   "errors": []
 }

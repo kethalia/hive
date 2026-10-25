@@ -345,7 +345,94 @@ try {
   report.checks.push(
     "reopening an existing app transfers Grid maximization to the visible active pane",
   );
+
+  await review.getByRole("button", { name: "Strip layout", exact: true }).click();
+  await review.keyboard.press("Control+k");
+  const search = review.getByPlaceholder("Search terminals, repositories, apps, and commands…");
+  await search.fill("hive");
+  await review.getByText("hive", { exact: true }).waitFor();
+  await search.fill("Use Grid layout");
+  await review.getByText("Use Grid layout", { exact: true }).click();
+  assert.equal(
+    await review.locator("[data-window-layout]").getAttribute("data-window-layout"),
+    "grid",
+  );
+  await review.getByRole("button", { name: "Arrange windows and shortcuts" }).click();
+  await review.getByLabel("Layout shortcut modifier").selectOption("ctrl+cmd");
+  await review.keyboard.press("Escape");
+  await review.keyboard.press("Control+k");
+  await search.fill("custom-terminal");
+  await review.getByText("New terminal “custom-terminal”", { exact: true }).waitFor();
+  await search.fill("claude");
+  await review.getByRole("option").filter({ hasText: "claude" }).first().waitFor();
+  await search.fill("Files");
+  await review.getByRole("option").filter({ hasText: "Files" }).first().waitFor();
+  await search.fill("Use Strip layout");
+  await review.getByText("Use Strip layout", { exact: true }).click();
+  assert.equal(
+    await review.locator("[data-window-layout]").getAttribute("data-window-layout"),
+    "strip",
+  );
+  report.checks.push(
+    "production Cmd+K retains discovery and layout actions across layout and shortcut-preset changes",
+  );
   await reviewContext.close();
+
+  const floatingContext = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+  const floating = await floatingContext.newPage();
+  floating.on("pageerror", (error) => report.errors.push(error.message));
+  await floating.goto("http://127.0.0.1:8831");
+  await floating.getByRole("button", { name: "Close Files window", exact: true }).click();
+  await floating.getByLabel("codex input").focus();
+  await floating.keyboard.press("Control+Alt+KeyT");
+  await floating.getByLabel("claude input").focus();
+  await floating.keyboard.press("Control+Alt+KeyT");
+  await floating.keyboard.press("Control+Alt+Digit1");
+  await floating.waitForTimeout(250);
+  const front = floating.locator('[data-workspace-window-id="codex"]');
+  const back = floating.locator('[data-workspace-window-id="claude"]');
+  const backRect = await back.boundingBox();
+  for (const axis of ["width", "height"]) {
+    const before = await front.boundingBox();
+    const point =
+      axis === "width"
+        ? { x: before.x + before.width - 3, y: before.y + 100 }
+        : { x: before.x + 100, y: before.y + before.height - 3 };
+    const owner = await floating.evaluate(
+      ({ x, y }) =>
+        document
+          .elementFromPoint(x, y)
+          ?.closest("[data-workspace-window-id]")
+          ?.getAttribute("data-workspace-window-id"),
+      point,
+    );
+    assert.equal(owner, "codex", "foreground edge must own the resize hit target");
+    await floating.mouse.move(point.x, point.y);
+    await floating.mouse.down();
+    await floating.mouse.move(
+      point.x + (axis === "width" ? 60 : 0),
+      point.y + (axis === "height" ? 50 : 0),
+      { steps: 8 },
+    );
+    await floating.mouse.up();
+    await floating.waitForTimeout(200);
+    assert((await front.boundingBox())[axis] > before[axis] + 30);
+    assert.deepEqual(await back.boundingBox(), backRect);
+    report.checks.push(`overlapping floating ${axis} handles resize only their foreground owner`);
+  }
+  const covered = await floating.evaluate(
+    ({ x, y }) => ({
+      owner: document
+        .elementFromPoint(x, y)
+        ?.closest("[data-workspace-window-id]")
+        ?.getAttribute("data-workspace-window-id"),
+      resize: !!document.elementFromPoint(x, y)?.closest("[data-window-resize]"),
+    }),
+    { x: backRect.x + backRect.width - 3, y: backRect.y + 100 },
+  );
+  assert.deepEqual(covered, { owner: "codex", resize: false });
+  report.checks.push("background floating resize handles cannot intercept foreground content");
+  await floatingContext.close();
   assert.deepEqual(report.errors, []);
 } finally {
   await writeFile(resolve(evidence, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

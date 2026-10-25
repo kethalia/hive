@@ -2,20 +2,25 @@
   "date": "2026-10-25",
   "workspace": "creator-direction-upgrade",
   "provenance": "reused; retained running because it also serves another task",
-  "browser_fixture_bundle_sha256": "c3f023b5b6b516a7524fac445b78b0c104126aead2e60882dd523859dffa651d",
+  "browser_fixture_bundle_sha256": "4f2efcd28c44a608e494aff3e9400270866d4590e0d882cae411014393e79096",
   "sources": {
-    "src/components/workspaces/GeneralWorkspace.tsx": "5c416a1141733dac94fd8d9ed4d73c86b5ac4650ad50792cbc2bde264cbf803c",
+    "src/components/workspaces/GeneralWorkspace.tsx": "209396772ca36efbdca3c5a71cb571ccfd0f670ed60f4cf5876587e0b66b7cb2",
     "src/components/workspaces/GeneralWorkspacePane.tsx": "be8e6a5e4520bf68002924de67e453a8abd4afc1c632782f9dcb300bb7447991",
-    "src/components/workspaces/WindowCanvas.tsx": "6fecaca6339c1dc6b9a8554f8409e13f5c51e9694b9f3bd3b2c076e55460564d",
+    "src/components/workspaces/WindowCanvas.tsx": "79cc10ca8859a052d7207d2ba7de92679bcd8caa68835598f3eeaa3586c3dea6",
     "src/components/workspaces/WindowResizeHandle.tsx": "f9cd3bc58cbeaeffc3e661f92bd4d1e3652d437645585d5ac755b78dcab4d247",
-    "src/lib/workspaces/window-manager.ts": "85ca248448ece4fbe9fb4683aa92d5375a89c0d9089215766317328280f570d8",
+    "src/lib/workspaces/window-manager.ts": "2bddc4efc190f9ce48825b20224cbb759d9cc20d01f33e406c79b705d606be3a",
     "src/lib/workspaces/window-actions.ts": "55060622085b669b96a0d39adef72ffc88f21362207aa192209031e8308a4013",
     "src/hooks/useWorkspaceNotifications.ts": "b8b6557c477f3588ec0a702b198322eb7a4b7b9682f58bf7b96ddc68a9467ebe",
     "src/components/ui/collapsible.tsx": "dd588120918cce3041bbffc806902440d93f0c5ff0951d8180ea9915258eb325",
-    "e2e/window-management.browser.mjs": "8522ff9e64ce35b363be05c20130bba485fb2377464d359715309c3e06be5380",
+    "e2e/window-management.browser.mjs": "7ae377f9f337fc763d8e968eb78f4d7c9f51907b3f7c12b9a8b39e487c362e1a",
     "src/components/workspaces/WorkspaceWindow.tsx": "a54aee042d25d8946d380666602def1c466817a6fe114a4d5e0e86e186428189",
     "src/lib/workspaces/general-workspace.ts": "6a979713679cbe168201bf64a623da4dc633fa2d903824052d017d854f0cb7d6",
-    "src/lib/workspaces/workspace-window-layout.ts": "6c7609d407d97ec43201357513b5e51ffe9600887ff93e98896d2ff9f3853253"
+    "src/lib/workspaces/workspace-window-layout.ts": "6c7609d407d97ec43201357513b5e51ffe9600887ff93e98896d2ff9f3853253",
+    "src/hooks/useWindowManagerCommands.ts": "adffda31d658b00b807e400d99da8809ab27e45aa15c4c44ec70049d8a7d227a",
+    "src/hooks/useGeneralWorkspaceCommands.ts": "e87a86b77a9911ea03e34aa8fc02678fd3ade86580b15ca9dad2ebfac6ae3b47",
+    "src/components/dashboard-keyboard-controller.tsx": "cb27fa15edd4673d0dcc264b5b35dd1742022b03bbbb010766501d71cd19ed30",
+    "e2e/fixtures/window-management.tsx": "cd00ee03a60ce5b3540b44a459eb8ba46e09285ed28f7cbfa60673f4ff28e987",
+    "scripts/build-window-management-fixture.mjs": "21b7e795ca460af17cfe432a01d576889d3d4ba93f029d3a7e96e560da15341b"
   },
   "initial_validation": {
     "commit": "1d9daa4b4bc143862b70294def08065f061f7b7b",
@@ -30,11 +35,11 @@
     "app_isolation_tests": 4
   },
   "review_validation": {
-    "application_tests": 1821,
+    "application_tests": 1824,
     "typecheck": "passed",
-    "changed_file_lint": "passed with four existing non-null assertion warnings",
     "format": "passed",
-    "browser_scenarios": 24,
-    "regression_baseline": "eleven model tests and the third-Strip-app browser check fail before their corresponding fixes"
+    "browser_scenarios": 28,
+    "regression_baseline": "model and production palette-controller regression tests and the third-Strip-app browser check fail before their corresponding fixes",
+    "lint": "passed with six existing non-null assertion warnings"
   }
 }

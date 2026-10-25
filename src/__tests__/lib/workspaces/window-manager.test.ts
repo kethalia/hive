@@ -109,6 +109,23 @@ describe("window layouts", () => {
     )!;
     expect(r.x + r.width).toBeLessThanOrEqual(1000);
   });
+  it.each([
+    false,
+    true,
+  ])("reveals from the clamped offset after a column closes (center: %s)", (center) => {
+    const ids = ["a", "b", "c", "d"];
+    let manager = reconcileWindowManager(newWindowManager(), ids);
+    manager.scroll = 1200;
+    manager = reconcileWindowManager(manager, ["a", "b", "d"]);
+    const geometry = windowGeometry(manager, undefined, ["a", "b", "d"], "d", 1200, 800);
+    expect(geometry.maxScroll).toBe(600);
+    manager = revealWindow(manager, geometry, "a", 1200, center);
+    expect(manager.scroll).toBe(0);
+    const revealed = windowGeometry(manager, undefined, ["a", "b", "d"], "a", 1200, 800).rects.get(
+      "a",
+    )!;
+    expect(revealed.x).toBe(0);
+  });
   it("stacks, tabs and detaches without duplicate pane or column identities", () => {
     let m = joinColumn(board().manager!, "a", 1);
     expect(m.columns[0].windows).toEqual(["b", "a"]);

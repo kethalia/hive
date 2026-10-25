@@ -1,15 +1,11 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Terminal } from "@xterm/xterm";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { CommandPalette } from "@/components/terminal/CommandPalette";
+import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
-import { useRegisterKeybinding } from "@/hooks/useKeybindings";
-import {
-  getGlobalCommandPaletteSources,
-  OPEN_GLOBAL_COMMAND_PALETTE_EVENT,
-} from "@/lib/terminal/global-command-palette";
 import {
   emptyGeneralWorkspace,
   generalWorkspaceStorageKey,
@@ -76,35 +72,6 @@ export function FixtureTerminal({
     </div>
   );
 }
-function Palette() {
-  const [open, setOpen] = useState(false);
-  useRegisterKeybinding({
-    id: "fixture:search",
-    keys: ["ctrl+k", "cmd+k"],
-    description: "Search",
-    category: "navigation",
-    enabledInBrowser: true,
-    global: true,
-    action: () => {
-      setOpen(true);
-      return false;
-    },
-  });
-  useEffect(() => {
-    const handler = () => setOpen(true);
-    window.addEventListener(OPEN_GLOBAL_COMMAND_PALETTE_EVENT, handler);
-    return () => window.removeEventListener(OPEN_GLOBAL_COMMAND_PALETTE_EVENT, handler);
-  }, []);
-  return (
-    <CommandPalette
-      open={open}
-      onOpenChange={setOpen}
-      tabs={[]}
-      onSelectTab={() => {}}
-      actions={getGlobalCommandPaletteSources().flatMap((s) => s.actions ?? [])}
-    />
-  );
-}
 export const fixtureWorkspaces = [
   {
     id: "software",
@@ -139,24 +106,26 @@ if (!localStorage.getItem(storage)) {
 const root = document.getElementById("app");
 if (root)
   createRoot(root).render(
-    <KeybindingProvider>
-      <SidebarProvider>
-        <main className="h-dvh w-full bg-background text-foreground">
-          {new URLSearchParams(location.search).has("collapsible") ? (
-            <Collapsible className="w-64 m-4">
-              <CollapsibleTrigger>Workspace apps</CollapsibleTrigger>
-              <CollapsibleContent>
-                <p className="p-4">Files</p>
-                <p className="p-4">VS Code</p>
-              </CollapsibleContent>
-            </Collapsible>
-          ) : (
-            <>
-              <GeneralWorkspace userId="fixture" initialWorkspaces={fixtureWorkspaces as never} />
-              <Palette />
-            </>
-          )}
-        </main>
-      </SidebarProvider>
-    </KeybindingProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <KeybindingProvider>
+        <SidebarProvider>
+          <main className="h-dvh w-full bg-background text-foreground">
+            {new URLSearchParams(location.search).has("collapsible") ? (
+              <Collapsible className="w-64 m-4">
+                <CollapsibleTrigger>Workspace apps</CollapsibleTrigger>
+                <CollapsibleContent>
+                  <p className="p-4">Files</p>
+                  <p className="p-4">VS Code</p>
+                </CollapsibleContent>
+              </Collapsible>
+            ) : (
+              <>
+                <GeneralWorkspace userId="fixture" initialWorkspaces={fixtureWorkspaces as never} />
+                <DashboardKeyboardController />
+              </>
+            )}
+          </main>
+        </SidebarProvider>
+      </KeybindingProvider>
+    </QueryClientProvider>,
   );

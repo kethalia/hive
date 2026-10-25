@@ -355,5 +355,6 @@ export function revealWindow(
       : rect.x + rect.width > right
         ? rect.x + rect.width - right
         : 0;
-  return { ...manager, scroll: Math.max(0, Math.min(geometry.maxScroll, manager.scroll + delta)) };
+  const scroll = Math.min(manager.scroll, geometry.maxScroll);
+  return { ...manager, scroll: Math.max(0, Math.min(geometry.maxScroll, scroll + delta)) };
 }

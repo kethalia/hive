@@ -6,10 +6,12 @@ preserved in the primary Hive repository.
 
 ## Browser evidence
 
-`report.json` records 24 passing checks with no page errors. The fixture bundles the production
-GeneralWorkspace, WindowCanvas, GeneralWorkspacePane, keybinding provider, command palette and
-Base UI collapsible. It uses stub terminal clients with mount/destroy counters and a real
-cross-origin app frame with an unsaved draft.
+`report.json` records 28 passing checks with no page errors. The fixture bundles the production
+GeneralWorkspace, WindowCanvas, GeneralWorkspacePane, keybinding provider, DashboardKeyboardController,
+workspace discovery/command hooks, command palette and Base UI collapsible. Discovery transport
+and terminal clients are stubbed; mount/destroy counters and a real cross-origin app frame with
+an unsaved draft verify continuity. The fixture uses the production palette controller, not a
+simplified action aggregator.
 
 - `grid.png`: initial Grid arrangement.
 - `drag-preview.png`: destination border and neighboring pane movement before drop.
@@ -25,7 +27,11 @@ and the restored measured-height expand/collapse animation. Review regressions a
 new/reopened Strip apps, keeping manual scrolling available, and preserving clicked/keyboard tab
 selection after leaving the column and reloading. Grid checks cover transferring maximization
 when opening new/existing apps; model tests also cover adjacent-divider resizing and spatial
-navigation after leaving Strip tabs. Regression tests failed before their corresponding fixes.
+navigation after leaving Strip tabs and revealing panes after a column closes with excess scroll.
+The production Cmd+K flow keeps discovery, creation and arrangement commands after mode/preset
+changes. Overlapping floating windows resize only the foreground owner on both axes, and
+background handles cannot intercept foreground content. Regression tests failed before their
+corresponding fixes.
 
 `verification.json` separates the original full validation from the review-fix validation and
 records the current browser bundle and source hashes.

@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import type { CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
-import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import { WINDOW_ACTIONS, windowActionKeys } from "@/lib/workspaces/window-actions";
 import type { WindowManager } from "@/lib/workspaces/window-manager";
 import { useKeybindings } from "./useKeybindings";
@@ -26,15 +26,18 @@ export function useWindowManagerCommands(manager: WindowManager, run: (id: strin
   const runRef = useRef(run);
   runRef.current = run;
   const { mode, shortcuts } = manager;
-  useEffect(() => {
-    const actions = [
+  const actions = useMemo(
+    () => [
       ...WINDOW_ACTIONS.map((a) => ({
         ...a,
         keys: windowActionKeys(a, shortcuts),
         disabled: !!a.stripOnly && mode !== "strip",
       })),
       ...BOARD_ACTIONS.map((a) => ({ ...a, disabled: false, repeat: false })),
-    ];
+    ],
+    [mode, shortcuts],
+  );
+  useEffect(() => {
     for (const a of actions) {
       if (a.disabled || !a.keys.length) continue;
       register({
@@ -58,9 +61,13 @@ export function useWindowManagerCommands(manager: WindowManager, run: (id: strin
         },
       });
     }
-    const cleanup = registerGlobalCommandPaletteSource({
-      id: "window-manager",
-      actions: actions
+    return () => {
+      for (const a of actions) unregister(`window-manager:${a.id}`);
+    };
+  }, [actions, register, unregister]);
+  return useMemo<CommandPaletteAction[]>(
+    () =>
+      actions
         .filter((a) => !a.disabled)
         .map((a) => ({
           id: `window-manager:${a.id}`,
@@ -69,10 +76,6 @@ export function useWindowManagerCommands(manager: WindowManager, run: (id: strin
           shortcut: a.keys.length ? formatShortcut(a.keys) : undefined,
           onSelect: () => runRef.current(a.id),
         })),
-    });
-    return () => {
-      for (const a of actions) unregister(`window-manager:${a.id}`);
-      cleanup();
-    };
-  }, [mode, shortcuts, register, unregister]);
+    [actions],
+  );
 }
