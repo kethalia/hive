@@ -51,6 +51,7 @@ import {
   importLegacyWorkspaceBoards,
   MAX_GENERAL_BOARDS,
   MAX_GENERAL_WINDOWS,
+  moveGeneralWindowToNextBoard,
   parseGeneralWorkspace,
 } from "@/lib/workspaces/general-workspace";
 import { applyWindowAction } from "@/lib/workspaces/window-actions";
@@ -399,39 +400,8 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           ? { ...current, activeBoardKey: current.boards[target].key }
           : current;
       }
-      if (action === "next-board") {
-        const source = current.boards[index],
-          pane = source.windows.find((w) => w.id === source.activeWindowId);
-        if (!pane) return current;
-        let boards = current.boards;
-        if (boards.length === 1)
-          boards = [
-            ...boards,
-            {
-              key: crypto.randomUUID(),
-              name: "2",
-              order: 1,
-              windows: [],
-              manager: newWindowManager(),
-            },
-          ];
-        const target = boards[(index + 1) % boards.length];
-        return {
-          ...current,
-          activeBoardKey: target.key,
-          boards: boards.map((b) =>
-            b.key === source.key
-              ? {
-                  ...b,
-                  windows: b.windows.filter((w) => w.id !== pane.id),
-                  activeWindowId: b.windows.find((w) => w.id !== pane.id)?.id,
-                }
-              : b.key === target.key
-                ? { ...b, windows: [...b.windows, pane], activeWindowId: pane.id }
-                : b,
-          ),
-        };
-      }
+      if (action === "next-board")
+        return moveGeneralWindowToNextBoard(current, crypto.randomUUID());
       return {
         ...current,
         boards: current.boards.map((b) =>

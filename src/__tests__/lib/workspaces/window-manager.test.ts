@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   emptyGeneralWorkspace,
   type GeneralBoard,
+  moveGeneralWindowToNextBoard,
   parseGeneralWorkspace,
 } from "@/lib/workspaces/general-workspace";
 import { openNotificationWindow } from "@/lib/workspaces/notification-window";
@@ -45,6 +46,39 @@ function board(mode: "grid" | "strip" = "strip"): GeneralBoard {
   };
 }
 describe("window layouts", () => {
+  it("equalizes a Grid with only vertical splits", () => {
+    const b = board("grid");
+    b.layout = {
+      type: "split",
+      axis: "x",
+      ratio: 0.7,
+      first: { type: "leaf", id: "a" },
+      second: { type: "leaf", id: "b" },
+    };
+    const next = applyWindowAction(b, "equalize", 1000, 800);
+    expect(next.layout).toMatchObject({ ratio: 0.5 });
+  });
+  it("moves a pane without duplicating a target that already exists on the next board", () => {
+    const source = board();
+    const target = {
+      ...board(),
+      key: "other",
+      windows: [{ ...source.windows[0], id: "already-open" }],
+      activeWindowId: "already-open",
+    };
+    const state = {
+      ...emptyGeneralWorkspace(),
+      activeBoardKey: source.key,
+      boards: [source, target],
+    };
+    const next = moveGeneralWindowToNextBoard(state, "unused");
+    expect(next.activeBoardKey).toBe("other");
+    expect(next.boards[0].windows).toBe(source.windows);
+    expect(next.boards[1].windows).toBe(target.windows);
+    expect(
+      parseGeneralWorkspace(JSON.stringify(next))?.boards.map((b) => b.windows.length),
+    ).toEqual([3, 1]);
+  });
   it("preserves old grids and validates persisted dimensions without losing windows", () => {
     const state = emptyGeneralWorkspace();
     state.boards = [board("grid")];

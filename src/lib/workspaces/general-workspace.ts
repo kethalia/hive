@@ -149,6 +149,45 @@ export function addGeneralFileWindow(
     key,
   );
 }
+/** Moving onto an already-open target focuses it without discarding either client's state. */
+export function moveGeneralWindowToNextBoard(
+  state: GeneralWorkspaceState,
+  newBoardKey: string,
+): GeneralWorkspaceState {
+  const index = state.boards.findIndex((b) => b.key === state.activeBoardKey);
+  const source = state.boards[index];
+  const pane = source?.windows.find((w) => w.id === source.activeWindowId);
+  if (!pane) return state;
+  const boards =
+    state.boards.length === 1
+      ? [
+          ...state.boards,
+          { key: newBoardKey, name: "2", order: 1, windows: [], manager: newWindowManager() },
+        ]
+      : state.boards;
+  const target = boards[(index + 1) % boards.length];
+  const existing = target.windows.find((w) => generalPaneIdentity(w) === generalPaneIdentity(pane));
+  return {
+    ...state,
+    activeBoardKey: target.key,
+    boards: boards.map((b) =>
+      b.key === target.key
+        ? {
+            ...b,
+            windows: existing ? b.windows : [...b.windows, pane],
+            activeWindowId: existing?.id ?? pane.id,
+          }
+        : b.key === source.key && !existing
+          ? {
+              ...b,
+              windows: b.windows.filter((w) => w.id !== pane.id),
+              activeWindowId: b.windows.find((w) => w.id !== pane.id)?.id,
+            }
+          : b,
+    ),
+  };
+}
+
 export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState | null {
   if (!raw) return null;
   try {

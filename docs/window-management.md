@@ -26,7 +26,9 @@ preferences. Layout changes do not refetch repositories, agents or sessions.
 - Grid full-width mode temporarily maximizes the active window. Strip full-width mode expands its
   column. The action is reversible.
 
-Saved geometry is coalesced during interaction. Explicit close releases that pane's client but keeps
+Saved geometry is coalesced during interaction. Moving to a board that already contains the same
+target focuses its existing window and retains the source window, preserving both clients.
+Explicit close releases that pane's client but keeps
 its tmux session running. Limits are nine boards and 32 windows; notifications never evict existing
 work to make room. On mobile, one pane is visible at a time and desktop geometry remains stored.
 
@@ -49,7 +51,7 @@ Existing system/browser shortcuts may take precedence; all actions are also in C
 | M + C | Center the active Strip column |
 | M + Equals/Minus | Increase/decrease width |
 | M + Shift + Equals/Minus | Increase/decrease height |
-| M + 0 | Equalize stack heights / reset a Grid split |
+| M + 0 | Equalize stack heights / reset Grid proportions |
 | M + P / Shift+P | Toggle left/right pin in Strip |
 | M + Right bracket / Left bracket | Join left/right Strip column |
 | M + Shift + Right bracket / Left bracket | Detach right/left |

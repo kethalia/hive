@@ -10,6 +10,7 @@ import {
   windowGeometry,
 } from "./window-manager";
 import {
+  equalizeWorkspaceSplits,
   findWorkspaceWindowInDirection,
   moveWorkspaceWindow,
   resizeWorkspaceSplit,
@@ -144,6 +145,8 @@ export function applyWindowAction(
   const sizing = ["cycle-width", "wider", "narrower", "taller", "shorter", "equalize"].includes(
     action,
   );
+  if (action === "equalize" && manager.mode === "grid" && board.layout && !manager.floating[active])
+    return { ...board, layout: equalizeWorkspaceSplits(board.layout) };
   if (sizing) {
     const vertical = action === "taller" || action === "shorter";
     const delta = action === "narrower" || action === "shorter" ? -0.05 : 0.05;

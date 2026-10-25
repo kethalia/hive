@@ -522,3 +522,16 @@ export function resizeWorkspaceSplit(
   const side = path[0] === "0" ? "first" : "second";
   return { ...root, [side]: resizeWorkspaceSplit(root[side], path.slice(1), ratio) };
 }
+
+export function equalizeWorkspaceSplits(
+  root: WorkspaceWindowLayoutNode,
+): WorkspaceWindowLayoutNode {
+  return root.type === "leaf"
+    ? root
+    : {
+        ...root,
+        ratio: 0.5,
+        first: equalizeWorkspaceSplits(root.first),
+        second: equalizeWorkspaceSplits(root.second),
+      };
+}
