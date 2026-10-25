@@ -597,7 +597,7 @@ describe("KeybindingProvider", () => {
     input.focus();
     const event = makeKeyEvent({
       key,
-      code: `Key${key.toUpperCase()}`,
+      code: control === "actions" ? "Period" : `Key${key.toUpperCase()}`,
       ctrlKey: true,
       altKey: true,
       bubbles: true,
@@ -623,7 +623,7 @@ describe("KeybindingProvider", () => {
       input.dispatchEvent(
         makeKeyEvent({
           key: "≈",
-          code: `Key${control === "actions" ? "P" : key.toUpperCase()}`,
+          code: control === "actions" ? "Period" : `Key${key.toUpperCase()}`,
           metaKey: true,
           altKey: true,
           bubbles: true,

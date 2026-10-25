@@ -1,87 +1,10 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "../helpers/discovery";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "../helpers/discovery";
 import "@testing-library/jest-dom/vitest";
 
-import { useSidebarMode } from "@/hooks/use-sidebar-mode";
-
 const originalInnerWidth = window.innerWidth;
-
-describe("useSidebarMode", () => {
-  beforeEach(() => {
-    localStorage.clear();
-  });
-
-  afterEach(() => {
-    cleanup();
-  });
-
-  it("defaults to sidebar when localStorage is empty", () => {
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("sidebar");
-  });
-
-  it("reads sidebar mode from localStorage", () => {
-    localStorage.setItem("sidebar_variant", "sidebar");
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("sidebar");
-  });
-
-  it("setSidebarMode(true) stays sidebar", () => {
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("sidebar");
-
-    act(() => {
-      result.current[1](true);
-    });
-
-    expect(result.current[0]).toBe("sidebar");
-  });
-
-  it("setSidebarMode(false) still forces sidebar", () => {
-    localStorage.setItem("sidebar_variant", "sidebar");
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("sidebar");
-
-    act(() => {
-      result.current[1](false);
-    });
-
-    expect(result.current[0]).toBe("sidebar");
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
-  });
-
-  it("persists only sidebar mode to localStorage", () => {
-    const { result } = renderHook(() => useSidebarMode());
-
-    act(() => {
-      result.current[1](true);
-    });
-
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
-
-    act(() => {
-      result.current[1](false);
-    });
-
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
-  });
-
-  it("migrates unknown localStorage value to sidebar", () => {
-    localStorage.setItem("sidebar_variant", "bogus");
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("sidebar");
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
-  });
-
-  it("migrates stale floating localStorage value to sidebar", () => {
-    localStorage.setItem("sidebar_variant", "floating");
-    const { result } = renderHook(() => useSidebarMode());
-    expect(result.current[0]).toBe("sidebar");
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
-  });
-});
 
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
@@ -307,18 +230,22 @@ describe("Sidebar primitive layout contract", () => {
     });
   });
 
-  it("reserves the widened desktop width for the integrated sidebar", async () => {
+  it("overlays the desktop workspace without a layout gap and dismisses outside", async () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 1200,
     });
 
-    const { Sidebar: ActualSidebar, SidebarProvider: ActualSidebarProvider } =
-      await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
+    const {
+      Sidebar: ActualSidebar,
+      SidebarProvider: ActualSidebarProvider,
+      SidebarTrigger: ActualSidebarTrigger,
+    } = await vi.importActual<typeof import("@/components/ui/sidebar")>("@/components/ui/sidebar");
 
     const { container } = render(
       <ActualSidebarProvider>
-        <ActualSidebar variant="sidebar">
+        <ActualSidebarTrigger />
+        <ActualSidebar variant="overlay">
           <nav aria-label="Workspace navigation">Navigation</nav>
         </ActualSidebar>
       </ActualSidebarProvider>,
@@ -333,10 +260,22 @@ describe("Sidebar primitive layout contract", () => {
 
     expect(wrapper?.style.getPropertyValue("--sidebar-width")).toBe("21rem");
     expect(wrapper?.style.getPropertyValue("--sidebar-width-icon")).toBe("3rem");
-    expect(root).toHaveAttribute("data-variant", "sidebar");
-    expect(gap?.className).toContain("group-data-[collapsible=offcanvas]:w-0");
-    expect(gap?.className).toContain("w-(--sidebar-width)");
+    expect(root).toHaveAttribute("data-variant", "overlay");
+    expect(gap).toBeNull();
     expect(sidebarContainer?.className).toContain("w-(--sidebar-width)");
+    fireEvent.click(screen.getByRole("button", { name: "Close sidebar" }));
+    expect(root).toHaveAttribute("data-state", "collapsed");
+    expect(sidebarContainer).toHaveAttribute("inert");
+    fireEvent.click(screen.getByRole("button", { name: /Toggle Sidebar/ }));
+    const terminal = document.createElement("textarea");
+    terminal.className = "xterm-helper-textarea";
+    const consume = vi.fn((event: KeyboardEvent) => event.preventDefault());
+    terminal.addEventListener("keydown", consume);
+    document.body.append(terminal);
+    fireEvent.keyDown(terminal, { key: "Escape" });
+    expect(consume).not.toHaveBeenCalled();
+    expect(root).toHaveAttribute("data-state", "collapsed");
+    terminal.remove();
   });
 
   it("uses the same row height for root and nested sidebar buttons", async () => {
@@ -397,7 +336,7 @@ describe("Sidebar primitive layout contract", () => {
 
 import { AppSidebar } from "@/components/app-sidebar";
 
-describe("AppSidebar integrated mode", () => {
+describe("AppSidebar overlay mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -427,24 +366,24 @@ describe("AppSidebar integrated mode", () => {
     expect(screen.queryByText("Float sidebar")).not.toBeInTheDocument();
   });
 
-  it("uses the integrated sidebar variant without a duplicate header trigger", async () => {
+  it("uses overlay navigation with a header close toggle", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "sidebar");
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "overlay");
     });
-    expect(screen.queryByTestId("sidebar-trigger")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-trigger")).toBeInTheDocument();
   });
 
-  it("ignores and migrates stale floating storage", async () => {
+  it("ignores obsolete sidebar storage", async () => {
     localStorage.setItem("sidebar_variant", "floating");
 
     render(<AppSidebar />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "sidebar");
+      expect(screen.getByTestId("app-sidebar-root")).toHaveAttribute("data-variant", "overlay");
     });
-    expect(localStorage.getItem("sidebar_variant")).toBe("sidebar");
+    expect(localStorage.getItem("sidebar_variant")).toBe("floating");
     expect(screen.queryByTestId("sidebar-mode-toggle")).not.toBeInTheDocument();
   });
 });

@@ -32,6 +32,6 @@ export const MANAGE_WORKSPACES_KEYS = ["ctrl+alt+g", "cmd+alt+g"] as const;
 export const PANE_CONTROL_SHORTCUTS = {
   microphone: { keys: ["ctrl+alt+m", "cmd+alt+m"], label: "Open microphone controls" },
   speaker: { keys: ["ctrl+alt+s", "cmd+alt+s"], label: "Open speaker controls" },
-  actions: { keys: ["ctrl+alt+.", "cmd+alt+p"], label: "Open pane actions" },
+  actions: { keys: ["ctrl+alt+.", "cmd+alt+."], label: "Open pane actions" },
   close: { keys: ["ctrl+alt+x", "cmd+alt+x"], label: "Close focused pane" },
 } as const;

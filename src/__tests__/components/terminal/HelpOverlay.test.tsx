@@ -262,13 +262,15 @@ describe("HelpOverlay", () => {
     expect(localStorage.getItem("hive:help-nudge-dismissed")).toBe("true");
   });
 
-  it("the help:show keybinding is registered on Ctrl/Cmd+/ and appears in the list", () => {
+  it("registers Cmd/Ctrl+? and the existing slash shortcut", () => {
     renderOpenOverlay();
     expect(mockRegister).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "help:show",
-        keys: ["ctrl+/", "cmd+/"],
+        keys: ["ctrl+shift+/", "cmd+shift+/", "ctrl+/", "cmd+/"],
         global: true,
+        allowTextEntry: true,
+        allowRepeat: false,
       }),
     );
     expect(mockRegister).not.toHaveBeenCalledWith(

@@ -368,15 +368,15 @@ describe("DashboardKeyboardController", () => {
         </KeybindingProvider>
       );
     }
-    const { rerender } = render(<App mode="grid" shortcuts="ctrl+alt" />);
+    const { rerender } = render(<App mode="grid" shortcuts="primary+alt" />);
     expect(mockWorkspaceSessions).not.toHaveBeenCalled();
     act(() => openGlobalCommandPalette());
     expect(await screen.findByText("dev-server")).toBeInTheDocument();
     expect(screen.getByText("hive")).toBeInTheDocument();
     expect(screen.getByText("Use Strip layout")).toBeInTheDocument();
     for (const props of [
-      { mode: "strip", shortcuts: "ctrl+alt" },
-      { mode: "strip", shortcuts: "ctrl+cmd" },
+      { mode: "strip", shortcuts: "primary+alt" },
+      { mode: "strip", shortcuts: "off" },
       { mode: "grid", shortcuts: "off" },
     ] as const) {
       rerender(<App {...props} />);

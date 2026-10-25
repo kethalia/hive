@@ -23,6 +23,7 @@ const TMUX_MENU_KEY_SEQUENCE = "\u001b[24~";
 export function KeybindingProvider({ children }: { children: React.ReactNode }) {
   const registryRef = React.useRef<Map<string, KeybindingEntry>>(new Map());
   const entriesRef = React.useRef<KeybindingEntry[]>([]);
+  const helpSectionsRef = React.useRef<{ id: string; content: React.ReactNode }[]>([]);
   const listenersRef = React.useRef(new Set<() => void>());
   const [activeTerminal, setActiveTerminalState] = React.useState<Terminal | null>(null);
   const [activeSend, setActiveSendState] = React.useState<((data: string) => void) | null>(null);
@@ -57,6 +58,18 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
   );
 
   const getAll = React.useCallback(() => entriesRef.current, []);
+  const getHelpSections = React.useCallback(() => helpSectionsRef.current, []);
+  const registerHelpSection = React.useCallback((id: string, content: React.ReactNode) => {
+    helpSectionsRef.current = [
+      ...helpSectionsRef.current.filter((section) => section.id !== id),
+      { id, content },
+    ];
+    for (const listener of listenersRef.current) listener();
+  }, []);
+  const unregisterHelpSection = React.useCallback((id: string) => {
+    helpSectionsRef.current = helpSectionsRef.current.filter((section) => section.id !== id);
+    for (const listener of listenersRef.current) listener();
+  }, []);
   const subscribe = React.useCallback((listener: () => void) => {
     listenersRef.current.add(listener);
     return () => {
@@ -92,6 +105,9 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       unregister,
       getAll,
       subscribe,
+      getHelpSections,
+      registerHelpSection,
+      unregisterHelpSection,
       handleKeyEvent,
       activeTerminal,
       activeSend,
@@ -102,6 +118,9 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
       unregister,
       getAll,
       subscribe,
+      getHelpSections,
+      registerHelpSection,
+      unregisterHelpSection,
       handleKeyEvent,
       activeTerminal,
       activeSend,

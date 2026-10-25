@@ -6,6 +6,8 @@ A **Coder workspace** supplies the running environments behind the windows.
 New boards use Strip; existing saved arrangements retain Grid. Switch with the Grid/Strip header
 buttons. Both modes keep the same mounted panes, connections, unsaved app state and terminal font
 preferences. Layout changes do not refetch repositories, agents or sessions.
+The sidebar overlays the workspace; opening or closing it never changes pane dimensions.
+Dismiss it with its toggle, Cmd/Ctrl+B, Escape, or a click outside.
 
 ## Resize and arrange
 
@@ -14,7 +16,9 @@ preferences. Layout changes do not refetch repositories, agents or sessions.
   280 × 160 px. Crowded grids scroll rather than compressing panes indefinitely.
 - Strip: resize a column at its edge; resize stacked panes at their horizontal divider. Widths are
   proportional to the available viewport, with a minimum readable size. Focus automatically reveals
-  the target. Horizontal wheel gestures, overview buttons and the range control navigate the strip.
+  the target. Two-finger horizontal trackpad gestures and Shift+wheel navigate the strip without
+  a bottom slider. Vertical terminal scrolling and pinch-to-zoom retain their normal behavior.
+  Embedded apps own gestures inside their iframe; scroll across their pane header to move the strip.
 - Drag a title area to rearrange. The destination outline and neighboring windows preview the drop.
   Escape cancels. Strip dragging reorders columns, or panes within the same stack.
 - Stack a pane into an adjacent column, detach it again, or toggle a column between stack and tabs.
@@ -34,17 +38,21 @@ work to make room. On mobile, one pane is visible at a time and desktop geometry
 
 ## Shortcuts
 
-The default layout modifier **M** is Control+Option on macOS, Control+Alt elsewhere. Arrange windows
-offers a Control+Command/Meta alternative, or Off. The alternate preset substitutes Option/Alt for
-Command in the first/last-column chords. VoiceOver users can avoid the Control+Option modifier.
+Open **Cmd/Ctrl+?** (Shift+/) for keyboard help, including the active board’s layout shortcuts and
+enable/disable setting. Cmd/Ctrl+/ also opens the same help panel. There is no separate Arrange windows screen.
+
+The layout modifier **M** is Command+Option on macOS and Control+Alt on Windows/Linux.
+Shortcuts never combine Command and Control. Keyboard help can turn layout shortcuts off;
+existing saved modifier presets migrate to the platform-appropriate keys without changing layouts.
 Existing system/browser shortcuts may take precedence; all actions are also in Cmd/Ctrl+K.
 
 | Keys | Action |
 | --- | --- |
 | M + arrows or H/J/K/L | Focus left/down/up/right |
+| Cmd/Ctrl + Left/Right | Focus the window to the left/right (when layout shortcuts are enabled) |
 | M + Shift + arrows or H/J/K/L | Move left/down/up/right |
-| M + Cmd + Left/Right | Focus first/last column |
-| M + Cmd + Shift + Left/Right | Move first/last column in Strip |
+| M + Home/End | Focus first/last column |
+| M + Shift + Home/End | Move first/last column in Strip |
 | M + 1–9 | Focus numbered window |
 | M + R | Cycle Strip width presets; adjust a Grid split |
 | M + F | Toggle full width |
@@ -58,24 +66,25 @@ Existing system/browser shortcuts may take precedence; all actions are also in C
 | M + Shift + T | Toggle stack/tabs |
 | M + T | Toggle floating |
 | M + N | Move the pane to the next Hive board, creating a second board when needed |
-| M + Q | Disable layout shortcuts; re-enable through search or Arrange windows |
+| M + Q | Disable layout shortcuts; re-enable through search or keyboard help |
 | Ctrl/Cmd + 1–9 | Select board (browser tab bindings may take precedence) |
 | Ctrl/Cmd + Alt + PageUp/PageDown | Previous/next board |
 | Ctrl/Cmd + Alt + Enter | Create board |
 | Ctrl/Cmd + Alt + Backspace | Close board, preserving underlying sessions |
 | Cmd/Ctrl + K | Unified search |
+| Cmd/Ctrl + ? (Shift+/), or Cmd/Ctrl + / | Keyboard help and layout shortcut settings |
 | Cmd/Ctrl + B | Sidebar |
 | Cmd/Ctrl + Alt + A | Agents |
 | Cmd/Ctrl + Alt + G | Manage Coder workspaces |
 | Cmd/Ctrl + Alt + M / S | Microphone / speaker controls |
-| Cmd + Option + P; Ctrl + Alt + Period | Pane actions (Ctrl+Alt+P now pins a column) |
+| Cmd/Ctrl + Alt + Period | Pane actions |
 | Cmd/Ctrl + Alt + X | Close focused window |
 | Cmd/Ctrl + Shift + M | tmux menu |
 | Cmd/Ctrl + Enter | Fullscreen |
 | Cmd/Ctrl + Shift + 1 / 2 / 3 | Workspace / Templates / Diagnostics |
 
 The executable source is `src/lib/workspaces/window-actions.ts`; registrations, command search and
-layout tooltips use that source. Repeating focus/resize keys is supported; toggles and destructive
+keyboard help use that source. Repeating focus/resize keys is supported; toggles and destructive
 actions do not repeat. Modals and ordinary text fields suppress layout shortcuts. AltGr remains
 character input. Symbol keys are normalized for Option-modified keyboard events.
 

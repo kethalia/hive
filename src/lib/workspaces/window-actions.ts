@@ -1,3 +1,4 @@
+import { isApplePlatform } from "@/lib/keyboard-shortcuts";
 import type { GeneralBoard } from "./general-workspace";
 import {
   detachColumn,
@@ -29,15 +30,15 @@ export const WINDOW_ACTIONS: WindowAction[] = [
     { id: `focus-${d}`, label: `Focus window ${d}`, chord: `arrow${d}`, repeat: true },
     { id: `move-${d}`, label: `Move window ${d}`, chord: `shift+arrow${d}`, repeat: true },
   ]),
-  { id: "first", label: "Focus first column", chord: "cmd+arrowleft" },
-  { id: "last", label: "Focus last column", chord: "cmd+arrowright" },
+  { id: "first", label: "Focus first column", chord: "home" },
+  { id: "last", label: "Focus last column", chord: "end" },
   {
     id: "move-first",
     label: "Move to first column",
     stripOnly: true,
-    chord: "cmd+shift+arrowleft",
+    chord: "shift+home",
   },
-  { id: "move-last", label: "Move to last column", stripOnly: true, chord: "cmd+shift+arrowright" },
+  { id: "move-last", label: "Move to last column", stripOnly: true, chord: "shift+end" },
   ...Array.from({ length: 9 }, (_, i) => ({
     id: `window-${i + 1}`,
     label: `Focus window ${i + 1}`,
@@ -71,20 +72,23 @@ function canonical(parts: string[]): string {
 export function windowActionKeys(
   action: WindowAction,
   preset: WindowManager["shortcuts"],
+  isApple = isApplePlatform(),
 ): string[] {
   if (!action.chord || preset === "off") return [];
-  // The alternate modifier uses Control+Command; first/last actions add Option.
-  const chord = preset === "ctrl+cmd" ? action.chord.replace("cmd+", "alt+") : action.chord;
-  const parts = [...preset.split("+"), ...chord.split("+")];
+  const primary = isApple ? "cmd" : "ctrl";
+  const parts = [primary, "alt", ...action.chord.split("+")];
   const keys = [canonical(parts)];
   const d = /arrow(left|down|up|right)$/.exec(action.chord)?.[1];
-  if (d && !action.chord.includes("cmd"))
+  if (d)
     keys.push(
       canonical([
         ...parts.slice(0, -1),
         ({ left: "h", down: "j", up: "k", right: "l" } as Record<string, string>)[d],
       ]),
     );
+  // Direct horizontal focus uses the platform’s primary modifier as well.
+  if (action.id === "focus-left" || action.id === "focus-right")
+    keys.push(`${primary}+${action.chord}`);
   return keys;
 }
 export function applyWindowAction(
@@ -101,7 +105,7 @@ export function applyWindowAction(
   if (action === "shortcuts")
     return {
       ...board,
-      manager: { ...manager, shortcuts: manager.shortcuts === "off" ? "ctrl+alt" : "off" },
+      manager: { ...manager, shortcuts: manager.shortcuts === "off" ? "primary+alt" : "off" },
     };
   if (!active) return board;
   const geometry = windowGeometry(

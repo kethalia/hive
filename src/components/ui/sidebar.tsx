@@ -171,13 +171,14 @@ function Sidebar({
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right";
-  variant?: "sidebar" | "floating" | "inset";
+  variant?: "sidebar" | "floating" | "inset" | "overlay";
   collapsible?: "offcanvas" | "icon" | "none";
   mobileOnly?: boolean;
 }) {
   const {
     isMobile: mobileViewport,
     state,
+    setOpen,
     openMobile,
     setOpenMobile,
     openMobileRight,
@@ -188,6 +189,22 @@ function Sidebar({
     setResponsiveReady(true);
   }, []);
   const isMobile = responsiveReady && mobileViewport;
+  React.useEffect(() => {
+    if (isMobile || variant !== "overlay" || state !== "expanded") return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Escape" ||
+        event.defaultPrevented ||
+        document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape, { capture: true });
+    return () => window.removeEventListener("keydown", closeOnEscape, { capture: true });
+  }, [isMobile, variant, state, setOpen]);
 
   if (collapsible === "none") {
     return (
@@ -252,25 +269,38 @@ function Sidebar({
       data-side={side}
       data-slot="sidebar"
     >
-      {/* This is what handles the sidebar gap on desktop */}
-      <div
-        data-slot="sidebar-gap"
-        className={cn(
-          "relative bg-transparent transition-[width] duration-200 ease-linear motion-reduce:transition-none motion-reduce:duration-0",
-          "group-data-[collapsible=offcanvas]:w-0",
-          "group-data-[side=right]:rotate-180",
-          variant === "floating"
-            ? "w-(--sidebar-width) group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-            : variant === "inset"
+      {variant === "overlay" && state === "expanded" ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-30 cursor-default"
+          onClick={() => setOpen(false)}
+        />
+      ) : null}
+      {/* Overlay navigation never reserves space in the workspace. */}
+      {variant !== "overlay" ? (
+        <div
+          data-slot="sidebar-gap"
+          className={cn(
+            "relative bg-transparent transition-[width] duration-200 ease-linear motion-reduce:transition-none motion-reduce:duration-0",
+            "group-data-[collapsible=offcanvas]:w-0",
+            "group-data-[side=right]:rotate-180",
+            variant === "floating"
               ? "w-(--sidebar-width) group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-              : "w-(--sidebar-width) group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
-        )}
-      />
+              : variant === "inset"
+                ? "w-(--sidebar-width) group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
+                : "w-(--sidebar-width) group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
+          )}
+        />
+      ) : null}
       <div
         data-slot="sidebar-container"
         data-side={side}
+        inert={state === "collapsed" && collapsible === "offcanvas"}
         className={cn(
           "fixed inset-y-0 z-10 hidden h-[var(--app-viewport-height)] w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear motion-reduce:transition-none motion-reduce:duration-0 data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
+          variant === "overlay" && "z-40 shadow-xl",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"

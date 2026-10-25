@@ -154,7 +154,28 @@ try {
   await page.getByLabel("claude input").focus();
   await page.keyboard.press("Control+Alt+KeyT");
   report.checks.push("floating width resizes and returns to tiling");
-  await page.getByRole("button", { name: "Arrange windows and shortcuts" }).click();
+  assert.equal(
+    await page.getByRole("button", { name: "Arrange windows and shortcuts" }).count(),
+    0,
+  );
+  await page.keyboard.press("Meta+Shift+Slash");
+  await page.getByRole("dialog", { name: "Keyboard Shortcuts" }).waitFor();
+  await page.getByText("Focus window left", { exact: true }).waitFor();
+  await page.getByLabel("Layout shortcuts").waitFor();
+  await page.waitForTimeout(250);
+  const helpRect = await page.getByRole("dialog", { name: "Keyboard Shortcuts" }).boundingBox();
+  assert(
+    await page.evaluate(
+      ({ x, y }) => !!document.elementFromPoint(x, y)?.closest('[role="dialog"]'),
+      {
+        x: helpRect.x + helpRect.width / 2,
+        y: helpRect.y + 30,
+      },
+    ),
+    "keyboard help must be above terminal and app panes",
+  );
+  await page.screenshot({ path: resolve(evidence, "keyboard-help.png") });
+  report.checks.push("Cmd+? shows layout shortcuts and their setting without an Arrange screen");
   const beforeModal = await page.getByTestId("general-window-claude").getAttribute("data-active");
   await page.keyboard.press("Control+Alt+ArrowRight");
   assert.equal(
@@ -162,6 +183,7 @@ try {
     beforeModal,
   );
   await page.keyboard.press("Escape");
+  await page.getByRole("dialog", { name: "Keyboard Shortcuts" }).waitFor({ state: "hidden" });
   report.checks.push("layout shortcuts do not run behind a modal");
   await page.getByLabel("claude input").focus();
   await page.keyboard.press("Control+Alt+KeyN");
@@ -284,14 +306,15 @@ try {
   );
 
   // Tab B must stay visible when focus moves to the app in the next column.
-  await review.getByRole("button", { name: "Focus claude", exact: true }).click();
+  await review.getByRole("button", { name: "Strip layout", exact: true }).focus();
+  await review.keyboard.press("Control+Alt+Digit2");
   await review.getByLabel("claude input").focus();
   await review.keyboard.press("Control+Alt+BracketRight");
   await review.keyboard.press("Control+Alt+Shift+KeyT");
   const tabs = review.getByRole("tablist", { name: "Column windows" });
   await tabs.getByRole("tab", { name: "codex", exact: true }).click();
   await tabs.getByRole("tab", { name: "claude", exact: true }).click();
-  await review.getByRole("button", { name: "Focus Files", exact: true }).click();
+  await review.keyboard.press("Control+Alt+Digit3");
   assert.equal(
     await tabs.getByRole("tab", { name: "claude", exact: true }).getAttribute("aria-selected"),
     "true",
@@ -357,8 +380,8 @@ try {
     await review.locator("[data-window-layout]").getAttribute("data-window-layout"),
     "grid",
   );
-  await review.getByRole("button", { name: "Arrange windows and shortcuts" }).click();
-  await review.getByLabel("Layout shortcut modifier").selectOption("ctrl+cmd");
+  await review.keyboard.press("Control+Shift+Slash");
+  await review.getByLabel("Layout shortcuts").selectOption("off");
   await review.keyboard.press("Escape");
   await review.keyboard.press("Control+k");
   await search.fill("custom-terminal");
@@ -433,6 +456,102 @@ try {
   assert.deepEqual(covered, { owner: "codex", resize: false });
   report.checks.push("background floating resize handles cannot intercept foreground content");
   await floatingContext.close();
+
+  const navigationContext = await browser.newContext({
+    viewport: { width: 1200, height: 800 },
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+  });
+  const navigation = await navigationContext.newPage();
+  navigation.on("pageerror", (error) => report.errors.push(error.message));
+  await navigation.goto("http://127.0.0.1:8831");
+  await navigation.getByLabel("codex input").waitFor();
+  const paneRects = () =>
+    navigation.locator("[data-workspace-window-id]").evaluateAll((panes) =>
+      panes.map((pane) => {
+        const { x, y, width, height } = pane.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    );
+  for (const mode of ["Grid", "Strip"]) {
+    await navigation.getByRole("button", { name: `${mode} layout`, exact: true }).click();
+    await navigation.waitForTimeout(200);
+    const rects = await paneRects();
+    await navigation.keyboard.press("Control+b");
+    await navigation.waitForTimeout(250);
+    assert.deepEqual(await paneRects(), rects, "sidebar opening must not move or resize windows");
+    assert(
+      await navigation.evaluate(
+        () => !!document.elementFromPoint(100, 180)?.closest('[data-slot="sidebar-inner"]'),
+      ),
+    );
+    await navigation.keyboard.press("Escape");
+    await navigation.waitForTimeout(250);
+    assert.deepEqual(await paneRects(), rects, "sidebar closing must not move or resize windows");
+  }
+  report.checks.push("sidebar overlays Grid and Strip panes without changing their geometry");
+  assert.equal(await navigation.getByRole("slider", { name: "Scroll windows" }).count(), 0);
+  assert.equal(await navigation.getByRole("toolbar", { name: "Strip overview" }).count(), 0);
+  await navigation.getByLabel("codex input").focus();
+  await navigation.keyboard.press("Meta+ArrowRight");
+  assert.equal(
+    await navigation.getByTestId("general-window-claude").getAttribute("data-active"),
+    "true",
+  );
+  await navigation.keyboard.press("Meta+ArrowLeft");
+  assert.equal(
+    await navigation.getByTestId("general-window-codex").getAttribute("data-active"),
+    "true",
+  );
+  report.checks.push("Cmd+Left/Right focuses adjacent windows from a terminal");
+  const scroll = () =>
+    navigation.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem("general-workspace:v1:fixture")).boards[0].manager.scroll,
+    );
+  const wheel = (init) =>
+    navigation.getByLabel("codex input").evaluate((el, init) => {
+      const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, ...init });
+      el.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, init);
+  await wheel({ deltaX: -10000 });
+  await navigation.waitForTimeout(200);
+  assert.equal(await scroll(), 0);
+  const burst = await navigation.getByLabel("codex input").evaluate((el) => {
+    let consumed = 0;
+    const terminalWheel = (event) => {
+      consumed++;
+      event.stopPropagation();
+    };
+    el.addEventListener("wheel", terminalWheel);
+    const prevented = [];
+    for (let i = 0; i < 12; i++) {
+      const event = new WheelEvent("wheel", { deltaX: 8, bubbles: true, cancelable: true });
+      el.dispatchEvent(event);
+      prevented.push(event.defaultPrevented);
+    }
+    el.removeEventListener("wheel", terminalWheel);
+    return { consumed, prevented };
+  });
+  await navigation.waitForTimeout(250);
+  assert.equal(await scroll(), 96, "all rapid trackpad deltas must accumulate");
+  assert.deepEqual(burst, { consumed: 0, prevented: Array(12).fill(true) });
+  assert.equal(await wheel({ deltaX: 1, deltaY: 40 }), false);
+  assert.equal(await wheel({ deltaX: 40, ctrlKey: true }), false);
+  await navigation.waitForTimeout(200);
+  assert.equal(await scroll(), 96, "vertical scroll and pinch zoom must not move the strip");
+  await wheel({ deltaY: 3, shiftKey: true, deltaMode: 1 });
+  await navigation.waitForTimeout(200);
+  assert.equal(await scroll(), 144);
+  await wheel({ deltaX: -64 });
+  await navigation.waitForTimeout(200);
+  assert.equal(await scroll(), 80);
+  await navigation.screenshot({ path: resolve(evidence, "strip-without-slider.png") });
+  report.checks.push(
+    "horizontal wheel capture accumulates bursts, normalizes line deltas, and preserves vertical scroll and zoom",
+  );
+  await navigationContext.close();
   assert.deepEqual(report.errors, []);
 } finally {
   await writeFile(resolve(evidence, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

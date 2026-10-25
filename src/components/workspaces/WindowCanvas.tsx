@@ -57,16 +57,13 @@ export function WindowCanvas({
 }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [resizing, setResizing] = useState(false);
+  const [scrolling, setScrolling] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [preview, setPreview] = useState<GeneralBoard | null>(null);
   const origin = useRef<GeneralBoard | null>(null);
   const activeBoard = boards.find((b) => b.key === activeBoardKey)!;
   const scroller = useRef<HTMLDivElement>(null);
-  const canvasHeight = Math.max(
-    1,
-    height -
-      (!mobile && activeBoard.manager?.mode === "strip" && activeBoard.windows.length ? 28 : 0),
-  );
+  const canvasHeight = Math.max(1, height);
   const geometry = (b: GeneralBoard): WindowGeometry =>
     windowGeometry(
       reconcileWindowManager(
@@ -84,6 +81,59 @@ export function WindowCanvas({
     activeBoard.manager,
     activeBoard.windows.map((w) => w.id),
   );
+  const wheelState = useRef({
+    mobile,
+    manager,
+    activeBoardKey,
+    activeGeometry,
+    width,
+    onBoardChange,
+  });
+  wheelState.current = { mobile, manager, activeBoardKey, activeGeometry, width, onBoardChange };
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const onWheel = (event: WheelEvent) => {
+      const state = wheelState.current;
+      if (state.mobile || state.manager.mode !== "strip" || event.ctrlKey || event.metaKey) return;
+      const horizontal = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+      const delta = event.deltaX || (event.shiftKey ? event.deltaY : 0);
+      if (!horizontal || !delta || !state.activeGeometry.maxScroll) return;
+      // Capture before xterm consumes wheel events. A non-passive listener also
+      // prevents browser back/forward gestures and duplicate native scrolling.
+      event.preventDefault();
+      event.stopPropagation();
+      const pixels = delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? state.width : 1);
+      state.onBoardChange(state.activeBoardKey, (board) => {
+        const current = reconcileWindowManager(
+          board.manager,
+          board.windows.map((w) => w.id),
+        );
+        return {
+          ...board,
+          manager: {
+            ...current,
+            scroll: Math.max(
+              0,
+              Math.min(
+                state.activeGeometry.maxScroll,
+                Math.min(current.scroll, state.activeGeometry.maxScroll) + pixels,
+              ),
+            ),
+          },
+        };
+      });
+      setScrolling(true);
+      clearTimeout(settle);
+      settle = setTimeout(() => setScrolling(false), 150);
+    };
+    element.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => {
+      element.removeEventListener("wheel", onWheel, { capture: true });
+      clearTimeout(settle);
+    };
+  }, []);
   const {
     x,
     y,
@@ -204,27 +254,14 @@ export function WindowCanvas({
   }
   return (
     <div
-      className="absolute inset-0 flex min-h-0 flex-col"
+      className="absolute inset-0 isolate flex min-h-0 flex-col"
       style={{ pointerEvents: activeBoard.windows.length ? undefined : "none" }}
       data-window-layout={manager.mode}
     >
       <div
         ref={scroller}
-        className={`relative min-h-0 flex-1 overflow-auto ${dragId || resizing ? "[&_iframe]:pointer-events-none" : ""}`}
+        className={`relative min-h-0 flex-1 overflow-auto ${manager.mode === "strip" ? "overflow-x-hidden overscroll-x-none" : ""} ${dragId || resizing ? "[&_iframe]:pointer-events-none" : ""}`}
         data-mobile-scroll-allow="true"
-        onWheel={(event) => {
-          if (manager.mode !== "strip" || !(event.deltaX || event.shiftKey)) return;
-          onBoardChange(activeBoardKey, (b) => ({
-            ...b,
-            manager: {
-              ...manager,
-              scroll: Math.max(
-                0,
-                Math.min(activeGeometry.maxScroll, manager.scroll + (event.deltaX || event.deltaY)),
-              ),
-            },
-          }));
-        }}
       >
         <div
           className="relative"
@@ -274,7 +311,7 @@ export function WindowCanvas({
                       ...(mobile ? { inset: 0 } : styleRect(baseRect)),
                       display: visible ? "block" : "none",
                       zIndex,
-                      ...(resizing ? { transition: "none" } : {}),
+                      ...(resizing || scrolling ? { transition: "none" } : {}),
                     }}
                     previewStyle={
                       !mobile && preview?.key === b.key
@@ -429,47 +466,6 @@ export function WindowCanvas({
             : null}
         </div>
       </div>
-      {!mobile && manager.mode === "strip" && activeBoard.windows.length ? (
-        <div
-          className="flex h-7 shrink-0 items-center gap-2 border-t bg-background px-3 py-1"
-          role="toolbar"
-          aria-label="Strip overview"
-        >
-          <div className="flex min-w-0 gap-1">
-            {manager.columns.map((c) => (
-              <ShortcutTooltip
-                key={c.id}
-                label={`Focus ${activeBoard.windows.find((w) => w.id === c.windows[0])?.label}`}
-                trigger={
-                  <button
-                    key={c.id}
-                    type="button"
-                    className={`h-4 rounded-sm border ${c.windows.includes(activeBoard.activeWindowId ?? "") ? "border-primary bg-primary/30" : "bg-muted"}`}
-                    style={{ width: c.width * 40 + 8 }}
-                    aria-label={`Focus ${activeBoard.windows.find((w) => w.id === c.windows[0])?.label}`}
-                    onClick={() => onActivate(activeBoardKey, c.selected ?? c.windows[0])}
-                  />
-                }
-              />
-            ))}
-          </div>
-          <input
-            aria-label="Scroll windows"
-            type="range"
-            className="min-w-0 flex-1 accent-primary"
-            min={0}
-            max={Math.max(1, activeGeometry.maxScroll)}
-            value={Math.min(manager.scroll, activeGeometry.maxScroll)}
-            disabled={!activeGeometry.maxScroll}
-            onChange={(e) =>
-              onBoardChange(activeBoardKey, (b) => ({
-                ...b,
-                manager: { ...manager, scroll: Number(e.target.value) },
-              }))
-            }
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

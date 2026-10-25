@@ -12,13 +12,14 @@ corresponding regression coverage whenever a feature changes or moves. Historica
 | Boards | Up to nine saved arrangements within Hive; not Coder environments. Create, select, and close boards. Closing releases clients, not tmux sessions. | `WorkspaceBoardBar`; window-management browser checks |
 | Windows | Up to 32 terminal/app windows across boards. Window identity remains stable when moving between boards. | `general-workspace`; `WindowCanvas` |
 | Grid | Binary splits with saved proportions and adjustable dividers. Overflow scrolls when minimum pane sizes cannot fit. | `workspace-window-layout`; window-manager tests |
-| Strip | Horizontal columns retain their widths; focus reveals the selected column. Overview buttons and a draggable range control navigate the strip. | `window-manager`; browser checks |
+| Strip | Horizontal columns retain their widths; focus reveals the selected column. Two-finger horizontal scrolling and Shift+wheel navigate without a bottom slider. | `window-manager`; browser checks |
+| Sidebar | Navigation overlays the canvas without moving or resizing windows. Toggle it, click outside, or press Escape to close it. | `Sidebar`; browser geometry checks |
 | Resizing | Pointer capture, keyboard-adjustable separators, minimum sizes, reset by double-click, and persisted dimensions. Floating windows have width/height edge handles. | `WindowResizeHandle`; browser checks |
 | Drag rearrangement | A destination border and live neighboring-pane preview appear before drop. Escape/cancel restores the original layout. | `WindowCanvas`; browser checks |
 | Stacks and tabs | Strip columns can stack windows vertically or display one tab at a time. Hidden tabs remain mounted. | window-manager tests; browser checks |
 | Pinning | One column on each side can remain stationary while other strip columns scroll. | window-manager tests |
 | Floating | Toggle a pane out of tiling, move its title area, resize its edges, then return it to tiling. | window-manager tests |
-| Window shortcuts | Directional focus/movement, sizing, grouping, pinning, floating, numbered windows, and board actions. All are searchable with Cmd/Ctrl+K. | `window-actions`; `useWindowManagerCommands` |
+| Window shortcuts | Directional focus/movement, sizing, grouping, pinning, floating, numbered windows, and board actions. All are searchable with Cmd/Ctrl+K. Cmd/Ctrl+? opens keyboard help and the current board’s shortcut setting. | `window-actions`; `useWindowManagerCommands`; `HelpOverlay` |
 | Persistence | Browser-local, user-scoped pane descriptors and layout preferences. No app authentication URLs, agent IDs, or clone proofs are stored. | general-workspace tests |
 | Session continuity | Mode changes, resizing, tabbing, pinning and board moves keep the same terminal/iframe instances. Explicit reconnect and Coder rebuilds request fresh authorization. | pane tests; browser continuity checks |
 | Mobile | One focused window at a time, horizontally scrollable pane selectors, touch terminal controls, keyboard viewport accommodation, safe areas. Desktop geometry remains saved. | `GeneralWorkspaceMobileControls`; mobile browser checks |
