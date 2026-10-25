@@ -4,6 +4,7 @@ import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import type { Terminal } from "@xterm/xterm";
 import dynamic from "next/dynamic";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
 import {
@@ -11,7 +12,11 @@ import {
   WorkspacePaneActionSheet,
 } from "@/components/workspaces/WorkspacePaneActionSheet";
 import { resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
-import { getWorkspaceAgentAction, getWorkspaceAppToolAction } from "@/lib/actions/workspaces";
+import {
+  getWorkspaceAgentAction,
+  getWorkspaceAppToolAction,
+  getWorkspaceSessionToolsAction,
+} from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import {
   WORKSPACE_APP_FRAME_ALLOW,
@@ -19,9 +24,13 @@ import {
 } from "@/lib/security/workspace-app-isolation";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { terminalFontSizeScope } from "@/lib/terminal/font-size";
-import { terminalPaneViewKey } from "@/lib/terminal/session-lifetime";
+import { forgetTerminalViews, terminalPaneViewKey } from "@/lib/terminal/session-lifetime";
 import { readDocumentCoderFrameHosts } from "@/lib/workspaces/document-frame-hosts";
-import type { GeneralWindow, GeneralWorkspaceTool } from "@/lib/workspaces/general-workspace";
+import type {
+  GeneralPane,
+  GeneralWindow,
+  GeneralWorkspaceTool,
+} from "@/lib/workspaces/general-workspace";
 
 const InteractiveTerminal = dynamic(
   () => import("./InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -48,6 +57,7 @@ interface Props {
   onActivate: () => void;
   onClose: () => void;
   onOpenTool: (tool: GeneralWorkspaceTool) => void;
+  onOpenFile: (pane: Extract<GeneralPane, { kind: "app" }>, newBoard: boolean) => void;
   onReady: (term: Terminal, send: (data: string) => void, sessionName: string) => void;
   onDestroy: () => void;
   onStart: () => void;
@@ -64,6 +74,7 @@ export function GeneralWorkspacePane({
   onActivate,
   onClose,
   onOpenTool,
+  onOpenFile,
   onReady,
   onDestroy,
   onStart,
@@ -75,6 +86,7 @@ export function GeneralWorkspacePane({
   const cloneSessionKey = pane.kind === "terminal" ? pane.cloneSessionKey : undefined;
   const relativePath = pane.kind === "terminal" ? pane.relativePath : undefined;
   const sessionName = pane.kind === "terminal" ? pane.sessionName : undefined;
+  const file = pane.kind === "app" ? pane.file : undefined;
   const tool = pane.kind === "app" ? pane.tool : undefined;
   const refreshClone = useCallback(async () => {
     if (!cloneSessionKey || !relativePath) throw new Error("Repository terminal is unavailable.");
@@ -94,6 +106,20 @@ export function GeneralWorkspacePane({
     let cancelled = false;
     setConnection(null);
     async function connect() {
+      if (file) {
+        const result = await getWorkspaceSessionToolsAction({
+          workspaceId: pane.workspaceId,
+          sessionName: file.sessionName,
+          filePath: file.path,
+          tool: "files",
+          documentFrameHosts: readDocumentCoderFrameHosts(),
+        });
+        if (!result?.data?.folderPath)
+          throw new Error(
+            result?.serverError ?? "Could not resolve this file inside the File Browser root.",
+          );
+        return { url: result.data.filesUrl, reloadRequired: result.data.reloadRequired };
+      }
       if (tool) {
         const result = await getWorkspaceAppToolAction({
           workspaceId: pane.workspaceId,
@@ -126,11 +152,60 @@ export function GeneralWorkspacePane({
     workspace?.latest_build.id,
     pane.workspaceId,
     tool,
+    file,
     sessionName,
     cloneSessionKey,
     refreshClone,
     retry,
   ]);
+  const reconnect = () => {
+    if (pane.kind === "terminal")
+      forgetTerminalViews(pane.workspaceId, [terminalPaneViewKey(boardKey, pane.id)]);
+    setConnection(null);
+    setRetry((value) => value + 1);
+  };
+  const openFile = async (path: string, action: "download" | "open" | "new-workspace") => {
+    if (!connection?.sessionName) return;
+    if (action !== "download") {
+      onOpenFile(
+        {
+          kind: "app",
+          workspaceId: pane.workspaceId,
+          tool: "files",
+          label: "Files",
+          file: { sessionName: connection.sessionName, path },
+        },
+        action === "new-workspace",
+      );
+      return;
+    }
+    // Reserve the download window during the gesture, before Coder authorization.
+    const download = window.open("about:blank", "_blank");
+    if (!download) {
+      toast.error("Allow pop-ups to download this file.");
+      return;
+    }
+    download.opener = null;
+    try {
+      const result = await getWorkspaceSessionToolsAction({
+        workspaceId: pane.workspaceId,
+        sessionName: connection.sessionName,
+        fallbackPath: connection.clonePath,
+        filePath: path,
+        download: true,
+        tool: "files",
+        documentFrameHosts: readDocumentCoderFrameHosts(),
+      });
+      if (!result?.data?.folderPath)
+        throw new Error(
+          result?.serverError ?? "Could not resolve this file inside the File Browser root.",
+        );
+      download.location.replace(result.data.filesUrl);
+    } catch (error) {
+      download.close();
+      toast.error(error instanceof Error ? error.message : "Could not download this file.");
+    }
+  };
   const capabilities = workspaceTemplateCapabilities(workspace?.template_name ?? "");
   const actions: WorkspacePaneAction[] = [
     ...(pane.kind === "terminal" && capabilities.fileBrowser
@@ -157,7 +232,7 @@ export function GeneralWorkspacePane({
       id: "retry",
       icon: "activate",
       label: "Reconnect",
-      onSelect: () => setRetry((value) => value + 1),
+      onSelect: reconnect,
     },
     {
       id: "remove",
@@ -185,7 +260,7 @@ export function GeneralWorkspacePane({
     content = (
       <>
         <p role="alert">{connection.error}</p>
-        <Button onClick={() => setRetry((value) => value + 1)}>Retry connection</Button>
+        <Button onClick={reconnect}>Retry connection</Button>
       </>
     );
   } else if (connection?.reloadRequired) {
@@ -212,6 +287,7 @@ export function GeneralWorkspacePane({
   } else if (pane.kind === "terminal" && connection?.agentId && connection.sessionName) {
     content = (
       <InteractiveTerminal
+        key={retry}
         agentId={connection.agentId}
         workspaceId={pane.workspaceId}
         sessionName={connection.sessionName}
@@ -224,6 +300,7 @@ export function GeneralWorkspacePane({
           onReady(term, send, connection.sessionName ?? pane.sessionName)
         }
         onTerminalDestroy={onDestroy}
+        onFileAction={capabilities.fileBrowser ? openFile : undefined}
         onUserFocusRequest={onActivate}
         targetLabel={`${workspace.name} · ${pane.label}`}
         layoutSignal={`${layoutSignal}:${visible}`}

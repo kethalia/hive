@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addGeneralFileWindow,
   addGeneralWindow,
   emptyGeneralWorkspace,
   type GeneralPane,
@@ -99,5 +100,39 @@ describe("general workspace state", () => {
   it("namespaces layout storage by signed-in user and uses internal app links", () => {
     expect(generalWorkspaceStorageKey("a")).not.toBe(generalWorkspaceStorageKey("b"));
     expect(generalWorkspaceHref("one", "code")).toBe("/workspaces?workspace=one&tool=code");
+  });
+  it("restores distinct file targets without persisting authorization URLs", () => {
+    const file = {
+      kind: "app" as const,
+      workspaceId: "one",
+      tool: "files" as const,
+      label: "Files",
+      file: { sessionName: "main", path: "src/index.ts" },
+    };
+    let state = addGeneralWindow(emptyGeneralWorkspace(), file, "one");
+    state = addGeneralWindow(state, { ...file, file: { ...file.file, path: "README.md" } }, "two");
+    expect(parseGeneralWorkspace(JSON.stringify(state))?.boards[0].windows).toEqual(
+      state.boards[0].windows,
+    );
+    expect(state.boards[0].windows).toHaveLength(2);
+  });
+  it("opens file links on their source board or a new board and rejects deleted sources", () => {
+    const file = {
+      kind: "app" as const,
+      workspaceId: "one",
+      tool: "files" as const,
+      label: "Files",
+      file: { sessionName: "main", path: "src/index.ts" },
+    };
+    let state = emptyGeneralWorkspace();
+    state.boards.push({ key: "other", name: "2", order: 1, windows: [] });
+    state.activeBoardKey = "other";
+    state = addGeneralFileWindow(state, file, "board-1", false, "file-1");
+    expect(state.activeBoardKey).toBe("board-1");
+    expect(state.boards[0].windows[0]).toMatchObject(file);
+    state = addGeneralFileWindow(state, file, "board-1", true, "file-2");
+    expect(state.activeBoardKey).toBe("board-file-2");
+    expect(state.boards[2].windows[0]).toMatchObject(file);
+    expect(addGeneralFileWindow(state, file, "deleted", true, "file-3")).toBe(state);
   });
 });

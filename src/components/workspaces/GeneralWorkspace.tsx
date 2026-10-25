@@ -6,6 +6,7 @@ import { Bot, Ellipsis, Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +26,7 @@ import {
 import { WorkspaceWindow } from "@/components/workspaces/WorkspaceWindow";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
+import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { listWorkspacesAction, startWorkspaceAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import {
@@ -35,6 +37,7 @@ import {
 } from "@/lib/keyboard-shortcuts";
 import { forgetTerminalViews, terminalPaneViewKey } from "@/lib/terminal/session-lifetime";
 import {
+  addGeneralFileWindow,
   addGeneralWindow,
   emptyGeneralWorkspace,
   GENERAL_WORKSPACE_OPEN_EVENT,
@@ -71,6 +74,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const router = useRouter();
   const search = useSearchParams();
   const mobile = useIsMobile();
+  const { isKeyboardVisible } = useVisualViewportKeyboardOffset();
   const [state, setState] = useState<GeneralWorkspaceState>(emptyGeneralWorkspace);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -387,7 +391,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         Restoring workspace…
       </p>
     );
-  return (
+  const content = (
     <section
       className="flex h-full min-h-0 flex-col overflow-hidden"
       data-dashboard-full-bleed=""
@@ -526,6 +530,22 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                             onActivate={() => activate(b.key, pane.id)}
                             onClose={() => closeWindow(b.key, pane.id)}
                             onOpenTool={(tool) => openTool(pane.workspaceId, tool)}
+                            onOpenFile={(file, newBoard) =>
+                              update((current) => {
+                                const next = addGeneralFileWindow(
+                                  current,
+                                  file,
+                                  b.key,
+                                  newBoard,
+                                  crypto.randomUUID(),
+                                );
+                                if (next === current)
+                                  setNotice(
+                                    "Could not open another window. Close an unused window or board first.",
+                                  );
+                                return next;
+                              })
+                            }
                             onStart={() => {
                               void start(pane.workspaceId).catch((err) => setNotice(err.message));
                             }}
@@ -617,5 +637,16 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         </DialogContent>
       </Dialog>
     </section>
+  );
+  return mobile ? (
+    <MobileTerminalShell
+      isKeyboardVisible={isKeyboardVisible}
+      reserveDashboardTrigger={false}
+      stopKeyboardPropagation={false}
+    >
+      {content}
+    </MobileTerminalShell>
+  ) : (
+    content
   );
 }

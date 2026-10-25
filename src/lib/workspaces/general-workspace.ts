@@ -32,12 +32,20 @@ const terminal = z
     relativePath: z.string().max(512).refine(isSafeCloneRelativePath).optional(),
   })
   .refine((pane) => Boolean(pane.cloneSessionKey) === Boolean(pane.relativePath));
-const app = z.object({
-  kind: z.literal("app"),
-  workspaceId: identifier,
-  tool: z.enum(["files", "code", "desktop"]),
-  label: z.string().min(1).max(512),
-});
+const app = z
+  .object({
+    kind: z.literal("app"),
+    workspaceId: identifier,
+    tool: z.enum(["files", "code", "desktop"]),
+    label: z.string().min(1).max(512),
+    file: z
+      .object({
+        sessionName: z.string().regex(/^[a-zA-Z0-9._-]{1,200}$/),
+        path: z.string().min(1).max(4096),
+      })
+      .optional(),
+  })
+  .refine((pane) => !pane.file || pane.tool === "files");
 export const generalPaneSchema = z.union([terminal, app]);
 export type GeneralPane = z.infer<typeof generalPaneSchema>;
 export type GeneralWindow = GeneralPane & { id: string };
@@ -69,6 +77,7 @@ export function generalPaneIdentity(pane: GeneralPane) {
     pane.workspaceId,
     pane.kind,
     pane.kind === "app" ? pane.tool : (pane.cloneSessionKey ?? pane.sessionName),
+    pane.kind === "app" ? pane.file : undefined,
   ]);
 }
 export function addGeneralWindow(
@@ -100,6 +109,38 @@ export function addGeneralWindow(
         : item,
     ),
   };
+}
+// Keep file requests on the originating board even if focus changes during an action.
+export function addGeneralFileWindow(
+  state: GeneralWorkspaceState,
+  pane: Extract<GeneralPane, { kind: "app" }>,
+  sourceBoardKey: string,
+  newBoard: boolean,
+  id: string,
+): GeneralWorkspaceState {
+  if (!state.boards.some((board) => board.key === sourceBoardKey)) return state;
+  if (state.boards.reduce((count, board) => count + board.windows.length, 0) >= MAX_GENERAL_WINDOWS)
+    return state;
+  if (!newBoard) return addGeneralWindow(state, pane, id, sourceBoardKey);
+  if (state.boards.length >= MAX_GENERAL_BOARDS) return state;
+  const key = `board-${id}`;
+  return addGeneralWindow(
+    {
+      ...state,
+      boards: [
+        ...state.boards,
+        {
+          key,
+          name: String(state.boards.length + 1),
+          order: state.boards.length,
+          windows: [],
+        },
+      ],
+    },
+    pane,
+    id,
+    key,
+  );
 }
 export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState | null {
   if (!raw) return null;

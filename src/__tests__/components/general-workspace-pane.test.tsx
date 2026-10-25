@@ -4,20 +4,58 @@ import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
-const actions = vi.hoisted(() => ({ app: vi.fn(), agent: vi.fn(), clone: vi.fn() }));
+const actions = vi.hoisted(() => ({
+  app: vi.fn(),
+  agent: vi.fn(),
+  clone: vi.fn(),
+  files: vi.fn(),
+  terminal: vi.fn(),
+  mount: vi.fn(),
+  dispose: vi.fn(),
+}));
 vi.mock("@/lib/actions/workspaces", () => ({
   getWorkspaceAppToolAction: actions.app,
   getWorkspaceAgentAction: actions.agent,
+  getWorkspaceSessionToolsAction: actions.files,
 }));
 vi.mock("@/lib/actions/git-clones", () => ({ resolveGitCloneTerminalAction: actions.clone }));
-vi.mock("next/dynamic", () => ({
-  default: () => (props: Record<string, unknown>) => (
-    <div data-testid="terminal-connection">{JSON.stringify(props)}</div>
-  ),
-}));
+vi.mock("next/dynamic", async () => {
+  const { PersistentTerminal } = await import("@/components/terminal/PersistentTerminalProvider");
+  const { useEffect } = await import("react");
+  function Runtime(props: Record<string, unknown>) {
+    actions.terminal(props);
+    useEffect(() => {
+      actions.mount(props.viewKey);
+      return () => {
+        actions.dispose(props.viewKey);
+      };
+    }, [props.viewKey]);
+    return <div data-testid="terminal-connection">{JSON.stringify(props)}</div>;
+  }
+  return {
+    default: () => (props: Record<string, unknown>) => (
+      <PersistentTerminal terminalProps={props as never} Runtime={Runtime as never} />
+    ),
+  };
+});
 vi.mock("@/components/workspaces/WorkspacePaneActionSheet", () => ({
-  WorkspacePaneActionSheet: () => null,
+  WorkspacePaneActionSheet: ({
+    actions: items,
+    open,
+  }: {
+    actions: { id: string; label: string; onSelect: () => void }[];
+    open: boolean;
+  }) =>
+    open
+      ? items.map((item) => (
+          <button type="button" key={item.id} onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ))
+      : null,
 }));
+
+import { PersistentTerminalProvider } from "@/components/terminal/PersistentTerminalProvider";
 
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
 import type { CoderWorkspace } from "@/lib/coder/types";
@@ -39,6 +77,7 @@ function props(): ComponentProps<typeof GeneralWorkspacePane> {
     onActivate: vi.fn(),
     onClose: vi.fn(),
     onOpenTool: vi.fn(),
+    onOpenFile: vi.fn(),
     onReady: vi.fn(),
     onDestroy: vi.fn(),
     onStart: vi.fn(),
@@ -158,5 +197,134 @@ describe("GeneralWorkspacePane connections", () => {
       relativePath: "projects/hive",
     });
     expect(actions.app).not.toHaveBeenCalled();
+  });
+  it("recreates only the selected pane runtime when reconnecting an unchanged agent", async () => {
+    const initial = props();
+    const pane = {
+      id: "pane-1",
+      kind: "terminal" as const,
+      workspaceId: "software",
+      sessionName: "main",
+      label: "Main",
+    };
+    render(
+      <PersistentTerminalProvider>
+        <GeneralWorkspacePane {...initial} pane={pane} />
+        <GeneralWorkspacePane
+          {...initial}
+          pane={{ ...pane, id: "pane-2", sessionName: "other", label: "Other" }}
+        />
+      </PersistentTerminalProvider>,
+    );
+    await waitFor(() => expect(actions.mount).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for Main" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+    await waitFor(() => expect(actions.mount).toHaveBeenCalledTimes(3));
+    expect(actions.dispose).toHaveBeenCalledExactlyOnceWith('["board-1","pane-1"]');
+    expect(actions.mount.mock.calls.filter(([key]) => key === '["board-1","pane-2"]')).toHaveLength(
+      1,
+    );
+    expect(actions.agent).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    "open",
+    "new-workspace",
+  ] as const)("opens file links with the source workspace/session for %s", async (action) => {
+    const initial = props();
+    render(
+      <GeneralWorkspacePane
+        {...initial}
+        pane={{
+          id: "pane-1",
+          kind: "terminal",
+          workspaceId: "software",
+          sessionName: "main",
+          label: "Main",
+        }}
+      />,
+    );
+    await screen.findByTestId("terminal-connection");
+    await act(() => actions.terminal.mock.lastCall![0].onFileAction("src/index.ts", action));
+    expect(initial.onOpenFile).toHaveBeenCalledWith(
+      {
+        kind: "app",
+        workspaceId: "software",
+        tool: "files",
+        label: "Files",
+        file: { sessionName: "main", path: "src/index.ts" },
+      },
+      action === "new-workspace",
+    );
+  });
+
+  it("resolves a restored file pane through fresh scoped authorization", async () => {
+    actions.files.mockResolvedValue({
+      data: {
+        filesUrl: "https://files.coder.example/fresh-auth",
+        folderPath: "/projects/hive/src/index.ts",
+        reloadRequired: false,
+      },
+    });
+    render(
+      <GeneralWorkspacePane
+        {...props()}
+        pane={{
+          id: "file-1",
+          kind: "app",
+          workspaceId: "software",
+          tool: "files",
+          label: "Files",
+          file: { sessionName: "main", path: "src/index.ts" },
+        }}
+      />,
+    );
+    expect(await screen.findByTitle("Files · ai-dev-01")).toHaveAttribute(
+      "src",
+      "https://files.coder.example/fresh-auth",
+    );
+    expect(actions.files).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: "software",
+        sessionName: "main",
+        filePath: "src/index.ts",
+        tool: "files",
+      }),
+    );
+    expect(actions.app).not.toHaveBeenCalled();
+  });
+
+  it("closes a reserved download window when file authorization fails", async () => {
+    actions.files.mockResolvedValue({ serverError: "File not allowed" });
+    const close = vi.fn();
+    const replace = vi.fn();
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue({ close, location: { replace } } as unknown as Window);
+    render(
+      <GeneralWorkspacePane
+        {...props()}
+        pane={{
+          id: "pane-1",
+          kind: "terminal",
+          workspaceId: "software",
+          sessionName: "main",
+          label: "Main",
+        }}
+      />,
+    );
+    await screen.findByTestId("terminal-connection");
+    await act(() => actions.terminal.mock.lastCall![0].onFileAction("secret.txt", "download"));
+    expect(actions.files).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: "software",
+        sessionName: "main",
+        filePath: "secret.txt",
+        download: true,
+      }),
+    );
+    expect(close).toHaveBeenCalledOnce();
+    expect(replace).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 });

@@ -24,6 +24,8 @@
         "height": 32
       }
     ],
+    "mobileVisualViewport": false,
+    "scopedFilesOpenInsideCanvas": true,
     "tooltipsUseRegisteredShortcuts": true,
     "keyboardControlsWork": true,
     "openMicMenuDoesNotCapture": true,
@@ -56,6 +58,8 @@
         "height": 32
       }
     ],
+    "mobileVisualViewport": false,
+    "scopedFilesOpenInsideCanvas": true,
     "tooltipsUseRegisteredShortcuts": true,
     "keyboardControlsWork": true,
     "openMicMenuDoesNotCapture": true,
@@ -88,6 +92,8 @@
         "height": 44
       }
     ],
+    "mobileVisualViewport": true,
+    "scopedFilesOpenInsideCanvas": true,
     "tooltipsUseRegisteredShortcuts": true,
     "keyboardControlsWork": true,
     "openMicMenuDoesNotCapture": true,
