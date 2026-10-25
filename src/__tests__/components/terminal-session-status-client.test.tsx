@@ -155,7 +155,7 @@ describe("TerminalSessionStatusClient", () => {
     expect(screen.getAllByText("workspace-2").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "Open terminal" })[0]).toHaveAttribute(
       "href",
-      "/workspaces/workspace-1/terminal",
+      "/workspaces?workspace=workspace-1",
     );
     expectDiagnosticsLayout();
     expect(screen.getByText("Live session events")).toBeInTheDocument();

@@ -51,7 +51,7 @@ export function WorkspaceWindow({ children, id, previewStyle, style }: Workspace
       style={{
         ...(isDragging ? style : (previewStyle ?? style)),
         transform: transform ? CSS.Translate.toString(transform) : undefined,
-        zIndex: isDragging ? 20 : undefined,
+        zIndex: isDragging ? 40 : style.zIndex,
       }}
     >
       {children({

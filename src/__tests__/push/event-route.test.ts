@@ -70,7 +70,7 @@ describe("agent event ingress", () => {
         payload: expect.objectContaining({
           kind: "question",
           title: "Question waiting",
-          url: "/workspaces/workspace-1/terminal?session=dev+%26+ops&notification=event-1",
+          url: "/workspaces?workspace=workspace-1&session=dev+%26+ops&notification=event-1",
         }),
       }),
       "event-1",
@@ -96,7 +96,7 @@ describe("agent event ingress", () => {
     expect(payload.body).toBe("Codex has finished its turn in codex-creative-studio on dev.");
     expect(payload.body).not.toContain(sessionName);
     expect(payload.url).toBe(
-      `/workspaces/workspace-1/terminal?session=${sessionName}&notification=ready-1`,
+      `/workspaces?workspace=workspace-1&session=${sessionName}&notification=ready-1`,
     );
   });
   it("keeps custom session names alongside the project for Claude Code", async () => {

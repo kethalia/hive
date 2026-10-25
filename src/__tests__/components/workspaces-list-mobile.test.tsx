@@ -580,7 +580,7 @@ describe("workspace card grid", () => {
       "src/app/(dashboard)/workspaces/page.tsx",
       "src/app/(dashboard)/workspaces/workspace-list-content.tsx",
       "src/app/(dashboard)/workspaces/workspace-list-poller.tsx",
-      "src/components/workspaces/WorkspaceToolPanel.tsx",
+      "src/components/workspaces/GeneralWorkspacePane.tsx",
     ];
 
     for (const sourceFile of sourceFiles) {

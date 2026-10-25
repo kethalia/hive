@@ -1,6 +1,5 @@
 "use client";
 
-import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { Terminal } from "@xterm/xterm";
 import { Bot, Ellipsis, Search } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -22,11 +21,12 @@ import {
   WorkspaceHeaderButton,
   WorkspaceSidebarButton,
 } from "@/components/workspaces/WorkspaceHeaderButton";
-import { WorkspaceWindow } from "@/components/workspaces/WorkspaceWindow";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
+import { useWindowManagerCommands } from "@/hooks/useWindowManagerCommands";
+import { useWorkspaceNotifications } from "@/hooks/useWorkspaceNotifications";
 import { startWorkspaceAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { useDiscovery } from "@/lib/discovery/queries";
@@ -37,6 +37,7 @@ import {
 } from "@/lib/keyboard-shortcuts";
 import { openGlobalCommandPalette } from "@/lib/terminal/global-command-palette";
 import { forgetTerminalViews, terminalPaneViewKey } from "@/lib/terminal/session-lifetime";
+import type { GeneralBoard } from "@/lib/workspaces/general-workspace";
 import {
   addGeneralFileWindow,
   addGeneralWindow,
@@ -52,12 +53,16 @@ import {
   MAX_GENERAL_WINDOWS,
   parseGeneralWorkspace,
 } from "@/lib/workspaces/general-workspace";
+import { applyWindowAction } from "@/lib/workspaces/window-actions";
 import {
-  computeWorkspaceWindowRects,
-  moveWorkspaceWindow,
-  reconcileWorkspaceWindowLayout,
-  workspaceWindowDropPosition,
-} from "@/lib/workspaces/workspace-window-layout";
+  newWindowManager,
+  reconcileWindowManager,
+  revealWindow,
+  windowGeometry,
+} from "@/lib/workspaces/window-manager";
+import { reconcileWorkspaceWindowLayout } from "@/lib/workspaces/workspace-window-layout";
+import { WindowCanvas } from "./WindowCanvas";
+import { WindowLayoutControls } from "./WindowLayoutControls";
 
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -88,7 +93,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const [manage, setManage] = useState(false);
   const [launch, setLaunch] = useState(false);
   const [agents, setAgents] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
   const [visited, setVisited] = useState<Set<string>>(() => new Set());
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
   const observeBody = useCallback((node: HTMLDivElement | null) => {
@@ -105,7 +109,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   );
   const { setActiveTerminal } = useKeybindings();
   const storageKey = generalWorkspaceStorageKey(userId);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const board = state.boards.find((b) => b.key === state.activeBoardKey) ?? state.boards[0];
   const active = board.windows.find((w) => w.id === board.activeWindowId);
 
@@ -139,10 +142,15 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         ...changed,
         boards: changed.boards.map((b) => ({
           ...b,
+          manager: reconcileWindowManager(
+            b.manager,
+            b.windows.map((w) => w.id),
+            stateRef.current.boards.find((old) => old.key === b.key)?.activeWindowId,
+          ),
           layout:
             reconcileWorkspaceWindowLayout(
               b.layout,
-              b.windows.map((w) => w.id),
+              b.windows.filter((w) => !b.manager?.floating[w.id]).map((w) => w.id),
               {
                 viewportWidth: viewport.width,
                 viewportHeight: viewport.height,
@@ -154,21 +162,73 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       stateRef.current = next;
       setState(next);
       setVisited((current) => new Set([...current, next.activeBoardKey]));
+      return next;
+    },
+    [viewport.width, viewport.height],
+  );
+  useEffect(() => {
+    if (!loaded) return;
+    const save = () => {
       try {
-        localStorage.setItem(storageKey, JSON.stringify(next));
+        localStorage.setItem(storageKey, JSON.stringify(state));
       } catch {
         setNotice("Layout storage is unavailable. Changes will last until you leave this page.");
       }
-    },
-    [storageKey, viewport.width, viewport.height],
-  );
+    };
+    const timer = window.setTimeout(save, 120);
+    window.addEventListener("pagehide", save);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pagehide", save);
+    };
+  }, [state, storageKey, loaded]);
+  // Flush the most recent layout on a client-side route change as well as pagehide.
+  useEffect(() => {
+    if (!loaded) return;
+    return () => {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(stateRef.current));
+      } catch {
+        /* Storage notice is handled while mounted. */
+      }
+    };
+  }, [loaded, storageKey]);
+  function changeBoard(key: string, change: (b: GeneralBoard) => GeneralBoard) {
+    update((current) => ({
+      ...current,
+      boards: current.boards.map((b) => (b.key === key ? change(b) : b)),
+    }));
+  }
   function activate(boardKey: string, id: string) {
     update((current) => ({
       ...current,
       activeBoardKey: boardKey,
-      boards: current.boards.map((b) => (b.key === boardKey ? { ...b, activeWindowId: id } : b)),
+      boards: current.boards.map((b) => {
+        if (b.key !== boardKey) return b;
+        const manager = reconcileWindowManager(
+          b.manager,
+          b.windows.map((w) => w.id),
+        );
+        return {
+          ...b,
+          activeWindowId: id,
+          manager: revealWindow(
+            manager,
+            windowGeometry(
+              manager,
+              b.layout,
+              b.windows.map((w) => w.id),
+              id,
+              viewport.width,
+              viewport.height,
+            ),
+            id,
+            viewport.width,
+          ),
+        };
+      }),
     }));
-    const entry = entries.current.get(terminalPaneViewKey(boardKey, id));
+    const entry = entries.current.get(terminalPaneViewKey("general", id));
     setActiveTerminal(entry?.term ?? null, entry?.send ?? null);
   }
   const openPane = useCallback(
@@ -200,6 +260,16 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     },
     [openTool],
   );
+  const notification = useWorkspaceNotifications({
+    loaded,
+    state,
+    update,
+    onError: setNotice,
+    onFocus: (key, id) => {
+      activate(key, id);
+      entries.current.get(terminalPaneViewKey("general", id))?.term.focus();
+    },
+  });
   const request = search.toString();
   const consumed = useRef<string | null>(null);
   useEffect(() => {
@@ -208,13 +278,15 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     const query = new URLSearchParams(request);
     const workspaceId = query.get("workspace");
     const tool = generalToolSchema.safeParse(query.get("tool"));
-    if (workspaceId) requestOpen(workspaceId, tool.success ? tool.data : undefined);
+    const sessionName = query.get("session");
+    if (workspaceId && sessionName) void notification.open(workspaceId, sessionName);
+    else if (workspaceId) requestOpen(workspaceId, tool.success ? tool.data : undefined);
     if (query.get("launch") === "1") {
       setLaunch(true);
       setManage(true);
     }
     router.replace("/workspaces", { scroll: false });
-  }, [loaded, request, requestOpen, router]);
+  }, [loaded, request, requestOpen, router, notification.open]);
   useEffect(() => {
     if (!request) consumed.current = null;
   }, [request]);
@@ -230,10 +302,10 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   }, [requestOpen]);
   useEffect(() => {
     const entry = active
-      ? entries.current.get(terminalPaneViewKey(board.key, active.id))
+      ? entries.current.get(terminalPaneViewKey("general", active.id))
       : undefined;
     setActiveTerminal(entry?.term ?? null, entry?.send ?? null);
-  }, [active, board.key, setActiveTerminal]);
+  }, [active, setActiveTerminal]);
   useEffect(() => () => setActiveTerminal(null, null), [setActiveTerminal]);
   const start = useCallback(
     async (workspaceId: string) => {
@@ -255,7 +327,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     const target = stateRef.current.boards
       .find((b) => b.key === boardKey)
       ?.windows.find((w) => w.id === id);
-    if (target) forgetTerminalViews(target.workspaceId, [terminalPaneViewKey(boardKey, id)]);
+    if (target) forgetTerminalViews(target.workspaceId, [terminalPaneViewKey("general", id)]);
     update((current) => ({
       ...current,
       boards: current.boards.map((b) =>
@@ -281,7 +353,13 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       activeBoardKey: key,
       boards: [
         ...current.boards,
-        { key, name: String(current.boards.length + 1), order: current.boards.length, windows: [] },
+        {
+          key,
+          name: String(current.boards.length + 1),
+          order: current.boards.length,
+          windows: [],
+          manager: newWindowManager(),
+        },
       ],
     }));
   }
@@ -289,7 +367,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     if (stateRef.current.boards.length <= 1) return;
     const removed = stateRef.current.boards.find((b) => b.key === key);
     for (const pane of removed?.windows ?? [])
-      forgetTerminalViews(pane.workspaceId, [terminalPaneViewKey(key, pane.id)]);
+      forgetTerminalViews(pane.workspaceId, [terminalPaneViewKey("general", pane.id)]);
     update((current) => {
       const boards = current.boards.filter((b) => b.key !== key);
       return {
@@ -299,40 +377,84 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       };
     });
   }
-  function drop(event: DragEndEvent) {
-    setDragging(false);
-    const over = event.over;
-    if (!over || event.active.id === over.id) return;
-    update((current) => ({
-      ...current,
-      boards: current.boards.map((b) => {
-        if (b.key !== current.activeBoardKey) return b;
-        const root = reconcileWorkspaceWindowLayout(
-          b.layout,
-          b.windows.map((w) => w.id),
-          {
-            viewportWidth: viewport.width,
-            viewportHeight: viewport.height,
-            focusedWindowId: b.activeWindowId,
-          },
-        );
-        if (!root) return b;
-        const rect = over.rect;
-        const moved = event.active.rect.current.translated;
-        const position = workspaceWindowDropPosition(
-          { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
-          {
-            x: moved ? moved.left + moved.width / 2 : rect.left,
-            y: moved ? moved.top + moved.height / 2 : rect.top,
-          },
-        );
+  function runWindowAction(action: string) {
+    if (action === "create-board") {
+      createBoard();
+      return;
+    }
+    if (action === "close-board") {
+      deleteBoard(stateRef.current.activeBoardKey);
+      return;
+    }
+    update((current) => {
+      const index = current.boards.findIndex((b) => b.key === current.activeBoardKey);
+      if (action.startsWith("board-")) {
+        const target =
+          action === "board-previous"
+            ? (index - 1 + current.boards.length) % current.boards.length
+            : action === "board-next"
+              ? (index + 1) % current.boards.length
+              : Number(action.slice(6)) - 1;
+        return current.boards[target]
+          ? { ...current, activeBoardKey: current.boards[target].key }
+          : current;
+      }
+      if (action === "next-board") {
+        const source = current.boards[index],
+          pane = source.windows.find((w) => w.id === source.activeWindowId);
+        if (!pane) return current;
+        let boards = current.boards;
+        if (boards.length === 1)
+          boards = [
+            ...boards,
+            {
+              key: crypto.randomUUID(),
+              name: "2",
+              order: 1,
+              windows: [],
+              manager: newWindowManager(),
+            },
+          ];
+        const target = boards[(index + 1) % boards.length];
         return {
-          ...b,
-          layout: moveWorkspaceWindow(root, String(event.active.id), String(over.id), position),
+          ...current,
+          activeBoardKey: target.key,
+          boards: boards.map((b) =>
+            b.key === source.key
+              ? {
+                  ...b,
+                  windows: b.windows.filter((w) => w.id !== pane.id),
+                  activeWindowId: b.windows.find((w) => w.id !== pane.id)?.id,
+                }
+              : b.key === target.key
+                ? { ...b, windows: [...b.windows, pane], activeWindowId: pane.id }
+                : b,
+          ),
         };
-      }),
-    }));
+      }
+      return {
+        ...current,
+        boards: current.boards.map((b) =>
+          b.key === current.activeBoardKey
+            ? applyWindowAction(b, action, viewport.width, viewport.height)
+            : b,
+        ),
+      };
+    });
+    requestAnimationFrame(() => {
+      const b = stateRef.current.boards.find((b) => b.key === stateRef.current.activeBoardKey);
+      const entry = b?.activeWindowId
+        ? entries.current.get(terminalPaneViewKey("general", b.activeWindowId))
+        : undefined;
+      setActiveTerminal(entry?.term ?? null, entry?.send ?? null);
+      entry?.term.focus();
+    });
   }
+  const manager = reconcileWindowManager(
+    board.manager,
+    board.windows.map((w) => w.id),
+  );
+  useWindowManagerCommands(manager, runWindowAction);
   useRegisterKeybinding({
     id: "general-workspace:agents",
     keys: [...WORKSPACE_AGENTS_KEYS],
@@ -375,7 +497,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)]">
         <WorkspaceSidebarButton />
         <WorkspaceBoardBar
-          boards={state.boards.map((b) => ({ ...b, panes: [] }))}
+          boards={state.boards}
           activeBoardKey={board.key}
           onCreate={createBoard}
           onDelete={deleteBoard}
@@ -384,6 +506,15 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           touchOptimized={mobile}
         />
         <div className="flex items-center gap-1">
+          {!mobile ? (
+            <WindowLayoutControls
+              manager={manager}
+              onAction={runWindowAction}
+              onShortcuts={(shortcuts) =>
+                changeBoard(board.key, (b) => ({ ...b, manager: { ...manager, shortcuts } }))
+              }
+            />
+          ) : null}
           <WorkspaceHeaderButton
             label="Agents"
             shortcuts={WORKSPACE_AGENTS_KEYS}
@@ -411,6 +542,11 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           </WorkspaceHeaderButton>
         </div>
       </header>
+      {notification.opening ? (
+        <p role="status" className="px-3 py-2 text-sm">
+          Opening notification window…
+        </p>
+      ) : null}
       {notice ? (
         <div role="alert" className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
           <span>{notice}</span>
@@ -437,10 +573,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           ))}
         </nav>
       ) : null}
-      <div
-        ref={observeBody}
-        className={`relative min-h-0 flex-1 ${dragging ? "[&_iframe]:pointer-events-none" : ""}`}
-      >
+      <div ref={observeBody} className="relative min-h-0 flex-1">
         {!board.windows.length ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
             <h1 className="text-lg">Your workspace</h1>
@@ -450,117 +583,76 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             <Button onClick={() => openGlobalCommandPalette()}>Add window</Button>
           </div>
         ) : null}
-        {state.boards
-          .filter((b) => visited.has(b.key) || b.key === board.key)
-          .map((b) => {
-            const root = reconcileWorkspaceWindowLayout(
-              b.layout,
-              b.windows.map((w) => w.id),
-              {
-                viewportWidth: viewport.width,
-                viewportHeight: viewport.height,
-                focusedWindowId: b.activeWindowId,
-              },
-            );
-            const rects = computeWorkspaceWindowRects(root);
-            const visible = b.key === board.key;
+        <WindowCanvas
+          boards={state.boards.filter((b) => visited.has(b.key) || b.key === board.key)}
+          activeBoardKey={board.key}
+          width={viewport.width}
+          height={viewport.height}
+          mobile={mobile}
+          onBoardChange={changeBoard}
+          onActivate={activate}
+          renderPane={(b, pane, visible, rect, dragHandleListeners) => {
+            const viewKey = terminalPaneViewKey("general", pane.id);
             return (
-              <div
-                key={b.key}
-                className="absolute inset-0"
-                style={{ display: visible ? "block" : "none" }}
-                aria-hidden={!visible}
-              >
-                <DndContext
-                  sensors={sensors}
-                  onDragStart={() => setDragging(true)}
-                  onDragCancel={() => setDragging(false)}
-                  onDragEnd={drop}
-                >
-                  {b.windows.map((pane) => {
-                    const rect = rects.get(pane.id);
-                    const focused = pane.id === (b.activeWindowId ?? b.windows[0]?.id);
-                    const viewKey = terminalPaneViewKey(b.key, pane.id);
-                    return (
-                      <WorkspaceWindow
-                        key={pane.id}
-                        id={pane.id}
-                        style={
-                          mobile
-                            ? { inset: 0, display: focused ? "block" : "none" }
-                            : {
-                                left: `${(rect?.x ?? 0) * 100}%`,
-                                top: `${(rect?.y ?? 0) * 100}%`,
-                                width: `${(rect?.width ?? 1) * 100}%`,
-                                height: `${(rect?.height ?? 1) * 100}%`,
-                              }
-                        }
-                      >
-                        {({ dragHandleListeners }) => (
-                          <GeneralWorkspacePane
-                            pane={pane}
-                            workspace={workspaces.find((w) => w.id === pane.workspaceId)}
-                            boardKey={b.key}
-                            active={focused}
-                            visible={visible && (!mobile || focused)}
-                            mobile={mobile}
-                            layoutSignal={JSON.stringify(rect)}
-                            dragHandleListeners={mobile ? undefined : dragHandleListeners}
-                            onActivate={() => activate(b.key, pane.id)}
-                            onClose={() => closeWindow(b.key, pane.id)}
-                            onOpenTool={(tool) => openTool(pane.workspaceId, tool)}
-                            onOpenFile={(file, newBoard) =>
-                              update((current) => {
-                                const next = addGeneralFileWindow(
-                                  current,
-                                  file,
-                                  b.key,
-                                  newBoard,
-                                  crypto.randomUUID(),
-                                );
-                                if (next === current)
-                                  setNotice(
-                                    "Could not open another window. Close an unused window or board first.",
-                                  );
-                                return next;
-                              })
-                            }
-                            onStart={() => {
-                              void start(pane.workspaceId).catch((err) => setNotice(err.message));
-                            }}
-                            onReady={(term, send, sessionName) => {
-                              entries.current.set(viewKey, { term, send, sessionName });
-                              if (
-                                stateRef.current.activeBoardKey === b.key &&
-                                stateRef.current.boards.find((board) => board.key === b.key)
-                                  ?.activeWindowId === pane.id
-                              )
-                                setActiveTerminal(term, send);
-                            }}
-                            onDestroy={() => {
-                              entries.current.delete(viewKey);
-                              if (
-                                stateRef.current.activeBoardKey === b.key &&
-                                stateRef.current.boards.find((board) => board.key === b.key)
-                                  ?.activeWindowId === pane.id
-                              )
-                                setActiveTerminal(null, null);
-                            }}
-                          />
-                        )}
-                      </WorkspaceWindow>
+              <GeneralWorkspacePane
+                pane={pane}
+                workspace={workspaces.find((w) => w.id === pane.workspaceId)}
+                boardKey="general"
+                active={pane.id === (b.activeWindowId ?? b.windows[0]?.id)}
+                visible={visible}
+                mobile={mobile}
+                layoutSignal={rect}
+                dragHandleListeners={mobile ? undefined : dragHandleListeners}
+                onActivate={() => activate(b.key, pane.id)}
+                onClose={() => closeWindow(b.key, pane.id)}
+                onOpenTool={(tool) => openTool(pane.workspaceId, tool)}
+                onOpenFile={(file, newBoard) =>
+                  update((current) => {
+                    const next = addGeneralFileWindow(
+                      current,
+                      file,
+                      b.key,
+                      newBoard,
+                      crypto.randomUUID(),
                     );
-                  })}
-                </DndContext>
-              </div>
+                    if (next === current)
+                      setNotice(
+                        "Could not open another window. Close an unused window or board first.",
+                      );
+                    return next;
+                  })
+                }
+                onStart={() => {
+                  void start(pane.workspaceId).catch((err) => setNotice(err.message));
+                }}
+                onReady={(term, send, sessionName) => {
+                  entries.current.set(viewKey, { term, send, sessionName });
+                  if (
+                    stateRef.current.activeBoardKey === b.key &&
+                    stateRef.current.boards.find((board) => board.key === b.key)?.activeWindowId ===
+                      pane.id
+                  )
+                    setActiveTerminal(term, send);
+                }}
+                onDestroy={() => {
+                  entries.current.delete(viewKey);
+                  if (
+                    stateRef.current.activeBoardKey === b.key &&
+                    stateRef.current.boards.find((board) => board.key === b.key)?.activeWindowId ===
+                      pane.id
+                  )
+                    setActiveTerminal(null, null);
+                }}
+              />
             );
-          })}
+          }}
+        />
       </div>
       {mobile && active?.kind === "terminal" ? (
         <GeneralWorkspaceMobileControls
           workspaceId={active.workspaceId}
           sessionName={
-            entries.current.get(terminalPaneViewKey(board.key, active.id))?.sessionName ??
+            entries.current.get(terminalPaneViewKey("general", active.id))?.sessionName ??
             active.sessionName
           }
         />

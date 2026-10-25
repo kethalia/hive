@@ -255,10 +255,6 @@ const mockRestartWorkspace = vi.fn();
 const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
 const mockRenameSession = vi.fn();
-const mockListNavigationFavorites = vi.fn();
-const mockUpsertNavigationFavorite = vi.fn();
-const mockRemoveNavigationFavorite = vi.fn();
-const mockReorderNavigationFavorites = vi.fn();
 const mockGetTerminalSettings = vi.fn();
 const mockUpdateTerminalSettings = vi.fn();
 
@@ -279,13 +275,6 @@ vi.mock("@/lib/actions/templates", () => ({
 vi.mock("@/lib/actions/git-clones", () => ({
   listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
   resolveGitCloneTerminalAction: (...args: unknown[]) => mockResolveGitCloneTerminal(...args),
-}));
-
-vi.mock("@/lib/actions/navigation-favorites", () => ({
-  listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
-  upsertNavigationFavoriteAction: (...args: unknown[]) => mockUpsertNavigationFavorite(...args),
-  removeNavigationFavoriteAction: (...args: unknown[]) => mockRemoveNavigationFavorite(...args),
-  reorderNavigationFavoritesAction: (...args: unknown[]) => mockReorderNavigationFavorites(...args),
 }));
 
 vi.mock("@/lib/actions/user-settings", () => ({
@@ -395,20 +384,6 @@ function makeSession(name = "dev") {
   return { name, created: 1000, windows: 1 };
 }
 
-function makeFavorite(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "fav-1",
-    kind: "terminal",
-    workspaceId: "ws-1",
-    targetKey: "dev",
-    label: "dev",
-    relativePath: null,
-    createdAt: "2026-06-02T00:00:00.000Z",
-    position: 0,
-    ...overrides,
-  };
-}
-
 describe("AppSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -425,25 +400,6 @@ describe("AppSidebar", () => {
     mockListGitClones.mockResolvedValue({
       data: makeGitSuccessResult(),
     });
-    mockListNavigationFavorites.mockResolvedValue({
-      data: [],
-    });
-    mockUpsertNavigationFavorite.mockImplementation((input) =>
-      Promise.resolve({
-        data: makeFavorite({
-          id: `${input.kind}-${input.targetKey}`,
-          kind: input.kind,
-          workspaceId: input.workspaceId,
-          targetKey: input.targetKey,
-          label: input.label ?? input.targetKey,
-          relativePath: input.kind === "git" ? input.relativePath : null,
-        }),
-      }),
-    );
-    mockRemoveNavigationFavorite.mockResolvedValue({
-      data: { success: true },
-    });
-    mockReorderNavigationFavorites.mockResolvedValue({ data: { success: true } });
     mockGetTerminalSettings.mockResolvedValue({
       data: { terminalControlsBeyondMobile: false },
     });
@@ -856,7 +812,6 @@ describe("AppSidebar", () => {
     expect(screen.queryByText("Sessions")).not.toBeInTheDocument();
     expect(screen.queryByTestId("favorites-section")).not.toBeInTheDocument();
     expect(mockListGitClones).not.toHaveBeenCalled();
-    expect(mockListNavigationFavorites).not.toHaveBeenCalled();
     expect(mockGetWorkspaceSessions).not.toHaveBeenCalled();
   });
 });

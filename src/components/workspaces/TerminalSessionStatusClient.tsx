@@ -263,7 +263,7 @@ export function TerminalSessionStatusClient({
                 <DetailGrid status={highlightedStatus} />
                 <Link
                   className={buttonVariants({ variant: "outline" })}
-                  href={`/workspaces/${encodeURIComponent(highlightedWorkspaceId)}/terminal`}
+                  href={`/workspaces?workspace=${encodeURIComponent(highlightedWorkspaceId)}`}
                 >
                   Open terminal
                 </Link>
@@ -324,7 +324,7 @@ export function TerminalSessionStatusClient({
                   <div className="mt-3">
                     <Link
                       className={buttonVariants({ variant: "outline", size: "sm" })}
-                      href={`/workspaces/${encodeURIComponent(id)}/terminal`}
+                      href={`/workspaces?workspace=${encodeURIComponent(id)}`}
                     >
                       Open terminal
                     </Link>

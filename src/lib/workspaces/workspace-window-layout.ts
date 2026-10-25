@@ -12,6 +12,7 @@ export interface WorkspaceWindowLeaf {
 export interface WorkspaceWindowSplit {
   type: "split";
   axis: WorkspaceWindowSplitAxis;
+  ratio?: number;
   first: WorkspaceWindowLayoutNode;
   second: WorkspaceWindowLayoutNode;
 }
@@ -293,21 +294,21 @@ function visitWorkspaceWindowRects(
   }
 
   if (node.axis === "x") {
-    const halfHeight = rect.height / 2;
+    const halfHeight = rect.height * splitRatio(node);
     visitWorkspaceWindowRects(node.first, { ...rect, height: halfHeight }, rects);
     visitWorkspaceWindowRects(
       node.second,
-      { ...rect, y: rect.y + halfHeight, height: halfHeight },
+      { ...rect, y: rect.y + halfHeight, height: rect.height - halfHeight },
       rects,
     );
     return;
   }
 
-  const halfWidth = rect.width / 2;
+  const halfWidth = rect.width * splitRatio(node);
   visitWorkspaceWindowRects(node.first, { ...rect, width: halfWidth }, rects);
   visitWorkspaceWindowRects(
     node.second,
-    { ...rect, x: rect.x + halfWidth, width: halfWidth },
+    { ...rect, x: rect.x + halfWidth, width: rect.width - halfWidth },
     rects,
   );
 }
@@ -478,7 +479,15 @@ function parseLayoutSplit(
   const second = parseLayoutNode(value.second, windowIds, depth + 1);
   if (!first) return second;
   if (!second) return first;
-  return { type: "split", axis, first, second };
+  return {
+    type: "split",
+    axis,
+    first,
+    second,
+    ...(typeof value.ratio === "number" && Number.isFinite(value.ratio)
+      ? { ratio: Math.max(0.05, Math.min(0.95, value.ratio)) }
+      : {}),
+  };
 }
 
 function isWorkspaceWindowSplitAxis(value: unknown): value is WorkspaceWindowSplitAxis {
@@ -497,4 +506,19 @@ function positiveDimension(value: number): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function splitRatio(node: WorkspaceWindowSplit): number {
+  return Math.max(0.05, Math.min(0.95, node.ratio ?? 0.5));
+}
+
+export function resizeWorkspaceSplit(
+  root: WorkspaceWindowLayoutNode,
+  path: string,
+  ratio: number,
+): WorkspaceWindowLayoutNode {
+  if (root.type === "leaf" || !Number.isFinite(ratio)) return root;
+  if (!path) return { ...root, ratio: Math.max(0.05, Math.min(0.95, ratio)) };
+  const side = path[0] === "0" ? "first" : "second";
+  return { ...root, [side]: resizeWorkspaceSplit(root[side], path.slice(1), ratio) };
 }

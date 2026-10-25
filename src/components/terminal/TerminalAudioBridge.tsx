@@ -121,7 +121,7 @@ export function TerminalAudioBridge({
                 });
                 if (window.dispatchEvent(event))
                   callbacks.current.onNavigate?.(
-                    `/workspaces/${encodeURIComponent(workspaceId)}/terminal/workspace?session=${encodeURIComponent(sessionName)}`,
+                    `/workspaces?${new URLSearchParams({ workspace: workspaceId, session: sessionName })}`,
                   );
               },
             },

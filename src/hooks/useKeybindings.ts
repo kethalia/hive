@@ -43,6 +43,16 @@ function normalizeShortcutKey(e: KeyboardEvent): string {
   const letterMatch = e.altKey && (e.ctrlKey || e.metaKey) && /^Key([A-Z])$/.exec(e.code);
   if (letterMatch) return letterMatch[1].toLowerCase();
 
+  if (e.ctrlKey || e.metaKey) {
+    const symbols: Record<string, string> = {
+      BracketLeft: "[",
+      BracketRight: "]",
+      Equal: "=",
+      Minus: "-",
+      Period: ".",
+    };
+    if (symbols[e.code]) return symbols[e.code];
+  }
   return key;
 }
 
@@ -90,7 +100,8 @@ export function useRegisterKeybinding(entry: KeybindingEntry) {
   const actionRef = React.useRef(entry.action);
   actionRef.current = entry.action;
 
-  const { id, description, category, enabledInBrowser, global, allowTextEntry } = entry;
+  const { id, description, category, enabledInBrowser, global, allowTextEntry, allowRepeat } =
+    entry;
   const keysKey = entry.keys.join(",");
 
   React.useEffect(() => {
@@ -103,6 +114,7 @@ export function useRegisterKeybinding(entry: KeybindingEntry) {
       enabledInBrowser,
       global,
       allowTextEntry,
+      allowRepeat,
       action: (term, send) => actionRef.current(term, send),
     };
     register(stableEntry);
@@ -115,6 +127,7 @@ export function useRegisterKeybinding(entry: KeybindingEntry) {
     enabledInBrowser,
     global,
     allowTextEntry,
+    allowRepeat,
     register,
     unregister,
   ]);

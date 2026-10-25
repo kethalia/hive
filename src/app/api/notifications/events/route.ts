@@ -47,12 +47,9 @@ export async function POST(request: Request) {
   const rate = await redis.incr(rateKey);
   if (rate === 1) await redis.expire(rateKey, 120);
   if (rate > 60) return new Response(null, { status: 429 });
-  const url = new URL(
-    `/workspaces/${encodeURIComponent(source.workspaceId)}/terminal/workspace`,
-    "https://hive.local",
-  );
+  const url = new URL("/workspaces", "https://hive.local");
+  url.searchParams.set("workspace", source.workspaceId);
   if (event.sessionName) {
-    url.pathname = `/workspaces/${encodeURIComponent(source.workspaceId)}/terminal`;
     url.searchParams.set("session", event.sessionName);
     url.searchParams.set("notification", event.eventId);
   }

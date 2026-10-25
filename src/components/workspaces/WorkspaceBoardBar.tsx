@@ -5,10 +5,14 @@ import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { WorkspaceBoard } from "@/lib/workspaces/workspace-board-state";
+export interface WorkspaceBoardTab {
+  key: string;
+  name: string;
+  order: number;
+}
 
 export interface WorkspaceBoardBarProps {
-  boards: readonly WorkspaceBoard[];
+  boards: readonly WorkspaceBoardTab[];
   activeBoardKey?: string;
   onCreate?: () => void;
   onDelete?: (boardKey: string) => void;
@@ -160,7 +164,7 @@ export function WorkspaceBoardBar({
   );
 }
 
-function orderedWorkspaceBoards(boards: readonly WorkspaceBoard[]): WorkspaceBoard[] {
+function orderedWorkspaceBoards(boards: readonly WorkspaceBoardTab[]): WorkspaceBoardTab[] {
   return [...boards].sort((left, right) => {
     const leftOrder = finiteNumberOrFallback(left.order, 0);
     const rightOrder = finiteNumberOrFallback(right.order, 0);

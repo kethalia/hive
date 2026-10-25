@@ -1,0 +1,23 @@
+{
+  "checks": [
+    "pointer resizing changes geometry",
+    "keyboard resizing changes geometry",
+    "drag destination border and live neighbor rearrangement",
+    "cancel restores original positions",
+    "drop commits the previewed arrangement",
+    "directional focus from terminal",
+    "stack resize and double-click reset keep equal neighbor heights",
+    "stack and tab keyboard controls",
+    "mode, stack, tabs and pin preserve iframe and terminal instances",
+    "floating width resizes and returns to tiling",
+    "layout shortcuts do not run behind a modal",
+    "move to another board preserves terminal instance",
+    "notification reveals the existing pane on another board",
+    "missing notification creates a new board and terminal window",
+    "reload retains dimensions, mode and grouping",
+    "reduced motion disables pane transitions",
+    "mobile single pane without horizontal page overflow",
+    "Base UI collapsible animates its measured height before unmounting"
+  ],
+  "errors": []
+}

@@ -1,0 +1,8 @@
+Running 4 tests using 1 worker
+
+  ✓  1 workspace-app-isolation.spec.mjs:195:1 › isolated File Browser cannot read Hive or capture its microphone (548ms)
+  ✓  2 workspace-app-isolation.spec.mjs:232:1 › desktop tools remain embedded and keep their app authentication (480ms)
+  ✓  3 workspace-app-isolation.spec.mjs:256:1 › cookie-overlapping app hosts fail closed before app authentication (291ms)
+  ✓  4 workspace-app-isolation.spec.mjs:265:1 › legacy proxy navigation and script resources are inert (289ms)
+
+  4 passed (2.4s)

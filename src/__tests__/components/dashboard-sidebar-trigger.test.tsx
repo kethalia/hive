@@ -64,28 +64,4 @@ describe("DashboardSidebarTrigger", () => {
     const second = render(<DashboardSidebarTrigger />);
     expect(second.container).toBeEmptyDOMElement();
   });
-
-  it("does not render on full-bleed workspace routes", () => {
-    mockPathname = "/workspaces/ws-1/terminal/workspace";
-
-    const { container } = render(<DashboardSidebarTrigger />);
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("does not render on single terminal routes", () => {
-    mockPathname = "/workspaces/ws-1/terminal";
-
-    const { container } = render(<DashboardSidebarTrigger />);
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("does not render on legacy full-bleed Git workspace routes", () => {
-    mockPathname = "/workspaces/ws-1/terminal/git-workspace";
-
-    const { container } = render(<DashboardSidebarTrigger />);
-
-    expect(container).toBeEmptyDOMElement();
-  });
 });
