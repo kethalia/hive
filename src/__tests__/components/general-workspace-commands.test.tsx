@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { DiscoveryError } from "@/lib/discovery/types";
+import { scoreCommand } from "@/lib/terminal/command-search";
 import { getGlobalCommandPaletteSources } from "@/lib/terminal/global-command-palette";
 import { act, cleanup, renderHook, waitFor } from "../helpers/discovery";
 
@@ -71,9 +72,9 @@ describe("general workspace search", () => {
       data: { name: sessionName ?? "generated" },
     }));
   });
-  function setup() {
+  function setup(availableWorkspaces = workspaces) {
     const props = {
-      workspaces,
+      workspaces: availableWorkspaces,
       onOpenPane: vi.fn(),
       onError: vi.fn(),
       onStart: vi.fn().mockResolvedValue(undefined),
@@ -105,6 +106,30 @@ describe("general workspace search", () => {
     expect(mocks.sessions).toHaveBeenCalledTimes(2);
     expect(action("new-terminal:infra")).toBeUndefined();
   });
+  it("finds stopped workspaces by supported app aliases and starts the selected environment", async () => {
+    const { onStart } = setup(
+      workspaces.map((workspace) => ({
+        ...workspace,
+        latest_build: { ...workspace.latest_build, status: "stopped" },
+      })),
+    );
+    act(() => source().onOpenChange!(true));
+    const software = action("start-workspace:software");
+    const browser = action("start-workspace:browser");
+    const infra = action("start-workspace:infra");
+    for (const query of ["vscode", "editor", "file browser", "file manager"]) {
+      expect(scoreCommand(software, query), query).toBeGreaterThan(0);
+      expect(scoreCommand(browser, query), query).toBe(0);
+      expect(scoreCommand(infra, query), query).toBe(0);
+    }
+    expect(scoreCommand(browser, "remote desktop")).toBeGreaterThan(0);
+    expect(scoreCommand(software, "remote desktop")).toBe(0);
+    expect(scoreCommand(infra, "remote desktop")).toBe(0);
+    await act(async () => software.onSelect());
+    expect(onStart).toHaveBeenCalledExactlyOnceWith("software");
+    expect(software.closeOnSelect).toBe(false);
+  });
+
   it("offers one creation action first in each group and opens existing sessions directly", async () => {
     const { onCreate, onOpenPane } = setup();
     await open();

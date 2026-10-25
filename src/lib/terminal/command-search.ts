@@ -79,12 +79,14 @@ export function scoreCommand(document: CommandSearchDocument, search: string): n
   return lowest + (total / tokens.length) * 0.01;
 }
 
-/** React owns group order; cmdk also uses the same score for filtering and keyboard selection. */
+/** React owns filtering and ordering so matching cmdk items survive metadata refreshes. */
 export function rankCommandGroups<T extends CommandSearchDocument>(actions: T[], query: string) {
   const groups = new Map<string, { action: T; score: number }[]>();
   for (const action of actions) {
+    const score = scoreCommand(action, query);
+    if (score === 0) continue;
     const group = groups.get(action.group) ?? [];
-    group.push({ action, score: scoreCommand(action, query) });
+    group.push({ action, score });
     groups.set(action.group, group);
   }
   return [...groups.entries()]
@@ -94,22 +96,6 @@ export function rankCommandGroups<T extends CommandSearchDocument>(actions: T[],
     }))
     .sort((a, b) => b.entries[0].score - a.entries[0].score)
     .map(({ heading, entries }) => [heading, entries.map(({ action }) => action)] as const);
-}
-
-// Carry the fields with each cmdk item so registration never reads an older React render's map.
-export function commandSearchKeywords(document: CommandSearchDocument): string[] {
-  return [
-    document.label,
-    document.group,
-    document.description ?? "",
-    document.value ?? "",
-    ...(document.aliases ?? []),
-  ];
-}
-
-export function filterCommand(_value: string, search: string, keywords: string[] = []): number {
-  const [label = "", group = "", description, value, ...aliases] = keywords;
-  return scoreCommand({ label, group, description, value, aliases }, search);
 }
 
 /** Projects remain literal name/path matches, with an optional category qualifier. */

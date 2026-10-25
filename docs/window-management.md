@@ -23,7 +23,9 @@ Each group is ordered by its strongest match, so a matching Hive tool can appear
 apps. All search words must match; `editor ai-dev` narrows VS Code to that workspace. Common aliases
 include `preferences`, `vscode`, `new terminal`, and `clone repository`. Single-letter typos in names
 and aliases are low-priority fallbacks, not scattered-letter matches across descriptions.
-Projects stay literal name/path matches, including queries such as `projects hive`. Clearing search
+App aliases also find stopped workspaces that support those apps, so search can start them.
+Background metadata refreshes preserve the selected result while it still matches; if it disappears,
+selection moves to the first available match. Projects stay literal name/path matches, including queries such as `projects hive`. Clearing search
 restores the browsing order with New session and New project first in their respective groups.
 
 Existing targets are focused across all boards instead of duplicated. Tool windows resize, move,

@@ -171,7 +171,8 @@ export function useGeneralWorkspaceCommands({
         },
       ] as const;
       if (status !== "running") {
-        const available = apps.filter((app) => app.available).map((app) => app.label);
+        const availableApps = apps.filter((app) => app.available);
+        const available = availableApps.map((app) => app.label);
         const error = startError?.workspaceId === workspace.id ? startError.message : null;
         return [
           {
@@ -181,6 +182,7 @@ export function useGeneralWorkspaceCommands({
               error ??
               `${status} · Terminals, repositories${available.length ? `, ${available.join(", ")}` : ""}`,
             group: "Workspaces",
+            aliases: availableApps.flatMap<string>((app) => app.aliases),
             value: `${workspace.name} ${status} start workspace terminals repositories agents ${available.join(" ")}`,
             rightLabel: starting === workspace.id ? "Starting…" : status,
             icon: "terminal",

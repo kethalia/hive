@@ -23,9 +23,7 @@ const stopped = {
   value: "nextcloud-cookbook-infra stopped start workspace terminals repositories agents",
 };
 const visible = (documents: CommandSearchDocument[], query: string) =>
-  rankCommandGroups(documents, query).flatMap(([, items]) =>
-    items.filter((item) => scoreCommand(item, query) > 0),
-  );
+  rankCommandGroups(documents, query).flatMap(([, items]) => items);
 
 describe("launcher search relevance", () => {
   it("excludes the screenshot's scattered-letter matches and puts Settings first", () => {

@@ -29,11 +29,7 @@ import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
-import {
-  commandSearchKeywords,
-  filterCommand,
-  rankCommandGroups,
-} from "@/lib/terminal/command-search";
+import { rankCommandGroups } from "@/lib/terminal/command-search";
 import { cn } from "@/lib/utils";
 import { restoreWorkspaceFocus } from "@/lib/workspaces/window-focus";
 
@@ -181,10 +177,28 @@ function CommandPaletteBody({
     () => new Map(),
   );
 
-  const actionGroups = useMemo(
-    () => rankCommandGroups(actions, searchValue ?? ""),
-    [actions, searchValue],
-  );
+  const actionGroups = useMemo(() => {
+    const entries = [
+      ...actions.map((action) => ({ ...action, kind: "action" as const, action })),
+      ...tabs.map((tab) => ({
+        kind: "tab" as const,
+        id: tab.id,
+        label: tab.sessionName,
+        group: groupHeading,
+      })),
+      ...(onCreateSession
+        ? [
+            {
+              kind: "create" as const,
+              id: "create-session",
+              label: "New Session",
+              group: "Actions",
+            },
+          ]
+        : []),
+    ];
+    return rankCommandGroups(entries, searchValue ?? "");
+  }, [actions, tabs, groupHeading, onCreateSession, searchValue]);
 
   useLayoutEffect(() => {
     updateScrollHints();
@@ -300,104 +314,99 @@ function CommandPaletteBody({
           {!loadingText ? <CommandEmpty>{emptyText}</CommandEmpty> : null}
           {actionGroups.map(([heading, groupActions]) => (
             <CommandGroup key={heading} heading={heading}>
-              {groupActions.map((action) => (
-                <CommandItem
-                  // cmdk rescans registered items when searchable metadata changes.
-                  // Keep value stable so background refreshes preserve the selected action.
-                  key={JSON.stringify([action.id, commandSearchKeywords(action)])}
-                  data-action-id={action.id}
-                  tabIndex={0}
-                  value={`action:${action.id}`}
-                  keywords={commandSearchKeywords(action)}
-                  onSelect={() => {
-                    if (action.disabled) return;
-                    selectAction(action);
-                  }}
-                  disabled={action.disabled}
-                >
-                  {actionIcon(action.icon)}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">{action.label}</span>
-                    {action.description ? (
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {action.description}
+              {groupActions.map((entry) => {
+                if (entry.kind === "tab")
+                  return (
+                    <CommandItem
+                      key={`tab:${entry.id}`}
+                      value={`tab:${entry.id}`}
+                      onSelect={() => handleSelect(entry.id)}
+                    >
+                      <Terminal className="mr-2 size-4 shrink-0 opacity-70" />
+                      <span className="font-mono text-sm">{entry.label}</span>
+                    </CommandItem>
+                  );
+                if (entry.kind === "create")
+                  return (
+                    <CommandItem
+                      key="create-session"
+                      value="create-session"
+                      onSelect={handleCreate}
+                    >
+                      <Plus className="mr-2 size-4 shrink-0 opacity-70" />
+                      <span>New Session</span>
+                      <CommandShortcut>
+                        {formatShortcut(CREATE_SESSION_SHORTCUT_KEYS)}
+                      </CommandShortcut>
+                    </CommandItem>
+                  );
+                const action = entry.action;
+                return (
+                  <CommandItem
+                    key={`action:${action.id}`}
+                    data-action-id={action.id}
+                    tabIndex={0}
+                    value={`action:${action.id}`}
+                    onSelect={() => {
+                      if (action.disabled) return;
+                      selectAction(action);
+                    }}
+                    disabled={action.disabled}
+                  >
+                    {actionIcon(action.icon)}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{action.label}</span>
+                      {action.description ? (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {action.description}
+                        </span>
+                      ) : null}
+                    </span>
+                    {action.shortcut ? <CommandShortcut>{action.shortcut}</CommandShortcut> : null}
+                    {action.options ? (
+                      <span
+                        className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-background/70 p-0.5"
+                        title="Choose action with Left and Right arrow keys"
+                      >
+                        {action.options.map((option, index) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            className={cn(
+                              "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground",
+                              index === selectedOptionIndex(action, selectedOptionIndexes) &&
+                                "bg-primary text-primary-foreground",
+                              option.disabled && "opacity-40",
+                            )}
+                            data-testid={`command-option-${action.id}-${option.id}`}
+                            data-selected={
+                              index === selectedOptionIndex(action, selectedOptionIndexes)
+                                ? "true"
+                                : "false"
+                            }
+                            disabled={option.disabled}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (option.disabled) return;
+                              option.onSelect();
+                              if (action.closeOnSelect !== false) onOpenChange(false);
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </span>
+                    ) : action.rightLabel ? (
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {action.rightLabel}
                       </span>
                     ) : null}
-                  </span>
-                  {action.shortcut ? <CommandShortcut>{action.shortcut}</CommandShortcut> : null}
-                  {action.options ? (
-                    <span
-                      className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-background/70 p-0.5"
-                      title="Choose action with Left and Right arrow keys"
-                    >
-                      {action.options.map((option, index) => (
-                        <button
-                          key={option.id}
-                          type="button"
-                          className={cn(
-                            "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground",
-                            index === selectedOptionIndex(action, selectedOptionIndexes) &&
-                              "bg-primary text-primary-foreground",
-                            option.disabled && "opacity-40",
-                          )}
-                          data-testid={`command-option-${action.id}-${option.id}`}
-                          data-selected={
-                            index === selectedOptionIndex(action, selectedOptionIndexes)
-                              ? "true"
-                              : "false"
-                          }
-                          disabled={option.disabled}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            if (option.disabled) return;
-                            option.onSelect();
-                            if (action.closeOnSelect !== false) onOpenChange(false);
-                          }}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </span>
-                  ) : action.rightLabel ? (
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {action.rightLabel}
-                    </span>
-                  ) : null}
-                </CommandItem>
-              ))}
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           ))}
-          {tabs.length > 0 ? (
-            <CommandGroup heading={groupHeading}>
-              {tabs.map((tab) => (
-                <CommandItem
-                  key={JSON.stringify([tab.id, tab.sessionName, groupHeading])}
-                  value={`tab:${tab.id}`}
-                  keywords={commandSearchKeywords({ label: tab.sessionName, group: groupHeading })}
-                  onSelect={() => {
-                    handleSelect(tab.id);
-                  }}
-                >
-                  <Terminal className="mr-2 size-4 shrink-0 opacity-70" />
-                  <span className="font-mono text-sm">{tab.sessionName}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          ) : null}
-          {onCreateSession && (
-            <CommandGroup heading="Actions">
-              <CommandItem
-                value="create-session"
-                keywords={commandSearchKeywords({ label: "New Session", group: "Actions" })}
-                onSelect={handleCreate}
-              >
-                <Plus className="mr-2 size-4 shrink-0 opacity-70" />
-                <span>New Session</span>
-                <CommandShortcut>{formatShortcut(CREATE_SESSION_SHORTCUT_KEYS)}</CommandShortcut>
-              </CommandItem>
-            </CommandGroup>
-          )}
         </CommandList>
         <div
           aria-hidden="true"
@@ -473,7 +482,7 @@ export function CommandPalette({
           >
             <span className="h-1 w-10 rounded-full bg-muted-foreground/35" aria-hidden="true" />
           </button>
-          <Command className={mobileCommandClassName} filter={filterCommand}>
+          <Command className={mobileCommandClassName} shouldFilter={false}>
             <CommandPaletteBody
               tabs={tabs}
               onSelectTab={onSelectTab}
@@ -495,7 +504,7 @@ export function CommandPalette({
 
   return (
     <CommandDialog
-      commandFilter={filterCommand}
+      commandShouldFilter={false}
       finalFocus={restoreWorkspaceFocus}
       open={open}
       onOpenChange={onOpenChange}

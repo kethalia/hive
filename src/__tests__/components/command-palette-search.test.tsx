@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
 
-// Keep real cmdk filtering, DOM sorting, selection, and keyboard handling.
+// Keep the real cmdk registration, selection, and keyboard handling.
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? children : null),
@@ -85,6 +85,83 @@ describe("real command search", () => {
     );
     await waitFor(() => expect(order()).toEqual(["settings"]));
     expect(selected()).toBe("settings");
+  });
+
+  it("preserves the selected second result and Enter target when its description refreshes", async () => {
+    const first = { ...settings, id: "first", value: "settings", description: "First account" };
+    const second = {
+      ...settings,
+      id: "second",
+      value: "settings",
+      description: "Second account",
+      onSelect: vi.fn(),
+    };
+    const { rerender } = render(<Palette actions={[first, second]} />);
+    search("settings");
+    await waitFor(() => expect(selected()).toBe("first"));
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "ArrowDown" });
+    expect(selected()).toBe("second");
+    const selectedNode = screen.getAllByRole("option")[1];
+    rerender(<Palette actions={[first, { ...second, description: "Second account updated" }]} />);
+    await waitFor(() => expect(screen.getByText("Second account updated")).toBeTruthy());
+    expect(selected()).toBe("second");
+    expect(screen.getAllByRole("option")[1]).toBe(selectedNode);
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
+    expect(second.onSelect).toHaveBeenCalledOnce();
+    expect(first.onSelect).not.toHaveBeenCalled();
+  });
+
+  it("refreshes alias matches without a new keystroke and falls back when the selected match disappears", async () => {
+    const first = { ...settings, id: "first", value: "account", aliases: ["preferences"] };
+    const second = { ...desktop, id: "second", value: "workspace", aliases: ["preferences"] };
+    const { rerender } = render(<Palette actions={[first, second]} />);
+    search("preferences");
+    await waitFor(() => expect(order()).toEqual(["first", "second"]));
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "ArrowDown" });
+    expect(selected()).toBe("second");
+    rerender(<Palette actions={[first, { ...second, aliases: [] }]} />);
+    await waitFor(() => expect(order()).toEqual(["first"]));
+    expect(selected()).toBe("first");
+    rerender(
+      <Palette
+        actions={[
+          { ...first, aliases: [] },
+          { ...second, aliases: [] },
+        ]}
+      />,
+    );
+    await waitFor(() => expect(order()).toEqual([]));
+    expect(screen.getByText("No sessions found.")).toBeTruthy();
+    rerender(<Palette actions={[{ ...first, aliases: [] }, second]} />);
+    await waitFor(() => expect(selected()).toBe("second"));
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
+    expect(second.onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("ranks legacy sessions and creation actions together with command actions", async () => {
+    const selectTab = vi.fn();
+    const createSession = vi.fn();
+    render(
+      <CommandPalette
+        open
+        onOpenChange={vi.fn()}
+        tabs={[{ id: "tab", sessionName: "settings" }]}
+        onSelectTab={selectTab}
+        onCreateSession={createSession}
+        actions={[{ ...settings, label: "Settings tools" }]}
+      />,
+    );
+    search("settings");
+    await waitFor(() =>
+      expect(screen.getAllByRole("option")[0].getAttribute("data-value")).toBe("tab:tab"),
+    );
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
+    expect(selectTab).toHaveBeenCalledExactlyOnceWith("tab");
+    search("new session");
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(1));
+    expect(screen.getAllByRole("option")[0].getAttribute("data-value")).toBe("create-session");
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
+    expect(createSession).toHaveBeenCalledOnce();
   });
 
   it("reorders async results without losing the user's keyboard selection", async () => {

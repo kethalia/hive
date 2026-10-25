@@ -1121,7 +1121,7 @@ describe("command relevance group ordering", () => {
       );
     expect(headings()).toEqual(["Desktops", "Hive"]);
     fireEvent.change(screen.getByTestId("command-input"), { target: { value: "settings" } });
-    expect(headings()).toEqual(["Hive", "Desktops"]);
+    expect(headings()).toEqual(["Hive"]);
     fireEvent.change(screen.getByTestId("command-input"), { target: { value: "" } });
     expect(headings()).toEqual(["Desktops", "Hive"]);
   });
