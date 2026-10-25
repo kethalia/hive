@@ -118,7 +118,7 @@ describe("workspace server actions", () => {
     mockGetWorkspace.mockResolvedValueOnce({
       name: "dev-box",
       owner_name: "alice",
-      template_name: "browser-testing",
+      template_name: "game-dev",
     });
     const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
     const result = await getWorkspaceAppToolAction({
@@ -153,6 +153,21 @@ describe("workspace server actions", () => {
     expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "browser-testing",
+    "infrastructure",
+  ])("rejects file services for the %s helper", async (template) => {
+    mockGetWorkspace.mockResolvedValueOnce({ name: "helper", template_name: template });
+    const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAppToolAction({
+      workspaceId: "ws-1",
+      tool: "filebrowser",
+      documentFrameHosts: [],
+    });
+    expect(result?.serverError).toContain("not provisioned");
+    expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
+  });
+
   it("requires a Hive session before authorizing an app tool", async () => {
     mockedGetRequestSession.mockResolvedValueOnce(null);
     const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
@@ -169,7 +184,7 @@ describe("workspace server actions", () => {
     mockGetWorkspace.mockResolvedValueOnce({
       name: "dev-box",
       owner_name: "alice",
-      template_name: "browser-testing",
+      template_name: "game-dev",
     });
     mockGetApplicationsHost.mockResolvedValueOnce("*.apps.hive.example.com");
     const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
@@ -187,7 +202,7 @@ describe("workspace server actions", () => {
     mockGetWorkspace.mockResolvedValueOnce({
       name: "dev-box",
       owner_name: "alice",
-      template_name: "browser-testing",
+      template_name: "game-dev",
     });
     mockGetApplicationsHost.mockResolvedValueOnce("*.apps.hive.example.com");
     mockedExec.mockResolvedValueOnce({

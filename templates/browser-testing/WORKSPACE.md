@@ -16,6 +16,6 @@ specialist workspace and bring only the repository or endpoint needed for the br
 
 - Google Chrome with XFCE/KasmVNC desktop access
 - Playwright MCP for Claude Code and Codex
-- Playwright editor support, code-server, File Browser, tmux, and common CLI tooling
+- Playwright, tmux, and common CLI tooling; editor and File Browser services are disabled
 
 Unity, Blender, KiCad, and infrastructure credentials are intentionally outside this workspace.

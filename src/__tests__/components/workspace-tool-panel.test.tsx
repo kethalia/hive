@@ -126,7 +126,7 @@ function makeWorkspace(
     id: "ws-1",
     name: "dev",
     template_id: "tpl-1",
-    template_name: "browser-testing",
+    template_name: "game-dev",
     owner_name: "alice",
     latest_build: {
       id: "build-1",
@@ -344,6 +344,23 @@ describe("WorkspaceToolPanel", () => {
     fireEvent.click(screen.getByTestId("tool-option-filebrowser"));
     await screen.findByTitle("Filebrowser");
     expect(container.querySelectorAll("iframe")).toHaveLength(1);
+  });
+
+  it.each([
+    "browser-testing",
+    "infrastructure",
+  ])("omits file services for the %s helper", (template) => {
+    render(
+      <WorkspaceToolPanel
+        {...defaultProps}
+        workspace={makeWorkspace({ template_name: template })}
+      />,
+    );
+    expect(screen.queryByTestId("tool-option-filebrowser")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tool-option-terminal")).toBeInTheDocument();
+    expect(Boolean(screen.queryByTestId("tool-option-kasmvnc"))).toBe(
+      template === "browser-testing",
+    );
   });
 
   it("shows external placeholder for dashboard tool", () => {

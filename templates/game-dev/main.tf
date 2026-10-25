@@ -21,6 +21,15 @@ data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
+data "coder_parameter" "enable_opencode" {
+  name         = "enable_opencode"
+  display_name = "OpenCode CLI"
+  description  = "Install OpenCode for hosted or OpenAI-compatible model endpoints. Configure provider credentials in the CLI."
+  type         = "bool"
+  default      = "false"
+  mutable      = true
+}
+
 locals {
   profile                      = jsondecode(file("${path.module}/profile.json"))
   workspace_hostname_candidate = trim(substr(replace(lower(data.coder_workspace.me.name), "/[^a-z0-9-]/", "-"), 0, 63), "-")
@@ -202,6 +211,19 @@ resource "coder_script" "completed_worktree_maintenance" {
   script             = "timeout 110s python3 - prune <<'HIVE_WORKTREE_PY'\n${file("${path.module}/scripts/worktree-lifecycle.py")}\nHIVE_WORKTREE_PY\n"
 }
 
+# Only signed receipts explicitly completed in the primary can enter cleanup.
+resource "coder_script" "completed_workspace_maintenance" {
+  count              = local.profile.id == "software" ? 1 : 0
+  agent_id           = coder_agent.main.id
+  display_name       = "Completed disposable workspace cleanup"
+  icon               = "/icon/terminal.svg"
+  cron               = "CRON_TZ=UTC 0 */5 * * * *"
+  run_on_start       = false
+  start_blocks_login = false
+  timeout            = 120
+  script             = "timeout 110s python3 - reap <<'HIVE_WORKSPACE_PY'\n${file("${path.module}/scripts/workspace-lifecycle.py")}\nHIVE_WORKSPACE_PY\n"
+}
+
 resource "coder_script" "tools_web3" {
   count              = local.profile.capabilities.web3 ? 1 : 0
   agent_id           = coder_agent.main.id
@@ -277,8 +299,8 @@ resource "coder_script" "symlinks" {
 
 module "code-server" {
   count   = local.profile.capabilities.editor ? data.coder_workspace.me.start_count : 0
-  source  = "registry.coder.com/modules/code-server/coder"
-  version = "1.4.3"
+  source  = "registry.coder.com/coder/code-server/coder"
+  version = "1.6.0"
 
   agent_id              = coder_agent.main.id
   order                 = 1
@@ -398,15 +420,50 @@ module "git-config" {
 }
 
 # =============================================================================
-# Claude Code (module replaces claude-install.sh + coder_app)
+# Native CLI modules and launchers (no agentapi/Tasks server)
 # =============================================================================
 
 module "claude-code" {
   count               = data.coder_workspace.me.start_count
   source              = "registry.coder.com/coder/claude-code/coder"
-  version             = "1.1.0"
+  version             = "5.5.2"
   agent_id            = coder_agent.main.id
   install_claude_code = false
+}
+
+resource "coder_app" "claude_cli" {
+  agent_id     = coder_agent.main.id
+  slug         = "claude-cli"
+  display_name = "Claude Code"
+  icon         = "/icon/claude.svg"
+  command      = "cd /home/coder && exec claude"
+}
+
+resource "coder_app" "codex_cli" {
+  agent_id     = coder_agent.main.id
+  slug         = "codex-cli"
+  display_name = "Codex"
+  icon         = "/icon/openai.svg"
+  command      = "cd /home/coder && exec codex"
+}
+
+resource "coder_script" "opencode" {
+  count              = data.coder_parameter.enable_opencode.value == "true" ? 1 : 0
+  agent_id           = coder_agent.main.id
+  display_name       = "OpenCode CLI"
+  run_on_start       = true
+  start_blocks_login = true
+  timeout            = 180
+  script             = file("${path.module}/scripts/tools-opencode.sh")
+}
+
+resource "coder_app" "opencode_cli" {
+  count        = data.coder_parameter.enable_opencode.value == "true" ? 1 : 0
+  agent_id     = coder_agent.main.id
+  slug         = "opencode-cli"
+  display_name = "OpenCode"
+  icon         = "/icon/terminal.svg"
+  command      = "cd /home/coder && exec opencode"
 }
 
 # =============================================================================
@@ -449,7 +506,7 @@ resource "coder_app" "desktop" {
 module "coder-login" {
   count    = local.profile.id == "software" ? data.coder_workspace.me.start_count : 0
   source   = "registry.coder.com/coder/coder-login/coder"
-  version  = "1.0.15"
+  version  = "1.1.1"
   agent_id = coder_agent.main.id
 }
 

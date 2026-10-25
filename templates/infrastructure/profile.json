@@ -7,23 +7,17 @@
   "capabilities": {
     "browser": false,
     "desktop": false,
-    "editor": true,
-    "file_browser": true,
+    "editor": false,
+    "file_browser": false,
     "web3": false
   },
   "resources": {
-    "cpu_request": "1",
-    "memory_request": "8Gi",
+    "cpu_request": "500m",
+    "memory_request": "2Gi",
     "cpu_limit": "8",
     "memory_limit": "16Gi",
     "storage": "75Gi"
   },
-  "vscode_extensions": [
-    "github.vscode-github-actions",
-    "redhat.vscode-yaml",
-    "hashicorp.terraform",
-    "ms-kubernetes-tools.vscode-kubernetes-tools",
-    "ms-azuretools.vscode-docker"
-  ],
+  "vscode_extensions": [],
   "codex_sandbox_apparmor_profile": "hive-codex-v1"
 }

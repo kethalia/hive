@@ -7,17 +7,17 @@
   "capabilities": {
     "browser": true,
     "desktop": true,
-    "editor": true,
-    "file_browser": true,
+    "editor": false,
+    "file_browser": false,
     "web3": false
   },
   "resources": {
-    "cpu_request": "4",
-    "memory_request": "8Gi",
+    "cpu_request": "1",
+    "memory_request": "4Gi",
     "cpu_limit": "8",
     "memory_limit": "16Gi",
     "storage": "50Gi"
   },
-  "vscode_extensions": ["ms-playwright.playwright", "dbaeumer.vscode-eslint"],
+  "vscode_extensions": [],
   "codex_sandbox_apparmor_profile": "hive-codex-v1"
 }

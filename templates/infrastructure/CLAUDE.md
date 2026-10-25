@@ -10,7 +10,7 @@ authorization and a resolved target environment. Never infer the active cluster,
 or state backend from filenames alone.
 
 Keep credentials out of source and terminal output. Prefer repository-pinned toolchains and documented
-wrappers; the template supplies pinned platform clients and editor support but does not grant cluster
+wrappers; the template supplies pinned platform clients but does not grant cluster
 access.
 
 Use repository-local source, Git history, issues, runbooks, and `AGENTS.md` files as the source of

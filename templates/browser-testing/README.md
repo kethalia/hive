@@ -8,14 +8,15 @@ headed inspection from implementation and orchestration workspaces.
 
 - Profile: `browser`
 - Image variant: `browser`
-- Requests: 4 CPU and 8 GiB memory
+- Requests: 1 CPU and 4 GiB memory
 - Limits: 8 CPU and 16 GiB memory
 - Persistent home: 50 GiB
 - Desktop: XFCE through KasmVNC
 
 The image contains the common CLI baseline, Chrome, and the desktop runtime. It deliberately excludes
 Unity, Blender, KiCad, and Obsidian. The profile adds Playwright MCP configuration only while this
-workspace is active.
+workspace is active. Editor and File Browser services are disabled; use Desktop for browser
+inspection and terminal/SSH to run checks.
 
 ## Publish
 
@@ -25,5 +26,5 @@ coder create --template browser-testing browser-test-01
 ```
 
 Verify Chrome startup in Desktop, Claude and Codex Playwright MCP discovery, the
-`browser-screenshot` and `browser-html` helpers, code-server, File Browser, and persistence across a
+`browser-screenshot` and `browser-html` helpers, and persistence across a
 stop/start cycle.
