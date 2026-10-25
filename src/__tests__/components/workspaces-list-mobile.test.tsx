@@ -263,9 +263,8 @@ describe("workspace card grid", () => {
 
     fireEvent.click(screen.getByTestId("open-create-workspace-screen"));
     await waitFor(() => {
-      expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-external");
+      expect(screen.getByTestId("create-workspace-template")).toHaveTextContent("orchestrator-v2");
     });
-    expect(screen.getByRole("option", { name: "orchestrator-v2" })).toBeInTheDocument();
     expect(screen.getByTestId("selected-workspace-profile")).toHaveTextContent("Custom");
 
     fireEvent.change(screen.getByTestId("create-workspace-name"), {
@@ -308,7 +307,7 @@ describe("workspace card grid", () => {
     fireEvent.click(screen.getByTestId("open-create-workspace-screen"));
     await screen.findByTestId("create-workspace-screen");
     await waitFor(() => {
-      expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-1");
+      expect(screen.getByTestId("create-workspace-template")).toHaveTextContent("ai-dev-k8s");
     });
     fireEvent.change(screen.getByTestId("create-workspace-name"), {
       target: { value: "bad workspace" },
@@ -347,7 +346,7 @@ describe("workspace card grid", () => {
     fireEvent.click(screen.getByTestId("open-create-workspace-screen"));
     await screen.findByTestId("create-workspace-screen");
     await waitFor(() => {
-      expect(screen.getByTestId("create-workspace-template")).toHaveValue("template-1");
+      expect(screen.getByTestId("create-workspace-template")).toHaveTextContent("ai-dev-k8s");
     });
     fireEvent.change(screen.getByTestId("create-workspace-name"), {
       target: { value: "new-dev" },

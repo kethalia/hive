@@ -3,8 +3,15 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { Suspense } from "react";
+import { Suspense, useId } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getSettingsWindowAction } from "@/lib/actions/settings-window";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
@@ -79,6 +86,7 @@ export function HiveWorkspacePane({
   onWorkspaceChange,
   onOpenSession,
 }: Props) {
+  const workspaceSelectId = useId();
   const workspace =
     workspaces.find((w) => w.id === pane.workspaceId) ??
     workspaces.find((w) => w.latest_build.status === "running") ??
@@ -111,22 +119,37 @@ export function HiveWorkspacePane({
       >
         {pane.tool === "agents" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
-            <label className="block space-y-2 text-sm">
-              <span>Coder workspace</span>
-              <select
-                aria-label="Agent workspace"
-                className="h-10 w-full min-w-0 rounded-md border bg-background px-3"
-                value={workspace?.id ?? ""}
-                onChange={(event) => onWorkspaceChange(event.target.value)}
+            <div className="space-y-2 text-sm">
+              <label htmlFor={workspaceSelectId} className="block">
+                Coder workspace
+              </label>
+              <Select
+                value={workspace?.id ?? null}
+                onValueChange={(value) => {
+                  if (value) onWorkspaceChange(value);
+                }}
+                disabled={!workspaces.length}
+                items={workspaces.map((w) => ({
+                  value: w.id,
+                  label: `${w.name} · ${w.latest_build.status}`,
+                }))}
               >
-                {!workspaces.length ? <option value="">No workspaces available</option> : null}
-                {workspaces.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} · {w.latest_build.status}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <SelectTrigger
+                  id={workspaceSelectId}
+                  aria-label="Agent workspace"
+                  className="w-full"
+                >
+                  <SelectValue placeholder="No workspaces available" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaces.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.name} · {w.latest_build.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {workspace?.latest_build.status === "running" ? (
               <AgentToolsPanel
                 key={`${workspace.id}:${workspace.latest_build.id}`}

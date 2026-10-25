@@ -2,7 +2,7 @@
 
 import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { TemplatePushConfirmation } from "@/components/templates/TemplatePushConfirmation";
@@ -51,6 +51,7 @@ interface PushState {
 interface TemplatesClientProps {
   initialStatuses: TemplateStatus[];
   embedded?: boolean;
+  headerControls?: ReactNode;
 }
 
 /** Format an ISO date string as a human-readable relative time. */
@@ -80,7 +81,11 @@ function runtimeLabel(templateName: string): string {
   return "External";
 }
 
-export function TemplatesClient({ initialStatuses, embedded = false }: TemplatesClientProps) {
+export function TemplatesClient({
+  initialStatuses,
+  embedded = false,
+  headerControls,
+}: TemplatesClientProps) {
   const [statuses, setStatuses] = useState<TemplateStatus[]>(initialStatuses);
   const [pushStates, setPushStates] = useState<Record<string, PushState>>({});
   const [templatesPendingPush, setTemplatesPendingPush] = useState<string[] | null>(null);
@@ -267,8 +272,11 @@ export function TemplatesClient({ initialStatuses, embedded = false }: Templates
       />
       <DashboardPageHeader
         title="Templates"
+        className="sticky top-0 z-10 sm:flex-wrap"
+        actionsClassName="max-w-full shrink flex-wrap"
         actions={
           <>
+            {headerControls}
             <Button
               size="sm"
               className="min-h-11"

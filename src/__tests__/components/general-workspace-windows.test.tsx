@@ -221,15 +221,22 @@ describe("workspace tool windows", () => {
     fireEvent.keyDown(window, { key: "?", code: "Slash", metaKey: true, shiftKey: true });
     const help = await screen.findByRole("dialog", { name: "Keyboard Shortcuts" });
     const modifier = within(help).getByLabelText("Layout shortcuts");
-    expect(modifier).toHaveValue("primary+alt");
+    const choose = async (label: string) => {
+      const option = await screen.findByRole("option", { name: label });
+      fireEvent.mouseMove(option);
+      fireEvent.click(option);
+    };
+    expect(modifier).toHaveTextContent("On — platform shortcuts");
     expect(within(help).getByText("Focus window left")).toBeVisible();
     expect(within(help).getByText("Toggle pin left")).toBeVisible();
     modifier.focus();
-    fireEvent.change(modifier, { target: { value: "off" } });
+    fireEvent.click(modifier);
+    await choose("Off — use buttons and search");
     expect(within(help).queryByText("Focus window left")).toBeNull();
-    fireEvent.change(modifier, { target: { value: "primary+alt" } });
+    fireEvent.click(modifier);
+    await choose("On — platform shortcuts");
     expect(modifier).toHaveFocus();
-    expect(modifier).toHaveValue("primary+alt");
+    expect(modifier).toHaveTextContent("On — platform shortcuts");
     const focusRow = within(help).getByText("Focus window left").parentElement!;
     expect(focusRow).toHaveTextContent("Ctrl + Arrowleft");
     fireEvent.keyDown(window, { key: "?", code: "Slash", metaKey: true, shiftKey: true });
@@ -244,14 +251,14 @@ describe("workspace tool windows", () => {
 
     fireEvent.keyDown(window, { key: "?", code: "Slash", ctrlKey: true, shiftKey: true });
     const reopened = await screen.findByRole("dialog", { name: "Keyboard Shortcuts" });
-    fireEvent.change(within(reopened).getByLabelText("Layout shortcuts"), {
-      target: { value: "off" },
-    });
+    fireEvent.click(within(reopened).getByLabelText("Layout shortcuts"));
+    await choose("Off — use buttons and search");
     expect(within(reopened).queryByText("Focus window left")).toBeNull();
-    expect(within(reopened).getByLabelText("Layout shortcuts")).toHaveValue("off");
-    fireEvent.change(within(reopened).getByLabelText("Layout shortcuts"), {
-      target: { value: "primary+alt" },
-    });
+    expect(within(reopened).getByLabelText("Layout shortcuts")).toHaveTextContent(
+      "Off — use buttons and search",
+    );
+    fireEvent.click(within(reopened).getByLabelText("Layout shortcuts"));
+    await choose("On — platform shortcuts");
     expect(within(reopened).getByText("Focus window left")).toBeVisible();
     view.rerender(tree(false));
     expect(screen.queryByLabelText("Layout shortcuts")).toBeNull();
