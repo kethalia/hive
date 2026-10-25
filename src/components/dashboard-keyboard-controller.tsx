@@ -2,7 +2,11 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
+import {
+  CommandPalette,
+  type CommandPaletteAction,
+  type CommandPalettePage,
+} from "@/components/terminal/CommandPalette";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDashboardFullscreen } from "@/hooks/useDashboardFullscreen";
 import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
@@ -45,10 +49,11 @@ export function DashboardKeyboardController() {
     [pathname, router],
   );
   const showSearch = useCallback(() => {
+    if (open) return;
     setQuery("");
     source?.onSearchValueChange?.("");
     setOpen(true);
-  }, [source]);
+  }, [source, open]);
   useEffect(
     () => subscribeGlobalCommandPaletteSources(() => setSources(getGlobalCommandPaletteSources())),
     [],
@@ -212,6 +217,53 @@ export function DashboardKeyboardController() {
     ],
     [source?.actions, openTool, fullscreen, toggleFullscreen],
   );
+  const launcher = useMemo(() => {
+    const groups = new Map<string, CommandPaletteAction[]>();
+    for (const action of actions) {
+      if (action.group === "Hive") continue;
+      const group = groups.get(action.group) ?? [];
+      group.push(action);
+      groups.set(action.group, group);
+    }
+    const pages: Record<string, CommandPalettePage> = { ...source?.pages };
+    const sections: CommandPaletteAction[] = [];
+    for (const [group, items] of groups) {
+      const id = `section:${group}`;
+      const title = group === "Terminals" ? "Terminal" : group;
+      pages[id] = {
+        title,
+        actions: items,
+        searchPlaceholder: `Search ${group.toLowerCase()}…`,
+        loadingText:
+          group === "Terminals" || group === "Projects" ? source?.loadingText : undefined,
+        emptyText: `No matching ${group.toLowerCase()}.`,
+      };
+      sections.push({
+        id,
+        label: title,
+        group: "Browse",
+        aliases: [group],
+        description:
+          group === "Terminals"
+            ? "Create a terminal or open an existing session"
+            : group === "Projects"
+              ? "Clone a repository or open an existing project"
+              : `Browse ${group.toLowerCase()}`,
+        icon: group === "Projects" ? "files" : items.find((item) => item.icon !== "plus")?.icon,
+        rightLabel: "Browse",
+        onSelect: () => ({ page: id }),
+      });
+    }
+    return {
+      pages,
+      actions: [
+        ...sections,
+        ...actions.filter(
+          (action) => (source?.searchValue ?? query).trim() || action.group === "Hive",
+        ),
+      ],
+    };
+  }, [actions, source?.pages, source?.loadingText, source?.searchValue, query]);
   return (
     <CommandPalette
       open={open}
@@ -219,7 +271,8 @@ export function DashboardKeyboardController() {
       tabs={source?.tabs ?? []}
       onSelectTab={source?.onSelectTab ?? (() => {})}
       onCreateSession={source?.onCreateSession}
-      actions={actions}
+      actions={launcher.actions}
+      pages={launcher.pages}
       searchValue={source?.searchValue ?? query}
       onSearchValueChange={(value) => {
         setQuery(value);

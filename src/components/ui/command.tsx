@@ -24,12 +24,18 @@ function CommandDialog({
   contentClassName,
   finalFocus,
   commandShouldFilter,
+  commandKey,
+  commandLabel,
+  commandDefaultValue,
   ...props
 }: {
   children?: React.ReactNode;
   contentClassName?: string;
   finalFocus?: React.ComponentProps<typeof DialogContent>["finalFocus"];
   commandShouldFilter?: React.ComponentProps<typeof CommandPrimitive>["shouldFilter"];
+  commandKey?: string;
+  commandLabel?: string;
+  commandDefaultValue?: string;
 } & Omit<React.ComponentProps<typeof Dialog>, "children">) {
   return (
     <Dialog {...props}>
@@ -41,6 +47,9 @@ function CommandDialog({
         <DialogTitle className="sr-only">Search Hive</DialogTitle>
         <DialogDescription className="sr-only">Open a window or run a command.</DialogDescription>
         <Command
+          key={commandKey}
+          label={commandLabel}
+          defaultValue={commandDefaultValue}
           shouldFilter={commandShouldFilter}
           className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2"
         >

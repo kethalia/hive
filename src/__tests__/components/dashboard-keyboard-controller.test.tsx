@@ -47,6 +47,7 @@ vi.mock("@/lib/actions/workspaces", () => ({
   getWorkspaceSessionsAction: (...args: unknown[]) => mockWorkspaceSessions(...args),
   createSessionAction: vi.fn(),
 }));
+vi.mock("@/lib/actions/clone-project", () => ({ cloneProjectAction: vi.fn() }));
 vi.mock("@/lib/actions/git-clones", () => ({
   listGitClonesAction: (...args: unknown[]) => mockWorkspaceClones(...args),
   resolveGitCloneTerminalAction: vi.fn(),
@@ -330,7 +331,6 @@ describe("DashboardKeyboardController", () => {
       onOpenPane: vi.fn(),
       onError: vi.fn(),
       onStart: vi.fn(),
-      onCreate: vi.fn(),
     };
     function WorkspaceCommands({ mode, shortcuts }: Pick<WindowManager, "mode" | "shortcuts">) {
       const additionalActions = useWindowManagerCommands(
@@ -351,8 +351,10 @@ describe("DashboardKeyboardController", () => {
     const { rerender } = render(<App mode="grid" shortcuts="primary+alt" />);
     expect(mockWorkspaceSessions).not.toHaveBeenCalled();
     act(() => openGlobalCommandPalette());
+    expect(screen.getByText("Terminal")).toBeInTheDocument();
+    expect(screen.queryByText("dev-server")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Search commands"), { target: { value: "dev" } });
     expect(await screen.findByText("dev-server")).toBeInTheDocument();
-    expect(screen.getByText("hive")).toBeInTheDocument();
     expect(screen.getByText("Use Strip layout")).toBeInTheDocument();
     for (const props of [
       { mode: "strip", shortcuts: "primary+alt" },
@@ -366,13 +368,15 @@ describe("DashboardKeyboardController", () => {
       fireEvent.change(screen.getByLabelText("Search commands"), {
         target: { value: "custom-terminal" },
       });
-      expect(await screen.findByText("New session")).toBeInTheDocument();
+      expect(await screen.findByText("Create terminal")).toBeInTheDocument();
       fireEvent.click(screen.getByText("Close search"));
       act(() => registeredBindings.get("dashboard:command-palette")?.action(null, null));
       expect(screen.getByLabelText("Search commands")).toHaveValue("");
-      expect(await screen.findByText("dev-server")).toBeInTheDocument();
+      expect(screen.getByText("Terminal")).toBeInTheDocument();
+      expect(screen.queryByText("dev-server")).toBeNull();
       expect(screen.getByText("Files")).toBeInTheDocument();
     }
+    fireEvent.change(screen.getByLabelText("Search commands"), { target: { value: "grid" } });
     fireEvent.click(screen.getByText("Use Grid layout"));
     expect(run).toHaveBeenLastCalledWith("grid");
     expect(mockWorkspaceSessions).toHaveBeenCalledTimes(1);
@@ -636,7 +640,7 @@ describe("DashboardKeyboardController", () => {
       expect(mockRouterPush).toHaveBeenLastCalledWith(route);
     }
   });
-  it("opens the same palette from the search button event and Cmd+K, clearing the previous query", async () => {
+  it("opens the same palette without clearing an in-progress flow on repeated Cmd+K", async () => {
     const onSearchValueChange = vi.fn();
     const unregister = registerGlobalCommandPaletteSource({
       id: "unified",
@@ -648,6 +652,9 @@ describe("DashboardKeyboardController", () => {
       act(() => openGlobalCommandPalette());
       expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
       expect(onSearchValueChange).toHaveBeenLastCalledWith("");
+      act(() => registeredBindings.get("dashboard:command-palette")?.action(null, null));
+      expect(onSearchValueChange).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByText("Close search"));
       act(() => registeredBindings.get("dashboard:command-palette")?.action(null, null));
       expect(onSearchValueChange).toHaveBeenCalledTimes(2);
       expect(mockListWorkspaces).not.toHaveBeenCalled();

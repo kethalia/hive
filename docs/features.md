@@ -30,9 +30,9 @@ See [window management](window-management.md) for controls, shortcuts, limits an
 
 | Feature | Current behavior | Implementation / coverage |
 | --- | --- | --- |
-| One search | Cmd/Ctrl+K opens a Spotlight-style launcher with Terminals, Projects, Files, VS Code, Desktops, Hive tools, and commands. The header search button and mobile swipe open the same launcher. | `CommandPalette`; general-workspace-commands tests |
+| One search | Cmd/Ctrl+K opens a launcher with nested Terminal, Projects, Files, VS Code, Desktop, and command screens; Hive tools remain directly accessible. Back/Escape restores the parent query with a reverse slide; reduced motion is respected. The header search button and mobile swipe open the same launcher. | `CommandPalette`; general-workspace-commands tests |
 | Repository search | Literal query matching excludes unrelated repositories; repository terminals resolve current clone identity before connecting. | literal-repository-search checks; git-clones action tests |
-| Creation | New session heads Terminals and asks for a name and running Coder workspace. New project heads Projects and asks for a GitHub owner, repository, and running workspace before cloning and opening its terminal. | create-window-dialog; clone-project tests |
+| Creation | Create terminal and New project use inline command input steps, including a nested workspace picker, loading/error feedback and Enter to submit. No separate creation dialogs. | command-palette-creation; clone-project tests |
 | Native tools | Agents, Settings, Diagnostics, Logs, Templates, and Manage Coder workspaces open as movable, resizable canvas windows. Opening an existing target focuses its window across boards. | general-workspace-windows tests; browser checks |
 | Workspace apps | Files, VS Code and Desktop open inside the canvas when supported by the template. | general-workspace-pane tests; workspace-app-isolation browser suite |
 | Cached discovery | Shared, user-scoped workspace/agent/repository/session data, deduplicated requests and background refresh. Cached content remains usable during refresh. | discovery tests; workspace-discovery-cache checks |

@@ -3,6 +3,7 @@
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CommandPaletteAction } from "@/components/terminal/CommandPalette";
+import { useWindowCreationPages } from "@/hooks/useWindowCreationPages";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { discoveryOptions } from "@/lib/discovery/queries";
 import { isDiscoveryDenied } from "@/lib/discovery/types";
@@ -18,19 +19,25 @@ export function useGeneralWorkspaceCommands({
   onOpenPane,
   onError,
   onStart,
-  onCreate,
+  initialWorkspaceId,
   additionalActions,
 }: {
   workspaces: CoderWorkspace[];
   onOpenPane: (pane: GeneralPane) => void;
   onError: (message: string) => void;
   onStart: (workspaceId: string) => Promise<void>;
-  onCreate: (kind: "terminal" | "project") => void;
+  initialWorkspaceId?: string;
   additionalActions?: CommandPaletteAction[];
 }) {
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const { pages: creationPages, beginCreation } = useWindowCreationPages({
+    workspaces,
+    initialWorkspaceId,
+    open,
+    onOpenPane,
+  });
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [starting, setStarting] = useState<string | null>(null);
@@ -269,14 +276,14 @@ export function useGeneralWorkspaceCommands({
     return [
       {
         id: "new-terminal",
-        label: "New session",
+        label: "Create terminal",
         aliases: ["new terminal", "create terminal", "create session", "shell"],
-        description: "Name a terminal session and choose its Coder workspace",
+        description: "Open a named terminal session",
         group: "Terminals",
         value: "new session terminal",
         icon: "plus",
         disabled: busy,
-        onSelect: () => onCreate("terminal"),
+        onSelect: () => beginCreation("terminal"),
       },
       ...resultsByWorkspace.filter((action) => action.group === "Terminals"),
       {
@@ -288,7 +295,7 @@ export function useGeneralWorkspaceCommands({
         value: "new project clone github repository",
         icon: "plus",
         disabled: busy,
-        onSelect: () => onCreate("project"),
+        onSelect: () => beginCreation("project"),
       },
       ...resultsByWorkspace.filter((action) => action.group === "Projects"),
       ...resultsByWorkspace.filter(
@@ -302,11 +309,11 @@ export function useGeneralWorkspaceCommands({
     busy,
     run,
     onOpenPane,
-    onCreate,
     starting,
     startError,
     startWorkspace,
     retryWorkspace,
+    beginCreation,
   ]);
 
   useEffect(
@@ -314,6 +321,7 @@ export function useGeneralWorkspaceCommands({
       registerGlobalCommandPaletteSource({
         id: "general-workspace",
         handlesWorkspaces: true,
+        pages: creationPages,
         actions: [...actions, ...(additionalActions ?? [])],
         searchValue: query,
         onSearchValueChange: setQuery,
@@ -322,6 +330,6 @@ export function useGeneralWorkspaceCommands({
         emptyText: "No matching windows or commands.",
         loadingText: loading ? "Loading terminals and repositories…" : undefined,
       }),
-    [actions, query, loading, additionalActions],
+    [actions, query, loading, additionalActions, creationPages],
   );
 }
