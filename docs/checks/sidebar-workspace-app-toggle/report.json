@@ -1,0 +1,32 @@
+[
+  {
+    "width": 1440,
+    "oneButton": true,
+    "nameStatusChevronToggle": true,
+    "keyboardEnterSpace": true,
+    "ariaExpandedControls": true,
+    "terminalMounts": 1,
+    "noNavigationOnToggle": true,
+    "mobileSidebarStaysOpen": null,
+    "appOpensEmbedded": true,
+    "helperToggle": true,
+    "stoppedWorkspaceLink": true,
+    "terminalOnlyLink": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "oneButton": true,
+    "nameStatusChevronToggle": true,
+    "keyboardEnterSpace": true,
+    "ariaExpandedControls": true,
+    "terminalMounts": 1,
+    "noNavigationOnToggle": true,
+    "mobileSidebarStaysOpen": true,
+    "appOpensEmbedded": true,
+    "helperToggle": true,
+    "stoppedWorkspaceLink": true,
+    "terminalOnlyLink": true,
+    "errors": []
+  }
+]
