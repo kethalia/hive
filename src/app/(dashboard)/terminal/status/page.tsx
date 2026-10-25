@@ -1,12 +1,11 @@
-import { TerminalSessionStatusClient } from "@/components/workspaces/TerminalSessionStatusClient";
+import { redirect } from "next/navigation";
+import { hiveWindowHref } from "@/lib/workspaces/general-workspace";
 
-interface TerminalStatusPageProps {
+export default async function TerminalStatusPage({
+  searchParams,
+}: {
   searchParams?: Promise<{ workspaceId?: string }>;
-}
-
-export default async function TerminalStatusPage({ searchParams }: TerminalStatusPageProps) {
+}) {
   const params = await searchParams;
-  const highlightedWorkspaceId = params?.workspaceId;
-
-  return <TerminalSessionStatusClient highlightedWorkspaceId={highlightedWorkspaceId} />;
+  redirect(hiveWindowHref({ tool: "diagnostics", workspaceId: params?.workspaceId }));
 }

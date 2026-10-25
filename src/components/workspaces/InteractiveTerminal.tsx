@@ -1396,7 +1396,7 @@ function TerminalRuntime({
           ref={containerRef}
           className="h-full min-h-0 w-full"
           data-testid="terminal-fit-host"
-          data-sidebar-gesture-ignore={selectionModeEnabled ? "true" : undefined}
+          data-launcher-gesture-ignore={selectionModeEnabled ? "true" : undefined}
           data-terminal-touch-selection={
             mobileInputMode && !selectionModeEnabled ? "true" : undefined
           }

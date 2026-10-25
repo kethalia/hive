@@ -67,14 +67,6 @@ vi.mock("@/components/ui/card", () => ({
   CardTitle: ({ children }: React.PropsWithChildren) => <h3>{children}</h3>,
 }));
 
-vi.mock("@/components/ui/sidebar", () => ({
-  SidebarTrigger: ({ className }: { className?: string }) => (
-    <button type="button" className={className} data-testid="page-sidebar-trigger">
-      Toggle sidebar
-    </button>
-  ),
-}));
-
 vi.mock("lucide-react", () => ({
   ArrowLeft: () => <span>←</span>,
   RefreshCw: () => <span data-testid="refresh-icon">RefreshCw</span>,
@@ -229,10 +221,10 @@ describe("TemplateDetailClient", () => {
     expect(screen.queryByRole("link", { name: /templates/i })).not.toBeInTheDocument();
   });
 
-  it("renders the shared dashboard page navbar", () => {
+  it("renders the template header without sidebar controls", () => {
     render(<TemplateDetailClient status={makeStatus()} />);
 
-    expect(screen.getByTestId("page-sidebar-trigger")).toBeInTheDocument();
+    expect(screen.queryByTestId("page-sidebar-trigger")).not.toBeInTheDocument();
     expect(screen.getByRole("banner")).toHaveAttribute("data-dashboard-page-nav");
   });
 

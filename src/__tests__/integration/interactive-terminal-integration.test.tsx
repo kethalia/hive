@@ -246,18 +246,6 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(navigationState.search),
 }));
 
-vi.mock("@/components/ui/sidebar", () => ({
-  SidebarTrigger: ({ className }: { className?: string }) => (
-    <button type="button" className={className} data-testid="workspace-sidebar-trigger">
-      Toggle sidebar
-    </button>
-  ),
-  useSidebar: () => ({
-    openMobileRight: false,
-    setOpenMobileRight: vi.fn(),
-  }),
-}));
-
 vi.mock("@/lib/actions/workspaces", () => ({
   createSessionAction: mockCreateSessionAction,
   getWorkspaceAgentAction: mockGetWorkspaceAgentAction,
@@ -2446,7 +2434,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
   it("keeps selection mode passive so native text selection wins over keyboard, scroll, and sidebar gestures", async () => {
     const { container, rerender, unmount } = await renderTerminal({ mobileInputMode: true });
     expect(container.querySelector('[data-testid="terminal-fit-host"]')).not.toHaveAttribute(
-      "data-sidebar-gesture-ignore",
+      "data-launcher-gesture-ignore",
     );
     const terminal = terminalInstances.at(-1);
     expect(terminal).toBeDefined();
@@ -2471,7 +2459,7 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
     await flushTerminalEffects();
 
     const inputTarget = container.querySelector('[data-testid="terminal-fit-host"]');
-    expect(inputTarget).toHaveAttribute("data-sidebar-gesture-ignore", "true");
+    expect(inputTarget).toHaveAttribute("data-launcher-gesture-ignore", "true");
     expect(inputTarget).toHaveAttribute("data-terminal-selection-mode", "true");
     expect(inputTarget).toHaveAttribute("data-terminal-native-selection", "true");
     expect(inputTarget).not.toHaveAttribute("data-terminal-touch-selection");

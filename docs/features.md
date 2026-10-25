@@ -9,11 +9,10 @@ corresponding regression coverage whenever a feature changes or moves. Historica
 | Feature | Current behavior | Implementation / coverage |
 | --- | --- | --- |
 | General workspace | `/workspaces` is the only working canvas. Windows can come from any authorized Coder workspace. | `GeneralWorkspace`; general-workspace tests |
-| Boards | Up to nine saved arrangements within Hive; not Coder environments. Create, select, and close boards. Closing releases clients, not tmux sessions. | `WorkspaceBoardBar`; window-management browser checks |
-| Windows | Up to 32 terminal/app windows across boards. Window identity remains stable when moving between boards. | `general-workspace`; `WindowCanvas` |
+| Boards | Up to nine saved arrangements, labeled workspaces in search/help; not Coder environments. Move windows to previous/next workspaces, create, select, and close. Closing releases clients, not tmux sessions; the last workspace resets to empty. | `WorkspaceBoardBar`; window-management browser checks |
+| Windows | Up to 32 terminal/app/tool windows across boards. Window identity remains stable when moving between boards. | `general-workspace`; `WindowCanvas` |
 | Grid | Binary splits with saved proportions and adjustable dividers. Overflow scrolls when minimum pane sizes cannot fit. | `workspace-window-layout`; window-manager tests |
 | Strip | Horizontal columns retain their widths; focus reveals the selected column. Two-finger horizontal scrolling and Shift+wheel navigate without a bottom slider. | `window-manager`; browser checks |
-| Sidebar | Navigation overlays the canvas without moving or resizing windows. Toggle it, click outside, or press Escape to close it. | `Sidebar`; browser geometry checks |
 | Resizing | Pointer capture, keyboard-adjustable separators, minimum sizes, reset by double-click, and persisted dimensions. Floating windows have width/height edge handles. | `WindowResizeHandle`; browser checks |
 | Drag rearrangement | A destination border and live neighboring-pane preview appear before drop. Escape/cancel restores the original layout. | `WindowCanvas`; browser checks |
 | Stacks and tabs | Strip columns can stack windows vertically or display one tab at a time. Hidden tabs remain mounted. | window-manager tests; browser checks |
@@ -23,7 +22,7 @@ corresponding regression coverage whenever a feature changes or moves. Historica
 | Persistence | Browser-local, user-scoped pane descriptors and layout preferences. No app authentication URLs, agent IDs, or clone proofs are stored. | general-workspace tests |
 | Session continuity | Mode changes, resizing, tabbing, pinning and board moves keep the same terminal/iframe instances. Explicit reconnect and Coder rebuilds request fresh authorization. | pane tests; browser continuity checks |
 | Mobile | One focused window at a time, horizontally scrollable pane selectors, touch terminal controls, keyboard viewport accommodation, safe areas. Desktop geometry remains saved. | `GeneralWorkspaceMobileControls`; mobile browser checks |
-| Motion | Geometry transitions and animated drop previews; sidebar collapsibles use Base UI's measured height. Reduced-motion preferences disable transitions. | `WorkspaceWindow`; `Collapsible`; browser checks |
+| Motion | Geometry transitions and animated drop previews; collapsibles use Base UI's measured height. Reduced-motion preferences disable transitions. | `WorkspaceWindow`; `Collapsible`; browser checks |
 
 See [window management](window-management.md) for controls, shortcuts, limits and migration details.
 
@@ -31,12 +30,13 @@ See [window management](window-management.md) for controls, shortcuts, limits an
 
 | Feature | Current behavior | Implementation / coverage |
 | --- | --- | --- |
-| One search | Cmd/Ctrl+K searches commands, terminal sessions, repositories, workspace apps and new named terminals directly. | `CommandPalette`; general-workspace-commands tests |
+| One search | Cmd/Ctrl+K opens a Spotlight-style launcher with Terminals, Projects, Files, VS Code, Desktops, Hive tools, and commands. The header search button and mobile swipe open the same launcher. | `CommandPalette`; general-workspace-commands tests |
 | Repository search | Literal query matching excludes unrelated repositories; repository terminals resolve current clone identity before connecting. | literal-repository-search checks; git-clones action tests |
-| Sidebar | One Workspace link; persistent Coder Workspaces and Helpers are separate groups. A workspace row toggles its app list. | sidebar-workspace-app-toggle checks |
+| Creation | New session heads Terminals and asks for a name and running Coder workspace. New project heads Projects and asks for a GitHub owner, repository, and running workspace before cloning and opening its terminal. | create-window-dialog; clone-project tests |
+| Native tools | Agents, Settings, Diagnostics, Logs, Templates, and Manage Coder workspaces open as movable, resizable canvas windows. Opening an existing target focuses its window across boards. | general-workspace-windows tests; browser checks |
 | Workspace apps | Files, VS Code and Desktop open inside the canvas when supported by the template. | general-workspace-pane tests; workspace-app-isolation browser suite |
 | Cached discovery | Shared, user-scoped workspace/agent/repository/session data, deduplicated requests and background refresh. Cached content remains usable during refresh. | discovery tests; workspace-discovery-cache checks |
-| Loading/error feedback | Initial discovery, app connection and lazy dialogs have local loading states. Errors and explicit retry do not blank the whole canvas. | general-workspace-dialogs tests; terminal-workspace-feedback checks |
+| Loading/error feedback | Initial discovery, app connection and lazy tool windows have local loading states. Errors and explicit retry do not blank the whole canvas. | general-workspace-windows tests; terminal-workspace-feedback checks |
 | Tooltips | Fixed width, wrapping description above a separate right-aligned shortcut footer. | `ShortcutTooltip`; unified-workspace-search checks |
 
 ## Terminal, files and agent workflows
@@ -52,7 +52,7 @@ See [window management](window-management.md) for controls, shortcuts, limits an
 | Session logs | Pane actions open sanitized session event logs; Diagnostics provides broader connection status. | `TerminalSessionEventLog`; terminal-status tests |
 | Audio and microphone | Per-pane controls, microphone consent, active-pane ownership and “Go to pane” audio notifications. | [browser voice](terminal/codex-browser-voice.md); audio/consent checks |
 | Touch selection | Native selection and terminal input controls cooperate without hijacking page scrolling. | [touch selection](terminal/touch-selection.md) |
-| Agent tools | Inspect installed/configured agent tools and resume supported conversations from a Coder workspace. | [agent tools](agent-tools.md) |
+| Agent tools | Resume recent conversations, switch Coder workspaces, and expand setup/integration details when needed. | [agent tools](agent-tools.md) |
 | Multiple CLIs/models | Workspace tooling supports Codex, Claude and configured open-model clients. Hive does not merge their conversation state. | [workspace agents](workspace-agents.md) |
 | Agent notifications | Questions, approvals, completion and failure alerts; click focuses an existing window across all boards, or opens the missing target on a new/unused board. | notification-window tests; push tests |
 | Notification preferences | Settings, push subscriptions, foreground audio, background OS alerts and notification history. | [notifications](agent-notifications.md) |
@@ -60,7 +60,7 @@ See [window management](window-management.md) for controls, shortcuts, limits an
 ## Administration and boundaries
 
 - Coder workspace launch, start, stop, delete, health and template management remain in the management
-  dialog and Templates pages. Those operations affect Coder environments; closing a Hive board does not.
+  and Templates windows. Those operations affect Coder environments; closing a Hive board does not.
 - Template capabilities determine which apps/tools are offered. Software, browser, infrastructure,
   game and electronics profiles remain distinct. See [template profiles](workspace-template-profiles.md).
 - Disposable helper lifecycle, idle stop and completed-task cleanup follow the documented template
@@ -68,7 +68,7 @@ See [window management](window-management.md) for controls, shortcuts, limits an
 - Authentication, per-user Coder authorization, app origin isolation, terminal proofs and API access
   remain enforced. Layout operations are local UI changes and do not relax these boundaries.
 - Settings, Diagnostics, app-update handling, installation/PWA behavior and notification history
-  remain available independently of the canvas. See [deployment](deployment.md).
+  are available in canvas windows through search. Settings also contains account sign-out and Open Coder. See [deployment](deployment.md).
 
 ## Migration audit
 
@@ -78,11 +78,11 @@ See [window management](window-management.md) for controls, shortcuts, limits an
 | Pane focus and movement shortcuts | Restored through the central layout action definitions. |
 | Numbered board navigation and creation/closing | Restored; browser-safe alternatives documented. |
 | Key repeat suppression | Fixed: the registration hook now preserves `allowRepeat`. |
-| Sidebar expand/collapse animation | Fixed: uses Base UI height variables, not Radix variables. |
+| Sidebar and its shortcuts | Removed. Cmd/Ctrl+K provides navigation and launches windows. |
 | Pane session logs / Desktop action | Available from the general terminal pane. |
 | Notifications and audio “Go to pane” | Migrated to existing-window focus or new-board creation. |
 | Per-workspace terminal pages and clients | Removed, including old tab manager, multi-session renderer, navigation hooks and unused layout engines. |
-| Repository/session sidebar sections, second search and all-workspaces page | Intentionally retired; use the unified search and management dialog. |
+| Repository/session sidebar sections, second search and all-workspaces page | Intentionally retired; use the grouped launcher and management window. |
 | Old saved local layouts | Only a bounded read-only import remains for users without a general layout. It imports safe descriptors, never old runtime code or credentials. |
 | Old URLs | Redirect-only compatibility for bookmarks/delivered notifications; no legacy pages or clients remain behind them. |
 

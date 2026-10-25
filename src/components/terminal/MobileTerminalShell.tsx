@@ -24,18 +24,8 @@ interface MobileTerminalShellProps {
   stopKeyboardPropagation?: boolean;
 }
 
-const SIDEBAR_SCROLL_ALLOW_SELECTOR = [
-  '[data-sidebar="sidebar"]',
-  '[data-sidebar="content"]',
-  '[data-slot="sidebar-mobile-inner"]',
-  '[data-slot="sidebar-content"]',
-  '[data-mobile-scroll-allow="true"]',
-].join(", ");
-
-function isSidebarScrollTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-
-  return target.closest(SIDEBAR_SCROLL_ALLOW_SELECTOR) !== null;
+function isScrollableTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[data-mobile-scroll-allow="true"]') !== null;
 }
 
 function useMobileTerminalViewportLock(isKeyboardVisible: boolean) {
@@ -44,7 +34,7 @@ function useMobileTerminalViewportLock(isKeyboardVisible: boolean) {
 
     const snapshot = applyMobileViewportLock(document, isKeyboardVisible);
     const blockPageScroll = (event: Event) => {
-      if (isSidebarScrollTarget(event.target)) return;
+      if (isScrollableTarget(event.target)) return;
       // Terminal gestures handle scrolling themselves and must retain native selection.
       if (
         event.type === "touchmove" &&

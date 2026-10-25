@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface TerminalSessionEventLogProps {
+  visible?: boolean;
   workspaceId?: string;
   sessionName?: string;
   className?: string;
@@ -232,6 +233,7 @@ function useEventPolling(paused: boolean, refresh: (replace?: boolean) => Promis
 
 function useSessionEventLog(
   endpoint: string | null,
+  visible: boolean,
   workspaceId?: string,
   sessionName?: string,
 ): SessionEventLogState {
@@ -266,7 +268,7 @@ function useSessionEventLog(
     lastEventIdRef,
     setEvents,
   );
-  useEventPolling(paused, refresh);
+  useEventPolling(paused || !visible, refresh);
 
   return { events, paused, setPaused, error, lastUpdatedAt, refresh };
 }
@@ -383,6 +385,7 @@ function SessionEventLogFooter({
 }
 
 export function TerminalSessionEventLog({
+  visible = true,
   workspaceId,
   sessionName,
   className,
@@ -395,6 +398,7 @@ export function TerminalSessionEventLog({
   );
   const { events, paused, setPaused, error, lastUpdatedAt, refresh } = useSessionEventLog(
     endpoint,
+    visible,
     workspaceId,
     sessionName,
   );

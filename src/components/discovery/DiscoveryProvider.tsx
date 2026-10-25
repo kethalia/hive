@@ -19,11 +19,11 @@ function DiscoveryEvents() {
       void client.invalidateQueries({ queryKey: ["discovery", "sessions", workspaceId] });
       void client.invalidateQueries({ queryKey: ["discovery", "agent-tools", workspaceId] });
     };
-    window.addEventListener("hive:sidebar-refresh", refresh);
+    window.addEventListener("hive:discovery-refresh", refresh);
     window.addEventListener("hive:discovery-clear", clear);
     window.addEventListener("hive:terminal-session-forget", sessions);
     return () => {
-      window.removeEventListener("hive:sidebar-refresh", refresh);
+      window.removeEventListener("hive:discovery-refresh", refresh);
       window.removeEventListener("hive:discovery-clear", clear);
       window.removeEventListener("hive:terminal-session-forget", sessions);
     };

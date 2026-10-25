@@ -1,9 +1,9 @@
 "use client";
 
 import { AlertCircle } from "lucide-react";
-import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useKeepAliveStatus } from "@/hooks/useKeepAliveStatus";
+import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
 
 interface KeepAliveWarningProps {
   workspaceId: string;
@@ -28,12 +28,13 @@ export function KeepAliveWarning({ workspaceId }: KeepAliveWarningProps) {
         Keep-alive service cannot reach Coder API ({consecutiveFailures} consecutive failures
         {statusLabel ? `, ${statusLabel}` : ""}). Your workspace may auto-stop if this continues.
         {diagnostic ? <span className="ml-1">{diagnostic}</span> : null}
-        <Link
+        <button
+          type="button"
           className="ml-2 underline underline-offset-2"
-          href={`/terminal/status?workspaceId=${encodeURIComponent(workspaceId)}`}
+          onClick={() => requestHiveWindow({ tool: "diagnostics", workspaceId })}
         >
           View terminal status
-        </Link>
+        </button>
       </AlertDescription>
     </Alert>
   );

@@ -3,16 +3,9 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import type { Terminal } from "@xterm/xterm";
 import dynamic from "next/dynamic";
-import { type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
 import {
   type WorkspacePaneAction,
@@ -38,10 +31,8 @@ import type {
   GeneralWindow,
   GeneralWorkspaceTool,
 } from "@/lib/workspaces/general-workspace";
+import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
 
-const TerminalSessionEventLog = dynamic(() =>
-  import("./TerminalSessionEventLog").then((m) => m.TerminalSessionEventLog),
-);
 const InteractiveTerminal = dynamic(
   () => import("./InteractiveTerminal").then((m) => m.InteractiveTerminal),
   { ssr: false },
@@ -56,7 +47,7 @@ interface Connection {
   error?: string;
 }
 interface Props {
-  pane: GeneralWindow;
+  pane: Exclude<GeneralWindow, { kind: "hive" }>;
   workspace?: CoderWorkspace;
   boardKey: string;
   active: boolean;
@@ -89,9 +80,25 @@ export function GeneralWorkspacePane({
   onDestroy,
   onStart,
 }: Props) {
+  const appFrame = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    // Cross-origin iframe clicks move focus out of this document. Hover alone must
+    // not steal the selected window when a launcher closes or tiles rearrange.
+    let frame = 0;
+    const activateFocusedApp = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (appFrame.current && document.activeElement === appFrame.current) onActivate();
+      });
+    };
+    window.addEventListener("blur", activateFocusedApp);
+    return () => {
+      window.removeEventListener("blur", activateFocusedApp);
+      cancelAnimationFrame(frame);
+    };
+  }, [onActivate]);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [retry, setRetry] = useState(0);
-  const [logsOpen, setLogsOpen] = useState(false);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const fileRequestGeneration = useRef(0);
   // A closed or reconnected source pane must not open a late file response.
@@ -114,7 +121,7 @@ export function GeneralWorkspacePane({
     { enabled: running && pane.kind === "terminal" },
   );
   // Disabled queries still observe shared cache updates. App frames must not reconnect
-  // when a terminal or sidebar consumer discovers or refreshes this workspace's agent.
+  // when a terminal or another consumer discovers or refreshes this workspace's agent.
   const agentId = pane.kind === "terminal" ? agentQuery.data?.agentId : undefined;
   const agentStatus = pane.kind === "terminal" ? agentQuery.data?.agentStatus : undefined;
   const agentPending = pane.kind === "terminal" && agentQuery.isPending;
@@ -258,7 +265,12 @@ export function GeneralWorkspacePane({
             id: "logs",
             icon: "logs" as const,
             label: "Session logs",
-            onSelect: () => setLogsOpen(true),
+            onSelect: () =>
+              requestHiveWindow({
+                tool: "logs",
+                workspaceId: pane.workspaceId,
+                sessionName: connection?.sessionName,
+              }),
           },
         ]
       : []),
@@ -337,13 +349,13 @@ export function GeneralWorkspacePane({
   } else if (pane.kind === "app" && connection?.url) {
     content = (
       <iframe
+        ref={appFrame}
         src={connection.url}
         title={`${pane.label} · ${workspace.name}`}
         className="h-full w-full border-0"
         allow={WORKSPACE_APP_FRAME_ALLOW}
         sandbox={WORKSPACE_APP_FRAME_SANDBOX}
         referrerPolicy="no-referrer"
-        onPointerEnter={onActivate}
         onFocus={onActivate}
         data-testid={`general-app-${pane.tool}`}
       />
@@ -409,25 +421,6 @@ export function GeneralWorkspacePane({
           {content}
         </div>
       </TerminalSessionFrame>
-      {logsOpen ? (
-        <Dialog open onOpenChange={setLogsOpen}>
-          <DialogContent className="h-[70dvh] sm:max-w-3xl flex flex-col">
-            <DialogHeader>
-              <DialogTitle>Session logs</DialogTitle>
-              <DialogDescription>
-                {pane.label} · {workspace?.name}
-              </DialogDescription>
-            </DialogHeader>
-            <Suspense fallback={<p role="status">Loading session logs…</p>}>
-              <TerminalSessionEventLog
-                workspaceId={pane.workspaceId}
-                sessionName={connection?.sessionName}
-                className="min-h-0 flex-1"
-              />
-            </Suspense>
-          </DialogContent>
-        </Dialog>
-      ) : null}
       <WorkspacePaneActionSheet
         actions={actions}
         anchor={anchor}

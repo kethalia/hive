@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  isSidebarGestureIgnoredTarget,
+  isLauncherGestureIgnoredTarget,
   resolveHorizontalSwipe,
 } from "@/lib/gestures/horizontal-swipe";
 
@@ -40,8 +40,8 @@ describe("resolveHorizontalSwipe", () => {
     const dialogChild = document.createElement("button");
     dialog.append(dialogChild);
 
-    expect(isSidebarGestureIgnoredTarget(scrollerChild)).toBe(true);
-    expect(isSidebarGestureIgnoredTarget(dialogChild)).toBe(true);
+    expect(isLauncherGestureIgnoredTarget(scrollerChild)).toBe(true);
+    expect(isLauncherGestureIgnoredTarget(dialogChild)).toBe(true);
   });
 
   it("reserves editable controls for selection and cursor gestures", () => {
@@ -55,34 +55,21 @@ describe("resolveHorizontalSwipe", () => {
     const disabledEditor = document.createElement("div");
     disabledEditor.setAttribute("contenteditable", "false");
 
-    expect(isSidebarGestureIgnoredTarget(input)).toBe(true);
-    expect(isSidebarGestureIgnoredTarget(textarea)).toBe(true);
-    expect(isSidebarGestureIgnoredTarget(select)).toBe(true);
-    expect(isSidebarGestureIgnoredTarget(editorChild)).toBe(true);
-    expect(isSidebarGestureIgnoredTarget(disabledEditor)).toBe(false);
+    expect(isLauncherGestureIgnoredTarget(input)).toBe(true);
+    expect(isLauncherGestureIgnoredTarget(textarea)).toBe(true);
+    expect(isLauncherGestureIgnoredTarget(select)).toBe(true);
+    expect(isLauncherGestureIgnoredTarget(editorChild)).toBe(true);
+    expect(isLauncherGestureIgnoredTarget(disabledEditor)).toBe(false);
   });
 
   it("reserves an active terminal touch selection while allowing ordinary terminal swipes", () => {
     const terminal = document.createElement("div");
     const row = document.createElement("span");
     terminal.append(row);
-    expect(isSidebarGestureIgnoredTarget(row)).toBe(false);
+    expect(isLauncherGestureIgnoredTarget(row)).toBe(false);
     terminal.dataset.terminalTouchSelecting = "true";
-    expect(isSidebarGestureIgnoredTarget(row)).toBe(true);
+    expect(isLauncherGestureIgnoredTarget(row)).toBe(true);
     delete terminal.dataset.terminalTouchSelecting;
-    expect(isSidebarGestureIgnoredTarget(row)).toBe(false);
-  });
-
-  it("allows coordinated mobile sidebars to replace one another", () => {
-    const dialog = document.createElement("div");
-    dialog.setAttribute("role", "dialog");
-    const sidebar = document.createElement("aside");
-    sidebar.dataset.sidebar = "sidebar";
-    sidebar.dataset.mobile = "true";
-    const sidebarChild = document.createElement("button");
-    sidebar.append(sidebarChild);
-    dialog.append(sidebar);
-
-    expect(isSidebarGestureIgnoredTarget(sidebarChild)).toBe(false);
+    expect(isLauncherGestureIgnoredTarget(row)).toBe(false);
   });
 });

@@ -77,7 +77,7 @@ describe("general workspace search", () => {
       onOpenPane: vi.fn(),
       onError: vi.fn(),
       onStart: vi.fn().mockResolvedValue(undefined),
-      onAgents: vi.fn(),
+      onCreate: vi.fn(),
     };
     const hook = renderHook(
       (value) => {
@@ -93,7 +93,7 @@ describe("general workspace search", () => {
     await waitFor(() => expect(action("session:software:main")).toBeDefined());
   }
   it("discovers running workspaces when search opens, without refetching on each query or poll", async () => {
-    const { rerender, onOpenPane, onError, onStart, onAgents } = setup();
+    const { rerender, onOpenPane, onError, onStart, onCreate } = setup();
     expect(mocks.sessions).not.toHaveBeenCalled();
     await open();
     expect(mocks.sessions.mock.calls).toEqual([
@@ -101,30 +101,29 @@ describe("general workspace search", () => {
       [{ workspaceId: "software" }],
     ]);
     search("hive");
-    rerender({ workspaces: structuredClone(workspaces), onOpenPane, onError, onStart, onAgents });
+    rerender({ workspaces: structuredClone(workspaces), onOpenPane, onError, onStart, onCreate });
     expect(mocks.sessions).toHaveBeenCalledTimes(2);
     expect(action("new-terminal:infra")).toBeUndefined();
   });
-  it("creates the typed name in the chosen workspace, and resumes existing names", async () => {
-    const { onOpenPane } = setup();
+  it("offers one creation action first in each group and opens existing sessions directly", async () => {
+    const { onCreate, onOpenPane } = setup();
     await open();
-    search(" test-runner ");
-    expect(action("new-terminal:browser").description).toBe("browser-testing");
-    await act(async () => action("new-terminal:browser").onSelect());
-    expect(mocks.create).toHaveBeenCalledWith({
-      workspaceId: "browser",
-      sessionName: "test-runner",
-    });
+    const terminals = source().actions!.filter((a) => a.group === "Terminals");
+    const projects = source().actions!.filter((a) => a.group === "Projects");
+    expect(terminals[0].label).toBe("New session");
+    expect(projects[0].label).toBe("New project");
+    act(() => terminals[0].onSelect());
+    expect(onCreate).toHaveBeenCalledWith("terminal");
+    act(() => projects[0].onSelect());
+    expect(onCreate).toHaveBeenCalledWith("project");
+    expect(mocks.create).not.toHaveBeenCalled();
+    act(() => action("session:software:main").onSelect());
     expect(onOpenPane).toHaveBeenCalledWith({
       kind: "terminal",
-      workspaceId: "browser",
-      sessionName: "test-runner",
-      label: "test-runner",
+      workspaceId: "software",
+      sessionName: "main",
+      label: "main",
     });
-    search("main");
-    expect(action("new-terminal:software")).toBeUndefined();
-    act(() => action("session:software:main").onSelect());
-    expect(mocks.create).toHaveBeenCalledTimes(1);
   });
   it("only offers repositories whose name or path contains the query, ignoring case and surrounding spaces", async () => {
     const names = [
@@ -147,7 +146,7 @@ describe("general workspace search", () => {
     setup();
     await open();
     const visibleRepositories = () =>
-      source().actions!.filter((item) => item.group === "Repositories");
+      source().actions!.filter((item) => item.group === "Projects" && item.id !== "new-project");
     expect(visibleRepositories()).toHaveLength(names.length * 2);
 
     search(" HIVE ");
@@ -163,21 +162,10 @@ describe("general workspace search", () => {
     expect(visibleRepositories()).toEqual([]);
     search("no-such-repository");
     expect(visibleRepositories()).toEqual([]);
-    expect(action("new-terminal:software").label).toBe("New terminal “no-such-repository”");
+    expect(action("new-terminal").label).toBe("New session");
     search("");
     expect(visibleRepositories()).toHaveLength(names.length * 2);
     expect(mocks.clones).toHaveBeenCalledTimes(2);
-  });
-  it.each([
-    "bad name",
-    "bad/name",
-    "git-clone-reserved",
-  ])("disables invalid or reserved names: %s", async (name) => {
-    setup();
-    await open();
-    search(name);
-    expect(action("new-terminal:software").disabled).toBe(true);
-    expect(mocks.create).not.toHaveBeenCalled();
   });
   it("opens repository terminals with clone identity, without persisting credentials", async () => {
     const { onOpenPane } = setup();
@@ -276,7 +264,7 @@ describe("general workspace search", () => {
     expect(action(sessionId)).toBeDefined();
   });
   it("exposes supported apps immediately and opens them in their own workspace", () => {
-    const { onOpenPane, onAgents, onStart } = setup();
+    const { onOpenPane, onStart } = setup();
     expect(source().handlesWorkspaces).toBe(true);
     expect(action("app:software:desktop")).toBeUndefined();
     expect(action("app:browser:code")).toBeUndefined();
@@ -288,8 +276,6 @@ describe("general workspace search", () => {
       act(() => action(`app:${workspaceId}:${tool}`).onSelect());
       expect(onOpenPane).toHaveBeenLastCalledWith({ kind: "app", workspaceId, tool, label });
     }
-    act(() => action("agents:browser").onSelect());
-    expect(onAgents).toHaveBeenCalledWith("browser");
     expect(onStart).not.toHaveBeenCalled();
     expect(mocks.sessions).not.toHaveBeenCalled();
   });
@@ -321,10 +307,10 @@ describe("general workspace search", () => {
     act(() => source().onOpenChange!(true));
     await waitFor(() => expect(source().loadingText).toBeUndefined());
     expect(source().actions!.some((item) => item.id.startsWith("retry-terminals:"))).toBe(false);
-    expect(action("new-terminal:browser")).toBeDefined();
+    expect(action("new-terminal")).toBeDefined();
   });
   it("only starts a stopped workspace when selected, keeps search open, then discovers its terminals", async () => {
-    const { rerender, onStart, onOpenPane, onError, onAgents } = setup();
+    const { rerender, onStart, onOpenPane, onError, onCreate } = setup();
     await open();
     expect(onStart).not.toHaveBeenCalled();
     const start = action("start-workspace:infra");
@@ -341,7 +327,7 @@ describe("general workspace search", () => {
       onStart,
       onOpenPane,
       onError,
-      onAgents,
+      onCreate,
     });
     await waitFor(() => expect(action("session:infra:main")).toBeDefined());
     expect(action("start-workspace:infra")).toBeUndefined();
@@ -373,7 +359,7 @@ describe("general workspace search", () => {
           finish = resolve;
         }),
     );
-    const { rerender, onOpenPane, onError, onStart, onAgents } = setup();
+    const { rerender, onOpenPane, onError, onStart, onCreate } = setup();
     await open();
     rerender({
       workspaces: workspaces.map((w) =>
@@ -382,7 +368,7 @@ describe("general workspace search", () => {
       onOpenPane,
       onError,
       onStart,
-      onAgents,
+      onCreate,
     });
     await waitFor(() => expect(action("session:browser:main")).toBeDefined());
     await act(async () => finish({ data: [{ name: "stale" }] }));

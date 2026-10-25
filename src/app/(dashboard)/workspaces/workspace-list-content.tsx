@@ -58,6 +58,8 @@ interface WorkspaceListContentProps {
   workspaces: CoderWorkspace[];
   error?: string | null;
   launchOnMount?: boolean;
+  launchRequest?: number;
+  visible?: boolean;
   embedded?: boolean;
 }
 
@@ -286,12 +288,17 @@ export function WorkspaceListContent({
   workspaces,
   error,
   launchOnMount = false,
+  launchRequest = 0,
+  visible = true,
   embedded = false,
 }: WorkspaceListContentProps) {
   const hasError = Boolean(error);
   const router = useRouter();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(launchOnMount);
+  useEffect(() => {
+    if (launchRequest) setCreateOpen(true);
+  }, [launchRequest]);
   const templateQuery = useDiscovery("template-options", {}, { enabled: createOpen });
   const templates = useMemo(
     () => (templateQuery.data ?? []).filter(isWorkspaceTemplateOption),
@@ -340,6 +347,7 @@ export function WorkspaceListContent({
     id: "workspace:create",
     keys: [...CREATE_WORKSPACE_SHORTCUT_KEYS],
     action: () => {
+      if (!visible) return true;
       openCreateDialog();
       return false;
     },
@@ -471,7 +479,7 @@ export function WorkspaceListContent({
     </Button>
   );
   return (
-    <DashboardPageShell className={embedded ? "min-w-0 px-0 sm:px-0 lg:px-0" : undefined}>
+    <DashboardPageShell className={embedded ? "min-w-0 p-4 sm:px-4 lg:px-4" : undefined}>
       {embedded ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">{workspaces.length} Coder workspaces</p>

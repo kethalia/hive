@@ -3,7 +3,7 @@ import { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
 import {
   emptyGeneralWorkspace,
   type GeneralBoard,
-  moveGeneralWindowToNextBoard,
+  moveGeneralWindowToAdjacentBoard,
   parseGeneralWorkspace,
 } from "@/lib/workspaces/general-workspace";
 import { openNotificationWindow } from "@/lib/workspaces/notification-window";
@@ -61,7 +61,9 @@ describe("window layouts", () => {
     const next = applyWindowAction(b, "equalize", 1000, 800);
     expect(next.layout).toMatchObject({ ratio: 0.5 });
   });
-  it("moves a pane without duplicating a target that already exists on the next board", () => {
+  it.each([
+    -1, 1,
+  ] as const)("preserves both clients when moving %s to an existing target", (direction) => {
     const source = board();
     const target = {
       ...board(),
@@ -74,13 +76,53 @@ describe("window layouts", () => {
       activeBoardKey: source.key,
       boards: [source, target],
     };
-    const next = moveGeneralWindowToNextBoard(state, "unused");
+    const next = moveGeneralWindowToAdjacentBoard(state, "unused", direction);
     expect(next.activeBoardKey).toBe("other");
     expect(next.boards[0].windows).toBe(source.windows);
     expect(next.boards[1].windows).toBe(target.windows);
     expect(
       parseGeneralWorkspace(JSON.stringify(next))?.boards.map((b) => b.windows.length),
     ).toEqual([3, 1]);
+  });
+  it.each([
+    -1, 1,
+  ] as const)("moves %s across three boards and wraps without changing pane identity", (direction) => {
+    const source = board();
+    const others: GeneralBoard[] = ["second", "third"].map((key, index) => ({
+      key,
+      name: key,
+      order: index + 1,
+      windows: [],
+    }));
+    const initial = {
+      ...emptyGeneralWorkspace(),
+      activeBoardKey: source.key,
+      boards: [source, ...others],
+    };
+    let current = initial;
+    const destinations =
+      direction === 1 ? ["second", "third", "main"] : ["third", "second", "main"];
+    for (const key of destinations) {
+      current = moveGeneralWindowToAdjacentBoard(current, "unused", direction);
+      expect(current.activeBoardKey).toBe(key);
+      const target = current.boards.find((b) => b.key === key)!;
+      expect(target.activeWindowId).toBe("a");
+      expect(target.windows.find((w) => w.id === "a")).toBe(source.windows[0]);
+      expect(current.boards.flatMap((b) => b.windows).filter((w) => w.id === "a")).toHaveLength(1);
+    }
+    expect(initial.boards[0].windows).toHaveLength(3);
+  });
+  it.each([
+    -1, 1,
+  ] as const)("creates one destination for a sole board when moving %s", (direction) => {
+    const source = board();
+    const initial = { ...emptyGeneralWorkspace(), activeBoardKey: source.key, boards: [source] };
+    const moved = moveGeneralWindowToAdjacentBoard(initial, "new-board", direction);
+    expect(moved.boards).toHaveLength(2);
+    expect(moved.activeBoardKey).toBe("new-board");
+    expect(moved.boards[1].windows).toEqual([source.windows[0]]);
+    const empty = emptyGeneralWorkspace();
+    expect(moveGeneralWindowToAdjacentBoard(empty, "unused", direction)).toBe(empty);
   });
   it("preserves old grids and validates persisted dimensions without losing windows", () => {
     const state = emptyGeneralWorkspace();

@@ -6,15 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KeybindingEntry } from "@/hooks/useKeybindings";
 
 const mockRouterPush = vi.hoisted(() => vi.fn());
-const mockToggleSidebar = vi.hoisted(() => vi.fn());
-const mockSetOpen = vi.hoisted(() => vi.fn());
-const mockSetOpenMobile = vi.hoisted(() => vi.fn());
-const mockSetOpenMobileRight = vi.hoisted(() => vi.fn());
 const mockUseGlobalCommandPaletteGesture = vi.hoisted(() => vi.fn());
 const mobileState = vi.hoisted(() => ({
   isMobile: false,
-  openMobile: false,
-  openMobileRight: false,
 }));
 const mockListWorkspaces = vi.hoisted(() => vi.fn());
 const mockWorkspaceSessions = vi.hoisted(() => vi.fn());
@@ -26,17 +20,7 @@ vi.mock("sonner", () => ({ toast: { error: mockToastError } }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush }),
-}));
-
-vi.mock("@/components/ui/sidebar", () => ({
-  useSidebar: () => ({
-    openMobile: mobileState.openMobile,
-    setOpen: mockSetOpen,
-    setOpenMobile: mockSetOpenMobile,
-    openMobileRight: mobileState.openMobileRight,
-    setOpenMobileRight: mockSetOpenMobileRight,
-    toggleSidebar: mockToggleSidebar,
-  }),
+  usePathname: () => "/templates",
 }));
 
 vi.mock("@/hooks/useGlobalCommandPaletteGesture", () => ({
@@ -176,8 +160,6 @@ describe("DashboardKeyboardController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mobileState.isMobile = false;
-    mobileState.openMobile = false;
-    mobileState.openMobileRight = false;
     registeredBindings.clear();
     fullscreenElement = null;
     keyboard.lock.mockResolvedValue(undefined);
@@ -211,10 +193,8 @@ describe("DashboardKeyboardController", () => {
   it("registers global dashboard keybindings", () => {
     render(<DashboardKeyboardController />);
 
-    expect(screen.getByTestId("palette")).toHaveAttribute("data-mobile-side", "right");
-
     expect(registeredBindings.get("dashboard:command-palette")?.keys).toEqual(["ctrl+k", "cmd+k"]);
-    expect(registeredBindings.get("dashboard:toggle-sidebar")?.keys).toEqual(["ctrl+b", "cmd+b"]);
+    expect(registeredBindings.has("dashboard:toggle-sidebar")).toBe(false);
     expect(registeredBindings.get("dashboard:toggle-fullscreen")?.keys).toEqual([
       "ctrl+enter",
       "cmd+enter",
@@ -233,7 +213,6 @@ describe("DashboardKeyboardController", () => {
     ]);
     for (const id of [
       "dashboard:command-palette",
-      "dashboard:toggle-sidebar",
       "dashboard:toggle-fullscreen",
       "dashboard:navigate-workspaces",
       "dashboard:navigate-templates",
@@ -259,18 +238,19 @@ describe("DashboardKeyboardController", () => {
       expect(registeredBindings.get("dashboard:command-palette")?.action(null, null)).toBe(false);
     });
 
-    await waitFor(() => {
-      expect(mockListWorkspaces).toHaveBeenCalled();
-    });
-
-    expect(await screen.findByText("Launch workspace")).toBeInTheDocument();
-    expect(screen.getByText("hive-dev")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("hive-dev"));
-    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?workspace=workspace-1&tool=terminal");
-
-    fireEvent.click(screen.getByText("Launch workspace"));
-    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?launch=1");
+    for (const label of [
+      "Agents",
+      "Settings",
+      "Diagnostics",
+      "Logs",
+      "Templates",
+      "Manage Coder workspaces",
+    ])
+      expect(screen.getByText(label)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Settings"));
+    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=settings");
+    fireEvent.click(screen.getByText("Launch Coder workspace"));
+    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=workspaces&launch=1");
   });
 
   it("includes commands from the active workspace palette source", async () => {
@@ -350,7 +330,7 @@ describe("DashboardKeyboardController", () => {
       onOpenPane: vi.fn(),
       onError: vi.fn(),
       onStart: vi.fn(),
-      onAgents: vi.fn(),
+      onCreate: vi.fn(),
     };
     function WorkspaceCommands({ mode, shortcuts }: Pick<WindowManager, "mode" | "shortcuts">) {
       const additionalActions = useWindowManagerCommands(
@@ -386,7 +366,7 @@ describe("DashboardKeyboardController", () => {
       fireEvent.change(screen.getByLabelText("Search commands"), {
         target: { value: "custom-terminal" },
       });
-      expect(await screen.findByText("New terminal “custom-terminal”")).toBeInTheDocument();
+      expect(await screen.findByText("New session")).toBeInTheDocument();
       fireEvent.click(screen.getByText("Close search"));
       act(() => registeredBindings.get("dashboard:command-palette")?.action(null, null));
       expect(screen.getByLabelText("Search commands")).toHaveValue("");
@@ -400,18 +380,13 @@ describe("DashboardKeyboardController", () => {
     expect(mockListWorkspaces).not.toHaveBeenCalled();
   });
 
-  it("runs sidebar and fullscreen actions globally", () => {
+  it("runs fullscreen without a sidebar", () => {
     render(<DashboardKeyboardController />);
 
     act(() => {
-      expect(registeredBindings.get("dashboard:toggle-sidebar")?.action(null, null)).toBe(false);
       expect(registeredBindings.get("dashboard:toggle-fullscreen")?.action(null, null)).toBe(false);
     });
 
-    expect(mockToggleSidebar).toHaveBeenCalled();
-    expect(mockSetOpen).toHaveBeenCalledWith(false);
-    expect(mockSetOpenMobile).toHaveBeenCalledWith(false);
-    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(false);
     expect(document.documentElement.dataset.dashboardFullscreen).toBe("true");
   });
 
@@ -632,74 +607,28 @@ describe("DashboardKeyboardController", () => {
     expect(document.documentElement.dataset.dashboardFullscreen).toBeUndefined();
   });
 
-  it("opens the coordinated right sidebar on mobile", () => {
-    mobileState.isMobile = true;
-    render(<DashboardKeyboardController />);
-
-    act(() => {
-      expect(registeredBindings.get("dashboard:command-palette")?.action(null, null)).toBe(false);
-    });
-
-    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
-    expect(mockSetOpenMobile).not.toHaveBeenCalledWith(false);
-  });
-
-  it("keeps sidebar replacement enabled until the global drawer is open", () => {
-    mobileState.isMobile = true;
-    mobileState.openMobile = true;
+  it("keeps search open across desktop and phone layouts without a sidebar", () => {
     const { rerender } = render(<DashboardKeyboardController />);
-
-    expect(mockUseGlobalCommandPaletteGesture).toHaveBeenLastCalledWith(
-      expect.objectContaining({ enabled: true }),
-    );
-
-    mobileState.openMobile = false;
-    mobileState.openMobileRight = true;
+    act(() => openGlobalCommandPalette());
+    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
+    mobileState.isMobile = true;
     rerender(<DashboardKeyboardController />);
-
+    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
     expect(mockUseGlobalCommandPaletteGesture).toHaveBeenLastCalledWith(
       expect.objectContaining({ enabled: false }),
     );
+    fireEvent.click(screen.getByText("Close search"));
+    expect(mockUseGlobalCommandPaletteGesture).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: true }),
+    );
   });
-
-  it("moves an open desktop palette into the mobile right sidebar", async () => {
-    const { rerender } = render(<DashboardKeyboardController />);
-    act(() => {
-      expect(registeredBindings.get("dashboard:command-palette")?.action(null, null)).toBe(false);
-    });
-    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
-
-    mobileState.isMobile = true;
-    rerender(<DashboardKeyboardController />);
-
-    await waitFor(() => {
-      expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
-    });
-    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "false");
-  });
-
-  it("moves an open mobile drawer into the desktop palette", async () => {
-    mobileState.isMobile = true;
-    mobileState.openMobileRight = true;
-    const { rerender } = render(<DashboardKeyboardController />);
-    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
-
-    mobileState.isMobile = false;
-    rerender(<DashboardKeyboardController />);
-
-    await waitFor(() => {
-      expect(mockSetOpenMobileRight).toHaveBeenCalledWith(false);
-      expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
-    });
-  });
-
   it("navigates to primary dashboard surfaces from global shortcuts", () => {
     render(<DashboardKeyboardController />);
 
     for (const [id, route] of [
       ["dashboard:navigate-workspaces", "/workspaces"],
-      ["dashboard:navigate-templates", "/templates"],
-      ["dashboard:navigate-terminal-status", "/terminal/status"],
+      ["dashboard:navigate-templates", "/workspaces?panel=templates"],
+      ["dashboard:navigate-terminal-status", "/workspaces?panel=diagnostics"],
     ]) {
       act(() => {
         expect(registeredBindings.get(id)?.action(null, null)).toBe(false);
@@ -723,16 +652,16 @@ describe("DashboardKeyboardController", () => {
       expect(onSearchValueChange).toHaveBeenCalledTimes(2);
       expect(mockListWorkspaces).not.toHaveBeenCalled();
       expect(screen.queryByText("hive-dev")).not.toBeInTheDocument();
-      expect(screen.getByText("Launch workspace")).toBeInTheDocument();
+      expect(screen.getByText("Launch Coder workspace")).toBeInTheDocument();
     } finally {
       act(() => unregister());
     }
   });
-  it("opens the mobile search sidebar from the same event", () => {
+  it("opens mobile search from the same event", () => {
     mobileState.isMobile = true;
     render(<DashboardKeyboardController />);
     act(() => openGlobalCommandPalette());
-    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
+    expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
   });
 });
 

@@ -1,21 +1,32 @@
 "use client";
 
+import { Search } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { GLOBAL_SIDEBAR_KEYS } from "@/lib/keyboard-shortcuts";
+import { GLOBAL_COMMAND_PALETTE_KEYS } from "@/lib/keyboard-shortcuts";
+import { openGlobalCommandPalette } from "@/lib/terminal/global-command-palette";
 import { cn } from "@/lib/utils";
 
 const headerButtonClassName =
   "size-10 min-h-10 shrink-0 p-0 max-[1024px]:size-11 max-[1024px]:min-h-11 pointer-coarse:size-11 pointer-coarse:min-h-11";
 
-export function WorkspaceSidebarButton() {
+export function WorkspaceSearchButton() {
   return (
     <ShortcutTooltip
-      label="Toggle sidebar"
-      shortcuts={GLOBAL_SIDEBAR_KEYS}
-      trigger={<SidebarTrigger className={headerButtonClassName} />}
+      label="Search Hive"
+      shortcuts={GLOBAL_COMMAND_PALETTE_KEYS}
+      trigger={
+        <Button
+          variant="ghost"
+          size="icon"
+          className={headerButtonClassName}
+          aria-label="Search Hive"
+          onClick={openGlobalCommandPalette}
+        >
+          <Search className="size-4" />
+        </Button>
+      }
     />
   );
 }

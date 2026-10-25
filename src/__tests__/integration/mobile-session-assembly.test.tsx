@@ -91,10 +91,6 @@ vi.mock("@/lib/auth/actions", () => ({
   getTokenStatusAction: dashboardState.getTokenStatusAction,
 }));
 
-vi.mock("@/components/app-sidebar", () => ({
-  AppSidebar: () => <aside data-testid="app-sidebar">Navigation</aside>,
-}));
-
 vi.mock("@/components/dashboard-keyboard-controller", () => ({
   DashboardKeyboardController: () => <div data-testid="dashboard-keyboard-controller" />,
 }));
@@ -109,10 +105,6 @@ vi.mock("@/components/token-expiry-banner", () => ({
 
 vi.mock("@/components/ui/sonner", () => ({
   Toaster: () => <div data-testid="toaster" />,
-}));
-
-vi.mock("@/components/sidebar-edge-handle", () => ({
-  SidebarEdgeHandle: () => null,
 }));
 
 vi.mock("@/components/terminal/HelpOverlay", () => ({
@@ -545,13 +537,13 @@ describe("mobile session assembly", () => {
     const dashboardMain = document.querySelector("[data-dashboard-main]");
     const dashboardContent = document.querySelector("[data-dashboard-content]");
 
-    expect(sidebarInset).toHaveClass("h-[var(--app-viewport-height)]", "overflow-hidden");
+    expect(sidebarInset).toBeNull();
     expect(dashboardMain).toHaveClass("h-full", "overflow-hidden");
     expect(dashboardMain?.className).not.toContain("px-");
     expect(dashboardMain?.className).not.toContain("pt-");
     expect(dashboardMain?.className).not.toContain("pb-");
     expect(dashboardContent).toHaveClass("h-full", "min-h-0", "overflow-hidden");
-    expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-sidebar")).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Terminal quick actions" })).not.toBeInTheDocument();
     expect(hapticsState.triggerHapticFeedback).not.toHaveBeenCalled();
   });

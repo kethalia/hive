@@ -22,6 +22,46 @@ import {
 } from "./window-manager";
 
 export const GENERAL_WORKSPACE_OPEN_EVENT = "hive:workspace-open";
+export const HIVE_WINDOW_OPEN_EVENT = "hive:window-open";
+export const hiveToolSchema = z.enum([
+  "agents",
+  "diagnostics",
+  "settings",
+  "workspaces",
+  "templates",
+  "logs",
+]);
+export type HiveTool = z.infer<typeof hiveToolSchema>;
+export const hiveToolLabels: Record<HiveTool, string> = {
+  templates: "Templates",
+  logs: "Logs",
+  agents: "Agents",
+  diagnostics: "Diagnostics",
+  settings: "Settings",
+  workspaces: "Coder workspaces",
+};
+export const hiveWindowRequestSchema = z.object({
+  tool: hiveToolSchema,
+  workspaceId: z.string().trim().min(1).max(200).optional(),
+  launch: z.boolean().optional(),
+  sessionName: z
+    .string()
+    .regex(/^[a-zA-Z0-9._-]{1,200}$/)
+    .optional(),
+  template: z.string().min(1).max(200).optional(),
+});
+export type HiveWindowRequest = z.infer<typeof hiveWindowRequestSchema>;
+export function hiveWindowHref(request: HiveWindowRequest) {
+  const query = new URLSearchParams({ panel: request.tool });
+  if (request.workspaceId) query.set("workspace", request.workspaceId);
+  if (request.template) query.set("template", request.template);
+  if (request.launch) query.set("launch", "1");
+  if (request.sessionName) query.set("session", request.sessionName);
+  return `/workspaces?${query}`;
+}
+export function requestHiveWindow(request: HiveWindowRequest) {
+  window.dispatchEvent(new CustomEvent(HIVE_WINDOW_OPEN_EVENT, { detail: request }));
+}
 export const MAX_GENERAL_WINDOWS = 32;
 export const MAX_GENERAL_BOARDS = 9;
 export const generalToolSchema = z.enum(["terminal", "files", "code", "desktop"]);
@@ -51,7 +91,18 @@ const app = z
       .optional(),
   })
   .refine((pane) => !pane.file || pane.tool === "files");
-export const generalPaneSchema = z.union([terminal, app]);
+const hive = z.object({
+  sessionName: z
+    .string()
+    .regex(/^[a-zA-Z0-9._-]{1,200}$/)
+    .optional(),
+  kind: z.literal("hive"),
+  tool: hiveToolSchema,
+  template: identifier.optional(),
+  workspaceId: identifier.optional(),
+  label: z.string().min(1).max(512),
+});
+export const generalPaneSchema = z.union([terminal, app, hive]);
 export type GeneralPane = z.infer<typeof generalPaneSchema>;
 export type GeneralWindow = GeneralPane & { id: string };
 export interface GeneralBoard {
@@ -79,6 +130,7 @@ export function emptyGeneralWorkspace(): GeneralWorkspaceState {
   };
 }
 export function generalPaneIdentity(pane: GeneralPane) {
+  if (pane.kind === "hive") return JSON.stringify(["hive", pane.tool]);
   return JSON.stringify([
     pane.workspaceId,
     pane.kind,
@@ -116,6 +168,55 @@ export function addGeneralWindow(
     ),
   };
 }
+/** Built-in tools have one window across all workspaces. Reopening reveals it in place. */
+export function openHiveWindow(
+  state: GeneralWorkspaceState,
+  request: HiveWindowRequest,
+  id: string,
+): GeneralWorkspaceState {
+  const board = state.boards.find((b) =>
+    b.windows.some((w) => w.kind === "hive" && w.tool === request.tool),
+  );
+  if (!board)
+    return addGeneralWindow(
+      state,
+      {
+        kind: "hive",
+        tool: request.tool,
+        label: hiveToolLabels[request.tool],
+        workspaceId: request.workspaceId,
+        template: request.template,
+        sessionName: request.sessionName,
+      },
+      id,
+    );
+  const existing = board.windows.find((w) => w.kind === "hive" && w.tool === request.tool);
+  if (!existing) return state;
+  return {
+    ...state,
+    activeBoardKey: board.key,
+    boards: state.boards.map((b) =>
+      b.key === board.key
+        ? {
+            ...b,
+            activeWindowId: existing.id,
+            windows: b.windows.map((w) =>
+              w.id === existing.id && w.kind === "hive"
+                ? {
+                    ...w,
+                    ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
+                    ...(request.template ? { template: request.template } : {}),
+                    ...(request.tool === "logs"
+                      ? { workspaceId: request.workspaceId, sessionName: request.sessionName }
+                      : {}),
+                  }
+                : w,
+            ),
+          }
+        : b,
+    ),
+  };
+}
 // Keep file requests on the originating board even if focus changes during an action.
 export function addGeneralFileWindow(
   state: GeneralWorkspaceState,
@@ -150,9 +251,10 @@ export function addGeneralFileWindow(
   );
 }
 /** Moving onto an already-open target focuses it without discarding either client's state. */
-export function moveGeneralWindowToNextBoard(
+export function moveGeneralWindowToAdjacentBoard(
   state: GeneralWorkspaceState,
   newBoardKey: string,
+  direction: -1 | 1,
 ): GeneralWorkspaceState {
   const index = state.boards.findIndex((b) => b.key === state.activeBoardKey);
   const source = state.boards[index];
@@ -165,7 +267,7 @@ export function moveGeneralWindowToNextBoard(
           { key: newBoardKey, name: "2", order: 1, windows: [], manager: newWindowManager() },
         ]
       : state.boards;
-  const target = boards[(index + 1) % boards.length];
+  const target = boards[(index + direction + boards.length) % boards.length];
   const existing = target.windows.find((w) => generalPaneIdentity(w) === generalPaneIdentity(pane));
   return {
     ...state,

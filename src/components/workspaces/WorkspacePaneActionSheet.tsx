@@ -144,7 +144,7 @@ export function WorkspacePaneActionSheet({
             if (selectedFocusRef.current?.isConnected) return selectedFocusRef.current;
             return restoreAnchorFocusRef.current ? (anchorRef.current ?? false) : false;
           }}
-          data-sidebar-gesture-ignore="true"
+          data-launcher-gesture-ignore="true"
           data-testid="workspace-pane-action-menu"
         >
           <DropdownMenuGroup>
@@ -214,7 +214,7 @@ export function WorkspacePaneActionSheet({
           "rounded-t-2xl pb-safe",
         )}
         style={sheetStyle}
-        data-sidebar-gesture-ignore="true"
+        data-launcher-gesture-ignore="true"
         data-testid="workspace-pane-action-sheet"
       >
         <button

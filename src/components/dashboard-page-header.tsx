@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 interface DashboardPageHeaderProps {
@@ -24,12 +23,11 @@ export function DashboardPageHeader({
   return (
     <header
       className={cn(
-        "flex min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 flex-wrap items-center gap-3 border-b border-sidebar-border bg-background/85 px-3 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)] backdrop-blur-md sm:flex-nowrap sm:px-4",
+        "flex min-h-[calc(3.5rem+var(--safe-area-inset-top))] shrink-0 flex-wrap items-center gap-3 border-b border-border bg-background/85 px-3 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)] backdrop-blur-md sm:flex-nowrap sm:px-4",
         className,
       )}
       data-dashboard-page-nav=""
     >
-      <SidebarTrigger className="h-8 min-h-0 shrink-0" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {leading ? (
           <div className={cn("min-w-0 shrink-0", hideLeadingOnMobile && "hidden sm:block")}>
@@ -46,7 +44,7 @@ export function DashboardPageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-2 overflow-hidden pl-11 sm:w-auto sm:pl-0">
+        <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-2 overflow-hidden sm:w-auto">
           {actions}
         </div>
       ) : null}

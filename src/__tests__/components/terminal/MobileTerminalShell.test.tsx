@@ -164,45 +164,6 @@ describe("MobileTerminalShell", () => {
     expect(nearbyWheel.defaultPrevented).toBe(true);
   });
 
-  it("allows native scroll events from sidebar-marked mobile drawer regions", () => {
-    render(
-      <MobileTerminalShell isKeyboardVisible={false}>
-        <div data-testid="terminal-content" />
-      </MobileTerminalShell>,
-    );
-
-    const sidebar = document.createElement("aside");
-    sidebar.dataset.sidebar = "sidebar";
-    document.body.appendChild(sidebar);
-
-    const sidebarContent = document.createElement("div");
-    sidebarContent.dataset.sidebar = "content";
-    sidebarContent.dataset.slot = "sidebar-content";
-    sidebar.appendChild(sidebarContent);
-
-    const nestedScrollRegion = document.createElement("div");
-    nestedScrollRegion.dataset.testid = "nested-sidebar-region";
-    sidebarContent.appendChild(nestedScrollRegion);
-
-    const mobileInner = document.createElement("div");
-    mobileInner.dataset.slot = "sidebar-mobile-inner";
-    const nestedMobileInnerRegion = document.createElement("div");
-    mobileInner.appendChild(nestedMobileInnerRegion);
-    document.body.appendChild(mobileInner);
-
-    const sidebarTouchMove = new Event("touchmove", { bubbles: true, cancelable: true });
-    fireEvent(nestedScrollRegion, sidebarTouchMove);
-    expect(sidebarTouchMove.defaultPrevented).toBe(false);
-
-    const sidebarWheel = new Event("wheel", { bubbles: true, cancelable: true });
-    fireEvent(sidebarContent, sidebarWheel);
-    expect(sidebarWheel.defaultPrevented).toBe(false);
-
-    const mobileInnerTouchMove = new Event("touchmove", { bubbles: true, cancelable: true });
-    fireEvent(nestedMobileInnerRegion, mobileInnerTouchMove);
-    expect(mobileInnerTouchMove.defaultPrevented).toBe(false);
-  });
-
   it("allows explicitly marked overlay lists to scroll", () => {
     render(
       <MobileTerminalShell isKeyboardVisible={false}>

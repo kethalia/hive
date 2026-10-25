@@ -1,191 +1,86 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommandPalette, type CommandPaletteAction } from "@/components/terminal/CommandPalette";
-import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDashboardFullscreen } from "@/hooks/useDashboardFullscreen";
 import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
-import { useDiscovery } from "@/lib/discovery/queries";
-import { formatRelativeDate } from "@/lib/helpers/format";
 import {
   formatShortcut,
   GLOBAL_COMMAND_PALETTE_KEYS,
-  GLOBAL_SIDEBAR_KEYS,
+  MANAGE_WORKSPACES_KEYS,
+  WORKSPACE_AGENTS_KEYS,
 } from "@/lib/keyboard-shortcuts";
 import {
   getGlobalCommandPaletteSources,
   OPEN_GLOBAL_COMMAND_PALETTE_EVENT,
   subscribeGlobalCommandPaletteSources,
 } from "@/lib/terminal/global-command-palette";
-import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
+import {
+  type HiveWindowRequest,
+  hiveWindowHref,
+  requestHiveWindow,
+} from "@/lib/workspaces/general-workspace";
 
-const GLOBAL_FULLSCREEN_KEYS = ["ctrl+enter", "cmd+enter"] as const;
-const NAV_WORKSPACES_KEYS = ["ctrl+shift+1", "cmd+shift+1"] as const;
-const NAV_TEMPLATES_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
-const NAV_STATUS_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
-
-type DashboardWorkspace = {
-  id: string;
-  name: string;
-  status: string;
-  updatedLabel: string;
-};
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function stringValue(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
-}
-
-function parseWorkspace(value: unknown): DashboardWorkspace | null {
-  if (!isObjectRecord(value)) return null;
-  const id = stringValue(value.id);
-  const name = stringValue(value.name);
-  const latestBuild = value.latest_build;
-  if (!id || !name || !isObjectRecord(latestBuild)) return null;
-  const status = stringValue(latestBuild.status) ?? "unknown";
-  const lastUsedAt = stringValue(value.last_used_at);
-
-  return {
-    id,
-    name,
-    status,
-    updatedLabel: lastUsedAt ? formatRelativeDate(lastUsedAt) : "never used",
-  };
-}
-
-function parseArray<T>(value: unknown, parse: (item: unknown) => T | null): T[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    const parsed = parse(item);
-    return parsed ? [parsed] : [];
-  });
-}
-
-function openWorkspaceHref(workspaceId: string): string {
-  return generalWorkspaceHref(workspaceId, "terminal");
-}
+const FULLSCREEN_KEYS = ["ctrl+enter", "cmd+enter"] as const;
+const TEMPLATES_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
+const DIAGNOSTICS_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
 
 export function DashboardKeyboardController() {
   const router = useRouter();
-  const { openMobileRight, setOpen, setOpenMobile, setOpenMobileRight, toggleSidebar } =
-    useSidebar();
+  const pathname = usePathname();
   const isMobile = useIsMobile();
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteQuery, setPaletteQuery] = useState("");
-  const { fullscreen: appFullscreen, toggleFullscreen } = useDashboardFullscreen();
-  const [paletteSources, setPaletteSources] = useState(getGlobalCommandPaletteSources);
-  const previousIsMobileRef = useRef(isMobile);
-  const activePaletteSource = paletteSources.at(-1) ?? null;
-
-  const openGlobalCommandPalette = useCallback(() => {
-    setPaletteQuery("");
-    activePaletteSource?.onSearchValueChange?.("");
-    if (isMobile) {
-      setOpenMobileRight(true);
-    } else {
-      setPaletteOpen(true);
-    }
-  }, [activePaletteSource, isMobile, setOpenMobileRight]);
-
-  useEffect(() => {
-    window.addEventListener(OPEN_GLOBAL_COMMAND_PALETTE_EVENT, openGlobalCommandPalette);
-    return () =>
-      window.removeEventListener(OPEN_GLOBAL_COMMAND_PALETTE_EVENT, openGlobalCommandPalette);
-  }, [openGlobalCommandPalette]);
-
-  const handlesWorkspaces = activePaletteSource?.handlesWorkspaces ?? false;
-  const commandPaletteOpen = isMobile ? openMobileRight : paletteOpen;
-  const onSourceOpenChange = activePaletteSource?.onOpenChange;
-  useEffect(() => {
-    onSourceOpenChange?.(commandPaletteOpen);
-    return () => onSourceOpenChange?.(false);
-  }, [commandPaletteOpen, onSourceOpenChange]);
-  const setCommandPaletteOpen = useCallback(
-    (nextOpen: boolean) => {
-      if (isMobile) {
-        setOpenMobileRight(nextOpen);
-      } else {
-        setPaletteOpen(nextOpen);
-      }
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sources, setSources] = useState(getGlobalCommandPaletteSources);
+  const source = sources.at(-1);
+  const { fullscreen, toggleFullscreen } = useDashboardFullscreen();
+  const openTool = useCallback(
+    (request: HiveWindowRequest) => {
+      if (pathname === "/workspaces") requestHiveWindow(request);
+      else router.push(hiveWindowHref(request));
     },
-    [isMobile, setOpenMobileRight],
+    [pathname, router],
   );
-
-  useEffect(() => {
-    const wasMobile = previousIsMobileRef.current;
-    if (wasMobile === isMobile) return;
-    previousIsMobileRef.current = isMobile;
-
-    if (isMobile && paletteOpen) {
-      setPaletteOpen(false);
-      setOpenMobileRight(true);
-      return;
-    }
-    if (!isMobile && openMobileRight) {
-      setOpenMobileRight(false);
-      setPaletteOpen(true);
-    }
-  }, [isMobile, openMobileRight, paletteOpen, setOpenMobileRight]);
-
-  useGlobalCommandPaletteGesture({
-    enabled: isMobile && !openMobileRight,
-    onOpen: openGlobalCommandPalette,
-  });
-
-  const toggleDashboardFullscreen = useCallback(() => {
-    toggleFullscreen();
-    if (!appFullscreen) {
-      setOpen(false);
-      setOpenMobile(false);
-      setOpenMobileRight(false);
-    }
-  }, [appFullscreen, toggleFullscreen, setOpen, setOpenMobile, setOpenMobileRight]);
-
-  const workspaceQuery = useDiscovery(
-    "workspaces",
-    {},
-    { enabled: commandPaletteOpen && !handlesWorkspaces },
-  );
-  const workspaces = useMemo(
-    () => parseArray(workspaceQuery.data, parseWorkspace),
-    [workspaceQuery.data],
-  );
-  const loading = commandPaletteOpen && !handlesWorkspaces && workspaceQuery.isPending;
-  const loadFailed = Boolean(workspaceQuery.error);
-
+  const showSearch = useCallback(() => {
+    setQuery("");
+    source?.onSearchValueChange?.("");
+    setOpen(true);
+  }, [source]);
   useEffect(
-    () =>
-      subscribeGlobalCommandPaletteSources(() => {
-        setPaletteSources(getGlobalCommandPaletteSources());
-      }),
+    () => subscribeGlobalCommandPaletteSources(() => setSources(getGlobalCommandPaletteSources())),
     [],
   );
-
+  useEffect(() => {
+    window.addEventListener(OPEN_GLOBAL_COMMAND_PALETTE_EVENT, showSearch);
+    return () => window.removeEventListener(OPEN_GLOBAL_COMMAND_PALETTE_EVENT, showSearch);
+  }, [showSearch]);
+  const onSourceOpenChange = source?.onOpenChange;
+  useEffect(() => {
+    onSourceOpenChange?.(open);
+    return () => onSourceOpenChange?.(false);
+  }, [open, onSourceOpenChange]);
+  useGlobalCommandPaletteGesture({ enabled: isMobile && !open, onOpen: showSearch });
   useRegisterKeybinding({
     id: "dashboard:command-palette",
     keys: [...GLOBAL_COMMAND_PALETTE_KEYS],
     action: () => {
-      openGlobalCommandPalette();
+      showSearch();
       return false;
     },
-    description: "Open command palette",
+    description: "Search Hive",
     category: "general",
     enabledInBrowser: true,
     global: true,
     allowTextEntry: true,
   });
-
   useRegisterKeybinding({
     id: "dashboard:navigate-workspaces",
-    keys: [...NAV_WORKSPACES_KEYS],
+    keys: ["ctrl+shift+1", "cmd+shift+1"],
     action: () => {
-      router.push("/workspaces");
+      if (pathname !== "/workspaces") router.push("/workspaces");
       return false;
     },
     description: "Open workspace",
@@ -194,12 +89,11 @@ export function DashboardKeyboardController() {
     global: true,
     allowTextEntry: true,
   });
-
   useRegisterKeybinding({
     id: "dashboard:navigate-templates",
-    keys: [...NAV_TEMPLATES_KEYS],
+    keys: [...TEMPLATES_KEYS],
     action: () => {
-      router.push("/templates");
+      openTool({ tool: "templates" });
       return false;
     },
     description: "Open templates",
@@ -208,40 +102,24 @@ export function DashboardKeyboardController() {
     global: true,
     allowTextEntry: true,
   });
-
   useRegisterKeybinding({
     id: "dashboard:navigate-terminal-status",
-    keys: [...NAV_STATUS_KEYS],
+    keys: [...DIAGNOSTICS_KEYS],
     action: () => {
-      router.push("/terminal/status");
+      openTool({ tool: "diagnostics" });
       return false;
     },
-    description: "Open terminal status",
+    description: "Open diagnostics",
     category: "navigation",
     enabledInBrowser: true,
     global: true,
     allowTextEntry: true,
   });
-
-  useRegisterKeybinding({
-    id: "dashboard:toggle-sidebar",
-    keys: [...GLOBAL_SIDEBAR_KEYS],
-    action: () => {
-      toggleSidebar();
-      return false;
-    },
-    description: "Toggle sidebar",
-    category: "general",
-    enabledInBrowser: true,
-    global: true,
-    allowTextEntry: true,
-  });
-
   useRegisterKeybinding({
     id: "dashboard:toggle-fullscreen",
-    keys: [...GLOBAL_FULLSCREEN_KEYS],
+    keys: [...FULLSCREEN_KEYS],
     action: () => {
-      toggleDashboardFullscreen();
+      toggleFullscreen();
       return false;
     },
     description: "Toggle fullscreen",
@@ -250,128 +128,74 @@ export function DashboardKeyboardController() {
     global: true,
     allowTextEntry: true,
   });
-
   useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.dashboardKeybindingsReady = "true";
+    document.documentElement.dataset.dashboardKeybindingsReady = "true";
     return () => {
-      delete root.dataset.dashboardKeybindingsReady;
+      delete document.documentElement.dataset.dashboardKeybindingsReady;
     };
   }, []);
-
-  const dashboardActions = useMemo<CommandPaletteAction[]>(() => {
-    const workspaceActions = workspaces.slice(0, 8).map<CommandPaletteAction>((workspace) => ({
-      id: `dashboard:open-workspace:${workspace.id}`,
-      label: workspace.name,
-      description: `Add a window • ${workspace.status} • ${workspace.updatedLabel}`,
-      group: "Workspaces",
-      value: `${workspace.name} ${workspace.status} workspace terminal multi session`,
-      rightLabel: "Open",
-      icon: "terminal",
-      onSelect: () => {
-        router.push(openWorkspaceHref(workspace.id));
-      },
-    }));
-
-    return [
-      {
-        id: "dashboard:open-workspaces",
-        label: "Workspace",
-        description: "Open your shared terminal and app canvas",
-        group: "Navigate",
-        value: "workspaces coder terminals sessions",
-        shortcut: formatShortcut(NAV_WORKSPACES_KEYS),
-        icon: "terminal",
-        onSelect: () => {
-          router.push("/workspaces");
-        },
-      },
-      ...(handlesWorkspaces ? [] : workspaceActions),
+  const actions = useMemo<CommandPaletteAction[]>(
+    () => [
+      ...(source?.actions ?? []),
+      ...(
+        [
+          ["agents", "Agents", "Find and resume agent conversations", WORKSPACE_AGENTS_KEYS],
+          ["settings", "Settings", "Account, app updates, and notifications", undefined],
+          ["diagnostics", "Diagnostics", "Inspect terminal connection health", DIAGNOSTICS_KEYS],
+          [
+            "workspaces",
+            "Manage Coder workspaces",
+            "Start, stop, and manage environments",
+            MANAGE_WORKSPACES_KEYS,
+          ],
+          ["templates", "Templates", "Review and push Coder workspace templates", TEMPLATES_KEYS],
+          ["logs", "Logs", "Inspect terminal events across your workspaces", undefined],
+        ] as const
+      ).map(([tool, label, description, keys]) => ({
+        id: `dashboard:open-${tool}`,
+        label,
+        description,
+        group: "Hive",
+        value: `${label} ${description}`,
+        shortcut: keys ? formatShortcut(keys) : undefined,
+        icon: "search" as const,
+        onSelect: () => openTool({ tool }),
+      })),
       {
         id: "dashboard:launch-workspace",
-        label: "Launch workspace",
-        description: "Choose a use-case profile and create an interactive workspace",
-        group: "Workspaces",
-        value: "launch create workspace profile software browser game electronics infrastructure",
+        label: "Launch Coder workspace",
+        description: "Create a Coder environment",
+        group: "Hive",
         icon: "plus",
-        onSelect: () => {
-          router.push("/workspaces?launch=1");
-        },
+        onSelect: () => openTool({ tool: "workspaces", launch: true }),
       },
       {
-        id: "dashboard:open-templates",
-        label: "Templates",
-        description: "Review and push Coder templates",
-        group: "Navigate",
-        value: "templates coder push",
-        shortcut: formatShortcut(NAV_TEMPLATES_KEYS),
+        id: "dashboard:fullscreen",
+        label: fullscreen ? "Exit fullscreen" : "Enter fullscreen",
+        group: "Commands",
+        shortcut: formatShortcut(FULLSCREEN_KEYS),
         icon: "search",
-        onSelect: () => {
-          router.push("/templates");
-        },
+        onSelect: toggleFullscreen,
       },
-      {
-        id: "dashboard:open-terminal-status",
-        label: "Terminal status",
-        description: "Inspect safe connection diagnostics",
-        group: "Navigate",
-        value: "terminal status diagnostics connections",
-        shortcut: formatShortcut(NAV_STATUS_KEYS),
-        icon: "search",
-        onSelect: () => {
-          router.push("/terminal/status");
-        },
-      },
-      {
-        id: "dashboard:toggle-fullscreen-action",
-        label: appFullscreen ? "Exit fullscreen" : "Enter fullscreen",
-        description: "Toggle the focused dashboard workspace",
-        group: "Actions",
-        value: "fullscreen focus dashboard terminal",
-        shortcut: formatShortcut(GLOBAL_FULLSCREEN_KEYS),
-        icon: "search",
-        onSelect: toggleDashboardFullscreen,
-      },
-    ];
-  }, [appFullscreen, router, toggleDashboardFullscreen, workspaces, handlesWorkspaces]);
-
-  const sourceActions = activePaletteSource?.actions ?? [];
-  const actions = useMemo(
-    () => [...sourceActions, ...dashboardActions],
-    [dashboardActions, sourceActions],
+    ],
+    [source?.actions, openTool, fullscreen, toggleFullscreen],
   );
-
-  const handleSearchValueChange = useCallback(
-    (value: string) => {
-      setPaletteQuery(value);
-      activePaletteSource?.onSearchValueChange?.(value);
-    },
-    [activePaletteSource],
-  );
-
-  const emptyText = loading
-    ? "Loading dashboard commands…"
-    : loadFailed
-      ? "Could not load dashboard commands."
-      : (activePaletteSource?.emptyText ?? "No commands found.");
-
   return (
     <CommandPalette
-      open={commandPaletteOpen}
-      onOpenChange={setCommandPaletteOpen}
-      tabs={activePaletteSource?.tabs ?? []}
-      onSelectTab={activePaletteSource?.onSelectTab ?? (() => undefined)}
-      onCreateSession={activePaletteSource?.onCreateSession}
+      open={open}
+      onOpenChange={setOpen}
+      tabs={source?.tabs ?? []}
+      onSelectTab={source?.onSelectTab ?? (() => {})}
+      onCreateSession={source?.onCreateSession}
       actions={actions}
-      searchValue={activePaletteSource?.searchValue ?? paletteQuery}
-      onSearchValueChange={handleSearchValueChange}
-      searchPlaceholder={
-        activePaletteSource?.searchPlaceholder ?? "Search commands and workspaces…"
-      }
-      emptyText={emptyText}
-      loadingText={loading ? "Loading dashboard commands…" : activePaletteSource?.loadingText}
-      groupHeading={activePaletteSource?.groupHeading ?? "Open"}
-      mobileSide="right"
+      searchValue={source?.searchValue ?? query}
+      onSearchValueChange={(value) => {
+        setQuery(value);
+        source?.onSearchValueChange?.(value);
+      }}
+      searchPlaceholder="Search Hive…"
+      emptyText={source?.emptyText ?? "No matching items."}
+      loadingText={source?.loadingText}
     />
   );
 }

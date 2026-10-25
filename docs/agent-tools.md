@@ -1,10 +1,10 @@
 # Agent tools and session recovery
 
-Open **Agents** in a workspace terminal header, or **Agent tools and sessions** in
-the workspace command palette. The panel checks installed CLI versions, agent
-sign-in, workspace and user MCP configuration, installed plugins, tracking hooks,
-and the TypeScript language-server binary. Refresh runs the checks again; the panel does
-not poll in the background. Only the Coder workspace owner can read this inventory
+Open **Agents** from Cmd/Ctrl+K (or Cmd/Ctrl+Alt+A). It opens a resizable workspace
+window with a Coder workspace selector and recent conversations first. **Agent setup
+and integrations** expands installed CLI versions, sign-in, MCP configuration, plugins,
+tracking hooks, and the TypeScript language server. Refresh updates the shared inventory;
+reopening can reuse cached results. Only the Coder workspace owner can read this inventory
 or change agent setup.
 
 Connection inventories are limited to 200 entries per agent.
@@ -90,7 +90,7 @@ existing workspaces without a template rollout.
 ## Validation
 
 - `python3 scripts/agents/test_agent_tools.py`
-- `pnpm exec vitest run src/__tests__/lib/agents src/__tests__/components/agent-tools-dialog.test.tsx`
+- `pnpm exec vitest run src/__tests__/lib/agents src/__tests__/components/agent-tools-panel.test.tsx`
 - `pnpm test:templates`, `pnpm typecheck`, `pnpm check`, and `pnpm build`
 - Build the UI fixture with `node scripts/agents/build-preview.mjs /tmp/hive-agent-tools-preview`.
   Transfer it to Browser Testing, serve on port 4187, and run `validate.mjs` using
