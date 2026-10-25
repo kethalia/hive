@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.26.5
+
+### Patch Changes
+
+- 1fc022d: Combine each workspace's sidebar name, status, and chevron into one button that expands or collapses its apps.
+- 5de70d4: Reuse workspace, repository, terminal, and agent discovery across panels. Refresh cached results in the background through authenticated GET endpoints, cache expensive scans in Valkey with a bounded local fallback, and inspect template archives only when needed.
+
 ## 2.26.4
 
 ### Patch Changes
