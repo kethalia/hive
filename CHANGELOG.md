@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.26.4
+
+### Patch Changes
+
+- 29940c5: Show search loading feedback alongside partial results and treat a missing Hive terminal socket as an empty session list instead of showing a false retry action.
+
 ## 2.26.3
 
 ### Patch Changes
