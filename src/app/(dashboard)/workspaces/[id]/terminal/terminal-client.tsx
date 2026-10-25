@@ -33,6 +33,7 @@ import {
   pasteClipboardApiToTerminal,
 } from "@/lib/terminal/actions";
 import { handleTerminalPasteOutcome } from "@/lib/terminal/clipboard";
+import { terminalFontSizeScope } from "@/lib/terminal/font-size";
 
 const InteractiveTerminal = dynamic(
   () => import("@/components/workspaces/InteractiveTerminal").then((m) => m.InteractiveTerminal),
@@ -427,6 +428,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
 
   const terminalControls = (
     <MobileTerminalControls
+      fontSizeScope={terminalFontSizeScope(workspaceId, session)}
       isKeyboardVisible={isMobileKeyboardVisible}
       onHapticFeedback={triggerHapticFeedback}
       hasSelection={hasTerminalSelection}
@@ -466,6 +468,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
           className="flex h-full min-h-0 flex-col overflow-hidden overscroll-none bg-background"
         >
           <SingleTerminalSessionHeader
+            fontSizeScope={terminalFontSizeScope(workspaceId, session)}
             sessionLabel={terminalDisplayLabel}
             sessionSubtitle={terminalDisplaySubtitle}
             showFontSizeControls={false}
@@ -504,6 +507,7 @@ function TerminalInner({ agentId, workspaceId }: { agentId: string; workspaceId:
       onKeyDown={(e) => e.stopPropagation()}
     >
       <SingleTerminalSessionHeader
+        fontSizeScope={terminalFontSizeScope(workspaceId, session)}
         sessionLabel={terminalDisplayLabel}
         sessionSubtitle={terminalDisplaySubtitle}
       />

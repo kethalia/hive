@@ -65,7 +65,7 @@ interface WorkspacePaneActionSheetProps {
   label: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  showFontSizeControls?: boolean;
+  fontSizeScope?: string;
 }
 
 const dragHandleStyle: CSSProperties = { ...NO_TOUCH_STYLE, touchAction: "none" };
@@ -90,7 +90,7 @@ export function WorkspacePaneActionSheet({
   label,
   onOpenChange,
   open,
-  showFontSizeControls = false,
+  fontSizeScope,
 }: WorkspacePaneActionSheetProps) {
   const isMobile = useIsMobile();
   const anchorRef = useRef(anchor);
@@ -155,10 +155,13 @@ export function WorkspacePaneActionSheet({
               ) : null}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {showFontSizeControls && (
-              <div className="px-2 py-2">
-                <p className="mb-2 text-xs text-muted-foreground">Font size · all terminals</p>
-                <TerminalFontSizeControls />
+            {fontSizeScope && (
+              <div className="flex items-center justify-between gap-3 px-2 py-2">
+                <span className="text-sm">Font size</span>
+                <TerminalFontSizeControls
+                  fontSizeScope={fontSizeScope}
+                  label="Font size for this terminal"
+                />
               </div>
             )}
             {actions.map((action) => (
@@ -245,10 +248,14 @@ export function WorkspacePaneActionSheet({
           data-mobile-scroll-allow="true"
         >
           <legend className="sr-only">{`Actions for ${label}`}</legend>
-          {showFontSizeControls && (
-            <div className="col-span-2">
-              <p className="mb-2 text-xs text-muted-foreground">Font size · all terminals</p>
-              <TerminalFontSizeControls className="[&_button]:min-h-11 [&_button]:min-w-11" />
+          {fontSizeScope && (
+            <div className="col-span-2 flex items-center justify-between gap-3 pb-2">
+              <span className="text-sm">Font size</span>
+              <TerminalFontSizeControls
+                fontSizeScope={fontSizeScope}
+                label="Font size for this terminal"
+                className="[&_button]:min-h-11 [&_button]:min-w-11"
+              />
             </div>
           )}
           {actions.map((action) => (

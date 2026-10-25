@@ -5,7 +5,7 @@ import { TerminalPanel } from "@/components/templates/TerminalPanel";
 import { InteractiveTerminal } from "@/components/workspaces/InteractiveTerminal";
 import { installTerminalBrowserIntegration } from "@/lib/terminal/browser-integration";
 import { TERMINAL_AUDIO_PRIME_EVENT } from "@/lib/terminal/events";
-import { EVENT_NAME as FONT_SIZE_EVENT } from "@/lib/terminal/font-size";
+import { EVENT_NAME as FONT_SIZE_EVENT, terminalFontSizeScope } from "@/lib/terminal/font-size";
 
 const mockTerminalState = vi.hoisted(() => ({
   fit: vi.fn(),
@@ -221,7 +221,11 @@ describe("InteractiveTerminal safe fit", () => {
 
     expect(() => {
       act(() => {
-        window.dispatchEvent(new CustomEvent(FONT_SIZE_EVENT, { detail: 18 }));
+        window.dispatchEvent(
+          new CustomEvent(FONT_SIZE_EVENT, {
+            detail: { scope: terminalFontSizeScope("workspace-1", "main"), size: 18 },
+          }),
+        );
       });
     }).not.toThrow();
 

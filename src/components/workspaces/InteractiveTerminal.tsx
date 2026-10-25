@@ -41,7 +41,11 @@ import {
   readNativePasteOutcome,
   type TerminalPasteOutcome,
 } from "@/lib/terminal/clipboard";
-import { EVENT_NAME as FONT_SIZE_EVENT, getTerminalFontSize } from "@/lib/terminal/font-size";
+import {
+  getTerminalFontSize,
+  subscribeTerminalFontSize,
+  terminalFontSizeScope,
+} from "@/lib/terminal/font-size";
 import {
   blurXtermMobileInput,
   configureXtermMobileInput,
@@ -418,6 +422,7 @@ function TerminalRuntime({
   selectionModeEnabled = false,
 }: InteractiveTerminalProps) {
   const { terminalWsUrl } = useRuntimeConfig();
+  const fontSizeScope = terminalFontSizeScope(workspaceId, sessionName);
   const containerRef = useRef<HTMLDivElement>(null);
   const [fileDragActive, setFileDragActive] = useState(false);
   const termRef = useRef<Terminal | null>(null);
@@ -930,8 +935,7 @@ function TerminalRuntime({
   }, [connectionState, fitResizeAndPreserveBottom]);
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const size = (e as CustomEvent<number>).detail;
+    const handler = (size: number) => {
       const term = termRef.current;
       const fit = fitRef.current;
       if (term && fit) {
@@ -949,9 +953,8 @@ function TerminalRuntime({
         }
       }
     };
-    window.addEventListener(FONT_SIZE_EVENT, handler);
-    return () => window.removeEventListener(FONT_SIZE_EVENT, handler);
-  }, []);
+    return subscribeTerminalFontSize(fontSizeScope, handler);
+  }, [fontSizeScope]);
 
   useEffect(() => {
     void layoutSignal;
@@ -982,7 +985,7 @@ function TerminalRuntime({
     termRef,
     fitRef,
     terminalOptions: {
-      fontSize: getTerminalFontSize(),
+      fontSize: getTerminalFontSize(fontSizeScope),
       lineHeight: 1.4,
       cursorBlink: true,
       disableStdin: true,

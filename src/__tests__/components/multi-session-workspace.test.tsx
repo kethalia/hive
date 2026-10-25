@@ -5317,7 +5317,12 @@ describe("MultiSessionWorkspace", () => {
     expect(await screen.findByTestId("terminal-font-size-controls")).toHaveTextContent("13px");
     fireEvent.click(screen.getByTestId("increase-terminal-font-size"));
     expect(screen.getByTestId("terminal-font-size-controls")).toHaveTextContent("14px");
-    expect(localStorage.getItem("terminal:font-size")).toBe("14");
+    expect(
+      localStorage.getItem(
+        `terminal:font-size:${JSON.stringify([defaultProps.workspaceId, "git-clone-safe-hive"])}`,
+      ),
+    ).toBe("14");
+    expect(localStorage.getItem("terminal:font-size")).toBeNull();
   });
 
   it("pins Git favorites at the top of command palette Git actions", async () => {

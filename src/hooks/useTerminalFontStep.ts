@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  EVENT_NAME,
   FONT_SIZE_LADDER,
   getTerminalFontSize,
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
   setTerminalFontSize,
+  subscribeTerminalFontSize,
 } from "@/lib/terminal/font-size";
 
 function getNextFontSize(size: number): number {
@@ -18,34 +18,35 @@ function getPreviousFontSize(size: number): number {
   return [...FONT_SIZE_LADDER].reverse().find((candidate) => candidate < size) ?? MIN_FONT_SIZE;
 }
 
-export function useTerminalFontStep() {
-  const [size, setSize] = useState(() => getTerminalFontSize());
+export function useTerminalFontStep(scope: string | null) {
+  const [state, setState] = useState(() => ({ scope, size: getTerminalFontSize(scope) }));
+  const size = state.scope === scope ? state.size : getTerminalFontSize(scope);
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const handler = (event: Event) => {
-      const nextSize = (event as CustomEvent<number>).detail;
-      setSize(nextSize);
+    const update = (nextSize: number) => {
+      sizeRef.current = nextSize;
+      setState({ scope, size: nextSize });
     };
-
-    window.addEventListener(EVENT_NAME, handler);
-    return () => window.removeEventListener(EVENT_NAME, handler);
-  }, []);
+    update(getTerminalFontSize(scope));
+    if (!scope) return;
+    return subscribeTerminalFontSize(scope, update);
+  }, [scope]);
 
   const increase = useCallback(() => {
-    setTerminalFontSize(getNextFontSize(getTerminalFontSize()));
-  }, []);
+    if (scope) setTerminalFontSize(getNextFontSize(sizeRef.current), scope);
+  }, [scope]);
 
   const decrease = useCallback(() => {
-    setTerminalFontSize(getPreviousFontSize(getTerminalFontSize()));
-  }, []);
+    if (scope) setTerminalFontSize(getPreviousFontSize(sizeRef.current), scope);
+  }, [scope]);
 
   return {
     size,
     increase,
     decrease,
-    canIncrease: size < MAX_FONT_SIZE,
-    canDecrease: size > MIN_FONT_SIZE,
+    canIncrease: scope !== null && size < MAX_FONT_SIZE,
+    canDecrease: scope !== null && size > MIN_FONT_SIZE,
   };
 }
