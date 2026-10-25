@@ -99,7 +99,7 @@ try {
   await page.getByRole("button", { name: "Strip layout", exact: true }).click();
   await page.waitForTimeout(250);
   await page.getByLabel("codex input").focus();
-  await page.keyboard.press("Control+Alt+ArrowRight");
+  await page.keyboard.press("Control+ArrowRight");
   assert.equal(await page.getByTestId("general-window-claude").getAttribute("data-active"), "true");
   report.checks.push("directional focus from terminal");
   await page.keyboard.press("Control+Alt+BracketRight");
@@ -177,7 +177,7 @@ try {
   await page.screenshot({ path: resolve(evidence, "keyboard-help.png") });
   report.checks.push("Cmd+? shows layout shortcuts and their setting without an Arrange screen");
   const beforeModal = await page.getByTestId("general-window-claude").getAttribute("data-active");
-  await page.keyboard.press("Control+Alt+ArrowRight");
+  await page.keyboard.press("Control+ArrowRight");
   assert.equal(
     await page.getByTestId("general-window-claude").getAttribute("data-active"),
     beforeModal,
@@ -329,8 +329,8 @@ try {
   report.checks.push("clicked tab selection survives focus leaving the column and reload");
   await tabs.getByRole("tab", { name: "codex", exact: true }).click();
   await review.getByLabel("codex input").focus();
-  await review.keyboard.press("Control+Alt+ArrowDown");
-  await review.keyboard.press("Control+Alt+ArrowRight");
+  await review.keyboard.press("Control+ArrowDown");
+  await review.keyboard.press("Control+ArrowRight");
   assert.equal(
     await tabs.getByRole("tab", { name: "claude", exact: true }).getAttribute("aria-selected"),
     "true",
@@ -539,6 +539,57 @@ try {
     ["Macintosh", "Meta"],
     ["Windows NT 10.0", "Control"],
   ]) {
+    const adjacentContext = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      userAgent: `Mozilla/5.0 (${platform}) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36`,
+    });
+    const adjacent = await adjacentContext.newPage();
+    adjacent.on("pageerror", (error) => report.errors.push(error.message));
+    await adjacent.goto("http://127.0.0.1:8831");
+    await adjacent.getByLabel("codex input").waitFor();
+    const fractionalState = await adjacent.evaluate(() => {
+      const key = "general-workspace:v1:fixture";
+      const state = JSON.parse(localStorage.getItem(key));
+      const board = state.boards[0];
+      board.windows = [
+        board.windows[0],
+        { id: "settings", kind: "hive", tool: "settings", label: "Settings" },
+        { id: "workspaces", kind: "hive", tool: "workspaces", label: "Coder workspaces" },
+      ];
+      board.layout = undefined;
+      board.manager.mode = "strip";
+      board.manager.columns = board.windows.map((pane, index) => ({
+        id: `column-${pane.id}`,
+        windows: [pane.id],
+        width: [0.55, 0.65, 0.5][index],
+        weights: { [pane.id]: 1 },
+        tabbed: false,
+      }));
+      return state;
+    });
+    await adjacent.addInitScript((state) => {
+      localStorage.setItem("general-workspace:v1:fixture", JSON.stringify(state));
+    }, fractionalState);
+    await adjacent.reload();
+    await adjacent.getByLabel("codex input").focus();
+    for (const [direction, testId] of [
+      ["Right", "hive-window-settings"],
+      ["Right", "hive-window-workspaces"],
+      ["Left", "hive-window-settings"],
+      ["Left", "general-window-codex"],
+    ]) {
+      await adjacent.keyboard.press(`${modifier}+Arrow${direction}`);
+      assert.equal(await adjacent.getByTestId(testId).getAttribute("data-active"), "true");
+    }
+    report.checks.push(
+      `${platform}: right/right/left returns to Settings between a terminal and workspace management after fractional Strip scrolling`,
+    );
+    await adjacentContext.close();
+  }
+  for (const [platform, modifier] of [
+    ["Macintosh", "Meta"],
+    ["Windows NT 10.0", "Control"],
+  ]) {
     const shortcutsContext = await browser.newContext({
       viewport: { width: 1200, height: 800 },
       userAgent: `Mozilla/5.0 (${platform}) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36`,
@@ -569,6 +620,21 @@ try {
     await shortcuts.getByLabel("codex input").focus();
     const originalInput = await shortcuts.getByLabel("codex input").elementHandle();
     const third = (await state()).boards[2].key;
+    const second = (await state()).boards[1].key;
+    const originalBoards = (await state()).boards;
+    for (const [direction, expected] of [
+      ["Right", second],
+      ["Right", third],
+      ["Left", second],
+      ["Left", "board-1"],
+    ]) {
+      await shortcuts.keyboard.press(`${modifier}+Alt+Arrow${direction}`);
+      assert.equal((await state()).activeBoardKey, expected);
+      assert.deepEqual((await state()).boards, originalBoards, "switching must not move windows");
+    }
+    report.checks.push(
+      `${platform}: adding Option/Alt switches numbered workspaces in both directions`,
+    );
     await shortcuts.keyboard.press(`${modifier}+Alt+Shift+KeyN`);
     assert.equal(
       (await state()).activeBoardKey,

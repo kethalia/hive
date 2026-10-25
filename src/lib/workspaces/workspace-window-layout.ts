@@ -318,10 +318,13 @@ function isRectInDirection(
   candidate: WorkspaceWindowRect,
   direction: WorkspaceWindowDirection,
 ): boolean {
-  if (direction === "left") return candidate.x + candidate.width <= current.x;
-  if (direction === "right") return candidate.x >= current.x + current.width;
-  if (direction === "up") return candidate.y + candidate.height <= current.y;
-  return candidate.y >= current.y + current.height;
+  // Fractional sizing and scroll subtraction can put a shared edge a few
+  // floating-point steps apart. Do not skip the neighbor as an overlapping pane.
+  const epsilon = 1e-6;
+  if (direction === "left") return candidate.x + candidate.width <= current.x + epsilon;
+  if (direction === "right") return candidate.x + epsilon >= current.x + current.width;
+  if (direction === "up") return candidate.y + candidate.height <= current.y + epsilon;
+  return candidate.y + epsilon >= current.y + current.height;
 }
 
 function directionalScore(

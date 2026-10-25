@@ -231,7 +231,7 @@ describe("workspace tool windows", () => {
     expect(modifier).toHaveFocus();
     expect(modifier).toHaveValue("primary+alt");
     const focusRow = within(help).getByText("Focus window left").parentElement!;
-    expect(focusRow).toHaveTextContent("Ctrl + Alt + Arrowleft");
+    expect(focusRow).toHaveTextContent("Ctrl + Arrowleft");
     fireEvent.keyDown(window, { key: "?", code: "Slash", metaKey: true, shiftKey: true });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     fireEvent.keyDown(window, { key: "t", code: "KeyT", ctrlKey: true, altKey: true });

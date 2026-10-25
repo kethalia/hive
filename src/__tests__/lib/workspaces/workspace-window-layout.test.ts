@@ -166,6 +166,24 @@ describe("workspace window layout", () => {
     expect(findWorkspaceWindowInDirection(rects, "narrow-bottom-left", "up")).toBe("wide-top");
   });
 
+  it.each([
+    "left",
+    "right",
+    "up",
+    "down",
+  ] as const)("ignores edge rounding when choosing the adjacent window %s", (direction) => {
+    const axis = direction === "left" || direction === "right" ? "x" : "y";
+    const sign = direction === "left" || direction === "up" ? -1 : 1;
+    const current = { x: 1, y: 1, width: 0.5, height: 0.5 };
+    const rects = new Map([
+      ["current", current],
+      ["overlapping", { ...current, [axis]: 1 + sign * 0.25 }],
+      ["adjacent", { ...current, [axis]: 1 + sign * (0.5 - 1e-12) }],
+      ["distant", { ...current, [axis]: 1 + sign }],
+    ]);
+    expect(findWorkspaceWindowInDirection(rects, "current", direction)).toBe("adjacent");
+  });
+
   it("round-trips valid persisted trees and safely rejects corrupt state", () => {
     const root = reconcileWorkspaceWindowLayout(null, ["main", "build"], {
       viewportWidth: 1200,
