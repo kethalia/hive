@@ -445,7 +445,11 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         </div>
       ) : null}
       {mobile && board.windows.length > 1 ? (
-        <nav className="flex shrink-0 gap-1 overflow-x-auto p-1" aria-label="Open windows">
+        <nav
+          className="flex shrink-0 gap-1 overflow-x-auto p-1"
+          aria-label="Open windows"
+          data-mobile-scroll-allow="true"
+        >
           {board.windows.map((pane) => (
             <Button
               key={pane.id}
@@ -626,7 +630,10 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         />
       ) : null}
       <Dialog open={manage} onOpenChange={setManage}>
-        <DialogContent className="max-h-[85dvh] overflow-auto sm:max-w-[90vw]">
+        <DialogContent
+          className="max-h-[85dvh] overflow-auto sm:max-w-[90vw]"
+          data-mobile-scroll-allow="true"
+        >
           <DialogHeader>
             <DialogTitle>Coder workspaces</DialogTitle>
             <DialogDescription>

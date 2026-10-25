@@ -137,6 +137,7 @@ export function GeneralWorkspacePicker({
     >
       <DialogContent
         className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl"
+        data-mobile-scroll-allow="true"
         data-testid="general-workspace-picker"
       >
         <DialogHeader>
