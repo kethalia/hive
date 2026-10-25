@@ -59,11 +59,13 @@ import {
   newWindowManager,
   reconcileWindowManager,
   revealWindow,
+  type WindowManager,
   windowGeometry,
 } from "@/lib/workspaces/window-manager";
 import { reconcileWorkspaceWindowLayout } from "@/lib/workspaces/workspace-window-layout";
 import { WindowCanvas } from "./WindowCanvas";
 import { WindowLayoutControls } from "./WindowLayoutControls";
+import { WindowShortcutHelp } from "./WindowShortcutHelp";
 
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -347,6 +349,28 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     board.windows.map((w) => w.id),
   );
   const windowActions = useWindowManagerCommands(manager, runWindowAction);
+  const changeShortcuts = useCallback(
+    (shortcuts: WindowManager["shortcuts"]) => {
+      update((current) => ({
+        ...current,
+        boards: current.boards.map((b) =>
+          b.key === current.activeBoardKey
+            ? {
+                ...b,
+                manager: {
+                  ...reconcileWindowManager(
+                    b.manager,
+                    b.windows.map((w) => w.id),
+                  ),
+                  shortcuts,
+                },
+              }
+            : b,
+        ),
+      }));
+    },
+    [update],
+  );
   useGeneralWorkspaceCommands({
     workspaces,
     onOpenPane: openPane,
@@ -490,6 +514,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       data-dashboard-full-bleed=""
       data-testid="general-workspace"
     >
+      <WindowShortcutHelp shortcuts={manager.shortcuts} onChange={changeShortcuts} />
       <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)]">
         <WorkspaceSidebarButton />
         <WorkspaceBoardBar
@@ -502,15 +527,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           touchOptimized={mobile}
         />
         <div className="flex items-center gap-1">
-          {!mobile ? (
-            <WindowLayoutControls
-              manager={manager}
-              onAction={runWindowAction}
-              onShortcuts={(shortcuts) =>
-                changeBoard(board.key, (b) => ({ ...b, manager: { ...manager, shortcuts } }))
-              }
-            />
-          ) : null}
+          {!mobile ? <WindowLayoutControls manager={manager} onAction={runWindowAction} /> : null}
           <WorkspaceHeaderButton
             label="Agents"
             shortcuts={WORKSPACE_AGENTS_KEYS}

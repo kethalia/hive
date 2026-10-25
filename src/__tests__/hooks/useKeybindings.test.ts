@@ -18,6 +18,8 @@ function makeKeyEvent(opts: Partial<KeyboardEventInit> & { key: string }): Keybo
 
 describe("normalizeKeyCombo", () => {
   it.each([
+    [{ key: "?", code: "Slash", metaKey: true, shiftKey: true }, "cmd+shift+/"],
+    [{ key: "?", code: "Slash", ctrlKey: true, shiftKey: true }, "ctrl+shift+/"],
     [{ key: "±", code: "Equal", ctrlKey: true, altKey: true, shiftKey: true }, "ctrl+alt+shift+="],
     [{ key: "+", code: "Equal", ctrlKey: true, metaKey: true, shiftKey: true }, "ctrl+cmd+shift+="],
     [

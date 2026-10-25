@@ -46,7 +46,7 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useSidebarMode } from "@/hooks/use-sidebar-mode";
+import { WorkspaceSidebarButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import { getSessionAction } from "@/lib/auth/actions";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { useDiscovery } from "@/lib/discovery/queries";
@@ -203,7 +203,6 @@ function WorkspaceNavigationItem({
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [sidebarMode] = useSidebarMode();
   const [sessionUser, setSessionUser] = useState<{ email: string; coderUrl: string } | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -234,11 +233,14 @@ export function AppSidebar() {
       .catch(() => {});
   }, []);
   return (
-    <Sidebar variant={sidebarMode} collapsible="offcanvas">
+    <Sidebar variant="overlay" collapsible="offcanvas">
       <SidebarHeader className="h-14 shrink-0 flex-row items-center border-b border-sidebar-border px-4">
         <Link href="/workspaces" className="flex items-center gap-2">
           <HiveLogo className="gap-2" wordmarkClassName="text-base tracking-[0.12em]" />
         </Link>
+        <div className="ml-auto">
+          <WorkspaceSidebarButton />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <nav aria-label="Workspace navigation" className="flex flex-col gap-0">

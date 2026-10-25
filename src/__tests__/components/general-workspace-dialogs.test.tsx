@@ -65,6 +65,8 @@ vi.mock("@/components/workspaces/GeneralWorkspacePane", () => ({
   },
 }));
 
+import { HelpOverlay } from "@/components/terminal/HelpOverlay";
+import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
 import type { CoderWorkspace } from "@/lib/coder/types";
@@ -106,6 +108,57 @@ afterEach(() => {
 });
 
 describe("workspace dialog loading", () => {
+  it("moves layout settings into Cmd+? help and updates active bindings without remounting panes", async () => {
+    const tree = (workspace: boolean) => (
+      <KeybindingProvider>
+        {workspace ? <GeneralWorkspace userId="user" initialWorkspaces={workspaces} /> : null}
+        <HelpOverlay />
+      </KeybindingProvider>
+    );
+    const view = render(tree(true));
+    const terminal = await screen.findByRole("textbox", { name: "Terminal input" });
+    expect(screen.queryByRole("button", { name: "Arrange windows and shortcuts" })).toBeNull();
+    fireEvent.keyDown(window, { key: "?", code: "Slash", metaKey: true, shiftKey: true });
+    const help = await screen.findByRole("dialog", { name: "Keyboard Shortcuts" });
+    const modifier = within(help).getByLabelText("Layout shortcuts");
+    expect(modifier).toHaveValue("primary+alt");
+    expect(within(help).getByText("Focus window left")).toBeVisible();
+    expect(within(help).getByText("Toggle pin left")).toBeVisible();
+    modifier.focus();
+    fireEvent.change(modifier, { target: { value: "off" } });
+    expect(within(help).queryByText("Focus window left")).toBeNull();
+    fireEvent.change(modifier, { target: { value: "primary+alt" } });
+    expect(modifier).toHaveFocus();
+    expect(modifier).toHaveValue("primary+alt");
+    const focusRow = within(help).getByText("Focus window left").parentElement!;
+    expect(focusRow).toHaveTextContent("Ctrl + Alt + Arrowleft");
+    fireEvent.keyDown(window, { key: "?", code: "Slash", metaKey: true, shiftKey: true });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.keyDown(window, { key: "t", code: "KeyT", ctrlKey: true, altKey: true });
+    const saved = () => JSON.parse(localStorage.getItem(generalWorkspaceStorageKey("user"))!);
+    await waitFor(() => expect(saved().boards[0].manager.floating.terminal).toBeDefined());
+    expect(saved().boards[0].manager.shortcuts).toBe("primary+alt");
+    expect(screen.getByLabelText("Terminal input")).toBe(terminal);
+    expect(loading.mount).toHaveBeenCalledOnce();
+    expect(loading.hide).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: "?", code: "Slash", ctrlKey: true, shiftKey: true });
+    const reopened = await screen.findByRole("dialog", { name: "Keyboard Shortcuts" });
+    fireEvent.change(within(reopened).getByLabelText("Layout shortcuts"), {
+      target: { value: "off" },
+    });
+    expect(within(reopened).queryByText("Focus window left")).toBeNull();
+    expect(within(reopened).getByLabelText("Layout shortcuts")).toHaveValue("off");
+    fireEvent.change(within(reopened).getByLabelText("Layout shortcuts"), {
+      target: { value: "primary+alt" },
+    });
+    expect(within(reopened).getByText("Focus window left")).toBeVisible();
+    view.rerender(tree(false));
+    expect(screen.queryByLabelText("Layout shortcuts")).toBeNull();
+    expect(screen.queryByText("Focus window left")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Keyboard Shortcuts" })).toBeVisible();
+  });
+
   it.each([
     {
       button: "Agent tools",

@@ -32,12 +32,15 @@ export const windowManagerSchema = z.object({
   ),
   maximized: z.string().optional(),
   scroll: z.number().finite().min(0).max(100000).default(0),
-  shortcuts: z.enum(["ctrl+alt", "ctrl+cmd", "off"]).default("ctrl+alt"),
+  shortcuts: z
+    .enum(["primary+alt", "ctrl+alt", "ctrl+cmd", "off"])
+    .default("primary+alt")
+    .transform((value) => (value === "off" ? ("off" as const) : ("primary+alt" as const))),
 });
 export type WindowManager = z.infer<typeof windowManagerSchema>;
 export type WindowColumn = WindowManager["columns"][number];
 export function newWindowManager(mode: WindowManager["mode"] = "strip"): WindowManager {
-  return { mode, columns: [], floating: {}, scroll: 0, shortcuts: "ctrl+alt" };
+  return { mode, columns: [], floating: {}, scroll: 0, shortcuts: "primary+alt" };
 }
 export function reconcileWindowManager(
   value: WindowManager | undefined,

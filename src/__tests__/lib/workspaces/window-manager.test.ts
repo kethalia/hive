@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
 import {
   emptyGeneralWorkspace,
   type GeneralBoard,
@@ -18,6 +19,7 @@ import {
   reconcileWindowManager,
   revealWindow,
   windowGeometry,
+  windowManagerSchema,
 } from "@/lib/workspaces/window-manager";
 import {
   reconcileWorkspaceWindowLayout,
@@ -303,11 +305,26 @@ describe("window layouts", () => {
     expect(b.manager?.columns.flatMap((c) => c.windows).filter((id) => id === "a")).toHaveLength(1);
   });
   it.each([
+    false,
+    true,
+  ])("has no ambiguous or combined primary modifiers (macOS: %s)", (isApple) => {
+    const keys = [
+      ...WINDOW_ACTIONS.flatMap((a) => windowActionKeys(a, "primary+alt", isApple)),
+      ...Object.values(PANE_CONTROL_SHORTCUTS).flatMap((a) =>
+        a.keys.filter((key) => (isApple ? key.startsWith("cmd+") : key.startsWith("ctrl+"))),
+      ),
+    ];
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.every((key) => !key.includes(isApple ? "ctrl" : "cmd"))).toBe(true);
+    expect(keys).toContain(`${isApple ? "cmd" : "ctrl"}+arrowright`);
+  });
+  it.each([
     "ctrl+alt",
     "ctrl+cmd",
-  ] as const)("has no ambiguous bindings in the %s preset", (preset) => {
-    const keys = WINDOW_ACTIONS.flatMap((a) => windowActionKeys(a, preset));
-    expect(new Set(keys).size).toBe(keys.length);
+  ])("migrates saved %s bindings without losing the layout", (shortcuts) => {
+    const manager = newWindowManager();
+    expect(windowManagerSchema.parse({ ...manager, shortcuts })).toEqual(manager);
+    expect(windowManagerSchema.parse({ ...manager, shortcuts: "off" }).shortcuts).toBe("off");
   });
 });
 describe("notification windows", () => {

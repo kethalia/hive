@@ -20,6 +20,9 @@ export interface KeybindingContextValue {
   unregister(id: string): void;
   getAll(): KeybindingEntry[];
   subscribe?: (listener: () => void) => () => void;
+  registerHelpSection?: (id: string, content: React.ReactNode) => void;
+  unregisterHelpSection?: (id: string) => void;
+  getHelpSections?: () => { id: string; content: React.ReactNode }[];
   handleKeyEvent(e: KeyboardEvent): boolean;
   activeTerminal: Terminal | null;
   activeSend: ((data: string) => void) | null;
@@ -50,6 +53,7 @@ function normalizeShortcutKey(e: KeyboardEvent): string {
       Equal: "=",
       Minus: "-",
       Period: ".",
+      Slash: "/",
     };
     if (symbols[e.code]) return symbols[e.code];
   }
@@ -92,6 +96,14 @@ const NOOP_KEYBINDINGS: KeybindingContextValue = {
 export function useKeybindings(): KeybindingContextValue {
   const ctx = React.useContext(KeybindingContext);
   return ctx ?? NOOP_KEYBINDINGS;
+}
+
+export function useRegisterKeybindingHelp(id: string, content: React.ReactNode) {
+  const { registerHelpSection, unregisterHelpSection } = useKeybindings();
+  React.useEffect(() => {
+    registerHelpSection?.(id, content);
+    return () => unregisterHelpSection?.(id);
+  }, [id, content, registerHelpSection, unregisterHelpSection]);
 }
 
 export function useRegisterKeybinding(entry: KeybindingEntry) {

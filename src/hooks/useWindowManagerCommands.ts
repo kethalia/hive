@@ -31,9 +31,10 @@ export function useWindowManagerCommands(manager: WindowManager, run: (id: strin
       ...WINDOW_ACTIONS.map((a) => ({
         ...a,
         keys: windowActionKeys(a, shortcuts),
+        category: "window layout",
         disabled: !!a.stripOnly && mode !== "strip",
       })),
-      ...BOARD_ACTIONS.map((a) => ({ ...a, disabled: false, repeat: false })),
+      ...BOARD_ACTIONS.map((a) => ({ ...a, category: "boards", disabled: false, repeat: false })),
     ],
     [mode, shortcuts],
   );
@@ -44,7 +45,7 @@ export function useWindowManagerCommands(manager: WindowManager, run: (id: strin
         id: `window-manager:${a.id}`,
         keys: a.keys,
         description: a.label,
-        category: "workspace",
+        category: a.category,
         enabledInBrowser: true,
         global: true,
         allowRepeat: a.repeat ?? false,

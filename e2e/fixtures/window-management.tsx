@@ -3,9 +3,11 @@ import type { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
+import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { Sidebar, SidebarHeader, SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
+import { WorkspaceSidebarButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import {
   emptyGeneralWorkspace,
   generalWorkspaceStorageKey,
@@ -88,7 +90,7 @@ if (!localStorage.getItem(storage)) {
     columns: [],
     floating: {},
     scroll: 0,
-    shortcuts: "ctrl+alt",
+    shortcuts: "primary+alt",
   };
   state.boards[0].windows = [
     ...["codex", "claude"].map((id) => ({
@@ -108,23 +110,35 @@ if (root)
   createRoot(root).render(
     <QueryClientProvider client={new QueryClient()}>
       <KeybindingProvider>
-        <SidebarProvider>
-          <main className="h-dvh w-full bg-background text-foreground">
-            {new URLSearchParams(location.search).has("collapsible") ? (
-              <Collapsible className="w-64 m-4">
-                <CollapsibleTrigger>Workspace apps</CollapsibleTrigger>
-                <CollapsibleContent>
-                  <p className="p-4">Files</p>
-                  <p className="p-4">VS Code</p>
-                </CollapsibleContent>
-              </Collapsible>
-            ) : (
-              <>
-                <GeneralWorkspace userId="fixture" initialWorkspaces={fixtureWorkspaces as never} />
-                <DashboardKeyboardController />
-              </>
-            )}
-          </main>
+        <HelpOverlay />
+        <SidebarProvider defaultOpen={false}>
+          <Sidebar variant="overlay">
+            <SidebarHeader>
+              <WorkspaceSidebarButton />
+            </SidebarHeader>
+            <p className="p-4">Workspace navigation</p>
+          </Sidebar>
+          <SidebarInset>
+            <main className="h-dvh w-full bg-background text-foreground">
+              {new URLSearchParams(location.search).has("collapsible") ? (
+                <Collapsible className="w-64 m-4">
+                  <CollapsibleTrigger>Workspace apps</CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <p className="p-4">Files</p>
+                    <p className="p-4">VS Code</p>
+                  </CollapsibleContent>
+                </Collapsible>
+              ) : (
+                <>
+                  <GeneralWorkspace
+                    userId="fixture"
+                    initialWorkspaces={fixtureWorkspaces as never}
+                  />
+                  <DashboardKeyboardController />
+                </>
+              )}
+            </main>
+          </SidebarInset>
         </SidebarProvider>
       </KeybindingProvider>
     </QueryClientProvider>,

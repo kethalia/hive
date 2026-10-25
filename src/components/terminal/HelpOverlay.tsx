@@ -20,6 +20,8 @@ import { usePwaStandalone } from "@/lib/terminal/pwa";
 
 const NUDGE_DISMISSED_KEY = "hive:help-nudge-dismissed";
 const subscribeToNothing = () => () => {};
+const EMPTY_HELP_SECTIONS: { id: string; content: React.ReactNode }[] = [];
+const getEmptyHelpSections = () => EMPTY_HELP_SECTIONS;
 
 function groupByCategory(entries: KeybindingEntry[]): Record<string, KeybindingEntry[]> {
   const groups: Record<string, KeybindingEntry[]> = {};
@@ -34,7 +36,7 @@ function groupByCategory(entries: KeybindingEntry[]): Record<string, KeybindingE
 export function HelpOverlay() {
   const [open, setOpen] = React.useState(false);
   const dialogRef = React.useRef<HTMLDivElement>(null);
-  const { getAll, subscribe } = useKeybindings();
+  const { getAll, subscribe, getHelpSections = getEmptyHelpSections } = useKeybindings();
   const isStandalone = usePwaStandalone();
   const isMac = React.useMemo(() => isApplePlatform(), []);
   const [nudgeDismissed, setNudgeDismissed] = React.useState(true);
@@ -49,7 +51,7 @@ export function HelpOverlay() {
 
   useRegisterKeybinding({
     id: "help:show",
-    keys: ["ctrl+/", "cmd+/"],
+    keys: ["ctrl+shift+/", "cmd+shift+/", "ctrl+/", "cmd+/"],
     action: () => {
       setOpen((prev) => !prev);
       return false;
@@ -58,9 +60,16 @@ export function HelpOverlay() {
     category: "general",
     enabledInBrowser: true,
     global: true,
+    allowTextEntry: true,
+    allowRepeat: false,
   });
 
   const entries = React.useSyncExternalStore(subscribe ?? subscribeToNothing, getAll, getAll);
+  const helpSections = React.useSyncExternalStore(
+    subscribe ?? subscribeToNothing,
+    getHelpSections,
+    getEmptyHelpSections,
+  );
   const groups = groupByCategory(entries);
   const categoryOrder = Object.keys(groups).sort((a, b) => {
     if (a === "general") return -1;
@@ -84,7 +93,8 @@ export function HelpOverlay() {
       <DialogContent
         ref={dialogRef}
         initialFocus={dialogRef}
-        className="max-h-[80vh] overflow-y-auto"
+        className="max-h-[80dvh] overflow-y-auto sm:max-w-2xl"
+        data-mobile-scroll-allow="true"
       >
         <DialogHeader>
           <DialogTitle>Keyboard Shortcuts</DialogTitle>
@@ -92,6 +102,10 @@ export function HelpOverlay() {
             List of available keyboard shortcuts grouped by category
           </DialogDescription>
         </DialogHeader>
+
+        {helpSections.map(({ id, content }) => (
+          <React.Fragment key={id}>{content}</React.Fragment>
+        ))}
 
         <div className="space-y-4">
           {categoryOrder.map((category) => (
