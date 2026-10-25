@@ -27,9 +27,24 @@ const repository = {
   relativePath: "projects/kethalia/hive",
 };
 const workspaces = [
-  { id: "software", name: "ai-dev-01", latest_build: { id: "build-1", status: "running" } },
-  { id: "browser", name: "browser-testing", latest_build: { id: "build-2", status: "running" } },
-  { id: "infra", name: "infrastructure", latest_build: { id: "build-3", status: "stopped" } },
+  {
+    id: "software",
+    name: "ai-dev-01",
+    template_name: "ai-dev-k8s",
+    latest_build: { id: "build-1", status: "running" },
+  },
+  {
+    id: "browser",
+    name: "browser-testing",
+    template_name: "browser-testing",
+    latest_build: { id: "build-2", status: "running" },
+  },
+  {
+    id: "infra",
+    name: "infrastructure",
+    template_name: "infrastructure",
+    latest_build: { id: "build-3", status: "stopped" },
+  },
 ] as CoderWorkspace[];
 const source = () =>
   getGlobalCommandPaletteSources().find((item) => item.id === "general-workspace")!;
@@ -54,7 +69,13 @@ describe("general workspace search", () => {
     }));
   });
   function setup() {
-    const props = { workspaces, onOpenPane: vi.fn(), onError: vi.fn() };
+    const props = {
+      workspaces,
+      onOpenPane: vi.fn(),
+      onError: vi.fn(),
+      onStart: vi.fn().mockResolvedValue(undefined),
+      onAgents: vi.fn(),
+    };
     const hook = renderHook((value) => useGeneralWorkspaceCommands(value), { initialProps: props });
     return { ...hook, ...props };
   }
@@ -63,7 +84,7 @@ describe("general workspace search", () => {
     await waitFor(() => expect(action("session:software:main")).toBeDefined());
   }
   it("discovers running workspaces when search opens, without refetching on each query or poll", async () => {
-    const { rerender, onOpenPane, onError } = setup();
+    const { rerender, onOpenPane, onError, onStart, onAgents } = setup();
     expect(mocks.sessions).not.toHaveBeenCalled();
     await open();
     expect(mocks.sessions.mock.calls).toEqual([
@@ -71,7 +92,7 @@ describe("general workspace search", () => {
       [{ workspaceId: "software" }],
     ]);
     search("hive");
-    rerender({ workspaces: structuredClone(workspaces), onOpenPane, onError });
+    rerender({ workspaces: structuredClone(workspaces), onOpenPane, onError, onStart, onAgents });
     expect(mocks.sessions).toHaveBeenCalledTimes(2);
     expect(action("new-terminal:infra")).toBeUndefined();
   });
@@ -160,5 +181,97 @@ describe("general workspace search", () => {
       expect(action("repository:browser:git-clone:projects/kethalia/hive")).toBeDefined(),
     );
     expect(action("retry-terminals:browser")).toBeUndefined();
+  });
+  it("exposes supported apps immediately and opens them in their own workspace", () => {
+    const { onOpenPane, onAgents, onStart } = setup();
+    expect(source().handlesWorkspaces).toBe(true);
+    expect(action("app:software:desktop")).toBeUndefined();
+    expect(action("app:browser:code")).toBeUndefined();
+    for (const [workspaceId, tool, label] of [
+      ["software", "files", "Files"],
+      ["software", "code", "VS Code"],
+      ["browser", "desktop", "Desktop"],
+    ]) {
+      act(() => action(`app:${workspaceId}:${tool}`).onSelect());
+      expect(onOpenPane).toHaveBeenLastCalledWith({ kind: "app", workspaceId, tool, label });
+    }
+    act(() => action("agents:browser").onSelect());
+    expect(onAgents).toHaveBeenCalledWith("browser");
+    expect(onStart).not.toHaveBeenCalled();
+    expect(mocks.sessions).not.toHaveBeenCalled();
+  });
+  it("shows each workspace's results without waiting for slower workspaces", async () => {
+    let finish!: (result: unknown) => void;
+    mocks.sessions.mockImplementation(({ workspaceId }) =>
+      workspaceId === "browser"
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : Promise.resolve({ data: [{ name: "main" }] }),
+    );
+    setup();
+    await open();
+    expect(action("session:browser:slow")).toBeUndefined();
+    expect(action("app:browser:desktop")).toBeDefined();
+    await act(async () => finish({ data: [{ name: "slow" }] }));
+    expect(action("session:browser:slow")).toBeDefined();
+  });
+  it("only starts a stopped workspace when selected, keeps search open, then discovers its terminals", async () => {
+    const { rerender, onStart, onOpenPane, onError, onAgents } = setup();
+    await open();
+    expect(onStart).not.toHaveBeenCalled();
+    const start = action("start-workspace:infra");
+    expect(start.closeOnSelect).toBe(false);
+    await act(async () => start.onSelect());
+    expect(onStart).toHaveBeenCalledWith("infra");
+    expect(onOpenPane).not.toHaveBeenCalled();
+    rerender({
+      workspaces: workspaces.map((workspace) =>
+        workspace.id === "infra"
+          ? { ...workspace, latest_build: { ...workspace.latest_build, status: "running" } }
+          : workspace,
+      ),
+      onStart,
+      onOpenPane,
+      onError,
+      onAgents,
+    });
+    await waitFor(() => expect(action("session:infra:main")).toBeDefined());
+    expect(action("start-workspace:infra")).toBeUndefined();
+  });
+  it("reports start errors in search and prevents duplicate starts", async () => {
+    const { onStart } = setup();
+    let fail!: (error: Error) => void;
+    onStart.mockReturnValue(
+      new Promise((_, reject) => {
+        fail = reject;
+      }),
+    );
+    const start = action("start-workspace:infra");
+    act(() => {
+      start.onSelect();
+      start.onSelect();
+    });
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(action("start-workspace:infra").disabled).toBe(true);
+    await act(async () => fail(new Error("Start failed")));
+    expect(action("start-workspace:infra").description).toBe("Start failed");
+    expect(action("start-workspace:infra").disabled).toBe(false);
+  });
+  it("does not apply stale discovery results after closing and reopening search", async () => {
+    let finish!: (result: unknown) => void;
+    mocks.sessions.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    setup();
+    await open();
+    act(() => source().onOpenChange!(false));
+    await open();
+    await act(async () => finish({ data: [{ name: "stale" }] }));
+    expect(action("session:browser:stale")).toBeUndefined();
+    expect(action("session:browser:main")).toBeDefined();
   });
 });

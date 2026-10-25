@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { GeneralWorkspaceMobileControls } from "@/components/workspaces/GeneralWorkspaceMobileControls";
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
-import { GeneralWorkspacePicker } from "@/components/workspaces/GeneralWorkspacePicker";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
 import {
   WorkspaceHeaderButton,
@@ -31,11 +30,11 @@ import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboa
 import { listWorkspacesAction, startWorkspaceAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import {
-  ADD_WORKSPACE_WINDOW_KEYS,
+  GLOBAL_COMMAND_PALETTE_KEYS,
   MANAGE_WORKSPACES_KEYS,
   WORKSPACE_AGENTS_KEYS,
-  WORKSPACE_SEARCH_KEYS,
 } from "@/lib/keyboard-shortcuts";
+import { openGlobalCommandPalette } from "@/lib/terminal/global-command-palette";
 import { forgetTerminalViews, terminalPaneViewKey } from "@/lib/terminal/session-lifetime";
 import {
   addGeneralFileWindow,
@@ -84,7 +83,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const initialWorkspacesRef = useRef(initialWorkspaces);
   initialWorkspacesRef.current = initialWorkspaces;
   const [notice, setNotice] = useState<string | null>(error ?? null);
-  const [picker, setPicker] = useState<{ workspaceId?: string } | null>(null);
   const [manage, setManage] = useState(false);
   const [launch, setLaunch] = useState(false);
   const [agents, setAgents] = useState<string | null>(null);
@@ -199,15 +197,13 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           setNotice(`The workspace supports up to ${MAX_GENERAL_WINDOWS} open windows.`);
         return next;
       });
-      setPicker(null);
     },
     [update],
   );
-  useGeneralWorkspaceCommands({ workspaces, onOpenPane: openPane, onError: setNotice });
   const openTool = useCallback(
     (workspaceId: string, tool: GeneralWorkspaceTool) => {
       if (tool === "terminal") {
-        setPicker({ workspaceId });
+        openGlobalCommandPalette();
         return;
       }
       openPane({ kind: "app", workspaceId, tool, label: labels[tool] });
@@ -218,7 +214,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     (workspaceId: string, tool?: GeneralWorkspaceTool) => {
       setManage(false);
       if (tool && tool !== "terminal") openTool(workspaceId, tool);
-      else setPicker({ workspaceId });
+      else openGlobalCommandPalette();
     },
     [openTool],
   );
@@ -264,6 +260,13 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     if (refreshed?.data) setWorkspaces(refreshed.data);
     window.dispatchEvent(new Event("hive:sidebar-refresh"));
   }, []);
+  useGeneralWorkspaceCommands({
+    workspaces,
+    onOpenPane: openPane,
+    onError: setNotice,
+    onStart: start,
+    onAgents: setAgents,
+  });
   function closeWindow(boardKey: string, id: string) {
     const target = stateRef.current.boards
       .find((b) => b.key === boardKey)
@@ -347,24 +350,11 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     }));
   }
   useRegisterKeybinding({
-    id: "general-workspace:add-window",
-    keys: [...WORKSPACE_SEARCH_KEYS, ...ADD_WORKSPACE_WINDOW_KEYS],
-    action: () => {
-      setPicker({});
-      return false;
-    },
-    description: "Add workspace window",
-    category: "workspace",
-    enabledInBrowser: true,
-    global: true,
-  });
-
-  useRegisterKeybinding({
     id: "general-workspace:agents",
     keys: [...WORKSPACE_AGENTS_KEYS],
     action: () => {
       if (active) setAgents(active.workspaceId);
-      else setPicker({});
+      else openGlobalCommandPalette();
       return false;
     },
     description: "Open agent tools and sessions",
@@ -414,14 +404,14 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             label="Agents"
             shortcuts={WORKSPACE_AGENTS_KEYS}
             aria-label="Agent tools"
-            onClick={() => (active ? setAgents(active.workspaceId) : setPicker({}))}
+            onClick={() => (active ? setAgents(active.workspaceId) : openGlobalCommandPalette())}
           >
             <Bot className="size-4" />
           </WorkspaceHeaderButton>
           <WorkspaceHeaderButton
             label="Add window"
-            shortcuts={WORKSPACE_SEARCH_KEYS}
-            onClick={() => setPicker({})}
+            shortcuts={GLOBAL_COMMAND_PALETTE_KEYS}
+            onClick={() => openGlobalCommandPalette()}
           >
             <Search className="size-4" />
           </WorkspaceHeaderButton>
@@ -473,7 +463,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             <p className="text-sm text-muted-foreground">
               Bring terminals, Files, VS Code, and Desktop together from any Coder workspace.
             </p>
-            <Button onClick={() => setPicker({})}>Add window</Button>
+            <Button onClick={() => openGlobalCommandPalette()}>Add window</Button>
           </div>
         ) : null}
         {state.boards
@@ -591,21 +581,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           }
         />
       ) : null}
-      <GeneralWorkspacePicker
-        open={picker !== null}
-        workspaceId={picker?.workspaceId}
-        workspaces={workspaces}
-        onOpenChange={(open) => {
-          if (!open) setPicker(null);
-        }}
-        onOpenPane={openPane}
-        onOpenTool={openTool}
-        onStart={start}
-        onAgents={(workspaceId) => {
-          setPicker(null);
-          setAgents(workspaceId);
-        }}
-      />
       {agents ? (
         <AgentToolsDialog
           workspaceId={agents}
@@ -623,7 +598,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                   pane.sessionName === sessionName,
               );
             if (existing) openPane(existing);
-            else if (sessionName.startsWith("git-clone-")) setPicker({ workspaceId: agents });
+            else if (sessionName.startsWith("git-clone-")) openGlobalCommandPalette();
             else
               openPane({ kind: "terminal", workspaceId: agents, sessionName, label: sessionName });
             setAgents(null);

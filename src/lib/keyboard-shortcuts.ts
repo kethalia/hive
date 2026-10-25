@@ -27,8 +27,6 @@ export function formatShortcut(keys: readonly string[], isApple = isApplePlatfor
 // Shared by shortcut registration and the corresponding control's tooltip.
 export const GLOBAL_COMMAND_PALETTE_KEYS = ["ctrl+k", "cmd+k"] as const;
 export const GLOBAL_SIDEBAR_KEYS = ["ctrl+b", "cmd+b"] as const;
-export const ADD_WORKSPACE_WINDOW_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
-export const WORKSPACE_SEARCH_KEYS = ["ctrl+alt+f", "cmd+alt+f"] as const;
 export const WORKSPACE_AGENTS_KEYS = ["ctrl+alt+a", "cmd+alt+a"] as const;
 export const MANAGE_WORKSPACES_KEYS = ["ctrl+alt+g", "cmd+alt+g"] as const;
 export const PANE_CONTROL_SHORTCUTS = {

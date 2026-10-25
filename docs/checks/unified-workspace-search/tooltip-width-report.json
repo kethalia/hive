@@ -1,0 +1,626 @@
+[
+  {
+    "platform": "ctrl",
+    "control": "sidebar",
+    "label": "Toggle sidebar",
+    "shortcut": "Ctrl + B",
+    "tip": {
+      "x": 236,
+      "y": 56,
+      "right": 492,
+      "bottom": 117,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 249,
+      "y": 63,
+      "right": 479,
+      "bottom": 79,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 249,
+      "y": 87,
+      "right": 479,
+      "bottom": 110,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 415.765625,
+      "y": 94,
+      "right": 479,
+      "bottom": 110,
+      "width": 63.234375,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "ctrl",
+    "control": "agents",
+    "label": "Agents",
+    "shortcut": "Ctrl + Alt + A",
+    "tip": {
+      "x": 1179,
+      "y": 56,
+      "right": 1435,
+      "bottom": 117,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 63,
+      "right": 1422,
+      "bottom": 79,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 87,
+      "right": 1422,
+      "bottom": 110,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1321.84375,
+      "y": 94,
+      "right": 1422,
+      "bottom": 110,
+      "width": 100.15625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "ctrl",
+    "control": "search",
+    "label": "Add window",
+    "shortcut": "Ctrl + K",
+    "tip": {
+      "x": 1179,
+      "y": 56,
+      "right": 1435,
+      "bottom": 117,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 63,
+      "right": 1422,
+      "bottom": 79,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 87,
+      "right": 1422,
+      "bottom": 110,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1358.765625,
+      "y": 94,
+      "right": 1422,
+      "bottom": 110,
+      "width": 63.234375,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "ctrl",
+    "control": "manage",
+    "label": "Manage Coder workspaces",
+    "shortcut": "Ctrl + Alt + G",
+    "tip": {
+      "x": 1179,
+      "y": 56,
+      "right": 1435,
+      "bottom": 117,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 63,
+      "right": 1422,
+      "bottom": 79,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 87,
+      "right": 1422,
+      "bottom": 110,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1321.84375,
+      "y": 94,
+      "right": 1422,
+      "bottom": 110,
+      "width": 100.15625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "ctrl",
+    "control": "microphone",
+    "label": "Microphone: disconnected",
+    "shortcut": "Ctrl + Alt + M",
+    "tip": {
+      "x": 1179,
+      "y": 104,
+      "right": 1435,
+      "bottom": 165,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 111,
+      "right": 1422,
+      "bottom": 127,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 135,
+      "right": 1422,
+      "bottom": 158,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1321.84375,
+      "y": 142,
+      "right": 1422,
+      "bottom": 158,
+      "width": 100.15625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "ctrl",
+    "control": "speaker",
+    "label": "Speakers: disconnected",
+    "shortcut": "Ctrl + Alt + S",
+    "tip": {
+      "x": 1179,
+      "y": 104,
+      "right": 1435,
+      "bottom": 165,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 111,
+      "right": 1422,
+      "bottom": 127,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 135,
+      "right": 1422,
+      "bottom": 158,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1321.84375,
+      "y": 142,
+      "right": 1422,
+      "bottom": 158,
+      "width": 100.15625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "ctrl",
+    "control": "actions",
+    "label": "More actions",
+    "shortcut": "Ctrl + Alt + P",
+    "tip": {
+      "x": 1179,
+      "y": 104,
+      "right": 1435,
+      "bottom": 165,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 111,
+      "right": 1422,
+      "bottom": 127,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 135,
+      "right": 1422,
+      "bottom": 158,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1321.84375,
+      "y": 142,
+      "right": 1422,
+      "bottom": 158,
+      "width": 100.15625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "ctrl",
+    "control": "close",
+    "label": "Close release-validation-with-a-long-terminal-session-name window",
+    "shortcut": "Ctrl + Alt + X",
+    "tip": {
+      "x": 1179,
+      "y": 104,
+      "right": 1435,
+      "bottom": 197,
+      "width": 256,
+      "height": 93
+    },
+    "description": {
+      "x": 1192,
+      "y": 111,
+      "right": 1422,
+      "bottom": 159,
+      "width": 230,
+      "height": 48
+    },
+    "footer": {
+      "x": 1192,
+      "y": 167,
+      "right": 1422,
+      "bottom": 190,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1321.84375,
+      "y": 174,
+      "right": 1422,
+      "bottom": 190,
+      "width": 100.15625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "mac",
+    "control": "sidebar",
+    "label": "Toggle sidebar",
+    "shortcut": "⌘ + B",
+    "tip": {
+      "x": 236,
+      "y": 56,
+      "right": 492,
+      "bottom": 117,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 249,
+      "y": 63,
+      "right": 479,
+      "bottom": 79,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 249,
+      "y": 87,
+      "right": 479,
+      "bottom": 110,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 434.21875,
+      "y": 94,
+      "right": 479,
+      "bottom": 110,
+      "width": 44.78125,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "mac",
+    "control": "agents",
+    "label": "Agents",
+    "shortcut": "⌘ + ⌥ + A",
+    "tip": {
+      "x": 1179,
+      "y": 56,
+      "right": 1435,
+      "bottom": 117,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 63,
+      "right": 1422,
+      "bottom": 79,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 87,
+      "right": 1422,
+      "bottom": 110,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1352.609375,
+      "y": 94,
+      "right": 1422,
+      "bottom": 110,
+      "width": 69.390625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "mac",
+    "control": "search",
+    "label": "Add window",
+    "shortcut": "⌘ + K",
+    "tip": {
+      "x": 1179,
+      "y": 56,
+      "right": 1435,
+      "bottom": 117,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 63,
+      "right": 1422,
+      "bottom": 79,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 87,
+      "right": 1422,
+      "bottom": 110,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1377.21875,
+      "y": 94,
+      "right": 1422,
+      "bottom": 110,
+      "width": 44.78125,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "mac",
+    "control": "manage",
+    "label": "Manage Coder workspaces",
+    "shortcut": "⌘ + ⌥ + G",
+    "tip": {
+      "x": 1179,
+      "y": 56,
+      "right": 1435,
+      "bottom": 117,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 63,
+      "right": 1422,
+      "bottom": 79,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 87,
+      "right": 1422,
+      "bottom": 110,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1352.609375,
+      "y": 94,
+      "right": 1422,
+      "bottom": 110,
+      "width": 69.390625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "mac",
+    "control": "microphone",
+    "label": "Microphone: disconnected",
+    "shortcut": "⌘ + ⌥ + M",
+    "tip": {
+      "x": 1179,
+      "y": 104,
+      "right": 1435,
+      "bottom": 165,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 111,
+      "right": 1422,
+      "bottom": 127,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 135,
+      "right": 1422,
+      "bottom": 158,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1352.609375,
+      "y": 142,
+      "right": 1422,
+      "bottom": 158,
+      "width": 69.390625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "mac",
+    "control": "speaker",
+    "label": "Speakers: disconnected",
+    "shortcut": "⌘ + ⌥ + S",
+    "tip": {
+      "x": 1179,
+      "y": 104,
+      "right": 1435,
+      "bottom": 165,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 111,
+      "right": 1422,
+      "bottom": 127,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 135,
+      "right": 1422,
+      "bottom": 158,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1352.609375,
+      "y": 142,
+      "right": 1422,
+      "bottom": 158,
+      "width": 69.390625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "mac",
+    "control": "actions",
+    "label": "More actions",
+    "shortcut": "⌘ + ⌥ + P",
+    "tip": {
+      "x": 1179,
+      "y": 104,
+      "right": 1435,
+      "bottom": 165,
+      "width": 256,
+      "height": 61
+    },
+    "description": {
+      "x": 1192,
+      "y": 111,
+      "right": 1422,
+      "bottom": 127,
+      "width": 230,
+      "height": 16
+    },
+    "footer": {
+      "x": 1192,
+      "y": 135,
+      "right": 1422,
+      "bottom": 158,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1352.609375,
+      "y": 142,
+      "right": 1422,
+      "bottom": 158,
+      "width": 69.390625,
+      "height": 16
+    },
+    "textAlign": "left"
+  },
+  {
+    "platform": "mac",
+    "control": "close",
+    "label": "Close release-validation-with-a-long-terminal-session-name window",
+    "shortcut": "⌘ + ⌥ + X",
+    "tip": {
+      "x": 1179,
+      "y": 104,
+      "right": 1435,
+      "bottom": 197,
+      "width": 256,
+      "height": 93
+    },
+    "description": {
+      "x": 1192,
+      "y": 111,
+      "right": 1422,
+      "bottom": 159,
+      "width": 230,
+      "height": 48
+    },
+    "footer": {
+      "x": 1192,
+      "y": 167,
+      "right": 1422,
+      "bottom": 190,
+      "width": 230,
+      "height": 23
+    },
+    "key": {
+      "x": 1352.609375,
+      "y": 174,
+      "right": 1422,
+      "bottom": 190,
+      "width": 69.390625,
+      "height": 16
+    },
+    "textAlign": "left"
+  }
+]
