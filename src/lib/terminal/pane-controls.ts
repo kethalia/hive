@@ -25,13 +25,16 @@ export function activatePaneControl(
   if ([...document.querySelectorAll(OVERLAY_SELECTOR)].some(visible)) return true;
   const focused = document.activeElement?.closest(FRAME_SELECTOR) ?? null;
   const terminalFrame = terminalElement?.closest(FRAME_SELECTOR) ?? null;
-  const frame = visible(focused)
-    ? focused
-    : visible(terminalFrame) && terminalFrame.dataset.active !== "false"
-      ? terminalFrame
-      : [...document.querySelectorAll(FRAME_SELECTOR)].find(
-          (element) => visible(element) && element.dataset.active === "true",
-        );
+  // Selecting a nonterminal pane can leave DOM focus in the old terminal until
+  // the next frame. Never let that stale focus override the selected window.
+  const frame =
+    visible(focused) && focused.dataset.active !== "false"
+      ? focused
+      : visible(terminalFrame) && terminalFrame.dataset.active !== "false"
+        ? terminalFrame
+        : [...document.querySelectorAll(FRAME_SELECTOR)].find(
+            (element) => visible(element) && element.dataset.active === "true",
+          );
   const button = frame?.querySelector<HTMLButtonElement>(
     `button[data-terminal-control="${control}"]`,
   );

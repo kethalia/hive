@@ -132,6 +132,49 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("nested command creation", () => {
+  it("keeps the typed creation draft when the global search source still publishes an older query", async () => {
+    const submit = vi.fn();
+    const renderPalette = (searchValue: string) => (
+      <CommandPalette
+        open
+        onOpenChange={vi.fn()}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        searchValue={searchValue}
+        onSearchValueChange={vi.fn()}
+        actions={[
+          {
+            id: "new",
+            label: "Create terminal",
+            group: "Terminals",
+            onSelect: () => ({ page: "create" }),
+          },
+        ]}
+        pages={{
+          create: {
+            title: "Create terminal",
+            actions: [],
+            input: {
+              label: "Session name",
+              maxLength: 200,
+              submitLabel: "Create terminal",
+              pendingLabel: "Opening",
+              onSubmit: submit,
+            },
+          },
+        }}
+      />
+    );
+    const view = render(renderPalette(""));
+    choose("Create terminal");
+    type("keyboard-check");
+    expect(screen.getByLabelText("Session name")).toHaveValue("keyboard-check");
+    view.rerender(renderPalette("key"));
+    expect(screen.getByLabelText("Session name")).toHaveValue("keyboard-check");
+    await enter();
+    expect(submit).toHaveBeenCalledExactlyOnceWith("keyboard-check");
+  });
+
   it("keeps category navigation and name entry inside one command dialog and restores the query on Back", async () => {
     render(<Harness onOpenPane={vi.fn()} />);
     type("term");
