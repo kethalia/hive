@@ -78,7 +78,9 @@ export function windowActionKeys(
   if (!action.chord || preset === "off") return [];
   const primary = isApple ? "cmd" : "ctrl";
   const parts = [primary, "alt", ...action.chord.split("+")];
-  const keys = [canonical(parts)];
+  const keys = [
+    canonical(action.id.startsWith("focus-") ? parts.filter((p) => p !== "alt") : parts),
+  ];
   const d = /arrow(left|down|up|right)$/.exec(action.chord)?.[1];
   if (d)
     keys.push(
@@ -87,9 +89,6 @@ export function windowActionKeys(
         ({ left: "h", down: "j", up: "k", right: "l" } as Record<string, string>)[d],
       ]),
     );
-  // Direct horizontal focus uses the platform’s primary modifier as well.
-  if (action.id === "focus-left" || action.id === "focus-right")
-    keys.push(`${primary}+${action.chord}`);
   return keys;
 }
 export function applyWindowAction(

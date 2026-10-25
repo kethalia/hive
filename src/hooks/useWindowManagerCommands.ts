@@ -16,9 +16,13 @@ const BOARD_ACTIONS = [
   {
     id: "board-previous",
     label: "Previous workspace",
-    keys: ["ctrl+alt+pageup", "cmd+alt+pageup"],
+    keys: ["ctrl+alt+arrowleft", "cmd+alt+arrowleft", "ctrl+alt+pageup", "cmd+alt+pageup"],
   },
-  { id: "board-next", label: "Next workspace", keys: ["ctrl+alt+pagedown", "cmd+alt+pagedown"] },
+  {
+    id: "board-next",
+    label: "Next workspace",
+    keys: ["ctrl+alt+arrowright", "cmd+alt+arrowright", "ctrl+alt+pagedown", "cmd+alt+pagedown"],
+  },
   ...Array.from({ length: 9 }, (_, i) => ({
     id: `board-${i + 1}`,
     label: `Switch to workspace ${i + 1}`,

@@ -24,13 +24,14 @@ export function WindowShortcutHelp({
             value={shortcuts}
             onChange={(event) => onChange(event.target.value as WindowManager["shortcuts"])}
           >
-            <option value="primary+alt">On — Cmd + Option / Ctrl + Alt</option>
+            <option value="primary+alt">On — platform shortcuts</option>
             <option value="off">Off — use buttons and search</option>
           </select>
         </label>
         <p className="text-xs text-muted-foreground">
-          Drag dividers to resize; double-click to reset. Layout shortcuts below apply to the
-          current board. All layout actions are also in Cmd/Ctrl+K, even when shortcuts are off.
+          Cmd/Ctrl+Arrow focuses windows. Add Option/Alt with Left/Right to switch numbered
+          workspaces. Drag dividers to resize; double-click to reset. All layout actions are also in
+          Cmd/Ctrl+K, even when shortcuts are off.
         </p>
         <p className="text-xs text-muted-foreground">
           Embedded apps keep their own keyboard focus. Focus the pane header or use Hive search to

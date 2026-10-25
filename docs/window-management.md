@@ -35,6 +35,9 @@ On mobile the same search opens in a bottom sheet; a deliberate leftward swipe a
 
 ## Resize and arrange
 
+Resize edges have a short, muted grip that highlights on hover, drag, or keyboard focus. The whole
+edge remains draggable, including the transparent area above or beside the grip.
+
 - Grid: drag the divider between panes. Dividers are focusable; arrows resize in 5% increments,
   Home/End reach the allowed limits, and double-click resets the split. Minimum tile size is
   280 × 160 px. Crowded grids scroll rather than compressing panes indefinitely.
@@ -75,8 +78,7 @@ Existing system/browser shortcuts may take precedence; all actions are also in C
 
 | Keys | Action |
 | --- | --- |
-| M + arrows or H/J/K/L | Focus left/down/up/right |
-| Cmd/Ctrl + Left/Right | Focus the window to the left/right (when layout shortcuts are enabled) |
+| Cmd/Ctrl + arrows, or M + H/J/K/L | Focus left/down/up/right (when layout shortcuts are enabled) |
 | M + Shift + arrows or H/J/K/L | Move left/down/up/right |
 | M + Home/End | Focus first/last column |
 | M + Shift + Home/End | Move first/last column in Strip |
@@ -95,7 +97,7 @@ Existing system/browser shortcuts may take precedence; all actions are also in C
 | M + N / Shift+N | Move the window to the next/previous Hive workspace |
 | M + Q | Disable layout shortcuts; re-enable through search or keyboard help |
 | Ctrl/Cmd + 1–9 | Select board (browser tab bindings may take precedence) |
-| Ctrl/Cmd + Alt + PageUp/PageDown | Previous/next board |
+| M + Left/Right, or M + PageUp/PageDown | Previous/next numbered workspace |
 | Ctrl/Cmd + Alt + Enter | Create board |
 | Cmd/Ctrl + W, or Cmd/Ctrl + Alt + Backspace | Close current workspace, preserving underlying sessions |
 | Cmd/Ctrl + K | Unified search |

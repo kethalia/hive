@@ -55,7 +55,7 @@ export function WindowResizeHandle({
       aria-valuenow={Math.round(value * 100)}
       aria-valuemin={Math.round(min * 100)}
       aria-valuemax={Math.round(max * 100)}
-      className={`absolute z-30 touch-none rounded-sm hover:bg-primary/45 focus-visible:bg-primary/60 focus-visible:outline-2 focus-visible:outline-primary ${axis === "width" ? "cursor-col-resize" : "cursor-row-resize"}`}
+      className={`group/resize absolute z-30 flex touch-none items-center justify-center focus-visible:outline-none ${axis === "width" ? "cursor-col-resize" : "cursor-row-resize"}`}
       style={style}
       data-window-resize=""
       onPointerDown={(event) => {
@@ -96,6 +96,12 @@ export function WindowResizeHandle({
               : clamp(value + (["ArrowLeft", "ArrowUp"].includes(event.key) ? -0.05 : 0.05)),
         );
       }}
-    />
+    >
+      {/* Keep the full edge draggable; only the small grip carries interaction feedback. */}
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none shrink-0 rounded-full bg-muted-foreground/30 transition-colors group-hover/resize:bg-muted-foreground/70 group-focus-visible/resize:bg-primary/80 group-focus-visible/resize:outline-2 group-focus-visible/resize:outline-offset-2 group-focus-visible/resize:outline-primary/70 group-active/resize:bg-primary/80 motion-reduce:transition-none ${axis === "width" ? "h-8 w-0.5" : "h-0.5 w-8"}`}
+      />
+    </div>
   );
 }

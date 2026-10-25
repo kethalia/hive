@@ -153,6 +153,22 @@ describe("window layouts", () => {
     )!;
     expect(r.x + r.width).toBeLessThanOrEqual(1000);
   });
+  it("returns to the adjacent column after right, right, left with fractional widths", () => {
+    let current = board();
+    const widths = [0.55, 0.65, 0.5];
+    current.manager!.columns.forEach((column, index) => {
+      column.width = widths[index];
+    });
+    for (const [action, expected] of [
+      ["focus-right", "b"],
+      ["focus-right", "c"],
+      ["focus-left", "b"],
+      ["focus-left", "a"],
+    ]) {
+      current = applyWindowAction(current, action, 1440, 800);
+      expect(current.activeWindowId).toBe(expected);
+    }
+  });
   it.each([
     false,
     true,
