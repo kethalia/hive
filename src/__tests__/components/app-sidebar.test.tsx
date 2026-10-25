@@ -476,7 +476,7 @@ function makeWorkspace(overrides: Partial<CoderWorkspace> = {}): CoderWorkspace 
     id: "ws-1",
     name: "dev-box",
     template_id: "tpl-1",
-    template_name: "browser-testing",
+    template_name: "game-dev",
     owner_name: "alice",
     latest_build: {
       id: "build-1",

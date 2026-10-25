@@ -79,6 +79,19 @@ when isolation or required capabilities demand it:
 hive-workspace create --task browser-check --name browser-check --template TEMPLATE_UUID
 ```
 
+Browser Testing and Infrastructure template metadata also default to two-hour
+autostop for future workspaces created through the Coder UI or API. These defaults
+were applied to the inspected deployment. Reproduce them when setting up a new
+deployment (template archive uploads do not carry scheduling metadata):
+
+```sh
+coder templates edit browser-testing --default-ttl 2h
+coder templates edit infrastructure --default-ttl 2h
+```
+
+Existing workspace schedules remain owner-controlled. Close unused connections
+when returning a reused helper, and stop it once no task is using it.
+
 New disposables receive a two-hour autostop deadline, adjustable with
 `--ttl-minutes` (15–1440). Active Coder connections extend the deadline, so close
 idle connections when work ends. This is normal Coder autostop, not licensed
