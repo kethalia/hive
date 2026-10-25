@@ -121,7 +121,10 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
 
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
-import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
+import {
+  openGlobalCommandPalette,
+  registerGlobalCommandPaletteSource,
+} from "@/lib/terminal/global-command-palette";
 
 function workspacePayload() {
   return {
@@ -584,5 +587,32 @@ describe("DashboardKeyboardController", () => {
       });
       expect(mockRouterPush).toHaveBeenLastCalledWith(route);
     }
+  });
+  it("opens the same palette from the search button event and Cmd+K, clearing the previous query", async () => {
+    const onSearchValueChange = vi.fn();
+    const unregister = registerGlobalCommandPaletteSource({
+      id: "unified",
+      handlesWorkspaces: true,
+      onSearchValueChange,
+    });
+    try {
+      render(<DashboardKeyboardController />);
+      act(() => openGlobalCommandPalette());
+      expect(screen.getByTestId("palette")).toHaveAttribute("data-open", "true");
+      expect(onSearchValueChange).toHaveBeenLastCalledWith("");
+      act(() => registeredBindings.get("dashboard:command-palette")?.action(null, null));
+      expect(onSearchValueChange).toHaveBeenCalledTimes(2);
+      expect(mockListWorkspaces).not.toHaveBeenCalled();
+      expect(screen.queryByText("hive-dev")).not.toBeInTheDocument();
+      expect(screen.getByText("Launch workspace")).toBeInTheDocument();
+    } finally {
+      act(() => unregister());
+    }
+  });
+  it("opens the mobile search sidebar from the same event", () => {
+    mobileState.isMobile = true;
+    render(<DashboardKeyboardController />);
+    act(() => openGlobalCommandPalette());
+    expect(mockSetOpenMobileRight).toHaveBeenCalledWith(true);
   });
 });

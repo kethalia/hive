@@ -1,6 +1,17 @@
 "use client";
 
-import { ChevronRight, Plus, Search, Terminal, Triangle, X } from "lucide-react";
+import {
+  Bot,
+  ChevronRight,
+  Code,
+  Folder,
+  Monitor,
+  Plus,
+  Search,
+  Terminal,
+  Triangle,
+  X,
+} from "lucide-react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -47,7 +58,7 @@ export interface CommandPaletteAction {
   rightLabel?: string;
   disabled?: boolean;
   closeOnSelect?: boolean;
-  icon?: "plus" | "search" | "terminal";
+  icon?: "plus" | "search" | "terminal" | "files" | "code" | "desktop" | "agents";
   onSelect: () => void;
   options?: CommandPaletteActionOption[];
 }
@@ -99,6 +110,10 @@ function actionIcon(
   icon: CommandPaletteAction["icon"],
   className = "mr-2 size-4 shrink-0 opacity-70",
 ) {
+  if (icon === "files") return <Folder className={className} />;
+  if (icon === "code") return <Code className={className} />;
+  if (icon === "desktop") return <Monitor className={className} />;
+  if (icon === "agents") return <Bot className={className} />;
   if (icon === "search") return <Search className={className} />;
   if (icon === "plus") return <Plus className={className} />;
   return <Terminal className={className} />;

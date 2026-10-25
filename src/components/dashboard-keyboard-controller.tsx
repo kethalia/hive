@@ -17,6 +17,7 @@ import {
 } from "@/lib/keyboard-shortcuts";
 import {
   getGlobalCommandPaletteSources,
+  OPEN_GLOBAL_COMMAND_PALETTE_EVENT,
   subscribeGlobalCommandPaletteSources,
 } from "@/lib/terminal/global-command-palette";
 import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
@@ -99,6 +100,13 @@ export function DashboardKeyboardController() {
     }
   }, [activePaletteSource, isMobile, setOpenMobileRight]);
 
+  useEffect(() => {
+    window.addEventListener(OPEN_GLOBAL_COMMAND_PALETTE_EVENT, openGlobalCommandPalette);
+    return () =>
+      window.removeEventListener(OPEN_GLOBAL_COMMAND_PALETTE_EVENT, openGlobalCommandPalette);
+  }, [openGlobalCommandPalette]);
+
+  const handlesWorkspaces = activePaletteSource?.handlesWorkspaces ?? false;
   const commandPaletteOpen = isMobile ? openMobileRight : paletteOpen;
   const onSourceOpenChange = activePaletteSource?.onOpenChange;
   useEffect(() => {
@@ -147,7 +155,11 @@ export function DashboardKeyboardController() {
   }, [appFullscreen, toggleFullscreen, setOpen, setOpenMobile, setOpenMobileRight]);
 
   useEffect(() => {
-    if (!commandPaletteOpen) return;
+    if (!commandPaletteOpen || handlesWorkspaces) {
+      setLoading(false);
+      setLoadFailed(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setLoadFailed(false);
@@ -168,7 +180,7 @@ export function DashboardKeyboardController() {
     return () => {
       cancelled = true;
     };
-  }, [commandPaletteOpen]);
+  }, [commandPaletteOpen, handlesWorkspaces]);
 
   useEffect(
     () =>
@@ -297,7 +309,7 @@ export function DashboardKeyboardController() {
           router.push("/workspaces");
         },
       },
-      ...workspaceActions,
+      ...(handlesWorkspaces ? [] : workspaceActions),
       {
         id: "dashboard:launch-workspace",
         label: "Launch workspace",
@@ -344,7 +356,7 @@ export function DashboardKeyboardController() {
         onSelect: toggleDashboardFullscreen,
       },
     ];
-  }, [appFullscreen, router, toggleDashboardFullscreen, workspaces]);
+  }, [appFullscreen, router, toggleDashboardFullscreen, workspaces, handlesWorkspaces]);
 
   const sourceActions = activePaletteSource?.actions ?? [];
   const actions = useMemo(

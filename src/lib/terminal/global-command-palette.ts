@@ -12,6 +12,7 @@ export interface GlobalCommandPaletteSource {
   searchPlaceholder?: string;
   emptyText?: string;
   groupHeading?: string;
+  handlesWorkspaces?: boolean;
 }
 
 type Listener = () => void;
@@ -47,4 +48,10 @@ export function subscribeGlobalCommandPaletteSources(listener: Listener): () => 
 
 export function getGlobalCommandPaletteSources(): GlobalCommandPaletteSource[] {
   return [...sources.values()];
+}
+
+export const OPEN_GLOBAL_COMMAND_PALETTE_EVENT = "hive:open-command-palette";
+
+export function openGlobalCommandPalette() {
+  window.dispatchEvent(new Event(OPEN_GLOBAL_COMMAND_PALETTE_EVENT));
 }

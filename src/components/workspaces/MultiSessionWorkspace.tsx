@@ -108,8 +108,8 @@ import {
 } from "@/lib/keyboard-event-targets";
 import {
   formatShortcut,
+  GLOBAL_COMMAND_PALETTE_KEYS,
   WORKSPACE_AGENTS_KEYS,
-  WORKSPACE_SEARCH_KEYS,
 } from "@/lib/keyboard-shortcuts";
 import {
   WORKSPACE_APP_FRAME_ALLOW,
@@ -3787,25 +3787,10 @@ export function MultiSessionWorkspace({
       global: true,
       allowRepeat: false,
     });
-    const searchId = `multi-session:${workspaceId}:search`;
-    register({
-      id: searchId,
-      keys: [...WORKSPACE_SEARCH_KEYS],
-      action: () => {
-        openWorkspaceCommandPalette();
-        return false;
-      },
-      description: "Search workspace sessions",
-      category: "workspace",
-      enabledInBrowser: true,
-      global: true,
-      allowRepeat: false,
-    });
     return () => {
       unregister(id);
-      unregister(searchId);
     };
-  }, [workspaceId, register, unregister, openWorkspaceCommandPalette]);
+  }, [workspaceId, register, unregister]);
 
   const renderGitRepositoryButton = () => {
     if (!isUnifiedSource) return null;
@@ -3813,7 +3798,7 @@ export function MultiSessionWorkspace({
     return (
       <WorkspaceHeaderButton
         label="Add session"
-        shortcuts={WORKSPACE_SEARCH_KEYS}
+        shortcuts={GLOBAL_COMMAND_PALETTE_KEYS}
         onClick={openWorkspaceCommandPalette}
         aria-label="Open workspace command palette"
         data-testid="open-git-session-search"

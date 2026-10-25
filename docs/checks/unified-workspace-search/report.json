@@ -1,0 +1,41 @@
+[
+  {
+    "width": 1440,
+    "singleSearch": true,
+    "appsOpenedInCanvas": ["Desktop", "Files", "VS Code"],
+    "namedTerminalCreated": true,
+    "repositoryOpened": true,
+    "existingTerminalOpened": true,
+    "stoppedWorkspaceStartedExplicitly": true,
+    "removedShortcutsInactive": true,
+    "agentsOpened": true,
+    "workspaceEntryOpensSearch": true,
+    "errors": []
+  },
+  {
+    "width": 1100,
+    "singleSearch": true,
+    "appsOpenedInCanvas": ["Desktop", "Files", "VS Code"],
+    "namedTerminalCreated": true,
+    "repositoryOpened": true,
+    "existingTerminalOpened": true,
+    "stoppedWorkspaceStartedExplicitly": true,
+    "removedShortcutsInactive": true,
+    "agentsOpened": true,
+    "workspaceEntryOpensSearch": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "singleSearch": true,
+    "appsOpenedInCanvas": ["Desktop", "Files", "VS Code"],
+    "namedTerminalCreated": true,
+    "repositoryOpened": true,
+    "existingTerminalOpened": true,
+    "stoppedWorkspaceStartedExplicitly": true,
+    "removedShortcutsInactive": true,
+    "agentsOpened": true,
+    "workspaceEntryOpensSearch": true,
+    "errors": []
+  }
+]
