@@ -33,7 +33,11 @@ function Harness({
   available?: CoderWorkspace[];
 }) {
   const [open, setOpen] = useState(true);
-  const pages = useWindowCreationPages({ workspaces: available, open, onOpenPane });
+  const { pages, beginCreation } = useWindowCreationPages({
+    workspaces: available,
+    open,
+    onOpenPane,
+  });
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}>
@@ -67,7 +71,7 @@ function Harness({
                 id: "new",
                 label: "Create terminal",
                 group: "Terminal",
-                onSelect: () => ({ page: "create-terminal" }),
+                onSelect: () => beginCreation("terminal"),
               },
             ],
           },
@@ -78,7 +82,7 @@ function Harness({
                 id: "new-project",
                 label: "New project",
                 group: "Projects",
-                onSelect: () => ({ page: "create-project" }),
+                onSelect: () => beginCreation("project"),
               },
             ],
           },
@@ -276,6 +280,73 @@ describe("nested command creation", () => {
     view.rerender(
       <Harness onOpenPane={onOpenPane} available={workspaces.filter((w) => w.id !== "helper")} />,
     );
+    await enter();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose a running");
+    expect(mocks.session).not.toHaveBeenCalled();
+  });
+  it.each([
+    "terminal",
+    "project owner",
+    "project repository",
+  ])("requires an explicit replacement if the default workspace stops during %s entry", async (stage) => {
+    const onOpenPane = vi.fn();
+    const view = render(<Harness onOpenPane={onOpenPane} />);
+    if (stage === "terminal") terminal();
+    else if (stage === "project repository") await project();
+    else {
+      choose("Projects");
+      choose("New project");
+    }
+    type(stage === "project owner" ? "kethalia" : "hive");
+    const available = workspaces.map((w) =>
+      w.id === "dev" ? { ...w, latest_build: { ...w.latest_build, status: "stopped" } } : w,
+    ) as CoderWorkspace[];
+    view.rerender(<Harness onOpenPane={onOpenPane} available={available} />);
+    if (stage === "project owner") {
+      await enter();
+      await screen.findByLabelText("Repository");
+      type("hive");
+    }
+    await enter();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose a running");
+    expect(mocks.session).not.toHaveBeenCalled();
+    expect(mocks.clone).not.toHaveBeenCalled();
+    expect(onOpenPane).not.toHaveBeenCalled();
+
+    choose("Choose a running workspace");
+    choose("helper");
+    expect(screen.getByRole("combobox")).toHaveValue("hive");
+    const pane = { kind: "terminal", workspaceId: "helper", sessionName: "hive", label: "hive" };
+    mocks.session.mockResolvedValue({ data: { name: "hive" } });
+    mocks.clone.mockResolvedValue({ data: pane });
+    await enter();
+    await waitFor(() => expect(onOpenPane).toHaveBeenCalledExactlyOnceWith(pane));
+    if (stage === "terminal") {
+      expect(mocks.session).toHaveBeenCalledExactlyOnceWith({
+        workspaceId: "helper",
+        sessionName: "hive",
+      });
+    } else {
+      expect(mocks.clone).toHaveBeenCalledExactlyOnceWith({
+        workspaceId: "helper",
+        organization: "kethalia",
+        repository: "hive",
+      });
+    }
+  });
+  it("chooses the default when creation starts, not when search opens", () => {
+    const onOpenPane = vi.fn();
+    const view = render(<Harness onOpenPane={onOpenPane} />);
+    view.rerender(<Harness onOpenPane={onOpenPane} available={[workspaces[1]]} />);
+    terminal();
+    expect(screen.getByRole("option", { name: /Workspace: helper/ })).toBeVisible();
+  });
+  it("does not select a newly running workspace in an existing creation flow", async () => {
+    const onOpenPane = vi.fn();
+    const view = render(<Harness onOpenPane={onOpenPane} available={[]} />);
+    terminal();
+    type("example");
+    view.rerender(<Harness onOpenPane={onOpenPane} />);
     await enter();
     expect(await screen.findByRole("alert")).toHaveTextContent("Choose a running");
     expect(mocks.session).not.toHaveBeenCalled();

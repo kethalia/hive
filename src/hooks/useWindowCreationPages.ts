@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CommandPalettePage } from "@/components/terminal/CommandPalette";
 import { cloneProjectAction } from "@/lib/actions/clone-project";
 import { createSessionAction } from "@/lib/actions/workspaces";
@@ -21,7 +21,7 @@ export function useWindowCreationPages({
   initialWorkspaceId?: string;
   open: boolean;
   onOpenPane: (pane: GeneralPane) => void;
-}): Record<string, CommandPalettePage> {
+}) {
   const client = useQueryClient();
   const [chosenId, setChosenId] = useState<string | null>(null);
   const [organization, setOrganization] = useState("");
@@ -38,14 +38,23 @@ export function useWindowCreationPages({
       setOrganization("");
     }
   }, [open]);
-  return useMemo(() => {
+  const beginCreation = useCallback(
+    (kind: "terminal" | "project") => {
+      const running = workspaces.filter((w) => w.latest_build.status === "running");
+      const workspace =
+        running.find((w) => w.id === initialWorkspaceId) ??
+        running.find((w) => w.template_name === "ai-dev-k8s") ??
+        running[0];
+      // Capture the destination once. Refreshes must never redirect a pending creation.
+      setChosenId(workspace?.id ?? null);
+      setOrganization("");
+      return { page: kind === "terminal" ? "create-terminal" : "create-project" };
+    },
+    [workspaces, initialWorkspaceId],
+  );
+  const pages = useMemo<Record<string, CommandPalettePage>>(() => {
     const running = workspaces.filter((w) => w.latest_build.status === "running");
-    const workspace =
-      chosenId !== null
-        ? running.find((w) => w.id === chosenId)
-        : (running.find((w) => w.id === initialWorkspaceId) ??
-          running.find((w) => w.template_name === "ai-dev-k8s") ??
-          running[0]);
+    const workspace = running.find((w) => w.id === chosenId);
     const workspaceActions = [
       {
         id: "creation-workspace",
@@ -149,5 +158,6 @@ export function useWindowCreationPages({
         })),
       },
     };
-  }, [workspaces, initialWorkspaceId, chosenId, organization, client, onOpenPane]);
+  }, [workspaces, chosenId, organization, client, onOpenPane]);
+  return { pages, beginCreation };
 }

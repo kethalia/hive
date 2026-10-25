@@ -32,7 +32,7 @@ export function useGeneralWorkspaceCommands({
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const creationPages = useWindowCreationPages({
+  const { pages: creationPages, beginCreation } = useWindowCreationPages({
     workspaces,
     initialWorkspaceId,
     open,
@@ -283,7 +283,7 @@ export function useGeneralWorkspaceCommands({
         value: "new session terminal",
         icon: "plus",
         disabled: busy,
-        onSelect: () => ({ page: "create-terminal" }),
+        onSelect: () => beginCreation("terminal"),
       },
       ...resultsByWorkspace.filter((action) => action.group === "Terminals"),
       {
@@ -295,7 +295,7 @@ export function useGeneralWorkspaceCommands({
         value: "new project clone github repository",
         icon: "plus",
         disabled: busy,
-        onSelect: () => ({ page: "create-project" }),
+        onSelect: () => beginCreation("project"),
       },
       ...resultsByWorkspace.filter((action) => action.group === "Projects"),
       ...resultsByWorkspace.filter(
@@ -313,6 +313,7 @@ export function useGeneralWorkspaceCommands({
     startError,
     startWorkspace,
     retryWorkspace,
+    beginCreation,
   ]);
 
   useEffect(
