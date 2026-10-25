@@ -1,0 +1,16 @@
+[
+  {
+    "width": 1440,
+    "groups": true,
+    "removedNavigation": true,
+    "fontActions": true,
+    "consoleErrors": []
+  },
+  {
+    "width": 390,
+    "groups": true,
+    "removedNavigation": true,
+    "fontActions": true,
+    "consoleErrors": []
+  }
+]

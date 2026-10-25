@@ -146,3 +146,9 @@ export function workspaceSurfaceLabel(templateName: string): string {
   }
   return "CLI";
 }
+
+/** Browser and infrastructure environments assist the primary authoring workspaces. */
+export function workspaceTemplatePurpose(templateName: string): "development" | "helper" {
+  const profile = templateCatalogEntry(templateName)?.profileId;
+  return profile === "browser" || profile === "infrastructure" ? "helper" : "development";
+}
