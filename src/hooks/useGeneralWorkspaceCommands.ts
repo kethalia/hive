@@ -8,6 +8,7 @@ import { discoveryOptions } from "@/lib/discovery/queries";
 import { isDiscoveryDenied } from "@/lib/discovery/types";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
+import { matchesProjectSearch } from "@/lib/terminal/command-search";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import type { GeneralPane } from "@/lib/workspaces/general-workspace";
 import { repositories, repositoryTerminalPane } from "@/lib/workspaces/terminal-selection";
@@ -146,18 +147,32 @@ export function useGeneralWorkspaceCommands({
   );
 
   const actions = useMemo<CommandPaletteAction[]>(() => {
-    const name = query.trim();
-    const repositoryQuery = name.toLowerCase();
     const resultsByWorkspace = workspaces.flatMap<CommandPaletteAction>((workspace) => {
       const status = workspace.latest_build.status;
       const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
       const apps = [
-        { tool: "files", label: "Files", available: capabilities.fileBrowser },
-        { tool: "code", label: "VS Code", available: capabilities.editor },
-        { tool: "desktop", label: "Desktop", available: capabilities.desktop },
+        {
+          tool: "files",
+          label: "Files",
+          aliases: ["file browser", "file manager"],
+          available: capabilities.fileBrowser,
+        },
+        {
+          tool: "code",
+          label: "VS Code",
+          aliases: ["vscode", "editor", "code editor"],
+          available: capabilities.editor,
+        },
+        {
+          tool: "desktop",
+          label: "Desktop",
+          aliases: ["remote desktop"],
+          available: capabilities.desktop,
+        },
       ] as const;
       if (status !== "running") {
-        const available = apps.filter((app) => app.available).map((app) => app.label);
+        const availableApps = apps.filter((app) => app.available);
+        const available = availableApps.map((app) => app.label);
         const error = startError?.workspaceId === workspace.id ? startError.message : null;
         return [
           {
@@ -167,6 +182,7 @@ export function useGeneralWorkspaceCommands({
               error ??
               `${status} · Terminals, repositories${available.length ? `, ${available.join(", ")}` : ""}`,
             group: "Workspaces",
+            aliases: availableApps.flatMap<string>((app) => app.aliases),
             value: `${workspace.name} ${status} start workspace terminals repositories agents ${available.join(" ")}`,
             rightLabel: starting === workspace.id ? "Starting…" : status,
             icon: "terminal",
@@ -181,14 +197,7 @@ export function useGeneralWorkspaceCommands({
       const found = data.find((entry) => entry.workspaceId === workspace.id);
       const results: CommandPaletteAction[] = [];
       for (const repository of found?.repositories ?? []) {
-        // Restrict repository results before cmdk's fuzzy ranking can match unrelated names.
-        if (
-          ![repository.label, repository.relativePath].some(
-            (value) =>
-              value.toLowerCase().includes(repositoryQuery) || "projects".includes(repositoryQuery),
-          )
-        )
-          continue;
+        if (!matchesProjectSearch(repository.label, repository.relativePath, query)) continue;
         results.push({
           id: `repository:${workspace.id}:${repository.cloneSessionKey}`,
           label: repository.label,
@@ -227,6 +236,7 @@ export function useGeneralWorkspaceCommands({
         results.push({
           id: `app:${workspace.id}:${app.tool}`,
           label: app.label,
+          aliases: app.aliases,
           description: workspace.name,
           group: app.label === "Desktop" ? "Desktops" : app.label,
           value: `${app.label} ${workspace.name} ${app.tool} app`,
@@ -247,7 +257,7 @@ export function useGeneralWorkspaceCommands({
           label: `Retry terminals in ${workspace.name}`,
           description: found.error,
           group: "Terminals",
-          value: `${name} retry ${workspace.name}`,
+          value: `retry terminals repositories ${workspace.name}`,
           icon: "search",
           closeOnSelect: false,
           onSelect: () => {
@@ -260,6 +270,7 @@ export function useGeneralWorkspaceCommands({
       {
         id: "new-terminal",
         label: "New session",
+        aliases: ["new terminal", "create terminal", "create session", "shell"],
         description: "Name a terminal session and choose its Coder workspace",
         group: "Terminals",
         value: "new session terminal",
@@ -271,6 +282,7 @@ export function useGeneralWorkspaceCommands({
       {
         id: "new-project",
         label: "New project",
+        aliases: ["clone repository", "new repository", "create project", "clone"],
         description: "Clone a GitHub organization/repository",
         group: "Projects",
         value: "new project clone github repository",

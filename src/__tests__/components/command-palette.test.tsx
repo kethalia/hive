@@ -416,9 +416,9 @@ describe("CommandPalette", () => {
     expect(screen.getByTestId("command-dialog")).toBeInTheDocument();
     expect(screen.queryByTestId("sheet-content")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Drag to dismiss command palette" })).toBeNull();
-    expect(screen.getByTestId("command-item-hive-main")).toBeInTheDocument();
-    expect(screen.getByTestId("command-item-dev-server")).toBeInTheDocument();
-    expect(screen.getByTestId("command-item-test-runner")).toBeInTheDocument();
+    expect(screen.getByTestId("command-item-tab:tab-1")).toBeInTheDocument();
+    expect(screen.getByTestId("command-item-tab:tab-2")).toBeInTheDocument();
+    expect(screen.getByTestId("command-item-tab:tab-3")).toBeInTheDocument();
     expect(screen.getByTestId("command-dialog")).toHaveAttribute(
       "data-content-class-name",
       expect.stringContaining("max-w-2xl"),
@@ -593,7 +593,7 @@ describe("CommandPalette", () => {
     expect(screen.getByTestId("sheet-content")).not.toHaveAttribute("data-use-drag-bound");
     expect(screen.getByTestId("command")).not.toHaveAttribute("data-use-drag-bound");
     expect(screen.getByTestId("command-list")).not.toHaveAttribute("data-use-drag-bound");
-    expect(screen.getByTestId("command-item-hive-main")).not.toHaveAttribute("data-use-drag-bound");
+    expect(screen.getByTestId("command-item-tab:tab-1")).not.toHaveAttribute("data-use-drag-bound");
   });
 
   it("moves the sheet while dragging down and dismisses past the distance threshold", () => {
@@ -762,7 +762,7 @@ describe("CommandPalette", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("command-item-dev-server"));
+    fireEvent.click(screen.getByTestId("command-item-tab:tab-2"));
 
     expect(onSelectTab).toHaveBeenCalledWith("tab-2");
   });
@@ -779,7 +779,7 @@ describe("CommandPalette", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("command-item-hive-main"));
+    fireEvent.click(screen.getByTestId("command-item-tab:tab-1"));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -798,7 +798,7 @@ describe("CommandPalette", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("command-item-dev-server"));
+    fireEvent.click(screen.getByTestId("command-item-tab:tab-2"));
 
     expect(onSelectTab).toHaveBeenCalledWith("tab-2");
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -836,7 +836,7 @@ describe("CommandPalette", () => {
     expect(screen.getByText("Create and focus this session in the workspace")).toBeInTheDocument();
     expect(screen.getByText("Workspace")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("command-item-Actions api new terminal session"));
+    fireEvent.click(screen.getByTestId("command-item-action:workspace:new"));
 
     expect(action).toHaveBeenCalledTimes(1);
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -1092,5 +1092,37 @@ describe("CommandPalette", () => {
     );
 
     expect(screen.getByTestId("command-group-sessions")).toBeInTheDocument();
+  });
+});
+
+describe("command relevance group ordering", () => {
+  afterEach(cleanup);
+  it.each([
+    false,
+    true,
+  ])("moves the best matching group first while typing (mobile: %s)", (isMobile) => {
+    mobileState.isMobile = isMobile;
+    const actions = [
+      { id: "desktop", label: "Desktop", group: "Desktops", onSelect: vi.fn() },
+      { id: "settings", label: "Settings", group: "Hive", onSelect: vi.fn() },
+    ];
+    render(
+      <CommandPalette
+        open
+        onOpenChange={vi.fn()}
+        tabs={[]}
+        onSelectTab={vi.fn()}
+        actions={actions}
+      />,
+    );
+    const headings = () =>
+      Array.from(screen.getByTestId("command-list").querySelectorAll("[data-heading]")).map((el) =>
+        el.getAttribute("data-heading"),
+      );
+    expect(headings()).toEqual(["Desktops", "Hive"]);
+    fireEvent.change(screen.getByTestId("command-input"), { target: { value: "settings" } });
+    expect(headings()).toEqual(["Hive"]);
+    fireEvent.change(screen.getByTestId("command-input"), { target: { value: "" } });
+    expect(headings()).toEqual(["Desktops", "Hive"]);
   });
 });

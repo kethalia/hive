@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "settings: best result first and selected",
+    "settigns: best result first and selected",
+    "preferences: best result first and selected",
+    "Enter opens the Settings window from its alias",
+    "vscode finds editor apps without spelling the display name",
+    "new terminal: best result first and selected",
+    "clone repository: best result first and selected",
+    "terminals: best result first and selected",
+    "projects: best result first and selected",
+    "category-qualified project search shows only matching projects",
+    "exact session names rank above Agents aliases across groups",
+    "unrelated queries show a real empty state",
+    "empty search: best result first and selected",
+    "settings: best result first and selected",
+    "settings: best result first and selected",
+    "mobile sheet shares app aliases and relevance ordering"
+  ],
+  "errors": []
+}

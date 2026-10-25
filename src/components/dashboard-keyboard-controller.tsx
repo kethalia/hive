@@ -139,22 +139,54 @@ export function DashboardKeyboardController() {
       ...(source?.actions ?? []),
       ...(
         [
-          ["agents", "Agents", "Find and resume agent conversations", WORKSPACE_AGENTS_KEYS],
-          ["settings", "Settings", "Account, app updates, and notifications", undefined],
-          ["diagnostics", "Diagnostics", "Inspect terminal connection health", DIAGNOSTICS_KEYS],
+          [
+            "agents",
+            "Agents",
+            "Find and resume agent conversations",
+            WORKSPACE_AGENTS_KEYS,
+            ["assistants", "conversations", "codex", "claude"],
+          ],
+          [
+            "settings",
+            "Settings",
+            "Account, app updates, and notifications",
+            undefined,
+            ["preferences", "configuration"],
+          ],
+          [
+            "diagnostics",
+            "Diagnostics",
+            "Inspect terminal connection health",
+            DIAGNOSTICS_KEYS,
+            ["connection status", "terminal status", "health"],
+          ],
           [
             "workspaces",
             "Manage Coder workspaces",
             "Start, stop, and manage environments",
             MANAGE_WORKSPACES_KEYS,
+            ["environments", "coder"],
           ],
-          ["templates", "Templates", "Review and push Coder workspace templates", TEMPLATES_KEYS],
-          ["logs", "Logs", "Inspect terminal events across your workspaces", undefined],
+          [
+            "templates",
+            "Templates",
+            "Review and push Coder workspace templates",
+            TEMPLATES_KEYS,
+            ["workspace templates"],
+          ],
+          [
+            "logs",
+            "Logs",
+            "Inspect terminal events across your workspaces",
+            undefined,
+            ["events", "terminal events"],
+          ],
         ] as const
-      ).map(([tool, label, description, keys]) => ({
+      ).map(([tool, label, description, keys, aliases]) => ({
         id: `dashboard:open-${tool}`,
         label,
         description,
+        aliases,
         group: "Hive",
         value: `${label} ${description}`,
         shortcut: keys ? formatShortcut(keys) : undefined,
