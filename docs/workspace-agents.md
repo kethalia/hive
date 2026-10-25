@@ -34,15 +34,19 @@ change should carry a short handoff with the branch, current state, and next act
 - Codex keeps the existing updater and user-owned config/auth with a native launcher.
   Registry module 5.4.2 writes `config.toml` on first use, even when installation is
   disabled. Adopt it only after the proposed `manage_config = false` option is
-  released; do not point production templates at an unreleased fork.
+  released ([upstream PR](https://github.com/coder/registry/pull/1208)); do not point
+  production templates at an unreleased fork.
 - OpenCode is opt-in through the **OpenCode CLI** workspace parameter. Its official
   npm package is pinned to 1.19.4 for first installation; an existing installation
   is retained. The current coder-labs OpenCode module 0.1.3 still brings agentapi/
   Tasks dependencies, so this template uses a bounded CLI installer and terminal
   launcher. No additional web server, local model runtime, or model weights run in
   the helper workspace.
-- Existing code-server, git-config, git-signing, and coder-login module pins are
-  unchanged in this slice. They are independent of native agent enablement.
+- code-server moves to the canonical `coder/code-server` module at 1.6.0, which
+  merges user settings instead of overwriting them. coder-login moves to 1.1.1
+  and remains restricted to the software profile. git-commit-signing 1.0.32 is
+  current. Keep git-config 1.0.33: 1.0.35 adds a competing startup writer to the
+  global Git config, while Hive already coordinates those writes with retries.
 
 For OpenCode, use `/connect` for a provider and `/models` to select a model. For an
 internal OpenAI-compatible service, configure its URL and model ID in your

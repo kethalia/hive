@@ -299,8 +299,8 @@ resource "coder_script" "symlinks" {
 
 module "code-server" {
   count   = local.profile.capabilities.editor ? data.coder_workspace.me.start_count : 0
-  source  = "registry.coder.com/modules/code-server/coder"
-  version = "1.4.3"
+  source  = "registry.coder.com/coder/code-server/coder"
+  version = "1.6.0"
 
   agent_id              = coder_agent.main.id
   order                 = 1
@@ -506,7 +506,7 @@ resource "coder_app" "desktop" {
 module "coder-login" {
   count    = local.profile.id == "software" ? data.coder_workspace.me.start_count : 0
   source   = "registry.coder.com/coder/coder-login/coder"
-  version  = "1.0.15"
+  version  = "1.1.1"
   agent_id = coder_agent.main.id
 }
 
