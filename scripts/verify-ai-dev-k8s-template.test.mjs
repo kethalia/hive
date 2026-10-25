@@ -265,7 +265,11 @@ function verifyPodSecurity() {
   assert.match(terraform, /fs_group_change_policy\s*=\s*"OnRootMismatch"/);
   assert.match(terraform, /"app\.kubernetes\.io\/name"\s*=\s*"coder-workspace"/);
   assert.doesNotMatch(terraform, /ignore_changes\s*=\s*all/);
-  assert.doesNotMatch(terraform, /data "coder_parameter"/);
+  assert.deepEqual(
+    [...terraform.matchAll(/data "coder_parameter" "([^"]+)"/g)].map((match) => match[1]),
+    ["enable_opencode"],
+    "Only an optional CLI may be selected; profile capabilities and resources stay fixed",
+  );
   assert.doesNotMatch(terraform, /variable "/);
   assert.doesNotMatch(terraform, /module "dotfiles"/);
   assert.match(terraform, /storage\s*=\s*local\.profile\.resources\.storage/);

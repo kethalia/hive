@@ -1,6 +1,2 @@
-# Platform repositories kept separate from application and domain workspaces.
-kethalia/.github|kethalia/.github
-kethalia/github-runners|kethalia/github-runners
+# Seed only the cluster repository; add other task repositories explicitly.
 kethalia/k8s-cluster|kethalia/k8s-cluster
-kethalia/workflows|kethalia/workflows
-phlox-labs/deployment-docs|phlox-labs/deployment-docs

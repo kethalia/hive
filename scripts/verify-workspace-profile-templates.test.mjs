@@ -30,8 +30,8 @@ const profiles = [
     capabilities: {
       browser: true,
       desktop: true,
-      editor: true,
-      file_browser: true,
+      editor: false,
+      file_browser: false,
       web3: false,
     },
   },
@@ -70,8 +70,8 @@ const profiles = [
     capabilities: {
       browser: false,
       desktop: false,
-      editor: true,
-      file_browser: true,
+      editor: false,
+      file_browser: false,
       web3: false,
     },
   },

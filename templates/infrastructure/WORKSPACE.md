@@ -15,8 +15,8 @@ platform repositories.
 
 - GitHub CLI, Docker client, GitHub Actions `act`, and standard build tools
 - Terraform 1.15.8, kubectl 1.34.5, Helm 3.16.4, and Argo CD 3.3.4
-- Terraform, Kubernetes, YAML, Docker, and GitHub Actions editor support
-- Claude Code, Codex, code-server, File Browser, and tmux
+- Terraform, Kubernetes, YAML, Docker, and GitHub Actions CLI tools
+- Claude Code, Codex, and tmux; editor and File Browser services are disabled
 
 Browser automation belongs in the Browser Testing workspace. Cluster credentials and production
 authority are intentionally not provisioned by the template.

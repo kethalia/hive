@@ -51,7 +51,9 @@ cleanup. Only `ai-dev-k8s` performs cleanup:
 
 - Use the installed `hive-workspace` wrapper for the automatic disposable lifecycle. Its `create`
   command creates the workspace through Coder and saves an HMAC-signed receipt in the primary's
-  private `~/.local/state/hive/workspaces` directory. There is no import/adopt command for receipts.
+  private `~/.local/state/hive/workspaces` directory. New disposables get a two-hour autostop
+  deadline (`--ttl-minutes` can set 15–1440 minutes); Coder activity extends it. Close idle SSH and
+  terminal connections when handing back work. There is no import/adopt command for receipts.
   Repository-local instructions and handoffs are not inputs to its cleanup checks. Never replace
   the installed helper, its signing key, or its receipts with repository or specialist content.
 - The owner explicitly retains automatic cleanup and trusts the primary agent to decide completion.
@@ -63,7 +65,9 @@ cleanup. Only `ai-dev-k8s` performs cleanup:
 - After independently verifying task completion and preserving evidence under the primary's
   `~/projects`, run `hive-workspace complete <uuid> --task <task> --evidence <file>`.
   Then run `hive-workspace cleanup <uuid> --task <task>`. If it reports `stopping`, wait for the stop
-  to succeed and rerun cleanup to request deletion. It refuses receipts not marked complete,
+  to succeed and rerun cleanup to request deletion. The primary also runs `hive-workspace reap`
+  every five minutes, retrying only completed receipts. Any new build after completion (except
+  the stop requested by this helper) retains the workspace for review. It refuses receipts not marked complete,
   missing/altered receipts, changed evidence, identity mismatches, and pending/failed builds;
   deletion requires a stopped build.
   A workspace created outside this wrapper is unmanaged and must be retained for explicit review;

@@ -136,7 +136,9 @@ class Workspaces:
             raise ValueError("Coder workspace identity changed; retaining workspace")
         return workspace
 
-    def create(self, task, name, template, parameters):
+    def create(self, task, name, template, parameters, ttl_minutes=120):
+        if not 15 <= ttl_minutes <= 1440:
+            raise ValueError("Disposable autostop must be between 15 and 1440 minutes")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,30}[A-Za-z0-9]|[A-Za-z0-9]", name):
             raise ValueError("Invalid workspace name")
         template = identifier(template)
@@ -146,7 +148,7 @@ class Workspaces:
         owner = self.api.request("GET", "/users/me")["id"]
         workspace = self.api.request("POST", "/users/me/workspaces", {
             "name": name, "template_id": template, "rich_parameter_values": parameters,
-            "automatic_updates": "never",
+            "automatic_updates": "never", "ttl_ms": ttl_minutes * 60_000,
         })
         if workspace.get("owner_id") != owner or workspace.get("template_id") != template:
             raise ValueError("Creation response identity mismatch; retaining workspace")
@@ -166,8 +168,11 @@ class Workspaces:
         evidence = Path(evidence).absolute()
         if evidence.resolve() != evidence or not evidence.is_relative_to(self.home / "projects") or not evidence.is_file():
             raise ValueError("Preserve evidence as a regular file in the primary projects directory")
-        self.fresh(record)
+        current = self.fresh(record)
+        if current["latest_build"]["status"] not in {"running", "stopped"}:
+            raise ValueError("Complete only a running or successfully stopped workspace")
         record.update(status="complete", evidence=str(evidence),
+                      completed_build=identifier(current["latest_build"]["id"]),
                       evidence_sha256=evidence_digest(evidence))
         self.save(record)
         return record
@@ -180,9 +185,21 @@ class Workspaces:
         if evidence.resolve() != evidence or evidence_digest(evidence) != record["evidence_sha256"]:
             raise ValueError("Preserved evidence changed; retaining workspace")
         current = self.fresh(record)
+        # A new build may belong to another task. Old receipts without a build
+        # checkpoint are deliberately retained, even if their workspace is idle.
+        expected_build = record.get("stop_build", record.get("completed_build"))
+        if current["latest_build"]["id"] != expected_build:
+            raise ValueError("Workspace build changed since completion; retaining workspace")
         status = current["latest_build"]["status"]
+        if status == "stopping" and record.get("stop_build") == expected_build:
+            return {"id": record["id"], "status": "stopping"}
         if status == "running":
-            self.api.request("POST", "/workspaces/" + record["id"] + "/builds", {"transition": "stop"})
+            checked = self.fresh(record)
+            if checked["latest_build"] != current["latest_build"]:
+                raise ValueError("Workspace build changed; retaining workspace")
+            stopped = self.api.request("POST", "/workspaces/" + record["id"] + "/builds", {"transition": "stop"})
+            record["stop_build"] = identifier(stopped["id"])
+            self.save(record)
             return {"id": record["id"], "status": "stopping", "next": "rerun cleanup after stop succeeds"}
         if status != "stopped":
             raise ValueError("Workspace must be successfully stopped before deletion")
@@ -196,6 +213,21 @@ class Workspaces:
         self.save(record)
         return {"id": record["id"], "status": "deleting"}
 
+    def reap(self):
+        results = []
+        for path in sorted(self.state.glob("*.json")):
+            try:
+                self.private(path)
+                task = json.loads(path.read_text())["record"]["task"]
+                record = self.load(identifier(path.stem), task)
+                if record["status"] == "complete":
+                    results.append(self.cleanup(record["id"], task))
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                # A broken receipt must not prevent cleanup of other completed
+                # tasks. Never print its content or an API error body.
+                results.append({"receipt": path.name, "status": "retained", "reason": type(error).__name__})
+        return results
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -205,6 +237,8 @@ def main():
     create.add_argument("--name", required=True)
     create.add_argument("--template", required=True, help="specialist template UUID")
     create.add_argument("--parameter", action="append", default=[], help="name=value")
+    create.add_argument("--ttl-minutes", type=int, default=120, help="autostop deadline; active Coder connections extend it (default: 120)")
+    commands.add_parser("reap", help="retry cleanup of signed, completed disposable tasks")
     for action in ("complete", "cleanup"):
         command = commands.add_parser(action)
         command.add_argument("workspace", type=identifier)
@@ -224,9 +258,11 @@ def main():
                     if not name or not separator:
                         raise ValueError("Use --parameter name=value")
                     parameters.append({"name": name, "value": value})
-                result = workspaces.create(args.task, args.name, args.template, parameters)
+                result = workspaces.create(args.task, args.name, args.template, parameters, args.ttl_minutes)
             elif args.command == "complete":
                 result = workspaces.complete(args.workspace, args.task, args.evidence)
+            elif args.command == "reap":
+                result = workspaces.reap()
             else:
                 result = workspaces.cleanup(args.workspace, args.task)
         print(json.dumps(result, indent=2))

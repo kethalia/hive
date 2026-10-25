@@ -34,8 +34,8 @@ export const TEMPLATE_CATALOG = [
     capabilities: {
       browser: true,
       desktop: true,
-      editor: true,
-      fileBrowser: true,
+      editor: false,
+      fileBrowser: false,
       web3: false,
     },
     description: "Dedicated Chrome and Playwright workspace for browser automation and inspection.",
@@ -73,7 +73,7 @@ export const TEMPLATE_CATALOG = [
     profileId: "infrastructure",
     runtime: "kubernetes",
     imageVariant: "infrastructure",
-    capabilities: HEADLESS_DEVELOPMENT_CAPABILITIES,
+    capabilities: { ...HEADLESS_DEVELOPMENT_CAPABILITIES, editor: false, fileBrowser: false },
     description: "Headless workspace for clusters, Terraform, deployments, and platform work.",
   },
 ] as const satisfies ReadonlyArray<{
