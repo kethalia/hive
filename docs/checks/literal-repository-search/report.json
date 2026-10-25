@@ -1,0 +1,64 @@
+[
+  {
+    "width": 1440,
+    "queries": [
+      {
+        "query": "hive",
+        "repositoryCount": 4
+      },
+      {
+        "query": " HIVE ",
+        "repositoryCount": 4
+      },
+      {
+        "query": "kethalia/HAWK",
+        "repositoryCount": 2
+      },
+      {
+        "query": "no-such-repo",
+        "repositoryCount": 0
+      },
+      {
+        "query": "ai-dev-01",
+        "repositoryCount": 0
+      },
+      {
+        "query": "",
+        "repositoryCount": 14
+      }
+    ],
+    "matchingRepositoryOpened": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "queries": [
+      {
+        "query": "hive",
+        "repositoryCount": 4
+      },
+      {
+        "query": " HIVE ",
+        "repositoryCount": 4
+      },
+      {
+        "query": "kethalia/HAWK",
+        "repositoryCount": 2
+      },
+      {
+        "query": "no-such-repo",
+        "repositoryCount": 0
+      },
+      {
+        "query": "ai-dev-01",
+        "repositoryCount": 0
+      },
+      {
+        "query": "",
+        "repositoryCount": 14
+      }
+    ],
+    "matchingRepositoryOpened": true,
+    "errors": []
+  }
+]

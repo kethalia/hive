@@ -117,6 +117,48 @@ describe("general workspace search", () => {
     act(() => action("session:software:main").onSelect());
     expect(mocks.create).toHaveBeenCalledTimes(1);
   });
+  it("only offers repositories whose name or path contains the query, ignoring case and surrounding spaces", async () => {
+    const names = [
+      "hive",
+      "hive-cache-maintenance",
+      "realm-of-chill",
+      "rng-request-listener",
+      "hyperlane-registry-reference",
+      "hawkeye",
+      "house-of-slabs",
+    ];
+    const repositories = names.map((name) => ({
+      ...repository,
+      id: name,
+      label: name,
+      relativePath: `projects/kethalia/${name}`,
+      cloneSessionKey: `git-clone:projects/kethalia/${name}`,
+    }));
+    mocks.clones.mockResolvedValue({ data: { ok: true, tree: { nodes: repositories } } });
+    setup();
+    await open();
+    const visibleRepositories = () =>
+      source().actions!.filter((item) => item.group === "Repositories");
+    expect(visibleRepositories()).toHaveLength(names.length * 2);
+
+    search(" HIVE ");
+    expect(visibleRepositories().map((item) => item.label)).toEqual([
+      "hive",
+      "hive-cache-maintenance",
+      "hive",
+      "hive-cache-maintenance",
+    ]);
+    search("kethalia/HAWK");
+    expect(visibleRepositories().map((item) => item.label)).toEqual(["hawkeye", "hawkeye"]);
+    search("ai-dev-01");
+    expect(visibleRepositories()).toEqual([]);
+    search("no-such-repository");
+    expect(visibleRepositories()).toEqual([]);
+    expect(action("new-terminal:software").label).toBe("New terminal “no-such-repository”");
+    search("");
+    expect(visibleRepositories()).toHaveLength(names.length * 2);
+    expect(mocks.clones).toHaveBeenCalledTimes(2);
+  });
   it.each([
     "bad name",
     "bad/name",

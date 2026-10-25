@@ -107,6 +107,7 @@ export function useGeneralWorkspaceCommands({
 
   const actions = useMemo<CommandPaletteAction[]>(() => {
     const name = query.trim();
+    const repositoryQuery = name.toLowerCase();
     const nameError = name ? terminalNameError(name) : null;
     return workspaces.flatMap((workspace) => {
       const status = workspace.latest_build.status;
@@ -141,6 +142,13 @@ export function useGeneralWorkspaceCommands({
       const found = data.find((entry) => entry.workspaceId === workspace.id);
       const results: CommandPaletteAction[] = [];
       for (const repository of found?.repositories ?? []) {
+        // Restrict repository results before cmdk's fuzzy ranking can match unrelated names.
+        if (
+          ![repository.label, repository.relativePath].some((value) =>
+            value.toLowerCase().includes(repositoryQuery),
+          )
+        )
+          continue;
         results.push({
           id: `repository:${workspace.id}:${repository.cloneSessionKey}`,
           label: repository.label,
