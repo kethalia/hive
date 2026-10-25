@@ -45,6 +45,30 @@ describe("KeybindingProvider", () => {
     };
   }
 
+  it("restores a previous shortcut owner when an overlay unregisters", () => {
+    const probe = renderWithProbe();
+    const first = vi.fn(() => false),
+      second = vi.fn(() => false);
+    const base = {
+      keys: ["ctrl+alt+r"],
+      description: "Resize",
+      category: "workspace",
+      enabledInBrowser: true,
+      global: true,
+    };
+    act(() => {
+      probe.context?.register({ ...base, id: "base", action: first });
+      probe.context?.register({ ...base, id: "overlay", action: second });
+    });
+    const event = () => makeKeyEvent({ key: "r", ctrlKey: true, altKey: true });
+    probe.context?.handleKeyEvent(event());
+    expect(second).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+    act(() => probe.context?.unregister("overlay"));
+    probe.context?.handleKeyEvent(event());
+    expect(first).toHaveBeenCalledOnce();
+  });
+
   it("registers copy but leaves keyboard paste to native terminal handling", async () => {
     const probe = renderWithProbe();
 
@@ -546,7 +570,7 @@ describe("KeybindingProvider", () => {
   it.each([
     ["microphone", "m"],
     ["speaker", "s"],
-    ["actions", "p"],
+    ["actions", "."],
     ["close", "x"],
   ])("routes the %s shortcut to the focused pane exactly once", (control, key) => {
     vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
@@ -599,7 +623,7 @@ describe("KeybindingProvider", () => {
       input.dispatchEvent(
         makeKeyEvent({
           key: "≈",
-          code: `Key${key.toUpperCase()}`,
+          code: `Key${control === "actions" ? "P" : key.toUpperCase()}`,
           metaKey: true,
           altKey: true,
           bubbles: true,

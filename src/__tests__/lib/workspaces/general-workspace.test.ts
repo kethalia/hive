@@ -9,8 +9,10 @@ import {
   importLegacyWorkspaceBoards,
   parseGeneralWorkspace,
 } from "@/lib/workspaces/general-workspace";
-import { workspaceBoardStorageKey } from "@/lib/workspaces/workspace-board-state";
-import { workspaceToolPaneStorageKey } from "@/lib/workspaces/workspace-tool-pane-state";
+import {
+  workspaceBoardStorageKey,
+  workspaceToolPaneStorageKey,
+} from "@/lib/workspaces/legacy-workspace-import";
 
 const terminal = (workspaceId: string): GeneralPane => ({
   kind: "terminal",

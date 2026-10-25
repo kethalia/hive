@@ -1,0 +1,33 @@
+{
+  "checks": [
+    "pointer resizing changes geometry",
+    "keyboard resizing changes geometry",
+    "drag destination border and live neighbor rearrangement",
+    "cancel restores original positions",
+    "drop commits the previewed arrangement",
+    "directional focus from terminal",
+    "stack resize and double-click reset keep equal neighbor heights",
+    "stack and tab keyboard controls",
+    "mode, stack, tabs and pin preserve iframe and terminal instances",
+    "floating width resizes and returns to tiling",
+    "layout shortcuts do not run behind a modal",
+    "move to another board preserves terminal instance",
+    "notification reveals the existing pane on another board",
+    "missing notification creates a new board and terminal window",
+    "reload retains dimensions, mode and grouping",
+    "reduced motion disables pane transitions",
+    "mobile single pane without horizontal page overflow",
+    "Base UI collapsible animates its measured height before unmounting",
+    "opening a third Strip app reveals it immediately",
+    "reopening the active Strip app reveals it without duplication or blocking manual scroll",
+    "clicked tab selection survives focus leaving the column and reload",
+    "keyboard tab selection stays visible after directional focus leaves the column",
+    "opening a new app transfers Grid maximization to the visible active pane",
+    "reopening an existing app transfers Grid maximization to the visible active pane",
+    "production Cmd+K retains discovery and layout actions across layout and shortcut-preset changes",
+    "overlapping floating width handles resize only their foreground owner",
+    "overlapping floating height handles resize only their foreground owner",
+    "background floating resize handles cannot intercept foreground content"
+  ],
+  "errors": []
+}

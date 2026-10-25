@@ -4,8 +4,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import type { WorkspaceBoardTab as WorkspaceBoard } from "@/components/workspaces/WorkspaceBoardBar";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
-import type { WorkspaceBoard } from "@/lib/workspaces/workspace-board-state";
 
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(" "),
@@ -18,7 +18,7 @@ vi.mock("@/components/ui/button", () => ({
 }));
 
 function board(key: string, name: string, order: number): WorkspaceBoard {
-  return { key, name, order, panes: [] };
+  return { key, name, order };
 }
 
 describe("WorkspaceBoardBar", () => {

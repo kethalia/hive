@@ -36,9 +36,7 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
 
   const register = React.useCallback(
     (entry: KeybindingEntry) => {
-      for (const key of entry.keys) {
-        registryRef.current.set(key, entry);
-      }
+      registryRef.current.set(entry.id, entry);
       publish();
     },
     [publish],
@@ -70,7 +68,9 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
     (e: KeyboardEvent): boolean => {
       if (e.defaultPrevented) return false;
       const combo = normalizeKeyCombo(e);
-      const entry = registryRef.current.get(combo);
+      const entry = [...registryRef.current.values()]
+        .reverse()
+        .find((binding) => binding.keys.includes(combo));
       if (!entry) return true;
       if (e.repeat && entry.allowRepeat === false) return false;
       return entry.action(activeTerminal, activeSend);
@@ -113,7 +113,9 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       const combo = normalizeKeyCombo(event);
-      const entry = registryRef.current.get(combo);
+      const entry = [...registryRef.current.values()]
+        .reverse()
+        .find((binding) => binding.keys.includes(combo));
       if (!entry?.global) return;
       if (
         isTextEntryEventTarget(event.target) &&

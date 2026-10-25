@@ -33,10 +33,13 @@ describe("notification client navigation", () => {
         }),
       ),
     );
-    expect(mocks.push).toHaveBeenCalledExactlyOnceWith("/workspaces/w/terminal?session=review");
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith("/workspaces?session=review&workspace=w");
     expect(port.postMessage).toHaveBeenCalledWith({ type: "hive:navigated" });
   });
-  it("lets a mounted workspace handle notification focus without route navigation", () => {
+  it.each([
+    "/workspaces/w/terminal?session=review&notification=e",
+    "/workspaces?workspace=w&session=review&notification=e",
+  ])("handles %s without route navigation", (url) => {
     const worker = setup();
     const focus = vi.fn((event: Event) => event.preventDefault());
     window.addEventListener("hive:terminal-notification-focus", focus);
@@ -45,7 +48,7 @@ describe("notification client navigation", () => {
         new MessageEvent("message", {
           data: {
             type: "hive:navigate",
-            url: "/workspaces/w/terminal?session=review&notification=e",
+            url,
           },
         }),
       ),
@@ -83,6 +86,6 @@ describe("notification client navigation", () => {
       ),
     );
     mocks.toast.mock.calls[0][1].action.onClick();
-    expect(mocks.push).toHaveBeenCalledExactlyOnceWith("/workspaces/w/terminal?session=review");
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith("/workspaces?session=review&workspace=w");
   });
 });

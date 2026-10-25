@@ -22,12 +22,16 @@ export function NotificationListener() {
         return;
       }
       if (url.origin !== window.location.origin) return;
-      const workspace = /^\/workspaces\/([^/]+)\/terminal(?:\/workspace)?$/.exec(url.pathname);
+      const legacy = /^\/workspaces\/([^/]+)\/terminal(?:\/(?:workspace|git-workspace))?$/.exec(
+        url.pathname,
+      );
       const sessionName = url.searchParams.get("session");
+      const workspace =
+        url.pathname === "/workspaces" ? url.searchParams.get("workspace") : legacy?.[1];
       if (workspace && sessionName && /^[a-zA-Z0-9._-]{1,200}$/.test(sessionName)) {
         let workspaceId: string;
         try {
-          workspaceId = decodeURIComponent(workspace[1]);
+          workspaceId = legacy ? decodeURIComponent(workspace) : workspace;
         } catch {
           return;
         }
@@ -36,6 +40,14 @@ export function NotificationListener() {
           detail: { workspaceId, sessionName },
         });
         if (!window.dispatchEvent(event)) return;
+      }
+      if (legacy) {
+        try {
+          url.searchParams.set("workspace", decodeURIComponent(legacy[1]));
+        } catch {
+          return;
+        }
+        url.pathname = "/workspaces";
       }
       router.push(url.pathname + url.search);
     };
@@ -48,7 +60,10 @@ export function NotificationListener() {
         } catch {
           return;
         }
-        if (url.origin === window.location.origin && url.pathname.startsWith("/workspaces/")) {
+        if (
+          url.origin === window.location.origin &&
+          (url.pathname === "/workspaces" || url.pathname.startsWith("/workspaces/"))
+        ) {
           navigate(url.href);
           event.ports[0]?.postMessage({ type: "hive:navigated" });
         }

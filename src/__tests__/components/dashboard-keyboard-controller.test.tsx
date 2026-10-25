@@ -17,6 +17,8 @@ const mobileState = vi.hoisted(() => ({
   openMobileRight: false,
 }));
 const mockListWorkspaces = vi.hoisted(() => vi.fn());
+const mockWorkspaceSessions = vi.hoisted(() => vi.fn());
+const mockWorkspaceClones = vi.hoisted(() => vi.fn());
 const registeredBindings = vi.hoisted(() => new Map<string, KeybindingEntry>());
 const mockToastError = vi.hoisted(() => vi.fn());
 
@@ -58,6 +60,12 @@ vi.mock("@/hooks/useKeybindings", async (importOriginal) => {
 
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: () => mockListWorkspaces(),
+  getWorkspaceSessionsAction: (...args: unknown[]) => mockWorkspaceSessions(...args),
+  createSessionAction: vi.fn(),
+}));
+vi.mock("@/lib/actions/git-clones", () => ({
+  listGitClonesAction: (...args: unknown[]) => mockWorkspaceClones(...args),
+  resolveGitCloneTerminalAction: vi.fn(),
 }));
 
 vi.mock("@/components/terminal/CommandPalette", () => ({
@@ -70,6 +78,9 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
     open,
     tabs,
     mobileSide,
+    searchValue,
+    onSearchValueChange,
+    onOpenChange,
   }: {
     actions: Array<{
       id: string;
@@ -84,6 +95,9 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
     open: boolean;
     tabs: Array<{ id: string; sessionName: string }>;
     mobileSide?: "bottom" | "right";
+    searchValue?: string;
+    onSearchValueChange?: (value: string) => void;
+    onOpenChange?: (open: boolean) => void;
   }) => (
     <div
       data-empty-text={emptyText}
@@ -94,6 +108,15 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
     >
       {open
         ? [
+            <input
+              key="search"
+              aria-label="Search commands"
+              value={searchValue ?? ""}
+              onChange={(event) => onSearchValueChange?.(event.target.value)}
+            />,
+            <button key="close" type="button" onClick={() => onOpenChange?.(false)}>
+              Close search
+            </button>,
             ...actions.map((action) => (
               <button key={action.id} type="button" onClick={action.onSelect}>
                 <span>{action.label}</span>
@@ -124,10 +147,14 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
 
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import KeybindingProvider from "@/components/terminal/KeybindingProvider";
+import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
+import { useWindowManagerCommands } from "@/hooks/useWindowManagerCommands";
+import type { CoderWorkspace } from "@/lib/coder/types";
 import {
   openGlobalCommandPalette,
   registerGlobalCommandPaletteSource,
 } from "@/lib/terminal/global-command-palette";
+import { newWindowManager, type WindowManager } from "@/lib/workspaces/window-manager";
 
 function workspacePayload() {
   return {
@@ -289,6 +316,88 @@ describe("DashboardKeyboardController", () => {
     expect(onCreateSession).toHaveBeenCalled();
 
     cleanupSource();
+  });
+
+  it("keeps discovery and layout commands together after changing mode or shortcut preset", async () => {
+    mockWorkspaceSessions.mockResolvedValue({ data: [{ name: "dev-server" }] });
+    mockWorkspaceClones.mockResolvedValue({
+      data: {
+        ok: true,
+        tree: {
+          nodes: [
+            {
+              kind: "repository",
+              id: "repo",
+              label: "hive",
+              cloneSessionKey: "git-clone:projects/kethalia/hive",
+              relativePath: "projects/kethalia/hive",
+            },
+          ],
+        },
+      },
+    });
+    const run = vi.fn();
+    const workspace = [
+      {
+        id: "software",
+        name: "ai-dev-01",
+        template_name: "ai-dev-k8s",
+        latest_build: { id: "build-1", status: "running" },
+      },
+    ] as CoderWorkspace[];
+    const callbacks = {
+      workspaces: workspace,
+      onOpenPane: vi.fn(),
+      onError: vi.fn(),
+      onStart: vi.fn(),
+      onAgents: vi.fn(),
+    };
+    function WorkspaceCommands({ mode, shortcuts }: Pick<WindowManager, "mode" | "shortcuts">) {
+      const additionalActions = useWindowManagerCommands(
+        { ...newWindowManager(mode), shortcuts },
+        run,
+      );
+      useGeneralWorkspaceCommands({ ...callbacks, additionalActions });
+      return null;
+    }
+    function App(props: Pick<WindowManager, "mode" | "shortcuts">) {
+      return (
+        <KeybindingProvider>
+          <DashboardKeyboardController />
+          <WorkspaceCommands {...props} />
+        </KeybindingProvider>
+      );
+    }
+    const { rerender } = render(<App mode="grid" shortcuts="ctrl+alt" />);
+    expect(mockWorkspaceSessions).not.toHaveBeenCalled();
+    act(() => openGlobalCommandPalette());
+    expect(await screen.findByText("dev-server")).toBeInTheDocument();
+    expect(screen.getByText("hive")).toBeInTheDocument();
+    expect(screen.getByText("Use Strip layout")).toBeInTheDocument();
+    for (const props of [
+      { mode: "strip", shortcuts: "ctrl+alt" },
+      { mode: "strip", shortcuts: "ctrl+cmd" },
+      { mode: "grid", shortcuts: "off" },
+    ] as const) {
+      rerender(<App {...props} />);
+      fireEvent.change(screen.getByLabelText("Search commands"), { target: { value: "hive" } });
+      expect(await screen.findByText("hive")).toBeInTheDocument();
+      expect(screen.getByText("Use Grid layout")).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Search commands"), {
+        target: { value: "custom-terminal" },
+      });
+      expect(await screen.findByText("New terminal “custom-terminal”")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("Close search"));
+      act(() => registeredBindings.get("dashboard:command-palette")?.action(null, null));
+      expect(screen.getByLabelText("Search commands")).toHaveValue("");
+      expect(await screen.findByText("dev-server")).toBeInTheDocument();
+      expect(screen.getByText("Files")).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByText("Use Grid layout"));
+    expect(run).toHaveBeenLastCalledWith("grid");
+    expect(mockWorkspaceSessions).toHaveBeenCalledTimes(1);
+    expect(mockWorkspaceClones).toHaveBeenCalledTimes(1);
+    expect(mockListWorkspaces).not.toHaveBeenCalled();
   });
 
   it("runs sidebar and fullscreen actions globally", () => {

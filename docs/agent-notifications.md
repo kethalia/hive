@@ -1,10 +1,10 @@
 # Agent notifications
 
-Open **Notifications** in Hive's sidebar. Enable push on each device, connect your running workspaces, restart Codex and Claude Code, and review/trust Hive's hooks in Codex `/hooks`. Use **Send test push** to check delivery and the preview buttons to hear the three CRT motifs. Event preferences and disabling push apply to the current browser/PWA device; workspace connections apply to your account.
+Open **Settings → Notifications** in Hive. Enable push on each device, connect your running workspaces, restart Codex and Claude Code, and review/trust Hive's hooks in Codex `/hooks`. Use **Send test push** to check delivery and the preview buttons to hear the three CRT motifs. Event preferences and disabling push apply to the current browser/PWA device; workspace connections apply to your account.
 
 On iPhone and iPad, install Hive with **Share → Add to Home Screen**, open that app, and enable notifications there (iOS/iPadOS 16.4+). Use HTTPS. Focus modes, OS permissions, and browser policies can suppress delivery or sound. CRT audio plays in a visible Hive page after interaction; background web push uses the OS notification sound. The Web Notifications API does not expose custom background sounds.
 
-Questions and approvals use a rising CRT chirp, ready reports use a resolved ascending arpeggio, and warnings use lower pulses. Only one visible tab receives audio/toasts for each push. An existing OS notification with the same delivery tag prevents duplicate foreground audio during queue retries. Clicking an agent alert selects its existing window on a saved workspace board when available. If the session is absent from all boards on this device, Hive opens its standalone terminal. Git terminals are re-authorized for the current login before connecting, including links from older notifications; closed sessions are reported as unavailable instead of opening a replacement. Token warnings open login; template results open the template. Badges reflect notifications still held in the OS notification center, where supported.
+Questions and approvals use a rising CRT chirp, ready reports use a resolved ascending arpeggio, and warnings use lower pulses. Only one visible tab receives audio/toasts for each push. An existing OS notification with the same delivery tag prevents duplicate foreground audio during queue retries. Clicking an agent alert selects its existing window on a saved workspace board when available. If the session is absent from all boards on this device, Hive opens a window on a new or unused empty board in the general workspace. Git terminals are re-authorized for the current login before connecting, including links from older notifications; missing repository sessions are reported as unavailable during notification resolution. Token warnings open login; template results open the template. Badges reflect notifications still held in the OS notification center, where supported.
 
 ## Events and privacy
 
@@ -37,3 +37,5 @@ Run `pnpm exec vitest run src/__tests__/push src/__tests__/components/push-permi
 Browser evidence and limitations are in [checks/agent-notifications/README.md](checks/agent-notifications/README.md).
 
 References: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Claude Code hooks](https://code.claude.com/docs/en/hooks), [Web Notifications options](https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerRegistration/showNotification), [WebKit Home Screen Web Push](https://webkit.org/blog/13878/).
+
+See [window management](window-management.md) for routing, layout limits and old-link redirects, and the [feature catalog](features.md) for the migration audit.

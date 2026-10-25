@@ -1,0 +1,475 @@
+"use client";
+import {
+  DndContext,
+  type DragEndEvent,
+  type DraggableSyntheticListeners,
+  type DragMoveEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
+import type { GeneralBoard, GeneralWindow } from "@/lib/workspaces/general-workspace";
+import {
+  type LayoutDivider,
+  reconcileWindowManager,
+  updateColumn,
+  type WindowGeometry,
+  windowGeometry,
+} from "@/lib/workspaces/window-manager";
+import {
+  moveWorkspaceWindow,
+  resizeWorkspaceSplit,
+  workspaceWindowDropPosition,
+} from "@/lib/workspaces/workspace-window-layout";
+import { WindowResizeHandle } from "./WindowResizeHandle";
+import { WorkspaceWindow, WorkspaceWindowDropPlaceholder } from "./WorkspaceWindow";
+
+interface Props {
+  boards: GeneralBoard[];
+  activeBoardKey: string;
+  width: number;
+  height: number;
+  mobile: boolean;
+  onBoardChange: (key: string, change: (board: GeneralBoard) => GeneralBoard) => void;
+  onActivate: (key: string, id: string) => void;
+  renderPane: (
+    board: GeneralBoard,
+    pane: GeneralWindow,
+    visible: boolean,
+    rect: string,
+    listeners?: DraggableSyntheticListeners,
+  ) => ReactNode;
+}
+function styleRect(rect: { x: number; y: number; width: number; height: number }): CSSProperties {
+  return { left: rect.x, top: rect.y, width: rect.width, height: rect.height };
+}
+export function WindowCanvas({
+  boards,
+  activeBoardKey,
+  width,
+  height,
+  mobile,
+  onBoardChange,
+  onActivate,
+  renderPane,
+}: Props) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [resizing, setResizing] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<GeneralBoard | null>(null);
+  const origin = useRef<GeneralBoard | null>(null);
+  const activeBoard = boards.find((b) => b.key === activeBoardKey)!;
+  const scroller = useRef<HTMLDivElement>(null);
+  const canvasHeight = Math.max(
+    1,
+    height -
+      (!mobile && activeBoard.manager?.mode === "strip" && activeBoard.windows.length ? 28 : 0),
+  );
+  const geometry = (b: GeneralBoard): WindowGeometry =>
+    windowGeometry(
+      reconcileWindowManager(
+        b.manager,
+        b.windows.map((w) => w.id),
+      ),
+      b.layout,
+      b.windows.map((w) => w.id),
+      b.activeWindowId,
+      width,
+      canvasHeight,
+    );
+  const activeGeometry = geometry(preview ?? activeBoard);
+  const manager = reconcileWindowManager(
+    activeBoard.manager,
+    activeBoard.windows.map((w) => w.id),
+  );
+  const {
+    x,
+    y,
+    width: focusedWidth,
+    height: focusedHeight,
+  } = activeGeometry.rects.get(activeBoard.activeWindowId ?? "") ?? {};
+  useEffect(() => {
+    const element = scroller.current;
+    if (
+      !element ||
+      mobile ||
+      manager.mode !== "grid" ||
+      dragId ||
+      resizing ||
+      x === undefined ||
+      y === undefined ||
+      focusedWidth === undefined ||
+      focusedHeight === undefined
+    )
+      return;
+    if (x < element.scrollLeft) element.scrollLeft = x;
+    else if (x + focusedWidth > element.scrollLeft + element.clientWidth)
+      element.scrollLeft = x + focusedWidth - element.clientWidth;
+    if (y < element.scrollTop) element.scrollTop = y;
+    else if (y + focusedHeight > element.scrollTop + element.clientHeight)
+      element.scrollTop = y + focusedHeight - element.clientHeight;
+  }, [mobile, manager.mode, dragId, resizing, x, y, focusedWidth, focusedHeight]);
+  function clear() {
+    origin.current = null;
+    setPreview(null);
+    setDragId(null);
+  }
+  function proposed(event: DragMoveEvent | DragEndEvent): GeneralBoard | null {
+    const original = origin.current;
+    if (!original) return null;
+    const id = String(event.active.id),
+      m = reconcileWindowManager(
+        original.manager,
+        original.windows.map((w) => w.id),
+      );
+    if (m.floating[id]) {
+      const r = m.floating[id];
+      return {
+        ...original,
+        manager: {
+          ...m,
+          floating: {
+            ...m.floating,
+            [id]: {
+              ...r,
+              x: Math.max(0, Math.min(1 - r.width, r.x + event.delta.x / width)),
+              y: Math.max(0, Math.min(1 - r.height, r.y + event.delta.y / canvasHeight)),
+            },
+          },
+        },
+      };
+    }
+    const target = event.over;
+    if (!target || id === target.id) return null;
+    const other = String(target.id);
+    if (m.mode === "strip") {
+      const from = m.columns.findIndex((c) => c.windows.includes(id)),
+        to = m.columns.findIndex((c) => c.windows.includes(other));
+      if (from < 0 || to < 0) return null;
+      const columns = m.columns.map((c) => ({ ...c, windows: [...c.windows] }));
+      if (from === to) {
+        const a = columns[from].windows.indexOf(id),
+          b = columns[from].windows.indexOf(other);
+        [columns[from].windows[a], columns[from].windows[b]] = [
+          columns[from].windows[b],
+          columns[from].windows[a],
+        ];
+      } else {
+        const [column] = columns.splice(from, 1);
+        columns.splice(to, 0, column);
+      }
+      return { ...original, manager: { ...m, columns } };
+    }
+    if (!original.layout) return null;
+    const rect = target.rect,
+      moved = event.active.rect.current.translated;
+    const position = workspaceWindowDropPosition(
+      { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+      {
+        x: moved ? moved.left + moved.width / 2 : rect.left,
+        y: moved ? moved.top + moved.height / 2 : rect.top,
+      },
+    );
+    return { ...original, layout: moveWorkspaceWindow(original.layout, id, other, position) };
+  }
+  function resize(divider: LayoutDivider, value: number) {
+    onBoardChange(activeBoardKey, (board) => {
+      const m = reconcileWindowManager(
+          board.manager,
+          board.windows.map((w) => w.id),
+        ),
+        target = divider.target;
+      if (target.kind === "grid")
+        return {
+          ...board,
+          layout: board.layout
+            ? resizeWorkspaceSplit(board.layout, target.path, value)
+            : board.layout,
+        };
+      return {
+        ...board,
+        manager: updateColumn(m, target.id, (c) => {
+          if (target.kind === "column") return { ...c, width: value };
+          const total = (c.weights[target.before] ?? 1) + (c.weights[target.after] ?? 1);
+          const before = Math.max(0.05, Math.min(total - 0.05, total * value));
+          return {
+            ...c,
+            weights: { ...c.weights, [target.before]: before, [target.after]: total - before },
+          };
+        }),
+      };
+    });
+  }
+  return (
+    <div
+      className="absolute inset-0 flex min-h-0 flex-col"
+      style={{ pointerEvents: activeBoard.windows.length ? undefined : "none" }}
+      data-window-layout={manager.mode}
+    >
+      <div
+        ref={scroller}
+        className={`relative min-h-0 flex-1 overflow-auto ${dragId || resizing ? "[&_iframe]:pointer-events-none" : ""}`}
+        data-mobile-scroll-allow="true"
+        onWheel={(event) => {
+          if (manager.mode !== "strip" || !(event.deltaX || event.shiftKey)) return;
+          onBoardChange(activeBoardKey, (b) => ({
+            ...b,
+            manager: {
+              ...manager,
+              scroll: Math.max(
+                0,
+                Math.min(activeGeometry.maxScroll, manager.scroll + (event.deltaX || event.deltaY)),
+              ),
+            },
+          }));
+        }}
+      >
+        <div
+          className="relative"
+          style={{
+            width: mobile ? "100%" : activeGeometry.width,
+            height: mobile ? "100%" : activeGeometry.height,
+            overflow: manager.mode === "strip" ? "hidden" : undefined,
+          }}
+        >
+          <DndContext
+            sensors={sensors}
+            onDragStart={(e) => {
+              origin.current = activeBoard;
+              setDragId(String(e.active.id));
+            }}
+            onDragMove={(e) => {
+              const next = proposed(e);
+              setPreview(next);
+            }}
+            onDragCancel={clear}
+            onDragEnd={(e) => {
+              const next = proposed(e);
+              if (next) onBoardChange(next.key, () => next);
+              clear();
+            }}
+          >
+            {boards.flatMap((b) => {
+              const original = geometry(b),
+                g = preview?.key === b.key ? geometry(preview) : original;
+              const m = reconcileWindowManager(
+                b.manager,
+                b.windows.map((w) => w.id),
+              );
+              return b.windows.map((pane) => {
+                const focused = pane.id === (b.activeWindowId ?? b.windows[0]?.id);
+                const visible =
+                  b.key === activeBoardKey && (mobile ? focused : !g.hidden.has(pane.id));
+                const rect = g.rects.get(pane.id) ?? { x: 0, y: 0, width, height };
+                const baseRect = original.rects.get(pane.id) ?? rect;
+                const pinned = m.columns.some((c) => c.pin && c.windows.includes(pane.id));
+                const zIndex = m.floating[pane.id] ? (focused ? 45 : 44) : pinned ? 10 : 1;
+                return (
+                  <WorkspaceWindow
+                    key={pane.id}
+                    id={pane.id}
+                    style={{
+                      ...(mobile ? { inset: 0 } : styleRect(baseRect)),
+                      display: visible ? "block" : "none",
+                      zIndex,
+                      ...(resizing ? { transition: "none" } : {}),
+                    }}
+                    previewStyle={
+                      !mobile && preview?.key === b.key
+                        ? { ...styleRect(rect), display: visible ? "block" : "none", zIndex }
+                        : undefined
+                    }
+                  >
+                    {({ dragHandleListeners }) => (
+                      <>
+                        {renderPane(
+                          b,
+                          pane,
+                          visible,
+                          JSON.stringify(rect),
+                          mobile ? undefined : dragHandleListeners,
+                        )}
+                        {!mobile && visible && !dragId && !m.maximized && m.floating[pane.id]
+                          ? (["width", "height"] as const).map((axis) => (
+                              <WindowResizeHandle
+                                key={axis}
+                                label={`Resize floating ${axis}`}
+                                axis={axis}
+                                value={rect[axis] / (axis === "width" ? width : canvasHeight)}
+                                min={
+                                  axis === "width"
+                                    ? Math.min(1, 280 / width)
+                                    : Math.min(1, 160 / canvasHeight)
+                                }
+                                max={
+                                  1 - (axis === "width" ? rect.x / width : rect.y / canvasHeight)
+                                }
+                                extent={axis === "width" ? width : canvasHeight}
+                                style={
+                                  axis === "width"
+                                    ? {
+                                        left: rect.width - 6,
+                                        top: 35,
+                                        width: 6,
+                                        height: rect.height - 35,
+                                      }
+                                    : {
+                                        left: 0,
+                                        top: rect.height - 6,
+                                        width: rect.width,
+                                        height: 6,
+                                      }
+                                }
+                                onInteraction={(active) => {
+                                  setResizing(active);
+                                  if (active) onActivate(b.key, pane.id);
+                                }}
+                                onChange={(value) =>
+                                  onBoardChange(b.key, (board) => ({
+                                    ...board,
+                                    activeWindowId: pane.id,
+                                    manager: {
+                                      ...m,
+                                      floating: {
+                                        ...m.floating,
+                                        [pane.id]: {
+                                          ...m.floating[pane.id],
+                                          x: rect.x / width,
+                                          y: rect.y / canvasHeight,
+                                          [axis]: value,
+                                        },
+                                      },
+                                    },
+                                  }))
+                                }
+                              />
+                            ))
+                          : null}
+                      </>
+                    )}
+                  </WorkspaceWindow>
+                );
+              });
+            })}
+            {!mobile && preview && dragId && activeGeometry.rects.has(dragId) ? (
+              <WorkspaceWindowDropPlaceholder
+                kind="destination"
+                style={styleRect(activeGeometry.rects.get(dragId)!)}
+              />
+            ) : null}
+          </DndContext>
+          {!mobile && !dragId
+            ? activeGeometry.dividers.map((d) => (
+                <WindowResizeHandle
+                  key={d.id}
+                  label={`Resize ${d.axis}`}
+                  axis={d.axis}
+                  value={d.value}
+                  min={d.min}
+                  max={d.max}
+                  extent={d.extent}
+                  style={styleRect(d.rect)}
+                  onChange={(value) => resize(d, value)}
+                  onInteraction={setResizing}
+                />
+              ))
+            : null}
+          {!mobile
+            ? activeGeometry.tabs.map(({ column, rect }) => (
+                <div
+                  key={column.id}
+                  role="tablist"
+                  aria-label="Column windows"
+                  className="absolute z-20 flex overflow-x-auto border bg-background"
+                  style={styleRect(rect)}
+                >
+                  {column.windows.map((id, index) => (
+                    <ShortcutTooltip
+                      key={id}
+                      label={`Focus ${activeBoard.windows.find((w) => w.id === id)?.label}`}
+                      trigger={
+                        <button
+                          key={id}
+                          type="button"
+                          role="tab"
+                          aria-selected={column.selected === id}
+                          tabIndex={column.selected === id ? 0 : -1}
+                          onKeyDown={(event) => {
+                            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+                              return;
+                            event.preventDefault();
+                            const next =
+                              event.key === "Home"
+                                ? 0
+                                : event.key === "End"
+                                  ? column.windows.length - 1
+                                  : (index +
+                                      (event.key === "ArrowLeft" ? -1 : 1) +
+                                      column.windows.length) %
+                                    column.windows.length;
+                            const tabs =
+                              event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                                '[role="tab"]',
+                              );
+                            onActivate(activeBoardKey, column.windows[next]);
+                            tabs?.[next]?.focus();
+                          }}
+                          className="min-w-0 shrink-0 px-3 text-xs hover:bg-accent aria-selected:bg-accent"
+                          onClick={() => onActivate(activeBoardKey, id)}
+                        >
+                          {activeBoard.windows.find((w) => w.id === id)?.label}
+                        </button>
+                      }
+                    />
+                  ))}
+                </div>
+              ))
+            : null}
+        </div>
+      </div>
+      {!mobile && manager.mode === "strip" && activeBoard.windows.length ? (
+        <div
+          className="flex h-7 shrink-0 items-center gap-2 border-t bg-background px-3 py-1"
+          role="toolbar"
+          aria-label="Strip overview"
+        >
+          <div className="flex min-w-0 gap-1">
+            {manager.columns.map((c) => (
+              <ShortcutTooltip
+                key={c.id}
+                label={`Focus ${activeBoard.windows.find((w) => w.id === c.windows[0])?.label}`}
+                trigger={
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`h-4 rounded-sm border ${c.windows.includes(activeBoard.activeWindowId ?? "") ? "border-primary bg-primary/30" : "bg-muted"}`}
+                    style={{ width: c.width * 40 + 8 }}
+                    aria-label={`Focus ${activeBoard.windows.find((w) => w.id === c.windows[0])?.label}`}
+                    onClick={() => onActivate(activeBoardKey, c.selected ?? c.windows[0])}
+                  />
+                }
+              />
+            ))}
+          </div>
+          <input
+            aria-label="Scroll windows"
+            type="range"
+            className="min-w-0 flex-1 accent-primary"
+            min={0}
+            max={Math.max(1, activeGeometry.maxScroll)}
+            value={Math.min(manager.scroll, activeGeometry.maxScroll)}
+            disabled={!activeGeometry.maxScroll}
+            onChange={(e) =>
+              onBoardChange(activeBoardKey, (b) => ({
+                ...b,
+                manager: { ...manager, scroll: Number(e.target.value) },
+              }))
+            }
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}

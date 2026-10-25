@@ -18,6 +18,16 @@ function makeKeyEvent(opts: Partial<KeyboardEventInit> & { key: string }): Keybo
 
 describe("normalizeKeyCombo", () => {
   it.each([
+    [{ key: "±", code: "Equal", ctrlKey: true, altKey: true, shiftKey: true }, "ctrl+alt+shift+="],
+    [{ key: "+", code: "Equal", ctrlKey: true, metaKey: true, shiftKey: true }, "ctrl+cmd+shift+="],
+    [
+      { key: "{", code: "BracketLeft", ctrlKey: true, metaKey: true, shiftKey: true },
+      "ctrl+cmd+shift+[",
+    ],
+  ])("normalizes layout symbol keys with either modifier preset", (event, expected) => {
+    expect(normalizeKeyCombo(makeKeyEvent(event))).toBe(expected);
+  });
+  it.each([
     { key: "ŧ", code: "KeyT" },
     { key: "ł", code: "KeyW" },
     { key: "t", code: "KeyT" },
@@ -182,6 +192,7 @@ describe("useRegisterKeybinding", () => {
       description: "Test",
       category: "test",
       enabledInBrowser: true,
+      allowRepeat: true,
     };
 
     const wrapper = ({ children }: { children: React.ReactNode }) =>
@@ -194,6 +205,7 @@ describe("useRegisterKeybinding", () => {
     expect(mockValue.register).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "test-binding",
+        allowRepeat: true,
         keys: ["ctrl+t"],
         description: "Test",
         category: "test",

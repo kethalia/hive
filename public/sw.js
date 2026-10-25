@@ -15,6 +15,8 @@ function notificationUrl(value) {
         (url.pathname === "/login" || url.pathname === "/notifications" || url.pathname === "/settings" ||
          url.pathname === "/templates" || url.pathname.startsWith("/templates/") ||
          url.pathname === "/workspaces" || url.pathname.startsWith("/workspaces/"))) {
+      const legacy = url.pathname.match(/^\/workspaces\/([^/]+)(?:\/terminal(?:\/(?:workspace|git-workspace))?)?$/);
+      if (legacy) { url.pathname = "/workspaces"; url.searchParams.set("workspace", decodeURIComponent(legacy[1])); }
       return url.pathname + url.search + url.hash;
     }
   } catch {}
@@ -81,10 +83,10 @@ self.addEventListener("notificationclick", (event) => {
     const url = notificationUrl(event.notification.data?.url);
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     const destination = new URL(url, self.location.origin);
-    const workspace = destination.pathname.match(/^\/workspaces\/([^/]+)(?:\/|$)/)?.[1];
+    const workspace = destination.searchParams.get("workspace");
     const appClients = clients.filter(client => new URL(client.url).origin === self.location.origin);
     const target = appClients.find(client => client.url === destination.href) ||
-      appClients.find(client => workspace && (new URL(client.url).pathname === `/workspaces/${workspace}` || new URL(client.url).pathname.startsWith(`/workspaces/${workspace}/`))) ||
+      appClients.find(client => workspace && new URL(client.url).pathname === "/workspaces") ||
       appClients.find(client => client.focused && client.visibilityState === "visible") || appClients[0];
     let navigated;
     if (target) {

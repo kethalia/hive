@@ -29,6 +29,23 @@ const nextConfig: NextConfig = {
       "./templates/ai-dev-k8s/scripts/agent-tools.py",
     ],
   },
+  async redirects() {
+    // Old bookmarks and delivered notifications resolve to the single canvas.
+    // There are no legacy page components or terminal clients behind these URLs.
+    return [
+      {
+        source: "/workspaces/:id/terminal/status",
+        destination: "/terminal/status?workspaceId=:id",
+        permanent: true,
+      },
+      {
+        source: "/workspaces/:id/terminal/:path*",
+        destination: "/workspaces?workspace=:id",
+        permanent: true,
+      },
+      { source: "/workspaces/:id", destination: "/workspaces?workspace=:id", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

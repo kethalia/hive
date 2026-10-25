@@ -5,16 +5,21 @@ import {
 } from "@/lib/git/clone-public-identifiers";
 import {
   parsePersistedWorkspaceBoardState,
-  workspaceBoardStorageKey,
-} from "@/lib/workspaces/workspace-board-state";
-import {
   parsePersistedWorkspaceToolPanes,
+  workspaceBoardStorageKey,
   workspaceToolPaneStorageKey,
-} from "@/lib/workspaces/workspace-tool-pane-state";
+} from "@/lib/workspaces/legacy-workspace-import";
 import {
   parseWorkspaceWindowLayoutState,
+  reconcileWorkspaceWindowLayout,
   type WorkspaceWindowLayoutNode,
 } from "@/lib/workspaces/workspace-window-layout";
+import {
+  newWindowManager,
+  reconcileWindowManager,
+  type WindowManager,
+  windowManagerSchema,
+} from "./window-manager";
 
 export const GENERAL_WORKSPACE_OPEN_EVENT = "hive:workspace-open";
 export const MAX_GENERAL_WINDOWS = 32;
@@ -56,6 +61,7 @@ export interface GeneralBoard {
   activeWindowId?: string;
   windows: GeneralWindow[];
   layout?: WorkspaceWindowLayoutNode;
+  manager?: WindowManager;
 }
 export interface GeneralWorkspaceState {
   version: 1;
@@ -69,7 +75,7 @@ export function emptyGeneralWorkspace(): GeneralWorkspaceState {
   return {
     version: 1,
     activeBoardKey: "board-1",
-    boards: [{ key: "board-1", name: "1", order: 0, windows: [] }],
+    boards: [{ key: "board-1", name: "1", order: 0, windows: [], manager: newWindowManager() }],
   };
 }
 export function generalPaneIdentity(pane: GeneralPane) {
@@ -134,6 +140,7 @@ export function addGeneralFileWindow(
           name: String(state.boards.length + 1),
           order: state.boards.length,
           windows: [],
+          manager: newWindowManager(),
         },
       ],
     },
@@ -142,6 +149,45 @@ export function addGeneralFileWindow(
     key,
   );
 }
+/** Moving onto an already-open target focuses it without discarding either client's state. */
+export function moveGeneralWindowToNextBoard(
+  state: GeneralWorkspaceState,
+  newBoardKey: string,
+): GeneralWorkspaceState {
+  const index = state.boards.findIndex((b) => b.key === state.activeBoardKey);
+  const source = state.boards[index];
+  const pane = source?.windows.find((w) => w.id === source.activeWindowId);
+  if (!pane) return state;
+  const boards =
+    state.boards.length === 1
+      ? [
+          ...state.boards,
+          { key: newBoardKey, name: "2", order: 1, windows: [], manager: newWindowManager() },
+        ]
+      : state.boards;
+  const target = boards[(index + 1) % boards.length];
+  const existing = target.windows.find((w) => generalPaneIdentity(w) === generalPaneIdentity(pane));
+  return {
+    ...state,
+    activeBoardKey: target.key,
+    boards: boards.map((b) =>
+      b.key === target.key
+        ? {
+            ...b,
+            windows: existing ? b.windows : [...b.windows, pane],
+            activeWindowId: existing?.id ?? pane.id,
+          }
+        : b.key === source.key && !existing
+          ? {
+              ...b,
+              windows: b.windows.filter((w) => w.id !== pane.id),
+              activeWindowId: b.windows.find((w) => w.id !== pane.id)?.id,
+            }
+          : b,
+    ),
+  };
+}
+
 export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState | null {
   if (!raw) return null;
   try {
@@ -158,6 +204,7 @@ export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState
               activeWindowId: identifier.optional(),
               windows: z.array(z.unknown()),
               layout: z.unknown().optional(),
+              manager: z.unknown().optional(),
             }),
           )
           .max(MAX_GENERAL_BOARDS),
@@ -165,6 +212,7 @@ export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState
       .parse(JSON.parse(raw));
     const seenBoards = new Set<string>();
     let remaining = MAX_GENERAL_WINDOWS;
+    const globalWindowIds = new Set<string>();
     const boards = data.boards.flatMap((board) => {
       if (seenBoards.has(board.key)) return [];
       seenBoards.add(board.key);
@@ -177,15 +225,21 @@ export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState
           !pane.success ||
           !id.success ||
           !remaining ||
+          globalWindowIds.has(id.data.id) ||
           seenWindows.has(id.data.id) ||
           seenPanes.has(generalPaneIdentity(pane.data))
         )
           return [];
         seenWindows.add(id.data.id);
+        globalWindowIds.add(id.data.id);
         seenPanes.add(generalPaneIdentity(pane.data));
         remaining--;
         return [{ ...pane.data, id: id.data.id }];
       });
+      const manager = reconcileWindowManager(
+        windowManagerSchema.safeParse(board.manager).data,
+        windows.map((w) => w.id),
+      );
       const layout = parseWorkspaceWindowLayoutState(
         JSON.stringify({ version: 1, boards: [{ boardKey: board.key, root: board.layout }] }),
       ).boards[0]?.root;
@@ -198,7 +252,13 @@ export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState
             ? board.activeWindowId
             : windows[0]?.id,
           windows,
-          layout,
+          layout:
+            reconcileWorkspaceWindowLayout(
+              layout,
+              windows.filter((w) => !manager.floating[w.id]).map((w) => w.id),
+              { viewportWidth: 1280, viewportHeight: 720 },
+            ) ?? undefined,
+          manager,
         },
       ];
     });
@@ -216,7 +276,7 @@ export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState
 }
 
 // Import saved pane descriptors, never app URLs, auth redirects, agent IDs, or clone proofs.
-// The old per-workspace layouts remain untouched for existing deep links.
+// Legacy storage is read once when no general layout exists; it has no active UI.
 export function importLegacyWorkspaceBoards(
   workspaceIds: string[],
   read: (key: string) => string | null,

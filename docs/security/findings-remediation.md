@@ -428,7 +428,7 @@ explicitly confirmed that pointer movement should redirect terminal typing.
 Desktop focus-follows-mouse is intentional and will be retained. Moving across
 a terminal pane selects its session and focuses its xterm input; a separate click
 is not required. See the pane mouse-move handler and `selectSession` in
-[`MultiSessionWorkspace.tsx`](../../src/components/workspaces/MultiSessionWorkspace.tsx).
+[`GeneralWorkspacePane.tsx`](../../src/components/workspaces/GeneralWorkspacePane.tsx).
 
 The accepted tradeoff is that an accidental pointer crossing while typing can
 send commands or sensitive text to a different workspace terminal. This decision

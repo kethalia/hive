@@ -6,3 +6,7 @@ export async function getWorkspaceAppToolAction(input: unknown) {
   });
   return response.json();
 }
+
+export async function getWorkspaceSessionToolsAction() {
+  return {};
+}

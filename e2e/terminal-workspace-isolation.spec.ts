@@ -13,8 +13,8 @@ test.use({ hasTouch: true });
 
 for (const kind of ["url", "osc-url", "file"] as const) {
   test(`touch link menus stay in the active workspace (${kind})`, async ({ page }) => {
-    // Model the mounted board layers; the component test checks that switching
-    // MultiSessionWorkspace applies these inert attributes without remounting.
+    // Exercise terminal link handling in inactive layers independently of the canvas.
+    // window-management.browser.mjs checks the production canvas mount continuity.
     await page.setContent(`
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <button id="first-tab">First workspace</button>

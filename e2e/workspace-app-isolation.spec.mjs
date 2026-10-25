@@ -189,9 +189,12 @@ test.afterAll(async () => {
 });
 
 async function openTool(page, tool) {
-  await page.getByTestId("tool-picker-trigger").click();
-  await page.getByTestId(`tool-option-${tool}`).click();
-  await expect(page.getByTestId(`tool-option-${tool}`)).toBeHidden();
+  await page
+    .getByRole("button", {
+      name: tool === "filebrowser" ? "Files" : tool === "terminal" ? "Terminal" : "Desktop",
+      exact: true,
+    })
+    .click();
 }
 
 test("isolated File Browser cannot read Hive or capture its microphone", async ({
@@ -204,7 +207,7 @@ test("isolated File Browser cannot read Hive or capture its microphone", async (
     for (const track of stream.getTracks()) track.stop();
   });
   await openTool(page, "filebrowser");
-  const frame = page.frameLocator('iframe[title="Filebrowser"]');
+  const frame = page.frameLocator('iframe[title="Filebrowser · Isolation validation"]');
   await expect(frame.getByRole("heading", { name: "Files connected" })).toBeVisible();
   await frame.getByRole("button", { name: "Probe boundary" }).click();
   await expect(frame.locator("#result")).toContainText("NotAllowedError");
@@ -238,16 +241,16 @@ test("desktop tools remain embedded and keep their app authentication", async ({
   await openTool(page, "kasmvnc");
   await expect(
     page
-      .frameLocator('iframe[title="KasmVNC"]')
+      .frameLocator('iframe[title="KasmVNC · Isolation validation"]')
       .getByRole("heading", { name: "Desktop connected" }),
   ).toBeVisible();
-  const frame = page.locator('iframe[title="KasmVNC"]');
+  const frame = page.locator('iframe[title="KasmVNC · Isolation validation"]');
   await openTool(page, "terminal");
   await openTool(page, "kasmvnc");
   expect(appAuthorizations).toBe(1);
   await expect(frame).toBeVisible();
   await page
-    .frameLocator('iframe[title="KasmVNC"]')
+    .frameLocator('iframe[title="KasmVNC · Isolation validation"]')
     .getByRole("button", { name: "Fullscreen", exact: true })
     .click();
   await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
@@ -258,7 +261,7 @@ test("desktop tools remain embedded and keep their app authentication", async ({
 test("cookie-overlapping app hosts fail closed before app authentication", async ({ page }) => {
   await page.goto(`${hiveUrl}/unsafe-host`);
   await openTool(page, "filebrowser");
-  await expect(page.getByText("Could not open this workspace tool.")).toBeVisible();
+  await expect(page.getByText("Workspace app overlaps Hive cookies")).toBeVisible();
   await expect(page.locator("iframe")).toHaveCount(0);
   expect(appAuthorizations).toBe(0);
   expect(appRequests).toHaveLength(0);

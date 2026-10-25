@@ -23,12 +23,14 @@ export function useGeneralWorkspaceCommands({
   onError,
   onStart,
   onAgents,
+  additionalActions,
 }: {
   workspaces: CoderWorkspace[];
   onOpenPane: (pane: GeneralPane) => void;
   onError: (message: string) => void;
   onStart: (workspaceId: string) => Promise<void>;
   onAgents: (workspaceId: string) => void;
+  additionalActions?: CommandPaletteAction[];
 }) {
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -315,7 +317,7 @@ export function useGeneralWorkspaceCommands({
       registerGlobalCommandPaletteSource({
         id: "general-workspace",
         handlesWorkspaces: true,
-        actions,
+        actions: [...actions, ...(additionalActions ?? [])],
         searchValue: query,
         onSearchValueChange: setQuery,
         onOpenChange: setOpen,
@@ -323,6 +325,6 @@ export function useGeneralWorkspaceCommands({
         emptyText: "No matching windows or commands.",
         loadingText: loading ? "Loading terminals and repositories…" : undefined,
       }),
-    [actions, query, loading],
+    [actions, query, loading, additionalActions],
   );
 }

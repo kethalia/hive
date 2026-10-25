@@ -257,10 +257,6 @@ const mockCreateSession = vi.fn();
 const mockKillSession = vi.fn();
 const mockListGitClones = vi.fn();
 const mockResolveGitCloneTerminal = vi.fn();
-const mockListNavigationFavorites = vi.fn();
-const mockUpsertNavigationFavorite = vi.fn();
-const mockRemoveNavigationFavorite = vi.fn();
-const mockReorderNavigationFavorites = vi.fn();
 const mockGetTerminalSettings = vi.fn();
 const mockUpdateTerminalSettings = vi.fn();
 const mockGetSessionAction = vi.fn();
@@ -291,13 +287,6 @@ vi.mock("@/lib/actions/templates", () => ({
 vi.mock("@/lib/actions/git-clones", () => ({
   listGitClonesAction: (...args: unknown[]) => mockListGitClones(...args),
   resolveGitCloneTerminalAction: (...args: unknown[]) => mockResolveGitCloneTerminal(...args),
-}));
-
-vi.mock("@/lib/actions/navigation-favorites", () => ({
-  listNavigationFavoritesAction: (...args: unknown[]) => mockListNavigationFavorites(...args),
-  upsertNavigationFavoriteAction: (...args: unknown[]) => mockUpsertNavigationFavorite(...args),
-  removeNavigationFavoriteAction: (...args: unknown[]) => mockRemoveNavigationFavorite(...args),
-  reorderNavigationFavoritesAction: (...args: unknown[]) => mockReorderNavigationFavorites(...args),
 }));
 
 vi.mock("@/lib/actions/user-settings", () => ({

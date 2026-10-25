@@ -57,7 +57,7 @@ describe("notification service worker", () => {
     });
     expect(client.postMessage.mock.calls[0][0]).toEqual({
       type: "hive:navigate",
-      url: "/workspaces/w/terminal?session=dev",
+      url: "/workspaces?session=dev&workspace=w",
     });
     expect(client.postMessage.mock.calls[0][1]).toHaveLength(1);
     expect(client.navigate).not.toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe("notification service worker", () => {
       expect.objectContaining({
         requireInteraction: true,
         silent: false,
-        data: { kind: "question", url: "/workspaces/w/terminal?session=dev" },
+        data: { kind: "question", url: "/workspaces?session=dev&workspace=w" },
         vibrate: [180, 80, 180],
       }),
     );
@@ -112,10 +112,10 @@ describe("notification service worker", () => {
     const { self, client, emit } = worker();
     const wrong = {
       ...client,
-      url: "https://hive.test/workspaces/other/terminal/workspace",
+      url: "https://hive.test/settings",
       navigate: vi.fn(),
     };
-    client.url = "https://hive.test/workspaces/w/terminal/workspace";
+    client.url = "https://hive.test/workspaces";
     self.clients.matchAll.mockResolvedValue([wrong, client]);
     await emit("notificationclick", {
       notification: {
@@ -124,17 +124,17 @@ describe("notification service worker", () => {
       },
     });
     expect(wrong.navigate).not.toHaveBeenCalled();
-    expect(client.navigate).toHaveBeenCalledWith("/workspaces/w/terminal/workspace?session=review");
+    expect(client.navigate).toHaveBeenCalledWith("/workspaces?session=review&workspace=w");
     expect(client.focus).toHaveBeenCalledOnce();
   });
   it("prefers an exact destination when several windows share a workspace", async () => {
     const { self, client, emit } = worker();
     const other = {
       ...client,
-      url: "https://hive.test/workspaces/w/terminal/workspace?session=other",
+      url: "https://hive.test/workspaces?session=other&workspace=w",
       navigate: vi.fn(),
     };
-    client.url = "https://hive.test/workspaces/w/terminal/workspace?session=review";
+    client.url = "https://hive.test/workspaces?session=review&workspace=w";
     self.clients.matchAll.mockResolvedValue([other, client]);
     await emit("notificationclick", {
       notification: {
@@ -160,9 +160,7 @@ describe("notification service worker", () => {
         data: { url: "/workspaces/w/terminal/workspace?session=review" },
       },
     });
-    expect(self.clients.openWindow).toHaveBeenCalledWith(
-      "/workspaces/w/terminal/workspace?session=review",
-    );
+    expect(self.clients.openWindow).toHaveBeenCalledWith("/workspaces?session=review&workspace=w");
     expect(client.focus).not.toHaveBeenCalled();
   });
   it("keeps legacy token alerts linked to login and handles malformed data", async () => {

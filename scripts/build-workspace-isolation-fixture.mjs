@@ -23,24 +23,40 @@ export async function buildIsolationFixture(outputDir) {
       {
         name: "fixture-server-boundary",
         setup(build) {
-          build.onResolve({ filter: /TerminalTabManager$/ }, () => ({
-            path: "terminal",
-            namespace: "fixture-next",
-          }));
           build.onResolve({ filter: /^@\/lib\/actions\/workspaces$/ }, () => ({
             path: resolve("e2e/fixtures/workspace-app-isolation-actions.ts"),
+          }));
+          build.onResolve({ filter: /^@\/lib\/actions\/git-clones$/ }, () => ({
+            path: "clones",
+            namespace: "fixture-mock",
+          }));
+          build.onResolve({ filter: /^@\/lib\/discovery\/queries$/ }, () => ({
+            path: "queries",
+            namespace: "fixture-mock",
+          }));
+          build.onLoad({ filter: /.*/, namespace: "fixture-mock" }, ({ path }) => ({
+            contents:
+              path === "clones"
+                ? "export async function resolveGitCloneTerminalAction() { return {}; }"
+                : "export function useDiscovery() { return {}; }",
+            loader: "js",
+          }));
+          build.onResolve({ filter: /^\.\/InteractiveTerminal$/ }, () => ({
+            path: "terminal",
+            namespace: "fixture-terminal",
+          }));
+          build.onLoad({ filter: /.*/, namespace: "fixture-terminal" }, () => ({
+            contents: "export function InteractiveTerminal() { return null; }",
+            loader: "js",
           }));
           build.onResolve({ filter: /^next\/(dynamic|link)$/ }, ({ path }) => ({
             path,
             namespace: "fixture-next",
           }));
           build.onLoad({ filter: /.*/, namespace: "fixture-next" }, ({ path }) => ({
-            contents:
-              path === "terminal"
-                ? "export function TerminalTabManager() { return <p>Fixture terminal</p>; }"
-                : path.endsWith("dynamic")
-                  ? "export default function dynamic() { return function Terminal() { return <p>Fixture terminal</p>; }; }"
-                  : "export default function Link({children, href}) { return <a href={href}>{children}</a>; }",
+            contents: path.endsWith("dynamic")
+              ? "export default function dynamic() { return function Terminal() { return <p>Fixture terminal</p>; }; }"
+              : "export default function Link({children, href}) { return <a href={href}>{children}</a>; }",
             loader: "tsx",
             resolveDir: process.cwd(),
           }));
