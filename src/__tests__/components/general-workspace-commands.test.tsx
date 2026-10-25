@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
+import { useQueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { DiscoveryError } from "@/lib/discovery/types";
 import { getGlobalCommandPaletteSources } from "@/lib/terminal/global-command-palette";
 import { act, cleanup, renderHook, waitFor } from "../helpers/discovery";
 
@@ -77,7 +79,13 @@ describe("general workspace search", () => {
       onStart: vi.fn().mockResolvedValue(undefined),
       onAgents: vi.fn(),
     };
-    const hook = renderHook((value) => useGeneralWorkspaceCommands(value), { initialProps: props });
+    const hook = renderHook(
+      (value) => {
+        useGeneralWorkspaceCommands(value);
+        return useQueryClient();
+      },
+      { initialProps: props },
+    );
     return { ...hook, ...props };
   }
   async function open() {
@@ -224,6 +232,48 @@ describe("general workspace search", () => {
       expect(action("repository:browser:git-clone:projects/kethalia/hive")).toBeDefined(),
     );
     expect(action("retry-terminals:browser")).toBeUndefined();
+  });
+  it.each([
+    "sessions",
+    "repositories",
+  ])("keeps search snapshots hidden after %s is denied and retries fail", async (resource) => {
+    const { result } = setup();
+    await open();
+    const sessionId = "session:software:main";
+    const repositoryId = "repository:software:git-clone:projects/kethalia/hive";
+    await waitFor(() => expect(action(repositoryId)).toBeDefined());
+    const read = resource === "sessions" ? mocks.sessions : mocks.clones;
+    read.mockRejectedValue(new DiscoveryError("denied", 403));
+    await act(async () => {
+      await result.current.invalidateQueries({ queryKey: ["discovery", resource, "software"] });
+    });
+    await waitFor(() => expect(action(sessionId)).toBeUndefined());
+    expect(action(repositoryId)).toBeUndefined();
+    for (const error of [new DiscoveryError("unavailable", 503), new Error("timeout")]) {
+      read.mockRejectedValue(error);
+      act(() => action("retry-terminals:software").onSelect());
+      await waitFor(() =>
+        expect(
+          result.current.getQueryState(["discovery", resource, "software", "build-1"])?.error
+            ?.message,
+        ).toBe(error.message),
+      );
+      expect(action(sessionId)).toBeUndefined();
+      expect(action(repositoryId)).toBeUndefined();
+    }
+    act(() => source().onOpenChange!(false));
+    act(() => source().onOpenChange!(true));
+    expect(action(sessionId)).toBeUndefined();
+    expect(action(repositoryId)).toBeUndefined();
+    await waitFor(() => expect(result.current.isFetching()).toBe(0));
+    read.mockResolvedValue(
+      resource === "sessions"
+        ? { data: [{ name: "main" }] }
+        : { data: { ok: true, tree: { nodes: [repository] } } },
+    );
+    act(() => action("retry-terminals:software").onSelect());
+    await waitFor(() => expect(action(repositoryId)).toBeDefined());
+    expect(action(sessionId)).toBeDefined();
   });
   it("exposes supported apps immediately and opens them in their own workspace", () => {
     const { onOpenPane, onAgents, onStart } = setup();

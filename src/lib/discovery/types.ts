@@ -36,7 +36,12 @@ export class DiscoveryError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly cachedDataDenied = [401, 403, 404, 409].includes(status),
   ) {
     super(message);
   }
+}
+
+export function isDiscoveryDenied(error: unknown): boolean {
+  return error instanceof DiscoveryError && error.cachedDataDenied;
 }

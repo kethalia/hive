@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Loader2,
@@ -289,6 +290,7 @@ export function WorkspaceListContent({
 }: WorkspaceListContentProps) {
   const hasError = Boolean(error);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(launchOnMount);
   const templateQuery = useDiscovery("template-options", {}, { enabled: createOpen });
   const templates = useMemo(
@@ -306,6 +308,11 @@ export function WorkspaceListContent({
   const [deleteTarget, setDeleteTarget] = useState<CoderWorkspace | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [, startRefreshTransition] = useTransition();
+  const refreshWorkspaces = useCallback(() => {
+    // Server navigation refreshes do not replace an already initialized browser query.
+    void queryClient.invalidateQueries({ queryKey: ["discovery", "workspaces"] });
+    startRefreshTransition(() => router.refresh());
+  }, [queryClient, router]);
 
   const profileGroups = useMemo(
     () =>
@@ -370,14 +377,14 @@ export function WorkspaceListContent({
         }
         setWorkspaceName("");
         setCreateOpen(false);
-        startRefreshTransition(() => router.refresh());
+        refreshWorkspaces();
       } catch (err) {
         setCreateError(err instanceof Error ? err.message : "Failed to create workspace.");
       } finally {
         setCreating(false);
       }
     },
-    [router, templateId, workspaceName],
+    [refreshWorkspaces, templateId, workspaceName],
   );
 
   const runWorkspaceOperation = useCallback(
@@ -396,7 +403,7 @@ export function WorkspaceListContent({
           );
           return;
         }
-        startRefreshTransition(() => router.refresh());
+        refreshWorkspaces();
       } catch (err) {
         setLifecycleError(
           err instanceof Error
@@ -407,7 +414,7 @@ export function WorkspaceListContent({
         setPendingOperation(null);
       }
     },
-    [router],
+    [refreshWorkspaces],
   );
 
   const openDeleteDialog = useCallback((workspace: CoderWorkspace) => {
@@ -439,7 +446,7 @@ export function WorkspaceListContent({
         return;
       }
       closeDeleteDialog();
-      startRefreshTransition(() => router.refresh());
+      refreshWorkspaces();
     } catch (err) {
       setLifecycleError(
         err instanceof Error ? err.message : `Failed to delete workspace ${deleteTarget.name}.`,
@@ -447,7 +454,7 @@ export function WorkspaceListContent({
     } finally {
       setPendingOperation(null);
     }
-  }, [closeDeleteDialog, deleteConfirmation, deleteTarget, router]);
+  }, [closeDeleteDialog, deleteConfirmation, deleteTarget, refreshWorkspaces]);
 
   const launchButton = (
     <Button

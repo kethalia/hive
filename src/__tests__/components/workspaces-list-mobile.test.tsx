@@ -10,6 +10,7 @@ import { WorkspaceListContent } from "@/app/(dashboard)/workspaces/workspace-lis
 import { WorkspaceListPoller } from "@/app/(dashboard)/workspaces/workspace-list-poller";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
+import { useDiscovery } from "@/lib/discovery/queries";
 import { PULL_REFRESH_TRIGGER_PX } from "@/lib/gestures/conventions";
 
 const mocks = vi.hoisted(() => ({
@@ -74,6 +75,13 @@ function makeWorkspace(overrides: Partial<WorkspaceFixture> = {}): WorkspaceFixt
     latest_build: latestBuild("running", "build-1"),
     ...overrides,
   };
+}
+
+// Like GeneralWorkspace, the visible list observes the shared query. No poll or prop
+// replacement is involved, so mutation refreshes must update this cache themselves.
+function CachedWorkspaceList({ initialWorkspaces }: { initialWorkspaces: CoderWorkspace[] }) {
+  const query = useDiscovery("workspaces", {}, { initialData: initialWorkspaces });
+  return <WorkspaceListContent workspaces={query.data ?? []} />;
 }
 
 function pointerDown(target: HTMLElement, { x = 20, y = 10 } = {}) {
@@ -332,8 +340,11 @@ describe("workspace card grid", () => {
     mocks.createWorkspaceAction.mockResolvedValue({
       data: makeWorkspace({ id: "workspace-new", name: "new-dev" }),
     });
+    mocks.listWorkspacesAction.mockResolvedValue({
+      data: [makeWorkspace(), makeWorkspace({ id: "workspace-new", name: "new-dev" })],
+    });
 
-    render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
+    render(<CachedWorkspaceList initialWorkspaces={[makeWorkspace()]} />);
 
     fireEvent.click(screen.getByTestId("open-create-workspace-modal"));
     await screen.findByTestId("create-workspace-modal");
@@ -354,6 +365,8 @@ describe("workspace card grid", () => {
     });
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("create-workspace-modal")).not.toBeInTheDocument();
+    expect(await screen.findByText("new-dev")).toBeInTheDocument();
+    expect(mocks.listWorkspacesAction).toHaveBeenCalledOnce();
   });
 
   it("starts and stops workspaces through explicit lifecycle actions", async () => {
@@ -363,19 +376,26 @@ describe("workspace card grid", () => {
     mocks.stopWorkspaceAction.mockResolvedValue({
       data: { workspaceId: "running-ws", status: "stopped" },
     });
+    const runningWorkspace = makeWorkspace({ id: "running-ws", name: "running-dev" });
+    const stoppedWorkspace = makeWorkspace({
+      id: "stopped-ws",
+      name: "stopped-dev",
+      latest_build: latestBuild("stopped"),
+    });
+    const startedWorkspace = {
+      ...stoppedWorkspace,
+      latest_build: latestBuild("running", "new-started-build"),
+    };
+    mocks.listWorkspacesAction
+      .mockResolvedValueOnce({ data: [runningWorkspace, startedWorkspace] })
+      .mockResolvedValueOnce({
+        data: [
+          { ...runningWorkspace, latest_build: latestBuild("stopped", "new-stopped-build") },
+          startedWorkspace,
+        ],
+      });
 
-    render(
-      <WorkspaceListContent
-        workspaces={[
-          makeWorkspace({ id: "running-ws", name: "running-dev" }),
-          makeWorkspace({
-            id: "stopped-ws",
-            name: "stopped-dev",
-            latest_build: latestBuild("stopped"),
-          }),
-        ]}
-      />,
-    );
+    render(<CachedWorkspaceList initialWorkspaces={[runningWorkspace, stoppedWorkspace]} />);
 
     const [runningCard, stoppedCard] = screen.getAllByTestId("workspace-card");
     fireEvent.click(
@@ -384,6 +404,7 @@ describe("workspace card grid", () => {
     await waitFor(() => {
       expect(mocks.startWorkspaceAction).toHaveBeenCalledWith({ workspaceId: "stopped-ws" });
     });
+    expect(await within(stoppedCard).findByText("running")).toBeInTheDocument();
 
     fireEvent.click(
       within(runningCard).getByRole("button", { name: "Stop workspace running-dev" }),
@@ -392,13 +413,16 @@ describe("workspace card grid", () => {
       expect(mocks.stopWorkspaceAction).toHaveBeenCalledWith({ workspaceId: "running-ws" });
     });
     expect(mocks.refresh).toHaveBeenCalledTimes(2);
+    expect(await within(runningCard).findByText("stopped")).toBeInTheDocument();
+    expect(mocks.listWorkspacesAction).toHaveBeenCalledTimes(2);
   });
 
   it("requires the exact workspace name before deletion", async () => {
     mocks.deleteWorkspaceAction.mockResolvedValue({
       data: { workspaceId: "workspace-1", status: "deleting" },
     });
-    render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
+    mocks.listWorkspacesAction.mockResolvedValue({ data: [] });
+    render(<CachedWorkspaceList initialWorkspaces={[makeWorkspace()]} />);
 
     const card = screen.getByTestId("workspace-card");
     fireEvent.click(within(card).getByRole("button", { name: "Delete workspace mobile-dev" }));
@@ -421,6 +445,8 @@ describe("workspace card grid", () => {
     });
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("delete-workspace-modal")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId("workspace-card")).not.toBeInTheDocument());
+    expect(mocks.listWorkspacesAction).toHaveBeenCalledOnce();
   });
 
   it("auto-opens the launch flow in the management dialog", async () => {

@@ -38,7 +38,9 @@ describe("shared browser discovery", () => {
     expect(reopened.result.current.isPending).toBe(false);
     expect(read).toHaveBeenCalledTimes(1);
   });
-  it("keeps prior results through transient refresh errors, but hides denied data until recovery", async () => {
+  it.each([
+    401, 403, 404, 409,
+  ])("keeps data hidden after denial (%s) through transient failures and remounts", async (status) => {
     const hook = renderHook(() => useDiscovery("sessions", target), { wrapper });
     await waitFor(() => expect(hook.result.current.data).toBeDefined());
     read.mockRejectedValue(new DiscoveryError("offline", 503));
@@ -47,20 +49,52 @@ describe("shared browser discovery", () => {
     });
     await waitFor(() => expect(hook.result.current.error?.message).toBe("offline"));
     expect(hook.result.current.data).toEqual([{ name: "main" }]);
-    read.mockRejectedValue(new DiscoveryError("denied", 403));
+    read.mockRejectedValue(new DiscoveryError("denied", status));
     await act(async () => {
       await hook.result.current.refresh().catch(() => {});
     });
     await waitFor(() => expect(hook.result.current.data).toBeUndefined());
+    for (const error of [new DiscoveryError("unavailable", 503), new Error("timeout")]) {
+      read.mockRejectedValue(error);
+      await act(async () => {
+        await hook.result.current.refresh().catch(() => {});
+      });
+      await waitFor(() => expect(hook.result.current.error?.message).toBe(error.message));
+      expect(hook.result.current.data).toBeUndefined();
+    }
     hook.unmount();
-    const reopened = renderHook(() => useDiscovery("sessions", target), { wrapper });
+    const reopened = renderHook(
+      () =>
+        useDiscovery("sessions", target, {
+          initialData: [{ name: "old-server-data", created: 1, windows: 1 }],
+        }),
+      { wrapper },
+    );
     expect(reopened.result.current.data).toBeUndefined();
     await waitFor(() => expect(reopened.result.current.isFetching).toBe(false));
+    expect(reopened.result.current.data).toBeUndefined();
     read.mockResolvedValue([]);
     await act(async () => {
       await reopened.result.current.refresh();
     });
     await waitFor(() => expect(reopened.result.current.data).toEqual([]));
+  });
+  it("does not seed a denied query from old server props when no successful snapshot exists", async () => {
+    read.mockRejectedValue(new DiscoveryError("denied", 403));
+    const hook = renderHook(() => useDiscovery("sessions", target), { wrapper });
+    await waitFor(() => expect(hook.result.current.isError).toBe(true));
+    hook.unmount();
+    read.mockRejectedValue(new Error("timeout"));
+    const reopened = renderHook(
+      () =>
+        useDiscovery("sessions", target, {
+          initialData: [{ name: "old-server-data", created: 1, windows: 1 }],
+        }),
+      { wrapper },
+    );
+    expect(reopened.result.current.data).toBeUndefined();
+    await waitFor(() => expect(reopened.result.current.error?.message).toBe("timeout"));
+    expect(reopened.result.current.data).toBeUndefined();
   });
   it("isolates builds and cancels requests from unmounted consumers", async () => {
     const hook = renderHook(({ buildId }) => useDiscovery("sessions", { ...target, buildId }), {

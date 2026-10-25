@@ -6,8 +6,7 @@ import type { CommandPaletteAction } from "@/components/terminal/CommandPalette"
 import { createSessionAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { discoveryOptions } from "@/lib/discovery/queries";
-import { readDiscovery } from "@/lib/discovery/transport";
-import { DiscoveryError } from "@/lib/discovery/types";
+import { isDiscoveryDenied } from "@/lib/discovery/types";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
@@ -75,9 +74,7 @@ export function useGeneralWorkspaceCommands({
   const data = useMemo(
     () =>
       selected.map((target, index) => {
-        const denied = [sessions[index].error, clones[index].error].some(
-          (error) => error instanceof DiscoveryError && [401, 403, 404, 409].includes(error.status),
-        );
+        const denied = [sessions[index].error, clones[index].error].some(isDiscoveryDenied);
         return {
           workspaceId: target.workspaceId,
           sessions: denied
@@ -102,9 +99,8 @@ export function useGeneralWorkspaceCommands({
       for (const resource of ["sessions", "repositories"] as const) {
         void client
           .fetchQuery({
-            ...discoveryOptions(resource, target),
+            ...discoveryOptions(resource, target, true),
             staleTime: 0,
-            queryFn: ({ signal }) => readDiscovery(resource, target, signal, true),
           })
           .catch(() => {});
       }

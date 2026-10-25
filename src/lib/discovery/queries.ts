@@ -9,15 +9,34 @@ import {
   type DiscoveryResource,
   type DiscoveryTarget,
   discoveryFreshness,
+  isDiscoveryDenied,
 } from "./types";
 
 export function discoveryOptions<R extends DiscoveryResource>(
   resource: R,
   target: DiscoveryTarget = {},
+  refresh = false,
 ) {
   return queryOptions({
     queryKey: ["discovery", resource, target.workspaceId ?? "", target.buildId ?? ""],
-    queryFn: ({ signal }) => readDiscovery(resource, target, signal),
+    queryFn: async ({ signal, client, queryKey }) => {
+      try {
+        return await readDiscovery(resource, target, signal, refresh);
+      } catch (error) {
+        // A transient failure cannot reauthorize a snapshot denied by an earlier request.
+        // Keep that barrier on the shared query until a successful read clears its error.
+        if (isDiscoveryDenied(client.getQueryState(queryKey)?.error) && !isDiscoveryDenied(error)) {
+          const denied = new DiscoveryError(
+            error instanceof Error ? error.message : "Could not refresh workspace data.",
+            error instanceof DiscoveryError ? error.status : 0,
+            true,
+          );
+          denied.cause = error;
+          throw denied;
+        }
+        throw error;
+      }
+    },
     staleTime: discoveryFreshness[resource],
     gcTime: 300_000,
     retry: false,
@@ -31,10 +50,15 @@ export function useDiscovery<R extends DiscoveryResource>(
   options: { enabled?: boolean; initialData?: DiscoveryData[R]; poll?: boolean } = {},
 ) {
   const queryClient = useQueryClient();
+  const config = discoveryOptions(resource, target);
+  // Do not let mounting another consumer seed old server props after a failed read.
+  const initialData = queryClient.getQueryState(config.queryKey)?.errorUpdateCount
+    ? undefined
+    : options.initialData;
   const query = useQuery({
-    ...discoveryOptions(resource, target),
+    ...config,
     enabled: options.enabled,
-    initialData: options.initialData,
+    initialData,
     refetchInterval: options.poll
       ? resource === "workspaces"
         ? 15_000
@@ -43,22 +67,20 @@ export function useDiscovery<R extends DiscoveryResource>(
     refetchIntervalInBackground: false,
   });
   // Authorization failures must never leave a previously authorized snapshot visible.
-  const denied =
-    query.error instanceof DiscoveryError && [401, 403, 404, 409].includes(query.error.status);
+  const denied = isDiscoveryDenied(query.error);
   const { workspaceId, buildId } = target;
   const refresh = useCallback(async () => {
     const target = { workspaceId, buildId };
     const queryKey = discoveryOptions(resource, target).queryKey;
     await queryClient.cancelQueries({ queryKey, exact: true });
     return queryClient.fetchQuery({
-      ...discoveryOptions(resource, target),
+      ...discoveryOptions(resource, target, true),
       staleTime: 0,
-      queryFn: ({ signal }) => readDiscovery(resource, target, signal, true),
     });
   }, [resource, workspaceId, buildId, queryClient]);
   return {
     ...query,
-    data: denied ? undefined : (query.data ?? (query.isPending ? options.initialData : undefined)),
+    data: denied ? undefined : (query.data ?? (query.isPending ? initialData : undefined)),
     refresh,
   };
 }

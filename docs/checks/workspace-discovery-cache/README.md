@@ -48,7 +48,8 @@ Validated results:
 
 - Production Next.js build and standalone runtime verification passed.
 - TypeScript, Biome lint and formatting checks passed.
-- All 2,089 Vitest tests across 176 files passed. Template, runtime and service-worker tests also passed.
+- All 2,098 Vitest tests across 176 files passed. Template, runtime and service-worker tests also passed.
+- Review regressions cover denial followed by transient failures and remounts (including search), iframe identity through shared agent discovery updates, and immediate workspace query updates after create/start/stop/delete without polling or server prop replacement.
 - Desktop (1440×900) and mobile (390×900) Chrome fixtures passed. Search reopened in 308/306 ms and Agents in 67/49 ms, including interaction/animation time, with no new reads on warm reopen. These are fixture measurements, not production latency promises.
 - Cached search results remained visible during HTTP 503 responses. The existing terminal mounted exactly once throughout search, Agents, workspace management and refresh/outage checks. Collapsed Templates produced no status/archive reads.
 - Browser evidence and scripts are preserved here; `/tmp/hive-discovery-cache` was removed from the reused helper. The helper remains running for unrelated work.

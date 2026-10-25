@@ -102,7 +102,13 @@ export function GeneralWorkspacePane({
     { workspaceId: pane.workspaceId, buildId: workspace?.latest_build.id },
     { enabled: running && pane.kind === "terminal" },
   );
-  const agentError = agentQuery.data ? undefined : agentQuery.error?.message;
+  // Disabled queries still observe shared cache updates. App frames must not reconnect
+  // when a terminal or sidebar consumer discovers or refreshes this workspace's agent.
+  const agentId = pane.kind === "terminal" ? agentQuery.data?.agentId : undefined;
+  const agentStatus = pane.kind === "terminal" ? agentQuery.data?.agentStatus : undefined;
+  const agentPending = pane.kind === "terminal" && agentQuery.isPending;
+  const agentError =
+    pane.kind === "terminal" && !agentQuery.data ? agentQuery.error?.message : undefined;
   const refreshClone = useCallback(async () => {
     if (!cloneSessionKey || !relativePath) throw new Error("Repository terminal is unavailable.");
     const result = await resolveGitCloneTerminalAction({
@@ -117,7 +123,7 @@ export function GeneralWorkspacePane({
   // A new Coder build or explicit retry requires fresh agent/app credentials.
   // biome-ignore lint/correctness/useExhaustiveDependencies: Build and retry are explicit invalidation signals.
   useEffect(() => {
-    if (!running || (pane.kind === "terminal" && agentQuery.isPending)) return;
+    if (!running || agentPending) return;
     let cancelled = false;
     setConnection(null);
     async function connect() {
@@ -145,11 +151,10 @@ export function GeneralWorkspacePane({
           throw new Error(result?.serverError ?? "Could not open this workspace app.");
         return result.data;
       }
-      const agent = agentQuery.data;
-      if (!agent || agent.agentStatus !== "connected")
+      if (!agentId || agentStatus !== "connected")
         throw new Error(agentError ?? "The workspace agent is not connected yet.");
       const identity = cloneSessionKey ? await refreshClone() : { sessionName };
-      return { agentId: agent.agentId, ...identity };
+      return { agentId, ...identity };
     }
     void connect()
       .then((data) => {
@@ -164,9 +169,9 @@ export function GeneralWorkspacePane({
     };
   }, [
     running,
-    agentQuery.data?.agentId,
-    agentQuery.data?.agentStatus,
-    agentQuery.isPending,
+    agentId,
+    agentStatus,
+    agentPending,
     agentError,
     workspace?.latest_build.id,
     pane.workspaceId,
