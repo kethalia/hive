@@ -156,6 +156,11 @@ describe("general workspace search", () => {
       "hive",
       "hive-cache-maintenance",
     ]);
+    search("projects hive cache");
+    expect(visibleRepositories().map((item) => item.label)).toEqual([
+      "hive-cache-maintenance",
+      "hive-cache-maintenance",
+    ]);
     search("kethalia/HAWK");
     expect(visibleRepositories().map((item) => item.label)).toEqual(["hawkeye", "hawkeye"]);
     search("ai-dev-01");

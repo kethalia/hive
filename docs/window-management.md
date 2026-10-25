@@ -18,6 +18,14 @@ There is no sidebar. Cmd/Ctrl+K or the header search button opens one grouped la
   canvas windows. Agent conversations are shown first; setup details stay collapsed until expanded.
 - **Commands**: layout, focus, movement, and workspace actions remain searchable.
 
+Search ranks exact names before prefixes, phrases, aliases, categories, and descriptive context.
+Each group is ordered by its strongest match, so a matching Hive tool can appear above terminals or
+apps. All search words must match; `editor ai-dev` narrows VS Code to that workspace. Common aliases
+include `preferences`, `vscode`, `new terminal`, and `clone repository`. Single-letter typos in names
+and aliases are low-priority fallbacks, not scattered-letter matches across descriptions.
+Projects stay literal name/path matches, including queries such as `projects hive`. Clearing search
+restores the browsing order with New session and New project first in their respective groups.
+
 Existing targets are focused across all boards instead of duplicated. Tool windows resize, move,
 float, close, and restore like terminal/app windows. Their loading/error states stay within the pane;
 opening them preserves existing terminal and app instances. Settings contains Open Coder and sign-out.

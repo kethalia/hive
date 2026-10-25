@@ -29,6 +29,11 @@ import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import {
+  commandSearchKeywords,
+  filterCommand,
+  rankCommandGroups,
+} from "@/lib/terminal/command-search";
 import { cn } from "@/lib/utils";
 import { restoreWorkspaceFocus } from "@/lib/workspaces/window-focus";
 
@@ -40,6 +45,7 @@ export interface CommandPaletteAction {
   description?: string;
   group: string;
   value?: string;
+  aliases?: readonly string[];
   shortcut?: string;
   rightLabel?: string;
   disabled?: boolean;
@@ -175,15 +181,10 @@ function CommandPaletteBody({
     () => new Map(),
   );
 
-  const actionGroups = useMemo(() => {
-    const groups = new Map<string, CommandPaletteAction[]>();
-    for (const action of actions) {
-      const group = groups.get(action.group) ?? [];
-      group.push(action);
-      groups.set(action.group, group);
-    }
-    return [...groups.entries()];
-  }, [actions]);
+  const actionGroups = useMemo(
+    () => rankCommandGroups(actions, searchValue ?? ""),
+    [actions, searchValue],
+  );
 
   useLayoutEffect(() => {
     updateScrollHints();
@@ -301,10 +302,13 @@ function CommandPaletteBody({
             <CommandGroup key={heading} heading={heading}>
               {groupActions.map((action) => (
                 <CommandItem
-                  key={action.id}
+                  // cmdk rescans registered items when searchable metadata changes.
+                  // Keep value stable so background refreshes preserve the selected action.
+                  key={JSON.stringify([action.id, commandSearchKeywords(action)])}
                   data-action-id={action.id}
                   tabIndex={0}
-                  value={`${action.group} ${action.value ?? `${action.label} ${action.description ?? ""}`}`}
+                  value={`action:${action.id}`}
+                  keywords={commandSearchKeywords(action)}
                   onSelect={() => {
                     if (action.disabled) return;
                     selectAction(action);
@@ -368,8 +372,9 @@ function CommandPaletteBody({
             <CommandGroup heading={groupHeading}>
               {tabs.map((tab) => (
                 <CommandItem
-                  key={tab.id}
-                  value={tab.sessionName}
+                  key={JSON.stringify([tab.id, tab.sessionName, groupHeading])}
+                  value={`tab:${tab.id}`}
+                  keywords={commandSearchKeywords({ label: tab.sessionName, group: groupHeading })}
                   onSelect={() => {
                     handleSelect(tab.id);
                   }}
@@ -382,7 +387,11 @@ function CommandPaletteBody({
           ) : null}
           {onCreateSession && (
             <CommandGroup heading="Actions">
-              <CommandItem onSelect={handleCreate}>
+              <CommandItem
+                value="create-session"
+                keywords={commandSearchKeywords({ label: "New Session", group: "Actions" })}
+                onSelect={handleCreate}
+              >
                 <Plus className="mr-2 size-4 shrink-0 opacity-70" />
                 <span>New Session</span>
                 <CommandShortcut>{formatShortcut(CREATE_SESSION_SHORTCUT_KEYS)}</CommandShortcut>
@@ -421,6 +430,18 @@ export function CommandPalette({
   groupHeading = "Sessions",
 }: CommandPaletteProps) {
   const isMobile = useIsMobile();
+  const [localSearch, setLocalSearch] = useState("");
+  const query = searchValue ?? localSearch;
+  const changeSearch = useCallback(
+    (value: string) => {
+      setLocalSearch(value);
+      onSearchValueChange?.(value);
+    },
+    [onSearchValueChange],
+  );
+  useEffect(() => {
+    if (!open) setLocalSearch("");
+  }, [open]);
   const { height } = useVisualViewportHeight();
   const sheetMaxHeight = height !== null ? `${height}px` : "100dvh";
   const { bindDragHandle, sheetStyle } = useSwipeToDismiss({
@@ -452,15 +473,15 @@ export function CommandPalette({
           >
             <span className="h-1 w-10 rounded-full bg-muted-foreground/35" aria-hidden="true" />
           </button>
-          <Command className={mobileCommandClassName}>
+          <Command className={mobileCommandClassName} filter={filterCommand}>
             <CommandPaletteBody
               tabs={tabs}
               onSelectTab={onSelectTab}
               onOpenChange={onOpenChange}
               onCreateSession={onCreateSession}
               actions={actions}
-              searchValue={searchValue}
-              onSearchValueChange={onSearchValueChange}
+              searchValue={query}
+              onSearchValueChange={changeSearch}
               searchPlaceholder={searchPlaceholder}
               emptyText={emptyText}
               loadingText={loadingText}
@@ -474,6 +495,7 @@ export function CommandPalette({
 
   return (
     <CommandDialog
+      commandFilter={filterCommand}
       finalFocus={restoreWorkspaceFocus}
       open={open}
       onOpenChange={onOpenChange}
@@ -485,8 +507,8 @@ export function CommandPalette({
         onOpenChange={onOpenChange}
         onCreateSession={onCreateSession}
         actions={actions}
-        searchValue={searchValue}
-        onSearchValueChange={onSearchValueChange}
+        searchValue={query}
+        onSearchValueChange={changeSearch}
         searchPlaceholder={searchPlaceholder}
         emptyText={emptyText}
         loadingText={loadingText}
