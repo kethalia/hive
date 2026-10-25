@@ -1,0 +1,26 @@
+[
+  {
+    "width": 1440,
+    "firstLoadDismissal": true,
+    "pendingReopen": true,
+    "loadedReopen": true,
+    "canvasVisible": true,
+    "terminalMounts": 1,
+    "terminalHides": 0,
+    "terminalDraftPreserved": true,
+    "dialogFocus": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "firstLoadDismissal": true,
+    "pendingReopen": true,
+    "loadedReopen": true,
+    "canvasVisible": true,
+    "terminalMounts": 1,
+    "terminalHides": 0,
+    "terminalDraftPreserved": true,
+    "dialogFocus": true,
+    "errors": []
+  }
+]
