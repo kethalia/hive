@@ -53,10 +53,7 @@ import {
 } from "@/components/ui/dialog";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { TerminalSessionEventLog } from "@/components/workspaces/TerminalSessionEventLog";
-import {
-  TerminalFontSizeControls,
-  TerminalSessionFrame,
-} from "@/components/workspaces/TerminalSessionFrame";
+import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
 import {
   type WorkspacePaneAction,
@@ -3766,20 +3763,6 @@ export function MultiSessionWorkspace({
     [replaceWorkspaceToolPanes],
   );
 
-  const renderGitFontControls = () => {
-    if (!isUnifiedSource || isMobile) return null;
-
-    return (
-      <TerminalFontSizeControls
-        className="shrink-0"
-        dataTestId="git-terminal-font-size-controls"
-        decreaseTestId="decrease-git-terminal-font-size"
-        increaseTestId="increase-git-terminal-font-size"
-        label="Workspace terminal font size controls"
-      />
-    );
-  };
-
   const renderGitRepositoryButton = () => {
     if (!isUnifiedSource) return null;
 
@@ -4055,7 +4038,6 @@ export function MultiSessionWorkspace({
           <span className="sr-only" data-testid="multi-session-pane-count">
             {visibleSessions.length}
           </span>
-          {renderGitFontControls()}
           <Button
             type="button"
             variant="outline"
@@ -4817,6 +4799,7 @@ export function MultiSessionWorkspace({
       </div>
       <WorkspacePaneActionSheet
         actions={paneActions}
+        showFontSizeControls={paneActionTarget?.kind === "terminal"}
         anchor={paneActionTarget?.anchor}
         description={paneActionTarget?.subtitle}
         label={paneActionTarget?.label ?? "Pane actions"}

@@ -5269,7 +5269,7 @@ describe("MultiSessionWorkspace", () => {
     textarea.removeEventListener("keydown", onInputKey);
   });
 
-  it("shows Git terminal font size controls that update mounted terminals", async () => {
+  it("moves font size into terminal actions and updates mounted terminals", async () => {
     mockListGitClones.mockResolvedValueOnce({
       data: {
         ok: true,
@@ -5312,9 +5312,11 @@ describe("MultiSessionWorkspace", () => {
       );
     });
 
-    expect(await screen.findByTestId("git-terminal-font-size-controls")).toHaveTextContent("13px");
-    fireEvent.click(screen.getByTestId("increase-git-terminal-font-size"));
-    expect(screen.getByTestId("git-terminal-font-size-controls")).toHaveTextContent("14px");
+    expect(screen.queryByTestId("git-terminal-font-size-controls")).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId("workspace-pane-git-clone-safe-hive-actions"));
+    expect(await screen.findByTestId("terminal-font-size-controls")).toHaveTextContent("13px");
+    fireEvent.click(screen.getByTestId("increase-terminal-font-size"));
+    expect(screen.getByTestId("terminal-font-size-controls")).toHaveTextContent("14px");
     expect(localStorage.getItem("terminal:font-size")).toBe("14");
   });
 

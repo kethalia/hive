@@ -377,8 +377,6 @@ import type {
 import type { CloneTreeDiagnostics } from "@/lib/git/clone-tree";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 
-const PRIVATE_ROOT = "/home/coder/SUPER_SECRET_TOKEN";
-
 const gitRepositoryNode = {
   id: "git-repository:Git/home/kethalia/hive",
   kind: "repository",
@@ -436,41 +434,6 @@ function makeGitSuccessResult(tree = makeGitCloneTree()): GitCloneDiscoveryActio
   };
 }
 
-function makeGitEmptyResult(): GitCloneDiscoveryActionResult {
-  const tree = makeGitCloneTree({
-    nodes: [],
-    diagnostics: makeGitDiagnostics({ repoCount: 0, directoryCount: 0, durationMs: 4 }),
-  });
-
-  return {
-    ok: true,
-    status: "empty",
-    message: "No Git clones found under the configured home root.",
-    tree,
-    diagnostics: tree.diagnostics,
-    error: null,
-  };
-}
-
-function makeGitErrorResult(
-  status: "missing-root" | "scan-failed",
-  diagnostics: CloneTreeDiagnostics | null,
-): GitCloneDiscoveryActionResult {
-  const message =
-    status === "missing-root"
-      ? "Configured home folder is not available. Mount the home root, then refresh."
-      : "We couldn't scan the home folder for Git clones. Refresh and try again.";
-
-  return {
-    ok: false,
-    status,
-    message,
-    tree: null,
-    diagnostics,
-    error: { code: status, message },
-  };
-}
-
 function makeWorkspace(overrides: Partial<CoderWorkspace> = {}): CoderWorkspace {
   return {
     id: "ws-1",
@@ -510,34 +473,6 @@ function makeFavorite(overrides: Record<string, unknown> = {}) {
     createdAt: "2026-06-02T00:00:00.000Z",
     position: 0,
     ...overrides,
-  };
-}
-
-async function expandWorkspaceAndTerminalSessions(workspaceId = "ws-1") {
-  render(<AppSidebar />);
-
-  await waitFor(() => {
-    expect(screen.getByText("dev-box")).toBeInTheDocument();
-  });
-
-  fireEvent.click(screen.getByTestId(`workspace-disclosure-${workspaceId}`));
-
-  await waitFor(() => {
-    expect(screen.getByTestId(`terminal-section-${workspaceId}`)).toBeInTheDocument();
-  });
-
-  const terminalSection = screen.getByTestId(`terminal-section-${workspaceId}`);
-  const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
-  expect(terminalTrigger).not.toBeNull();
-  fireEvent.click(terminalTrigger!);
-
-  await waitFor(() => {
-    expect(screen.getByTestId(`session-list-scroll-${workspaceId}`)).toBeInTheDocument();
-  });
-
-  return {
-    scrollContainer: screen.getByTestId(`session-list-scroll-${workspaceId}`),
-    terminalSection,
   };
 }
 
@@ -661,583 +596,6 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("loads persisted favorites for the signed-in workspace and renders terminal and Git rows", async () => {
-    mockListNavigationFavorites.mockResolvedValueOnce({
-      data: [
-        makeFavorite({ id: "fav-terminal", label: "Main shell" }),
-        makeFavorite({
-          id: "fav-git",
-          kind: "git",
-          targetKey: "git-clone:kethalia/hive",
-          label: "Hive repo",
-          relativePath: "kethalia/hive",
-        }),
-      ],
-    });
-
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-      expect(screen.getByText("Main shell")).toBeInTheDocument();
-      expect(screen.getByText("hive")).toBeInTheDocument();
-      expect(screen.queryByText("kethalia/hive")).not.toBeInTheDocument();
-    });
-
-    const terminalLink = screen.getByText("Main shell").closest("a");
-    expect(terminalLink).toHaveAttribute("href", "/workspaces/ws-1/terminal?session=dev");
-    expect(document.body.innerHTML).not.toContain("userId");
-  });
-
-  it("uses sortable drag handles for pinned actions", async () => {
-    mockListNavigationFavorites.mockResolvedValueOnce({
-      data: [
-        makeFavorite({ id: "fav-first", label: "First", position: 0 }),
-        makeFavorite({ id: "fav-second", label: "Second", targetKey: "second", position: 1 }),
-      ],
-    });
-    render(<AppSidebar />);
-
-    const firstHandle = await screen.findByRole("button", { name: "Reorder First" });
-    expect(screen.getByRole("button", { name: "Reorder Second" })).toBeInTheDocument();
-    expect(firstHandle).not.toHaveAttribute("draggable");
-    expect(firstHandle).toHaveAttribute("aria-roledescription", "sortable");
-    expect(screen.getByTestId("sortable-favorite-fav-first")).toBeInTheDocument();
-    firstHandle.focus();
-    fireEvent.keyDown(firstHandle, { key: " ", code: "Space" });
-    await waitFor(() => expect(firstHandle).toHaveAttribute("aria-pressed", "true"));
-    expect(screen.getByTestId("sortable-favorite-fav-first")).toHaveClass("shadow-lg");
-    fireEvent.keyDown(firstHandle, { key: "Escape", code: "Escape" });
-  });
-
-  it("hides Pinned when no favorites are returned", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(mockListNavigationFavorites).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-    });
-    expect(screen.queryByTestId("favorites-section")).not.toBeInTheDocument();
-  });
-
-  it("places Pinned before Workspaces in the primary navigation", async () => {
-    mockListNavigationFavorites.mockResolvedValueOnce({
-      data: [makeFavorite({ id: "fav-terminal", label: "Main shell" })],
-    });
-    render(<AppSidebar />);
-
-    const pinned = await screen.findByTestId("favorites-section");
-    const workspaces = screen.getByTestId("workspaces-disclosure");
-
-    expect(pinned.compareDocumentPosition(workspaces)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
-  it("upserts and removes terminal favorites without user-scoped payload fields", async () => {
-    await expandWorkspaceAndTerminalSessions();
-
-    fireEvent.click(screen.getByRole("button", { name: "Add terminal session dev to favorites" }));
-
-    await waitFor(() => {
-      expect(mockUpsertNavigationFavorite).toHaveBeenCalledWith({
-        kind: "terminal",
-        workspaceId: "ws-1",
-        targetKey: "dev",
-        label: "dev",
-      });
-      expect(
-        screen.getByRole("button", { name: "Remove terminal session dev from favorites" }),
-      ).toHaveAttribute("aria-pressed", "true");
-    });
-    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain("userId");
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Remove terminal session dev from favorites" }),
-    );
-
-    await waitFor(() => {
-      expect(mockRemoveNavigationFavorite).toHaveBeenCalledWith({
-        kind: "terminal",
-        workspaceId: "ws-1",
-        targetKey: "dev",
-      });
-      expect(
-        screen.getByRole("button", { name: "Add terminal session dev to favorites" }),
-      ).toHaveAttribute("aria-pressed", "false");
-    });
-    expect(JSON.stringify(mockRemoveNavigationFavorite.mock.calls[0][0])).not.toContain("userId");
-  }, 10_000);
-
-  it("upserts and removes Git repository favorites with sanitized clone identifiers", async () => {
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Add Git repository kethalia / hive to favorites",
-      }),
-    );
-
-    await waitFor(() => {
-      expect(mockUpsertNavigationFavorite).toHaveBeenCalledWith({
-        kind: "git",
-        workspaceId: "ws-1",
-        targetKey: "git-clone:kethalia/hive",
-        relativePath: "kethalia/hive",
-        label: "hive",
-      });
-      expect(
-        screen.getByRole("button", {
-          name: "Remove Git repository kethalia / hive from favorites",
-        }),
-      ).toHaveAttribute("aria-pressed", "true");
-    });
-    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain(
-      "/home/coder",
-    );
-    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain(
-      "cloneProof",
-    );
-    expect(JSON.stringify(mockUpsertNavigationFavorite.mock.calls[0][0])).not.toContain("userId");
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Remove Git repository kethalia / hive from favorites",
-      }),
-    );
-
-    await waitFor(() => {
-      expect(mockRemoveNavigationFavorite).toHaveBeenCalledWith({
-        kind: "git",
-        workspaceId: "ws-1",
-        targetKey: "git-clone:kethalia/hive",
-      });
-    });
-  });
-
-  it("launches a Git favorite through the existing clone terminal resolver", async () => {
-    mockListNavigationFavorites.mockResolvedValueOnce({
-      data: [
-        makeFavorite({
-          id: "fav-git",
-          kind: "git",
-          targetKey: "git-clone:kethalia/hive",
-          label: "Hive repo",
-          relativePath: "kethalia/hive",
-        }),
-      ],
-    });
-
-    render(<AppSidebar />);
-
-    const favoriteButton = await screen.findByTestId(
-      "favorite-git-link-ws-1-git-clone:kethalia/hive",
-    );
-    expect(favoriteButton).toHaveTextContent("hive");
-    expect(favoriteButton).not.toHaveTextContent("kethalia/hive");
-    expect(favoriteButton).toHaveClass("text-left");
-    fireEvent.click(favoriteButton);
-
-    await waitFor(() => {
-      expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
-        cloneSessionKey: "git-clone:kethalia/hive",
-        workspaceId: "ws-1",
-        agentId: "agent-1",
-        relativePath: "kethalia/hive",
-      });
-      expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-1/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive",
-      );
-    });
-  });
-
-  it("renders malformed Git favorites without a relative path as disabled and does not launch", async () => {
-    mockListNavigationFavorites.mockResolvedValueOnce({
-      data: [
-        makeFavorite({
-          id: "fav-git-bad",
-          kind: "git",
-          targetKey: "git-clone:kethalia/hive",
-          label: "Hive repo",
-          relativePath: null,
-        }),
-      ],
-    });
-
-    render(<AppSidebar />);
-
-    const favoriteButton = (await screen.findByText("Hive repo")).closest("button");
-    expect(favoriteButton).toBeDisabled();
-    fireEvent.click(favoriteButton!);
-
-    expect(mockResolveGitCloneTerminal).not.toHaveBeenCalled();
-  });
-
-  it("reloads favorites from the action on remount", async () => {
-    mockListNavigationFavorites.mockResolvedValue({
-      data: [makeFavorite({ id: "fav-terminal", label: "Main shell" })],
-    });
-
-    const first = render(<AppSidebar />);
-    await screen.findByText("Main shell");
-    first.unmount();
-
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(mockListNavigationFavorites).toHaveBeenCalledTimes(2);
-      expect(screen.getByText("Main shell")).toBeInTheDocument();
-    });
-  });
-
-  it("shows sanitized favorite load and mutation failures while workspace and Git access remain usable", async () => {
-    mockListNavigationFavorites.mockResolvedValueOnce({
-      serverError: `db exploded at ${PRIVATE_ROOT} with cloneProof=secret`,
-    });
-
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("favorites-error")).toHaveTextContent(
-        "Favorites unavailable. Terminal access is still available.",
-      );
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-    expect(document.body.innerHTML).not.toContain(PRIVATE_ROOT);
-    expect(document.body.innerHTML).not.toContain("cloneProof=secret");
-
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-    expect(
-      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
-    ).toBeInTheDocument();
-
-    mockUpsertNavigationFavorite.mockResolvedValueOnce({
-      serverError: `write failed at ${PRIVATE_ROOT}`,
-    });
-    const terminalSection = await screen.findByTestId("terminal-section-ws-1");
-    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
-    fireEvent.click(terminalTrigger!);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Add terminal session dev to favorites" }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("favorites-error")).toHaveTextContent(
-        "Favorites unavailable. Terminal access is still available.",
-      );
-      expect(
-        screen.getByRole("button", { name: "Add terminal session dev to favorites" }),
-      ).toHaveAttribute("aria-pressed", "false");
-    });
-    expect(document.body.innerHTML).not.toContain(PRIVATE_ROOT);
-  });
-
-  it("renders Git clone hierarchy under the expanded workspace with clone metadata and without absolute paths", async () => {
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    const repoButton = await screen.findByRole("button", {
-      name: "Open Git repository kethalia / hive",
-    });
-
-    expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-    expect(screen.getByTestId("git-section-ws-1")).toBeInTheDocument();
-    expect(repoButton).toHaveAttribute("data-clone-session-key", "git-clone:kethalia/hive");
-    expect(repoButton).toHaveAttribute("data-relative-path", "kethalia/hive");
-    expect(screen.getByText("Repositories")).toBeInTheDocument();
-    expect(screen.getByText("home")).toBeInTheDocument();
-    expect(screen.getByText("kethalia")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Git clone scan diagnostics" })).toHaveTextContent(
-      "Repos 1",
-    );
-    expect(document.body).not.toHaveTextContent(PRIVATE_ROOT);
-    expect(document.body.innerHTML).not.toContain("/home/coder");
-  });
-
-  it("keeps the Git section closed by default and rotates its chevron when opened", async () => {
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    const gitSection = await screen.findByTestId("git-section-ws-1");
-    expect(gitSection).toHaveAttribute("data-open", "false");
-    expect(screen.getByTestId("git-section-chevron-ws-1")).not.toHaveClass("rotate-90");
-
-    const gitTrigger = gitSection.querySelector("[data-testid='collapsible-trigger']");
-    expect(gitTrigger).not.toBeNull();
-    fireEvent.click(gitTrigger!);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("git-section-ws-1")).toHaveAttribute("data-open", "true");
-      expect(screen.getByTestId("git-section-chevron-ws-1")).toHaveClass("rotate-90");
-    });
-  });
-
-  it("opens a Git repository in the workspace that owns the Git tree", async () => {
-    mockListWorkspaces.mockResolvedValueOnce({
-      data: [
-        makeWorkspace({
-          id: "ws-stopped",
-          name: "stopped-box",
-          latest_build: {
-            id: "build-stopped",
-            status: "stopped",
-            job: { status: "succeeded", error: "" },
-          },
-        }),
-        makeWorkspace({ id: "ws-running", name: "running-box" }),
-      ],
-    });
-
-    render(<AppSidebar />);
-
-    await screen.findByText("running-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-running"));
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
-    );
-
-    await waitFor(() => {
-      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-running" });
-      expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
-        cloneSessionKey: "git-clone:kethalia/hive",
-        workspaceId: "ws-running",
-        agentId: "agent-1",
-        relativePath: "kethalia/hive",
-      });
-      expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-running/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive",
-      );
-    });
-    expect(mockCreateSession).not.toHaveBeenCalled();
-  });
-
-  it("uses the active workspace route when auto-expanding scoped Git and preserves debugViewport=1", async () => {
-    mockNavigationState.pathname = "/workspaces/ws-active/terminal";
-    mockNavigationState.searchParams = "session=dev&debugViewport=1";
-    mockListWorkspaces.mockResolvedValueOnce({
-      data: [makeWorkspace({ id: "ws-active", name: "active-box" })],
-    });
-
-    render(<AppSidebar />);
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
-    );
-
-    await waitFor(() => {
-      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-active" });
-      expect(mockResolveGitCloneTerminal).toHaveBeenCalledWith({
-        cloneSessionKey: "git-clone:kethalia/hive",
-        workspaceId: "ws-active",
-        agentId: "agent-1",
-        relativePath: "kethalia/hive",
-      });
-      expect(mockPush).toHaveBeenCalledWith(
-        "/workspaces/ws-active/terminal?session=git-clone-safe-hive&clonePath=kethalia%2Fhive&cloneSessionKey=git-clone%3Akethalia%2Fhive&cloneProof=proof-token&relativePath=kethalia%2Fhive&debugViewport=1",
-      );
-    });
-    expect(mockCreateSession).not.toHaveBeenCalled();
-  });
-
-  it("does not auto-select a fallback workspace for Git discovery before a workspace is expanded", async () => {
-    mockListWorkspaces.mockResolvedValueOnce({
-      data: [
-        makeWorkspace({
-          id: "ws-stopped",
-          name: "stopped-box",
-          latest_build: {
-            id: "build-stopped",
-            status: "stopped",
-            job: { status: "succeeded", error: "" },
-          },
-        }),
-      ],
-    });
-
-    render(<AppSidebar />);
-
-    await screen.findByText("stopped-box");
-
-    expect(mockListGitClones).not.toHaveBeenCalled();
-    expect(
-      screen.queryByRole("button", { name: "Open Git repository kethalia / hive" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows a sanitized Git terminal error when the resolve action fails", async () => {
-    mockResolveGitCloneTerminal.mockResolvedValueOnce({
-      serverError: `Cannot scan ${PRIVATE_ROOT}`,
-    });
-
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("git-terminal-open-error-ws-1")).toHaveTextContent(
-        "We couldn't open that Git repository. Refresh and try again.",
-      );
-    });
-    expect(mockPush).not.toHaveBeenCalled();
-    expect(mockCreateSession).not.toHaveBeenCalled();
-    expect(document.body.innerHTML).not.toContain(PRIVATE_ROOT);
-    expect(document.body.innerHTML).not.toContain("/home/coder");
-  });
-
-  it("treats a missing resolve action payload as a sanitized Git terminal failure", async () => {
-    mockResolveGitCloneTerminal.mockResolvedValueOnce({});
-
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Git repository kethalia / hive" }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("git-terminal-open-error-ws-1")).toHaveTextContent(
-        "We couldn't open that Git repository. Refresh and try again.",
-      );
-    });
-    expect(mockPush).not.toHaveBeenCalled();
-    expect(mockCreateSession).not.toHaveBeenCalled();
-  });
-
-  it("shows a Git discovery loading state while the action is pending", async () => {
-    let resolveGit: (value: { data: GitCloneDiscoveryActionResult }) => void = () => {};
-    mockListGitClones.mockReturnValue(
-      new Promise((resolve) => {
-        resolveGit = resolve;
-      }),
-    );
-
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    expect(screen.getByText("Loading Git repositories…")).toBeInTheDocument();
-
-    resolveGit({ data: makeGitSuccessResult() });
-    await screen.findByRole("button", { name: "Open Git repository kethalia / hive" });
-  });
-
-  it("renders the Git empty state with retry and diagnostics", async () => {
-    mockListGitClones.mockResolvedValueOnce({ data: makeGitEmptyResult() });
-
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("git-discovery-empty-state")).toBeInTheDocument();
-    });
-
-    expect(
-      screen.getByText("No Git clones found under the configured home root."),
-    ).toBeInTheDocument();
-    expect(screen.getByText("No Git repositories found.")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Git clone scan diagnostics" })).toHaveTextContent(
-      "Repos 0",
-    );
-
-    mockListGitClones.mockResolvedValueOnce({ data: makeGitSuccessResult() });
-    fireEvent.click(screen.getByTestId("git-discovery-retry"));
-
-    await waitFor(() => {
-      expect(mockListGitClones).toHaveBeenCalledTimes(2);
-      expect(
-        screen.getByRole("button", { name: "Open Git repository kethalia / hive" }),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("renders missing-root and scan-failed Git states with sanitized diagnostics", async () => {
-    mockListGitClones.mockResolvedValueOnce({
-      data: makeGitErrorResult(
-        "missing-root",
-        makeGitDiagnostics({
-          repoCount: 0,
-          directoryCount: 0,
-          skippedPaths: [{ relativePath: ".", reason: "not-directory" }],
-          durationMs: 9,
-        }),
-      ),
-    });
-
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("git-discovery-missing-root")).toBeInTheDocument();
-    });
-
-    expect(screen.getByText("Home root unavailable")).toBeInTheDocument();
-    expect(screen.getByText(/Configured home folder is not available/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Repos 0 .* Directories 0 .* Skipped 1 .* Complete .* 9ms/),
-    ).toBeInTheDocument();
-
-    mockListGitClones.mockResolvedValueOnce({
-      data: makeGitErrorResult(
-        "scan-failed",
-        makeGitDiagnostics({
-          repoCount: 2,
-          directoryCount: 3,
-          skippedPaths: [{ relativePath: "phlox-labs/platform", reason: "too-deep" }],
-          truncated: true,
-          durationMs: 44,
-        }),
-      ),
-    });
-    fireEvent.click(screen.getByTestId("git-discovery-retry"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("git-discovery-scan-failed")).toBeInTheDocument();
-    });
-
-    expect(screen.getByText("Git scan failed")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Repos 2 .* Directories 3 .* Skipped 1 .* Truncated .* 44ms/),
-    ).toBeInTheDocument();
-    expect(document.body.innerHTML).not.toContain("/home/coder");
-  });
-
-  it("maps thrown Git discovery failures to a sanitized server-error state", async () => {
-    mockListGitClones.mockRejectedValueOnce(
-      new Error(`scan exploded at ${PRIVATE_ROOT} with SUPER_SECRET_TOKEN`),
-    );
-
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("git-discovery-server-error")).toBeInTheDocument();
-    });
-
-    expect(screen.getByText("Git scan unavailable")).toBeInTheDocument();
-    expect(
-      screen.getByText("Git clone discovery is unavailable. Refresh and try again."),
-    ).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent("SUPER_SECRET_TOKEN");
-    expect(document.body.innerHTML).not.toContain("/home/coder");
-  });
-
   it("does not scan Git clones on initial load or workspace/template polling", async () => {
     render(<AppSidebar />);
 
@@ -1315,195 +673,6 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("expanding a workspace triggers agent, session, and scoped Git fetches", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(mockGetWorkspaceAgent).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-      expect(mockGetWorkspaceSessions).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-      expect(mockListGitClones).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-    });
-  });
-
-  it("renders sessions under Terminal collapsible in expanded workspace", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
-    });
-
-    const terminalSection = screen.getByTestId("terminal-section-ws-1");
-    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
-    fireEvent.click(terminalTrigger!);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev")).toBeInTheDocument();
-    });
-  });
-
-  it("hides reserved clone sessions from generic terminal rows and cleanup controls", async () => {
-    mockGetWorkspaceSessions.mockResolvedValue({
-      data: [makeSession("dev"), makeSession("git-clone-abc123")],
-    });
-
-    await expandWorkspaceAndTerminalSessions();
-
-    await waitFor(() => {
-      expect(screen.getByText("dev")).toBeInTheDocument();
-    });
-    expect(screen.queryByText("git-clone-abc123")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("rename-session-git-clone-abc123")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("kill-session-git-clone-abc123")).not.toBeInTheDocument();
-  });
-
-  it("keeps desktop sessions capped and hover-gated", async () => {
-    mockUseIsMobile.mockReturnValue(false);
-
-    const { scrollContainer } = await expandWorkspaceAndTerminalSessions();
-
-    expect(scrollContainer).toHaveStyle("max-height: 160px");
-
-    const row = screen.getByText("dev").closest("a");
-    expect(row).not.toBeNull();
-    expect(row).toHaveClass("pr-24");
-    expect(row).not.toHaveClass("min-h-11");
-    expect(row?.parentElement).toHaveClass("group/session-row");
-    expect(row).not.toContainElement(screen.getByTestId("rename-session-dev"));
-    expect(row).not.toContainElement(screen.getByTestId("kill-session-dev"));
-
-    const actions = screen.getByTestId("rename-session-dev").parentElement?.parentElement;
-    expect(actions).not.toBeNull();
-    expect(actions).toHaveClass("opacity-0");
-    expect(actions).toHaveClass("group-hover/session-row:opacity-100");
-    expect(actions).toHaveClass("focus-within:opacity-100");
-
-    expect(screen.getByTestId("rename-session-dev")).toHaveClass("p-0.5");
-    expect(screen.getByTestId("rename-session-dev")).not.toHaveClass("h-11");
-    expect(screen.getByTestId("kill-session-dev")).toHaveClass("p-0.5");
-    expect(screen.getByTestId("kill-session-dev")).not.toHaveClass("h-11");
-  });
-
-  it("makes mobile session rows and actions thumb-friendly without the desktop cap", async () => {
-    mockUseIsMobile.mockReturnValue(true);
-    mockGetWorkspaceSessions.mockResolvedValue({
-      data: [makeSession("dev"), makeSession("build")],
-    });
-
-    const { scrollContainer } = await expandWorkspaceAndTerminalSessions();
-
-    expect(scrollContainer).not.toHaveStyle("max-height: 160px");
-
-    const row = screen.getByText("dev").closest("a");
-    expect(row).not.toBeNull();
-    expect(row).toHaveClass("min-h-11");
-    expect(row).toHaveClass("py-2");
-    expect(row).toHaveClass("text-sm");
-    expect(row).toHaveClass("pr-12");
-    expect(row?.parentElement).toHaveClass("touch-pan-y");
-
-    const showActions = screen.getByTestId("show-terminal-session-actions-dev");
-    expect(showActions).toHaveAccessibleName("Show actions for terminal session dev");
-    expect(showActions).toHaveAttribute("aria-expanded", "false");
-    expect(showActions).toHaveClass("h-11", "w-11");
-    expect(screen.queryByTestId("rename-session-dev")).not.toBeInTheDocument();
-
-    showActions.focus();
-    fireEvent.click(showActions);
-    expect(showActions).toHaveFocus();
-    expect(showActions).toHaveAccessibleName("Hide actions for terminal session dev");
-    expect(showActions).toHaveAttribute("aria-expanded", "true");
-
-    const actions = screen.getByTestId("rename-session-dev").parentElement;
-    expect(actions).not.toBeNull();
-    expect(actions).not.toHaveClass("opacity-0");
-    expect(actions).not.toHaveClass("group-hover/session:opacity-100");
-
-    for (const testId of ["rename-session-dev", "kill-session-dev"]) {
-      const button = screen.getByTestId(testId);
-      expect(button).toHaveClass("flex");
-      expect(button).toHaveClass("h-11");
-      expect(button).toHaveClass("w-11");
-      expect(button).toHaveClass("items-center");
-      expect(button).toHaveClass("justify-center");
-      expect(button).toHaveClass("p-0");
-      expect(button).not.toHaveClass("p-0.5");
-    }
-
-    fireEvent.click(screen.getByTestId("rename-session-dev"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("rename-session-input-dev")).toBeInTheDocument();
-    });
-
-    const editingRow = screen.getByTestId("rename-session-input-dev").closest("button");
-    expect(editingRow).not.toBeNull();
-    expect(editingRow).toHaveClass("min-h-11");
-    expect(editingRow).toHaveClass("py-2");
-    expect(editingRow).toHaveClass("text-sm");
-  });
-
-  it("reveals mobile session actions with a left swipe without invoking them", async () => {
-    mockUseIsMobile.mockReturnValue(true);
-
-    await expandWorkspaceAndTerminalSessions();
-
-    const row = screen.getByText("dev").closest("a")?.parentElement;
-    expect(row).not.toBeNull();
-    fireEvent.touchStart(row!, {
-      touches: [{ identifier: 1, clientX: 240, clientY: 20 }],
-    });
-    fireEvent.touchMove(row!, {
-      touches: [{ identifier: 1, clientX: 170, clientY: 22 }],
-    });
-    fireEvent.touchEnd(row!, {
-      changedTouches: [{ identifier: 1, clientX: 170, clientY: 22 }],
-    });
-
-    expect(screen.getByTestId("rename-session-dev")).toBeInTheDocument();
-    expect(screen.getByTestId("kill-session-dev")).toBeInTheDocument();
-    expect(mockKillSession).not.toHaveBeenCalled();
-  });
-
-  it("cancels a mobile session-row swipe when a second finger joins", async () => {
-    mockUseIsMobile.mockReturnValue(true);
-
-    await expandWorkspaceAndTerminalSessions();
-
-    const row = screen.getByText("dev").closest("a")?.parentElement;
-    expect(row).not.toBeNull();
-    fireEvent.touchStart(row!, {
-      touches: [{ identifier: 1, clientX: 240, clientY: 20 }],
-    });
-    fireEvent.touchMove(row!, {
-      touches: [
-        { identifier: 1, clientX: 170, clientY: 22 },
-        { identifier: 2, clientX: 200, clientY: 40 },
-      ],
-    });
-    fireEvent.touchEnd(row!, {
-      touches: [],
-      changedTouches: [{ identifier: 1, clientX: 170, clientY: 22 }],
-    });
-
-    expect(screen.queryByTestId("rename-session-dev")).not.toBeInTheDocument();
-    expect(screen.getByTestId("show-terminal-session-actions-dev")).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-  });
-
   it("renders external tools as links that open in a new tab", async () => {
     render(<AppSidebar />);
 
@@ -1520,17 +689,6 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(screen.getByText("Files")).toBeInTheDocument();
     });
-
-    const sessionsSection = screen.getByText("Sessions");
-    const repositoriesSection = screen.getByText("Repositories");
-    const toolsSection = screen.getByText("Tools");
-    expect(
-      sessionsSection.compareDocumentPosition(repositoriesSection) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      repositoriesSection.compareDocumentPosition(toolsSection) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
 
     expect(screen.getByText("Files").closest("a")).toHaveAttribute(
       "href",
@@ -1573,8 +731,8 @@ describe("AppSidebar", () => {
 
     render(<AppSidebar />);
     await screen.findByText("dev-box");
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-    await waitFor(() => expect(mockGetWorkspaceAgent).toHaveBeenCalled());
+    expect(screen.queryByTestId("workspace-disclosure-ws-1")).not.toBeInTheDocument();
+    expect(mockGetWorkspaceAgent).not.toHaveBeenCalled();
 
     expect(screen.queryByText("Tools")).not.toBeInTheDocument();
     expect(screen.queryByText("Files")).not.toBeInTheDocument();
@@ -1583,7 +741,8 @@ describe("AppSidebar", () => {
   });
 
   it("uses the workspace name as the unified workspace link without a redundant child", async () => {
-    await expandWorkspaceAndTerminalSessions();
+    render(<AppSidebar />);
+    await screen.findByText("dev-box");
 
     const workspaceLink = screen.getByTestId("workspace-link-ws-1");
     expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
@@ -1592,57 +751,7 @@ describe("AppSidebar", () => {
 
     expect(screen.queryByTestId("git-workspace-link-ws-1")).not.toBeInTheDocument();
 
-    const sessionLink = screen.getByText("dev").closest("a");
-    expect(sessionLink).toHaveAttribute("href", "/workspaces/ws-1/terminal?session=dev");
-    expect(screen.getByTestId("create-session-ws-1")).toBeInTheDocument();
-  });
-
-  it("separates collection navigation from disclosure controls", async () => {
-    render(<AppSidebar />);
-
-    const workspacesLink = await screen.findByRole("link", { name: /Workspaces/ });
-    const workspacesDisclosure = screen.getByTestId("workspaces-disclosure");
-    const workspacesCollapsible = workspacesDisclosure.closest("[data-testid='collapsible']");
-    const initialWorkspacesOpen = workspacesCollapsible?.getAttribute("data-open");
-
-    expect(workspacesLink).toHaveAttribute("href", "/workspaces");
-    expect(workspacesDisclosure).toHaveAccessibleName(
-      initialWorkspacesOpen === "true"
-        ? "Collapse workspace navigation"
-        : "Expand workspace navigation",
-    );
-
-    fireEvent.click(workspacesLink);
-    expect(workspacesCollapsible).toHaveAttribute("data-open", initialWorkspacesOpen);
-
-    fireEvent.click(workspacesDisclosure);
-    expect(workspacesCollapsible).toHaveAttribute(
-      "data-open",
-      initialWorkspacesOpen === "true" ? "false" : "true",
-    );
-
-    const templatesLink = screen.getByRole("link", { name: /Templates/ });
-    const templatesDisclosure = screen.getByTestId("templates-disclosure");
-    expect(templatesLink).toHaveAttribute("href", "/templates");
-    expect(templatesDisclosure).toHaveAccessibleName(/^(Expand|Collapse) template navigation$/);
-
-    expect(screen.getByRole("link", { name: /Diagnostics/ })).toHaveAttribute(
-      "href",
-      "/terminal/status",
-    );
-  });
-
-  it("uses one disclosure size contract throughout the workspace tree", async () => {
-    render(<AppSidebar />);
-
-    await screen.findByText("dev-box");
-    const workspaceDisclosure = screen.getByTestId("workspace-disclosure-ws-1");
-    expect(screen.getByTestId("workspaces-disclosure")).toHaveClass("size-8", "max-md:size-11");
-    expect(workspaceDisclosure).toHaveClass("size-8", "max-md:size-11");
-
-    fireEvent.click(workspaceDisclosure);
-    expect(await screen.findByTestId("terminal-section-chevron-ws-1")).toHaveClass("size-4");
-    expect(screen.getByTestId("git-section-chevron-ws-1")).toHaveClass("size-4");
+    expect(screen.queryByTestId("create-session-ws-1")).not.toBeInTheDocument();
   });
 
   it("marks the workspace-name link active on workspace routes", async () => {
@@ -1653,11 +762,6 @@ describe("AppSidebar", () => {
     const workspaceLink = await screen.findByTestId("workspace-link-ws-1");
     expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
     expect(workspaceLink).toHaveAttribute("data-active", "true");
-
-    await waitFor(() => {
-      expect(screen.getByText("dev")).toBeInTheDocument();
-    });
-    expect(screen.getByText("dev").closest("a")).toHaveAttribute("data-active", "false");
 
     cleanup();
     mockNavigationState.pathname = "/workspaces/ws-1/terminal/git-workspace";
@@ -1700,9 +804,7 @@ describe("AppSidebar", () => {
       "href",
       "/workspaces/ws-1/terminal/workspace",
     );
-    await waitFor(() => {
-      expect(screen.getByText("Session fetch failed")).toBeInTheDocument();
-    });
+    expect(mockGetWorkspaceSessions).not.toHaveBeenCalled();
   });
 
   it("keeps the parent workspace active on clone terminal URLs without creating reserved sessions", async () => {
@@ -1716,122 +818,6 @@ describe("AppSidebar", () => {
     expect(workspaceLink).toHaveAttribute("data-active", "true");
     expect(workspaceLink).toHaveAttribute("href", "/workspaces/ws-1/terminal/workspace");
     expect(mockCreateSession).not.toHaveBeenCalled();
-  });
-
-  it("create session button calls createSessionAction and navigates", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
-    });
-
-    const terminalSection = screen.getByTestId("terminal-section-ws-1");
-    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
-    fireEvent.click(terminalTrigger!);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-session-ws-1")).toBeInTheDocument();
-    });
-
-    const createBtn = screen.getByTestId("create-session-ws-1");
-    fireEvent.click(createBtn);
-
-    await waitFor(() => {
-      expect(mockCreateSession).toHaveBeenCalledWith({ workspaceId: "ws-1" });
-      expect(mockPush).toHaveBeenCalledWith("/workspaces/ws-1/terminal?session=session-123");
-    });
-  });
-
-  it("kill session button calls killSessionAction", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
-    });
-
-    const terminalSection = screen.getByTestId("terminal-section-ws-1");
-    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
-    fireEvent.click(terminalTrigger!);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev")).toBeInTheDocument();
-    });
-
-    const killBtn = screen.getByTestId("kill-session-dev");
-    fireEvent.click(killBtn);
-
-    await waitFor(() => {
-      expect(mockKillSession).toHaveBeenCalledWith({ workspaceId: "ws-1", sessionName: "dev" });
-    });
-  });
-
-  it("shows inline alert with retry when session fetch fails", async () => {
-    mockGetWorkspaceSessions.mockResolvedValue({
-      serverError: "Session fetch failed",
-    });
-
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("terminal-section-ws-1")).toBeInTheDocument();
-    });
-
-    const terminalSection = screen.getByTestId("terminal-section-ws-1");
-    const terminalTrigger = terminalSection.querySelector("[data-testid='collapsible-trigger']");
-    fireEvent.click(terminalTrigger!);
-
-    await waitFor(() => {
-      expect(screen.getByText("Session fetch failed")).toBeInTheDocument();
-    });
-
-    const retryButtons = screen.getAllByText("Retry");
-    expect(retryButtons.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("refreshes only sessions (not workspaces/templates) on hive:sidebar-refresh", async () => {
-    render(<AppSidebar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("dev-box")).toBeInTheDocument();
-    });
-
-    // Expand workspace to register it for session refresh
-    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
-
-    await waitFor(() => {
-      expect(mockGetWorkspaceSessions).toHaveBeenCalled();
-    });
-
-    mockListWorkspaces.mockClear();
-    mockListTemplates.mockClear();
-    mockGetWorkspaceSessions.mockClear();
-
-    window.dispatchEvent(new CustomEvent("hive:sidebar-refresh"));
-
-    await waitFor(() => {
-      expect(mockGetWorkspaceSessions).toHaveBeenCalledTimes(1);
-    });
-    // Workspaces and templates should NOT be re-fetched on session refresh
-    expect(mockListWorkspaces).not.toHaveBeenCalled();
-    expect(mockListTemplates).not.toHaveBeenCalled();
   });
 
   it("cleans up hive:sidebar-refresh listener on unmount", async () => {
@@ -1871,5 +857,39 @@ describe("AppSidebar", () => {
     expect(screen.queryByText("Files")).not.toBeInTheDocument();
     expect(screen.queryByText("Desktop")).not.toBeInTheDocument();
     expect(screen.queryByText("VS Code")).not.toBeInTheDocument();
+  });
+  it("separates authoring workspaces from browser and infrastructure helpers", async () => {
+    mockListWorkspaces.mockResolvedValue({
+      data: [
+        makeWorkspace({ id: "software", name: "ai-dev-01", template_name: "ai-dev-k8s" }),
+        makeWorkspace({ id: "browser", name: "browser-helper", template_name: "browser-testing" }),
+        makeWorkspace({ id: "infra", name: "infra-helper", template_name: "infrastructure" }),
+        makeWorkspace({ id: "game", name: "game-studio", template_name: "game-dev" }),
+        makeWorkspace({ id: "external", name: "external-project", template_name: "custom" }),
+      ],
+    });
+    render(<AppSidebar />);
+    await waitFor(() => expect(screen.getByText("ai-dev-01")).toBeInTheDocument());
+    const work = screen.getByTestId("workspace-group-development");
+    const helpers = screen.getByTestId("workspace-group-helper");
+    expect(work).toHaveTextContent("ai-dev-01");
+    expect(work).toHaveTextContent("game-studio");
+    expect(work).toHaveTextContent("external-project");
+    expect(work).not.toHaveTextContent("browser-helper");
+    expect(helpers).toHaveTextContent("browser-helper");
+    expect(helpers).toHaveTextContent("infra-helper");
+  });
+
+  it("opens workspace tools without discovering repositories, favorites, or sessions", async () => {
+    render(<AppSidebar />);
+    await waitFor(() => expect(screen.getByText("dev-box")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
+    await waitFor(() => expect(screen.getByText("Files")).toBeInTheDocument());
+    expect(screen.queryByText("Repositories")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sessions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("favorites-section")).not.toBeInTheDocument();
+    expect(mockListGitClones).not.toHaveBeenCalled();
+    expect(mockListNavigationFavorites).not.toHaveBeenCalled();
+    expect(mockGetWorkspaceSessions).not.toHaveBeenCalled();
   });
 });

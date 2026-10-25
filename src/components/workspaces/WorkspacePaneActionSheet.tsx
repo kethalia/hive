@@ -30,6 +30,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { TerminalFontSizeControls } from "@/components/workspaces/TerminalSessionFrame";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
@@ -64,6 +65,7 @@ interface WorkspacePaneActionSheetProps {
   label: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  showFontSizeControls?: boolean;
 }
 
 const dragHandleStyle: CSSProperties = { ...NO_TOUCH_STYLE, touchAction: "none" };
@@ -88,6 +90,7 @@ export function WorkspacePaneActionSheet({
   label,
   onOpenChange,
   open,
+  showFontSizeControls = false,
 }: WorkspacePaneActionSheetProps) {
   const isMobile = useIsMobile();
   const anchorRef = useRef(anchor);
@@ -152,6 +155,12 @@ export function WorkspacePaneActionSheet({
               ) : null}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {showFontSizeControls && (
+              <div className="px-2 py-2">
+                <p className="mb-2 text-xs text-muted-foreground">Font size · all terminals</p>
+                <TerminalFontSizeControls />
+              </div>
+            )}
             {actions.map((action) => (
               <DropdownMenuItem
                 key={action.id}
@@ -236,6 +245,12 @@ export function WorkspacePaneActionSheet({
           data-mobile-scroll-allow="true"
         >
           <legend className="sr-only">{`Actions for ${label}`}</legend>
+          {showFontSizeControls && (
+            <div className="col-span-2">
+              <p className="mb-2 text-xs text-muted-foreground">Font size · all terminals</p>
+              <TerminalFontSizeControls className="[&_button]:min-h-11 [&_button]:min-w-11" />
+            </div>
+          )}
           {actions.map((action) => (
             <Button
               key={action.id}
