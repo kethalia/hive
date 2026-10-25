@@ -331,6 +331,8 @@ export function revealWindow(
   width: number,
   center = false,
 ): WindowManager {
+  if (manager.maximized && manager.maximized !== id && geometry.rects.has(id))
+    manager = { ...manager, maximized: id };
   // Keep the last viewed tab visible after focus moves to another column. This
   // also applies to pinned columns, which never need horizontal scrolling.
   const column = manager.columns.find((c) => c.windows.includes(id));

@@ -2,17 +2,17 @@
   "date": "2026-10-25",
   "workspace": "creator-direction-upgrade",
   "provenance": "reused; retained running because it also serves another task",
-  "browser_fixture_bundle_sha256": "158456e80da1ec864ac83ad03ac20b0277418fbb46c1d08d278341859e5e4b5c",
+  "browser_fixture_bundle_sha256": "c3f023b5b6b516a7524fac445b78b0c104126aead2e60882dd523859dffa651d",
   "sources": {
     "src/components/workspaces/GeneralWorkspace.tsx": "5c416a1141733dac94fd8d9ed4d73c86b5ac4650ad50792cbc2bde264cbf803c",
     "src/components/workspaces/GeneralWorkspacePane.tsx": "be8e6a5e4520bf68002924de67e453a8abd4afc1c632782f9dcb300bb7447991",
     "src/components/workspaces/WindowCanvas.tsx": "6fecaca6339c1dc6b9a8554f8409e13f5c51e9694b9f3bd3b2c076e55460564d",
     "src/components/workspaces/WindowResizeHandle.tsx": "f9cd3bc58cbeaeffc3e661f92bd4d1e3652d437645585d5ac755b78dcab4d247",
-    "src/lib/workspaces/window-manager.ts": "6595da28888424b4d4e7fd417cbeb27718592d766c9f972ffb6c70c5d2d33ce3",
-    "src/lib/workspaces/window-actions.ts": "d54686bd328f15fb14214dc391aaf565d30088857c9ee86a4572da1cfbf570d8",
+    "src/lib/workspaces/window-manager.ts": "85ca248448ece4fbe9fb4683aa92d5375a89c0d9089215766317328280f570d8",
+    "src/lib/workspaces/window-actions.ts": "55060622085b669b96a0d39adef72ffc88f21362207aa192209031e8308a4013",
     "src/hooks/useWorkspaceNotifications.ts": "b8b6557c477f3588ec0a702b198322eb7a4b7b9682f58bf7b96ddc68a9467ebe",
     "src/components/ui/collapsible.tsx": "dd588120918cce3041bbffc806902440d93f0c5ff0951d8180ea9915258eb325",
-    "e2e/window-management.browser.mjs": "f29b247818a8b8ef810ec713d3d7492a1127bbe2d039423ecc14cefa869a8c64",
+    "e2e/window-management.browser.mjs": "8522ff9e64ce35b363be05c20130bba485fb2377464d359715309c3e06be5380",
     "src/components/workspaces/WorkspaceWindow.tsx": "a54aee042d25d8946d380666602def1c466817a6fe114a4d5e0e86e186428189",
     "src/lib/workspaces/general-workspace.ts": "6a979713679cbe168201bf64a623da4dc633fa2d903824052d017d854f0cb7d6",
     "src/lib/workspaces/workspace-window-layout.ts": "6c7609d407d97ec43201357513b5e51ffe9600887ff93e98896d2ff9f3853253"
@@ -30,11 +30,11 @@
     "app_isolation_tests": 4
   },
   "review_validation": {
-    "application_tests": 1815,
+    "application_tests": 1821,
     "typecheck": "passed",
-    "changed_file_lint": "passed with two existing non-null assertion warnings",
+    "changed_file_lint": "passed with four existing non-null assertion warnings",
     "format": "passed",
-    "browser_scenarios": 22,
-    "regression_baseline": "five tab tests and the third-Strip-app browser check fail before the fixes"
+    "browser_scenarios": 24,
+    "regression_baseline": "eleven model tests and the third-Strip-app browser check fail before their corresponding fixes"
   }
 }

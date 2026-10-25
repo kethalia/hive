@@ -121,7 +121,11 @@ export function applyWindowAction(
       manager.columns[action === "first" ? 0 : manager.columns.length - 1]?.windows[0] ?? ids[0];
   if (action.startsWith("focus-")) {
     const direction = action.slice(6) as WorkspaceWindowDirection;
-    if (column?.tabbed && (direction === "up" || direction === "down")) {
+    if (
+      manager.mode === "strip" &&
+      column?.tabbed &&
+      (direction === "up" || direction === "down")
+    ) {
       target = column.windows[column.windows.indexOf(active) + (direction === "up" ? -1 : 1)];
     } else target = findWorkspaceWindowInDirection(visibleRects, active, direction);
   }
@@ -183,6 +187,13 @@ export function applyWindowAction(
       const divider = [...geometry.dividers].reverse().find((d) => {
         if (d.axis !== (vertical ? "height" : "width")) return false;
         const rect = geometry.rects.get(active)!;
+        // Parallel dividers in other rows/columns can share this edge's
+        // coordinate. Only resize one whose span overlaps the active pane.
+        const overlaps =
+          d.axis === "width"
+            ? rect.y < d.rect.y + d.rect.height && rect.y + rect.height > d.rect.y
+            : rect.x < d.rect.x + d.rect.width && rect.x + rect.width > d.rect.x;
+        if (!overlaps) return false;
         return d.axis === "width"
           ? Math.abs(rect.x + rect.width - d.rect.x - 4) < 1 || Math.abs(rect.x - d.rect.x - 4) < 1
           : Math.abs(rect.y + rect.height - d.rect.y - 4) < 1 ||

@@ -21,7 +21,9 @@
     "opening a third Strip app reveals it immediately",
     "reopening the active Strip app reveals it without duplication or blocking manual scroll",
     "clicked tab selection survives focus leaving the column and reload",
-    "keyboard tab selection stays visible after directional focus leaves the column"
+    "keyboard tab selection stays visible after directional focus leaves the column",
+    "opening a new app transfers Grid maximization to the visible active pane",
+    "reopening an existing app transfers Grid maximization to the visible active pane"
   ],
   "errors": []
 }

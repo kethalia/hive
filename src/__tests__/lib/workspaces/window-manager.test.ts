@@ -184,6 +184,78 @@ describe("window layouts", () => {
     expect(next.activeWindowId).not.toBe("a");
     expect(next.manager?.maximized).toBe(next.activeWindowId);
   });
+  it("transfers Grid maximization when revealing another pane", () => {
+    const b = applyWindowAction(board("grid"), "maximize", 1200, 800);
+    const manager = revealWindow(
+      b.manager!,
+      windowGeometry(b.manager!, b.layout, ["a", "b", "c"], "b", 1200, 800),
+      "b",
+      1200,
+    );
+    const geometry = windowGeometry(manager, b.layout, ["a", "b", "c"], "b", 1200, 800);
+    expect(manager.maximized).toBe("b");
+    expect(geometry.hidden.has("b")).toBe(false);
+    expect(geometry.rects.get("b")).toEqual({ x: 0, y: 0, width: 1200, height: 800 });
+  });
+  it.each([
+    { action: "wider", axis: "y", outer: "x", active: "a", ratio: 0.55 },
+    { action: "wider", axis: "y", outer: "x", active: "b", ratio: 0.45 },
+    { action: "taller", axis: "x", outer: "y", active: "a", ratio: 0.55 },
+    { action: "taller", axis: "x", outer: "y", active: "b", ratio: 0.45 },
+  ] as const)("$action resizes only the split adjacent to $active", ({
+    action,
+    axis,
+    outer,
+    active,
+    ratio,
+  }) => {
+    const b = board("grid");
+    b.windows.push({
+      kind: "terminal",
+      workspaceId: "software",
+      id: "d",
+      label: "d",
+      sessionName: "d",
+    });
+    b.activeWindowId = active;
+    b.layout = {
+      type: "split",
+      axis: outer,
+      ratio: 0.5,
+      first: {
+        type: "split",
+        axis,
+        ratio: 0.5,
+        first: { type: "leaf", id: "a" },
+        second: { type: "leaf", id: "b" },
+      },
+      second: {
+        type: "split",
+        axis,
+        ratio: 0.5,
+        first: { type: "leaf", id: "c" },
+        second: { type: "leaf", id: "d" },
+      },
+    };
+    const next = applyWindowAction(b, action, 1200, 800);
+    expect(next.layout).toMatchObject({ first: { ratio }, second: { ratio: 0.5 } });
+  });
+  it("uses visible Grid geometry after leaving a tabbed Strip arrangement", () => {
+    let b = board();
+    b.windows = b.windows.slice(0, 2);
+    b.layout = {
+      type: "split",
+      axis: "x",
+      first: { type: "leaf", id: "a" },
+      second: { type: "leaf", id: "b" },
+    };
+    b.manager = reconcileWindowManager(b.manager, ["a", "b"]);
+    b = applyWindowAction(b, "join-right", 600, 900);
+    b = applyWindowAction(b, "tabs", 600, 900);
+    expect(b.manager!.columns[0].windows).toEqual(["b", "a"]);
+    b = applyWindowAction(b, "grid", 600, 900);
+    expect(applyWindowAction(b, "focus-down", 600, 900).activeWindowId).toBe("b");
+  });
   it("bounds small floating windows and repairs duplicate column IDs on restore", () => {
     const m = board().manager!;
     m.columns[1].id = m.columns[0].id;

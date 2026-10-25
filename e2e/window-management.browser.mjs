@@ -315,6 +315,36 @@ try {
   report.checks.push(
     "keyboard tab selection stays visible after directional focus leaves the column",
   );
+  await review.getByRole("button", { name: "Grid layout", exact: true }).click();
+  await review.getByLabel("claude input").focus();
+  await review.keyboard.press("Control+Alt+KeyF");
+  await review.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent("hive:workspace-open", {
+        detail: { workspaceId: "software", tool: "code" },
+      }),
+    ),
+  );
+  await review.waitForTimeout(250);
+  assert(
+    await review.getByTestId("general-app-code").isVisible(),
+    "new app must replace the maximized pane",
+  );
+  const codeWindow = review
+    .locator("[data-workspace-window-id]")
+    .filter({ has: review.getByTestId("general-app-code") });
+  assert.equal((await codeWindow.boundingBox()).width, 1200);
+  report.checks.push("opening a new app transfers Grid maximization to the visible active pane");
+  await openFiles();
+  await review.waitForTimeout(250);
+  assert(
+    await review.getByTestId("general-app-files").isVisible(),
+    "existing app must replace the maximized pane",
+  );
+  assert.equal((await filesWindow.boundingBox()).width, 1200);
+  report.checks.push(
+    "reopening an existing app transfers Grid maximization to the visible active pane",
+  );
   await reviewContext.close();
   assert.deepEqual(report.errors, []);
 } finally {
