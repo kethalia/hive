@@ -34,10 +34,20 @@ export function fontSizeFromPinchScale(baseSize: number, scale: number): number 
   return snapTerminalFontSize(base * scale);
 }
 
-export function getTerminalFontSize(): number {
+export function terminalFontSizeScope(workspaceId: string, sessionName: string): string {
+  return `${STORAGE_KEY}:${JSON.stringify([workspaceId, sessionName])}`;
+}
+
+export interface TerminalFontSizeChange {
+  scope: string;
+  size: number;
+}
+
+export function getTerminalFontSize(scope: string | null): number {
   if (typeof window === "undefined") return DEFAULT_FONT_SIZE;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    // Preserve the previous preference until this session has its own size.
+    const raw = (scope ? localStorage.getItem(scope) : null) ?? localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_FONT_SIZE;
     const parsed = parseInt(raw, 10);
     if (Number.isNaN(parsed)) return DEFAULT_FONT_SIZE;
@@ -47,14 +57,32 @@ export function getTerminalFontSize(): number {
   }
 }
 
-export function setTerminalFontSize(size: number): number {
+export function setTerminalFontSize(size: number, scope: string): number {
   const clamped = Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, finiteSizeOrDefault(size)));
   if (typeof window === "undefined") return clamped;
   try {
-    localStorage.setItem(STORAGE_KEY, String(clamped));
+    localStorage.setItem(scope, String(clamped));
   } catch {
     // Storage can be unavailable; still notify mounted terminals so the live control works.
   }
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: clamped }));
+  window.dispatchEvent(
+    new CustomEvent<TerminalFontSizeChange>(EVENT_NAME, { detail: { scope, size: clamped } }),
+  );
   return clamped;
+}
+
+export function subscribeTerminalFontSize(scope: string, onChange: (size: number) => void) {
+  const handler = (event: Event) => {
+    const change = (event as CustomEvent<TerminalFontSizeChange>).detail;
+    if (change?.scope === scope) onChange(change.size);
+  };
+  const storageHandler = (event: StorageEvent) => {
+    if (event.key === scope || event.key === null) onChange(getTerminalFontSize(scope));
+  };
+  window.addEventListener(EVENT_NAME, handler);
+  window.addEventListener("storage", storageHandler);
+  return () => {
+    window.removeEventListener(EVENT_NAME, handler);
+    window.removeEventListener("storage", storageHandler);
+  };
 }

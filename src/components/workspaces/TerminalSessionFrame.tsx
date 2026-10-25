@@ -10,6 +10,7 @@ import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
 import { cn } from "@/lib/utils";
 
 interface TerminalFontSizeControlsProps {
+  fontSizeScope: string;
   className?: string;
   dataTestId?: string;
   decreaseTestId?: string;
@@ -18,6 +19,7 @@ interface TerminalFontSizeControlsProps {
 }
 
 export function TerminalFontSizeControls({
+  fontSizeScope,
   className,
   dataTestId = "terminal-font-size-controls",
   decreaseTestId = "decrease-terminal-font-size",
@@ -30,12 +32,12 @@ export function TerminalFontSizeControls({
     decrease: decreaseFontSize,
     canIncrease: canIncreaseFontSize,
     canDecrease: canDecreaseFontSize,
-  } = useTerminalFontStep();
+  } = useTerminalFontStep(fontSizeScope);
 
   return (
     <fieldset
       className={cn(
-        "flex min-w-0 items-center gap-1 rounded-md border border-border px-1 py-0.5",
+        "inline-flex w-fit shrink-0 items-center rounded-md border border-border bg-background",
         className,
       )}
       data-testid={dataTestId}
@@ -44,35 +46,36 @@ export function TerminalFontSizeControls({
       <Button
         type="button"
         variant="ghost"
-        size="xs"
-        className="h-6 min-h-0 px-1.5 text-[10px]"
+        size="icon-sm"
+        className="size-8 min-h-0 rounded-none"
         onClick={decreaseFontSize}
         disabled={!canDecreaseFontSize}
         aria-label="Decrease terminal font size"
         data-testid={decreaseTestId}
       >
-        <Minus className="size-3" />
+        <Minus className="size-4" />
       </Button>
-      <span className="min-w-10 text-center text-[10px] tabular-nums text-muted-foreground">
+      <span className="min-w-12 text-center text-sm tabular-nums text-foreground">
         {fontSize}px
       </span>
       <Button
         type="button"
         variant="ghost"
-        size="xs"
-        className="h-6 min-h-0 px-1.5 text-[10px]"
+        size="icon-sm"
+        className="size-8 min-h-0 rounded-none"
         onClick={increaseFontSize}
         disabled={!canIncreaseFontSize}
         aria-label="Increase terminal font size"
         data-testid={increaseTestId}
       >
-        <Plus className="size-3" />
+        <Plus className="size-4" />
       </Button>
     </fieldset>
   );
 }
 
 interface SingleTerminalSessionHeaderProps {
+  fontSizeScope?: string;
   sessionLabel: string;
   sessionSubtitle?: string;
   className?: string;
@@ -80,6 +83,7 @@ interface SingleTerminalSessionHeaderProps {
 }
 
 export function SingleTerminalSessionHeader({
+  fontSizeScope,
   sessionLabel,
   sessionSubtitle,
   className,
@@ -114,8 +118,11 @@ export function SingleTerminalSessionHeader({
         data-testid="single-terminal-header-right"
       >
         <div data-terminal-audio-slot="true" className="flex shrink-0" />
-        {showFontSizeControls ? (
-          <TerminalFontSizeControls label="Single terminal font size controls" />
+        {showFontSizeControls && fontSizeScope ? (
+          <TerminalFontSizeControls
+            fontSizeScope={fontSizeScope}
+            label="Single terminal font size controls"
+          />
         ) : null}
       </div>
     </header>

@@ -1,0 +1,53 @@
+[
+  {
+    "width": 1440,
+    "geometry": {
+      "labelCenter": 127,
+      "controlCenter": 127,
+      "groupWidth": 114,
+      "parentWidth": 280,
+      "valueFontSize": "14px",
+      "buttons": [
+        {
+          "width": 32,
+          "height": 32
+        },
+        {
+          "width": 32,
+          "height": 32
+        }
+      ]
+    },
+    "isolatedSizesAfterReload": [14, 12],
+    "legacyPreferenceUnchanged": true,
+    "errors": [],
+    "keyboard": {
+      "label": "Increase terminal font size",
+      "menuOpen": true,
+      "activatedWithEnter": true
+    }
+  },
+  {
+    "width": 390,
+    "geometry": {
+      "labelCenter": 729.1548461914062,
+      "controlCenter": 729.1548461914062,
+      "groupWidth": 138,
+      "parentWidth": 366,
+      "valueFontSize": "14px",
+      "buttons": [
+        {
+          "width": 44,
+          "height": 44
+        },
+        {
+          "width": 44,
+          "height": 44
+        }
+      ]
+    },
+    "isolatedSizesAfterReload": [14, 12],
+    "legacyPreferenceUnchanged": true,
+    "errors": []
+  }
+]

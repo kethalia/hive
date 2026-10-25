@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionState, TerminalRecoveryState } from "@/hooks/useTerminalWebSocket";
+import { setTerminalFontSize, terminalFontSizeScope } from "@/lib/terminal/font-size";
 import {
   getMobileTerminalDiagnosticsState,
   resetMobileTerminalDiagnosticsState,
@@ -21,7 +22,7 @@ const { mockUseTerminalWebSocket, mockFit, mockSend, mockResize, terminalInstanc
       attachCustomKeyEventHandler: ReturnType<typeof vi.fn>;
       buffer: { active: { baseY: number; viewportY: number } };
       constructorOptions: Record<string, unknown>;
-      options: { disableStdin: boolean };
+      options: { disableStdin: boolean; fontSize?: number };
       dataHandler?: (data: string) => void;
       focus: ReturnType<typeof vi.fn>;
       onData: ReturnType<typeof vi.fn>;
@@ -3400,5 +3401,35 @@ describe("InteractiveTerminal integration — Mobile input adapter", () => {
 
     expect(terminal?.focus).toHaveBeenCalledTimes(1);
     unmount();
+  });
+});
+
+describe("InteractiveTerminal integration — Session font size", () => {
+  it("refits only the matching terminal and restores its size after remount", async () => {
+    const firstView = await renderTerminal({ sessionName: "main" });
+    const first = terminalInstances.at(-1)!;
+    await renderTerminal({ sessionName: "other" });
+    const other = terminalInstances.at(-1)!;
+    const { InteractiveTerminal } = await import("@/components/workspaces/InteractiveTerminal");
+    render(
+      <InteractiveTerminal
+        agentId="other-agent"
+        workspaceId="other-workspace"
+        sessionName="main"
+      />,
+    );
+    await flushTerminalEffects();
+    const otherWorkspace = terminalInstances.at(-1)!;
+    const previousOtherSize = other.options.fontSize;
+    const previousOtherWorkspaceSize = otherWorkspace.options.fontSize;
+    mockFit.mockClear();
+    act(() => setTerminalFontSize(20, terminalFontSizeScope("test-ws", "main")));
+    expect(first.options.fontSize).toBe(20);
+    expect(other.options.fontSize).toBe(previousOtherSize);
+    expect(otherWorkspace.options.fontSize).toBe(previousOtherWorkspaceSize);
+    expect(mockFit).toHaveBeenCalledTimes(1);
+    firstView.unmount();
+    await renderTerminal({ sessionName: "main" });
+    expect(terminalInstances.at(-1)!.constructorOptions.fontSize).toBe(20);
   });
 });

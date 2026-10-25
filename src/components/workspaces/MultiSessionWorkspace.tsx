@@ -116,6 +116,7 @@ import {
 } from "@/lib/terminal/actions";
 import { handleTerminalPasteOutcome } from "@/lib/terminal/clipboard";
 import { TERMINAL_NOTIFICATION_FOCUS_EVENT } from "@/lib/terminal/events";
+import { terminalFontSizeScope } from "@/lib/terminal/font-size";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import {
   forgetTerminalSession,
@@ -4137,6 +4138,9 @@ export function MultiSessionWorkspace({
     clipboardMessage ?? (hasActiveSender ? "Terminal controls ready" : "Terminal is not ready");
   const mobileTerminalControls = isMobile ? (
     <MobileTerminalControls
+      fontSizeScope={
+        activeSessionName ? terminalFontSizeScope(workspaceId, activeSessionName) : null
+      }
       isKeyboardVisible={isMobileKeyboardVisible}
       onHapticFeedback={triggerHapticFeedback}
       windowNavigation={mobileWindowNavigation}
@@ -4799,7 +4803,11 @@ export function MultiSessionWorkspace({
       </div>
       <WorkspacePaneActionSheet
         actions={paneActions}
-        showFontSizeControls={paneActionTarget?.kind === "terminal"}
+        fontSizeScope={
+          paneActionTarget?.kind === "terminal"
+            ? terminalFontSizeScope(workspaceId, paneActionTarget.sessionName)
+            : undefined
+        }
         anchor={paneActionTarget?.anchor}
         description={paneActionTarget?.subtitle}
         label={paneActionTarget?.label ?? "Pane actions"}

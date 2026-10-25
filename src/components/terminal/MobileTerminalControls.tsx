@@ -38,6 +38,7 @@ export interface MobileTerminalWindowNavigation {
 }
 
 export interface MobileTerminalControlsProps {
+  fontSizeScope?: string | null;
   isKeyboardVisible?: boolean;
   /** Called once for each terminal action press. */
   onHapticFeedback?: () => void;
@@ -55,6 +56,7 @@ export interface MobileTerminalControlsProps {
 }
 
 export function MobileTerminalControls({
+  fontSizeScope = null,
   isKeyboardVisible = false,
   onHapticFeedback,
   hasSelection = false,
@@ -79,7 +81,7 @@ export function MobileTerminalControls({
     () => NO_MOBILE_MODIFIERS,
   );
   useEffect(() => () => setMobileModifiers(activeTerminal, NO_MOBILE_MODIFIERS), [activeTerminal]);
-  const { increase, decrease, canIncrease, canDecrease } = useTerminalFontStep();
+  const { increase, decrease, canIncrease, canDecrease } = useTerminalFontStep(fontSizeScope);
   const press = (action: () => void) => {
     onHapticFeedback?.();
     action();
