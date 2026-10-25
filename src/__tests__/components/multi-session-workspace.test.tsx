@@ -1597,7 +1597,11 @@ describe("MultiSessionWorkspace", () => {
     );
     expect(screen.queryByTestId("board-persistence-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("multi-session-pane-count")).toHaveTextContent("2");
-    expect(screen.getByTestId("workspace-sidebar-trigger")).toHaveClass("h-7", "shrink-0");
+    expect(screen.getByTestId("workspace-sidebar-trigger")).toHaveClass(
+      "size-10",
+      "min-h-10",
+      "shrink-0",
+    );
     expect(screen.getByTestId("interactive-terminal-main-session")).toHaveAttribute(
       "data-agent-id",
       "agent-1",

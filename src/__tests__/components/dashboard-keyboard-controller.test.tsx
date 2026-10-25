@@ -234,7 +234,7 @@ describe("DashboardKeyboardController", () => {
     expect(screen.getByText("hive-dev")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("hive-dev"));
-    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces/workspace-1/terminal/workspace");
+    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?workspace=workspace-1&tool=terminal");
 
     fireEvent.click(screen.getByText("Launch workspace"));
     expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?launch=1");

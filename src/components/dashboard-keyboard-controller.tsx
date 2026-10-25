@@ -10,14 +10,17 @@ import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteG
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
 import { formatRelativeDate } from "@/lib/helpers/format";
-import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import {
+  formatShortcut,
+  GLOBAL_COMMAND_PALETTE_KEYS,
+  GLOBAL_SIDEBAR_KEYS,
+} from "@/lib/keyboard-shortcuts";
 import {
   getGlobalCommandPaletteSources,
   subscribeGlobalCommandPaletteSources,
 } from "@/lib/terminal/global-command-palette";
+import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
 
-const GLOBAL_COMMAND_PALETTE_KEYS = ["ctrl+k", "cmd+k"] as const;
-const GLOBAL_SIDEBAR_KEYS = ["ctrl+b", "cmd+b"] as const;
 const GLOBAL_FULLSCREEN_KEYS = ["ctrl+enter", "cmd+enter"] as const;
 const NAV_WORKSPACES_KEYS = ["ctrl+shift+1", "cmd+shift+1"] as const;
 const NAV_TEMPLATES_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
@@ -68,7 +71,7 @@ function parseArray<T>(value: unknown, parse: (item: unknown) => T | null): T[] 
 }
 
 function openWorkspaceHref(workspaceId: string): string {
-  return `/workspaces/${encodeURIComponent(workspaceId)}/terminal/workspace`;
+  return generalWorkspaceHref(workspaceId, "terminal");
 }
 
 export function DashboardKeyboardController() {
@@ -191,7 +194,7 @@ export function DashboardKeyboardController() {
       router.push("/workspaces");
       return false;
     },
-    description: "Open workspaces",
+    description: "Open workspace",
     category: "navigation",
     enabledInBrowser: true,
     global: true,
@@ -266,7 +269,7 @@ export function DashboardKeyboardController() {
     const workspaceActions = workspaces.slice(0, 8).map<CommandPaletteAction>((workspace) => ({
       id: `dashboard:open-workspace:${workspace.id}`,
       label: workspace.name,
-      description: `Open multi-session workspace • ${workspace.status} • ${workspace.updatedLabel}`,
+      description: `Add a window • ${workspace.status} • ${workspace.updatedLabel}`,
       group: "Workspaces",
       value: `${workspace.name} ${workspace.status} workspace terminal multi session`,
       rightLabel: "Open",
@@ -279,8 +282,8 @@ export function DashboardKeyboardController() {
     return [
       {
         id: "dashboard:open-workspaces",
-        label: "Workspaces",
-        description: "Open Coder workspaces and terminal sessions",
+        label: "Workspace",
+        description: "Open your shared terminal and app canvas",
         group: "Navigate",
         value: "workspaces coder terminals sessions",
         shortcut: formatShortcut(NAV_WORKSPACES_KEYS),

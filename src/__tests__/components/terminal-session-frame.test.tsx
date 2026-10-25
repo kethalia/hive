@@ -67,7 +67,7 @@ describe("TerminalSessionFrame", () => {
     expect(title).toHaveTextContent("VS Code");
     expect(subtitle).toHaveTextContent("projects/kethalia/hive");
     expect(title.parentElement?.parentElement).toHaveClass("items-center");
-    expect(close).toHaveClass("h-6");
+    expect(close).toHaveClass("size-8", "min-h-8");
 
     fireEvent.mouseDown(title);
     expect(onHeaderMouseDown).toHaveBeenCalledOnce();
@@ -149,5 +149,17 @@ describe("TerminalSessionFrame", () => {
       touches: [{ identifier: 7, clientX: 40, clientY: 20 }],
     });
     expect(onHeaderTouchStart).toHaveBeenCalledOnce();
+  });
+  it("closes a pane without reactivating it through a bubbled click", () => {
+    const onClose = vi.fn();
+    const onActivate = vi.fn();
+    render(
+      <TerminalSessionFrame label="Terminal" onClose={onClose} onActivate={onActivate}>
+        <div />
+      </TerminalSessionFrame>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close Terminal" }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onActivate).not.toHaveBeenCalled();
   });
 });

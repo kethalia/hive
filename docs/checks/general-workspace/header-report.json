@@ -1,0 +1,50 @@
+[
+  {
+    "width": 1440,
+    "geometry": [
+      {
+        "name": "Toggle Sidebar",
+        "width": 40,
+        "height": 40
+      },
+      {
+        "name": "Agent tools",
+        "width": 40,
+        "height": 40
+      },
+      {
+        "name": "Add window",
+        "width": 40,
+        "height": 40
+      }
+    ],
+    "hoverAndKeyboardTooltips": true,
+    "searchOpensPicker": true,
+    "sidebarToggles": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "geometry": [
+      {
+        "name": "Toggle Sidebar",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "name": "Agent tools",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "name": "Add window",
+        "width": 44,
+        "height": 44
+      }
+    ],
+    "hoverAndKeyboardTooltips": false,
+    "searchOpensPicker": true,
+    "sidebarToggles": true,
+    "errors": []
+  }
+]

@@ -44,6 +44,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useSidebarMode } from "@/hooks/use-sidebar-mode";
 import { listTemplateStatusesAction } from "@/lib/actions/templates";
@@ -53,7 +54,11 @@ import type { CoderWorkspace, WorkspaceAgentStatus } from "@/lib/coder/types";
 import { workspaceTemplateCapabilities, workspaceTemplatePurpose } from "@/lib/templates/catalog";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { cn } from "@/lib/utils";
-import { buildWorkspaceUrls } from "@/lib/workspaces/urls";
+import {
+  GENERAL_WORKSPACE_OPEN_EVENT,
+  type GeneralWorkspaceTool,
+  generalWorkspaceHref,
+} from "@/lib/workspaces/general-workspace";
 
 const POLL_INTERVAL_MS = 30_000;
 interface SectionState<T> {
@@ -69,14 +74,13 @@ interface AgentInfo {
 
 function WorkspaceNavigationItem({
   workspace,
-  coderUrl,
   pathname,
 }: {
   workspace: CoderWorkspace;
-  coderUrl?: string;
   pathname: string;
 }) {
-  const href = `/workspaces/${encodeURIComponent(workspace.id)}/terminal/workspace`;
+  const { setOpenMobile } = useSidebar();
+  const href = generalWorkspaceHref(workspace.id);
   const active = pathname.startsWith(`/workspaces/${encodeURIComponent(workspace.id)}/`);
   const [open, setOpen] = useState(active);
   const [agent, setAgent] = useState<AgentInfo | null>(null);
@@ -109,24 +113,42 @@ function WorkspaceNavigationItem({
     };
   }, [open, running, hasTools, workspace.id, workspace.latest_build.id, retry]);
 
-  const urls =
-    agent && coderUrl && running ? buildWorkspaceUrls(workspace, agent.agentName, coderUrl) : null;
-  const tools = urls
-    ? [
-        ...(capabilities.fileBrowser
-          ? [{ label: "Files", href: urls.filebrowser, icon: FolderOpen }]
-          : []),
-        ...(capabilities.editor ? [{ label: "VS Code", href: urls.codeServer, icon: Code }] : []),
-        ...(capabilities.desktop ? [{ label: "Desktop", href: urls.kasmvnc, icon: Monitor }] : []),
-      ]
-    : [];
+  const tools: { label: string; tool: GeneralWorkspaceTool; icon: typeof FolderOpen }[] =
+    agent && running
+      ? [
+          ...(capabilities.fileBrowser
+            ? [{ label: "Files", tool: "files" as const, icon: FolderOpen }]
+            : []),
+          ...(capabilities.editor ? [{ label: "VS Code", tool: "code" as const, icon: Code }] : []),
+          ...(capabilities.desktop
+            ? [{ label: "Desktop", tool: "desktop" as const, icon: Monitor }]
+            : []),
+        ]
+      : [];
+  function openInWorkspace(event: React.MouseEvent, tool?: GeneralWorkspaceTool) {
+    if (
+      pathname !== "/workspaces" ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    setOpenMobile(false);
+    window.dispatchEvent(
+      new CustomEvent(GENERAL_WORKSPACE_OPEN_EVENT, {
+        detail: { workspaceId: workspace.id, tool },
+      }),
+    );
+  }
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <SidebarMenuItem>
         <div className="flex min-w-0 items-center gap-1">
           <SidebarMenuButton
-            render={<Link href={href} />}
+            render={<Link href={href} onClick={(event) => openInWorkspace(event)} />}
             isActive={active}
             aria-current={active ? "page" : undefined}
             className="min-w-0 flex-1"
@@ -177,15 +199,19 @@ function WorkspaceNavigationItem({
                 </button>
               </SidebarMenuSubItem>
             )}
-            {tools.map(({ label, href: toolHref, icon: Icon }) => (
+            {tools.map(({ label, tool, icon: Icon }) => (
               <SidebarMenuSubItem key={label}>
                 <SidebarMenuSubButton
-                  render={<Link href={toolHref} target="_blank" rel="noopener noreferrer" />}
-                  aria-label={`${label} (opens in a new tab)`}
+                  render={
+                    <Link
+                      href={generalWorkspaceHref(workspace.id, tool)}
+                      onClick={(event) => openInWorkspace(event, tool)}
+                    />
+                  }
+                  aria-label={`Open ${label} in workspace`}
                 >
                   <Icon aria-hidden="true" className="size-3 shrink-0" />
                   <span>{label}</span>
-                  <ExternalLink aria-hidden="true" className="ml-auto size-3" />
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             ))}
@@ -285,7 +311,7 @@ export function AppSidebar() {
                   aria-current={pathname === "/workspaces" ? "page" : undefined}
                 >
                   <LayoutDashboard className="size-4" />
-                  <span>All workspaces</span>
+                  <span>Workspace</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -326,7 +352,6 @@ export function AppSidebar() {
                     <WorkspaceNavigationItem
                       key={workspace.id}
                       workspace={workspace}
-                      coderUrl={coderUrl}
                       pathname={pathname}
                     />
                   ))}

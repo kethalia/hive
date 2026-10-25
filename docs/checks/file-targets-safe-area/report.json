@@ -1,0 +1,37 @@
+{
+  "safeAreaInset": 44,
+  "headerHeightBefore": 61,
+  "headerHeightAfter": 105,
+  "controls": [
+    {
+      "name": "Toggle Sidebar",
+      "top": 52,
+      "width": 44,
+      "height": 44
+    },
+    {
+      "name": "Agent tools",
+      "top": 52,
+      "width": 44,
+      "height": 44
+    },
+    {
+      "name": "Add window",
+      "top": 52,
+      "width": 44,
+      "height": 44
+    },
+    {
+      "name": "Manage Coder workspaces",
+      "top": 52,
+      "width": 44,
+      "height": 44
+    }
+  ],
+  "visualViewportOffset": 40,
+  "keyboardViewportHeight": 500,
+  "absolutePathPersisted": "/home/coder/projects/hive/README.md",
+  "changedCwdRestoresSameFile": true,
+  "freshAuthorizationOnReload": true,
+  "errors": []
+}

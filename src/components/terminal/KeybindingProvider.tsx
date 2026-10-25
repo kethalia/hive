@@ -12,8 +12,10 @@ import {
   isTerminalHelperTextAreaTarget,
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
+import { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
 import { copyTerminalSelection } from "@/lib/terminal/actions";
 import { TERMINAL_FOCUS_ACTIVE_EVENT } from "@/lib/terminal/events";
+import { activatePaneControl } from "@/lib/terminal/pane-controls";
 import { isPwaStandalone } from "@/lib/terminal/pwa";
 
 const TMUX_MENU_KEY_SEQUENCE = "\u001b[24~";
@@ -191,6 +193,26 @@ export function KeybindingProvider({ children }: { children: React.ReactNode }) 
     });
     return () => {
       unregister("tmux-menu");
+    };
+  }, [register, unregister]);
+
+  React.useEffect(() => {
+    const controls = Object.keys(PANE_CONTROL_SHORTCUTS) as (keyof typeof PANE_CONTROL_SHORTCUTS)[];
+    for (const control of controls) {
+      const shortcut = PANE_CONTROL_SHORTCUTS[control];
+      register({
+        id: `pane-control:${control}`,
+        keys: [...shortcut.keys],
+        action: (term) => activatePaneControl(control, term?.element),
+        description: shortcut.label,
+        category: "terminal",
+        enabledInBrowser: true,
+        global: true,
+        allowRepeat: false,
+      });
+    }
+    return () => {
+      for (const control of controls) unregister(`pane-control:${control}`);
     };
   }, [register, unregister]);
 

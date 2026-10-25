@@ -1,0 +1,20 @@
+{
+  "windowTabs": {
+    "touchAndWheelAllowed": true,
+    "touchScrollLeft": 588
+  },
+  "picker": {
+    "touchAndWheelAllowed": true,
+    "touchScrollTop": 812,
+    "wheelScrollTop": 879,
+    "lastSessionOpened": true
+  },
+  "management": {
+    "lastWorkspaceReached": true,
+    "touchAndWheelAllowed": true,
+    "touchScrollTop": 785,
+    "wheelScrollTop": 855
+  },
+  "backgroundScrollLocked": true,
+  "errors": []
+}

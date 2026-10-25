@@ -492,7 +492,7 @@ export const getWorkspaceAppToolAction = authActionClient
   .inputSchema(
     z.object({
       workspaceId: z.string().min(1),
-      tool: z.enum(["filebrowser", "kasmvnc"]),
+      tool: z.enum(["filebrowser", "kasmvnc", "code"]),
       documentFrameHosts: z.array(z.string().trim().min(1).max(253)).max(8),
     }),
   )
@@ -502,12 +502,21 @@ export const getWorkspaceAppToolAction = authActionClient
       parsedInput.workspaceId,
     );
     const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
-    if (!(parsedInput.tool === "filebrowser" ? capabilities.fileBrowser : capabilities.desktop)) {
+    const available = {
+      filebrowser: capabilities.fileBrowser,
+      kasmvnc: capabilities.desktop,
+      code: capabilities.editor,
+    };
+    if (!available[parsedInput.tool]) {
       throw new Error("The selected tool is not provisioned for this workspace template.");
     }
     const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
     if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
-    const directUrl = parsedInput.tool === "filebrowser" ? urls.filebrowser : urls.kasmvnc;
+    const directUrl = {
+      filebrowser: urls.filebrowser,
+      kasmvnc: urls.kasmvnc,
+      code: urls.codeServer,
+    }[parsedInput.tool];
     const isolation = await getWorkspaceAppIsolationContext();
     const url = await getIsolatedWorkspaceAppAuthRedirect(client, directUrl, isolation);
     const reloadRequired = await synchronizeCoderFrameHosts(
