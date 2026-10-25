@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.26.3
+
+### Patch Changes
+
+- f9b86a9: Only show repositories whose name or path contains the search text, ignoring case and surrounding whitespace. Prevent fuzzy matching against workspace metadata from including unrelated repositories.
+- 5bb40e8: Keep the loaded workspace visible when opening Agents or Coder workspace management by showing loading feedback inside each dialog.
+
 ## 2.26.2
 
 ### Patch Changes
