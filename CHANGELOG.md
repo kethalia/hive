@@ -1,5 +1,12 @@
 # hive-orchestrator
 
+## 2.25.0
+
+### Minor Changes
+
+- 05bffd7: Reduce helper workspace reservations and services, add autostop and completed-disposable cleanup, and update native agent launchers with optional OpenCode support.
+- 0917d12: Focus sidebar navigation on workspaces and helpers, remove repository and session trees, and move terminal font sizing into More actions.
+
 ## 2.24.0
 
 ### Minor Changes
