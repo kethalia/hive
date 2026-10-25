@@ -601,6 +601,34 @@ describe("workspace server actions", () => {
     expect(result?.data).toEqual([]);
   });
 
+  it.each([
+    "stdout",
+    "stderr",
+  ])("getWorkspaceSessionsAction treats a missing web socket in %s as no sessions", async (stream) => {
+    mockedExec.mockResolvedValueOnce({
+      stdout: "",
+      stderr: "",
+      exitCode: 1,
+      [stream]: "error connecting to /tmp/tmux-1000/web (No such file or directory)\n",
+    });
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+    expect(result?.data).toEqual([]);
+  });
+
+  it.each([
+    { exitCode: 1, stderr: "error connecting to /tmp/tmux-1000/web (Permission denied)" },
+    { exitCode: 1, stderr: "error connecting to /tmp/tmux-1000/web (Connection refused)" },
+    { exitCode: 255, stderr: "error connecting to /tmp/tmux-1000/web (No such file or directory)" },
+    { exitCode: 127, stderr: "sh: /usr/bin/tmux: No such file or directory" },
+  ])("does not hide other terminal discovery errors: $stderr", async (failure) => {
+    mockedExec.mockResolvedValueOnce({ stdout: "", ...failure });
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionsAction({ workspaceId: "ws-1" });
+    expect(result?.data).toBeUndefined();
+    expect(result?.serverError).toContain(failure.stderr);
+  });
+
   it("getWorkspaceSessionsAction does not collapse blank command failures into unknown error", async () => {
     mockedExec.mockResolvedValueOnce({
       stdout: "",

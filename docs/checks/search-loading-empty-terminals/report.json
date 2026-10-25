@@ -1,0 +1,24 @@
+[
+  {
+    "width": 1440,
+    "loadingWithExistingActions": true,
+    "loadingWithPartialResults": true,
+    "loadingVisibleWhileScrolled": true,
+    "emptyHelperHasNoRetry": true,
+    "realFailureHasRetry": true,
+    "retryShowsLoading": true,
+    "retryKeepsSearchOpen": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "loadingWithExistingActions": true,
+    "loadingWithPartialResults": true,
+    "loadingVisibleWhileScrolled": true,
+    "emptyHelperHasNoRetry": true,
+    "realFailureHasRetry": true,
+    "retryShowsLoading": true,
+    "retryKeepsSearchOpen": true,
+    "errors": []
+  }
+]

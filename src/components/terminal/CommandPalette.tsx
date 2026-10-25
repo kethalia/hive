@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Code,
   Folder,
+  LoaderCircle,
   Monitor,
   Plus,
   Search,
@@ -81,6 +82,7 @@ interface CommandPaletteProps {
   onSearchValueChange?: (value: string) => void;
   searchPlaceholder?: string;
   emptyText?: string;
+  loadingText?: string;
   groupHeading?: string;
   mobileSide?: "bottom" | "right";
 }
@@ -103,7 +105,25 @@ interface CommandPaletteBodyProps {
   onSearchValueChange?: (value: string) => void;
   searchPlaceholder: string;
   emptyText: string;
+  loadingText?: string;
   groupHeading: string;
+}
+
+function PaletteLoading({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <div
+      role="status"
+      aria-atomic="true"
+      className="flex shrink-0 items-center gap-2 border-b px-4 py-2 text-xs text-muted-foreground"
+    >
+      <LoaderCircle
+        aria-hidden="true"
+        className="size-4 shrink-0 animate-spin motion-reduce:animate-none"
+      />
+      <span>{text}</span>
+    </div>
+  );
 }
 
 function actionIcon(
@@ -235,6 +255,7 @@ function MobileSidebarPaletteBody({
   onSearchValueChange,
   searchPlaceholder,
   emptyText,
+  loadingText,
   groupHeading,
 }: CommandPaletteBodyProps) {
   const [localSearchValue, setLocalSearchValue] = useState("");
@@ -263,31 +284,34 @@ function MobileSidebarPaletteBody({
 
   return (
     <>
-      <SidebarGroup className="sticky top-0 z-10 border-b border-sidebar-border bg-sidebar p-2">
-        <SidebarGroupContent className="relative">
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-sidebar-foreground/55"
-          />
-          <SidebarInput
-            type="search"
-            aria-label="Search global navigation"
-            autoComplete="off"
-            enterKeyHint="search"
-            spellCheck={false}
-            placeholder={searchPlaceholder}
-            value={currentSearchValue}
-            className="h-11 pl-9 text-base"
-            onChange={(event) => {
-              const nextValue = event.currentTarget.value;
-              setLocalSearchValue(nextValue);
-              onSearchValueChange?.(nextValue);
-            }}
-          />
-        </SidebarGroupContent>
-      </SidebarGroup>
+      <div className="sticky top-0 z-10 bg-sidebar">
+        <SidebarGroup className="border-b border-sidebar-border p-2">
+          <SidebarGroupContent className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-sidebar-foreground/55"
+            />
+            <SidebarInput
+              type="search"
+              aria-label="Search global navigation"
+              autoComplete="off"
+              enterKeyHint="search"
+              spellCheck={false}
+              placeholder={searchPlaceholder}
+              value={currentSearchValue}
+              className="h-11 pl-9 text-base"
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                setLocalSearchValue(nextValue);
+                onSearchValueChange?.(nextValue);
+              }}
+            />
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <PaletteLoading text={loadingText} />
+      </div>
 
-      {!hasResults ? (
+      {!hasResults && !loadingText ? (
         <p role="status" className="px-4 py-6 text-center text-sm text-sidebar-foreground/65">
           {emptyText}
         </p>
@@ -380,6 +404,7 @@ function CommandPaletteBody({
   onSearchValueChange,
   searchPlaceholder,
   emptyText,
+  loadingText,
   groupHeading,
 }: CommandPaletteBodyProps) {
   const commandListRef = useRef<HTMLDivElement>(null);
@@ -513,6 +538,7 @@ function CommandPaletteBody({
         value={searchValue}
         onValueChange={onSearchValueChange}
       />
+      <PaletteLoading text={loadingText} />
       <div className="flex min-h-0 flex-col">
         <div
           aria-hidden="true"
@@ -530,7 +556,7 @@ function CommandPaletteBody({
           className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onScroll={updateScrollHints}
         >
-          <CommandEmpty>{emptyText}</CommandEmpty>
+          {!loadingText ? <CommandEmpty>{emptyText}</CommandEmpty> : null}
           {actionGroups.map(([heading, groupActions]) => (
             <CommandGroup key={heading} heading={heading}>
               {groupActions.map((action) => (
@@ -651,6 +677,7 @@ export function CommandPalette({
   onSearchValueChange,
   searchPlaceholder = "Search sessions…",
   emptyText = "No sessions found.",
+  loadingText,
   groupHeading = "Sessions",
   mobileSide = "bottom",
 }: CommandPaletteProps) {
@@ -691,6 +718,7 @@ export function CommandPalette({
               onSearchValueChange={onSearchValueChange}
               searchPlaceholder={searchPlaceholder}
               emptyText={emptyText}
+              loadingText={loadingText}
               groupHeading={groupHeading}
             />
           </SidebarContent>
@@ -729,6 +757,7 @@ export function CommandPalette({
               onSearchValueChange={onSearchValueChange}
               searchPlaceholder={searchPlaceholder}
               emptyText={emptyText}
+              loadingText={loadingText}
               groupHeading={groupHeading}
             />
           </Command>
@@ -749,6 +778,7 @@ export function CommandPalette({
         onSearchValueChange={onSearchValueChange}
         searchPlaceholder={searchPlaceholder}
         emptyText={emptyText}
+        loadingText={loadingText}
         groupHeading={groupHeading}
       />
     </CommandDialog>

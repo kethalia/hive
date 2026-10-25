@@ -64,6 +64,7 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
   CommandPalette: ({
     actions,
     emptyText,
+    loadingText,
     onCreateSession,
     onSelectTab,
     open,
@@ -77,6 +78,7 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
       onSelect: () => void;
     }>;
     emptyText: string;
+    loadingText?: string;
     onCreateSession?: () => void;
     onSelectTab: (tabId: string) => void;
     open: boolean;
@@ -85,6 +87,7 @@ vi.mock("@/components/terminal/CommandPalette", () => ({
   }) => (
     <div
       data-empty-text={emptyText}
+      data-loading-text={loadingText}
       data-mobile-side={mobileSide}
       data-open={open ? "true" : "false"}
       data-testid="palette"
@@ -253,6 +256,7 @@ describe("DashboardKeyboardController", () => {
       onSelectTab,
       onCreateSession,
       searchValue: "stale terminal query",
+      loadingText: "Loading terminals and repositories…",
       onSearchValueChange,
       actions: [
         {
@@ -273,6 +277,12 @@ describe("DashboardKeyboardController", () => {
 
     expect(onSearchValueChange).toHaveBeenCalledWith("");
     expect(await screen.findByText("Add dev-server")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("palette")).toHaveAttribute(
+        "data-loading-text",
+        "Loading terminals and repositories…",
+      ),
+    );
     fireEvent.click(screen.getByText("main-session"));
     expect(onSelectTab).toHaveBeenCalledWith("tab-1");
     fireEvent.click(screen.getByText("New Session"));

@@ -39,6 +39,7 @@ vi.mock("lucide-react", () => ({
   Plus: () => <span data-testid="icon-plus">+</span>,
   Search: () => <span data-testid="icon-search-action">🔎</span>,
   SearchIcon: () => <span data-testid="icon-search">🔍</span>,
+  LoaderCircle: () => <span data-testid="icon-loading" />,
   Triangle: () => <span data-testid="icon-triangle">▲</span>,
   X: () => <span data-testid="icon-close">×</span>,
 }));
@@ -405,6 +406,39 @@ function expandableMobileActions(add: () => void, open: () => void): CommandPale
 }
 
 describe("CommandPalette", () => {
+  it.each([
+    { mobile: false, side: "right" as const },
+    { mobile: true, side: "right" as const },
+    { mobile: true, side: "bottom" as const },
+  ])("shows loading beside existing results (mobile: $mobile, side: $side)", ({ mobile, side }) => {
+    mobileState.isMobile = mobile;
+    const props: ComponentProps<typeof CommandPalette> = {
+      open: true,
+      onOpenChange: vi.fn(),
+      tabs: [],
+      onSelectTab: vi.fn(),
+      mobileSide: side,
+      searchValue: "hive",
+      loadingText: "Loading terminals and repositories…",
+      emptyText: "No matching windows or commands.",
+      actions: [{ id: "hive", label: "hive", group: "Repositories", onSelect: vi.fn() }],
+    };
+    const { rerender } = render(<CommandPalette {...props} />);
+    expect(screen.getByText("hive")).toBeVisible();
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading terminals and repositories…");
+    expect(status.closest('[data-slot="command-list"]')).toBeNull();
+    expect(screen.queryByText(props.emptyText!)).not.toBeInTheDocument();
+    rerender(<CommandPalette {...props} actions={[]} searchValue="unmatched" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading terminals and repositories…");
+    expect(screen.queryByText(props.emptyText!)).not.toBeInTheDocument();
+    rerender(
+      <CommandPalette {...props} actions={[]} searchValue="unmatched" loadingText={undefined} />,
+    );
+    expect(screen.queryByText("Loading terminals and repositories…")).not.toBeInTheDocument();
+    expect(screen.getByText(props.emptyText!)).toBeVisible();
+  });
+
   it.each([false, true])("keeps retry actions open (mobile: %s)", (mobile) => {
     mobileState.isMobile = mobile;
     const retry = vi.fn();

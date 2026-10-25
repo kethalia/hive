@@ -392,6 +392,7 @@ export function DashboardKeyboardController() {
         activePaletteSource?.searchPlaceholder ?? "Search commands and workspaces…"
       }
       emptyText={emptyText}
+      loadingText={loading ? "Loading dashboard commands…" : activePaletteSource?.loadingText}
       groupHeading={activePaletteSource?.groupHeading ?? "Open"}
       mobileSide="right"
     />
