@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.29.2
+
+### Patch Changes
+
+- 1d2e9d2: Fix Templates scrolling, move workspace creation into the management window, remove inline launcher shortcut labels, and open project folders and terminal logs from Files, VS Code, and Logs.
+
 ## 2.29.1
 
 ### Patch Changes
