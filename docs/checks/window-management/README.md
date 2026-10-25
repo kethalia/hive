@@ -6,7 +6,7 @@ preserved in the primary Hive repository.
 
 ## Browser evidence
 
-`report.json` records 18 passing checks with no page errors. The fixture bundles the production
+`report.json` records 22 passing checks with no page errors. The fixture bundles the production
 GeneralWorkspace, WindowCanvas, GeneralWorkspacePane, keybinding provider, command palette and
 Base UI collapsible. It uses stub terminal clients with mount/destroy counters and a real
 cross-origin app frame with an unsaved draft.
@@ -21,7 +21,12 @@ cross-origin app frame with an unsaved draft.
 The browser checks cover pointer/keyboard resizing, stacked divider reset, successful/cancelled
 drag, focus and layout shortcuts, modal isolation, terminal/iframe continuity, moving between
 boards, notification reuse/new-board creation, reload persistence, reduced motion, mobile layout,
-and the restored measured-height expand/collapse animation.
+and the restored measured-height expand/collapse animation. Review regressions also cover revealing
+new/reopened Strip apps, keeping manual scrolling available, and preserving clicked/keyboard tab
+selection after leaving the column and reloading. These failed before the review fixes.
+
+`verification.json` separates the original full validation from the review-fix validation and
+records the current browser bundle and source hashes.
 
 ## Reproduce
 

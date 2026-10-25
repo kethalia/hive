@@ -232,6 +232,90 @@ try {
   await page.waitForTimeout(250);
   assert.equal(await panel.isVisible(), false);
   report.checks.push("Base UI collapsible animates its measured height before unmounting");
+
+  const reviewContext = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+  const review = await reviewContext.newPage();
+  review.on("pageerror", (error) => report.errors.push(error.message));
+  await review.goto("http://127.0.0.1:8831");
+  await review.getByRole("button", { name: "Close Files window", exact: true }).click();
+  await review.getByRole("button", { name: "Strip layout", exact: true }).click();
+  await review.getByLabel("claude input").focus();
+  const openFiles = () =>
+    review.evaluate(() =>
+      window.dispatchEvent(
+        new CustomEvent("hive:workspace-open", {
+          detail: { workspaceId: "software", tool: "files" },
+        }),
+      ),
+    );
+  await openFiles();
+  await review.frameLocator("iframe").getByLabel("File draft").waitFor();
+  await review.waitForTimeout(250);
+  const filesWindow = review
+    .locator("[data-workspace-window-id]")
+    .filter({ has: review.getByTestId("general-app-files") });
+  const opened = await filesWindow.boundingBox();
+  assert(
+    opened.x >= 0 && opened.x + opened.width <= 1200,
+    "newly opened third app must be in view",
+  );
+  report.checks.push("opening a third Strip app reveals it immediately");
+
+  await review
+    .locator('[data-window-layout="strip"]')
+    .evaluate((el) =>
+      el.firstElementChild.dispatchEvent(new WheelEvent("wheel", { deltaX: -1200, bubbles: true })),
+    );
+  await review.waitForTimeout(250);
+  assert(
+    (await filesWindow.boundingBox()).x >= 1200,
+    "manual scroll may leave the active app offscreen",
+  );
+  await openFiles();
+  await review.waitForTimeout(250);
+  const reopened = await filesWindow.boundingBox();
+  assert(
+    reopened.x >= 0 && reopened.x + reopened.width <= 1200,
+    "reopening the active app must reveal it",
+  );
+  assert.equal(await review.locator("[data-workspace-window-id]").count(), 3);
+  report.checks.push(
+    "reopening the active Strip app reveals it without duplication or blocking manual scroll",
+  );
+
+  // Tab B must stay visible when focus moves to the app in the next column.
+  await review.getByRole("button", { name: "Focus claude", exact: true }).click();
+  await review.getByLabel("claude input").focus();
+  await review.keyboard.press("Control+Alt+BracketRight");
+  await review.keyboard.press("Control+Alt+Shift+KeyT");
+  const tabs = review.getByRole("tablist", { name: "Column windows" });
+  await tabs.getByRole("tab", { name: "codex", exact: true }).click();
+  await tabs.getByRole("tab", { name: "claude", exact: true }).click();
+  await review.getByRole("button", { name: "Focus Files", exact: true }).click();
+  assert.equal(
+    await tabs.getByRole("tab", { name: "claude", exact: true }).getAttribute("aria-selected"),
+    "true",
+  );
+  await review.waitForTimeout(200);
+  await review.reload();
+  await tabs.getByRole("tab", { name: "claude", exact: true }).waitFor();
+  assert.equal(
+    await tabs.getByRole("tab", { name: "claude", exact: true }).getAttribute("aria-selected"),
+    "true",
+  );
+  report.checks.push("clicked tab selection survives focus leaving the column and reload");
+  await tabs.getByRole("tab", { name: "codex", exact: true }).click();
+  await review.getByLabel("codex input").focus();
+  await review.keyboard.press("Control+Alt+ArrowDown");
+  await review.keyboard.press("Control+Alt+ArrowRight");
+  assert.equal(
+    await tabs.getByRole("tab", { name: "claude", exact: true }).getAttribute("aria-selected"),
+    "true",
+  );
+  report.checks.push(
+    "keyboard tab selection stays visible after directional focus leaves the column",
+  );
+  await reviewContext.close();
   assert.deepEqual(report.errors, []);
 } finally {
   await writeFile(resolve(evidence, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

@@ -2,8 +2,23 @@
   "date": "2026-10-25",
   "workspace": "creator-direction-upgrade",
   "provenance": "reused; retained running because it also serves another task",
-  "browser_fixture_bundle_sha256": "7033c20aef9fc5c685abab6fcedfa8b33a10fa062e367423546def0080de8f9f",
-  "local_validation": {
+  "browser_fixture_bundle_sha256": "158456e80da1ec864ac83ad03ac20b0277418fbb46c1d08d278341859e5e4b5c",
+  "sources": {
+    "src/components/workspaces/GeneralWorkspace.tsx": "5c416a1141733dac94fd8d9ed4d73c86b5ac4650ad50792cbc2bde264cbf803c",
+    "src/components/workspaces/GeneralWorkspacePane.tsx": "be8e6a5e4520bf68002924de67e453a8abd4afc1c632782f9dcb300bb7447991",
+    "src/components/workspaces/WindowCanvas.tsx": "6fecaca6339c1dc6b9a8554f8409e13f5c51e9694b9f3bd3b2c076e55460564d",
+    "src/components/workspaces/WindowResizeHandle.tsx": "f9cd3bc58cbeaeffc3e661f92bd4d1e3652d437645585d5ac755b78dcab4d247",
+    "src/lib/workspaces/window-manager.ts": "6595da28888424b4d4e7fd417cbeb27718592d766c9f972ffb6c70c5d2d33ce3",
+    "src/lib/workspaces/window-actions.ts": "d54686bd328f15fb14214dc391aaf565d30088857c9ee86a4572da1cfbf570d8",
+    "src/hooks/useWorkspaceNotifications.ts": "b8b6557c477f3588ec0a702b198322eb7a4b7b9682f58bf7b96ddc68a9467ebe",
+    "src/components/ui/collapsible.tsx": "dd588120918cce3041bbffc806902440d93f0c5ff0951d8180ea9915258eb325",
+    "e2e/window-management.browser.mjs": "f29b247818a8b8ef810ec713d3d7492a1127bbe2d039423ecc14cefa869a8c64",
+    "src/components/workspaces/WorkspaceWindow.tsx": "a54aee042d25d8946d380666602def1c466817a6fe114a4d5e0e86e186428189",
+    "src/lib/workspaces/general-workspace.ts": "6a979713679cbe168201bf64a623da4dc633fa2d903824052d017d854f0cb7d6",
+    "src/lib/workspaces/workspace-window-layout.ts": "6c7609d407d97ec43201357513b5e51ffe9600887ff93e98896d2ff9f3853253"
+  },
+  "initial_validation": {
+    "commit": "1d9daa4b4bc143862b70294def08065f061f7b7b",
     "application_tests": 1810,
     "service_tests": 416,
     "template_runtime_worker_checks": 131,
@@ -14,18 +29,12 @@
     "browser_scenarios": 18,
     "app_isolation_tests": 4
   },
-  "sources": {
-    "src/components/workspaces/GeneralWorkspace.tsx": "d66d54421567ffb35b0e2ff5f6444846c2cf4b24cf60fd32cbd3598563c96bf4",
-    "src/components/workspaces/GeneralWorkspacePane.tsx": "be8e6a5e4520bf68002924de67e453a8abd4afc1c632782f9dcb300bb7447991",
-    "src/components/workspaces/WindowCanvas.tsx": "6fecaca6339c1dc6b9a8554f8409e13f5c51e9694b9f3bd3b2c076e55460564d",
-    "src/components/workspaces/WindowResizeHandle.tsx": "f9cd3bc58cbeaeffc3e661f92bd4d1e3652d437645585d5ac755b78dcab4d247",
-    "src/lib/workspaces/window-manager.ts": "62ade38260a46a980f7d7064f75737a31857b81ead586f2dd4db9ded0665ea26",
-    "src/lib/workspaces/window-actions.ts": "d54686bd328f15fb14214dc391aaf565d30088857c9ee86a4572da1cfbf570d8",
-    "src/hooks/useWorkspaceNotifications.ts": "b8b6557c477f3588ec0a702b198322eb7a4b7b9682f58bf7b96ddc68a9467ebe",
-    "src/components/ui/collapsible.tsx": "dd588120918cce3041bbffc806902440d93f0c5ff0951d8180ea9915258eb325",
-    "e2e/window-management.browser.mjs": "c5eb2ef26eff71305fd5fad39539ea7bbc08bcac5fc0426356b80a94d8865176",
-    "src/components/workspaces/WorkspaceWindow.tsx": "a54aee042d25d8946d380666602def1c466817a6fe114a4d5e0e86e186428189",
-    "src/lib/workspaces/general-workspace.ts": "6a979713679cbe168201bf64a623da4dc633fa2d903824052d017d854f0cb7d6",
-    "src/lib/workspaces/workspace-window-layout.ts": "6c7609d407d97ec43201357513b5e51ffe9600887ff93e98896d2ff9f3853253"
+  "review_validation": {
+    "application_tests": 1815,
+    "typecheck": "passed",
+    "changed_file_lint": "passed with two existing non-null assertion warnings",
+    "format": "passed",
+    "browser_scenarios": 22,
+    "regression_baseline": "five tab tests and the third-Strip-app browser check fail before the fixes"
   }
 }

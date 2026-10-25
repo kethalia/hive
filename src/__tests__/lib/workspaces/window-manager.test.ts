@@ -16,6 +16,7 @@ import {
   joinColumn,
   newWindowManager,
   reconcileWindowManager,
+  revealWindow,
   windowGeometry,
 } from "@/lib/workspaces/window-manager";
 import {
@@ -120,6 +121,52 @@ describe("window layouts", () => {
     expect(g.hidden.has("b")).toBe(true);
     expect(g.hidden.has("a")).toBe(false);
     expect(applyWindowAction(tabbed, "focus-up", 1000, 700).activeWindowId).toBe("b");
+  });
+  it.each([
+    undefined,
+    "left",
+    "right",
+  ] as const)("preserves an activated tab after focus leaves a column pinned %s and after reload", (pin) => {
+    const b = board();
+    b.manager = joinColumn(b.manager!, "b", -1);
+    b.manager.columns[0] = { ...b.manager.columns[0], tabbed: true, selected: "a", pin };
+    b.manager = revealWindow(
+      b.manager,
+      windowGeometry(b.manager, b.layout, ["a", "b", "c"], "b", 1200, 800),
+      "b",
+      1200,
+    );
+    b.activeWindowId = "b";
+    const next = applyWindowAction(b, "window-3", 1200, 800);
+    const restored = parseGeneralWorkspace(
+      JSON.stringify({ ...emptyGeneralWorkspace(), activeBoardKey: b.key, boards: [next] }),
+    )!.boards[0];
+    expect(restored.manager!.columns[0].selected).toBe("b");
+    const geometry = windowGeometry(
+      restored.manager!,
+      restored.layout,
+      ["a", "b", "c"],
+      "c",
+      1200,
+      800,
+    );
+    expect(geometry.hidden.has("a")).toBe(true);
+    expect(geometry.hidden.has("b")).toBe(false);
+  });
+  it.each([
+    "focus-down",
+    "window-2",
+  ])("persists tab selection through keyboard action %s before focusing another column", (action) => {
+    const b = board();
+    b.manager = joinColumn(b.manager!, "b", -1);
+    b.manager.columns[0] = { ...b.manager.columns[0], tabbed: true, selected: "a" };
+    const selected = applyWindowAction(b, action, 1200, 800);
+    expect(selected.activeWindowId).toBe("b");
+    const next = applyWindowAction(selected, "focus-right", 1200, 800);
+    expect(next.activeWindowId).toBe("c");
+    const geometry = windowGeometry(next.manager!, next.layout, ["a", "b", "c"], "c", 1200, 800);
+    expect(geometry.hidden.has("a")).toBe(true);
+    expect(geometry.hidden.has("b")).toBe(false);
   });
   it("represents a stacked divider as the proportion between two neighbors", () => {
     const b = board();

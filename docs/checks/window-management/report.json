@@ -17,7 +17,11 @@
     "reload retains dimensions, mode and grouping",
     "reduced motion disables pane transitions",
     "mobile single pane without horizontal page overflow",
-    "Base UI collapsible animates its measured height before unmounting"
+    "Base UI collapsible animates its measured height before unmounting",
+    "opening a third Strip app reveals it immediately",
+    "reopening the active Strip app reveals it without duplication or blocking manual scroll",
+    "clicked tab selection survives focus leaving the column and reload",
+    "keyboard tab selection stays visible after directional focus leaves the column"
   ],
   "errors": []
 }

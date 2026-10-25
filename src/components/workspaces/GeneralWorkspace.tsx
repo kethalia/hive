@@ -137,28 +137,50 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     setLoaded(true);
   }, [storageKey]);
   const update = useCallback(
-    (change: (current: GeneralWorkspaceState) => GeneralWorkspaceState) => {
+    (
+      change: (current: GeneralWorkspaceState) => GeneralWorkspaceState,
+      { revealActiveWindow = false }: { revealActiveWindow?: boolean } = {},
+    ) => {
       const changed = change(stateRef.current);
       const next = {
         ...changed,
-        boards: changed.boards.map((b) => ({
-          ...b,
-          manager: reconcileWindowManager(
-            b.manager,
-            b.windows.map((w) => w.id),
-            stateRef.current.boards.find((old) => old.key === b.key)?.activeWindowId,
-          ),
-          layout:
+        boards: changed.boards.map((b) => {
+          const previous = stateRef.current.boards.find((old) => old.key === b.key);
+          const ids = b.windows.map((w) => w.id);
+          let manager = reconcileWindowManager(b.manager, ids, previous?.activeWindowId);
+          const layout =
             reconcileWorkspaceWindowLayout(
               b.layout,
-              b.windows.filter((w) => !b.manager?.floating[w.id]).map((w) => w.id),
+              ids.filter((id) => !manager.floating[id]),
               {
                 viewportWidth: viewport.width,
                 viewportHeight: viewport.height,
                 focusedWindowId: b.activeWindowId,
               },
-            ) ?? undefined,
-        })),
+            ) ?? undefined;
+          // Reveal after reconciliation so a new pane already has a rectangle.
+          // Reopening the same pane is explicit; ordinary scrolling/resizing must
+          // not snap back to the active window on every state update.
+          if (
+            b.activeWindowId &&
+            (b.activeWindowId !== previous?.activeWindowId ||
+              (revealActiveWindow && b.key === changed.activeBoardKey))
+          )
+            manager = revealWindow(
+              manager,
+              windowGeometry(
+                manager,
+                layout,
+                ids,
+                b.activeWindowId,
+                viewport.width,
+                viewport.height,
+              ),
+              b.activeWindowId,
+              viewport.width,
+            );
+          return { ...b, manager, layout };
+        }),
       };
       stateRef.current = next;
       setState(next);
@@ -234,12 +256,15 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   }
   const openPane = useCallback(
     (pane: GeneralPane) => {
-      update((current) => {
-        const next = addGeneralWindow(current, pane, crypto.randomUUID());
-        if (next === current)
-          setNotice(`The workspace supports up to ${MAX_GENERAL_WINDOWS} open windows.`);
-        return next;
-      });
+      update(
+        (current) => {
+          const next = addGeneralWindow(current, pane, crypto.randomUUID());
+          if (next === current)
+            setNotice(`The workspace supports up to ${MAX_GENERAL_WINDOWS} open windows.`);
+          return next;
+        },
+        { revealActiveWindow: true },
+      );
     },
     [update],
   );
@@ -577,20 +602,23 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                 onClose={() => closeWindow(b.key, pane.id)}
                 onOpenTool={(tool) => openTool(pane.workspaceId, tool)}
                 onOpenFile={(file, newBoard) =>
-                  update((current) => {
-                    const next = addGeneralFileWindow(
-                      current,
-                      file,
-                      b.key,
-                      newBoard,
-                      crypto.randomUUID(),
-                    );
-                    if (next === current)
-                      setNotice(
-                        "Could not open another window. Close an unused window or board first.",
+                  update(
+                    (current) => {
+                      const next = addGeneralFileWindow(
+                        current,
+                        file,
+                        b.key,
+                        newBoard,
+                        crypto.randomUUID(),
                       );
-                    return next;
-                  })
+                      if (next === current)
+                        setNotice(
+                          "Could not open another window. Close an unused window or board first.",
+                        );
+                      return next;
+                    },
+                    { revealActiveWindow: true },
+                  )
                 }
                 onStart={() => {
                   void start(pane.workspaceId).catch((err) => setNotice(err.message));

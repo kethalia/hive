@@ -331,6 +331,11 @@ export function revealWindow(
   width: number,
   center = false,
 ): WindowManager {
+  // Keep the last viewed tab visible after focus moves to another column. This
+  // also applies to pinned columns, which never need horizontal scrolling.
+  const column = manager.columns.find((c) => c.windows.includes(id));
+  if (column && column.selected !== id)
+    manager = updateColumn(manager, column.id, (c) => ({ ...c, selected: id }));
   if (
     manager.mode !== "strip" ||
     manager.floating[id] ||
