@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.26.2
+
+### Patch Changes
+
+- cc53cd3: Unify Add window and Cmd/Ctrl+K search across workspace terminals, repositories, apps, and agent tools, removing the workspace selection step and alternate search shortcut. Give tooltips a shared width with wrapping descriptions above their shortcut footer.
+
 ## 2.26.1
 
 ### Patch Changes
