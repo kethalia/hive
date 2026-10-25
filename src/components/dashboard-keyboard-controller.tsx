@@ -192,7 +192,7 @@ export function DashboardKeyboardController() {
         label,
         description,
         aliases,
-        group: "Hive",
+        group: tool === "logs" ? "Logs" : "Hive",
         value: `${label} ${description}`,
         shortcut: keys ? formatShortcut(keys) : undefined,
         icon: "search" as const,
@@ -234,8 +234,9 @@ export function DashboardKeyboardController() {
         title,
         actions: items,
         searchPlaceholder: `Search ${group.toLowerCase()}…`,
-        loadingText:
-          group === "Terminals" || group === "Projects" ? source?.loadingText : undefined,
+        loadingText: ["Terminals", "Projects", "Files", "VS Code", "Logs"].includes(group)
+          ? source?.loadingText
+          : undefined,
         emptyText: `No matching ${group.toLowerCase()}.`,
       };
       sections.push({

@@ -114,6 +114,7 @@ export function GeneralWorkspacePane({
   const relativePath = pane.kind === "terminal" ? pane.relativePath : undefined;
   const sessionName = pane.kind === "terminal" ? pane.sessionName : undefined;
   const file = pane.kind === "app" ? pane.file : undefined;
+  const projectPath = pane.kind === "app" ? pane.projectPath : undefined;
   const tool = pane.kind === "app" ? pane.tool : undefined;
   const agentQuery = useDiscovery(
     "agent",
@@ -163,6 +164,7 @@ export function GeneralWorkspacePane({
         const result = await getWorkspaceAppToolAction({
           workspaceId: pane.workspaceId,
           tool: tool === "files" ? "filebrowser" : tool === "desktop" ? "kasmvnc" : "code",
+          ...(projectPath ? { projectPath } : {}),
           documentFrameHosts: readDocumentCoderFrameHosts(),
         });
         if (!result?.data)
@@ -194,6 +196,7 @@ export function GeneralWorkspacePane({
     workspace?.latest_build.id,
     pane.workspaceId,
     tool,
+    projectPath,
     file,
     sessionName,
     cloneSessionKey,
@@ -397,7 +400,7 @@ export function GeneralWorkspacePane({
     <>
       <TerminalSessionFrame
         label={pane.label}
-        subtitle={`${workspace?.name ?? pane.workspaceId}${relativePath ? ` · ${relativePath}` : ""}`}
+        subtitle={`${workspace?.name ?? pane.workspaceId}${relativePath || projectPath ? ` · ${relativePath ?? projectPath}` : ""}`}
         active={active && visible}
         className="h-full"
         layoutMode="tiled"

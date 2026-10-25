@@ -9,6 +9,7 @@ import type { CoderWorkspace } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
+import { isSafeCloneRelativePath } from "@/lib/git/clone-public-identifiers";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { authActionClient } from "@/lib/safe-action";
 import {
@@ -499,6 +500,7 @@ export const getWorkspaceAppToolAction = authActionClient
     z.object({
       workspaceId: z.string().min(1),
       tool: z.enum(["filebrowser", "kasmvnc", "code"]),
+      projectPath: z.string().max(512).refine(isSafeCloneRelativePath).optional(),
       documentFrameHosts: z.array(z.string().trim().min(1).max(253)).max(8),
     }),
   )
@@ -518,10 +520,17 @@ export const getWorkspaceAppToolAction = authActionClient
     }
     const urls = buildWorkspaceUrls(workspace, agent.name, client.getBaseUrl(), applicationsHost);
     if (!urls) throw new Error("Coder URL is unavailable for workspace tools");
+    if (parsedInput.projectPath && parsedInput.tool === "kasmvnc") {
+      throw new Error("Desktop does not support a project folder.");
+    }
+    const root = resolveConfiguredProjectsRoot();
+    const folderPath = parsedInput.projectPath
+      ? posix.join(root, parsedInput.projectPath)
+      : undefined;
     const directUrl = {
-      filebrowser: urls.filebrowser,
+      filebrowser: buildFileBrowserFolderUrl(urls.filebrowser, folderPath, root),
       kasmvnc: urls.kasmvnc,
-      code: urls.codeServer,
+      code: buildCodeServerFolderUrl(urls.codeServer, folderPath),
     }[parsedInput.tool];
     const isolation = await getWorkspaceAppIsolationContext();
     const url = await getIsolatedWorkspaceAppAuthRedirect(client, directUrl, isolation);

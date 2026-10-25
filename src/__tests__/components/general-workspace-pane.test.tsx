@@ -98,6 +98,35 @@ function AgentDiscovery() {
 }
 
 describe("GeneralWorkspacePane connections", () => {
+  it.each([
+    "files",
+    "code",
+  ] as const)("restores the selected project when opening %s", async (tool) => {
+    actions.app.mockResolvedValue({ data: { url: "https://apps.example.com/project" } });
+    const input = props();
+    input.pane = {
+      id: "project",
+      kind: "app",
+      tool,
+      workspaceId: "software",
+      label: "Project",
+      projectPath: "projects/org/repo",
+    };
+    render(<GeneralWorkspacePane {...input} />);
+    await waitFor(() =>
+      expect(actions.app).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tool: tool === "files" ? "filebrowser" : "code",
+          projectPath: "projects/org/repo",
+        }),
+      ),
+    );
+    expect(await screen.findByTestId(`general-app-${tool}`)).toHaveAttribute(
+      "src",
+      "https://apps.example.com/project",
+    );
+  });
+
   afterEach(cleanup);
   beforeEach(() => {
     vi.resetAllMocks();

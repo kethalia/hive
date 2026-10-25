@@ -204,18 +204,60 @@ export function useGeneralWorkspaceCommands({
       const found = data.find((entry) => entry.workspaceId === workspace.id);
       const results: CommandPaletteAction[] = [];
       for (const repository of found?.repositories ?? []) {
-        if (!matchesProjectSearch(repository.label, repository.relativePath, query)) continue;
+        if (matchesProjectSearch(repository.label, repository.relativePath, query))
+          results.push({
+            id: `repository:${workspace.id}:${repository.cloneSessionKey}`,
+            label: repository.label,
+            description: `${workspace.name} · ${repository.relativePath}`,
+            group: "Projects",
+            value: `${repository.label} ${repository.relativePath} ${workspace.name}`,
+            rightLabel: "Open terminal",
+            icon: "terminal",
+            disabled: busy,
+            onSelect: () => {
+              void run(() => repositoryTerminalPane(workspace.id, repository));
+            },
+          });
+        for (const app of apps) {
+          if (!app.available || app.tool === "desktop") continue;
+          results.push({
+            id: `project-app:${workspace.id}:${app.tool}:${repository.cloneSessionKey}`,
+            label: `${app.label} · ${repository.label}`,
+            description: `${workspace.name} · ${repository.relativePath}`,
+            group: app.label,
+            value: `${app.label} ${repository.label} ${repository.relativePath} ${workspace.name}`,
+            icon: app.tool,
+            disabled: busy,
+            onSelect: () =>
+              onOpenPane({
+                kind: "app",
+                workspaceId: workspace.id,
+                tool: app.tool,
+                projectPath: repository.relativePath,
+                label: `${app.label} · ${repository.label}`,
+              }),
+          });
+        }
         results.push({
-          id: `repository:${workspace.id}:${repository.cloneSessionKey}`,
-          label: repository.label,
+          id: `project-logs:${workspace.id}:${repository.cloneSessionKey}`,
+          label: `Logs · ${repository.label}`,
           description: `${workspace.name} · ${repository.relativePath}`,
-          group: "Projects",
-          value: `${repository.label} ${repository.relativePath} ${workspace.name}`,
-          rightLabel: "Open terminal",
-          icon: "terminal",
+          group: "Logs",
+          value: `logs events ${repository.label} ${repository.relativePath} ${workspace.name}`,
+          icon: "search",
           disabled: busy,
           onSelect: () => {
-            void run(() => repositoryTerminalPane(workspace.id, repository));
+            void run(async () => {
+              const terminal = await repositoryTerminalPane(workspace.id, repository);
+              if (terminal.kind !== "terminal") throw new Error("Project terminal is unavailable.");
+              return {
+                kind: "hive",
+                tool: "logs",
+                label: "Logs",
+                workspaceId: workspace.id,
+                sessionName: terminal.sessionName,
+              };
+            });
           },
         });
       }

@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
+  ArrowLeft,
   Loader2,
   Monitor,
   Play,
@@ -50,7 +51,6 @@ import {
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
 import { useDiscovery } from "@/lib/discovery/queries";
 import { formatRelativeDate, statusVariant } from "@/lib/helpers/format";
-import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
 import { WORKSPACE_PROFILES, workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
@@ -339,7 +339,7 @@ export function WorkspaceListContent({
     ? workspaceProfileForTemplate(selectedTemplate.name)
     : null;
 
-  const openCreateDialog = useCallback(() => {
+  const openCreateScreen = useCallback(() => {
     setCreateOpen(true);
   }, []);
 
@@ -348,7 +348,7 @@ export function WorkspaceListContent({
     keys: [...CREATE_WORKSPACE_SHORTCUT_KEYS],
     action: () => {
       if (!visible) return true;
-      openCreateDialog();
+      openCreateScreen();
       return false;
     },
     description: "Create workspace",
@@ -468,41 +468,34 @@ export function WorkspaceListContent({
     <Button
       type="button"
       size="sm"
-      onClick={openCreateDialog}
-      data-testid="open-create-workspace-modal"
+      onClick={openCreateScreen}
+      data-testid="open-create-workspace-screen"
     >
       <Plus data-icon="inline-start" />
       Launch workspace
-      <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">
-        {formatShortcut(CREATE_WORKSPACE_SHORTCUT_KEYS)}
-      </span>
     </Button>
   );
-  return (
-    <DashboardPageShell className={embedded ? "min-w-0 p-4 sm:px-4 lg:px-4" : undefined}>
-      {embedded ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">{workspaces.length} Coder workspaces</p>
-          {launchButton}
-        </div>
-      ) : (
-        <DashboardPageHeader
-          title="Workspaces"
-          description="Manage the environments behind your windows."
-          actions={launchButton}
-        />
-      )}
-
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent data-testid="create-workspace-modal">
-          <DialogHeader>
-            <DialogTitle>Launch workspace</DialogTitle>
-            <DialogDescription>
+  if (createOpen)
+    return (
+      <DashboardPageShell className={embedded ? "min-w-0 shrink-0 p-4 sm:px-4 lg:px-4" : undefined}>
+        <section
+          aria-labelledby="launch-workspace-heading"
+          className="space-y-4"
+          data-testid="create-workspace-screen"
+        >
+          <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={creating}>
+            <ArrowLeft className="size-4" /> Back to workspaces
+          </Button>
+          <div className="space-y-2">
+            <h2 id="launch-workspace-heading" className="text-lg font-semibold">
+              Launch workspace
+            </h2>
+            <p className="text-sm text-muted-foreground">
               Choose a use-case profile backed by an available Coder template. Creation starts
               immediately and remains visible in this list.
-            </DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreateWorkspace}>
+            </p>
+          </div>
+          <form className="max-w-2xl space-y-4" onSubmit={handleCreateWorkspace}>
             <div className="space-y-2">
               <label htmlFor="workspace-name" className="text-sm font-medium">
                 Workspace name
@@ -580,7 +573,7 @@ export function WorkspaceListContent({
               </Alert>
             ) : null}
 
-            <DialogFooter>
+            <div className="flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -596,10 +589,25 @@ export function WorkspaceListContent({
               >
                 {creating ? "Launching…" : "Launch workspace"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
-        </DialogContent>
-      </Dialog>
+        </section>
+      </DashboardPageShell>
+    );
+  return (
+    <DashboardPageShell className={embedded ? "min-w-0 shrink-0 p-4 sm:px-4 lg:px-4" : undefined}>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">{workspaces.length} Coder workspaces</p>
+          {launchButton}
+        </div>
+      ) : (
+        <DashboardPageHeader
+          title="Workspaces"
+          description="Manage the environments behind your windows."
+          actions={launchButton}
+        />
+      )}
 
       <Dialog
         open={Boolean(deleteTarget)}
@@ -693,7 +701,7 @@ export function WorkspaceListContent({
             <p className="text-muted-foreground mt-1 text-sm">
               Launch a profile to start persistent, interactive terminal sessions.
             </p>
-            <Button type="button" className="mt-4" onClick={openCreateDialog}>
+            <Button type="button" className="mt-4" onClick={openCreateScreen}>
               <Plus data-icon="inline-start" />
               Launch workspace
             </Button>

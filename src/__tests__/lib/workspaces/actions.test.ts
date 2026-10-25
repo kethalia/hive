@@ -141,6 +141,49 @@ describe("workspace server actions", () => {
     expect(mockedExec).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "filebrowser",
+    "code",
+  ] as const)("opens %s at the chosen project under the configured root", async (tool) => {
+    vi.stubEnv("HIVE_PROJECTS_ROOT", "/home/coder");
+    mockGetWorkspace.mockResolvedValueOnce({
+      name: "dev-box",
+      owner_name: "alice",
+      template_name: "ai-dev-k8s",
+    });
+    const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAppToolAction({
+      workspaceId: "ws-1",
+      tool,
+      projectPath: "projects/kethalia/my project",
+      documentFrameHosts: ["https://coder.example.com"],
+    });
+    expect(result?.serverError).toBeUndefined();
+    const url = new URL(result!.data!.directUrl);
+    if (tool === "code")
+      expect(url.searchParams.get("folder")).toBe("/home/coder/projects/kethalia/my project");
+    else expect(url.pathname).toBe("/files/projects/kethalia/my%20project");
+    expect(mockGetApplicationAuthRedirect).toHaveBeenCalledWith(url.toString());
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "../private",
+    "/etc",
+    "projects/../../private",
+    "projects\\repo",
+  ])("rejects invalid project path %s", async (projectPath) => {
+    const { getWorkspaceAppToolAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceAppToolAction({
+      workspaceId: "ws-1",
+      tool: "code",
+      projectPath,
+      documentFrameHosts: [],
+    });
+    expect(result?.validationErrors).toBeDefined();
+    expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
+  });
+
   it("rejects a desktop app not provisioned by the workspace template", async () => {
     mockGetWorkspace.mockResolvedValueOnce({
       name: "dev-box",

@@ -29,12 +29,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
-import { formatShortcut } from "@/lib/keyboard-shortcuts";
 import { rankCommandGroups } from "@/lib/terminal/command-search";
 import { cn } from "@/lib/utils";
 import { restoreWorkspaceFocus } from "@/lib/workspaces/window-focus";
-
-const CREATE_SESSION_SHORTCUT_KEYS = ["ctrl+shift+n", "cmd+shift+n"] as const;
 
 export type CommandPaletteNavigation = { page: string } | { back: true };
 
@@ -449,9 +446,6 @@ function CommandPaletteBody({
                     >
                       <Plus className="mr-2 size-4 shrink-0 opacity-70" />
                       <span>New Session</span>
-                      <CommandShortcut>
-                        {formatShortcut(CREATE_SESSION_SHORTCUT_KEYS)}
-                      </CommandShortcut>
                     </CommandItem>
                   );
                 const action = entry.action;
@@ -476,7 +470,6 @@ function CommandPaletteBody({
                         </span>
                       ) : null}
                     </span>
-                    {action.shortcut ? <CommandShortcut>{action.shortcut}</CommandShortcut> : null}
                     {action.options ? (
                       <span
                         className="ml-auto flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-background/70 p-0.5"

@@ -84,6 +84,7 @@ const app = z
     workspaceId: identifier,
     tool: z.enum(["files", "code", "desktop"]),
     label: z.string().min(1).max(512),
+    projectPath: z.string().max(512).refine(isSafeCloneRelativePath).optional(),
     file: z
       .object({
         sessionName: z.string().regex(/^[a-zA-Z0-9._-]{1,200}$/),
@@ -91,7 +92,8 @@ const app = z
       })
       .optional(),
   })
-  .refine((pane) => !pane.file || pane.tool === "files");
+  .refine((pane) => !pane.file || pane.tool === "files")
+  .refine((pane) => !pane.projectPath || (pane.tool !== "desktop" && !pane.file));
 const hive = z.object({
   sessionName: z
     .string()
@@ -136,7 +138,7 @@ export function generalPaneIdentity(pane: GeneralPane) {
     pane.workspaceId,
     pane.kind,
     pane.kind === "app" ? pane.tool : (pane.cloneSessionKey ?? pane.sessionName),
-    pane.kind === "app" ? pane.file : undefined,
+    pane.kind === "app" ? (pane.projectPath ?? pane.file) : undefined,
   ]);
 }
 
