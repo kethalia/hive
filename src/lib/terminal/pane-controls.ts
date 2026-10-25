@@ -1,7 +1,7 @@
 import type { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
 
 export const TERMINAL_CONTROL_BUTTON_CLASS_NAME =
-  "size-8 min-h-8 shrink-0 p-0 max-[1024px]:size-11 max-[1024px]:min-h-11 pointer-coarse:size-11 pointer-coarse:min-h-11";
+  "size-8 min-h-8 shrink-0 rounded-sm p-0 max-[1024px]:size-11 max-[1024px]:min-h-11 pointer-coarse:size-11 pointer-coarse:min-h-11";
 
 const FRAME_SELECTOR = '[data-terminal-audio-frame="true"], [data-terminal-audio-shell="true"]';
 const OVERLAY_SELECTOR =
@@ -39,3 +39,9 @@ export function activatePaneControl(
   button.click();
   return false;
 }
+
+export const TERMINAL_CONTROL_HOVER_CLASS_NAME =
+  "border border-transparent transition-colors hover:bg-white/10 dark:hover:bg-white/10 aria-expanded:bg-white/10 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+
+export const TERMINAL_CLOSE_HOVER_CLASS_NAME =
+  "bg-destructive/15 text-destructive hover:bg-destructive hover:text-white dark:hover:text-background dark:bg-destructive/15 dark:hover:bg-destructive";

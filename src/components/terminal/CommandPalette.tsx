@@ -46,6 +46,7 @@ export interface CommandPaletteAction {
   shortcut?: string;
   rightLabel?: string;
   disabled?: boolean;
+  closeOnSelect?: boolean;
   icon?: "plus" | "search" | "terminal";
   onSelect: () => void;
   options?: CommandPaletteActionOption[];
@@ -169,7 +170,7 @@ function MobileSidebarAction({ action, onOpenChange }: MobileSidebarActionProps)
                   onClick={() => {
                     if (option.disabled) return;
                     option.onSelect();
-                    onOpenChange(false);
+                    if (action.closeOnSelect !== false) onOpenChange(false);
                   }}
                 >
                   <span className="truncate">{option.label}</span>
@@ -192,7 +193,7 @@ function MobileSidebarAction({ action, onOpenChange }: MobileSidebarActionProps)
         onClick={() => {
           if (action.disabled) return;
           action.onSelect();
-          onOpenChange(false);
+          if (action.closeOnSelect !== false) onOpenChange(false);
         }}
       >
         {actionIcon(action.icon, "mt-0.5 size-4 shrink-0 opacity-70")}
@@ -442,7 +443,7 @@ function CommandPaletteBody({
       } else {
         action.onSelect();
       }
-      onOpenChange(false);
+      if (action.closeOnSelect !== false) onOpenChange(false);
     },
     [onOpenChange, selectedOptionIndexes],
   );
@@ -497,14 +498,14 @@ function CommandPaletteBody({
         value={searchValue}
         onValueChange={onSearchValueChange}
       />
-      <div className="relative">
+      <div className="flex min-h-0 flex-col">
         <div
           aria-hidden="true"
           data-testid="command-scroll-hint-up"
           data-visible={canScrollUp ? "true" : "false"}
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 z-10 flex h-7 items-start justify-center bg-gradient-to-b from-popover via-popover/85 to-transparent pt-1 text-muted-foreground transition-[opacity,transform] duration-150 motion-reduce:transition-none",
-            canScrollUp ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0",
+            "pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground transition-opacity duration-150 motion-reduce:transition-none",
+            canScrollUp ? "opacity-100" : "opacity-0",
           )}
         >
           <Triangle className="size-3 fill-current" />
@@ -566,7 +567,7 @@ function CommandPaletteBody({
                             event.stopPropagation();
                             if (option.disabled) return;
                             option.onSelect();
-                            onOpenChange(false);
+                            if (action.closeOnSelect !== false) onOpenChange(false);
                           }}
                         >
                           {option.label}
@@ -613,8 +614,8 @@ function CommandPaletteBody({
           data-testid="command-scroll-hint-down"
           data-visible={canScrollDown ? "true" : "false"}
           className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex h-7 items-end justify-center bg-gradient-to-t from-popover via-popover/85 to-transparent pb-1 text-muted-foreground transition-[opacity,transform] duration-150 motion-reduce:transition-none",
-            canScrollDown ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
+            "pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground transition-opacity duration-150 motion-reduce:transition-none",
+            canScrollDown ? "opacity-100" : "opacity-0",
           )}
         >
           <Triangle className="size-3 rotate-180 fill-current" />

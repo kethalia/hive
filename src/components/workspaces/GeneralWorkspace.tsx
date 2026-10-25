@@ -25,6 +25,7 @@ import {
 } from "@/components/workspaces/WorkspaceHeaderButton";
 import { WorkspaceWindow } from "@/components/workspaces/WorkspaceWindow";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { listWorkspacesAction, startWorkspaceAction } from "@/lib/actions/workspaces";
@@ -202,6 +203,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     },
     [update],
   );
+  useGeneralWorkspaceCommands({ workspaces, onOpenPane: openPane, onError: setNotice });
   const openTool = useCallback(
     (workspaceId: string, tool: GeneralWorkspaceTool) => {
       if (tool === "terminal") {
@@ -630,7 +632,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       ) : null}
       <Dialog open={manage} onOpenChange={setManage}>
         <DialogContent
-          className="max-h-[85dvh] overflow-auto sm:max-w-[90vw]"
+          className="max-h-[85dvh] overflow-y-auto sm:max-w-6xl"
           data-mobile-scroll-allow="true"
         >
           <DialogHeader>
@@ -639,7 +641,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
               Launch and manage the environments behind your windows.
             </DialogDescription>
           </DialogHeader>
-          <WorkspaceListContent workspaces={workspaces} launchOnMount={launch} />
+          <WorkspaceListContent workspaces={workspaces} launchOnMount={launch} embedded />
         </DialogContent>
       </Dialog>
     </section>

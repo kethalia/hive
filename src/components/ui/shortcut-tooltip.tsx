@@ -16,15 +16,17 @@ export function ShortcutTooltip({
   return (
     <Tooltip>
       <TooltipTrigger render={trigger} />
-      <TooltipContent side="bottom" sideOffset={8}>
-        <span className="min-w-0">{label}</span>
+      <TooltipContent side="bottom" sideOffset={8} className="flex-col items-stretch gap-2">
+        <span className="min-w-0 break-words text-left">{label}</span>
         {shortcuts?.length ? (
-          <kbd
-            data-slot="kbd"
-            className="shrink-0 rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] leading-none text-muted-foreground"
-          >
-            {formatShortcut(shortcuts)}
-          </kbd>
+          <div className="flex justify-end border-t border-border pt-1.5">
+            <kbd
+              data-slot="kbd"
+              className="shrink-0 rounded-sm border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] leading-none text-muted-foreground"
+            >
+              {formatShortcut(shortcuts)}
+            </kbd>
+          </div>
         ) : null}
       </TooltipContent>
     </Tooltip>

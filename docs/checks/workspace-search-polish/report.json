@@ -1,0 +1,190 @@
+[
+  {
+    "width": 1440,
+    "keyboardSelectionVisible": true,
+    "repositoryOpened": true,
+    "namedTerminalFromPalette": true,
+    "namedTerminalFromPicker": true,
+    "managementNoOverflow": true,
+    "cards": [
+      {
+        "x": 169,
+        "y": 343.875,
+        "width": 356.65625,
+        "height": 320.25
+      },
+      {
+        "x": 541.65625,
+        "y": 343.875,
+        "width": 356.671875,
+        "height": 320.25
+      },
+      {
+        "x": 914.328125,
+        "y": 343.875,
+        "width": 356.65625,
+        "height": 320.25
+      }
+    ],
+    "hover": [
+      {
+        "control": "microphone",
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "radius": "6px"
+        },
+        "after": {
+          "bg": "oklab(0.999994 0.0000455678 0.0000200868 / 0.1)",
+          "color": "oklch(0.704 0.191 22.216)",
+          "radius": "6px"
+        }
+      },
+      {
+        "control": "speaker",
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "radius": "6px"
+        },
+        "after": {
+          "bg": "oklab(0.999994 0.0000455678 0.0000200868 / 0.1)",
+          "color": "oklch(0.704 0.191 22.216)",
+          "radius": "6px"
+        }
+      },
+      {
+        "control": "actions",
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "radius": "6px"
+        },
+        "after": {
+          "bg": "oklab(0.999994 0.0000455678 0.0000200868 / 0.1)",
+          "color": "rgb(220, 255, 227)",
+          "radius": "6px"
+        }
+      },
+      {
+        "control": "close",
+        "before": {
+          "bg": "oklab(0.737547 0.143826 0.0707138 / 0.15)",
+          "radius": "6px"
+        },
+        "after": {
+          "bg": "rgb(255, 125, 115)",
+          "color": "rgb(7, 10, 8)",
+          "radius": "6px"
+        }
+      }
+    ],
+    "errors": []
+  },
+  {
+    "width": 1100,
+    "keyboardSelectionVisible": true,
+    "repositoryOpened": true,
+    "namedTerminalFromPalette": true,
+    "namedTerminalFromPicker": true,
+    "managementNoOverflow": true,
+    "cards": [
+      {
+        "x": 25,
+        "y": 343.875,
+        "width": 339.328125,
+        "height": 320.25
+      },
+      {
+        "x": 380.328125,
+        "y": 343.875,
+        "width": 339.328125,
+        "height": 320.25
+      },
+      {
+        "x": 735.65625,
+        "y": 343.875,
+        "width": 339.34375,
+        "height": 320.25
+      }
+    ],
+    "hover": [
+      {
+        "control": "microphone",
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "radius": "6px"
+        },
+        "after": {
+          "bg": "oklab(0.999994 0.0000455678 0.0000200868 / 0.1)",
+          "color": "oklch(0.704 0.191 22.216)",
+          "radius": "6px"
+        }
+      },
+      {
+        "control": "speaker",
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "radius": "6px"
+        },
+        "after": {
+          "bg": "oklab(0.999994 0.0000455678 0.0000200868 / 0.1)",
+          "color": "oklch(0.704 0.191 22.216)",
+          "radius": "6px"
+        }
+      },
+      {
+        "control": "actions",
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "radius": "6px"
+        },
+        "after": {
+          "bg": "oklab(0.999994 0.0000455678 0.0000200868 / 0.1)",
+          "color": "rgb(220, 255, 227)",
+          "radius": "6px"
+        }
+      },
+      {
+        "control": "close",
+        "before": {
+          "bg": "oklab(0.737547 0.143826 0.0707138 / 0.15)",
+          "radius": "6px"
+        },
+        "after": {
+          "bg": "rgb(255, 125, 115)",
+          "color": "rgb(7, 10, 8)",
+          "radius": "6px"
+        }
+      }
+    ],
+    "errors": []
+  },
+  {
+    "width": 390,
+    "keyboardSelectionVisible": null,
+    "repositoryOpened": true,
+    "namedTerminalFromPalette": true,
+    "namedTerminalFromPicker": true,
+    "managementNoOverflow": true,
+    "cards": [
+      {
+        "x": 25,
+        "y": 236.5,
+        "width": 340,
+        "height": 320.25
+      },
+      {
+        "x": 25,
+        "y": 572.75,
+        "width": 340,
+        "height": 320.25
+      },
+      {
+        "x": 25,
+        "y": 909,
+        "width": 340,
+        "height": 320.25
+      }
+    ],
+    "hover": [],
+    "errors": []
+  }
+]

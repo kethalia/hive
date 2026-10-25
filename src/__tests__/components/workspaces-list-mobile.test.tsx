@@ -153,8 +153,14 @@ afterEach(() => {
   mocks.stopWorkspaceAction.mockReset();
 });
 
-describe("workspaces mobile list", () => {
-  it("renders mobile workspace cards beside desktop table columns with 44px terminal actions", () => {
+describe("workspace card grid", () => {
+  it("omits the page navigation when embedded, while keeping launch and lifecycle controls", () => {
+    render(<WorkspaceListContent workspaces={[makeWorkspace()]} embedded />);
+    expect(screen.queryByTestId("dashboard-page-sidebar-trigger")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Launch workspace/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop workspace mobile-dev" })).toBeInTheDocument();
+  });
+  it("renders a single responsive workspace card grid with accessible terminal actions", () => {
     render(
       <WorkspaceListContent
         workspaces={[
@@ -168,11 +174,10 @@ describe("workspaces mobile list", () => {
       />,
     );
 
-    const stack = screen.getByTestId("workspaces-mobile-card-stack");
-    expect(stack).toHaveAttribute("role", "list");
-    expect(stack).toHaveClass("md:hidden", "text-sm", "pb-safe");
+    const stack = screen.getByTestId("workspaces-card-grid");
+    expect(screen.getByRole("list", { name: "Workspaces" })).toBe(stack);
 
-    const cards = screen.getAllByTestId("workspace-mobile-card");
+    const cards = screen.getAllByTestId("workspace-card");
     expect(cards).toHaveLength(2);
     expect(within(cards[0]).getByText("mobile-dev")).toBeInTheDocument();
     expect(within(cards[0]).getByText("running")).toBeInTheDocument();
@@ -186,21 +191,7 @@ describe("workspaces mobile list", () => {
     expect(terminalLink).toHaveAttribute("href", "/workspaces?workspace=workspace-1&tool=terminal");
     expect(terminalLink).toHaveClass("min-h-11", "touch-manipulation", "text-sm");
 
-    const desktopTable = screen.getByTestId("workspaces-desktop-table");
-    expect(desktopTable).toHaveClass("hidden", "md:block");
-    expect(within(desktopTable).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
-    expect(
-      within(desktopTable).getByRole("columnheader", { name: "Workspace" }),
-    ).toBeInTheDocument();
-    expect(
-      within(desktopTable).getByRole("columnheader", { name: "Template" }),
-    ).toBeInTheDocument();
-    expect(within(desktopTable).getByRole("columnheader", { name: "Profile" })).toBeInTheDocument();
-    expect(within(desktopTable).getByRole("columnheader", { name: "Owner" })).toBeInTheDocument();
-    expect(
-      within(desktopTable).getByRole("columnheader", { name: "Last used" }),
-    ).toBeInTheDocument();
-    expect(within(desktopTable).getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("opens the launch workspace modal from the button and Cmd/Ctrl+Alt+N", async () => {
@@ -386,7 +377,7 @@ describe("workspaces mobile list", () => {
       />,
     );
 
-    const [runningCard, stoppedCard] = screen.getAllByTestId("workspace-mobile-card");
+    const [runningCard, stoppedCard] = screen.getAllByTestId("workspace-card");
     fireEvent.click(
       within(stoppedCard).getByRole("button", { name: "Start workspace stopped-dev" }),
     );
@@ -409,7 +400,7 @@ describe("workspaces mobile list", () => {
     });
     render(<WorkspaceListContent workspaces={[makeWorkspace()]} />);
 
-    const card = screen.getByTestId("workspace-mobile-card");
+    const card = screen.getByTestId("workspace-card");
     fireEvent.click(within(card).getByRole("button", { name: "Delete workspace mobile-dev" }));
 
     const confirmation = await screen.findByTestId("delete-workspace-confirmation");
@@ -481,7 +472,7 @@ describe("workspaces mobile list", () => {
       />,
     );
 
-    const cards = screen.getAllByTestId("workspace-mobile-card");
+    const cards = screen.getAllByTestId("workspace-card");
     expect(within(cards[0]).getByText("running")).toHaveClass("bg-primary");
     expect(within(cards[1]).getByText("stopped")).toHaveClass("border-border");
     expect(within(cards[2]).getByText("failed")).toHaveClass("text-destructive");
@@ -505,7 +496,7 @@ describe("workspaces mobile list", () => {
       />,
     );
 
-    const card = screen.getByTestId("workspace-mobile-card");
+    const card = screen.getByTestId("workspace-card");
     expect(within(card).getByText("template-id-fallback")).toBeInTheDocument();
     expect(within(card).getAllByText("Unknown")).toHaveLength(2);
     expect(within(card).getAllByText("Never").length).toBeGreaterThanOrEqual(1);

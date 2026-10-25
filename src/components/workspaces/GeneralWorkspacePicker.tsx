@@ -10,18 +10,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { listGitClonesAction, resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
-import { createSessionAction, getWorkspaceSessionsAction } from "@/lib/actions/workspaces";
+import { createSessionAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
-import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
+import type { CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import type { GeneralPane, GeneralWorkspaceTool } from "@/lib/workspaces/general-workspace";
 
-function repositories(nodes: readonly CloneTreeNode[]): CloneTreeRepositoryNode[] {
-  return nodes.flatMap((node) =>
-    node.kind === "repository" ? [node] : repositories(node.children),
-  );
-}
+import {
+  loadWorkspaceTerminals,
+  repositoryTerminalPane,
+  terminalNameError,
+} from "@/lib/workspaces/terminal-selection";
+
 interface Props {
   open: boolean;
   workspaceId?: string;
@@ -68,22 +68,8 @@ export function GeneralWorkspacePicker({
     if (!open || !selected || !running) return;
     let cancelled = false;
     setData(null);
-    void Promise.allSettled([
-      getWorkspaceSessionsAction({ workspaceId: selected }),
-      listGitClonesAction({ workspaceId: selected }),
-    ]).then(([sessions, clones]) => {
-      if (cancelled) return;
-      const sessionData = sessions.status === "fulfilled" ? sessions.value?.data : undefined;
-      const cloneData = clones.status === "fulfilled" ? clones.value?.data : undefined;
-      setData({
-        workspaceId: selected,
-        sessions: sessionData?.map((session) => session.name) ?? [],
-        repositories: cloneData?.ok ? repositories(cloneData.tree.nodes) : [],
-        error:
-          !sessionData || !cloneData?.ok
-            ? "Some terminals could not be listed. Retry to refresh the available sessions and repositories."
-            : undefined,
-      });
+    void loadWorkspaceTerminals(selected).then((result) => {
+      if (!cancelled) setData(result);
     });
     return () => {
       cancelled = true;
@@ -96,23 +82,13 @@ export function GeneralWorkspacePicker({
     setError(null);
     try {
       if (repository) {
-        const result = await resolveGitCloneTerminalAction({
-          workspaceId: requested,
-          cloneSessionKey: repository.cloneSessionKey,
-          relativePath: repository.relativePath,
-        });
-        if (!result?.data)
-          throw new Error(result?.serverError ?? "Could not open repository terminal.");
-        onOpenPane({
-          kind: "terminal",
-          workspaceId: requested,
-          sessionName: result.data.sessionName,
-          label: repository.label,
-          cloneSessionKey: repository.cloneSessionKey,
-          relativePath: repository.relativePath,
-        });
+        onOpenPane(await repositoryTerminalPane(requested, repository));
       } else {
-        const result = await createSessionAction({ workspaceId: requested });
+        if (nameError) throw new Error(nameError);
+        const result = await createSessionAction({
+          workspaceId: requested,
+          ...(name ? { sessionName: name } : {}),
+        });
         if (!result?.data) throw new Error(result?.serverError ?? "Could not create terminal.");
         onOpenPane({
           kind: "terminal",
@@ -127,7 +103,10 @@ export function GeneralWorkspacePicker({
       setBusy(false);
     }
   }
-  const matches = (value: string) => value.toLowerCase().includes(query.toLowerCase());
+  const name = query.trim();
+  const nameError = name ? terminalNameError(name) : null;
+  const existingName = data?.workspaceId === selected && data.sessions.includes(name);
+  const matches = (value: string) => value.toLowerCase().includes(name.toLowerCase());
   return (
     <Dialog
       open={open}
@@ -196,8 +175,23 @@ export function GeneralWorkspacePicker({
         {workspace && running ? (
           <>
             <div className="flex flex-wrap gap-2">
-              <Button disabled={busy} onClick={() => void openTerminal()}>
-                New terminal
+              <Button
+                disabled={busy || Boolean(nameError)}
+                className="max-w-full"
+                onClick={() => {
+                  if (existingName)
+                    onOpenPane({
+                      kind: "terminal",
+                      workspaceId: workspace.id,
+                      sessionName: name,
+                      label: name,
+                    });
+                  else void openTerminal();
+                }}
+              >
+                <span className="truncate">
+                  {name ? `${existingName ? "Open" : "New"} terminal “${name}”` : "New terminal"}
+                </span>
               </Button>
               {capabilities.fileBrowser ? (
                 <Button
@@ -232,10 +226,11 @@ export function GeneralWorkspacePicker({
             </div>
             <Input
               aria-label="Search terminals and repositories"
-              placeholder="Search terminals and repositories…"
+              placeholder="Search repositories or name a terminal…"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
+            {nameError ? <p className="text-xs text-muted-foreground">{nameError}</p> : null}
             {!data || data.workspaceId !== selected ? (
               <p role="status" className="text-sm">
                 Loading terminals…

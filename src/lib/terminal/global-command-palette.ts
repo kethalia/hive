@@ -8,6 +8,7 @@ export interface GlobalCommandPaletteSource {
   actions?: CommandPaletteAction[];
   searchValue?: string;
   onSearchValueChange?: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
   searchPlaceholder?: string;
   emptyText?: string;
   groupHeading?: string;

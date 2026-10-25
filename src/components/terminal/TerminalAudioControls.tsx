@@ -8,7 +8,10 @@ import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
 import { LONG_PRESS_MS, NO_TOUCH_STYLE, TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
 import type { AudioDevicePhase } from "@/lib/terminal/browser-audio";
-import { TERMINAL_CONTROL_BUTTON_CLASS_NAME } from "@/lib/terminal/pane-controls";
+import {
+  TERMINAL_CONTROL_BUTTON_CLASS_NAME,
+  TERMINAL_CONTROL_HOVER_CLASS_NAME,
+} from "@/lib/terminal/pane-controls";
 import { cn } from "@/lib/utils";
 
 function DisconnectedMicrophoneIcon({ className }: { className?: string }) {
@@ -95,7 +98,8 @@ export function AudioDeviceControl({
             aria-label={`${label}: ${phase}${playing ? ", streaming sound" : ""}`}
             className={cn(
               TERMINAL_CONTROL_BUTTON_CLASS_NAME,
-              "relative flex touch-manipulation items-center justify-center rounded-sm hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-ring",
+              TERMINAL_CONTROL_HOVER_CLASS_NAME,
+              "relative flex touch-manipulation items-center justify-center",
               phase === "disconnected"
                 ? "text-red-400"
                 : phase === "paused" || phase === "connecting"
