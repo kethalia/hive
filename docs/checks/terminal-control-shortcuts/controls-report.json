@@ -1,0 +1,98 @@
+[
+  {
+    "width": 1440,
+    "mac": false,
+    "geometry": [
+      {
+        "control": "microphone",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "control": "speaker",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "control": "actions",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "control": "close",
+        "width": 32,
+        "height": 32
+      }
+    ],
+    "tooltipsUseRegisteredShortcuts": true,
+    "keyboardControlsWork": true,
+    "openMicMenuDoesNotCapture": true,
+    "dialogProtectsPaneFromClose": true,
+    "heldCloseOnlyClosesOnePane": true,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "mac": true,
+    "geometry": [
+      {
+        "control": "microphone",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "control": "speaker",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "control": "actions",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "control": "close",
+        "width": 32,
+        "height": 32
+      }
+    ],
+    "tooltipsUseRegisteredShortcuts": true,
+    "keyboardControlsWork": true,
+    "openMicMenuDoesNotCapture": true,
+    "dialogProtectsPaneFromClose": true,
+    "heldCloseOnlyClosesOnePane": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "mac": false,
+    "geometry": [
+      {
+        "control": "microphone",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "control": "speaker",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "control": "actions",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "control": "close",
+        "width": 44,
+        "height": 44
+      }
+    ],
+    "tooltipsUseRegisteredShortcuts": true,
+    "keyboardControlsWork": true,
+    "openMicMenuDoesNotCapture": true,
+    "dialogProtectsPaneFromClose": true,
+    "heldCloseOnlyClosesOnePane": true,
+    "errors": []
+  }
+]

@@ -543,4 +543,101 @@ describe("KeybindingProvider", () => {
 
     expect(terminal.focus).toHaveBeenCalledTimes(1);
   });
+  it.each([
+    ["microphone", "m"],
+    ["speaker", "s"],
+    ["actions", "p"],
+    ["close", "x"],
+  ])("routes the %s shortcut to the focused pane exactly once", (control, key) => {
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
+      new DOMRect(0, 0, 32, 32),
+    ] as unknown as DOMRectList);
+    const first = vi.fn();
+    const second = vi.fn();
+    const probe = renderWithProbe(
+      <>
+        <div data-terminal-audio-frame="true" data-active="false">
+          <button type="button" data-terminal-control={control} onClick={first}>
+            First
+          </button>
+        </div>
+        <div data-terminal-audio-frame="true" data-active="true">
+          <textarea className="xterm-helper-textarea" aria-label="Terminal input" />
+          <button type="button" data-terminal-control={control} onClick={second}>
+            Second
+          </button>
+        </div>
+      </>,
+    );
+    const input = document.querySelector("textarea")!;
+    input.focus();
+    const event = makeKeyEvent({
+      key,
+      code: `Key${key.toUpperCase()}`,
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => input.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    // Holding the shortcut must not repeat the action or close another pane.
+    expect(
+      probe.context?.handleKeyEvent(
+        makeKeyEvent({ key, ctrlKey: true, altKey: true, repeat: true }),
+      ),
+    ).toBe(false);
+    expect(second).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+    act(() =>
+      input.dispatchEvent(
+        makeKeyEvent({ key, ctrlKey: true, altKey: true, repeat: true, bubbles: true }),
+      ),
+    );
+    expect(second).toHaveBeenCalledOnce();
+    act(() =>
+      input.dispatchEvent(
+        makeKeyEvent({
+          key: "≈",
+          code: `Key${key.toUpperCase()}`,
+          metaKey: true,
+          altKey: true,
+          bubbles: true,
+        }),
+      ),
+    );
+    expect(second).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not close a pane through a dialog or act on a hidden parked pane", () => {
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
+      new DOMRect(0, 0, 32, 32),
+    ] as unknown as DOMRectList);
+    const close = vi.fn();
+    renderWithProbe(
+      <>
+        <div data-terminal-audio-frame="true" data-active="true" aria-hidden="true">
+          <button type="button" data-terminal-control="close" onClick={close}>
+            Hidden close
+          </button>
+        </div>
+        <div data-terminal-audio-frame="true" data-active="true">
+          <button type="button" data-terminal-control="close" onClick={close}>
+            Visible close
+          </button>
+        </div>
+        <div role="dialog">
+          <button type="button">Dialog control</button>
+        </div>
+      </>,
+    );
+    const event = () =>
+      makeKeyEvent({ key: "x", ctrlKey: true, altKey: true, bubbles: true, cancelable: true });
+    act(() => window.dispatchEvent(event()));
+    expect(close).not.toHaveBeenCalled();
+    document.querySelector('[role="dialog"]')!.setAttribute("hidden", "");
+    document.querySelectorAll("[data-terminal-audio-frame]")[1].setAttribute("inert", "");
+    act(() => window.dispatchEvent(event()));
+    expect(close).not.toHaveBeenCalled();
+  });
 });

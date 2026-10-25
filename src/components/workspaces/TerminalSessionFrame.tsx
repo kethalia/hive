@@ -5,8 +5,11 @@ import { Ellipsis, GripVertical, Minus, Plus, X } from "lucide-react";
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
+import { WorkspaceSidebarButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import { useTerminalFontStep } from "@/hooks/useTerminalFontStep";
+import { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
+import { TERMINAL_CONTROL_BUTTON_CLASS_NAME } from "@/lib/terminal/pane-controls";
 import { cn } from "@/lib/utils";
 
 interface TerminalFontSizeControlsProps {
@@ -98,7 +101,7 @@ export function SingleTerminalSessionHeader({
       data-testid="single-terminal-header"
     >
       <div className="flex min-w-0 items-center gap-1" data-testid="single-terminal-header-left">
-        <SidebarTrigger className="h-7 min-h-0 shrink-0" />
+        <WorkspaceSidebarButton />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-mono text-xs" data-testid="active-pane-label">
             {sessionLabel}
@@ -298,42 +301,60 @@ export function TerminalSessionFrame({
           <div data-terminal-audio-slot="true" className="flex shrink-0" />
           {touchOptimizedActions ? null : headerActions}
           {onOpenActions ? (
-            <Button
-              ref={actionsButtonRef}
-              type="button"
-              variant="ghost"
-              size="xs"
-              className={cn(
-                "shrink-0 text-white hover:bg-white/10 hover:text-white",
-                touchOptimizedActions ? "size-11 min-h-11 px-0" : "h-6 min-h-0 px-1.5",
-              )}
-              aria-label={`Open actions for ${label}`}
-              aria-haspopup={touchOptimizedActions ? "dialog" : "menu"}
-              aria-expanded={actionsOpen}
-              data-testid={dataTestId ? `${dataTestId}-actions` : undefined}
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpenActions(event.currentTarget);
-              }}
-            >
-              <Ellipsis className="size-3" />
-            </Button>
+            <ShortcutTooltip
+              label="More actions"
+              shortcuts={PANE_CONTROL_SHORTCUTS.actions.keys}
+              trigger={
+                <Button
+                  ref={actionsButtonRef}
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className={cn(
+                    TERMINAL_CONTROL_BUTTON_CLASS_NAME,
+                    "text-white hover:bg-white/10 hover:text-white",
+                    touchOptimizedActions && "size-11 min-h-11",
+                  )}
+                  aria-label={`Open actions for ${label}`}
+                  data-terminal-control="actions"
+                  aria-haspopup={touchOptimizedActions ? "dialog" : "menu"}
+                  aria-expanded={actionsOpen}
+                  data-testid={dataTestId ? `${dataTestId}-actions` : undefined}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenActions(event.currentTarget);
+                  }}
+                >
+                  <Ellipsis className="size-4" />
+                </Button>
+              }
+            />
           ) : null}
           {onClose ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="xs"
-              className={cn(
-                "text-[10px]",
-                touchOptimizedActions ? "size-11 min-h-11 px-0" : "h-6 min-h-0 px-1.5",
-              )}
-              aria-label={closeLabel ?? `Close ${label}`}
-              data-testid={closeTestId}
-              onClick={onClose}
-            >
-              <X className="size-3" />
-            </Button>
+            <ShortcutTooltip
+              label={closeLabel ?? `Close ${label}`}
+              shortcuts={PANE_CONTROL_SHORTCUTS.close.keys}
+              trigger={
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="xs"
+                  className={cn(
+                    TERMINAL_CONTROL_BUTTON_CLASS_NAME,
+                    touchOptimizedActions && "size-11 min-h-11",
+                  )}
+                  aria-label={closeLabel ?? `Close ${label}`}
+                  data-terminal-control="close"
+                  data-testid={closeTestId}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onClose(event);
+                  }}
+                >
+                  <X className="size-4" />
+                </Button>
+              }
+            />
           ) : null}
         </div>
       ) : null}

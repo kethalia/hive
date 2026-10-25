@@ -27,6 +27,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { listWorkspacesAction, startWorkspaceAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import {
+  ADD_WORKSPACE_WINDOW_KEYS,
+  MANAGE_WORKSPACES_KEYS,
+  WORKSPACE_AGENTS_KEYS,
+  WORKSPACE_SEARCH_KEYS,
+} from "@/lib/keyboard-shortcuts";
 import { forgetTerminalViews, terminalPaneViewKey } from "@/lib/terminal/session-lifetime";
 import {
   addGeneralWindow,
@@ -337,12 +343,39 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   }
   useRegisterKeybinding({
     id: "general-workspace:add-window",
-    keys: ["ctrl+shift+n", "cmd+shift+n"],
+    keys: [...WORKSPACE_SEARCH_KEYS, ...ADD_WORKSPACE_WINDOW_KEYS],
     action: () => {
       setPicker({});
       return false;
     },
     description: "Add workspace window",
+    category: "workspace",
+    enabledInBrowser: true,
+    global: true,
+  });
+
+  useRegisterKeybinding({
+    id: "general-workspace:agents",
+    keys: [...WORKSPACE_AGENTS_KEYS],
+    action: () => {
+      if (active) setAgents(active.workspaceId);
+      else setPicker({});
+      return false;
+    },
+    description: "Open agent tools and sessions",
+    category: "workspace",
+    enabledInBrowser: true,
+    global: true,
+  });
+  useRegisterKeybinding({
+    id: "general-workspace:manage",
+    keys: [...MANAGE_WORKSPACES_KEYS],
+    action: () => {
+      setLaunch(false);
+      setManage(true);
+      return false;
+    },
+    description: "Manage Coder workspaces",
     category: "workspace",
     enabledInBrowser: true,
     global: true,
@@ -374,16 +407,22 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         <div className="flex items-center gap-1">
           <WorkspaceHeaderButton
             label="Agents"
+            shortcuts={WORKSPACE_AGENTS_KEYS}
             aria-label="Agent tools"
             onClick={() => (active ? setAgents(active.workspaceId) : setPicker({}))}
           >
             <Bot className="size-4" />
           </WorkspaceHeaderButton>
-          <WorkspaceHeaderButton label="Add window" onClick={() => setPicker({})}>
+          <WorkspaceHeaderButton
+            label="Add window"
+            shortcuts={WORKSPACE_SEARCH_KEYS}
+            onClick={() => setPicker({})}
+          >
             <Search className="size-4" />
           </WorkspaceHeaderButton>
           <WorkspaceHeaderButton
             label="Manage Coder workspaces"
+            shortcuts={MANAGE_WORKSPACES_KEYS}
             onClick={() => {
               setLaunch(false);
               setManage(true);

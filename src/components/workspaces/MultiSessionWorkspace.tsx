@@ -106,7 +106,11 @@ import {
   isTerminalHelperTextAreaTarget,
   isTextEntryEventTarget,
 } from "@/lib/keyboard-event-targets";
-import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import {
+  formatShortcut,
+  WORKSPACE_AGENTS_KEYS,
+  WORKSPACE_SEARCH_KEYS,
+} from "@/lib/keyboard-shortcuts";
 import {
   WORKSPACE_APP_FRAME_ALLOW,
   WORKSPACE_APP_FRAME_SANDBOX,
@@ -3768,12 +3772,48 @@ export function MultiSessionWorkspace({
     [replaceWorkspaceToolPanes],
   );
 
+  useEffect(() => {
+    const id = `multi-session:${workspaceId}:agents`;
+    register({
+      id,
+      keys: [...WORKSPACE_AGENTS_KEYS],
+      action: () => {
+        setAgentToolsOpen(true);
+        return false;
+      },
+      description: "Open agent tools and sessions",
+      category: "workspace",
+      enabledInBrowser: true,
+      global: true,
+      allowRepeat: false,
+    });
+    const searchId = `multi-session:${workspaceId}:search`;
+    register({
+      id: searchId,
+      keys: [...WORKSPACE_SEARCH_KEYS],
+      action: () => {
+        openWorkspaceCommandPalette();
+        return false;
+      },
+      description: "Search workspace sessions",
+      category: "workspace",
+      enabledInBrowser: true,
+      global: true,
+      allowRepeat: false,
+    });
+    return () => {
+      unregister(id);
+      unregister(searchId);
+    };
+  }, [workspaceId, register, unregister, openWorkspaceCommandPalette]);
+
   const renderGitRepositoryButton = () => {
     if (!isUnifiedSource) return null;
 
     return (
       <WorkspaceHeaderButton
         label="Add session"
+        shortcuts={WORKSPACE_SEARCH_KEYS}
         onClick={openWorkspaceCommandPalette}
         aria-label="Open workspace command palette"
         data-testid="open-git-session-search"
@@ -4041,6 +4081,7 @@ export function MultiSessionWorkspace({
           </span>
           <WorkspaceHeaderButton
             label="Agents"
+            shortcuts={WORKSPACE_AGENTS_KEYS}
             onClick={() => setAgentToolsOpen(true)}
             aria-label="Open agent tools and sessions"
           >

@@ -10,15 +10,17 @@ import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteG
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
 import { formatRelativeDate } from "@/lib/helpers/format";
-import { formatShortcut } from "@/lib/keyboard-shortcuts";
+import {
+  formatShortcut,
+  GLOBAL_COMMAND_PALETTE_KEYS,
+  GLOBAL_SIDEBAR_KEYS,
+} from "@/lib/keyboard-shortcuts";
 import {
   getGlobalCommandPaletteSources,
   subscribeGlobalCommandPaletteSources,
 } from "@/lib/terminal/global-command-palette";
 import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
 
-const GLOBAL_COMMAND_PALETTE_KEYS = ["ctrl+k", "cmd+k"] as const;
-const GLOBAL_SIDEBAR_KEYS = ["ctrl+b", "cmd+b"] as const;
 const GLOBAL_FULLSCREEN_KEYS = ["ctrl+enter", "cmd+enter"] as const;
 const NAV_WORKSPACES_KEYS = ["ctrl+shift+1", "cmd+shift+1"] as const;
 const NAV_TEMPLATES_KEYS = ["ctrl+shift+2", "cmd+shift+2"] as const;
