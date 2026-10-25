@@ -51,10 +51,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
 import { TerminalSessionEventLog } from "@/components/workspaces/TerminalSessionEventLog";
 import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
+import {
+  WorkspaceHeaderButton,
+  WorkspaceSidebarButton,
+} from "@/components/workspaces/WorkspaceHeaderButton";
 import {
   type WorkspacePaneAction,
   WorkspacePaneActionSheet,
@@ -3768,18 +3772,14 @@ export function MultiSessionWorkspace({
     if (!isUnifiedSource) return null;
 
     return (
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
+      <WorkspaceHeaderButton
+        label="Add session"
         onClick={openWorkspaceCommandPalette}
-        className="h-7 min-h-0 px-2 text-xs"
         aria-label="Open workspace command palette"
         data-testid="open-git-session-search"
       >
-        <Search className="size-3" />
-        Add session
-      </Button>
+        <Search className="size-4" />
+      </WorkspaceHeaderButton>
     );
   };
 
@@ -4024,7 +4024,7 @@ export function MultiSessionWorkspace({
     <>
       <header className="grid min-h-[calc(5.75rem+var(--safe-area-inset-top))] shrink-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 border-b border-sidebar-border px-[max(0.5rem,var(--safe-area-inset-left))] pb-1 pt-[calc(var(--safe-area-inset-top)+0.25rem)] pr-[max(0.5rem,var(--safe-area-inset-right))] min-[1025px]:min-h-[calc(3.5rem+var(--safe-area-inset-top))] min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] min-[1025px]:grid-rows-1 min-[1025px]:gap-1">
         <div className="flex min-w-0 items-center gap-1" data-testid="workspace-header-left">
-          <SidebarTrigger className="h-7 min-h-0 shrink-0" />
+          <WorkspaceSidebarButton />
         </div>
         <div
           className="col-span-2 row-start-2 flex min-w-0 items-center justify-center min-[1025px]:col-span-1 min-[1025px]:col-start-2 min-[1025px]:row-start-1"
@@ -4039,17 +4039,13 @@ export function MultiSessionWorkspace({
           <span className="sr-only" data-testid="multi-session-pane-count">
             {visibleSessions.length}
           </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className="h-7 min-h-0 px-2 text-xs"
+          <WorkspaceHeaderButton
+            label="Agents"
             onClick={() => setAgentToolsOpen(true)}
             aria-label="Open agent tools and sessions"
           >
-            <Bot className="size-3" />
-            <span className="hidden sm:inline">Agents</span>
-          </Button>
+            <Bot className="size-4" />
+          </WorkspaceHeaderButton>
           {renderGitRepositoryButton()}
           {canCreateSession && !isUnifiedSource ? (
             <Button

@@ -19,3 +19,9 @@ At both 1440 × 900 and 390 × 900, Chrome verified:
 Automated regression coverage also checks stale connection responses after rebuilds, CSP reload requirements, stopped-workspace gating, fresh repository identity resolution, saved-state validation, legacy layout imports, and template capability restrictions.
 
 The existing per-workspace URLs remain available for old deep links. The first shared-canvas visit imports supported legacy pane descriptors without deleting the original local layouts. Layouts remain local to the browser and signed-in user. Coder app origins, authentication, and iframe sandbox policies retain their existing boundaries.
+
+## Header control follow-up
+
+The sidebar toggle, Agents, and search controls share an icon-only ghost button style in both the shared canvas and the existing terminal workspace. They measure 40 × 40 px on desktop and 44 × 44 px on mobile; coarse-pointer devices also use the larger size. Header controls use the existing shadcn tooltip component, now styled with Hive's popover surface, phosphor border/text, monospace font, and matching arrow.
+
+Chrome at 1440 × 900 and 390 × 900 verified equal square dimensions, no visible button labels, working sidebar/search actions, and no horizontal overflow or page errors. Desktop checks also cover each tooltip on hover, keyboard focus, Escape dismissal, and Enter activation. See `header-report.json`, `header-1-tooltip.png`, and `*-square-header.png`. The relevant terminal workspace and sidebar suites pass all 122 tests; TypeScript and Biome checks also pass.

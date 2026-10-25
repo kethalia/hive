@@ -2,7 +2,7 @@
 
 import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { Terminal } from "@xterm/xterm";
-import { Bot, Ellipsis, Plus } from "lucide-react";
+import { Bot, Ellipsis, Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,11 +14,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { GeneralWorkspaceMobileControls } from "@/components/workspaces/GeneralWorkspaceMobileControls";
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
 import { GeneralWorkspacePicker } from "@/components/workspaces/GeneralWorkspacePicker";
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
+import {
+  WorkspaceHeaderButton,
+  WorkspaceSidebarButton,
+} from "@/components/workspaces/WorkspaceHeaderButton";
 import { WorkspaceWindow } from "@/components/workspaces/WorkspaceWindow";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
@@ -358,7 +361,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       data-testid="general-workspace"
     >
       <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 py-2">
-        <SidebarTrigger />
+        <WorkspaceSidebarButton />
         <WorkspaceBoardBar
           boards={state.boards.map((b) => ({ ...b, panes: [] }))}
           activeBoardKey={board.key}
@@ -369,31 +372,25 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           touchOptimized={mobile}
         />
         <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
+          <WorkspaceHeaderButton
+            label="Agents"
             aria-label="Agent tools"
             onClick={() => (active ? setAgents(active.workspaceId) : setPicker({}))}
           >
             <Bot className="size-4" />
-            <span className="hidden sm:inline">Agents</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setPicker({})}>
-            <Plus className="size-4" />
-            <span className="hidden sm:inline">Add window</span>
-            <span className="sr-only sm:hidden">Add window</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Manage Coder workspaces"
+          </WorkspaceHeaderButton>
+          <WorkspaceHeaderButton label="Add window" onClick={() => setPicker({})}>
+            <Search className="size-4" />
+          </WorkspaceHeaderButton>
+          <WorkspaceHeaderButton
+            label="Manage Coder workspaces"
             onClick={() => {
               setLaunch(false);
               setManage(true);
             }}
           >
-            <Ellipsis />
-          </Button>
+            <Ellipsis className="size-4" />
+          </WorkspaceHeaderButton>
         </div>
       </header>
       {notice ? (
