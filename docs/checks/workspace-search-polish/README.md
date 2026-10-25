@@ -32,3 +32,13 @@ Screenshots:
 - `1440-workspace-cards.png`: workspace management as a responsive card grid.
 - `390-workspace-cards.png`: the same dialog on a phone.
 - `1440-hover-actions.png` and `1440-hover-close.png`: matched and destructive hover states.
+
+## Tooltip footer follow-up
+
+All shortcut tooltips now place the description at the top left and the shortcut
+in a separate footer aligned to the right. Chromium verified the geometry of all
+eight controls (sidebar, Agents, search, management, microphone, sound, Actions,
+and Close) with both Ctrl and macOS shortcut labels: 16 checks passed with no
+page errors. `ctrl-actions-tooltip.png` and `mac-sidebar-tooltip.png` show the
+updated layout. The 27 focused component tests, Biome check, and TypeScript check
+also pass.
