@@ -3,7 +3,7 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import type { Terminal } from "@xterm/xterm";
 import dynamic from "next/dynamic";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
@@ -82,6 +82,15 @@ export function GeneralWorkspacePane({
   const [connection, setConnection] = useState<Connection | null>(null);
   const [retry, setRetry] = useState(0);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const fileRequestGeneration = useRef(0);
+  // A closed or reconnected source pane must not open a late file response.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Connection changes invalidate in-flight file requests.
+  useEffect(
+    () => () => {
+      fileRequestGeneration.current++;
+    },
+    [connection],
+  );
   const running = workspace?.latest_build.status === "running";
   const cloneSessionKey = pane.kind === "terminal" ? pane.cloneSessionKey : undefined;
   const relativePath = pane.kind === "terminal" ? pane.relativePath : undefined;
@@ -166,44 +175,51 @@ export function GeneralWorkspacePane({
   };
   const openFile = async (path: string, action: "download" | "open" | "new-workspace") => {
     if (!connection?.sessionName) return;
-    if (action !== "download") {
-      onOpenFile(
-        {
-          kind: "app",
-          workspaceId: pane.workspaceId,
-          tool: "files",
-          label: "Files",
-          file: { sessionName: connection.sessionName, path },
-        },
-        action === "new-workspace",
-      );
-      return;
-    }
+    const generation = fileRequestGeneration.current;
     // Reserve the download window during the gesture, before Coder authorization.
-    const download = window.open("about:blank", "_blank");
-    if (!download) {
+    const download = action === "download" ? window.open("about:blank", "_blank") : null;
+    if (action === "download" && !download) {
       toast.error("Allow pop-ups to download this file.");
       return;
     }
-    download.opener = null;
+    if (download) download.opener = null;
     try {
       const result = await getWorkspaceSessionToolsAction({
         workspaceId: pane.workspaceId,
         sessionName: connection.sessionName,
         fallbackPath: connection.clonePath,
         filePath: path,
-        download: true,
+        download: action === "download",
         tool: "files",
         documentFrameHosts: readDocumentCoderFrameHosts(),
       });
+      if (fileRequestGeneration.current !== generation) {
+        download?.close();
+        return;
+      }
       if (!result?.data?.folderPath)
         throw new Error(
           result?.serverError ?? "Could not resolve this file inside the File Browser root.",
         );
-      download.location.replace(result.data.filesUrl);
+      if (download) {
+        download.location.replace(result.data.filesUrl);
+      } else {
+        // Freeze the target before saving it: relative links depend on the terminal's current cwd.
+        onOpenFile(
+          {
+            kind: "app",
+            workspaceId: pane.workspaceId,
+            tool: "files",
+            label: "Files",
+            file: { sessionName: connection.sessionName, path: result.data.folderPath },
+          },
+          action === "new-workspace",
+        );
+      }
     } catch (error) {
-      download.close();
-      toast.error(error instanceof Error ? error.message : "Could not download this file.");
+      download?.close();
+      if (fileRequestGeneration.current === generation)
+        toast.error(error instanceof Error ? error.message : "Could not open this file.");
     }
   };
   const capabilities = workspaceTemplateCapabilities(workspace?.template_name ?? "");

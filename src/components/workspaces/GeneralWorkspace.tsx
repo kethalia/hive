@@ -397,7 +397,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       data-dashboard-full-bleed=""
       data-testid="general-workspace"
     >
-      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 py-2">
+      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)]">
         <WorkspaceSidebarButton />
         <WorkspaceBoardBar
           boards={state.boards.map((b) => ({ ...b, panes: [] }))}

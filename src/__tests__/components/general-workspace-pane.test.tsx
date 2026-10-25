@@ -59,6 +59,7 @@ import { PersistentTerminalProvider } from "@/components/terminal/PersistentTerm
 
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
 
 function props(): ComponentProps<typeof GeneralWorkspacePane> {
   return {
@@ -231,6 +232,12 @@ describe("GeneralWorkspacePane connections", () => {
     "open",
     "new-workspace",
   ] as const)("opens file links with the source workspace/session for %s", async (action) => {
+    actions.files.mockResolvedValue({
+      data: {
+        folderPath: "/home/coder/projects/hive/src/index.ts",
+        filesUrl: "https://files.coder.example/fresh-auth",
+      },
+    });
     const initial = props();
     render(
       <GeneralWorkspacePane
@@ -252,10 +259,116 @@ describe("GeneralWorkspacePane connections", () => {
         workspaceId: "software",
         tool: "files",
         label: "Files",
-        file: { sessionName: "main", path: "src/index.ts" },
+        file: { sessionName: "main", path: "/home/coder/projects/hive/src/index.ts" },
       },
       action === "new-workspace",
     );
+  });
+
+  it("preserves the resolved file target after cwd changes and reconnects with fresh authorization", async () => {
+    let cwd = "/home/coder/projects/hive";
+    let authorizations = 0;
+    actions.files.mockImplementation(async ({ filePath }) => {
+      const folderPath = resolveTerminalFilePath(filePath, cwd, "/home/coder/projects");
+      return {
+        data: {
+          folderPath,
+          filesUrl: `https://files.coder.example/auth-${++authorizations}?path=${encodeURIComponent(folderPath)}`,
+        },
+      };
+    });
+    const initial = props();
+    const { rerender } = render(
+      <GeneralWorkspacePane
+        {...initial}
+        pane={{
+          id: "pane-1",
+          kind: "terminal",
+          workspaceId: "software",
+          sessionName: "main",
+          label: "Main",
+        }}
+      />,
+    );
+    await screen.findByTestId("terminal-connection");
+    await act(() => actions.terminal.mock.lastCall![0].onFileAction("README.md", "open"));
+    const saved = initial.onOpenFile as ReturnType<typeof vi.fn>;
+    const file = saved.mock.lastCall![0];
+    expect(file.file.path).toBe("/home/coder/projects/hive/README.md");
+    expect(JSON.stringify(file)).not.toContain("auth-");
+    cwd = "/home/coder/projects/other";
+    rerender(<GeneralWorkspacePane {...initial} pane={{ ...file, id: "file-1" }} />);
+    const frame = await screen.findByTitle("Files · ai-dev-01");
+    expect(frame).toHaveAttribute(
+      "src",
+      "https://files.coder.example/auth-2?path=%2Fhome%2Fcoder%2Fprojects%2Fhive%2FREADME.md",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for Files" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+    expect(await screen.findByTitle("Files · ai-dev-01")).toHaveAttribute(
+      "src",
+      "https://files.coder.example/auth-3?path=%2Fhome%2Fcoder%2Fprojects%2Fhive%2FREADME.md",
+    );
+    expect(actions.files).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filePath: "/home/coder/projects/hive/README.md" }),
+    );
+  });
+
+  it("does not create a file window when path resolution fails", async () => {
+    actions.files.mockResolvedValue({ serverError: "File not allowed" });
+    const initial = props();
+    render(
+      <GeneralWorkspacePane
+        {...initial}
+        pane={{
+          id: "pane-1",
+          kind: "terminal",
+          workspaceId: "software",
+          sessionName: "main",
+          label: "Main",
+        }}
+      />,
+    );
+    await screen.findByTestId("terminal-connection");
+    await act(() => actions.terminal.mock.lastCall![0].onFileAction("README.md", "open"));
+    expect(initial.onOpenFile).not.toHaveBeenCalled();
+  });
+
+  it("discards file resolution after the source pane closes", async () => {
+    let finish!: (value: unknown) => void;
+    actions.files.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const initial = props();
+    const { unmount } = render(
+      <GeneralWorkspacePane
+        {...initial}
+        pane={{
+          id: "pane-1",
+          kind: "terminal",
+          workspaceId: "software",
+          sessionName: "main",
+          label: "Main",
+        }}
+      />,
+    );
+    await screen.findByTestId("terminal-connection");
+    const request = actions.terminal.mock.lastCall![0].onFileAction("README.md", "open");
+    expect(initial.onOpenFile).not.toHaveBeenCalled();
+    unmount();
+    await act(async () => {
+      finish({
+        data: {
+          folderPath: "/home/coder/projects/hive/README.md",
+          filesUrl: "https://files.coder.example/auth",
+        },
+      });
+      await request;
+    });
+    expect(initial.onOpenFile).not.toHaveBeenCalled();
   });
 
   it("resolves a restored file pane through fresh scoped authorization", async () => {
