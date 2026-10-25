@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mockUseIsMobile = vi.hoisted(() => vi.fn(() => false));
+const mockSetOpenMobile = vi.hoisted(() => vi.fn());
 const mockPush = vi.hoisted(() => vi.fn());
 const mockRefresh = vi.hoisted(() => vi.fn());
 const mockNavigationState = vi.hoisted(() => ({ pathname: "/terminal/status", searchParams: "" }));
@@ -56,7 +57,7 @@ vi.mock("@/components/ui/sidebar", async () => {
     );
   };
   return {
-    useSidebar: () => ({ setOpenMobile: vi.fn() }),
+    useSidebar: () => ({ setOpenMobile: mockSetOpenMobile }),
     Sidebar: Passthrough,
     SidebarContent: Passthrough,
     SidebarFooter: ({ children, className }: React.PropsWithChildren<{ className?: string }>) => (
@@ -84,66 +85,6 @@ vi.mock("@/components/ui/sidebar", async () => {
     SidebarMenuSubButton: Composable,
     SidebarMenuSubItem: Passthrough,
     SidebarTrigger: () => <button data-testid="sidebar-trigger">Toggle</button>,
-  };
-});
-
-vi.mock("@/components/ui/collapsible", () => {
-  return {
-    Collapsible: ({
-      children,
-      defaultOpen,
-      open,
-      onOpenChange,
-      "data-testid": dataTestId,
-      className: _className,
-    }: React.PropsWithChildren<{
-      defaultOpen?: boolean;
-      open?: boolean;
-      onOpenChange?: (v: boolean) => void;
-      "data-testid"?: string;
-      className?: string;
-    }>) => {
-      const isOpen = open ?? defaultOpen;
-      return (
-        <div
-          data-testid={dataTestId ?? "collapsible"}
-          data-open={isOpen}
-          data-onchange={onOpenChange ? "true" : undefined}
-          onClick={(e) => {
-            const target = e.target as HTMLElement;
-            if (target.closest("[data-collapsible-trigger]") && onOpenChange) {
-              onOpenChange(!isOpen);
-            }
-          }}
-        >
-          {children}
-        </div>
-      );
-    },
-    CollapsibleContent: ({ children }: React.PropsWithChildren) => (
-      <div data-testid="collapsible-content">{children}</div>
-    ),
-    CollapsibleTrigger: ({
-      children,
-      className,
-      render: _render,
-      "data-testid": dataTestId,
-      ...rest
-    }: React.PropsWithChildren<
-      React.ButtonHTMLAttributes<HTMLButtonElement> & {
-        render?: React.ReactElement;
-        "data-testid"?: string;
-      }
-    >) => (
-      <button
-        data-collapsible-trigger=""
-        data-testid={dataTestId ?? "collapsible-trigger"}
-        className={className}
-        {...rest}
-      >
-        {children}
-      </button>
-    ),
   };
 });
 
@@ -582,6 +523,7 @@ describe("AppSidebar", () => {
 
   it("renders template names when data loads", async () => {
     render(<AppSidebar />);
+    fireEvent.click(screen.getByTestId("templates-disclosure"));
 
     await waitFor(() => {
       expect(screen.getByText("browser-testing")).toBeInTheDocument();
@@ -633,6 +575,7 @@ describe("AppSidebar", () => {
     });
 
     render(<AppSidebar />);
+    fireEvent.click(screen.getByTestId("templates-disclosure"));
 
     await waitFor(() => {
       expect(screen.getByText("Template service down")).toBeInTheDocument();
@@ -665,7 +608,7 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("renders external tools as links that open in a new tab", async () => {
+  it("opens provisioned apps in the general workspace", async () => {
     render(<AppSidebar />);
 
     await waitFor(() => {
@@ -722,6 +665,10 @@ describe("AppSidebar", () => {
     render(<AppSidebar />);
     await screen.findByText("dev-box");
     expect(screen.queryByTestId("workspace-disclosure-ws-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-link-ws-1")).toHaveAttribute(
+      "href",
+      "/workspaces?workspace=ws-1",
+    );
     expect(mockGetWorkspaceAgent).not.toHaveBeenCalled();
 
     expect(screen.queryByText("Tools")).not.toBeInTheDocument();
@@ -730,33 +677,63 @@ describe("AppSidebar", () => {
     expect(screen.queryByText("Desktop")).not.toBeInTheDocument();
   });
 
-  it("uses the workspace name as the unified workspace link without a redundant child", async () => {
+  it("toggles apps from one workspace row without navigating or closing the mobile sidebar", async () => {
+    mockNavigationState.pathname = "/workspaces";
     render(<AppSidebar />);
-    await screen.findByText("dev-box");
+    const row = await screen.findByRole("button", { name: "Expand dev-box apps" });
+    expect(row).not.toHaveAttribute("href");
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("workspace-link-ws-1")).not.toBeInTheDocument();
+    expect(row.querySelectorAll("button, a")).toHaveLength(0);
 
-    const workspaceLink = screen.getByTestId("workspace-link-ws-1");
-    expect(workspaceLink).toHaveAttribute("href", "/workspaces?workspace=ws-1");
-    expect(workspaceLink).toHaveTextContent("dev-box");
-    expect(workspaceLink).toHaveAttribute("data-active", "false");
+    fireEvent.click(within(row).getByText("dev-box"));
+    await screen.findByRole("link", { name: "Open Files in workspace" });
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    const panelId = row.getAttribute("aria-controls");
+    expect(document.getElementById(panelId!)).toContainElement(screen.getByText("Files"));
 
-    expect(screen.queryByTestId("git-workspace-link-ws-1")).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByText("running"));
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Open Files in workspace" })).not.toBeInTheDocument();
 
-    expect(screen.queryByTestId("create-session-ws-1")).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByText("ChevronRight"));
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    await screen.findByRole("link", { name: "Open Files in workspace" });
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockSetOpenMobile).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it("marks the workspace-name link active on workspace routes", async () => {
+  it("marks the workspace row active and expands apps on workspace routes", async () => {
     mockNavigationState.pathname = "/workspaces/ws-1/terminal/workspace";
-
     render(<AppSidebar />);
-
-    const workspaceLink = await screen.findByTestId("workspace-link-ws-1");
-    expect(workspaceLink).toHaveAttribute("href", "/workspaces?workspace=ws-1");
-    expect(workspaceLink).toHaveAttribute("data-active", "true");
+    const row = await screen.findByRole("button", { name: "Collapse dev-box apps" });
+    expect(row).toHaveAttribute("data-active", "true");
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    await screen.findByRole("link", { name: "Open Files in workspace" });
 
     cleanup();
     mockNavigationState.pathname = "/workspaces/ws-1/terminal/git-workspace";
     render(<AppSidebar />);
-    expect(await screen.findByTestId("workspace-link-ws-1")).toHaveAttribute("data-active", "true");
+    expect(await screen.findByRole("button", { name: "Collapse dev-box apps" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+  });
+
+  it("keeps an open-workspace link inside stopped workspace disclosures", async () => {
+    mockListWorkspaces.mockResolvedValue({
+      data: [
+        makeWorkspace({ latest_build: { ...makeWorkspace().latest_build, status: "stopped" } }),
+      ],
+    });
+    render(<AppSidebar />);
+    fireEvent.click(await screen.findByRole("button", { name: "Expand dev-box apps" }));
+    expect(screen.getByRole("link", { name: /Open workspace/ })).toHaveAttribute(
+      "href",
+      "/workspaces?workspace=ws-1",
+    );
+    expect(mockGetWorkspaceAgent).not.toHaveBeenCalled();
   });
 
   it("leaves internal sidebar links to Next navigation on full-bleed workspace routes", async () => {
@@ -780,7 +757,7 @@ describe("AppSidebar", () => {
     expect(clickAllowed).toBe(true);
   });
 
-  it("keeps the multi-session workspace link reachable when session loading fails", async () => {
+  it("keeps workspace apps reachable without depending on session discovery", async () => {
     mockGetWorkspaceSessions.mockResolvedValue({
       serverError: "Session fetch failed",
     });
@@ -790,9 +767,9 @@ describe("AppSidebar", () => {
     await screen.findByText("dev-box");
     fireEvent.click(screen.getByTestId("workspace-disclosure-ws-1"));
 
-    expect(screen.getByTestId("workspace-link-ws-1")).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Open Files in workspace" })).toHaveAttribute(
       "href",
-      "/workspaces?workspace=ws-1",
+      "/workspaces?workspace=ws-1&tool=files",
     );
     expect(mockGetWorkspaceSessions).not.toHaveBeenCalled();
   });
@@ -804,9 +781,9 @@ describe("AppSidebar", () => {
 
     render(<AppSidebar />);
 
-    const workspaceLink = await screen.findByTestId("workspace-link-ws-1");
-    expect(workspaceLink).toHaveAttribute("data-active", "true");
-    expect(workspaceLink).toHaveAttribute("href", "/workspaces?workspace=ws-1");
+    const row = await screen.findByRole("button", { name: "Collapse dev-box apps" });
+    expect(row).toHaveAttribute("data-active", "true");
+    expect(row).toHaveAttribute("aria-expanded", "true");
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 

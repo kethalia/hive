@@ -146,44 +146,49 @@ function WorkspaceNavigationItem({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <SidebarMenuItem>
-        <div className="flex min-w-0 items-center gap-1">
-          <SidebarMenuButton
-            render={<Link href={href} onClick={(event) => openInWorkspace(event)} />}
-            isActive={active}
-            aria-current={active ? "page" : undefined}
-            className="min-w-0 flex-1"
-            data-testid={`workspace-link-${workspace.id}`}
-            title={workspace.name}
+        <SidebarMenuButton
+          render={
+            hasTools ? (
+              <CollapsibleTrigger />
+            ) : (
+              <Link href={href} onClick={(event) => openInWorkspace(event)} />
+            )
+          }
+          isActive={active}
+          aria-current={!hasTools && active ? "page" : undefined}
+          aria-label={
+            hasTools ? `${open ? "Collapse" : "Expand"} ${workspace.name} apps` : undefined
+          }
+          className="min-w-0"
+          data-testid={`workspace-${hasTools ? "disclosure" : "link"}-${workspace.id}`}
+          title={workspace.name}
+        >
+          <Monitor aria-hidden="true" className="size-4 shrink-0" />
+          <span className="truncate">{workspace.name}</span>
+          <Badge
+            variant={running ? "default" : "secondary"}
+            className="ml-auto shrink-0 px-1 py-0 text-[10px]"
           >
-            <Monitor aria-hidden="true" className="size-4 shrink-0" />
-            <span className="truncate">{workspace.name}</span>
-            <Badge
-              variant={running ? "default" : "secondary"}
-              className="ml-auto px-1 py-0 text-[10px]"
-            >
-              {workspace.latest_build.status}
-            </Badge>
-          </SidebarMenuButton>
+            {workspace.latest_build.status}
+          </Badge>
           {hasTools && (
-            <CollapsibleTrigger
-              render={<button type="button" />}
-              aria-label={`${open ? "Collapse" : "Expand"} ${workspace.name} navigation`}
-              className="flex size-8 shrink-0 items-center justify-center rounded-md outline-hidden max-md:size-11 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-              data-testid={`workspace-disclosure-${workspace.id}`}
-            >
-              <ChevronRight
-                aria-hidden="true"
-                className={cn("size-4 transition-transform", open && "rotate-90")}
-              />
-            </CollapsibleTrigger>
+            <ChevronRight
+              aria-hidden="true"
+              className={cn("size-4 transition-transform", open && "rotate-90")}
+            />
           )}
-        </div>
+        </SidebarMenuButton>
         <CollapsibleContent id={`workspace-navigation-${workspace.id}`}>
           <SidebarMenuSub className="!mr-0 !pr-0">
-            {!running && (
-              <p className="px-2 py-1 text-xs text-muted-foreground">
-                Open the workspace to start it.
-              </p>
+            {!running && hasTools && (
+              <SidebarMenuSubItem>
+                <SidebarMenuSubButton
+                  render={<Link href={href} onClick={(event) => openInWorkspace(event)} />}
+                >
+                  <Monitor aria-hidden="true" className="size-3 shrink-0" />
+                  <span>Open workspace</span>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
             )}
             {running && hasTools && !agent && !agentError && (
               <p className="px-2 py-1 text-xs text-muted-foreground">Loading tools…</p>
