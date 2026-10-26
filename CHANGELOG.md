@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.29.3
+
+### Patch Changes
+
+- 2ca67b7: Use themed Select controls throughout Hive and move the compact template picker into the Templates action bar before Push all.
+
 ## 2.29.2
 
 ### Patch Changes
