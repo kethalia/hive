@@ -10,6 +10,7 @@ interface DashboardPageHeaderProps {
   leading?: ReactNode;
   hideLeadingOnMobile?: boolean;
   className?: string;
+  actionsClassName?: string;
 }
 
 export function DashboardPageHeader({
@@ -19,6 +20,7 @@ export function DashboardPageHeader({
   leading,
   hideLeadingOnMobile = false,
   className,
+  actionsClassName,
 }: DashboardPageHeaderProps) {
   return (
     <header
@@ -44,7 +46,12 @@ export function DashboardPageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-2 overflow-hidden sm:w-auto">
+        <div
+          className={cn(
+            "flex w-full min-w-0 shrink-0 items-center justify-end gap-2 overflow-hidden sm:w-auto",
+            actionsClassName,
+          )}
+        >
           {actions}
         </div>
       ) : null}

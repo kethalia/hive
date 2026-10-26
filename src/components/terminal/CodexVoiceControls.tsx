@@ -2,6 +2,13 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { BrowserVoice, type VoiceState } from "@/lib/codex/browser-voice";
 import type { VoiceThread } from "@/lib/codex/voice-session";
 
@@ -83,20 +90,26 @@ export function CodexVoiceControls({ workspaceId }: { workspaceId: string }) {
       </summary>
       <div className="flex flex-wrap items-center gap-2 py-2">
         <label htmlFor={id}>Codex session</label>
-        <select
-          id={id}
-          className="min-w-0 max-w-full flex-1 rounded border bg-background p-2"
-          value={threadId}
+        <Select
+          value={threadId || null}
           disabled={active || loading}
-          onChange={(event) => setThreadId(event.target.value)}
+          onValueChange={(value) => setThreadId(value ?? "")}
+          items={threads.map((thread) => ({
+            value: thread.id,
+            label: `${thread.name} · ${thread.cwd} · ${thread.id.slice(-8)}`,
+          }))}
         >
-          <option value="">Choose the session open in this terminal</option>
-          {threads.map((thread) => (
-            <option key={thread.id} value={thread.id}>
-              {thread.name} · {thread.cwd} · {thread.id.slice(-8)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id={id} className="max-w-full flex-1">
+            <SelectValue placeholder="Choose the session open in this terminal" />
+          </SelectTrigger>
+          <SelectContent>
+            {threads.map((thread) => (
+              <SelectItem key={thread.id} value={thread.id}>
+                {thread.name} · {thread.cwd} · {thread.id.slice(-8)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {!active ? (
           <>
             <Button

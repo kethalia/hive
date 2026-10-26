@@ -371,7 +371,7 @@ try {
 
   await review.getByRole("button", { name: "Strip layout", exact: true }).click();
   await review.keyboard.press("Control+k");
-  const search = review.getByRole("combobox");
+  const search = review.locator("[cmdk-input]");
   await search.fill("hive");
   await review
     .getByRole("option")
@@ -384,7 +384,8 @@ try {
     "grid",
   );
   await review.keyboard.press("Control+Shift+Slash");
-  await review.getByLabel("Layout shortcuts").selectOption("off");
+  await review.getByRole("combobox", { name: "Layout shortcuts" }).click();
+  await review.getByRole("option", { name: "Off — use buttons and search" }).click();
   await review.getByRole("button", { name: "Close", exact: true }).click();
   await review.getByRole("dialog").waitFor({ state: "hidden" });
   await review.keyboard.press("Control+k");
@@ -648,7 +649,7 @@ try {
     assert.deepEqual((await shortcuts.evaluate(() => window.fixture)).destroys, {});
 
     await shortcuts.keyboard.press(`${modifier}+k`);
-    await shortcuts.getByRole("combobox").fill("Move window to previous workspace");
+    await shortcuts.locator("[cmdk-input]").fill("Move window to previous workspace");
     await shortcuts.getByText("Move window to previous workspace", { exact: true }).click();
     await shortcuts.getByRole("dialog").waitFor({ state: "hidden" });
     assert.equal((await state()).activeBoardKey, third);
@@ -657,7 +658,7 @@ try {
     assert.equal((await state()).boards.length, 2);
     assert.equal((await shortcuts.evaluate(() => window.fixture)).destroys.codex, 1);
     await shortcuts.keyboard.press(`${modifier}+k`);
-    await shortcuts.getByRole("combobox").fill("Close current workspace");
+    await shortcuts.locator("[cmdk-input]").fill("Close current workspace");
     await shortcuts.getByText("Close current workspace", { exact: true }).click();
     await shortcuts.getByRole("dialog").waitFor({ state: "hidden" });
     assert.equal((await state()).boards.length, 1);
@@ -684,14 +685,14 @@ try {
   await launcher.getByLabel("codex input").focus();
   const find = async (query) => {
     await launcher.keyboard.press("Control+k");
-    await launcher.getByRole("combobox").fill(query);
+    await launcher.locator("[cmdk-input]").fill(query);
   };
   await find("");
   await launcher.locator('[data-action-id="section:Terminals"]').click();
   await launcher.locator('[data-command-page="section:Terminals"]').waitFor();
   assert.equal(await launcher.getByRole("dialog").count(), 1);
   assert.equal(
-    await launcher.getByRole("combobox").evaluate((el) => el === document.activeElement),
+    await launcher.locator("[cmdk-input]").evaluate((el) => el === document.activeElement),
     true,
   );
   await launcher.getByRole("option").filter({ hasText: "codex" }).first().waitFor();
@@ -782,7 +783,7 @@ try {
     await navigation.keyboard.press("Control+k");
     assert.equal(await navigation.locator('[data-action-id^="session:"]').count(), 0);
     assert.equal(await navigation.locator('[data-action-id^="repository:"]').count(), 0);
-    await navigation.getByRole("combobox").fill("term");
+    await navigation.locator("[cmdk-input]").fill("term");
     // Measure the rendered motion, not only the animation name. Autofocus and
     // cmdk scrollIntoView used to scroll the slide container and cancel its offset.
     const slide = async (trigger, direction) => {
@@ -812,7 +813,7 @@ try {
       for (let i = 1; i < frames.length; i++)
         assert((frames[i].x - frames[i - 1].x) * direction <= 1);
       assert.equal(
-        await navigation.getByRole("combobox").evaluate((el) => el === document.activeElement),
+        await navigation.locator("[cmdk-input]").evaluate((el) => el === document.activeElement),
         true,
       );
     };
@@ -827,19 +828,19 @@ try {
       .getByRole("combobox", { name: "Session name", exact: true })
       .fill("saved-draft");
     await navigation.keyboard.press("Control+k");
-    assert.equal(await navigation.getByRole("combobox").inputValue(), "saved-draft");
+    assert.equal(await navigation.locator("[cmdk-input]").inputValue(), "saved-draft");
     await slide(navigation.locator('[data-action-id="creation-workspace"]'), 1);
     await slide(navigation.getByRole("button", { name: "Back", exact: true }), -1);
     assert.equal(
       await panel.evaluate((el) => getComputedStyle(el).animationName),
       "command-page-back",
     );
-    assert.equal(await navigation.getByRole("combobox").inputValue(), "saved-draft");
+    assert.equal(await navigation.locator("[cmdk-input]").inputValue(), "saved-draft");
     await navigation.keyboard.press("Escape");
     await navigation.locator('[data-command-page="section:Terminals"]').waitFor();
     await navigation.keyboard.press("Backspace");
     await navigation.locator('[data-command-page="root"]').waitFor();
-    assert.equal(await navigation.getByRole("combobox").inputValue(), "term");
+    assert.equal(await navigation.locator("[cmdk-input]").inputValue(), "term");
     await navigation.emulateMedia({ reducedMotion: "reduce" });
     await navigation.locator('[data-action-id="section:Terminals"]').click();
     assert.equal(await panel.evaluate((el) => getComputedStyle(el).animationName), "none");
@@ -1017,9 +1018,11 @@ try {
       () => document.activeElement?.getAttribute("aria-label") === "codex input",
     );
     await openTool("agents");
-    await agents.getByLabel("Agent workspace").selectOption("infra");
+    await agents.getByRole("combobox", { name: "Agent workspace" }).click();
+    await toolsPage.getByRole("option", { name: "infrastructure-helper · stopped" }).click();
     await agents.getByText("Start a Coder workspace to view its agent conversations.").waitFor();
-    await agents.getByLabel("Agent workspace").selectOption("software");
+    await agents.getByRole("combobox", { name: "Agent workspace" }).click();
+    await toolsPage.getByRole("option", { name: "ai-dev-01 · running" }).click();
     for (const tool of ["settings", "diagnostics", "workspaces", "templates", "logs"]) {
       await openTool(tool);
       const pane = toolsPage.getByTestId(`hive-window-${tool}`);

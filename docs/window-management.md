@@ -27,7 +27,9 @@ nested pages and inline prompts:
 
 **Manage Coder workspaces → Launch workspace** opens a screen inside the same window.
 Back returns to the list and preserves the unfinished name/profile; successful creation returns
-to the list. Templates keeps its selector visible while the list or template details scrolls.
+to the list. Templates keeps its compact selector in the action bar before Push all, visible while
+the list or template details scrolls. Template, workspace, voice-session, and shortcut selectors
+share Hive's themed dropdown with keyboard navigation and a consistent chevron.
 
 The blank home screen shows categories and Hive tools; typing still searches across all targets.
 Launcher results and the Launch workspace button omit shortcut labels; existing shortcuts remain

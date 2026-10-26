@@ -41,6 +41,15 @@ import {
   ListCardRows,
   ListCardTitle,
 } from "@/components/ui/list-card";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import {
   createWorkspaceAction,
@@ -517,25 +526,34 @@ export function WorkspaceListContent({
               <label htmlFor="workspace-template" className="text-sm font-medium">
                 Workspace profile
               </label>
-              <select
-                id="workspace-template"
-                value={templateId}
-                onChange={(event) => setTemplateId(event.target.value)}
+              <Select
+                value={templateId || null}
+                onValueChange={(value) => setTemplateId(value ?? "")}
+                items={templates.map((template) => ({ value: template.id, label: template.name }))}
                 disabled={templatesLoading || templates.length === 0}
-                className="h-9 w-full rounded-lg border border-input bg-background px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
-                data-testid="create-workspace-template"
               >
-                {templates.length === 0 ? <option value="">No templates loaded</option> : null}
-                {profileGroups.map(({ profile, templates: profileTemplates }) => (
-                  <optgroup key={profile.id} label={profile.label}>
-                    {profileTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+                <SelectTrigger
+                  id="workspace-template"
+                  className="w-full"
+                  data-testid="create-workspace-template"
+                >
+                  <SelectValue
+                    placeholder={templatesLoading ? "Loading templates…" : "No templates loaded"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {profileGroups.map(({ profile, templates: profileTemplates }) => (
+                    <SelectGroup key={profile.id}>
+                      <SelectLabel>{profile.label}</SelectLabel>
+                      {profileTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
               {selectedProfile && selectedTemplate ? (
                 <div
                   className="rounded-md border border-border bg-muted/40 p-3"

@@ -125,7 +125,8 @@ test("real microphone/WebRTC signaling, incoming audio, mute and cleanup", async
     }, sdp);
   await page.goto(url);
   await page.getByText("Codex Voice (experimental)", { exact: true }).click();
-  await page.getByLabel("Codex session").selectOption("thread-one");
+  await page.getByRole("combobox", { name: "Codex session" }).click();
+  await page.getByRole("option", { name: /My terminal session/ }).click();
   await page.getByRole("button", { name: "Start voice" }).click();
   await expect(page.locator("summary")).toContainText("Microphone on");
   await expect
@@ -163,7 +164,8 @@ test("denied microphone access is actionable and leaves no active call", async (
   });
   await page.goto(url);
   await page.getByText("Codex Voice (experimental)", { exact: true }).click();
-  await page.getByLabel("Codex session").selectOption("thread-one");
+  await page.getByRole("combobox", { name: "Codex session" }).click();
+  await page.getByRole("option", { name: /My terminal session/ }).click();
   await page.getByRole("button", { name: "Start voice" }).click();
   await expect(page.getByRole("alert")).toContainText("Microphone access was denied");
   await expect(page.getByRole("button", { name: "End voice" })).toHaveCount(0);

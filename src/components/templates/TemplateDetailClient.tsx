@@ -2,7 +2,7 @@
 
 import { CheckCircle, RefreshCw, Upload, XCircle } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { TemplatePushConfirmation } from "@/components/templates/TemplatePushConfirmation";
@@ -47,9 +47,10 @@ function formatDate(iso: string | null): string {
 
 interface TemplateDetailClientProps {
   status: TemplateStatus;
+  headerControls?: ReactNode;
 }
 
-export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
+export function TemplateDetailClient({ status, headerControls }: TemplateDetailClientProps) {
   const definition = templateCatalogEntry(status.name);
   const profile = workspaceProfileForTemplate(status.name);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -146,13 +147,18 @@ export function TemplateDetailClient({ status }: TemplateDetailClientProps) {
       <DashboardPageHeader
         title={status.name}
         description={definition?.description ?? profile.description}
+        className="sticky top-0 z-10 sm:flex-wrap"
+        actionsClassName="max-w-full shrink flex-wrap"
         actions={
-          <StatusBadge
-            stale={status.stale}
-            remoteHash={status.remoteHash}
-            pushResult={pushState.result}
-            inProgress={pushState.inProgress}
-          />
+          <>
+            {headerControls}
+            <StatusBadge
+              stale={status.stale}
+              remoteHash={status.remoteHash}
+              pushResult={pushState.result}
+              inProgress={pushState.inProgress}
+            />
+          </>
         }
       />
 
