@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TemplateDetailClient } from "@/components/templates/TemplateDetailClient";
 import { TemplatesClient } from "@/components/templates/TemplatesClient";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,17 @@ import { useDiscovery } from "@/lib/discovery/queries";
 export function TemplatesWindow({ template }: { template?: string }) {
   const query = useDiscovery("templates");
   const [selected, setSelected] = useState(template ?? "");
+  const selectorRef = useRef<HTMLButtonElement>(null);
+  const focusAfterSelection = useRef<string | null>(null);
   useEffect(() => setSelected(template ?? ""), [template]);
+  useLayoutEffect(() => {
+    // List/detail changes replace the toolbar. Transfer focus only when the
+    // user chose an option, not when a notification changes the template prop.
+    if (focusAfterSelection.current === selected) {
+      focusAfterSelection.current = null;
+      selectorRef.current?.focus({ preventScroll: true });
+    }
+  }, [selected]);
   if (!query.data && query.isPending)
     return (
       <p role="status" className="p-4">
@@ -38,10 +48,19 @@ export function TemplatesWindow({ template }: { template?: string }) {
   const selector = (
     <Select
       value={status?.name ?? ""}
-      onValueChange={(value) => setSelected(value ?? "")}
+      onValueChange={(value) => {
+        const next = value ?? "";
+        if (next === selected) return;
+        focusAfterSelection.current = next;
+        setSelected(next);
+      }}
       items={options}
     >
-      <SelectTrigger aria-label="Template" className="min-h-11 w-48 max-w-full shrink-0">
+      <SelectTrigger
+        ref={selectorRef}
+        aria-label="Template"
+        className="min-h-11 w-48 max-w-full shrink-0"
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
