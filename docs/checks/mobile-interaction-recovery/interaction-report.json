@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "390px: left-aligned header and native touch Grid, Strip, and floating resize without switching windows",
+    "390px: foreground restores height/pan with missing and delayed resize events, but keeps a genuinely reduced keyboard viewport",
+    "390px: two-finger search suppresses native and manual scrolling; one-finger scrolling and terminal instances remain intact",
+    "840px: left-aligned header and native touch Grid, Strip, and floating resize without switching windows",
+    "840px: foreground restores height/pan with missing and delayed resize events, but keeps a genuinely reduced keyboard viewport",
+    "840px: two-finger search suppresses native and manual scrolling; one-finger scrolling and terminal instances remain intact"
+  ],
+  "measurements": [],
+  "errors": []
+}

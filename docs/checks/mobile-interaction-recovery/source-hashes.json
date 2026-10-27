@@ -1,0 +1,13 @@
+{
+  "src/lib/viewport-events.ts": "f4a0fd2922d688dd5f5f5a65ecc206382db48a91ed668f4ceb7e04d0ceddaaba",
+  "src/components/app-viewport-size.tsx": "3b639d0d94e796e25482aa822227381eb2943f5392500c112ee2e31eb97c950f",
+  "src/hooks/useVisualViewportKeyboardOffset.ts": "d830a0564befbf58ede5d84531b8dcf9893a003abf422bcda1a773fc57f48b89",
+  "src/hooks/useGlobalCommandPaletteGesture.ts": "b4e7c9a7e90bf4d37dfe75a1b2de8079ae12c54a822ef5d18529d458d950d191",
+  "src/components/workspaces/GeneralWorkspace.tsx": "bbfb61de1fedb005338d3fc80b3072a0c72e2bb09809758a8caa58bd5354cc76",
+  "src/components/workspaces/WindowCanvas.tsx": "ea1d79eb49f51ee57cb8af7ddcaf5fc2f6aafe32def38abd1a58f7dd6767cb9d",
+  "src/components/workspaces/WindowResizeHandle.tsx": "757a0356a7628311c029dab9fbc6b6091a330e908c5bdd1b12821edf92c9a784",
+  "e2e/mobile-interaction-recovery.browser.mjs": "2b449c6e06cdef7330159b25a85ee07b636ccd63ddad272b1024063d98c3eac7",
+  "e2e/mobile-workspace.browser.mjs": "d122dcdd581546a5ee0a7e0c8d15205da7027e097c537f5001fca3c19e6d84c2",
+  ".artifacts/mobile-interaction-recovery/browser/bundle.js": "e7c95156f69b6a1d403712139b64669f12b950da48f937e94346d41f5e405486",
+  ".artifacts/mobile-interaction-recovery/browser/style.css": "431e45fbc5eb119c1dfe653f87520ab78ceacd05a8e9406bd6bfbf4dc4ecccf4"
+}

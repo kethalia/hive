@@ -53,8 +53,8 @@ export function WindowShortcutHelp({
         </div>
         <p className="text-xs text-muted-foreground">
           Cmd/Ctrl+Arrow focuses windows. Add Option/Alt with Left/Right to switch numbered
-          workspaces. Drag dividers to resize; double-click to reset. All layout actions are also in
-          Cmd/Ctrl+K, even when shortcuts are off.
+          workspaces. Drag divider grips to resize, including on touch screens; double-click to
+          reset. All layout actions are also in Cmd/Ctrl+K, even when shortcuts are off.
         </p>
         <p className="text-xs text-muted-foreground">
           Embedded apps keep their own keyboard focus. Focus the pane header or use Hive search to

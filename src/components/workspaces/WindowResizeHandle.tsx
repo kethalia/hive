@@ -13,6 +13,7 @@ export function WindowResizeHandle({
   style,
   onChange,
   onInteraction,
+  touchOptimized = false,
 }: {
   label: string;
   axis: "width" | "height";
@@ -23,6 +24,7 @@ export function WindowResizeHandle({
   style: CSSProperties;
   onChange: (value: number) => void;
   onInteraction: (active: boolean) => void;
+  touchOptimized?: boolean;
 }) {
   const drag = useRef<{ point: number; value: number; pending?: number } | null>(null);
   const frame = useRef(0);
@@ -58,11 +60,13 @@ export function WindowResizeHandle({
       className={`group/resize absolute z-30 flex touch-none items-center justify-center focus-visible:outline-none ${axis === "width" ? "cursor-col-resize" : "cursor-row-resize"}`}
       style={style}
       data-window-resize=""
+      data-launcher-gesture-ignore="true"
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        event.currentTarget.focus();
+        // Keep the native keyboard stable while a finger adjusts the window.
+        if (event.pointerType !== "touch") event.currentTarget.focus({ preventScroll: true });
         event.currentTarget.setPointerCapture(event.pointerId);
         drag.current = { point: axis === "width" ? event.clientX : event.clientY, value };
         onInteraction(true);
@@ -100,7 +104,7 @@ export function WindowResizeHandle({
       {/* Keep the full edge draggable; only the small grip carries interaction feedback. */}
       <span
         aria-hidden="true"
-        className={`pointer-events-none shrink-0 rounded-full bg-muted-foreground/30 transition-colors group-hover/resize:bg-muted-foreground/70 group-focus-visible/resize:bg-primary/80 group-focus-visible/resize:outline-2 group-focus-visible/resize:outline-offset-2 group-focus-visible/resize:outline-primary/70 group-active/resize:bg-primary/80 motion-reduce:transition-none ${axis === "width" ? "h-8 w-0.5" : "h-0.5 w-8"}`}
+        className={`pointer-events-none shrink-0 rounded-full transition-colors group-hover/resize:bg-muted-foreground/70 group-focus-visible/resize:bg-primary/80 group-focus-visible/resize:outline-2 group-focus-visible/resize:outline-offset-2 group-focus-visible/resize:outline-primary/70 group-active/resize:bg-primary/80 motion-reduce:transition-none ${touchOptimized ? "bg-primary/70 ring-2 ring-background" : "bg-muted-foreground/30"} ${axis === "width" ? (touchOptimized ? "h-8 w-1.5" : "h-8 w-0.5") : touchOptimized ? "h-1.5 w-8" : "h-0.5 w-8"}`}
       />
     </div>
   );

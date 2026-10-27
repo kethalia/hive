@@ -61,7 +61,7 @@ when there is no previous one. Closing a background window keeps the current sel
 On mobile, swipe left or right across a window or its title to focus the next or previous window.
 Grid and Strip keep their desktop arrangements, with overflow kept inside the canvas. Embedded apps
 handle gestures inside their own frame; swipe their title to change windows. Window name tabs are
-hidden on mobile. The right-aligned header contains search, a single button showing the destination
+hidden on mobile. The left-aligned header contains search, a single button showing the destination
 view, numbered workspaces, and the add-workspace button.
 
 Swipe upward with two fingers to open search. The taller mobile search drawer has padded sides and
@@ -70,8 +70,11 @@ long-press text selection, and pinch gestures retain their existing behavior.
 
 ## Resize and arrange
 
-Resize edges have a short, muted grip that highlights on hover, drag, or keyboard focus. The whole
+On desktop, resize edges have a short, muted grip that highlights on hover, drag, or keyboard focus. The whole
 edge remains draggable, including the transparent area above or beside the grip.
+On touch screens, drag the visible grip between windows; its touch target is 44px square.
+Floating windows have grips at the middle of their right and bottom edges. Search also offers
+Increase/Decrease width or height, Cycle window width, and Toggle full width.
 
 - Grid: drag the divider between panes. Dividers are focusable; arrows resize in 5% increments,
   Home/End reach the allowed limits, and double-click resets the split. Minimum tile size is

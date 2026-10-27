@@ -293,7 +293,7 @@ try {
     );
     for (let i = 1; i < boxes.length; i++)
       assert(boxes[i].x >= boxes[i - 1].x + boxes[i - 1].width);
-    assert(Math.abs(width - boxes[3].x - boxes[3].width - 8) < 2);
+    assert(Math.abs(boxes[0].x - 8) < 2);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     const header = await search.evaluate((element) => {
       const style = getComputedStyle(element.closest("header"));
@@ -334,7 +334,7 @@ try {
     assert.deepEqual(await page.evaluate(() => window.fixture.mounts), lifetime.mounts);
     assert.deepEqual(await page.evaluate(() => window.fixture.destroys), lifetime.destroys);
     report.checks.push(
-      `${width}px: right-aligned header, destination icon, both layouts, bidirectional native touch navigation, and client continuity`,
+      `${width}px: left-aligned header, destination icon, both layouts, bidirectional native touch navigation, and client continuity`,
     );
     // The fixture substitutes terminal input with a textarea; gesture over its output surface.
     await output.evaluate((element) => {
@@ -421,7 +421,8 @@ try {
     );
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     const plusBox = await plus.boundingBox();
-    assert(Math.abs(width - plusBox.x - plusBox.width - 8) < 2);
+    assert(plusBox.x + plusBox.width <= width - 7);
+    assert(Math.abs((await search.boundingBox()).x - 8) < 2);
     await page.screenshot({ path: resolve(evidence, `many-workspaces-${width}.png`) });
     report.checks.push(
       `${width}px: many workspace numbers scroll and reveal the selected workspace without hiding the controls`,

@@ -565,7 +565,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     >
       <WindowShortcutHelp shortcuts={manager.shortcuts} onChange={changeShortcuts} />
       <header
-        className="relative isolate flex shrink-0 items-center justify-end gap-1 border-b bg-background pb-2 pl-[max(0.5rem,var(--safe-area-inset-left))] pr-[max(0.5rem,var(--safe-area-inset-right))] pt-[calc(var(--safe-area-inset-top)+0.5rem)]"
+        className="relative isolate flex shrink-0 items-center justify-start gap-1 border-b bg-background pb-2 pl-[max(0.5rem,var(--safe-area-inset-left))] pr-[max(0.5rem,var(--safe-area-inset-right))] pt-[calc(var(--safe-area-inset-top)+0.5rem)]"
         // Installed iOS apps can draw a status-bar blur past the reported safe area.
         // Keep controls clear of that edge on phones and touch tablets, even with a zero inset.
         style={
