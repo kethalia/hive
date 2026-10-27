@@ -96,7 +96,7 @@ try {
   assert.notDeepEqual(await box("claude"), neighbor);
   assert.equal(await page.getByTestId("workspace-window-drop-placeholder").count(), 0);
   report.checks.push("drop commits the previewed arrangement");
-  await page.getByRole("button", { name: "Strip layout", exact: true }).click();
+  await page.getByRole("button", { name: "Switch to Strip view", exact: true }).click();
   await page.waitForTimeout(250);
   await page.getByLabel("codex input").focus();
   await page.keyboard.press("Control+ArrowRight");
@@ -239,7 +239,7 @@ try {
   await page.waitForTimeout(200);
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.screenshot({ path: resolve(evidence, "mobile.png") });
-  report.checks.push("mobile single pane without horizontal page overflow");
+  report.checks.push("mobile canvas without horizontal page overflow");
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("http://127.0.0.1:8831/?collapsible=1");
   await page.getByRole("button", { name: "Workspace apps" }).click();
@@ -260,7 +260,7 @@ try {
   review.on("pageerror", (error) => report.errors.push(error.message));
   await review.goto("http://127.0.0.1:8831");
   await review.getByRole("button", { name: "Close Files window", exact: true }).click();
-  await review.getByRole("button", { name: "Strip layout", exact: true }).click();
+  await review.getByRole("button", { name: "Switch to Strip view", exact: true }).click();
   await review.getByLabel("claude input").focus();
   const openFiles = () =>
     review.evaluate(() =>
@@ -306,7 +306,7 @@ try {
   );
 
   // Tab B must stay visible when focus moves to the app in the next column.
-  await review.getByRole("button", { name: "Strip layout", exact: true }).focus();
+  await review.getByRole("button", { name: "Switch to Grid view", exact: true }).focus();
   await review.keyboard.press("Control+Alt+Digit2");
   await review.getByLabel("claude input").focus();
   await review.keyboard.press("Control+Alt+BracketRight");
@@ -338,7 +338,7 @@ try {
   report.checks.push(
     "keyboard tab selection stays visible after directional focus leaves the column",
   );
-  await review.getByRole("button", { name: "Grid layout", exact: true }).click();
+  await review.getByRole("button", { name: "Switch to Grid view", exact: true }).click();
   await review.getByLabel("claude input").focus();
   await review.keyboard.press("Control+Alt+KeyF");
   await review.evaluate(() =>
@@ -369,13 +369,12 @@ try {
     "reopening an existing app transfers Grid maximization to the visible active pane",
   );
 
-  await review.getByRole("button", { name: "Strip layout", exact: true }).click();
+  await review.getByRole("button", { name: "Switch to Strip view", exact: true }).click();
   await review.keyboard.press("Control+k");
   const search = review.locator("[cmdk-input]");
   await search.fill("hive");
   await review
-    .getByRole("option")
-    .filter({ hasText: "ai-dev-01 · projects/kethalia/hive" })
+    .locator('[data-action-id="repository:software:git-clone:projects/kethalia/hive"]')
     .waitFor();
   await search.fill("Use Grid layout");
   await review.getByText("Use Grid layout", { exact: true }).click();
@@ -472,7 +471,7 @@ try {
   await navigation.goto("http://127.0.0.1:8831");
   await navigation.getByLabel("codex input").waitFor();
   assert.equal(await navigation.locator('[data-slot="sidebar"]').count(), 0);
-  await navigation.getByRole("button", { name: "Strip layout", exact: true }).click();
+  await navigation.getByRole("button", { name: "Switch to Strip view", exact: true }).click();
   await navigation.waitForTimeout(200);
   assert.equal(await navigation.getByRole("slider", { name: "Scroll windows" }).count(), 0);
   assert.equal(await navigation.getByRole("toolbar", { name: "Strip overview" }).count(), 0);
@@ -744,9 +743,7 @@ try {
   for (let attempt = 0; attempt < 2; attempt++) {
     await find("hive");
     await launcher
-      .getByRole("option")
-      .filter({ hasText: "projects/kethalia/hive" })
-      .filter({ hasText: "ai-dev-01" })
+      .locator('[data-action-id="repository:software:git-clone:projects/kethalia/hive"]')
       .click();
     await launcher.getByRole("dialog").waitFor({ state: "hidden" });
     await launcher.getByLabel("git-clone-fixture input").waitFor();

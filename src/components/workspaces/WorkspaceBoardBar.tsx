@@ -32,11 +32,23 @@ export function WorkspaceBoardBar({
 }: WorkspaceBoardBarProps) {
   const [dangerBoardKey, setDangerBoardKey] = useState<string | null>(null);
   const hoveredBoardKeyRef = useRef<string | null>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   const orderedBoards = useMemo(() => orderedWorkspaceBoards(boards), [boards]);
   const activeKey = orderedBoards.some((board) => board.key === activeBoardKey)
     ? activeBoardKey
     : orderedBoards[0]?.key;
   const canDelete = orderedBoards.length > 1;
+
+  useEffect(() => {
+    const list = tabsRef.current;
+    if (!activeKey) return;
+    const selected = list?.querySelector('[aria-selected="true"]');
+    if (!list || !selected) return;
+    const bounds = list.getBoundingClientRect();
+    const tab = selected.getBoundingClientRect();
+    if (tab.left < bounds.left) list.scrollLeft += tab.left - bounds.left;
+    else if (tab.right > bounds.right) list.scrollLeft += tab.right - bounds.right;
+  }, [activeKey]);
 
   useEffect(() => {
     if (
@@ -98,6 +110,7 @@ export function WorkspaceBoardBar({
       data-testid="workspace-board-bar"
     >
       <div
+        ref={tabsRef}
         role="tablist"
         aria-label="Workspaces"
         className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"

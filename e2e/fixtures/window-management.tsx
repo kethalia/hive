@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
+import { AppViewportSize } from "@/components/app-viewport-size";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
@@ -163,6 +164,7 @@ if (root)
   createRoot(root).render(
     <QueryClientProvider client={new QueryClient()}>
       <KeybindingProvider>
+        <AppViewportSize />
         <HelpOverlay />
         <div className="h-dvh w-full overflow-hidden">
           <div>

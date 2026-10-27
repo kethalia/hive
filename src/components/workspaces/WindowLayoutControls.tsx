@@ -11,24 +11,13 @@ export function WindowLayoutControls({
   manager: WindowManager;
   onAction: (id: string) => void;
 }) {
+  const nextMode = manager.mode === "grid" ? "strip" : "grid";
   return (
-    <div className="flex items-center gap-1" role="toolbar" aria-label="Window layout">
-      <WorkspaceHeaderButton
-        className="aria-pressed:bg-accent"
-        label="Grid layout"
-        aria-pressed={manager.mode === "grid"}
-        onClick={() => onAction("grid")}
-      >
-        <LayoutGrid className="size-4" />
-      </WorkspaceHeaderButton>
-      <WorkspaceHeaderButton
-        className="aria-pressed:bg-accent"
-        label="Strip layout"
-        aria-pressed={manager.mode === "strip"}
-        onClick={() => onAction("strip")}
-      >
-        <Columns3 className="size-4" />
-      </WorkspaceHeaderButton>
-    </div>
+    <WorkspaceHeaderButton
+      label={nextMode === "grid" ? "Switch to Grid view" : "Switch to Strip view"}
+      onClick={() => onAction(nextMode)}
+    >
+      {nextMode === "grid" ? <LayoutGrid className="size-4" /> : <Columns3 className="size-4" />}
+    </WorkspaceHeaderButton>
   );
 }

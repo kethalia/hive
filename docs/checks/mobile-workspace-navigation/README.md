@@ -1,0 +1,17 @@
+# Mobile workspace navigation
+
+Validated on 2026-10-27 in the reused `creator-direction-upgrade` Browser Testing workspace. Changes and evidence are preserved in the primary Hive checkout. The workspace also serves another task and remains running; no workspace was created or deleted for this change.
+
+The fixture uses the production workspace, window geometry, header, palette controller, search drawer, viewport publisher, and styles. Coder requests and terminal runtime use fixture data. `report.json` records the checks and viewport measurements; `source-hashes.json` identifies the implementation and browser bundle.
+
+- Phone (390 × 844) and tablet (840 × 844) have the same Grid/Strip arrangements as desktop, with overflow contained in the canvas. Native Chrome touch events verify left/right window navigation and the separate two-finger upward search gesture.
+- The right-aligned header contains search, one destination-view button, numbered workspaces, and plus. Both views remain available on mobile; window-name navigation tabs are removed. Crowded workspace numbers scroll to reveal the selected workspace.
+- Swipes and layout changes preserve the terminal mount counts, app iframe instance, and an unsaved app draft. Unit tests cover vertical scrolling, selection/long presses, nested controls, pinches, and cancelled gestures.
+- Mobile search has 16px minimum horizontal padding and a 640px resting height in these viewports. Simulating a 400px visual viewport with a 35px pan offset moves the drawer to y=59, height=376: its bottom matches the visible viewport at y=435. The search input and 230px scrollable result list remain visible.
+- Installed-app header buttons start at y=24 with a zero safe-area inset, and y=68 with a simulated 44px inset. This adds 16px clearance beyond the normal header spacing on phones and tablets.
+
+The extra installed-app spacing mitigates status-bar overlap. WebKit documents changed status-bar behavior and devices reporting zero safe-area insets in [bug 301994](https://bugs.webkit.org/show_bug.cgi?id=301994). The web page cannot validate native iOS status-bar compositing in Chrome. Keyboard geometry follows the [VisualViewport measurements](https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport); keyboard appearance and safe areas here are simulated. A physical iPhone/iPad check remains necessary for the exact native blur and keyboard animation.
+
+Validation: 247 focused unit/component/integration tests across 11 suites; TypeScript; Biome (four existing non-null assertion warnings); Next.js production build and standalone-runtime verification. The existing window-management browser suite passes all 46 checks without page errors (`window-regressions.json`), covering desktop resizing, drag/drop, focus, grouping, persistence, search creation, and mobile tool windows. The build retains its existing dynamic-path warning in `src/lib/templates/push-queue.ts`.
+
+To reproduce, build with `node scripts/build-window-management-fixture.mjs .artifacts/mobile-workspace/browser` in the software workspace. Transfer that directory and `e2e/mobile-workspace.browser.mjs` to Browser Testing, then run the script with the bundle directory as its argument and `HIVE_PLAYWRIGHT_MODULE` pointing to the installed Playwright module. It uses `/usr/bin/google-chrome` without installing a browser. Embedded apps own gestures inside their iframe; their Hive window title remains available for window swipes.

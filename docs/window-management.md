@@ -58,7 +58,15 @@ float, close, and restore like terminal/app windows. Their loading/error states 
 opening them preserves existing terminal and app instances. Settings contains Open Coder and sign-out.
 Closing the focused window selects its previous neighbor in the current layout, or the next window
 when there is no previous one. Closing a background window keeps the current selection.
-On mobile the same search opens in a bottom sheet; a deliberate leftward swipe also opens it.
+On mobile, swipe left or right across a window or its title to focus the next or previous window.
+Grid and Strip keep their desktop arrangements, with overflow kept inside the canvas. Embedded apps
+handle gestures inside their own frame; swipe their title to change windows. Window name tabs are
+hidden on mobile. The right-aligned header contains search, a single button showing the destination
+view, numbered workspaces, and the add-workspace button.
+
+Swipe upward with two fingers to open search. The taller mobile search drawer has padded sides and
+moves above the native keyboard, keeping its results scrollable. One-finger vertical scrolling,
+long-press text selection, and pinch gestures retain their existing behavior.
 
 ## Resize and arrange
 

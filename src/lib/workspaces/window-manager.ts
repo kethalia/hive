@@ -142,6 +142,7 @@ export function windowGeometry(
   active: string | undefined,
   width: number,
   height: number,
+  { showColumnTabs = true }: { showColumnTabs?: boolean } = {},
 ): WindowGeometry {
   const result: WindowGeometry = {
     rects: new Map(),
@@ -206,14 +207,15 @@ export function windowGeometry(
       );
       result.height = Math.max(result.height, h);
       const selected = c.windows.includes(active ?? "") ? active : (c.selected ?? c.windows[0]);
-      let y = c.tabbed ? 32 : 0;
+      const tabHeight = c.tabbed && showColumnTabs ? 32 : 0;
+      let y = tabHeight;
       const extra = h - c.windows.length * MIN_WINDOW_HEIGHT;
       const total = c.windows.reduce((sum, id) => sum + (c.weights[id] ?? 1), 0);
-      if (c.tabbed)
+      if (tabHeight)
         result.tabs.push({ column: { ...c, selected }, rect: { x, y: 0, width: w, height: 32 } });
       c.windows.forEach((id, index) => {
         const paneHeight = c.tabbed
-          ? h - 32
+          ? h - tabHeight
           : MIN_WINDOW_HEIGHT + (extra * (c.weights[id] ?? 1)) / total;
         result.rects.set(id, { x, y, width: w, height: paneHeight });
         if (c.tabbed && id !== selected) result.hidden.add(id);

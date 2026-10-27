@@ -205,6 +205,7 @@ type Listener = () => void;
 
 interface StubVisualViewport {
   height: number;
+  offsetTop: number;
   listeners: Map<string, Set<Listener>>;
   addEventListener: (type: string, cb: Listener) => void;
   removeEventListener: (type: string, cb: Listener) => void;
@@ -219,6 +220,7 @@ function installVisualViewport(height: number): StubVisualViewport {
   const listeners = new Map<string, Set<Listener>>();
   const stub: StubVisualViewport = {
     height,
+    offsetTop: 0,
     listeners,
     addEventListener: (type, cb) => {
       if (!listeners.has(type)) listeners.set(type, new Set());
@@ -488,14 +490,18 @@ describe("CommandPalette", () => {
     expect(sheet).toHaveAttribute("data-side", "bottom");
     expect(sheet).toHaveAttribute("data-show-close-button", "false");
     expect(sheet).toHaveAttribute("data-launcher-gesture-ignore", "true");
-    expect(sheet).toHaveClass("pb-safe");
+    expect(sheet.className).toContain("pb-[max(0.75rem,var(--safe-area-inset-bottom))]");
     expect(sheet).toHaveClass("overflow-hidden");
     expect(sheet).toHaveClass("rounded-t-2xl");
     expect(sheet).toHaveClass("overscroll-contain");
     expect(sheet).toHaveClass("motion-reduce:transition-none");
     expect(sheet).toHaveClass("motion-reduce:duration-0");
 
-    await waitFor(() => expect(sheet).toHaveStyle({ maxHeight: "512px" }));
+    await waitFor(() =>
+      expect(sheet).toHaveStyle({
+        maxHeight: "calc(512px - max(1rem, var(--safe-area-inset-top)) - 0.5rem)",
+      }),
+    );
   });
 
   it("uses the same grouped command list in the mobile sheet", () => {
@@ -513,6 +519,28 @@ describe("CommandPalette", () => {
     expect(screen.queryByTestId("global-command-sidebar")).toBeNull();
     expect(screen.getByText("hive")).toBeVisible();
   });
+  it("lifts and expands above the native keyboard, including visual viewport panning", async () => {
+    mobileState.isMobile = true;
+    const viewport = installVisualViewport(window.innerHeight);
+    render(<CommandPalette open onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />);
+    const sheet = screen.getByTestId("sheet-content");
+    expect(sheet).toHaveStyle({ bottom: "0px" });
+    act(() => {
+      viewport.height = 340;
+      viewport.offsetTop = 40;
+      viewport.dispatch("resize");
+      viewport.dispatch("scroll");
+    });
+    await waitFor(() => expect(sheet).toHaveStyle({ bottom: `${window.innerHeight - 380}px` }));
+    expect(sheet.style.height).toBe(sheet.style.maxHeight);
+    act(() => {
+      viewport.height = window.innerHeight;
+      viewport.offsetTop = 0;
+      viewport.dispatch("resize");
+    });
+    await waitFor(() => expect(sheet).toHaveStyle({ bottom: "0px" }));
+    expect(sheet.style.maxHeight).toContain(`${window.innerHeight}px`);
+  });
   it("falls back to 100dvh when visualViewport is unavailable on mobile", () => {
     mobileState.isMobile = true;
 
@@ -520,7 +548,9 @@ describe("CommandPalette", () => {
       <CommandPalette open={true} onOpenChange={vi.fn()} tabs={mockTabs} onSelectTab={vi.fn()} />,
     );
 
-    expect(screen.getByTestId("sheet-content")).toHaveStyle({ maxHeight: "100dvh" });
+    expect(screen.getByTestId("sheet-content")).toHaveStyle({
+      maxHeight: "calc(100dvh - max(1rem, var(--safe-area-inset-top)) - 0.5rem)",
+    });
   });
 
   it("applies the mobile command tap-target class contract", () => {

@@ -1,0 +1,15 @@
+{
+  "src/components/workspaces/GeneralWorkspace.tsx": "b98a6a0b62de8c3b331b57baec2f633bb44678ba343a74230fb12c7ae3c09d40",
+  "src/components/workspaces/WorkspaceBoardBar.tsx": "f30fa0b17af6a921da90f510ad0d1cc8785da2c5f30c01cd41ec6bf33f997dfa",
+  "src/components/workspaces/WindowCanvas.tsx": "cdbdfbcdd42f596748bd6e393e0a82595333447f10cfde53a7aab10d326991e6",
+  "src/components/workspaces/WindowLayoutControls.tsx": "af8fd9016a85073aa3bf6bc8078b8db75fc706ff35268589a345663de40bdb11",
+  "src/components/terminal/CommandPalette.tsx": "ef1b102010698765967cc42d2a9a4b24254496760088f8e31293626ca765f3fc",
+  "src/hooks/useWindowSwipe.ts": "2e3a91f6de466c87dae53e72561191d8461b66076491676622b0480fd9368de5",
+  "src/hooks/useGlobalCommandPaletteGesture.ts": "d909e1e3b942d734895d1270cfed912081b0f23278579fcdaea9004f6d513fb4",
+  "src/lib/workspaces/window-manager.ts": "c6198a7e2b223c2f2cf22184b2ddad3b1c83dda318a5ed00ed7b7a4599fa7d14",
+  "e2e/mobile-workspace.browser.mjs": "21e30f9db0c6051fdd7aca10c763f6969f008dec72791cc5f249f6c7334d0a63",
+  "e2e/fixtures/window-management.tsx": "c54945ae5c7e8fb43637a99bdf0d9fd265402f82548a7f55a20ecdf93b902563",
+  ".artifacts/mobile-workspace/browser/bundle.js": "7e47e598f7a762c0e0dd3e45e9a2780a1d0de1095180af506774f8519f03f2b9",
+  ".artifacts/mobile-workspace/browser/style.css": "19059d47865a3d65d40b99762ac0c4ebef4805f8a74913068045e82fbacaee12",
+  "e2e/window-management.browser.mjs": "947e64342b2a8021fab65cc27a50fcc15baf2e1c7cec584fe9dfc23c132e94c9"
+}

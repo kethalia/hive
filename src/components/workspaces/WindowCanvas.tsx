@@ -10,6 +10,7 @@ import {
 } from "@dnd-kit/core";
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { ShortcutTooltip } from "@/components/ui/shortcut-tooltip";
+import { useWindowSwipe } from "@/hooks/useWindowSwipe";
 import type { GeneralBoard, GeneralWindow } from "@/lib/workspaces/general-workspace";
 import {
   type LayoutDivider,
@@ -22,6 +23,7 @@ import {
   moveWorkspaceWindow,
   resizeWorkspaceSplit,
   workspaceWindowDropPosition,
+  workspaceWindowIds,
 } from "@/lib/workspaces/workspace-window-layout";
 import { WindowResizeHandle } from "./WindowResizeHandle";
 import { WorkspaceWindow, WorkspaceWindowDropPlaceholder } from "./WorkspaceWindow";
@@ -75,12 +77,26 @@ export function WindowCanvas({
       b.activeWindowId,
       width,
       canvasHeight,
+      { showColumnTabs: !mobile },
     );
   const activeGeometry = geometry(preview ?? activeBoard);
   const manager = reconcileWindowManager(
     activeBoard.manager,
     activeBoard.windows.map((w) => w.id),
   );
+  useWindowSwipe(scroller, mobile, (direction) => {
+    const tiled =
+      manager.mode === "strip"
+        ? manager.columns.flatMap((column) => column.windows)
+        : activeBoard.layout
+          ? workspaceWindowIds(activeBoard.layout)
+          : [];
+    const ids = activeBoard.windows.map((window) => window.id);
+    const order = [...new Set([...tiled, ...ids])].filter((id) => ids.includes(id));
+    const index = order.indexOf(activeBoard.activeWindowId ?? order[0]);
+    const next = order[index + (direction === "left" ? 1 : -1)];
+    if (next) onActivate(activeBoardKey, next);
+  });
   const wheelState = useRef({
     mobile,
     manager,
@@ -144,7 +160,6 @@ export function WindowCanvas({
     const element = scroller.current;
     if (
       !element ||
-      mobile ||
       manager.mode !== "grid" ||
       dragId ||
       resizing ||
@@ -160,7 +175,7 @@ export function WindowCanvas({
     if (y < element.scrollTop) element.scrollTop = y;
     else if (y + focusedHeight > element.scrollTop + element.clientHeight)
       element.scrollTop = y + focusedHeight - element.clientHeight;
-  }, [mobile, manager.mode, dragId, resizing, x, y, focusedWidth, focusedHeight]);
+  }, [manager.mode, dragId, resizing, x, y, focusedWidth, focusedHeight]);
   function clear() {
     origin.current = null;
     setPreview(null);
@@ -266,8 +281,8 @@ export function WindowCanvas({
         <div
           className="relative"
           style={{
-            width: mobile ? "100%" : activeGeometry.width,
-            height: mobile ? "100%" : activeGeometry.height,
+            width: activeGeometry.width,
+            height: activeGeometry.height,
             overflow: manager.mode === "strip" ? "hidden" : undefined,
           }}
         >
@@ -297,8 +312,7 @@ export function WindowCanvas({
               );
               return b.windows.map((pane) => {
                 const focused = pane.id === (b.activeWindowId ?? b.windows[0]?.id);
-                const visible =
-                  b.key === activeBoardKey && (mobile ? focused : !g.hidden.has(pane.id));
+                const visible = b.key === activeBoardKey && !g.hidden.has(pane.id);
                 const rect = g.rects.get(pane.id) ?? { x: 0, y: 0, width, height };
                 const baseRect = original.rects.get(pane.id) ?? rect;
                 const pinned = m.columns.some((c) => c.pin && c.windows.includes(pane.id));
@@ -308,7 +322,7 @@ export function WindowCanvas({
                     key={pane.id}
                     id={pane.id}
                     style={{
-                      ...(mobile ? { inset: 0 } : styleRect(baseRect)),
+                      ...styleRect(baseRect),
                       display: visible ? "block" : "none",
                       zIndex,
                       ...(resizing || scrolling ? { transition: "none" } : {}),
