@@ -87,7 +87,11 @@ export function WindowCanvas({
   useWindowSwipe(scroller, mobile, (direction) => {
     const tiled =
       manager.mode === "strip"
-        ? manager.columns.flatMap((column) => column.windows)
+        ? [
+            ...manager.columns.filter((column) => column.pin === "left"),
+            ...manager.columns.filter((column) => !column.pin),
+            ...manager.columns.filter((column) => column.pin === "right"),
+          ].flatMap((column) => column.windows)
         : activeBoard.layout
           ? workspaceWindowIds(activeBoard.layout)
           : [];
@@ -164,18 +168,25 @@ export function WindowCanvas({
       dragId ||
       resizing ||
       x === undefined ||
-      y === undefined ||
-      focusedWidth === undefined ||
-      focusedHeight === undefined
+      focusedWidth === undefined
     )
       return;
     if (x < element.scrollLeft) element.scrollLeft = x;
     else if (x + focusedWidth > element.scrollLeft + element.clientWidth)
       element.scrollLeft = x + focusedWidth - element.clientWidth;
+  }, [manager.mode, dragId, resizing, x, focusedWidth]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Changing focus must reveal the pane even when its vertical geometry matches the previous pane.
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element || dragId || resizing || y === undefined || focusedHeight === undefined) return;
+    const visibleHeight = Math.min(height, element.clientHeight);
+    if (visibleHeight <= 0) return;
+    // Strip owns horizontal movement in its manager, but tall stacks still use
+    // native vertical scrolling. Keep this independent of horizontal pan updates.
     if (y < element.scrollTop) element.scrollTop = y;
-    else if (y + focusedHeight > element.scrollTop + element.clientHeight)
-      element.scrollTop = y + focusedHeight - element.clientHeight;
-  }, [manager.mode, dragId, resizing, x, y, focusedWidth, focusedHeight]);
+    else if (y + focusedHeight > element.scrollTop + visibleHeight)
+      element.scrollTop = y + Math.min(0, focusedHeight - visibleHeight);
+  }, [activeBoardKey, activeBoard.activeWindowId, dragId, resizing, y, focusedHeight, height]);
   function clear() {
     origin.current = null;
     setPreview(null);

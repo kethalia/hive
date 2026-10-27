@@ -1,0 +1,92 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ❯ src/__tests__/components/window-canvas-navigation.test.tsx (5 tests | 4 failed) 170ms
+   × mobile canvas navigation > reveals every window in a vertically overflowing Strip stack in both directions 71ms
+     → expected +0 to be 40 // Object.is equality
+   × mobile canvas navigation > keeps the selected stacked window visible when the keyboard shrinks the canvas 8ms
+     → expected +0 to be 200 // Object.is equality
+   ✓ mobile canvas navigation > preserves manual vertical scrolling while panning Strip horizontally 72ms
+   × mobile canvas navigation > follows visual order with the middle column pinned 'left' 9ms
+     → expected 'a' to be 'b' // Object.is equality
+   × mobile canvas navigation > follows visual order with the middle column pinned 'right' 10ms
+     → expected 'b' to be 'c' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/components/window-canvas-navigation.test.tsx > mobile canvas navigation > reveals every window in a vertically overflowing Strip stack in both directions
+AssertionError: expected +0 to be 40 // Object.is equality
+
+- Expected
++ Received
+
+- 40
++ 0
+
+ ❯ src/__tests__/components/window-canvas-navigation.test.tsx:70:32
+     68|       await swipe("left");
+     69|       expect(screen.getByTestId("active").textContent).toBe(id);
+     70|       expect(canvas.scrollTop).toBe(top);
+       |                                ^
+     71|     }
+     72|     for (const id of ["d", "c", "b", "a"]) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/__tests__/components/window-canvas-navigation.test.tsx > mobile canvas navigation > keeps the selected stacked window visible when the keyboard shrinks the canvas
+AssertionError: expected +0 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 0
+
+ ❯ src/__tests__/components/window-canvas-navigation.test.tsx:84:30
+     82|     const { container, rerender } = render(<Harness initial={initial} …
+     83|     const canvas = scroller(container);
+     84|     expect(canvas.scrollTop).toBe(200);
+       |                              ^
+     85|     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnV…
+     86|     rerender(<Harness initial={initial} height={400} />);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/__tests__/components/window-canvas-navigation.test.tsx > mobile canvas navigation > follows visual order with the middle column pinned 'left'
+AssertionError: expected 'a' to be 'b' // Object.is equality
+
+Expected: "b"
+Received: "a"
+
+ ❯ src/__tests__/components/window-canvas-navigation.test.tsx:106:54
+    104|     render(<Harness initial={board([column("a", ["a"]), column("b", ["…
+    105|     await swipe("right");
+    106|     expect(screen.getByTestId("active").textContent).toBe(start);
+       |                                                      ^
+    107|     for (const id of next) {
+    108|       await swipe("left");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/__tests__/components/window-canvas-navigation.test.tsx > mobile canvas navigation > follows visual order with the middle column pinned 'right'
+AssertionError: expected 'b' to be 'c' // Object.is equality
+
+Expected: "c"
+Received: "b"
+
+ ❯ src/__tests__/components/window-canvas-navigation.test.tsx:109:56
+    107|     for (const id of next) {
+    108|       await swipe("left");
+    109|       expect(screen.getByTestId("active").textContent).toBe(id);
+       |                                                        ^
+    110|     }
+    111|     await swipe("left");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  19:58:54
+   Duration  1.02s (transform 106ms, setup 0ms, collect 243ms, tests 170ms, environment 386ms, prepare 100ms)
+

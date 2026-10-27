@@ -213,6 +213,111 @@ try {
     );
     await context.close();
   }
+  // Review regressions: vertical stacks and pinned columns must navigate in visible order.
+  for (const scenario of ["stack", "pin-left", "pin-right"]) {
+    const width = scenario === "stack" ? 390 : 840;
+    const context = await browser.newContext({
+      viewport: { width, height: 720 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    await context.addInitScript((scenario) => {
+      const ids = scenario === "stack" ? ["a", "b", "c", "d", "e"] : ["a", "b", "c"];
+      const column = (id, windows, pin) => ({
+        id,
+        windows,
+        pin,
+        width: 1,
+        weights: {},
+        tabbed: false,
+      });
+      const columns =
+        scenario === "stack"
+          ? [column("stack", ids)]
+          : ids.map((id) => column(id, [id], id === "b" ? scenario.slice(4) : undefined));
+      localStorage.setItem(
+        "general-workspace:v1:fixture",
+        JSON.stringify({
+          version: 1,
+          activeBoardKey: "board-1",
+          boards: [
+            {
+              key: "board-1",
+              name: "1",
+              order: 0,
+              activeWindowId: scenario === "pin-left" ? "b" : "a",
+              windows: ids.map((id) => ({
+                id,
+                kind: "terminal",
+                workspaceId: "software",
+                sessionName: id,
+                label: id,
+              })),
+              manager: {
+                mode: "strip",
+                columns,
+                floating: {},
+                scroll: 0,
+                shortcuts: "primary+alt",
+              },
+            },
+          ],
+        }),
+      );
+    }, scenario);
+    const page = await context.newPage();
+    page.on("pageerror", (error) => report.errors.push(error.message));
+    await page.goto("http://127.0.0.1:8831");
+    await page.getByTestId("terminal-mobile-shell").waitFor();
+    await page.getByLabel("a input").waitFor();
+    await page.waitForTimeout(300);
+    const lifetime = await page.evaluate(() => structuredClone(window.fixture));
+    const order =
+      scenario === "stack"
+        ? ["a", "b", "c", "d", "e"]
+        : scenario === "pin-left"
+          ? ["b", "a", "c"]
+          : ["a", "c", "b"];
+    const swipeFromCurrent = async (direction) => {
+      const pane = page.locator('[data-testid^="general-window-"][data-active="true"]').first();
+      const box = await pane.locator("p").first().boundingBox();
+      await swipe(
+        page,
+        [[box.x + (direction === "left" ? 180 : 30), box.y + 10]],
+        direction === "left" ? -90 : 90,
+        0,
+      );
+    };
+    for (const id of order.slice(1)) {
+      await swipeFromCurrent("left");
+      assert.equal(await current(page), `general-window-${id}`);
+      const pane = page.getByTestId(`general-window-${id}`);
+      const bounds = await pane.boundingBox();
+      const viewport = await page
+        .locator('[data-window-layout] > [data-mobile-scroll-allow="true"]')
+        .boundingBox();
+      assert(
+        bounds.y >= viewport.y && bounds.y + bounds.height <= viewport.y + viewport.height + 1,
+      );
+    }
+    const scroller = page.locator('[data-window-layout] > [data-mobile-scroll-allow="true"]');
+    const forwardScrollTop = await scroller.evaluate((el) => el.scrollTop);
+    if (scenario === "stack") assert(forwardScrollTop > 0);
+    await page.screenshot({ path: resolve(evidence, `${scenario}-forward.png`) });
+    for (const id of order.slice(0, -1).reverse()) {
+      await swipeFromCurrent("right");
+      assert.equal(await current(page), `general-window-${id}`);
+    }
+    assert.equal(await scroller.evaluate((el) => el.scrollTop), 0);
+    assert.equal(await scroller.evaluate((el) => el.scrollLeft), 0);
+    assert.deepEqual(await page.evaluate(() => window.fixture.mounts), lifetime.mounts);
+    assert.deepEqual(await page.evaluate(() => window.fixture.destroys), lifetime.destroys);
+    report.measurements.push({ scenario, order, forwardScrollTop });
+    report.checks.push(
+      `${scenario}: native swipes follow visual order, reveal the selected window, and preserve terminal instances in both directions`,
+    );
+    await context.close();
+  }
   for (const width of [390, 840]) {
     const context = await browser.newContext({
       viewport: { width, height: 844 },
