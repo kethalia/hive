@@ -10,4 +10,3 @@
       Tests  72 passed (72)
    Start at  20:00:16
    Duration  1.15s (transform 218ms, setup 0ms, collect 556ms, tests 426ms, environment 945ms, prepare 293ms)
-
