@@ -550,6 +550,16 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const content = (
     <section
       className="flex h-full min-h-0 flex-col overflow-hidden"
+      // Terminal controls own the bottom inset while present; other windows need it here.
+      style={
+        mobile && active?.kind !== "terminal"
+          ? {
+              paddingBottom: isKeyboardVisible
+                ? "0.5rem"
+                : "max(0.5rem, var(--safe-area-inset-bottom))",
+            }
+          : undefined
+      }
       data-dashboard-full-bleed=""
       data-testid="general-workspace"
     >

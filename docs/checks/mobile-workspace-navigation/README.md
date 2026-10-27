@@ -19,3 +19,5 @@ To reproduce, build with `node scripts/build-window-management-fixture.mjs .arti
 Additional validation for the stacked-window and pinned-column review fixes is recorded in [review-fixes/README.md](review-fixes/README.md).
 
 [Toolbar spacing and toast feedback checks](toolbar-feedback/README.md) cover the keyboard-open gap and upload progress, success, and failure without an extra status row.
+
+[Non-terminal bottom inset checks](non-terminal-inset/README.md) cover Settings and embedded apps clearing the home-indicator safe area, keyboard resizing, and switching back to terminal controls without doubling the padding.

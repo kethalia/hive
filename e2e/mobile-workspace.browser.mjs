@@ -55,6 +55,112 @@ const current = (page) =>
     .first()
     .getAttribute("data-testid");
 try {
+  // Non-terminal windows need the bottom inset normally supplied by the terminal toolbar.
+  for (const width of [390, 840]) {
+    const context = await browser.newContext({
+      viewport: { width, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    await context.addInitScript(() => {
+      const panes = [
+        { id: "settings", kind: "hive", tool: "settings", label: "Settings" },
+        { id: "files", kind: "app", tool: "files", workspaceId: "software", label: "Files" },
+        {
+          id: "codex",
+          kind: "terminal",
+          workspaceId: "software",
+          sessionName: "codex",
+          label: "codex",
+        },
+      ];
+      localStorage.setItem(
+        "general-workspace:v1:fixture",
+        JSON.stringify({
+          version: 1,
+          activeBoardKey: "board-1",
+          boards: panes.map((pane, index) => ({
+            key: `board-${index + 1}`,
+            name: String(index + 1),
+            order: index,
+            activeWindowId: pane.id,
+            windows: [pane],
+            manager: {
+              mode: "grid",
+              columns: [],
+              floating: {},
+              scroll: 0,
+              shortcuts: "primary+alt",
+            },
+          })),
+        }),
+      );
+    });
+    const page = await context.newPage();
+    page.on("pageerror", (error) => report.errors.push(error.message));
+    await page.goto("http://127.0.0.1:8831");
+    const workspace = page.getByTestId("general-workspace");
+    const settings = page.getByTestId("hive-window-settings");
+    await settings.getByText("App updates", { exact: true }).waitFor();
+    assert.equal(await workspace.evaluate((el) => getComputedStyle(el).paddingBottom), "8px");
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--safe-area-inset-bottom", "34px");
+    });
+    await page.waitForTimeout(200);
+    const settingsBox = await settings.boundingBox();
+    assert.equal(await workspace.evaluate((el) => getComputedStyle(el).paddingBottom), "34px");
+    assert(Math.abs(844 - settingsBox.y - settingsBox.height - 36) < 1);
+    const scroller = settings.locator("[data-terminal-frame-content] > div");
+    await scroller.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    assert(
+      await scroller.evaluate(
+        (el) => el.scrollTop > 0 && Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) <= 1,
+      ),
+    );
+    await page.screenshot({ path: resolve(evidence, `settings-bottom-inset-${width}.png`) });
+    await page.getByTestId("workspace-board-tab-board-2").click();
+    const files = page.getByTestId("general-window-files");
+    await page.frameLocator("iframe").getByLabel("File draft").fill("Preserved while resizing");
+    await page.waitForTimeout(200);
+    const filesBox = await files.boundingBox();
+    assert(Math.abs(844 - filesBox.y - filesBox.height - 36) < 1);
+    await page.screenshot({ path: resolve(evidence, `app-bottom-inset-${width}.png`) });
+    await page.evaluate(() => {
+      Object.defineProperty(visualViewport, "height", { configurable: true, value: 400 });
+      Object.defineProperty(visualViewport, "offsetTop", { configurable: true, value: 35 });
+      visualViewport.dispatchEvent(new Event("resize"));
+      visualViewport.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(200);
+    const keyboardBox = await files.boundingBox();
+    assert.equal(await workspace.evaluate((el) => getComputedStyle(el).paddingBottom), "8px");
+    assert(Math.abs(435 - keyboardBox.y - keyboardBox.height - 10) < 1);
+    assert.equal(
+      await page.frameLocator("iframe").getByLabel("File draft").inputValue(),
+      "Preserved while resizing",
+    );
+    await page.getByTestId("workspace-board-tab-board-3").click();
+    const controls = page.getByRole("region", { name: "Terminal mobile controls" });
+    await controls.waitFor();
+    assert.equal(await workspace.evaluate((el) => getComputedStyle(el).paddingBottom), "0px");
+    assert.equal(await controls.evaluate((el) => getComputedStyle(el).paddingBottom), "4px");
+    await page.evaluate(() => {
+      delete visualViewport.height;
+      delete visualViewport.offsetTop;
+      visualViewport.dispatchEvent(new Event("resize"));
+    });
+    await page.waitForTimeout(200);
+    assert.equal(await controls.evaluate((el) => getComputedStyle(el).paddingBottom), "34px");
+    await page.getByTestId("workspace-board-tab-board-1").click();
+    assert.equal(await workspace.evaluate((el) => getComputedStyle(el).paddingBottom), "34px");
+    report.measurements.push({ width, settingsBox, filesBox, keyboardBox });
+    report.checks.push(
+      `${width}px: Settings and app panes clear the bottom safe area, Settings reaches its scroll end, keyboard spacing contracts, and terminal controls do not double the inset`,
+    );
+    await context.close();
+  }
   // Clipboard feedback must not reserve a second row or hide behind the keyboard.
   for (const width of [390, 840]) {
     const context = await browser.newContext({
@@ -460,8 +566,20 @@ try {
   await page.getByLabel("codex input").waitFor();
   await page.getByRole("button", { name: "Switch to Strip view" }).click();
   await page.getByRole("button", { name: "Switch to Grid view" }).click();
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--safe-area-inset-bottom", "34px");
+  });
+  await page.getByTestId("general-window-files-title").click();
+  assert.equal(
+    await page
+      .getByTestId("general-workspace")
+      .evaluate((el) => getComputedStyle(el).paddingBottom),
+    "0px",
+  );
   await page.screenshot({ path: resolve(evidence, "desktop.png") });
-  report.checks.push("desktop: destination-view toggle switches both ways");
+  report.checks.push(
+    "desktop: destination-view toggle switches both ways without mobile bottom padding",
+  );
   await context.close();
   assert.deepEqual(report.errors, []);
   console.log(JSON.stringify(report, null, 2));

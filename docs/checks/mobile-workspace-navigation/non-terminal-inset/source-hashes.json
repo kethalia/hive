@@ -1,0 +1,13 @@
+{
+  "src/components/workspaces/GeneralWorkspace.tsx": "187d84930b087bbb169ec668cffd618c9cb35c42472ef353d5706cf24fc6bcec",
+  "src/components/terminal/MobileTerminalControls.tsx": "8d719a195cca0379947f33661fb936cfc22f4be5b7156700e252fb0e361cbb74",
+  "src/components/workspaces/GeneralWorkspaceMobileControls.tsx": "c931d35d044ff21837d9597c57dcc9e3dd5e70a075757b9264b11d7218b7f3b3",
+  "src/hooks/useVisualViewportKeyboardOffset.ts": "17b8946b2b094c060f9336e5f3ef9fb1bd9e590e4543d9a5d7f07a148d833986",
+  "src/components/app-viewport-size.tsx": "3355820593b504fcb06a494dbe53f38e35ba8516f890c3780793d259e91bbf30",
+  "src/components/terminal/MobileTerminalShell.tsx": "6d7181f97ca97f192c5d13f9f3fbde6b7b5fee4720c0f0868b73d31b0d725a00",
+  "e2e/mobile-workspace.browser.mjs": "e9f4c8ce8eb55f02f23bf7c1fa6619b68186b037c5e7af904c59886295e1683e",
+  "e2e/fixtures/window-management.tsx": "19fd090f93bb47b40a2522958fc59ebba1ea451e653656fb86bc9a17d16aa047",
+  "scripts/build-window-management-fixture.mjs": "7166f8e26cba3c40a488106346b384431aa92bd954f4b241404d7556d7dc2c83",
+  ".artifacts/mobile-pane-inset/browser/bundle.js": "56287a2d274c8ee2622c5bd66d7946fcaa54112cf855db572b7303fc536a83a3",
+  ".artifacts/mobile-pane-inset/browser/style.css": "19059d47865a3d65d40b99762ac0c4ebef4805f8a74913068045e82fbacaee12"
+}
