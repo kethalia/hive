@@ -55,6 +55,115 @@ const current = (page) =>
     .first()
     .getAttribute("data-testid");
 try {
+  // Clipboard feedback must not reserve a second row or hide behind the keyboard.
+  for (const width of [390, 840]) {
+    const context = await browser.newContext({
+      viewport: { width, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    page.on("pageerror", (error) => report.errors.push(error.message));
+    await page.goto("http://127.0.0.1:8831");
+    const controls = page.getByRole("region", { name: "Terminal mobile controls" });
+    await controls.waitFor();
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--safe-area-inset-bottom", "34px");
+    });
+    const restingControls = await controls.boundingBox();
+    assert.equal(await controls.evaluate((el) => getComputedStyle(el).paddingBottom), "34px");
+    await page.evaluate((shrinkInnerHeight) => {
+      Object.defineProperty(visualViewport, "height", { configurable: true, value: 400 });
+      Object.defineProperty(visualViewport, "offsetTop", { configurable: true, value: 35 });
+      if (shrinkInnerHeight)
+        Object.defineProperty(window, "innerHeight", { configurable: true, value: 400 });
+      visualViewport.dispatchEvent(new Event("resize"));
+      visualViewport.dispatchEvent(new Event("scroll"));
+    }, width === 390);
+    await page.waitForTimeout(220);
+    const keyboardControls = await controls.boundingBox();
+    const button = await controls.getByRole("button", { name: "Ctrl", exact: true }).boundingBox();
+    assert.equal(await controls.evaluate((el) => getComputedStyle(el).paddingBottom), "4px");
+    assert.equal(restingControls.height - keyboardControls.height, 30);
+    assert(Math.abs(keyboardControls.y + keyboardControls.height - 435) < 1);
+    assert(Math.abs(435 - button.y - button.height - 8) < 1);
+    let finishUpload;
+    let uploadRequested;
+    let failUpload = false;
+    await page.route("**/terminal/paste-assets", async (route) => {
+      await new Promise((done) => {
+        finishUpload = done;
+        uploadRequested();
+      });
+      await route.fulfill({
+        status: failUpload ? 500 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          failUpload ? { error: "Fixture upload failed" } : { paths: ["/tmp/image.png"] },
+        ),
+      });
+    });
+    const picker = controls.getByLabel("Choose files to upload");
+    const upload = { name: "image.png", mimeType: "image/png", buffer: Buffer.from("fixture") };
+    const toast = page.locator('[data-sonner-toast]:not([data-removed="true"])');
+    let request = new Promise((done) => {
+      uploadRequested = done;
+    });
+    await picker.setInputFiles(upload);
+    await request;
+    await toast.getByText("Uploading files...", { exact: true }).waitFor();
+    await page.waitForTimeout(250);
+    assert.equal(await toast.count(), 1);
+    await toast.evaluate((el) => {
+      el.dataset.fixtureUpload = "original";
+    });
+    const progressToast = await toast.boundingBox();
+    assert(progressToast.y >= 35 && progressToast.y + progressToast.height <= 435);
+    assert.equal(await controls.getByText("Uploading files...", { exact: true }).count(), 0);
+    assert.deepEqual(await controls.boundingBox(), keyboardControls);
+    assert.equal(
+      await controls.getByRole("button", { name: "Upload files", exact: true }).isDisabled(),
+      true,
+    );
+    await page.screenshot({ path: resolve(evidence, `upload-keyboard-${width}.png`) });
+    finishUpload();
+    await toast.getByText("Paste complete", { exact: true }).waitFor();
+    assert.equal(await toast.count(), 1);
+    assert.equal(await toast.getAttribute("data-fixture-upload"), "original");
+    assert.equal(await controls.getByText("Paste complete", { exact: true }).count(), 0);
+    assert.deepEqual(await controls.boundingBox(), keyboardControls);
+    await page.screenshot({ path: resolve(evidence, `upload-complete-${width}.png`) });
+    await toast.waitFor({ state: "detached", timeout: 10_000 });
+    failUpload = true;
+    request = new Promise((done) => {
+      uploadRequested = done;
+    });
+    await picker.setInputFiles(upload);
+    await request;
+    await toast.getByText("Uploading files...", { exact: true }).waitFor();
+    finishUpload();
+    await toast.getByText("File paste failed: Fixture upload failed", { exact: true }).waitFor();
+    assert.equal(await toast.count(), 1);
+    assert.deepEqual(await controls.boundingBox(), keyboardControls);
+    assert.equal(
+      await controls.getByRole("button", { name: "Upload files", exact: true }).isEnabled(),
+      true,
+    );
+    await page.evaluate(() => {
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
+      delete visualViewport.height;
+      delete visualViewport.offsetTop;
+      visualViewport.dispatchEvent(new Event("resize"));
+    });
+    await page.waitForTimeout(200);
+    assert.equal(await controls.evaluate((el) => getComputedStyle(el).paddingBottom), "34px");
+    assert.equal((await controls.boundingBox()).height, restingControls.height);
+    report.measurements.push({ width, restingControls, keyboardControls, progressToast });
+    report.checks.push(
+      `${width}px: keyboard toolbar has an 8px button gap, restores the closed-keyboard safe area, and uses one visible toast for upload progress/completion/failure without growing the toolbar`,
+    );
+    await context.close();
+  }
   for (const width of [390, 840]) {
     const context = await browser.newContext({
       viewport: { width, height: 844 },

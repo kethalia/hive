@@ -6,6 +6,7 @@ import { AppViewportSize } from "@/components/app-viewport-size";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
+import { Toaster } from "@/components/ui/sonner";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
 import {
   emptyGeneralWorkspace,
@@ -165,6 +166,7 @@ if (root)
     <QueryClientProvider client={new QueryClient()}>
       <KeybindingProvider>
         <AppViewportSize />
+        <Toaster />
         <HelpOverlay />
         <div className="h-dvh w-full overflow-hidden">
           <div>

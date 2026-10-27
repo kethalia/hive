@@ -17,3 +17,5 @@ Validation: 247 focused unit/component/integration tests across 11 suites; TypeS
 To reproduce, build with `node scripts/build-window-management-fixture.mjs .artifacts/mobile-workspace/browser` in the software workspace. Transfer that directory and `e2e/mobile-workspace.browser.mjs` to Browser Testing, then run the script with the bundle directory as its argument and `HIVE_PLAYWRIGHT_MODULE` pointing to the installed Playwright module. It uses `/usr/bin/google-chrome` without installing a browser. Embedded apps own gestures inside their iframe; their Hive window title remains available for window swipes.
 
 Additional validation for the stacked-window and pinned-column review fixes is recorded in [review-fixes/README.md](review-fixes/README.md).
+
+[Toolbar spacing and toast feedback checks](toolbar-feedback/README.md) cover the keyboard-open gap and upload progress, success, and failure without an extra status row.

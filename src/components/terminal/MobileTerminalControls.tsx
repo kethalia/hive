@@ -47,9 +47,7 @@ export interface MobileTerminalControlsProps {
   onCopy?: () => void;
   onPaste?: () => void;
   onUploadFiles?: (files: File[]) => Promise<void>;
-  clipboardStatusText?: string;
   clipboardBusyAction?: "copy" | "paste";
-  showClipboardStatus?: boolean;
   copyDisabledReason?: string;
   pasteDisabledReason?: string;
   uploadDisabledReason?: string;
@@ -63,9 +61,7 @@ export function MobileTerminalControls({
   onCopy,
   onPaste,
   onUploadFiles,
-  clipboardStatusText,
   clipboardBusyAction,
-  showClipboardStatus = false,
   copyDisabledReason,
   pasteDisabledReason,
   uploadDisabledReason,
@@ -213,14 +209,6 @@ export function MobileTerminalControls({
           </Button>
         ))}
       </fieldset>
-      <span
-        className={
-          showClipboardStatus ? "block px-1 py-1 text-xs text-muted-foreground" : "sr-only"
-        }
-        aria-live="polite"
-      >
-        {clipboardStatusText}
-      </span>
     </section>
   );
 }

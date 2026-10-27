@@ -14,13 +14,15 @@ import { terminalFontSizeScope } from "@/lib/terminal/font-size";
 export function GeneralWorkspaceMobileControls({
   workspaceId,
   sessionName,
+  isKeyboardVisible,
 }: {
   workspaceId: string;
   sessionName: string;
+  isKeyboardVisible: boolean;
 }) {
   const { activeTerminal, activeSend } = useKeybindings();
   const [hasSelection, setHasSelection] = useState(false);
-  const { onStatus, message, busyAction, status, reset } = useTerminalClipboardFeedback();
+  const { onStatus, busyAction, reset } = useTerminalClipboardFeedback();
   useEffect(() => {
     reset();
     const update = () =>
@@ -36,6 +38,7 @@ export function GeneralWorkspaceMobileControls({
   return (
     <MobileTerminalControls
       fontSizeScope={terminalFontSizeScope(workspaceId, sessionName)}
+      isKeyboardVisible={isKeyboardVisible}
       hasSelection={hasSelection}
       onCopy={
         activeTerminal
@@ -61,9 +64,7 @@ export function GeneralWorkspaceMobileControls({
             }
           : undefined
       }
-      clipboardStatusText={message}
       clipboardBusyAction={busyAction}
-      showClipboardStatus={Boolean(status)}
     />
   );
 }

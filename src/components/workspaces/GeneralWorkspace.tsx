@@ -713,6 +713,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       {mobile && active?.kind === "terminal" ? (
         <GeneralWorkspaceMobileControls
           workspaceId={active.workspaceId}
+          isKeyboardVisible={isKeyboardVisible}
           sessionName={
             entries.current.get(terminalPaneViewKey("general", active.id))?.sessionName ??
             active.sessionName
