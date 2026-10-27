@@ -1,0 +1,7 @@
+{
+  "src/components/workspaces/WindowCanvas.tsx": "ddc536fe8f7383f3de93cadc442f72185e619e11a1f6c2ba0e24d0def5c88d28",
+  "src/__tests__/components/window-canvas-navigation.test.tsx": "5abdad639a2ae5e4337bb021ab9f84a0f461a0e954ba797db3e636ae735a66ee",
+  "e2e/mobile-workspace.browser.mjs": "544bebf0796f6b7e1a5544432e7c5a3b017db6f579e04615c39d35a01e4ce7bb",
+  ".artifacts/mobile-workspace-review/browser/bundle.js": "86e7ee5588c85d4df419f43c826b7ad50c34e8cb0579a9c203828c3dd11a0611",
+  ".artifacts/mobile-workspace-review/browser/style.css": "19059d47865a3d65d40b99762ac0c4ebef4805f8a74913068045e82fbacaee12"
+}

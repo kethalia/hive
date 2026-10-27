@@ -10,6 +10,7 @@ import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePa
 import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
 import { WorkspaceSearchButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePwaMode } from "@/hooks/use-pwa-mode";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
@@ -70,6 +71,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const router = useRouter();
   const search = useSearchParams();
   const mobile = useIsMobile();
+  const pwaMode = usePwaMode();
   const { isKeyboardVisible } = useVisualViewportKeyboardOffset();
   const [state, setState] = useState<GeneralWorkspaceState>(emptyGeneralWorkspace);
   const stateRef = useRef(state);
@@ -425,11 +427,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       forgetTerminalViews(target.workspaceId, [terminalPaneViewKey("general", id)]);
     const next = update((current) => ({
       ...current,
-      boards: current.boards.map((b) =>
-        b.key === boardKey
-          ? removeGeneralWindow(b, id, mobile ? b.windows.map((w) => w.id) : undefined)
-          : b,
-      ),
+      boards: current.boards.map((b) => (b.key === boardKey ? removeGeneralWindow(b, id) : b)),
     }));
     if (restoreFocus) {
       const active = next.boards.find((b) => b.key === next.activeBoardKey)?.activeWindowId;
@@ -552,24 +550,40 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const content = (
     <section
       className="flex h-full min-h-0 flex-col overflow-hidden"
+      // Terminal controls own the bottom inset while present; other windows need it here.
+      style={
+        mobile && active?.kind !== "terminal"
+          ? {
+              paddingBottom: isKeyboardVisible
+                ? "0.5rem"
+                : "max(0.5rem, var(--safe-area-inset-bottom))",
+            }
+          : undefined
+      }
       data-dashboard-full-bleed=""
       data-testid="general-workspace"
     >
       <WindowShortcutHelp shortcuts={manager.shortcuts} onChange={changeShortcuts} />
-      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 pb-2 pt-[calc(var(--safe-area-inset-top)+0.5rem)]">
+      <header
+        className="relative isolate flex shrink-0 items-center justify-end gap-1 border-b bg-background pb-2 pl-[max(0.5rem,var(--safe-area-inset-left))] pr-[max(0.5rem,var(--safe-area-inset-right))] pt-[calc(var(--safe-area-inset-top)+0.5rem)]"
+        // Installed iOS apps can draw a status-bar blur past the reported safe area.
+        // Keep controls clear of that edge on phones and touch tablets, even with a zero inset.
+        style={
+          mobile && pwaMode === "standalone"
+            ? { paddingTop: "calc(var(--safe-area-inset-top) + 1.5rem)" }
+            : undefined
+        }
+      >
         <WorkspaceSearchButton />
+        <WindowLayoutControls manager={manager} onAction={runWindowAction} />
         <WorkspaceBoardBar
           boards={state.boards}
           activeBoardKey={board.key}
           onCreate={createBoard}
           onDelete={deleteBoard}
           onSelect={(key) => update((current) => ({ ...current, activeBoardKey: key }))}
-          className="justify-self-center"
           touchOptimized={mobile}
         />
-        <div className="flex items-center gap-1">
-          {!mobile ? <WindowLayoutControls manager={manager} onAction={runWindowAction} /> : null}
-        </div>
       </header>
       {notification.opening ? (
         <p role="status" className="px-3 py-2 text-sm">
@@ -583,27 +597,6 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             Dismiss
           </Button>
         </div>
-      ) : null}
-      {mobile && board.windows.length > 1 ? (
-        <nav
-          className="flex shrink-0 gap-1 overflow-x-auto p-1"
-          aria-label="Open windows"
-          data-mobile-scroll-allow="true"
-        >
-          {board.windows.map((pane) => (
-            <Button
-              key={pane.id}
-              variant={pane.id === board.activeWindowId ? "secondary" : "ghost"}
-              onClick={() => activate(board.key, pane.id)}
-              className="shrink-0"
-            >
-              {pane.kind !== "hive"
-                ? `${workspaces.find((w) => w.id === pane.workspaceId)?.name ?? "Workspace"} · `
-                : ""}
-              {pane.label}
-            </Button>
-          ))}
-        </nav>
       ) : null}
       <div ref={observeBody} className="relative min-h-0 flex-1">
         {!board.windows.length ? (
@@ -730,6 +723,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       {mobile && active?.kind === "terminal" ? (
         <GeneralWorkspaceMobileControls
           workspaceId={active.workspaceId}
+          isKeyboardVisible={isKeyboardVisible}
           sessionName={
             entries.current.get(terminalPaneViewKey("general", active.id))?.sessionName ??
             active.sessionName

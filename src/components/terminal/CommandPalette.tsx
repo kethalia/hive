@@ -27,7 +27,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSwipeToDismiss } from "@/hooks/useSwipeToDismiss";
-import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
+import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { NO_TOUCH_STYLE } from "@/lib/gestures/conventions";
 import { rankCommandGroups } from "@/lib/terminal/command-search";
 import { cn } from "@/lib/utils";
@@ -92,7 +92,7 @@ interface CommandPaletteProps {
 }
 
 const mobileCommandClassName =
-  "overflow-clip rounded-none bg-transparent shadow-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2";
+  "min-h-0 flex-1 overflow-clip rounded-none bg-transparent shadow-none [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]]:shrink-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-group]]:px-2 [&_[cmdk-list]]:max-h-none [&_[cmdk-list]]:flex-1";
 
 const dragHandleStyle: CSSProperties = {
   ...NO_TOUCH_STYLE,
@@ -327,6 +327,7 @@ function CommandPaletteBody({
 
   return (
     <div
+      className="flex min-h-0 flex-1 flex-col"
       onKeyDownCapture={(event) => {
         if (
           onBack &&
@@ -392,7 +393,7 @@ function CommandPaletteBody({
           {error}
         </p>
       ) : null}
-      <div className="flex min-h-0 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         <div
           aria-hidden="true"
           data-testid="command-scroll-hint-up"
@@ -635,7 +636,7 @@ export function CommandPalette({
       data-command-page={pageId ?? "root"}
       data-direction={direction}
       className={cn(
-        "command-page",
+        "command-page flex min-h-0 flex-1 flex-col",
         (pageId || direction === "back") && `command-page-${direction}`,
       )}
     >
@@ -667,8 +668,11 @@ export function CommandPalette({
       />
     </div>
   );
-  const { height } = useVisualViewportHeight();
-  const sheetMaxHeight = height !== null ? `${height}px` : "100dvh";
+  const { liftPx, isKeyboardVisible, visualViewportHeightPx } = useVisualViewportKeyboardOffset();
+  const viewportHeight = visualViewportHeightPx > 0 ? `${visualViewportHeightPx}px` : "100dvh";
+  const restingHeight =
+    visualViewportHeightPx > 0 ? `${Math.round(visualViewportHeightPx * 0.82)}px` : "82dvh";
+  const sheetMaxHeight = `calc(${viewportHeight} - max(1rem, var(--safe-area-inset-top)) - 0.5rem)`;
   const { bindDragHandle, sheetStyle } = useSwipeToDismiss({
     enabled: isMobile,
     maxHeight: sheetMaxHeight,
@@ -684,8 +688,12 @@ export function CommandPalette({
           finalFocus={restoreWorkspaceFocus}
           showCloseButton={false}
           data-launcher-gesture-ignore="true"
-          className="gap-0 overflow-hidden overscroll-contain rounded-t-2xl p-0 pb-safe motion-reduce:transition-none motion-reduce:duration-0"
-          style={sheetStyle}
+          className="gap-0 overflow-hidden overscroll-contain rounded-t-2xl px-[max(1rem,var(--safe-area-inset-left))] pr-[max(1rem,var(--safe-area-inset-right))] pt-0 pb-[max(0.75rem,var(--safe-area-inset-bottom))] transition-[transform,opacity] motion-reduce:transition-none motion-reduce:duration-0"
+          style={{
+            ...sheetStyle,
+            bottom: liftPx,
+            height: isKeyboardVisible ? sheetMaxHeight : `min(40rem, ${restingHeight})`,
+          }}
         >
           <SheetTitle className="sr-only">Command palette</SheetTitle>
           <button

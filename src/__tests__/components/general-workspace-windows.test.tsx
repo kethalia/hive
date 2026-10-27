@@ -45,6 +45,7 @@ vi.mock("@/components/workspaces/TerminalSessionStatusClient", () => ({
 }));
 vi.mock("@/hooks/useGeneralWorkspaceCommands", () => ({ useGeneralWorkspaceCommands: vi.fn() }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/use-pwa-mode", () => ({ usePwaMode: () => "browser" }));
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: vi.fn(),
   startWorkspaceAction: vi.fn(),

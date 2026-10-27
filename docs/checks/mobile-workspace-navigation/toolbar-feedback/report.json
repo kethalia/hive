@@ -1,0 +1,196 @@
+{
+  "checks": [
+    "390px: keyboard toolbar has an 8px button gap, restores the closed-keyboard safe area, and uses one visible toast for upload progress/completion/failure without growing the toolbar",
+    "840px: keyboard toolbar has an 8px button gap, restores the closed-keyboard safe area, and uses one visible toast for upload progress/completion/failure without growing the toolbar",
+    "390px: right-aligned header, destination icon, both layouts, bidirectional native touch navigation, and client continuity",
+    "390px: two-finger upward search, taller padded drawer, keyboard resize/pan lift, scrollable results",
+    "390px: Grid swipe reveals the next window inside the canvas",
+    "390px: many workspace numbers scroll and reveal the selected workspace without hiding the controls",
+    "840px: right-aligned header, destination icon, both layouts, bidirectional native touch navigation, and client continuity",
+    "840px: two-finger upward search, taller padded drawer, keyboard resize/pan lift, scrollable results",
+    "840px: Grid swipe reveals the next window inside the canvas",
+    "840px: many workspace numbers scroll and reveal the selected workspace without hiding the controls",
+    "stack: native swipes follow visual order, reveal the selected window, and preserve terminal instances in both directions",
+    "pin-left: native swipes follow visual order, reveal the selected window, and preserve terminal instances in both directions",
+    "pin-right: native swipes follow visual order, reveal the selected window, and preserve terminal instances in both directions",
+    "390px: installed-app controls clear the status-bar edge with zero and nonzero safe-area insets",
+    "840px: installed-app controls clear the status-bar edge with zero and nonzero safe-area insets",
+    "desktop: destination-view toggle switches both ways"
+  ],
+  "measurements": [
+    {
+      "width": 390,
+      "restingControls": {
+        "x": 0,
+        "y": 758,
+        "width": 390,
+        "height": 86
+      },
+      "keyboardControls": {
+        "x": 0,
+        "y": 379,
+        "width": 390,
+        "height": 56
+      },
+      "progressToast": {
+        "x": 16,
+        "y": 370.7825622558594,
+        "width": 358,
+        "height": 53.5
+      }
+    },
+    {
+      "width": 840,
+      "restingControls": {
+        "x": 0,
+        "y": 758,
+        "width": 840,
+        "height": 86
+      },
+      "keyboardControls": {
+        "x": 0,
+        "y": 379,
+        "width": 840,
+        "height": 56
+      },
+      "progressToast": {
+        "x": 460,
+        "y": 352.4722900390625,
+        "width": 356,
+        "height": 53.5
+      }
+    },
+    {
+      "width": 390,
+      "header": {
+        "background": "rgb(7, 10, 8)",
+        "backdropFilter": "none"
+      },
+      "headerButtons": [
+        {
+          "x": 194,
+          "y": 8,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "x": 242,
+          "y": 8,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "x": 290,
+          "y": 8,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "x": 338,
+          "y": 8,
+          "width": 44,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "normalSearch": {
+        "x": 0,
+        "y": 204,
+        "width": 390,
+        "height": 640
+      },
+      "keyboardSearch": {
+        "x": 0,
+        "y": 59,
+        "width": 390,
+        "height": 376
+      },
+      "list": {
+        "x": 16,
+        "y": 173,
+        "width": 358,
+        "height": 230
+      },
+      "padding": {
+        "left": 16,
+        "right": 16
+      }
+    },
+    {
+      "width": 840,
+      "header": {
+        "background": "rgb(7, 10, 8)",
+        "backdropFilter": "none"
+      },
+      "headerButtons": [
+        {
+          "x": 644,
+          "y": 8,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "x": 692,
+          "y": 8,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "x": 740,
+          "y": 8,
+          "width": 44,
+          "height": 44
+        },
+        {
+          "x": 788,
+          "y": 8,
+          "width": 44,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "width": 840,
+      "normalSearch": {
+        "x": 0,
+        "y": 204,
+        "width": 840,
+        "height": 640
+      },
+      "keyboardSearch": {
+        "x": 0,
+        "y": 59,
+        "width": 840,
+        "height": 376
+      },
+      "list": {
+        "x": 16,
+        "y": 173,
+        "width": 808,
+        "height": 230
+      },
+      "padding": {
+        "left": 16,
+        "right": 16
+      }
+    },
+    {
+      "scenario": "stack",
+      "order": ["a", "b", "c", "d", "e"],
+      "forwardScrollTop": 197
+    },
+    {
+      "scenario": "pin-left",
+      "order": ["b", "a", "c"],
+      "forwardScrollTop": 0
+    },
+    {
+      "scenario": "pin-right",
+      "order": ["a", "c", "b"],
+      "forwardScrollTop": 0
+    }
+  ],
+  "errors": []
+}

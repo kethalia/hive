@@ -197,6 +197,12 @@ describe("window layouts", () => {
     const g = windowGeometry(tabbed.manager!, b.layout, ["a", "b", "c"], "a", 1000, 700);
     expect(g.hidden.has("b")).toBe(true);
     expect(g.hidden.has("a")).toBe(false);
+    const mobile = windowGeometry(tabbed.manager!, b.layout, ["a", "b", "c"], "a", 390, 700, {
+      showColumnTabs: false,
+    });
+    expect(mobile.tabs).toEqual([]);
+    expect(mobile.hidden.has("b")).toBe(true);
+    expect(mobile.rects.get("a")).toMatchObject({ y: 0, height: 700 });
     expect(applyWindowAction(tabbed, "focus-up", 1000, 700).activeWindowId).toBe("b");
   });
   it.each([

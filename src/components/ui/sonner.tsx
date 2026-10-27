@@ -33,7 +33,16 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme}
       className="toaster group"
-      mobileOffset={{ top: "max(16px, var(--safe-area-inset-top, 0px))" }}
+      // Follow the usable viewport when the keyboard opens or Safari pans the page.
+      offset={{
+        bottom:
+          "max(32px, calc(100% - var(--app-visual-viewport-height, 100dvh) - var(--app-visual-viewport-offset-top, 0px) + 32px))",
+      }}
+      mobileOffset={{
+        top: "max(16px, var(--safe-area-inset-top, 0px))",
+        bottom:
+          "max(16px, var(--safe-area-inset-bottom, 0px), calc(100% - var(--app-visual-viewport-height, 100dvh) - var(--app-visual-viewport-offset-top, 0px) + 16px))",
+      }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,

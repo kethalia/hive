@@ -1,0 +1,12 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/workspaces/general-workspace.test.ts (18 tests) 26ms
+ ✓ src/__tests__/lib/workspaces/window-manager.test.ts (37 tests) 27ms
+ ✓ src/__tests__/hooks/use-window-swipe.test.tsx (12 tests) 146ms
+ ✓ src/__tests__/components/window-canvas-navigation.test.tsx (5 tests) 227ms
+
+ Test Files  4 passed (4)
+      Tests  72 passed (72)
+   Start at  20:00:16
+   Duration  1.15s (transform 218ms, setup 0ms, collect 556ms, tests 426ms, environment 945ms, prepare 293ms)

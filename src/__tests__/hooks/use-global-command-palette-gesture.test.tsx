@@ -1,219 +1,134 @@
 // @vitest-environment jsdom
 
 import { cleanup, render } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
 
-function GestureHarness({ enabled = true, onOpen }: { enabled?: boolean; onOpen: () => void }) {
+function Harness({ enabled = true, onOpen }: { enabled?: boolean; onOpen: () => void }) {
   useGlobalCommandPaletteGesture({ enabled, onOpen });
   return (
-    <main data-testid="content">
-      Content
-      <div data-testid="pane-header" data-window-drag-surface="true">
-        Pane header
+    <main>
+      <div data-testid="canvas" data-mobile-scroll-allow="true">
+        Canvas
       </div>
-      <div data-launcher-gesture-ignore="true" data-testid="terminal-controls">
-        Terminal controls
+      <div data-testid="controls" data-launcher-gesture-ignore="true">
+        Controls
       </div>
-      <div data-mobile-scroll-allow="true" data-testid="workspace-tabs">
-        Workspace tabs
+      <div data-testid="dialog" role="dialog" aria-label="Options">
+        Options
       </div>
-      <div role="dialog" aria-label="Pane actions">
-        <button type="button">Modal action</button>
-      </div>
+      <input aria-label="Input" />
     </main>
   );
 }
-
-function touch(identifier: number, clientX: number, clientY: number) {
-  return { identifier, clientX, clientY };
-}
-
-function dispatchTouch(
-  type: "touchstart" | "touchmove" | "touchend",
-  touches: ReturnType<typeof touch>[],
-  target: EventTarget = window,
-) {
+const point = (identifier: number, clientX: number, clientY: number) => ({
+  identifier,
+  clientX,
+  clientY,
+});
+function touch(type: string, touches: ReturnType<typeof point>[], target: EventTarget = window) {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, "touches", { value: touches });
   target.dispatchEvent(event);
   return event;
 }
+const start = [point(1, 140, 300), point(2, 220, 300)];
+const up = [point(1, 142, 220), point(2, 222, 220)];
+afterEach(() => {
+  cleanup();
+  window.getSelection()?.removeAllRanges();
+});
 
-describe("useGlobalCommandPaletteGesture", () => {
-  beforeEach(() => {
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      writable: true,
-      value: 390,
-    });
-  });
-
-  afterEach(cleanup);
-
-  it("opens after a deliberate left swipe from the right browser edge", async () => {
+describe("two-finger search shortcut", () => {
+  it("opens from the canvas after both fingers lift, even when touchend is consumed by a terminal", async () => {
     const onOpen = vi.fn();
-    render(<GestureHarness onOpen={onOpen} />);
-
-    const start = dispatchTouch("touchstart", [touch(1, 388, 200)]);
-    const move = dispatchTouch("touchmove", [touch(1, 310, 204)]);
-    dispatchTouch("touchend", []);
-    await Promise.resolve();
-
-    expect(start.defaultPrevented).toBe(false);
-    expect(move.defaultPrevented).toBe(true);
-    expect(onOpen).toHaveBeenCalledOnce();
-  });
-
-  it("opens from anywhere after leftward intent is clear", async () => {
-    const onOpen = vi.fn();
-    render(<GestureHarness onOpen={onOpen} />);
-
-    const start = dispatchTouch("touchstart", [touch(1, 300, 200)]);
-    const move = dispatchTouch("touchmove", [touch(1, 220, 204)]);
-    dispatchTouch("touchend", []);
-    await Promise.resolve();
-
-    expect(start.defaultPrevented).toBe(false);
-    expect(move.defaultPrevented).toBe(true);
-    expect(onOpen).toHaveBeenCalledOnce();
-  });
-
-  it("opens before xterm-style document touch-end consumption", async () => {
-    const onOpen = vi.fn();
-    const { getByTestId } = render(<GestureHarness onOpen={onOpen} />);
-    const content = getByTestId("content");
-    const consumeTouchEnd = (event: Event) => event.stopPropagation();
-    document.addEventListener("touchend", consumeTouchEnd);
-
+    const { getByTestId } = render(<Harness onOpen={onOpen} />);
+    const target = getByTestId("canvas");
+    const consume = (event: Event) => event.stopPropagation();
+    document.addEventListener("touchend", consume);
     try {
-      dispatchTouch("touchstart", [touch(1, 300, 200)], content);
-      dispatchTouch("touchmove", [touch(1, 220, 204)], content);
-      dispatchTouch("touchend", [], content);
+      touch("touchstart", [start[0]], target);
+      touch("touchstart", start, target);
+      expect(touch("touchmove", up, target).defaultPrevented).toBe(true);
+      touch("touchend", [up[1]], target);
       await Promise.resolve();
-
+      expect(onOpen).not.toHaveBeenCalled();
+      touch("touchend", [], target);
+      await Promise.resolve();
       expect(onOpen).toHaveBeenCalledOnce();
     } finally {
-      document.removeEventListener("touchend", consumeTouchEnd);
+      document.removeEventListener("touchend", consume);
     }
   });
 
-  it("reserves pane headers for window dragging", async () => {
-    const onOpen = vi.fn();
-    const { getByTestId } = render(<GestureHarness onOpen={onOpen} />);
-    const header = getByTestId("pane-header");
-
-    dispatchTouch("touchstart", [touch(1, 300, 40)], header);
-    dispatchTouch("touchmove", [touch(1, 220, 44)], header);
-    dispatchTouch("touchend", [], header);
-    await Promise.resolve();
-
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it("reserves terminal control swipes for the controls carousel", async () => {
-    const onOpen = vi.fn();
-    const { getByTestId } = render(<GestureHarness onOpen={onOpen} />);
-    const controls = getByTestId("terminal-controls");
-
-    const start = dispatchTouch("touchstart", [touch(1, 300, 700)], controls);
-    const move = dispatchTouch("touchmove", [touch(1, 220, 704)], controls);
-    dispatchTouch("touchend", [], controls);
-    await Promise.resolve();
-
-    expect(start.defaultPrevented).toBe(false);
-    expect(move.defaultPrevented).toBe(false);
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
   it.each([
-    ["workspace-tabs", "horizontal scrollers"],
-    ["Modal action", "modal dialogs"],
-  ])("reserves %s for %s", async (targetName) => {
+    ["one finger", [start[0]], [up[0]]],
+    ["horizontal", start, [point(1, 60, 302), point(2, 140, 302)]],
+    ["downward", start, [point(1, 140, 380), point(2, 220, 380)]],
+    ["short", start, [point(1, 140, 275), point(2, 220, 275)]],
+    ["pinch", start, [point(1, 90, 220), point(2, 270, 220)]],
+    ["one stationary finger", start, [up[0], start[1]]],
+    ["three fingers", [...start, point(3, 260, 300)], [...up, point(3, 262, 220)]],
+  ])("does not open for %s", async (_label, initial, moved) => {
     const onOpen = vi.fn();
-    const { getByRole, getByTestId } = render(<GestureHarness onOpen={onOpen} />);
-    const target =
-      targetName === "Modal action"
-        ? getByRole("button", { name: targetName })
-        : getByTestId(targetName);
-
-    const start = dispatchTouch("touchstart", [touch(1, 300, 200)], target);
-    const move = dispatchTouch("touchmove", [touch(1, 220, 204)], target);
-    dispatchTouch("touchend", [], target);
+    render(<Harness onOpen={onOpen} />);
+    touch("touchstart", initial);
+    touch("touchmove", moved);
+    touch("touchend", []);
     await Promise.resolve();
-
-    expect(start.defaultPrevented).toBe(false);
-    expect(move.defaultPrevented).toBe(false);
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("cancels when a second finger joins", async () => {
+  it.each(["controls", "dialog", "input"])("leaves %s interactions alone", async (name) => {
     const onOpen = vi.fn();
-    render(<GestureHarness onOpen={onOpen} />);
-
-    dispatchTouch("touchstart", [touch(1, 388, 200)]);
-    dispatchTouch("touchstart", [touch(1, 388, 200), touch(2, 360, 240)]);
-    dispatchTouch("touchmove", [touch(1, 300, 204), touch(2, 272, 244)]);
-    dispatchTouch("touchend", []);
+    const { getByTestId, getByRole } = render(<Harness onOpen={onOpen} />);
+    const target = name === "input" ? getByRole("textbox") : getByTestId(name);
+    touch("touchstart", start, target);
+    expect(touch("touchmove", up, target).defaultPrevented).toBe(false);
+    touch("touchend", [], target);
     await Promise.resolve();
-
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("does not bind the gesture when disabled", async () => {
+  it("cancels pinch sequences even if the fingers later travel upward together", async () => {
     const onOpen = vi.fn();
-    render(<GestureHarness enabled={false} onOpen={onOpen} />);
-
-    const start = dispatchTouch("touchstart", [touch(1, 388, 200)]);
-    dispatchTouch("touchmove", [touch(1, 300, 204)]);
-    dispatchTouch("touchend", []);
+    render(<Harness onOpen={onOpen} />);
+    touch("touchstart", start);
+    touch("touchmove", [point(1, 90, 300), point(2, 270, 300)]);
+    touch("touchmove", up);
+    touch("touchend", []);
     await Promise.resolve();
-
-    expect(start.defaultPrevented).toBe(false);
     expect(onOpen).not.toHaveBeenCalled();
   });
-});
 
-it("leaves long-press selection drags to the browser", async () => {
-  const onOpen = vi.fn();
-  render(<GestureHarness onOpen={onOpen} />);
-  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
-  try {
-    dispatchTouch("touchstart", [touch(1, 200, 200)]);
-    now.mockReturnValue(1600);
-    const move = dispatchTouch("touchmove", [touch(1, 120, 204)]);
-    dispatchTouch("touchend", []);
+  it.each(["touchcancel", "third finger"])("abandons a qualified gesture on %s", async (reason) => {
+    const onOpen = vi.fn();
+    render(<Harness onOpen={onOpen} />);
+    touch("touchstart", start);
+    touch("touchmove", up);
+    if (reason === "touchcancel") touch("touchcancel", []);
+    else touch("touchstart", [...up, point(3, 260, 220)]);
+    touch("touchend", []);
     await Promise.resolve();
-    expect(move.defaultPrevented).toBe(false);
     expect(onOpen).not.toHaveBeenCalled();
-  } finally {
-    now.mockRestore();
-  }
-});
+  });
 
-it.each([
-  true,
-  false,
-])("scopes selection ownership to the swipe surface (local=%s)", async (local) => {
-  const onOpen = vi.fn();
-  render(<GestureHarness onOpen={onOpen} />);
-  const pane = document.createElement("div");
-  pane.dataset.terminalNativeSelection = "true";
-  pane.textContent = "selected terminal text";
-  const other = document.createElement("div");
-  document.body.append(pane, other);
-  window.getSelection()!.selectAllChildren(pane);
-  try {
-    const target = local ? pane : other;
-    dispatchTouch("touchstart", [touch(1, 200, 200)], target);
-    const move = dispatchTouch("touchmove", [touch(1, 120, 204)], target);
-    dispatchTouch("touchend", [], target);
+  it("preserves selected text and removes listeners when disabled", async () => {
+    const onOpen = vi.fn();
+    const { getByTestId, rerender } = render(<Harness onOpen={onOpen} />);
+    const target = getByTestId("canvas");
+    window.getSelection()?.selectAllChildren(target);
+    touch("touchstart", start, target);
+    expect(touch("touchmove", up, target).defaultPrevented).toBe(false);
+    touch("touchend", [], target);
     await Promise.resolve();
-    expect(move.defaultPrevented).toBe(!local);
-    expect(onOpen).toHaveBeenCalledTimes(local ? 0 : 1);
-  } finally {
-    window.getSelection()!.removeAllRanges();
-    pane.remove();
-    other.remove();
-  }
+    expect(onOpen).not.toHaveBeenCalled();
+    window.getSelection()?.removeAllRanges();
+    rerender(<Harness onOpen={onOpen} enabled={false} />);
+    touch("touchstart", start, target);
+    expect(touch("touchmove", up, target).defaultPrevented).toBe(false);
+    touch("touchend", [], target);
+    await Promise.resolve();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
 });

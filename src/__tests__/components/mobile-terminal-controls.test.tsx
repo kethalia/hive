@@ -173,8 +173,6 @@ it.each([
       onPaste={paste}
       onUploadFiles={vi.fn()}
       clipboardBusyAction={action}
-      clipboardStatusText="Working..."
-      showClipboardStatus
     />,
   );
   const busy = screen.getByRole("button", {
@@ -190,18 +188,9 @@ it.each([
   expect(copy).not.toHaveBeenCalled();
   expect(paste).not.toHaveBeenCalled();
 
-  rerender(
-    <MobileTerminalControls
-      hasSelection
-      onCopy={copy}
-      onPaste={paste}
-      clipboardStatusText="Paste complete"
-      showClipboardStatus
-    />,
-  );
+  rerender(<MobileTerminalControls hasSelection onCopy={copy} onPaste={paste} />);
   expect(busy).toBeEnabled();
   expect(busy).not.toHaveAttribute("aria-busy");
-  expect(screen.getByText("Paste complete")).not.toHaveClass("sr-only");
 });
 
 it("disables file selection when the terminal target is unavailable", () => {
@@ -253,19 +242,6 @@ it("clears pending modifiers when switching terminal or unmounting controls", ()
   fireEvent.click(screen.getByRole("button", { name: "Alt" }));
   unmount();
   expect(getMobileModifiers(other).alt).toBe(false);
-});
-
-it("shows clipboard failure feedback without adding another row of buttons", () => {
-  render(
-    <MobileTerminalControls
-      clipboardStatusText="Clipboard permission was denied."
-      showClipboardStatus
-    />,
-  );
-  const status = screen.getByText("Clipboard permission was denied.");
-  expect(status).not.toHaveClass("sr-only");
-  expect(status).toHaveAttribute("aria-live", "polite");
-  expect(screen.getAllByRole("group", { name: "Terminal keys" })).toHaveLength(1);
 });
 
 it("reserves saved selection only for the Copy control", () => {

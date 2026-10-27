@@ -1,0 +1,16 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/components/terminal/MobileTerminalShell.test.tsx (7 tests) 155ms
+ ✓ src/__tests__/components/window-canvas-navigation.test.tsx (5 tests) 188ms
+ ✓ src/__tests__/components/mobile-terminal-controls.test.tsx (14 tests) 693ms
+ ✓ src/__tests__/components/general-workspace-windows.test.tsx (10 tests) 3083ms
+   ✓ workspace navigation commands > moves in both directions and closes from terminal focus on Macintosh  549ms
+   ✓ workspace navigation commands > moves in both directions and closes from terminal focus on Windows  493ms
+   ✓ workspace tool windows > moves layout settings into Cmd+? help and updates active bindings without remounting panes  904ms
+   ✓ workspace tool windows > opens all built-in tools without navigation, restores them, and reuses a window across workspaces  434ms
+
+ Test Files  4 passed (4)
+      Tests  36 passed (36)
+   Start at  20:44:56
+   Duration  4.93s (transform 589ms, setup 0ms, collect 1.95s, tests 4.12s, environment 2.17s, prepare 322ms)

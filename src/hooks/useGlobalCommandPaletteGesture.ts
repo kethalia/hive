@@ -1,120 +1,107 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { LONG_PRESS_MS } from "@/lib/gestures/conventions";
-import {
-  isLauncherGestureIgnoredTarget,
-  isLauncherGestureSelectionTarget,
-  resolveHorizontalSwipe,
-} from "@/lib/gestures/horizontal-swipe";
+import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
+import { isLauncherGestureSelectionTarget } from "@/lib/gestures/horizontal-swipe";
 
 interface GlobalCommandPaletteGestureOptions {
   enabled: boolean;
   onOpen: () => void;
 }
 
-type TouchStart = {
-  id: number;
-  x: number;
-  y: number;
-  qualified: boolean;
-  startedAt: number;
-  target: EventTarget | null;
-};
+const SWIPE_UP_DISTANCE = 56;
+const PINCH_TOLERANCE = 24;
+const IGNORE_TARGET =
+  'input, textarea, select, button, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [data-launcher-gesture-ignore="true"], [data-terminal-touch-selecting="true"]';
 
-/** Opens the global command drawer with a deliberate one-finger leftward swipe. */
+/** Two fingers moving upward open search; one-finger swipes belong to windows. */
 export function useGlobalCommandPaletteGesture({
   enabled,
   onOpen,
 }: GlobalCommandPaletteGestureOptions) {
-  const onOpenRef = useRef(onOpen);
-
-  useEffect(() => {
-    onOpenRef.current = onOpen;
-  }, [onOpen]);
-
+  const callback = useRef(onOpen);
+  callback.current = onOpen;
   useEffect(() => {
     if (!enabled) return;
-
-    let touchStart: TouchStart | null = null;
-
+    let start: {
+      points: { id: number; x: number; y: number }[];
+      target: EventTarget | null;
+      qualified: boolean;
+      releasing: boolean;
+    } | null = null;
+    let cancelled = false;
     const reset = () => {
-      touchStart = null;
+      start = null;
+      cancelled = false;
     };
-
-    const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        reset();
-        return;
-      }
-
-      const touch = event.touches[0];
-      if (isLauncherGestureIgnoredTarget(event.target)) {
-        reset();
-        return;
-      }
-      if (touch.clientX < 0 || touch.clientX > window.innerWidth) {
-        reset();
-        return;
-      }
-
-      touchStart = {
-        id: touch.identifier,
-        x: touch.clientX,
-        y: touch.clientY,
-        qualified: false,
-        startedAt: Date.now(),
+    const touchStart = (event: TouchEvent) => {
+      if (event.touches.length > 2) cancelled = true;
+      if (cancelled || event.touches.length !== 2) return;
+      if (event.target instanceof Element && event.target.closest(IGNORE_TARGET)) return;
+      if (isLauncherGestureSelectionTarget(event.target)) return;
+      start = {
+        points: Array.from(event.touches).map((touch) => ({
+          id: touch.identifier,
+          x: touch.clientX,
+          y: touch.clientY,
+        })),
         target: event.target,
+        qualified: false,
+        releasing: false,
       };
     };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        reset();
+    const touchMove = (event: TouchEvent) => {
+      if (!start || cancelled || start.releasing) return;
+      if (event.touches.length !== 2 || isLauncherGestureSelectionTarget(start.target)) {
+        cancelled = true;
         return;
       }
-      if (!touchStart) return;
-      if (
-        Date.now() - touchStart.startedAt >= LONG_PRESS_MS ||
-        isLauncherGestureSelectionTarget(touchStart.target)
-      ) {
-        reset();
+      const points = start.points.map((point) => {
+        const touch = Array.from(event.touches).find((touch) => touch.identifier === point.id);
+        return touch
+          ? {
+              x: touch.clientX,
+              y: touch.clientY,
+              dx: touch.clientX - point.x,
+              dy: touch.clientY - point.y,
+            }
+          : null;
+      });
+      const [a, b] = points;
+      if (!a || !b) {
+        cancelled = true;
         return;
       }
-
-      const touch = Array.from(event.touches).find(
-        (candidate) => candidate.identifier === touchStart?.id,
+      const [first, second] = start.points;
+      const initialDistance = Math.hypot(first.x - second.x, first.y - second.y);
+      if (Math.abs(Math.hypot(a.x - b.x, a.y - b.y) - initialDistance) > PINCH_TOLERANCE) {
+        cancelled = true;
+        return;
+      }
+      const upward = points.every(
+        (point) => point && -point.dy > TAP_THRESHOLD_PX && -point.dy > Math.abs(point.dx) * 1.5,
       );
-      if (!touch) return;
-
-      const progress = resolveHorizontalSwipe(
-        touchStart.x,
-        touchStart.y,
-        touch.clientX,
-        touch.clientY,
-      );
-      if (progress.horizontalIntent && event.cancelable) event.preventDefault();
-      touchStart.qualified = progress.direction === "left";
+      if (upward && event.cancelable) event.preventDefault();
+      start.qualified = upward && points.every((point) => point && -point.dy >= SWIPE_UP_DISTANCE);
     };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      const completed = touchStart;
-      if (completed?.qualified && event.touches.length === 0) {
-        queueMicrotask(() => onOpenRef.current());
+    const touchEnd = (event: TouchEvent) => {
+      if (event.touches.length > 0) {
+        if (start) start.releasing = true;
+        return;
       }
+      const open = start?.qualified && !cancelled;
       reset();
+      if (open) queueMicrotask(() => callback.current());
     };
-
-    window.addEventListener("touchstart", handleTouchStart, { capture: true, passive: false });
-    window.addEventListener("touchmove", handleTouchMove, { capture: true, passive: false });
-    window.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
+    window.addEventListener("touchstart", touchStart, { capture: true, passive: true });
+    window.addEventListener("touchmove", touchMove, { capture: true, passive: false });
+    window.addEventListener("touchend", touchEnd, { capture: true, passive: true });
     window.addEventListener("touchcancel", reset, { capture: true, passive: true });
-
     return () => {
-      window.removeEventListener("touchstart", handleTouchStart, { capture: true });
-      window.removeEventListener("touchmove", handleTouchMove, { capture: true });
-      window.removeEventListener("touchend", handleTouchEnd, { capture: true });
-      window.removeEventListener("touchcancel", reset, { capture: true });
+      window.removeEventListener("touchstart", touchStart, true);
+      window.removeEventListener("touchmove", touchMove, true);
+      window.removeEventListener("touchend", touchEnd, true);
+      window.removeEventListener("touchcancel", reset, true);
     };
   }, [enabled]);
 }

@@ -1,0 +1,14 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/hooks/useVisualViewportKeyboardOffset.test.ts (9 tests) 46ms
+ ✓ src/__tests__/components/ui/sonner.test.tsx (1 test) 31ms
+ ✓ src/__tests__/hooks/use-terminal-clipboard-feedback.test.ts (5 tests) 157ms
+ ✓ src/__tests__/components/terminal/MobileTerminalShell.test.tsx (7 tests) 252ms
+ ✓ src/__tests__/components/app-viewport-size.test.tsx (1 test) 109ms
+ ✓ src/__tests__/components/mobile-terminal-controls.test.tsx (14 tests) 686ms
+
+ Test Files  6 passed (6)
+      Tests  37 passed (37)
+   Start at  20:41:16
+   Duration  1.92s (transform 303ms, setup 0ms, collect 1.37s, tests 1.28s, environment 3.58s, prepare 509ms)

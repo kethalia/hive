@@ -1,0 +1,13 @@
+{
+  "src/components/terminal/MobileTerminalControls.tsx": "8d719a195cca0379947f33661fb936cfc22f4be5b7156700e252fb0e361cbb74",
+  "src/components/workspaces/GeneralWorkspaceMobileControls.tsx": "c931d35d044ff21837d9597c57dcc9e3dd5e70a075757b9264b11d7218b7f3b3",
+  "src/components/workspaces/GeneralWorkspace.tsx": "b44ff086b38104c9918ebb0b4cc9123f97142d5cb101599d50a24ba9b65a3855",
+  "src/components/ui/sonner.tsx": "aa3ed971af4dd99c279295af45abeb914db65fe69ffe7c2c42eb2d3c730f00ce",
+  "src/components/app-viewport-size.tsx": "3355820593b504fcb06a494dbe53f38e35ba8516f890c3780793d259e91bbf30",
+  "src/hooks/useVisualViewportKeyboardOffset.ts": "17b8946b2b094c060f9336e5f3ef9fb1bd9e590e4543d9a5d7f07a148d833986",
+  "src/hooks/useTerminalClipboardFeedback.ts": "952bab2d6ae67a9e925a5fee12b851b5555e276fa4c8f73d23b86ace5d7f25f5",
+  "src/lib/terminal/mobile-shell-layout.ts": "12663f626663b3e16410fd82b117ee682408831f75cc872404146759f89b129a",
+  "e2e/fixtures/window-management.tsx": "19fd090f93bb47b40a2522958fc59ebba1ea451e653656fb86bc9a17d16aa047",
+  "e2e/mobile-workspace.browser.mjs": "8359e3ab82ce09186fd9a19ee332529f31b037f744e5d4d4d30f1e6113715260",
+  "scripts/build-window-management-fixture.mjs": "7166f8e26cba3c40a488106346b384431aa92bd954f4b241404d7556d7dc2c83"
+}
