@@ -100,6 +100,7 @@ const dragHandleStyle: CSSProperties = {
 };
 
 interface CommandPaletteBodyProps {
+  autoFocusInput: boolean;
   tabs: CommandPaletteProps["tabs"];
   onSelectTab: (tabId: string) => void;
   onOpenChange: (open: boolean) => void;
@@ -160,6 +161,7 @@ function selectedOptionIndex(
 }
 
 function CommandPaletteBody({
+  autoFocusInput,
   tabs,
   onSelectTab,
   onOpenChange,
@@ -380,7 +382,7 @@ function CommandPaletteBody({
       ) : null}
       <CommandInput
         ref={inputRef}
-        autoFocus
+        autoFocus={autoFocusInput}
         aria-label={page?.input?.label ?? "Search Hive"}
         maxLength={page?.input?.maxLength}
         readOnly={busy}
@@ -545,6 +547,7 @@ export function CommandPalette({
   groupHeading = "Sessions",
 }: CommandPaletteProps) {
   const isMobile = useIsMobile();
+  const sheetRef = useRef<HTMLDivElement>(null);
   const [localSearch, setLocalSearch] = useState("");
   const changeSearch = useCallback(
     (value: string) => {
@@ -555,6 +558,7 @@ export function CommandPalette({
   );
   const [stack, setStack] = useState<Array<{ id: string; query: string }>>([]);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
+  const [keepInputFocus, setKeepInputFocus] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(false);
@@ -579,6 +583,9 @@ export function CommandPalette({
   const navigate = useCallback(
     (navigation: CommandPaletteNavigation) => {
       if (pending.current) return;
+      // Continue keyboard navigation only when the user was already typing.
+      // Touch browsing must not focus a search field merely by changing pages.
+      setKeepInputFocus(document.activeElement?.hasAttribute("cmdk-input") ?? false);
       setError("");
       if ("back" in navigation) {
         const previous = stack.at(-1);
@@ -625,6 +632,7 @@ export function CommandPalette({
       setStack([]);
       setError("");
       setDirection("forward");
+      setKeepInputFocus(false);
     }
   }, [open]);
   const body = (
@@ -638,6 +646,7 @@ export function CommandPalette({
       )}
     >
       <CommandPaletteBody
+        autoFocusInput={!isMobile || !!page?.input || keepInputFocus}
         tabs={page ? [] : tabs}
         onSelectTab={onSelectTab}
         onOpenChange={changeOpen}
@@ -681,7 +690,9 @@ export function CommandPalette({
     return (
       <Sheet open={open} onOpenChange={changeOpen}>
         <SheetContent
+          ref={sheetRef}
           side="bottom"
+          initialFocus={sheetRef}
           finalFocus={restoreWorkspaceFocus}
           showCloseButton={false}
           data-launcher-gesture-ignore="true"

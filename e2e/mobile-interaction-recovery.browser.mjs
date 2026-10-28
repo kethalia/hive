@@ -146,10 +146,13 @@ try {
     await page.waitForTimeout(200);
     assert((await pane.boundingBox()).width > before.width + 1);
     before = await pane.boundingBox();
+    await drag(page.getByRole("separator", { name: "Resize floating width", exact: true }), 25, 0);
+    assert((await pane.boundingBox()).width > before.width + 15);
+    before = await pane.boundingBox();
     await drag(page.getByRole("separator", { name: "Resize floating height", exact: true }), 0, 25);
     assert((await pane.boundingBox()).height > before.height + 10);
     report.checks.push(
-      `${width}px: Grid resizing and Strip/floating width presets without switching windows`,
+      `${width}px: Grid resizing and Strip/floating width presets plus border resizing without switching windows`,
     );
 
     const shell = page.getByTestId("terminal-mobile-shell");
