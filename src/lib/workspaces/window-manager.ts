@@ -163,9 +163,6 @@ export function windowGeometry(
       viewportHeight: height,
     });
     if (grid) {
-      const minimum = minimumGridSize(grid);
-      result.width = Math.max(width, minimum.width);
-      result.height = Math.max(height, minimum.height);
       const visit = (node: WorkspaceWindowLayoutNode, rect: WorkspaceWindowRect, path: string) => {
         if (node.type === "leaf") {
           result.rects.set(node.id, rect);
@@ -173,8 +170,13 @@ export function windowGeometry(
         }
         const axis = node.axis === "y" ? "width" : "height",
           position = axis === "width" ? "x" : "y";
-        const min = minimumGridSize(node.first)[axis] / rect[axis],
-          max = 1 - minimumGridSize(node.second)[axis] / rect[axis];
+        const firstMinimum = minimumGridSize(node.first)[axis],
+          secondMinimum = minimumGridSize(node.second)[axis];
+        // Grid always fits its viewport. Relax minimums within each split so
+        // nested borders remain adjustable even on a narrow or short screen.
+        const minimumScale = Math.min(1, rect[axis] / ((firstMinimum + secondMinimum) * 2));
+        const min = (firstMinimum * minimumScale) / rect[axis],
+          max = 1 - (secondMinimum * minimumScale) / rect[axis];
         const ratio = Math.max(min, Math.min(max, splitRatio(node)));
         const size = rect[axis] * ratio;
         visit(node.first, { ...rect, [axis]: size }, `${path}0`);

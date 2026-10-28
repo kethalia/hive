@@ -41,8 +41,8 @@ export function AppUpdateSettings() {
   }
 
   return (
-    <div className="space-y-5">
-      <dl className="grid min-w-0 gap-4 text-sm sm:grid-cols-2">
+    <div className="@container space-y-5">
+      <dl className="grid min-w-0 gap-4 text-sm @sm:grid-cols-2">
         <div className="min-w-0 space-y-1">
           <dt className="text-muted-foreground">Current version</dt>
           <dd className="break-words font-medium">{APP_VERSION.version}</dd>
@@ -78,7 +78,12 @@ export function AppUpdateSettings() {
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={busy !== null} onClick={() => void check()}>
+        <Button
+          variant="outline"
+          className="h-auto min-h-10 max-w-full whitespace-normal py-2"
+          disabled={busy !== null}
+          onClick={() => void check()}
+        >
           {busy === "checking" ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
@@ -86,7 +91,11 @@ export function AppUpdateSettings() {
           )}
           Check for updates
         </Button>
-        <Button disabled={!available || busy !== null} onClick={() => void update()}>
+        <Button
+          className="h-auto min-h-10 max-w-full whitespace-normal py-2"
+          disabled={!available || busy !== null}
+          onClick={() => void update()}
+        >
           {busy === "updating" ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (

@@ -300,6 +300,27 @@
   }
 }
 
+/* Small Grid tiles need controls sized to the tile, not the browser viewport. */
+@container window-frame (max-width: 240px) {
+  [data-window-header] {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 2px;
+    padding-inline: 4px;
+  }
+
+  [data-window-header] button {
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+  }
+
+  [data-window-header]:has([data-terminal-audio-slot] button) [data-window-title] {
+    flex-basis: 100%;
+    min-height: 28px;
+  }
+}
+
 /* Nested launcher screens slide in the navigation direction without moving the dialog. */
 @keyframes command-page-forward {
   from {
