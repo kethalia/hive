@@ -31,6 +31,22 @@ const browser = await chromium.launch({
   args: ["--no-sandbox", "--disable-dev-shm-usage"],
 });
 const report = { checks: [], measurements: [], errors: [] };
+async function recordSearchFocus(page) {
+  await page.evaluate(() => {
+    window.searchInputFocuses = 0;
+    document.addEventListener("focusin", (event) => {
+      if (event.target instanceof HTMLElement && event.target.matches("[cmdk-input]"))
+        window.searchInputFocuses++;
+    });
+  });
+}
+async function checkBrowseFocus(page) {
+  assert.equal(await page.evaluate(() => window.searchInputFocuses), 0);
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.getAttribute("data-slot")),
+    "sheet-content",
+  );
+}
 async function swipe(page, points, dx, dy) {
   const session = await page.context().newCDPSession(page);
   const touches = points.map(([x, y], id) => ({ x, y, id, radiusX: 2, radiusY: 2 }));
@@ -143,10 +159,46 @@ try {
     await page.goto("http://127.0.0.1:8831");
     await page.getByTestId("terminal-mobile-shell").waitFor();
     await page.getByLabel("b input").waitFor();
+    await page.waitForTimeout(250);
     const lifetime = await page.evaluate(() => structuredClone(window.fixture));
     const pane = (id) => page.locator(`[data-workspace-window-id="${id}"]`);
+    await page.getByLabel("b input").focus();
+    const borders = page.getByRole("separator", { name: "Resize width", exact: true });
+    assert.equal(await borders.count(), 3);
+    const initial = await pane("b").boundingBox();
+    const resizeLast = async (dx) => {
+      const border = borders.last();
+      const edge = await border.boundingBox();
+      assert.equal(edge.width, 16);
+      assert.equal(await border.locator("*").count(), 0, "No visible resize grip");
+      assert(
+        edge.height >= initial.height - 2,
+        `Resize along the full border: ${JSON.stringify({ edge, initial })}`,
+      );
+      const point = { x: edge.x + 8, y: edge.y + edge.height * 0.7 };
+      await drag(page, point, { ...point, x: point.x + dx });
+    };
+    await resizeLast(-35);
+    const grown = await pane("b").boundingBox();
+    assert(grown.width > initial.width + 25, "Dragging the final pane's left edge grows it");
+    assert(Math.abs(grown.x + grown.width - (initial.x + initial.width)) < 2);
+    await resizeLast(35);
+    assert(Math.abs((await pane("b").boundingBox()).width - initial.width) < 2);
+    const firstBefore = await pane("a").boundingBox();
+    const firstEdge = await borders.first().boundingBox();
+    const firstPoint = { x: firstEdge.x + 8, y: firstEdge.y + firstEdge.height * 0.7 };
+    await drag(page, firstPoint, { ...firstPoint, x: firstPoint.x + 25 });
+    assert((await pane("a").boundingBox()).width > firstBefore.width + 15);
+    await drag(page, { ...firstPoint, x: firstPoint.x + 25 }, firstPoint);
+    assert.equal((await boardState(page)).activeWindowId, "b");
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.getAttribute("aria-label")),
+      "b input",
+    );
+    report.checks.push(
+      `${width}: touch border resizing works on first and last Strip panes without grips or keyboard focus loss`,
+    );
     const before = await pane("b").boundingBox();
-    assert.equal(await page.getByRole("separator", { name: "Resize width" }).count(), 0);
     const cycle = page.getByRole("button", { name: "Cycle width of b", exact: true });
     await page.getByLabel("b input").focus();
     await cycle.tap();
@@ -173,10 +225,12 @@ try {
     report.checks.push(
       `${width}: cycle final pane width, preserve keyboard focus, compact 36px controls`,
     );
+    await recordSearchFocus(page);
     await page.getByRole("button", { name: "Search Hive", exact: true }).tap();
     const list = page.locator("[cmdk-list]");
     await list.waitFor();
     await page.waitForTimeout(250);
+    await checkBrowseFocus(page);
     assert.equal(await page.getByTestId("command-scroll-hint-up").locator("svg").count(), 0);
     assert.equal(await page.getByTestId("command-scroll-hint-down").locator("svg").count(), 1);
     const rect = await list.boundingBox();
@@ -202,6 +256,30 @@ try {
     await page.waitForTimeout(800); // Let native momentum finish before tapping another control.
     await page.getByRole("button", { name: "Drag to dismiss command palette" }).tap();
     await list.waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "Search Hive", exact: true }).tap();
+    await list.waitFor();
+    await page.waitForTimeout(250);
+    await checkBrowseFocus(page);
+    await page
+      .getByRole("option")
+      .filter({ hasText: /^Terminal/ })
+      .tap();
+    await page.getByRole("button", { name: "Back", exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(() => window.searchInputFocuses),
+      0,
+      "Browsing a category does not summon the keyboard",
+    );
+    const searchInput = page.getByRole("combobox");
+    await searchInput.tap();
+    assert.equal(await searchInput.evaluate((el) => el === document.activeElement), true);
+    await searchInput.fill("test query");
+    assert.equal(await searchInput.inputValue(), "test query");
+    await page.getByRole("button", { name: "Drag to dismiss command palette" }).tap();
+    await list.waitFor({ state: "hidden" });
+    report.checks.push(
+      `${width}: opening, reopening and browsing search never focuses its input; tapping the field enables typing`,
+    );
     const title = await page.getByTestId("general-window-b-title").boundingBox();
     const target = await pane("a").boundingBox();
     await drag(
@@ -297,6 +375,7 @@ try {
   const screen = terminalPage.locator('[data-workspace-window-id="b"] .xterm-screen');
   await screen.waitFor();
   await terminalPage.waitForTimeout(300);
+  await recordSearchFocus(terminalPage);
   const surface = await screen.boundingBox();
   const session = await terminalContext.newCDPSession(terminalPage);
   const points = [
@@ -329,6 +408,7 @@ try {
   const terminalList = terminalPage.locator("[cmdk-list]");
   await terminalList.waitFor();
   await terminalPage.waitForTimeout(500);
+  await checkBrowseFocus(terminalPage);
   assert(await terminalList.isVisible(), "search stays open after a two-finger terminal gesture");
   const listBox = await terminalList.boundingBox();
   await swipe(
@@ -342,8 +422,22 @@ try {
     "menu scrolls with real terminal handlers installed",
   );
   await terminalPage.screenshot({ path: resolve(evidence, "xterm-search.png") });
-  report.checks.push("real xterm: staggered two-finger search stays open and its menu scrolls");
+  report.checks.push(
+    "real xterm: staggered two-finger search stays open without input focus and its menu scrolls",
+  );
   await terminalContext.close();
+  const desktopContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const desktopPage = await desktopContext.newPage();
+  desktopPage.on("pageerror", (error) => report.errors.push(error.message));
+  await desktopPage.goto("http://127.0.0.1:8831");
+  await desktopPage.getByRole("button", { name: "Search Hive", exact: true }).click();
+  await desktopPage.getByRole("combobox").waitFor();
+  assert.equal(
+    await desktopPage.getByRole("combobox").evaluate((el) => el === document.activeElement),
+    true,
+  );
+  report.checks.push("desktop search still focuses the input immediately");
+  await desktopContext.close();
   assert.deepEqual(report.errors, []);
   console.log(JSON.stringify(report, null, 2));
 } finally {
