@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.30.5
+
+### Patch Changes
+
+- 638a22a: Open mobile search without automatically showing the keyboard, and enable border resizing alongside width presets in pane view.
+
 ## 2.30.4
 
 ### Patch Changes
