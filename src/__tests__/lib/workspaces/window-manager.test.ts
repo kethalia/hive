@@ -49,6 +49,41 @@ function board(mode: "grid" | "strip" = "strip"): GeneralBoard {
   };
 }
 describe("window layouts", () => {
+  it("cycles all desktop width presets and wraps without changing neighboring columns", () => {
+    let b = board();
+    const initial = b.manager!.columns.slice(1);
+    for (const expected of [2 / 3, 0.75, 1, 0.25, 1 / 3, 0.5]) {
+      b = applyWindowAction(b, "cycle-width", 1440, 800);
+      expect(b.manager!.columns[0].width).toBeCloseTo(expected);
+      expect(b.manager!.columns.slice(1)).toEqual(initial);
+    }
+  });
+
+  it.each([
+    390, 744, 1194,
+  ])("cycles visible sizes and keeps the last pane in view at %spx", (width) => {
+    let b = board();
+    b.activeWindowId = "c";
+    const ids = b.windows.map((w) => w.id);
+    let previous = windowGeometry(b.manager!, b.layout, ids, "c", width, 800).rects.get("c")!.width;
+    for (let step = 0; step < 8; step++) {
+      b = applyWindowAction(b, "cycle-width", width, 800);
+      const rect = windowGeometry(b.manager!, b.layout, ids, "c", width, 800).rects.get("c")!;
+      expect(Math.abs(rect.width - previous)).toBeGreaterThan(1);
+      expect(rect.x).toBeGreaterThanOrEqual(-1);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
+      previous = rect.width;
+    }
+  });
+
+  it("cycles floating widths through the usable presets", () => {
+    let b = applyWindowAction(board(), "float", 390, 800);
+    for (const expected of [0.75, 1, 280 / 390]) {
+      b = applyWindowAction(b, "cycle-width", 390, 800);
+      expect(b.manager!.floating.a.width).toBeCloseTo(expected);
+    }
+  });
+
   it.each([
     390, 744, 1194,
   ])("offers an inward-facing leading grip for the last Strip column at %spx", (width) => {

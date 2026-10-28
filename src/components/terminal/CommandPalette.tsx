@@ -186,8 +186,11 @@ function CommandPaletteBody({
   const updateScrollHints = useCallback(() => {
     const list = commandListRef.current;
     if (!list) return;
-    const nextCanScrollUp = list.scrollTop > 1;
-    const nextCanScrollDown = list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+    // iOS can report fractional offsets or overscroll past either end.
+    const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
+    const scrollTop = Math.max(0, Math.min(list.scrollTop, maxScroll));
+    const nextCanScrollUp = scrollTop > 2;
+    const nextCanScrollDown = scrollTop < maxScroll - 2;
     setCanScrollUp((current) => (current === nextCanScrollUp ? current : nextCanScrollUp));
     setCanScrollDown((current) => (current === nextCanScrollDown ? current : nextCanScrollDown));
   }, []);
@@ -398,12 +401,9 @@ function CommandPaletteBody({
           aria-hidden="true"
           data-testid="command-scroll-hint-up"
           data-visible={canScrollUp ? "true" : "false"}
-          className={cn(
-            "pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground transition-opacity duration-150 motion-reduce:transition-none",
-            canScrollUp ? "opacity-100" : "opacity-0",
-          )}
+          className="pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground"
         >
-          <Triangle className="size-3 fill-current" />
+          {canScrollUp ? <Triangle className="size-3 fill-current" /> : null}
         </div>
         <CommandList
           ref={commandListRef}
@@ -520,12 +520,9 @@ function CommandPaletteBody({
           aria-hidden="true"
           data-testid="command-scroll-hint-down"
           data-visible={canScrollDown ? "true" : "false"}
-          className={cn(
-            "pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground transition-opacity duration-150 motion-reduce:transition-none",
-            canScrollDown ? "opacity-100" : "opacity-0",
-          )}
+          className="pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground"
         >
-          <Triangle className="size-3 rotate-180 fill-current" />
+          {canScrollDown ? <Triangle className="size-3 rotate-180 fill-current" /> : null}
         </div>
       </div>
     </div>

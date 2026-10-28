@@ -146,29 +146,39 @@ try {
     const lifetime = await page.evaluate(() => structuredClone(window.fixture));
     const pane = (id) => page.locator(`[data-workspace-window-id="${id}"]`);
     const before = await pane("b").boundingBox();
-    const left = page.getByRole("separator", { name: "Resize width" }).last();
-    const handle = await left.boundingBox();
-    assert(handle.width >= 44 && handle.x >= 0 && handle.x + handle.width <= width);
-    await drag(
-      page,
-      { x: handle.x + 22, y: handle.y + 22 },
-      { x: handle.x + 22 - 70, y: handle.y + 22 },
-    );
+    assert.equal(await page.getByRole("separator", { name: "Resize width" }).count(), 0);
+    const cycle = page.getByRole("button", { name: "Cycle width of b", exact: true });
+    await page.getByLabel("b input").focus();
+    await cycle.tap();
+    await page.waitForTimeout(200);
     const larger = await pane("b").boundingBox();
     assert(
-      larger.width > before.width + 50,
-      `last pane must grow from left: ${JSON.stringify({ before, larger })}`,
+      larger.width > before.width + 1,
+      `last pane grows to next preset: ${JSON.stringify({ before, larger })}`,
     );
     assert(
       Math.abs(larger.x + larger.width - (before.x + before.width)) < 2,
       "last right edge stays anchored",
     );
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.getAttribute("aria-label")),
+      "b input",
+    );
+    for (const label of ["Cycle width of b", "Open actions for b", "Close b window"]) {
+      const box = await page.getByRole("button", { name: label, exact: true }).boundingBox();
+      assert.equal(box.width, 36);
+      assert.equal(box.height, 36);
+    }
     await page.screenshot({ path: resolve(evidence, `last-pane-${width}.png`) });
-    report.checks.push(`${width}: grow final Strip pane from left edge`);
+    report.checks.push(
+      `${width}: cycle final pane width, preserve keyboard focus, compact 36px controls`,
+    );
     await page.getByRole("button", { name: "Search Hive", exact: true }).tap();
     const list = page.locator("[cmdk-list]");
     await list.waitFor();
     await page.waitForTimeout(250);
+    assert.equal(await page.getByTestId("command-scroll-hint-up").locator("svg").count(), 0);
+    assert.equal(await page.getByTestId("command-scroll-hint-down").locator("svg").count(), 1);
     const rect = await list.boundingBox();
     await swipe(page, [[rect.x + rect.width / 2, rect.y + rect.height - 35]], 0, -220);
     assert((await list.evaluate((el) => el.scrollTop)) > 30, "native touch scrolls search results");
@@ -179,11 +189,16 @@ try {
       "can reach final menu option",
     );
     const bottom = await list.evaluate((el) => el.scrollTop);
+    assert.equal(await page.getByTestId("command-scroll-hint-down").locator("svg").count(), 0);
+    assert.equal(await page.getByTestId("command-scroll-hint-up").locator("svg").count(), 1);
     await swipe(page, [[rect.x + rect.width / 2, rect.y + 35]], 0, 200);
     assert((await list.evaluate((el) => el.scrollTop)) < bottom - 20, "can scroll back up");
+    for (let i = 0; i < 5; i++) await swipe(page, [[rect.x + rect.width / 2, rect.y + 35]], 0, 220);
+    assert((await list.evaluate((el) => el.scrollTop)) < 2);
+    assert.equal(await page.getByTestId("command-scroll-hint-up").locator("svg").count(), 0);
     assert.equal(await page.evaluate(() => window.scrollY), 0);
     await page.screenshot({ path: resolve(evidence, `menu-${width}.png`) });
-    report.checks.push(`${width}: scroll menu down, reach bottom, scroll back without moving page`);
+    report.checks.push(`${width}: native menu scroll removes arrow icons at both boundaries`);
     await page.waitForTimeout(800); // Let native momentum finish before tapping another control.
     await page.getByRole("button", { name: "Drag to dismiss command palette" }).tap();
     await list.waitFor({ state: "hidden" });

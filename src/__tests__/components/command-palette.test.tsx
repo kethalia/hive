@@ -444,6 +444,8 @@ describe("CommandPalette", () => {
     expect(list.className).toContain("[&::-webkit-scrollbar]:hidden");
     expect(screen.getByTestId("command-scroll-hint-up")).toHaveAttribute("data-visible", "false");
     expect(screen.getByTestId("command-scroll-hint-down")).toHaveAttribute("data-visible", "true");
+    expect(screen.getByTestId("command-scroll-hint-up")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("command-scroll-hint-down")).not.toBeEmptyDOMElement();
 
     list.scrollTop = 150;
     fireEvent.scroll(list);
@@ -454,6 +456,23 @@ describe("CommandPalette", () => {
     fireEvent.scroll(list);
     expect(screen.getByTestId("command-scroll-hint-up")).toHaveAttribute("data-visible", "true");
     expect(screen.getByTestId("command-scroll-hint-down")).toHaveAttribute("data-visible", "false");
+    expect(screen.getByTestId("command-scroll-hint-up")).not.toBeEmptyDOMElement();
+    expect(screen.getByTestId("command-scroll-hint-down")).toBeEmptyDOMElement();
+
+    for (const top of [-12, 0.75]) {
+      list.scrollTop = top;
+      fireEvent.scroll(list);
+      expect(screen.getByTestId("command-scroll-hint-up")).toBeEmptyDOMElement();
+    }
+    for (const top of [299.25, 312]) {
+      list.scrollTop = top;
+      fireEvent.scroll(list);
+      expect(screen.getByTestId("command-scroll-hint-down")).toBeEmptyDOMElement();
+    }
+    Object.defineProperty(list, "scrollHeight", { configurable: true, value: 200 });
+    fireEvent.scroll(list);
+    expect(screen.getByTestId("command-scroll-hint-up")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("command-scroll-hint-down")).toBeEmptyDOMElement();
   });
 
   it("renders mobile sheet content and not command dialog", () => {

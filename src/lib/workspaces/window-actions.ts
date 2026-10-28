@@ -3,6 +3,7 @@ import type { GeneralBoard } from "./general-workspace";
 import {
   detachColumn,
   joinColumn,
+  MIN_WINDOW_WIDTH,
   reconcileWindowManager,
   revealWindow,
   updateColumn,
@@ -69,6 +70,12 @@ export const WINDOW_ACTIONS: WindowAction[] = [
 function canonical(parts: string[]): string {
   const mods = ["ctrl", "cmd", "alt", "shift"].filter((mod) => parts.includes(mod));
   return [...mods, ...parts.filter((p) => !mods.includes(p))].join("+");
+}
+function nextPresetWidth(value: number, min: number, max: number): number {
+  // Several presets collapse to the same minimum on a phone. Skip those so
+  // each tap changes the rendered width, and wrap to the smallest usable size.
+  const presets = WIDTH_PRESETS.map((width) => Math.max(min, Math.min(max, width)));
+  return presets.find((width) => width > value + 0.01) ?? presets[0];
 }
 export function windowActionKeys(
   action: WindowAction,
@@ -165,16 +172,29 @@ export function applyWindowAction(
         ...manager,
         floating: {
           ...manager.floating,
-          [active]: { ...floating, [axis]: Math.max(0.25, Math.min(1, floating[axis] + delta)) },
+          [active]: {
+            ...floating,
+            [axis]:
+              action === "cycle-width"
+                ? nextPresetWidth(
+                    (geometry.rects.get(active)?.width ?? floating.width * width) / width,
+                    Math.min(1, MIN_WINDOW_WIDTH / width),
+                    1,
+                  )
+                : Math.max(0.25, Math.min(1, floating[axis] + delta)),
+          },
         },
       };
     } else if (manager.mode === "strip" && column) {
+      const divider = geometry.dividers.find(
+        (d) => d.target.kind === "column" && d.target.id === column.id,
+      );
       manager = updateColumn(manager, column.id, (c) => ({
         ...c,
         width:
           !vertical && action !== "equalize"
             ? action === "cycle-width"
-              ? (WIDTH_PRESETS.find((w) => w > c.width + 0.01) ?? WIDTH_PRESETS[0])
+              ? nextPresetWidth(divider?.value ?? c.width, divider?.min ?? 0.25, divider?.max ?? 1)
               : Math.max(0.25, Math.min(1, c.width + delta))
             : c.width,
         weights:
