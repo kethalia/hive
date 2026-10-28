@@ -111,9 +111,9 @@ try {
     assert.equal(Math.round((await search.boundingBox()).x), 8);
     const drag = async (handle, dx, dy) => {
       const box = await handle.boundingBox();
-      assert.equal(box.width, 44);
-      assert.equal(box.height, 44);
-      await swipe(page, [[box.x + 22, box.y + 22]], dx, dy);
+      assert.equal(dx ? box.width : box.height, 16);
+      assert.equal(await handle.locator("span").count(), 0);
+      await swipe(page, [[box.x + box.width / 2, box.y + box.height / 2]], dx, dy);
     };
     const axis = width < 600 ? "height" : "width";
     await pane.getByLabel("a input").focus();

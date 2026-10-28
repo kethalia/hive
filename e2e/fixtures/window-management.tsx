@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Terminal } from "@xterm/xterm";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { AppViewportSize } from "@/components/app-viewport-size";
 import { DashboardKeyboardController } from "@/components/dashboard-keyboard-controller";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
+import { AudioDeviceControl } from "@/components/terminal/TerminalAudioControls";
 import { Toaster } from "@/components/ui/sonner";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
 import {
@@ -41,6 +43,17 @@ export function FixtureTerminal({
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
   const host = useRef<HTMLDivElement>(null);
+  const surface = useRef<HTMLDivElement>(null);
+  const [audioSlot, setAudioSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has("audio")) {
+      setAudioSlot(
+        surface.current
+          ?.closest("[data-terminal-audio-frame]")
+          ?.querySelector<HTMLElement>("[data-terminal-audio-slot]") ?? null,
+      );
+    }
+  }, []);
   const useXterm = new URLSearchParams(location.search).has("xterm");
   const callbacks = useRef({ onTerminalReady, onTerminalDestroy });
   callbacks.current = { onTerminalReady, onTerminalDestroy };
@@ -70,7 +83,22 @@ export function FixtureTerminal({
     };
   }, [sessionName, useXterm]);
   return (
-    <div className="flex h-full flex-col p-4 font-mono text-sm">
+    <div ref={surface} className="flex h-full flex-col p-4 font-mono text-sm">
+      {audioSlot
+        ? createPortal(
+            (["microphone", "speaker"] as const).map((device) => (
+              <AudioDeviceControl
+                key={device}
+                device={device}
+                phase="disconnected"
+                onConnect={() => {}}
+                onTogglePause={() => {}}
+                onStop={() => {}}
+              />
+            )),
+            audioSlot,
+          )
+        : null}
       <p className="shrink-0 truncate text-primary">{sessionName} · connected</p>
       <p className="mt-2 shrink-0 truncate text-muted-foreground">
         A persistent terminal pane. Resize, move, and switch layouts without reconnecting.

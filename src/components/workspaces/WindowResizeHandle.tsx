@@ -13,7 +13,6 @@ export function WindowResizeHandle({
   style,
   onChange,
   onInteraction,
-  touchOptimized = false,
 }: {
   label: string;
   axis: "width" | "height";
@@ -24,7 +23,6 @@ export function WindowResizeHandle({
   style: CSSProperties;
   onChange: (value: number) => void;
   onInteraction: (active: boolean) => void;
-  touchOptimized?: boolean;
 }) {
   const drag = useRef<{ point: number; value: number; pending?: number } | null>(null);
   const frame = useRef(0);
@@ -57,7 +55,7 @@ export function WindowResizeHandle({
       aria-valuenow={Math.round(value * 100)}
       aria-valuemin={Math.round(min * 100)}
       aria-valuemax={Math.round(max * 100)}
-      className={`group/resize absolute z-30 flex touch-none items-center justify-center focus-visible:outline-none ${axis === "width" ? "cursor-col-resize" : "cursor-row-resize"}`}
+      className={`absolute z-30 touch-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${axis === "width" ? "cursor-col-resize" : "cursor-row-resize"}`}
       style={style}
       data-window-resize=""
       data-launcher-gesture-ignore="true"
@@ -100,12 +98,6 @@ export function WindowResizeHandle({
               : clamp(value + (["ArrowLeft", "ArrowUp"].includes(event.key) ? -0.05 : 0.05)),
         );
       }}
-    >
-      {/* Keep the full edge draggable; only the small grip carries interaction feedback. */}
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none shrink-0 rounded-full transition-colors group-hover/resize:bg-muted-foreground/70 group-focus-visible/resize:bg-primary/80 group-focus-visible/resize:outline-2 group-focus-visible/resize:outline-offset-2 group-focus-visible/resize:outline-primary/70 group-active/resize:bg-primary/80 motion-reduce:transition-none ${touchOptimized ? "bg-primary/70 ring-2 ring-background" : "bg-muted-foreground/30"} ${axis === "width" ? (touchOptimized ? "h-8 w-1.5" : "h-8 w-0.5") : touchOptimized ? "h-1.5 w-8" : "h-0.5 w-8"}`}
-      />
-    </div>
+    />
   );
 }

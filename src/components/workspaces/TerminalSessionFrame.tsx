@@ -232,7 +232,7 @@ export function TerminalSessionFrame({
     <div
       role={interactive ? "button" : "group"}
       className={cn(
-        "relative flex h-full min-h-0 resize-none flex-col overflow-hidden border bg-black shadow-sm outline-none transition-[border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring",
+        "@container/window-frame relative flex h-full min-h-0 resize-none flex-col overflow-hidden border bg-black shadow-sm outline-none transition-[border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring",
         layoutMode === "single" ? "rounded-lg" : "rounded-md",
         active ? "border-primary ring-1 ring-primary" : "border-border",
         isDropTarget && "border-primary/80 ring-2 ring-inset ring-primary/60",
@@ -259,12 +259,14 @@ export function TerminalSessionFrame({
             draggableHeader && "touch-none cursor-grab active:cursor-grabbing",
           )}
           data-window-drag-surface={draggableHeader ? "true" : undefined}
+          data-window-header="true"
           data-launcher-gesture-ignore={draggableHeader ? "true" : undefined}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onContextMenu={handleHeaderContextMenu}
         >
           <div
             className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch"
+            data-window-title="true"
             title={
               draggableHeader
                 ? "Drag to rearrange. Ctrl/Cmd+Alt+Shift+Arrow moves the focused pane."
