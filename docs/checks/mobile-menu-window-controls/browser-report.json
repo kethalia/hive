@@ -245,31 +245,17 @@
       },
       {
         "scenario": "stack",
-        "order": [
-          "a",
-          "b",
-          "c",
-          "d",
-          "e"
-        ],
+        "order": ["a", "b", "c", "d", "e"],
         "forwardScrollTop": 197
       },
       {
         "scenario": "pin-left",
-        "order": [
-          "b",
-          "a",
-          "c"
-        ],
+        "order": ["b", "a", "c"],
         "forwardScrollTop": 0
       },
       {
         "scenario": "pin-right",
-        "order": [
-          "a",
-          "c",
-          "b"
-        ],
+        "order": ["a", "c", "b"],
         "forwardScrollTop": 0
       }
     ],
