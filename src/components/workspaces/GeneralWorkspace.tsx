@@ -617,6 +617,18 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           onBoardChange={changeBoard}
           onActivate={activate}
           renderPane={(b, pane, visible, rect, dragHandleListeners) => {
+            const onCycleWidth =
+              mobile && manager.mode === "strip"
+                ? () =>
+                    changeBoard(b.key, (current) =>
+                      applyWindowAction(
+                        { ...current, activeWindowId: pane.id },
+                        "cycle-width",
+                        viewport.width,
+                        viewport.height,
+                      ),
+                    )
+                : undefined;
             if (pane.kind === "hive")
               return (
                 <HiveWorkspacePane
@@ -629,6 +641,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                   dragHandleListeners={dragHandleListeners}
                   onActivate={() => activate(b.key, pane.id)}
                   onClose={() => closeWindow(b.key, pane.id)}
+                  onCycleWidth={onCycleWidth}
                   onWorkspaceChange={(workspaceId) =>
                     changeBoard(b.key, (current) => ({
                       ...current,
@@ -673,6 +686,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                 layoutSignal={rect}
                 dragHandleListeners={dragHandleListeners}
                 onActivate={() => activate(b.key, pane.id)}
+                onCycleWidth={onCycleWidth}
                 onClose={() => closeWindow(b.key, pane.id)}
                 onOpenTool={(tool) => openTool(pane.workspaceId, tool)}
                 onOpenFile={(file, newBoard) =>

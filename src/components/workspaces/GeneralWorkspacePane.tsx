@@ -57,6 +57,7 @@ interface Props {
   dragHandleListeners?: DraggableSyntheticListeners;
   onActivate: () => void;
   onClose: () => void;
+  onCycleWidth?: () => void;
   onOpenTool: (tool: GeneralWorkspaceTool) => void;
   onOpenFile: (pane: Extract<GeneralPane, { kind: "app" }>, newBoard: boolean) => void;
   onReady: (term: Terminal, send: (data: string) => void, sessionName: string) => void;
@@ -74,6 +75,7 @@ export function GeneralWorkspacePane({
   dragHandleListeners,
   onActivate,
   onClose,
+  onCycleWidth,
   onOpenTool,
   onOpenFile,
   onReady,
@@ -408,6 +410,7 @@ export function GeneralWorkspacePane({
         onActivate={onActivate}
         onFocusActivate
         onClose={onClose}
+        onCycleWidth={onCycleWidth}
         closeLabel={`Close ${pane.label} window`}
         onOpenActions={setAnchor}
         actionsOpen={!!anchor}

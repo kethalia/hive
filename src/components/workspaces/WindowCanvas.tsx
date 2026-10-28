@@ -84,6 +84,9 @@ export function WindowCanvas({
     activeBoard.manager,
     activeBoard.windows.map((w) => w.id),
   );
+  const resizeDividers = activeGeometry.dividers.filter(
+    (divider) => !(mobile && manager.mode === "strip" && divider.axis === "width"),
+  );
   useWindowSwipe(scroller, mobile, (direction) => {
     const tiled =
       manager.mode === "strip"
@@ -340,6 +343,10 @@ export function WindowCanvas({
                 b.manager,
                 b.windows.map((w) => w.id),
               );
+              const floatingResizeAxes =
+                mobile && m.mode === "strip"
+                  ? (["height"] as const)
+                  : (["width", "height"] as const);
               return b.windows.map((pane) => {
                 const focused = pane.id === (b.activeWindowId ?? b.windows[0]?.id);
                 const visible = b.key === activeBoardKey && !g.hidden.has(pane.id);
@@ -367,7 +374,7 @@ export function WindowCanvas({
                       <>
                         {renderPane(b, pane, visible, JSON.stringify(rect), dragHandleListeners)}
                         {visible && !dragId && !m.maximized && m.floating[pane.id]
-                          ? (["width", "height"] as const).map((axis) => (
+                          ? floatingResizeAxes.map((axis) => (
                               <WindowResizeHandle
                                 key={axis}
                                 touchOptimized={mobile}
@@ -450,7 +457,7 @@ export function WindowCanvas({
             ) : null}
           </DndContext>
           {!dragId
-            ? activeGeometry.dividers.map((d) => (
+            ? resizeDividers.map((d) => (
                 <WindowResizeHandle
                   key={d.id}
                   touchOptimized={mobile}

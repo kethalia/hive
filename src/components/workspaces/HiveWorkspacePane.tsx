@@ -69,6 +69,7 @@ interface Props {
   dragHandleListeners?: DraggableSyntheticListeners;
   onActivate: () => void;
   onClose: () => void;
+  onCycleWidth?: () => void;
   onWorkspaceChange: (workspaceId: string) => void;
   onOpenSession: (workspaceId: string, sessionName: string) => void;
 }
@@ -83,6 +84,7 @@ export function HiveWorkspacePane({
   dragHandleListeners,
   onActivate,
   onClose,
+  onCycleWidth,
   onWorkspaceChange,
   onOpenSession,
 }: Props) {
@@ -107,6 +109,7 @@ export function HiveWorkspacePane({
       onActivate={onActivate}
       onFocusActivate
       onClose={onClose}
+      onCycleWidth={onCycleWidth}
       closeLabel={`Close ${hiveToolLabels[pane.tool]}`}
       dataTestId={`hive-window-${pane.tool}`}
     >
