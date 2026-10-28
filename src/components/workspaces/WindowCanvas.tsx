@@ -353,10 +353,11 @@ export function WindowCanvas({
                           JSON.stringify(rect),
                           mobile ? undefined : dragHandleListeners,
                         )}
-                        {!mobile && visible && !dragId && !m.maximized && m.floating[pane.id]
+                        {visible && !dragId && !m.maximized && m.floating[pane.id]
                           ? (["width", "height"] as const).map((axis) => (
                               <WindowResizeHandle
                                 key={axis}
+                                touchOptimized={mobile}
                                 label={`Resize floating ${axis}`}
                                 axis={axis}
                                 value={rect[axis] / (axis === "width" ? width : canvasHeight)}
@@ -370,19 +371,32 @@ export function WindowCanvas({
                                 }
                                 extent={axis === "width" ? width : canvasHeight}
                                 style={
-                                  axis === "width"
+                                  mobile
                                     ? {
-                                        left: rect.width - 6,
-                                        top: 35,
-                                        width: 6,
-                                        height: rect.height - 35,
+                                        left:
+                                          axis === "width"
+                                            ? rect.width - 44
+                                            : (rect.width - 44) / 2,
+                                        top:
+                                          axis === "height"
+                                            ? rect.height - 44
+                                            : (rect.height - 44) / 2,
+                                        width: 44,
+                                        height: 44,
                                       }
-                                    : {
-                                        left: 0,
-                                        top: rect.height - 6,
-                                        width: rect.width,
-                                        height: 6,
-                                      }
+                                    : axis === "width"
+                                      ? {
+                                          left: rect.width - 6,
+                                          top: 35,
+                                          width: 6,
+                                          height: rect.height - 35,
+                                        }
+                                      : {
+                                          left: 0,
+                                          top: rect.height - 6,
+                                          width: rect.width,
+                                          height: 6,
+                                        }
                                 }
                                 onInteraction={(active) => {
                                   setResizing(active);
@@ -422,17 +436,27 @@ export function WindowCanvas({
               />
             ) : null}
           </DndContext>
-          {!mobile && !dragId
+          {!dragId
             ? activeGeometry.dividers.map((d) => (
                 <WindowResizeHandle
                   key={d.id}
+                  touchOptimized={mobile}
                   label={`Resize ${d.axis}`}
                   axis={d.axis}
                   value={d.value}
                   min={d.min}
                   max={d.max}
                   extent={d.extent}
-                  style={styleRect(d.rect)}
+                  style={styleRect(
+                    mobile
+                      ? {
+                          x: d.rect.x + d.rect.width / 2 - 22,
+                          y: d.rect.y + d.rect.height / 2 - 22,
+                          width: 44,
+                          height: 44,
+                        }
+                      : d.rect,
+                  )}
                   onChange={(value) => resize(d, value)}
                   onInteraction={setResizing}
                 />

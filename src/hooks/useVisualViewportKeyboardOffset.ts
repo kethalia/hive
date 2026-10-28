@@ -1,4 +1,5 @@
 import * as React from "react";
+import { subscribeViewportEvents } from "@/lib/viewport-events";
 
 const KEYBOARD_VISIBILITY_THRESHOLD_PX = 80;
 
@@ -24,9 +25,8 @@ export interface VisualViewportKeyboardOffset {
  *
  * SSR-safe: returns { liftPx: 0, isKeyboardVisible: false,
  * visualViewportHeightPx: 0, visualViewportOffsetTopPx: 0 } on first render.
- * Listeners are attached in useEffect to window.visualViewport for both
- * 'resize' and 'scroll' events, plus window orientation changes to reset the
- * baseline.
+ * Shared viewport/lifecycle listeners also refresh after returning to the app;
+ * orientation changes reset the baseline.
  */
 export function useVisualViewportKeyboardOffset(): VisualViewportKeyboardOffset {
   const [state, setState] = React.useState<VisualViewportKeyboardOffset>({
@@ -65,20 +65,11 @@ export function useVisualViewportKeyboardOffset(): VisualViewportKeyboardOffset 
       );
     };
 
-    const resetBaseline = () => {
-      baselineHeight = vv.height;
-      compute();
-    };
-
     compute();
-    vv.addEventListener("resize", compute);
-    vv.addEventListener("scroll", compute);
-    window.addEventListener("orientationchange", resetBaseline);
-    return () => {
-      vv.removeEventListener("resize", compute);
-      vv.removeEventListener("scroll", compute);
-      window.removeEventListener("orientationchange", resetBaseline);
-    };
+    return subscribeViewportEvents((orientationChanged) => {
+      if (orientationChanged) baselineHeight = vv.height;
+      compute();
+    });
   }, []);
 
   return state;

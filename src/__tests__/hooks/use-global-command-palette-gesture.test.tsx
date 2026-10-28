@@ -40,6 +40,40 @@ afterEach(() => {
 });
 
 describe("two-finger search shortcut", () => {
+  it("claims early upward movement and the remaining finger without scrolling the underlying window", async () => {
+    const onOpen = vi.fn();
+    const { getByTestId } = render(<Harness onOpen={onOpen} />);
+    const target = getByTestId("canvas");
+    const scroll = vi.fn();
+    target.addEventListener("touchmove", scroll);
+    touch("touchstart", start, target);
+    expect(
+      touch("touchmove", [point(1, 140, 296), point(2, 220, 296)], target).defaultPrevented,
+    ).toBe(true);
+    touch("touchmove", [point(1, 140, 230), point(2, 220, 255)], target);
+    touch("touchend", [point(2, 220, 255)], target);
+    expect(touch("touchmove", [point(2, 220, 245)], target).defaultPrevented).toBe(true);
+    touch("touchend", [], target);
+    await Promise.resolve();
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it("allows native scrolling and pinch before an upward gesture is claimed", () => {
+    const { getByTestId } = render(<Harness onOpen={vi.fn()} />);
+    const target = getByTestId("canvas");
+    const scroll = vi.fn();
+    target.addEventListener("touchmove", scroll);
+    touch("touchstart", [start[0]], target);
+    expect(touch("touchmove", [up[0]], target).defaultPrevented).toBe(false);
+    touch("touchend", [], target);
+    touch("touchstart", start, target);
+    expect(
+      touch("touchmove", [point(1, 90, 300), point(2, 270, 300)], target).defaultPrevented,
+    ).toBe(false);
+    expect(scroll).toHaveBeenCalledTimes(2);
+  });
+
   it("opens from the canvas after both fingers lift, even when touchend is consumed by a terminal", async () => {
     const onOpen = vi.fn();
     const { getByTestId } = render(<Harness onOpen={onOpen} />);

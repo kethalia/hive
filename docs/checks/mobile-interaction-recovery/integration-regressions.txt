@@ -1,0 +1,23 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+stderr | src/__tests__/components/command-palette.test.tsx > CommandPalette > shows loading beside existing results (mobile: true)
+React does not recognize the `finalFocus` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `finalfocus` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+
+ ✓ src/__tests__/components/command-palette.test.tsx (41 tests) 445ms
+ ✓ src/__tests__/integration/terminal-keystroke-exclusivity.test.tsx (3 tests) 783ms
+   ✓ Terminal keystroke exclusivity (R069) > calls term.focus() after mount  719ms
+ ✓ src/__tests__/integration/interactive-terminal-integration.test.tsx (70 tests) 3232ms
+   ✓ InteractiveTerminal integration — Mobile input adapter > uses tmux for held mobile selection without wheel scrolling or keyboard focus  631ms
+ ✓ src/__tests__/components/general-workspace-windows.test.tsx (10 tests) 3863ms
+   ✓ workspace navigation commands > moves in both directions and closes from terminal focus on Macintosh  622ms
+   ✓ workspace navigation commands > moves in both directions and closes from terminal focus on Windows  500ms
+   ✓ workspace navigation commands > closing the last workspace leaves an empty workspace: {"key":"w","code":"KeyW","ctrlKey":true}  448ms
+   ✓ workspace navigation commands > closing the last workspace leaves an empty workspace: {"key":"w","code":"KeyW","metaKey":true}  305ms
+   ✓ workspace tool windows > moves layout settings into Cmd+? help and updates active bindings without remounting panes  1053ms
+   ✓ workspace tool windows > opens all built-in tools without navigation, restores them, and reuses a window across workspaces  464ms
+
+ Test Files  4 passed (4)
+      Tests  124 passed (124)
+   Start at  21:24:51
+   Duration  6.04s (transform 1.28s, setup 0ms, collect 2.77s, tests 8.32s, environment 1.92s, prepare 227ms)

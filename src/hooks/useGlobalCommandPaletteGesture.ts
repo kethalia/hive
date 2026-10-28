@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { TAP_THRESHOLD_PX } from "@/lib/gestures/conventions";
 import { isLauncherGestureSelectionTarget } from "@/lib/gestures/horizontal-swipe";
 
 interface GlobalCommandPaletteGestureOptions {
@@ -27,6 +26,7 @@ export function useGlobalCommandPaletteGesture({
       points: { id: number; x: number; y: number }[];
       target: EventTarget | null;
       qualified: boolean;
+      claimed: boolean;
       releasing: boolean;
     } | null = null;
     let cancelled = false;
@@ -34,8 +34,14 @@ export function useGlobalCommandPaletteGesture({
       start = null;
       cancelled = false;
     };
+    const consume = (event: TouchEvent) => {
+      if (event.cancelable) event.preventDefault();
+      // Prevent xterm and nested scroll handlers from also acting on this gesture.
+      event.stopPropagation();
+    };
     const touchStart = (event: TouchEvent) => {
       if (event.touches.length > 2) cancelled = true;
+      if (start?.releasing) cancelled = true;
       if (cancelled || event.touches.length !== 2) return;
       if (event.target instanceof Element && event.target.closest(IGNORE_TARGET)) return;
       if (isLauncherGestureSelectionTarget(event.target)) return;
@@ -47,10 +53,12 @@ export function useGlobalCommandPaletteGesture({
         })),
         target: event.target,
         qualified: false,
+        claimed: false,
         releasing: false,
       };
     };
     const touchMove = (event: TouchEvent) => {
+      if (start?.claimed) consume(event);
       if (!start || cancelled || start.releasing) return;
       if (event.touches.length !== 2 || isLauncherGestureSelectionTarget(start.target)) {
         cancelled = true;
@@ -78,13 +86,21 @@ export function useGlobalCommandPaletteGesture({
         cancelled = true;
         return;
       }
-      const upward = points.every(
-        (point) => point && -point.dy > TAP_THRESHOLD_PX && -point.dy > Math.abs(point.dx) * 1.5,
-      );
-      if (upward && event.cancelable) event.preventDefault();
-      start.qualified = upward && points.every((point) => point && -point.dy >= SWIPE_UP_DISTANCE);
+      const distance = -(a.dy + b.dy) / 2;
+      const upward = [a, b].every((point) => -point.dy > Math.abs(point.dx) * 1.5);
+      // Claim parallel upward movement before native scrolling begins. Keep
+      // pinches/horizontal movement unclaimed, and allow natural finger lag.
+      if (upward && distance >= 3) {
+        start.claimed = true;
+        consume(event);
+      }
+      start.qualified =
+        upward &&
+        distance >= SWIPE_UP_DISTANCE &&
+        [a, b].every((point) => -point.dy >= SWIPE_UP_DISTANCE / 2);
     };
     const touchEnd = (event: TouchEvent) => {
+      if (start?.claimed && event.cancelable) event.preventDefault();
       if (event.touches.length > 0) {
         if (start) start.releasing = true;
         return;

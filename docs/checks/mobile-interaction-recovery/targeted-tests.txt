@@ -1,0 +1,13 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/hooks/useVisualViewportKeyboardOffset.test.ts (9 tests) 35ms
+ ✓ src/__tests__/components/app-viewport-size.test.tsx (5 tests) 120ms
+ ✓ src/__tests__/hooks/use-window-swipe.test.tsx (12 tests) 204ms
+ ✓ src/__tests__/hooks/use-global-command-palette-gesture.test.tsx (17 tests) 209ms
+ ✓ src/__tests__/components/window-canvas-navigation.test.tsx (5 tests) 306ms
+
+ Test Files  5 passed (5)
+      Tests  48 passed (48)
+   Start at  21:22:36
+   Duration  1.39s (transform 251ms, setup 0ms, collect 958ms, tests 874ms, environment 2.73s, prepare 308ms)

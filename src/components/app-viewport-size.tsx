@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { subscribeViewportEvents } from "@/lib/viewport-events";
 
 /**
  * Publishes runtime viewport measurements without taking ownership of the app
@@ -28,17 +29,7 @@ export function AppViewportSize() {
     };
 
     updateViewportSize();
-    window.addEventListener("resize", updateViewportSize);
-    window.addEventListener("orientationchange", updateViewportSize);
-    visualViewport?.addEventListener("resize", updateViewportSize);
-    visualViewport?.addEventListener("scroll", updateViewportSize);
-
-    return () => {
-      window.removeEventListener("resize", updateViewportSize);
-      window.removeEventListener("orientationchange", updateViewportSize);
-      visualViewport?.removeEventListener("resize", updateViewportSize);
-      visualViewport?.removeEventListener("scroll", updateViewportSize);
-    };
+    return subscribeViewportEvents(updateViewportSize);
   }, []);
 
   return null;
