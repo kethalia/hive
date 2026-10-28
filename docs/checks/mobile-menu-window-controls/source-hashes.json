@@ -1,0 +1,15 @@
+{
+  "src/components/terminal/CommandPalette.tsx": "685d08ba6e524869c85f113dbb71b90d5b5aa881ab5e962ad289bbcd0ef52439",
+  "src/components/ui/command.tsx": "ed9585cde653a069caca7d1b7a95aa1cb571ed0f51e3b41632e3958ad1f75ed6",
+  "src/components/workspaces/GeneralWorkspace.tsx": "b4ea8d68bc3c2995a907e3b14093ce6997876ee65214fce221fe029d45325daf",
+  "src/components/workspaces/TerminalSessionFrame.tsx": "a416229f4b54b91b49702ebcb9fc86f02be315c82589f3db035c39f9a88a2b57",
+  "src/components/workspaces/WindowCanvas.tsx": "860d943662de9a17ad6df4b15173c14058c6eef2bdc84ee86f88d99a4883a525",
+  "src/components/workspaces/WindowShortcutHelp.tsx": "704b5390cb66539b88f5a225036a1b6147d9eccbdf07c019235d3eed51003cad",
+  "src/hooks/useGlobalCommandPaletteGesture.ts": "b09d6b980ca8e2513df95e976f7e4ed043ab67aeef041a0a86041dbbc4777dcd",
+  "src/lib/workspaces/window-manager.ts": "70f196f1886b2493f6a600d24c8adc23c286eadf9d672b34d7ade5b51e136596",
+  "e2e/fixtures/window-management.tsx": "bda2f4bfa6f854d28c19385b9324ae4225f450e4e2218ff3515d076b0e183483",
+  "e2e/mobile-window-controls.browser.mjs": "85c3b5a9c2745a52fba9f58ecfad3373b77300302a622093d84879b3c42caaaf",
+  "scripts/build-window-management-fixture.mjs": "f27f5cfb2739eb0cec6fa2cec41b27e92e515a42d245851b9f382f0c0c4b49b3",
+  ".artifacts/mobile-menu-window-controls/browser/bundle.js": "8246d190ede48a04ce0aa037a71d5fff6b68c2fbcca28366c5012b67faf4fcd8",
+  ".artifacts/mobile-menu-window-controls/browser/style.css": "32e7df1e6ceac6d785b9643ace7f408cc975dbeeae65b4c8a800407058cdda36"
+}

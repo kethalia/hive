@@ -55,6 +55,7 @@ describe("TerminalSessionFrame", () => {
     const close = screen.getByRole("button", { name: "Close VS Code" });
 
     expect(header).toHaveAttribute("data-window-drag-surface", "true");
+    expect(header).toHaveAttribute("data-launcher-gesture-ignore", "true");
     expect(header).toHaveClass("cursor-grab", "touch-none", "select-none");
     expect(screen.queryByRole("button", { name: "Drag VS Code" })).not.toBeInTheDocument();
     expect(grip).toHaveClass("size-3", "shrink-0");

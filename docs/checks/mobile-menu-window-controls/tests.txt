@@ -1,0 +1,28 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/workspaces/window-manager.test.ts (40 tests) 60ms
+ ✓ src/__tests__/hooks/use-window-swipe.test.tsx (12 tests) 298ms
+ ✓ src/__tests__/hooks/use-global-command-palette-gesture.test.tsx (18 tests) 304ms
+stderr | src/__tests__/components/command-palette.test.tsx > CommandPalette > shows loading beside existing results (mobile: true)
+React does not recognize the `finalFocus` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `finalfocus` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+
+ ✓ src/__tests__/components/window-canvas-navigation.test.tsx (5 tests) 410ms
+ ✓ src/__tests__/components/command-scroll.test.tsx (2 tests) 340ms
+ ✓ src/__tests__/components/terminal-session-frame.test.tsx (6 tests) 357ms
+ ✓ src/__tests__/components/command-palette.test.tsx (41 tests) 651ms
+ ✓ src/__tests__/components/command-palette-search.test.tsx (6 tests) 680ms
+   ✓ real command search > filters unrelated entries, ranks across groups, and selects the first result with Enter  324ms
+ ✓ src/__tests__/integration/interactive-terminal-integration.test.tsx (70 tests) 2557ms
+   ✓ InteractiveTerminal file drop feedback > detects files, keeps feedback across child transitions, clears it on drop and exit  428ms
+   ✓ InteractiveTerminal integration — Mobile input adapter > uses tmux for held mobile selection without wheel scrolling or keyboard focus  574ms
+ ✓ src/__tests__/components/general-workspace-windows.test.tsx (10 tests) 3193ms
+   ✓ workspace navigation commands > moves in both directions and closes from terminal focus on Macintosh  560ms
+   ✓ workspace navigation commands > moves in both directions and closes from terminal focus on Windows  490ms
+   ✓ workspace tool windows > moves layout settings into Cmd+? help and updates active bindings without remounting panes  929ms
+   ✓ workspace tool windows > opens all built-in tools without navigation, restores them, and reuses a window across workspaces  506ms
+
+ Test Files  10 passed (10)
+      Tests  210 passed (210)
+   Start at  06:51:08
+   Duration  5.76s (transform 1.63s, setup 0ms, collect 5.36s, tests 8.85s, environment 8.24s, prepare 1.09s)

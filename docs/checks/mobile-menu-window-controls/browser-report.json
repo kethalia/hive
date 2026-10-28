@@ -1,0 +1,341 @@
+{
+  "controls": {
+    "checks": [
+      "390: grow final Strip pane from left edge",
+      "390: scroll menu down, reach bottom, scroll back without moving page",
+      "390: touch title drag reorders Strip and preserves terminal lifetime",
+      "390: touch title drag rearranges Grid",
+      "390: touch moves floating pane without remounting; order and position persist",
+      "744: grow final Strip pane from left edge",
+      "744: scroll menu down, reach bottom, scroll back without moving page",
+      "744: touch title drag reorders Strip and preserves terminal lifetime",
+      "744: touch title drag rearranges Grid",
+      "744: touch moves floating pane without remounting; order and position persist",
+      "1194: grow final Strip pane from left edge",
+      "1194: scroll menu down, reach bottom, scroll back without moving page",
+      "1194: touch title drag reorders Strip and preserves terminal lifetime",
+      "1194: touch title drag rearranges Grid",
+      "1194: touch moves floating pane without remounting; order and position persist",
+      "real xterm: staggered two-finger search stays open and its menu scrolls"
+    ],
+    "measurements": [],
+    "errors": []
+  },
+  "mobile": {
+    "checks": [
+      "390px: Settings and app panes clear the bottom safe area, Settings reaches its scroll end, keyboard spacing contracts, and terminal controls do not double the inset",
+      "840px: Settings and app panes clear the bottom safe area, Settings reaches its scroll end, keyboard spacing contracts, and terminal controls do not double the inset",
+      "390px: keyboard toolbar has an 8px button gap, restores the closed-keyboard safe area, and uses one visible toast for upload progress/completion/failure without growing the toolbar",
+      "840px: keyboard toolbar has an 8px button gap, restores the closed-keyboard safe area, and uses one visible toast for upload progress/completion/failure without growing the toolbar",
+      "390px: left-aligned header, destination icon, both layouts, bidirectional native touch navigation, and client continuity",
+      "390px: two-finger upward search, taller padded drawer, keyboard resize/pan lift, scrollable results",
+      "390px: Grid swipe reveals the next window inside the canvas",
+      "390px: many workspace numbers scroll and reveal the selected workspace without hiding the controls",
+      "840px: left-aligned header, destination icon, both layouts, bidirectional native touch navigation, and client continuity",
+      "840px: two-finger upward search, taller padded drawer, keyboard resize/pan lift, scrollable results",
+      "840px: Grid swipe reveals the next window inside the canvas",
+      "840px: many workspace numbers scroll and reveal the selected workspace without hiding the controls",
+      "stack: native swipes follow visual order, reveal the selected window, and preserve terminal instances in both directions",
+      "pin-left: native swipes follow visual order, reveal the selected window, and preserve terminal instances in both directions",
+      "pin-right: native swipes follow visual order, reveal the selected window, and preserve terminal instances in both directions",
+      "390px: installed-app controls clear the status-bar edge with zero and nonzero safe-area insets",
+      "840px: installed-app controls clear the status-bar edge with zero and nonzero safe-area insets",
+      "desktop: destination-view toggle switches both ways without mobile bottom padding"
+    ],
+    "measurements": [
+      {
+        "width": 390,
+        "settingsBox": {
+          "x": 2,
+          "y": 63,
+          "width": 386,
+          "height": 745
+        },
+        "filesBox": {
+          "x": 2,
+          "y": 63,
+          "width": 386,
+          "height": 745
+        },
+        "keyboardBox": {
+          "x": 2,
+          "y": 98,
+          "width": 386,
+          "height": 327
+        }
+      },
+      {
+        "width": 840,
+        "settingsBox": {
+          "x": 2,
+          "y": 63,
+          "width": 836,
+          "height": 745
+        },
+        "filesBox": {
+          "x": 2,
+          "y": 63,
+          "width": 836,
+          "height": 745
+        },
+        "keyboardBox": {
+          "x": 2,
+          "y": 98,
+          "width": 836,
+          "height": 327
+        }
+      },
+      {
+        "width": 390,
+        "restingControls": {
+          "x": 0,
+          "y": 758,
+          "width": 390,
+          "height": 86
+        },
+        "keyboardControls": {
+          "x": 0,
+          "y": 379,
+          "width": 390,
+          "height": 56
+        },
+        "progressToast": {
+          "x": 16,
+          "y": 369.5222473144531,
+          "width": 358,
+          "height": 53.5
+        }
+      },
+      {
+        "width": 840,
+        "restingControls": {
+          "x": 0,
+          "y": 758,
+          "width": 840,
+          "height": 86
+        },
+        "keyboardControls": {
+          "x": 0,
+          "y": 379,
+          "width": 840,
+          "height": 56
+        },
+        "progressToast": {
+          "x": 460,
+          "y": 353.52691650390625,
+          "width": 356,
+          "height": 53.5
+        }
+      },
+      {
+        "width": 390,
+        "header": {
+          "background": "rgb(7, 10, 8)",
+          "backdropFilter": "none"
+        },
+        "headerButtons": [
+          {
+            "x": 8,
+            "y": 8,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "x": 56,
+            "y": 8,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "x": 104,
+            "y": 8,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "x": 152,
+            "y": 8,
+            "width": 44,
+            "height": 44
+          }
+        ]
+      },
+      {
+        "width": 390,
+        "normalSearch": {
+          "x": 0,
+          "y": 204,
+          "width": 390,
+          "height": 640
+        },
+        "keyboardSearch": {
+          "x": 0,
+          "y": 59,
+          "width": 390,
+          "height": 376
+        },
+        "list": {
+          "x": 16,
+          "y": 173,
+          "width": 358,
+          "height": 230
+        },
+        "padding": {
+          "left": 16,
+          "right": 16
+        }
+      },
+      {
+        "width": 840,
+        "header": {
+          "background": "rgb(7, 10, 8)",
+          "backdropFilter": "none"
+        },
+        "headerButtons": [
+          {
+            "x": 8,
+            "y": 8,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "x": 56,
+            "y": 8,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "x": 104,
+            "y": 8,
+            "width": 44,
+            "height": 44
+          },
+          {
+            "x": 152,
+            "y": 8,
+            "width": 44,
+            "height": 44
+          }
+        ]
+      },
+      {
+        "width": 840,
+        "normalSearch": {
+          "x": 0,
+          "y": 204,
+          "width": 840,
+          "height": 640
+        },
+        "keyboardSearch": {
+          "x": 0,
+          "y": 59,
+          "width": 840,
+          "height": 376
+        },
+        "list": {
+          "x": 16,
+          "y": 173,
+          "width": 808,
+          "height": 230
+        },
+        "padding": {
+          "left": 16,
+          "right": 16
+        }
+      },
+      {
+        "scenario": "stack",
+        "order": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "forwardScrollTop": 197
+      },
+      {
+        "scenario": "pin-left",
+        "order": [
+          "b",
+          "a",
+          "c"
+        ],
+        "forwardScrollTop": 0
+      },
+      {
+        "scenario": "pin-right",
+        "order": [
+          "a",
+          "c",
+          "b"
+        ],
+        "forwardScrollTop": 0
+      }
+    ],
+    "errors": []
+  },
+  "recovery": {
+    "checks": [
+      "390px: left-aligned header and native touch Grid, Strip, and floating resize without switching windows",
+      "390px: foreground restores height/pan with missing and delayed resize events, but keeps a genuinely reduced keyboard viewport",
+      "390px: two-finger search suppresses native and manual scrolling; one-finger scrolling and terminal instances remain intact",
+      "840px: left-aligned header and native touch Grid, Strip, and floating resize without switching windows",
+      "840px: foreground restores height/pan with missing and delayed resize events, but keeps a genuinely reduced keyboard viewport",
+      "840px: two-finger search suppresses native and manual scrolling; one-finger scrolling and terminal instances remain intact"
+    ],
+    "measurements": [],
+    "errors": []
+  },
+  "desktop": {
+    "checks": [
+      "pointer resizing changes geometry",
+      "keyboard resizing changes geometry",
+      "drag destination border and live neighbor rearrangement",
+      "cancel restores original positions",
+      "drop commits the previewed arrangement",
+      "directional focus from terminal",
+      "stack resize and double-click reset keep equal neighbor heights",
+      "stack and tab keyboard controls",
+      "mode, stack, tabs and pin preserve iframe and terminal instances",
+      "floating width resizes and returns to tiling",
+      "Cmd+? shows layout shortcuts and their setting without an Arrange screen",
+      "layout shortcuts do not run behind a modal",
+      "move to another board preserves terminal instance",
+      "notification reveals the existing pane on another board",
+      "missing notification creates a new board and terminal window",
+      "reload retains dimensions, mode and grouping",
+      "reduced motion disables pane transitions",
+      "mobile canvas without horizontal page overflow",
+      "Base UI collapsible animates its measured height before unmounting",
+      "opening a third Strip app reveals it immediately",
+      "reopening the active Strip app reveals it without duplication or blocking manual scroll",
+      "clicked tab selection survives focus leaving the column and reload",
+      "keyboard tab selection stays visible after directional focus leaves the column",
+      "opening a new app transfers Grid maximization to the visible active pane",
+      "reopening an existing app transfers Grid maximization to the visible active pane",
+      "production Cmd+K retains discovery and layout actions across layout and shortcut-preset changes",
+      "overlapping floating width handles resize only their foreground owner",
+      "overlapping floating height handles resize only their foreground owner",
+      "background floating resize handles cannot intercept foreground content",
+      "Cmd+Left/Right focuses adjacent windows from a terminal",
+      "horizontal wheel capture accumulates bursts, normalizes line deltas, and preserves vertical scroll and zoom",
+      "Macintosh: right/right/left returns to Settings between a terminal and workspace management after fractional Strip scrolling",
+      "Windows NT 10.0: right/right/left returns to Settings between a terminal and workspace management after fractional Strip scrolling",
+      "Macintosh: adding Option/Alt switches numbered workspaces in both directions",
+      "Macintosh: previous/next moves preserve the terminal, search exposes both actions, W closes and fallback leaves an empty workspace",
+      "Windows NT 10.0: adding Option/Alt switches numbered workspaces in both directions",
+      "Windows NT 10.0: previous/next moves preserve the terminal, search exposes both actions, W closes and fallback leaves an empty workspace",
+      "Nested launcher, inline creation, session and project reuse, iframe/tool focus, empty results, and preserved terminal instances",
+      "desktop: inline name entry, forward/back slides, Escape/empty Backspace, draft restoration, repeated Cmd+K, reduced motion, and Enter submission",
+      "mobile: inline name entry, forward/back slides, Escape/empty Backspace, draft restoration, repeated Cmd+K, reduced motion, and Enter submission",
+      "grid/Control: mixed window focus, tool close shortcuts/buttons, previous/next neighbor, background close, and last close",
+      "grid/Meta: mixed window focus, tool close shortcuts/buttons, previous/next neighbor, background close, and last close",
+      "strip/Control: mixed window focus, tool close shortcuts/buttons, previous/next neighbor, background close, and last close",
+      "strip/Meta: mixed window focus, tool close shortcuts/buttons, previous/next neighbor, background close, and last close",
+      "1440px: native tool windows, agent resume and workspace selection, resize/move, deduplication, restoration, no horizontal overflow",
+      "390px: native tool windows, agent resume and workspace selection, resize/move, deduplication, restoration, no horizontal overflow"
+    ],
+    "errors": []
+  }
+}

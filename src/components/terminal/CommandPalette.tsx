@@ -711,6 +711,7 @@ export function CommandPalette({
             defaultValue={page?.input ? "submit-page" : undefined}
             label={page?.input?.label ?? page?.title ?? "Search Hive"}
             className={mobileCommandClassName}
+            disablePointerSelection
             shouldFilter={false}
           >
             {body}

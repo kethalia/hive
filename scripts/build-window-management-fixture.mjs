@@ -83,7 +83,10 @@ await build({
 const css = await postcss([tailwindcss()]).process(await readFile("src/app/globals.css", "utf8"), {
   from: "src/app/globals.css",
 });
-await writeFile(resolve(output, "style.css"), css.css);
+await writeFile(
+  resolve(output, "style.css"),
+  css.css + (await readFile(require.resolve("@xterm/xterm/css/xterm.css"), "utf8")),
+);
 await writeFile(
   resolve(output, "index.html"),
   '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="app"></div><script src="/bundle.js"></script></body></html>',

@@ -49,6 +49,28 @@ function board(mode: "grid" | "strip" = "strip"): GeneralBoard {
   };
 }
 describe("window layouts", () => {
+  it.each([
+    390, 744, 1194,
+  ])("offers an inward-facing leading grip for the last Strip column at %spx", (width) => {
+    const b = board();
+    const m = b.manager!;
+    m.scroll = 100000;
+    const geometry = windowGeometry(m, b.layout, ["a", "b", "c"], "c", width, 800);
+    const handle = geometry.dividers.find(
+      (d) => d.target.kind === "column" && d.target.id === m.columns[2].id && d.edge === "start",
+    );
+    expect(handle).toBeDefined();
+    expect(handle!.extent).toBeLessThan(0);
+    const pane = geometry.rects.get("c")!;
+    expect(handle!.rect.x).toBe(pane.x);
+    const previous = geometry.dividers.find(
+      (d) => d.target.kind === "column" && d.target.id === m.columns[1].id,
+    );
+    expect(previous!.rect.x + previous!.rect.width).toBeLessThanOrEqual(handle!.rect.x);
+    expect(pane.x).toBeGreaterThanOrEqual(0);
+    expect(pane.x + pane.width).toBeCloseTo(width);
+    expect(handle!.value - 40 / handle!.extent).toBeGreaterThan(handle!.value);
+  });
   it("equalizes a Grid with only vertical splits", () => {
     const b = board("grid");
     b.layout = {

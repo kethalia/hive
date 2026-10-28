@@ -108,6 +108,7 @@ export interface LayoutDivider {
   min: number;
   max: number;
   extent: number;
+  edge?: "start" | "end";
   target:
     | { kind: "grid"; path: string }
     | { kind: "column"; id: string }
@@ -200,6 +201,7 @@ export function windowGeometry(
     for (const c of pinned) result[c.pin!] = Math.min(width * 0.3, Math.max(180, c.width * width));
     const available = Math.max(200, width - result.left - result.right);
     let cursor = result.left;
+    const unpinned = manager.columns.filter((c) => !c.pin);
     const place = (c: WindowColumn, x: number, w: number) => {
       const h = Math.max(
         height,
@@ -238,10 +240,11 @@ export function windowGeometry(
             });
         }
       });
-      result.dividers.push({
+      const divider: LayoutDivider = {
         id: c.id,
         axis: "width",
-        rect: { x: c.pin === "right" ? x : x + w - 4, y: 0, width: 8, height: h },
+        rect: { x: c.pin === "right" ? x : x + w - 8, y: 0, width: 8, height: h },
+        edge: c.pin === "right" ? "start" : "end",
         value: w / (c.pin ? width : available),
         min: c.pin
           ? Math.max(0.05, Math.min(0.25, 180 / width))
@@ -249,9 +252,18 @@ export function windowGeometry(
         max: c.pin ? 0.3 : 1,
         extent: (c.pin === "right" ? -1 : 1) * (c.pin ? width : available),
         target: { kind: "column", id: c.id },
-      });
+      };
+      result.dividers.push(divider);
+      if (!c.pin && c === unpinned.at(-1))
+        result.dividers.push({
+          ...divider,
+          id: `${c.id}-start`,
+          rect: { ...divider.rect, x },
+          edge: "start",
+          extent: -available,
+        });
     };
-    for (const c of manager.columns.filter((c) => !c.pin)) {
+    for (const c of unpinned) {
       const w = Math.max(Math.min(MIN_WINDOW_WIDTH, available), c.width * available);
       place(c, cursor, w);
       cursor += w;

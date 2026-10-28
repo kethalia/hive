@@ -626,7 +626,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                   active={pane.id === b.activeWindowId}
                   visible={visible}
                   launchRequest={launchRequest}
-                  dragHandleListeners={mobile ? undefined : dragHandleListeners}
+                  dragHandleListeners={dragHandleListeners}
                   onActivate={() => activate(b.key, pane.id)}
                   onClose={() => closeWindow(b.key, pane.id)}
                   onWorkspaceChange={(workspaceId) =>
@@ -671,7 +671,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                 visible={visible}
                 mobile={mobile}
                 layoutSignal={rect}
-                dragHandleListeners={mobile ? undefined : dragHandleListeners}
+                dragHandleListeners={dragHandleListeners}
                 onActivate={() => activate(b.key, pane.id)}
                 onClose={() => closeWindow(b.key, pane.id)}
                 onOpenTool={(tool) => openTool(pane.workspaceId, tool)}
