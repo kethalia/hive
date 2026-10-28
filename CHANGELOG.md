@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.30.3
+
+### Patch Changes
+
+- ea1965d: Hide search arrows at scroll boundaries, replace touch pane width grips with preset cycling, and align header button sizes.
+
 ## 2.30.2
 
 ### Patch Changes
