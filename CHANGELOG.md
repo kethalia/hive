@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.30.4
+
+### Patch Changes
+
+- 421c696: Fit Grid windows to the available viewport, resize along shared borders without visible grips, and keep narrow pane controls accessible.
+
 ## 2.30.3
 
 ### Patch Changes
