@@ -264,7 +264,7 @@ export function WindowCanvas({
             ? resizeWorkspaceSplit(board.layout, target.path, value)
             : board.layout,
         };
-      return {
+      const resized = {
         ...board,
         manager: updateColumn(m, target.id, (c) => {
           if (target.kind === "column") return { ...c, width: value };
@@ -276,6 +276,24 @@ export function WindowCanvas({
           };
         }),
       };
+      if (
+        target.kind === "column" &&
+        divider.edge === "start" &&
+        !m.columns.find((c) => c.id === target.id)?.pin
+      ) {
+        // Growing the last column from its left edge keeps its right edge in view.
+        const before = geometry(board);
+        const after = geometry(resized);
+        resized.manager.scroll = Math.max(
+          0,
+          Math.min(
+            after.maxScroll,
+            Math.min(m.scroll, before.maxScroll) +
+              (value - divider.value) * Math.abs(divider.extent),
+          ),
+        );
+      }
+      return resized;
     });
   }
   return (
@@ -310,7 +328,8 @@ export function WindowCanvas({
             onDragCancel={clear}
             onDragEnd={(e) => {
               const next = proposed(e);
-              if (next) onBoardChange(next.key, () => next);
+              if (next)
+                onBoardChange(next.key, () => ({ ...next, activeWindowId: String(e.active.id) }));
               clear();
             }}
           >
@@ -339,20 +358,14 @@ export function WindowCanvas({
                       ...(resizing || scrolling ? { transition: "none" } : {}),
                     }}
                     previewStyle={
-                      !mobile && preview?.key === b.key
+                      preview?.key === b.key
                         ? { ...styleRect(rect), display: visible ? "block" : "none", zIndex }
                         : undefined
                     }
                   >
                     {({ dragHandleListeners }) => (
                       <>
-                        {renderPane(
-                          b,
-                          pane,
-                          visible,
-                          JSON.stringify(rect),
-                          mobile ? undefined : dragHandleListeners,
-                        )}
+                        {renderPane(b, pane, visible, JSON.stringify(rect), dragHandleListeners)}
                         {visible && !dragId && !m.maximized && m.floating[pane.id]
                           ? (["width", "height"] as const).map((axis) => (
                               <WindowResizeHandle
@@ -429,7 +442,7 @@ export function WindowCanvas({
                 );
               });
             })}
-            {!mobile && preview && dragId && activeGeometry.rects.has(dragId) ? (
+            {preview && dragId && activeGeometry.rects.has(dragId) ? (
               <WorkspaceWindowDropPlaceholder
                 kind="destination"
                 style={styleRect(activeGeometry.rects.get(dragId)!)}
@@ -450,7 +463,12 @@ export function WindowCanvas({
                   style={styleRect(
                     mobile
                       ? {
-                          x: d.rect.x + d.rect.width / 2 - 22,
+                          x:
+                            d.edge === "start"
+                              ? d.rect.x
+                              : d.edge === "end"
+                                ? d.rect.x + d.rect.width - 44
+                                : d.rect.x + d.rect.width / 2 - 22,
                           y: d.rect.y + d.rect.height / 2 - 22,
                           width: 44,
                           height: 44,

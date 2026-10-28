@@ -257,6 +257,7 @@ export function TerminalSessionFrame({
             draggableHeader && "touch-none cursor-grab active:cursor-grabbing",
           )}
           data-window-drag-surface={draggableHeader ? "true" : undefined}
+          data-launcher-gesture-ignore={draggableHeader ? "true" : undefined}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onContextMenu={handleHeaderContextMenu}
         >

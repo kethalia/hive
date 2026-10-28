@@ -86,7 +86,16 @@ function CommandList({ className, ...props }: React.ComponentProps<typeof Comman
     <CommandPrimitive.List
       data-slot="command-list"
       data-mobile-scroll-allow="true"
-      className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden", className)}
+      className={cn(
+        "min-h-0 max-h-[300px] touch-pan-y overflow-y-auto overflow-x-hidden overscroll-y-contain",
+        className,
+      )}
+      // Keep native list scrolling local to the popup. Document-level terminal
+      // gesture handlers must not receive a partial touch sequence from a menu.
+      onTouchStart={(event) => event.stopPropagation()}
+      onTouchMove={(event) => event.stopPropagation()}
+      onTouchEnd={(event) => event.stopPropagation()}
+      onTouchCancel={(event) => event.stopPropagation()}
       {...props}
     />
   );

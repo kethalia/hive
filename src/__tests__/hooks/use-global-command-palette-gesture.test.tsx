@@ -40,6 +40,21 @@ afterEach(() => {
 });
 
 describe("two-finger search shortcut", () => {
+  it("claims movement while the second finger catches up and cancels compatibility clicks", async () => {
+    const onOpen = vi.fn();
+    const { getByTestId } = render(<Harness onOpen={onOpen} />);
+    const target = getByTestId("canvas");
+    touch("touchstart", [start[0]], target);
+    touch("touchstart", start, target);
+    expect(touch("touchmove", [point(1, 140, 294), start[1]], target).defaultPrevented).toBe(true);
+    touch("touchmove", [point(1, 160, 235), point(2, 238, 255)], target);
+    // Minor recoil before release should not undo a completed upward swipe.
+    touch("touchmove", [point(1, 160, 255), point(2, 238, 275)], target);
+    expect(touch("touchend", [point(2, 238, 275)], target).defaultPrevented).toBe(true);
+    expect(touch("touchend", [], target).defaultPrevented).toBe(true);
+    await Promise.resolve();
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
   it("claims early upward movement and the remaining finger without scrolling the underlying window", async () => {
     const onOpen = vi.fn();
     const { getByTestId } = render(<Harness onOpen={onOpen} />);

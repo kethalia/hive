@@ -58,9 +58,10 @@ float, close, and restore like terminal/app windows. Their loading/error states 
 opening them preserves existing terminal and app instances. Settings contains Open Coder and sign-out.
 Closing the focused window selects its previous neighbor in the current layout, or the next window
 when there is no previous one. Closing a background window keeps the current selection.
-On mobile, swipe left or right across a window or its title to focus the next or previous window.
+On mobile, swipe left or right across window content to focus the next or previous window.
+Drag a window's title bar to rearrange it; title drags do not trigger window-switching gestures.
 Grid and Strip keep their desktop arrangements, with overflow kept inside the canvas. Embedded apps
-handle gestures inside their own frame; swipe their title to change windows. Window name tabs are
+handle gestures inside their own frame; use Hive search or focus shortcuts to switch windows. Window name tabs are
 hidden on mobile. The left-aligned header contains search, a single button showing the destination
 view, numbered workspaces, and the add-workspace button.
 
@@ -73,6 +74,9 @@ long-press text selection, and pinch gestures retain their existing behavior.
 On desktop, resize edges have a short, muted grip that highlights on hover, drag, or keyboard focus. The whole
 edge remains draggable, including the transparent area above or beside the grip.
 On touch screens, drag the visible grip between windows; its touch target is 44px square.
+The final Strip column also has a grip inside its left edge. Drag it left to widen that column
+while keeping its right edge visible; drag right to shrink it. Column grips stay inside their
+own panes so adjacent touch targets do not overlap.
 Floating windows have grips at the middle of their right and bottom edges. Search also offers
 Increase/Decrease width or height, Cycle window width, and Toggle full width.
 
@@ -99,7 +103,7 @@ Saved geometry is coalesced during interaction. Moving to a board that already c
 target focuses its existing window and retains the source window, preserving both clients.
 Explicit close releases that pane's client but keeps
 its tmux session running. Limits are nine boards and 32 windows; notifications never evict existing
-work to make room. On mobile, one pane is visible at a time and desktop geometry remains stored.
+work to make room. Mobile keeps the same saved geometry and reveals the focused pane inside the canvas.
 Search and keyboard help call boards **workspaces**, matching the numbered workspace tabs.
 Moving a window to the previous/next workspace wraps at either end. With just one workspace,
 either action creates a second one. Closing the last workspace leaves a fresh empty workspace.

@@ -8,7 +8,7 @@ interface GlobalCommandPaletteGestureOptions {
   onOpen: () => void;
 }
 
-const SWIPE_UP_DISTANCE = 56;
+const SWIPE_UP_DISTANCE = 48;
 const PINCH_TOLERANCE = 24;
 const IGNORE_TARGET =
   'input, textarea, select, button, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [data-launcher-gesture-ignore="true"], [data-terminal-touch-selecting="true"]';
@@ -82,19 +82,23 @@ export function useGlobalCommandPaletteGesture({
       }
       const [first, second] = start.points;
       const initialDistance = Math.hypot(first.x - second.x, first.y - second.y);
-      if (Math.abs(Math.hypot(a.x - b.x, a.y - b.y) - initialDistance) > PINCH_TOLERANCE) {
+      if (
+        Math.abs(Math.hypot(a.x - b.x, a.y - b.y) - initialDistance) >
+        Math.max(PINCH_TOLERANCE, initialDistance * 0.35)
+      ) {
         cancelled = true;
         return;
       }
       const distance = -(a.dy + b.dy) / 2;
-      const upward = [a, b].every((point) => -point.dy > Math.abs(point.dx) * 1.5);
+      const upward =
+        distance > Math.abs((a.dx + b.dx) / 2) * 1.2 && [a, b].every((point) => point.dy <= 3);
       // Claim parallel upward movement before native scrolling begins. Keep
       // pinches/horizontal movement unclaimed, and allow natural finger lag.
       if (upward && distance >= 3) {
         start.claimed = true;
         consume(event);
       }
-      start.qualified =
+      start.qualified ||=
         upward &&
         distance >= SWIPE_UP_DISTANCE &&
         [a, b].every((point) => -point.dy >= SWIPE_UP_DISTANCE / 2);
@@ -111,7 +115,9 @@ export function useGlobalCommandPaletteGesture({
     };
     window.addEventListener("touchstart", touchStart, { capture: true, passive: true });
     window.addEventListener("touchmove", touchMove, { capture: true, passive: false });
-    window.addEventListener("touchend", touchEnd, { capture: true, passive: true });
+    // Cancel the compatibility click; otherwise it can immediately focus the
+    // terminal underneath the newly opened popup on touch browsers.
+    window.addEventListener("touchend", touchEnd, { capture: true, passive: false });
     window.addEventListener("touchcancel", reset, { capture: true, passive: true });
     return () => {
       window.removeEventListener("touchstart", touchStart, true);

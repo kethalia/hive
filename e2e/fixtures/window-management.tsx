@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Terminal } from "@xterm/xterm";
+import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { AppViewportSize } from "@/components/app-viewport-size";
@@ -40,37 +40,52 @@ export function FixtureTerminal({
   onUserFocusRequest: () => void;
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
+  const host = useRef<HTMLDivElement>(null);
+  const useXterm = new URLSearchParams(location.search).has("xterm");
   const callbacks = useRef({ onTerminalReady, onTerminalDestroy });
   callbacks.current = { onTerminalReady, onTerminalDestroy };
   useEffect(() => {
     window.fixture.mounts[sessionName] = (window.fixture.mounts[sessionName] ?? 0) + 1;
+    const terminal = useXterm && host.current ? new Terminal({ rows: 24, cols: 40 }) : null;
+    if (terminal && host.current) {
+      terminal.open(host.current);
+      terminal.write(
+        Array.from({ length: 80 }, (_, index) => `${sessionName} line ${index}\r\n`).join(""),
+      );
+    }
     callbacks.current.onTerminalReady(
-      {
-        focus: () => input.current?.focus(),
-        element: input.current?.parentElement,
-        hasSelection: () => false,
-        onSelectionChange: () => ({ dispose() {} }),
-      } as unknown as Terminal,
+      terminal ??
+        ({
+          focus: () => input.current?.focus(),
+          element: input.current?.parentElement,
+          hasSelection: () => false,
+          onSelectionChange: () => ({ dispose() {} }),
+        } as unknown as Terminal),
       () => {},
     );
     return () => {
       window.fixture.destroys[sessionName] = (window.fixture.destroys[sessionName] ?? 0) + 1;
       callbacks.current.onTerminalDestroy();
+      terminal?.dispose();
     };
-  }, [sessionName]);
+  }, [sessionName, useXterm]);
   return (
     <div className="flex h-full flex-col p-4 font-mono text-sm">
       <p className="shrink-0 truncate text-primary">{sessionName} · connected</p>
       <p className="mt-2 shrink-0 truncate text-muted-foreground">
         A persistent terminal pane. Resize, move, and switch layouts without reconnecting.
       </p>
-      <textarea
-        ref={input}
-        aria-label={`${sessionName} input`}
-        className="xterm-helper-textarea mt-2 min-h-0 flex-1 resize-none bg-black outline-none"
-        onFocus={onUserFocusRequest}
-        defaultValue={`$ ${sessionName}\n`}
-      />
+      {useXterm ? (
+        <div ref={host} className="min-h-0 flex-1 overflow-hidden" />
+      ) : (
+        <textarea
+          ref={input}
+          aria-label={`${sessionName} input`}
+          className="xterm-helper-textarea mt-2 min-h-0 flex-1 resize-none bg-black outline-none"
+          onFocus={onUserFocusRequest}
+          defaultValue={`$ ${sessionName}\n`}
+        />
+      )}
     </div>
   );
 }

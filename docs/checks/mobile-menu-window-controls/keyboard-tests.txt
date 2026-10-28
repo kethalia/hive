@@ -1,0 +1,11 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/components/workspace-window.test.tsx (4 tests) 114ms
+ ✓ src/__tests__/integration/terminal-keystroke-exclusivity.test.tsx (3 tests) 541ms
+   ✓ Terminal keystroke exclusivity (R069) > calls term.focus() after mount  509ms
+
+ Test Files  2 passed (2)
+      Tests  7 passed (7)
+   Start at  06:52:33
+   Duration  1.30s (transform 331ms, setup 0ms, collect 283ms, tests 656ms, environment 881ms, prepare 110ms)
