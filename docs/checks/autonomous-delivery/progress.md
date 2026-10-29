@@ -15,12 +15,12 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | Task | State | Evidence / next action |
 | --- | --- | --- |
 | Released baseline | Complete | PR #401 merged main into epic through GitHub; pulled 4d8b821. Formatting-only conflict resolved. |
-| F01 fixed Coder host | Implemented; preview acceptance pending | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | Guarded preview passed; updated candidate pending | Actual app/auth preview passed at b80a3e1; both public URLs are now disabled. Nineteen isolated Neon migrations are applied. Sustained local relay proof passed at 1107907. Updated native-callback candidate and baseline compatibility remain. |
+| F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
+| F02 Cloudflare/Neon | Updated preview login/logout passed; baseline parity pending | Source106721d remote hashes and local23 checks pass. Hydration-aware browser run verifies login, secure cookies, desktop/mobile overflow, API logout and stale-cookie401. Both URLs are disabled;54requests total including preserved first failure. Nineteen Neon migrations remain; Settings UI/full baseline parity pending. |
 | F03 project discovery | Signed discovery and project enrollment implemented; preview pending | b0e278c ports discovery to verified Coder app transport, independently binds owner/build/app and uses agent-scoped GitHub access. No SSH fallback in Workers. 7635164 adds stable enrollment and durable first-task preparation; account-backed preview remains. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
-| D02/D03 persistence | Foundation and recovery validated | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation; real PostgreSQL CI includes manager and registration regressions. |
+| D02/D03 persistence | Foundation, recovery and informational reports validated locally | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation. 2e3c10e adds informational reported outcomes separate from verified acceptance, with two additive local migrations and PostgreSQL CI coverage. |
 | D05 Delivery window | Initial read-only view validated | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Manager linking, pause UI, integrated deployment remain. |
 | D07/D08 eligibility | Signed transport and manager policy integration passed locally; live composition pending | 8571cd1 binds result references to the exact PR, checkout and full controller policy; 92 focused checks pass, including real PostgreSQL races. a4fa338 preserves pending retry bytes while retiring validated expired records. Live R2 retention/integrity passed; cleanup is complete. Installed source composition remains. GitHub reports no required PR checks. |
 | Test workspace | Created and healthy | User reconnected GitHub; verified valid. codex/hive-epic-test is running, agent connected and ready; two-hour autostop. Identity is preserved in test-workspace-creation.json. No primary credentials copied. |
@@ -211,8 +211,8 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   `gpt-6.1-sol` at low reasoning. The child wrote a two-file fixture and ran six tests; the
   manager independently reran them, and the copied fixture passes in the primary workspace.
   This is runtime/delegation evidence, not activated delivery, background-writer quiescence or
-  production acceptance. A missing `rg` command was handled by the child using `ls`; its pinned
-  PATH integration remains a follow-up. Initial startup/test failures are preserved.
+  production acceptance. A missing `rg` command was handled by the child using `ls`; `7a4ea08` fixes its pinned
+  PATH integration with local validation; that newer package is not yet installed in the test workspace. Initial startup/test failures are preserved.
 - **Implement / Review: bounded retry journal retirement; moderate difficulty.** `a4fa338`
   prevents the private GitHub spool from permanently filling after 32 requests. Fifteen tests
   cover safe expiry retirement and exact pending retry preservation. Independent review found
@@ -237,3 +237,32 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   absence and the original five unrelated buckets remain. Automatic Date-expiry deletion is
   unverified. Thirty conservative reservations plus one earlier list read stayed within the
   operating budget. [Cleanup and ledger](r2-preview/cleanup.json).
+
+- **Implement / Review / Validate: informational reports passed; moderate difficulty.**
+  `2e3c10e` lets the manager report understanding, difficulty and issues without claiming
+  independent verification. Peer review found no blocking issue; parent reran29 PostgreSQL/UI
+  checks,15 host/native checks and5 package checks. Both new migrations were tested locally
+  (fresh21 and upgrade19→21), not applied to Neon. Existing writer holds remain.
+  [Evidence](informational-report-local/parent-review.json).
+- **Validate: Cloudflare browser login exposed an unresolved failure; moderate difficulty.**
+  Remote app/auth bytes match the prepared106721d candidate. The browser loaded the fixed-host
+  form but did not send a login POST;21 requests and7 blocked routes were recorded. The
+  dedicated account still has zero session/token rows. Both Worker public URLs were disabled
+  immediately after the run. Preserve this first failure while diagnosing hydration and harness
+  behavior; no successful login/layout/logout claim yet. [Evidence](cloudflare-browser/live-result.json).
+- **CI: formatting corrected; low difficulty.** The last pushed check found JSON array
+  formatting in native writer evidence. `b5215c1` applies the repository formatter; the full
+  local formatting check passes. Fresh CI is pending on the updated epic branch.
+- **Cleanup investigation: no user action required.** The owner does not have node-log access
+  information. Continue diagnosis internally; preserve task source when drain cannot be proved.
+  No speculative privileged workspace or server-policy change is authorized by that exchange.
+
+- **Validate: real Cloudflare browser follow-up passed; moderate difficulty.** A local
+  React/Chrome fixture reproduced a form-hydration race. `13624f5` waits for the handler before
+  filling/clicking and precharges the first run's21 requests. The live follow-up used33 more
+  (54 total), performed one login, verified secure host-only HttpOnly session cookies,
+  desktop/mobile horizontal overflow, browser-initiated API logout and old-cookie401. Neon
+  confirms zero sessions and one identified managed Coder key retained for normal rotation.
+  Both public URLs are disabled. Normal Settings-screen logout, fonts/full visual parity,
+  discovery, native-session interaction and other baseline features remain unverified.
+  [Evidence](cloudflare-browser/live-hydration-followup.json).
