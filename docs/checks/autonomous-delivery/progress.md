@@ -283,3 +283,23 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   A root manager can accept its completed child's result; pending observation transport is an
   ordering problem, not a general self-turn deadlock. Server implementation and a real native
   protocol fixture are next; neither child completion nor a logical cursor releases the writer.
+
+- **Validate: native turn boundaries reproduced; high difficulty.** Parent independently
+  reran14 actual Codex0.165 checks with a local canned provider. The same root thread/runtime
+  continues across turns, but completed root history can receive delayed child facts and
+  concurrent turn starts become inputs to the active turn. The host must own admission,
+  reconcile bounded history and drain its handlers; native busy rejection is not a lock.
+  No account inference or production execution. [Evidence](native-manager-turn-boundary-parent.json).
+- **Validate: software-only process drain candidate passed; high difficulty.** Four synthetic
+  subreaper cases passed in both specialist and primary runs, including detached/unlinked-file
+  writers, nested supervision, clone-signal accounting and a supervisor-crash negative. An
+  unrelated writer survived each scoped drain. Actual native startup, command-denial checks,
+  drain and history resume also passed using one local canned response. A separate startup
+  timeout is retained; the diagnostic pass used an eight-second readiness bound and does not
+  establish the lost failure's exact cause. CLI processes, shared-project admission and trusted
+  receipt integration remain open. No server/node policy was changed, and all production
+  writer holds remain. [Recommendation](cleanup-capability-next-step.md).
+- **Validate: built application authentication passed again.** The committed Settings/login
+  checkpoint passes Node/standalone and Cloudflare builds, root/recursive typechecks, and23
+  actual local workerd/auth/isolated-Neon checks. It has not replaced the closed106721d cloud
+  preview. [Evidence](settings-login-build.json).
