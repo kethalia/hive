@@ -66,3 +66,23 @@ lease generations.
 Remaining gates: fixed host signing adapter and worker-wide termination proof,
 persisted current-metadata authorization, actual protected native compatibility,
 and an installed end-to-end pilot with independently verified provider evidence.
+
+## Repository scale and worker shutdown follow-up
+
+Hive has 297 directories, so the original 64-total-tree fixture bound could not
+serve even a small change in this repository. Parent import now bounds unique
+parent trees at 2,048 and aggregate raw structure at 5 MiB; it still copies no
+unchanged blobs/history. Before/after authority checks bracket bounded local
+import, with retained inode checks for each object read. The broker reuses exact
+SHA-verified inherited tree IDs and uploads only changed trees (at most 64),
+keeping external requests proportional to the change. Insufficient remaining API
+budget rejects before requesting an effect grant or retrieving a credential.
+
+Production Git commands inherit the private worker process group, so a publisher
+deadline can kill its complete helper group. Their own timeout kills/reaps the
+direct fixed-plumbing Git process; hooks, filters, signing and external protocols
+remain disabled. The explicit legacy fixture keeps its separate group policy.
+The parent must verify group absence before releasing its lock; an unresolved
+process remains held under the outer guardian. These changes pass 43 combined
+Python tests in both parent and independent review, including a 96-directory
+parent that produces only two tree writes. [Evidence](protected-source-local/scale-process-group.json).

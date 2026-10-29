@@ -29,7 +29,7 @@ auth = sibling("hive_source_agent_auth", "github-projects.py")
 require, oid = broker.require, broker.oid
 PublicationHold, UnknownOutcome = broker.PublicationHold, broker.UnknownOutcome
 canonical, sha = broker.canonical, broker.sha
-MAX_PARENT_TREES, MAX_PARENT_BYTES = 64, 5 * 1024 * 1024
+MAX_PARENT_TREES, MAX_PARENT_BYTES = 2048, 5 * 1024 * 1024
 
 
 def policy_value(value):
@@ -148,7 +148,8 @@ class ProtectedSourceBroker(broker._SourceBrokerCore):
         p = self.publication_policy
         super().__init__(root, workspace, scope, allowed_prefixes=tuple(p["allowedPrefixes"]), clock=clock,
                          author_name=p["authorName"], author_email=p["authorEmail"],
-                         max_files=p["maxFiles"], max_file_bytes=p["maxFileBytes"], max_bytes=p["maxBytes"])
+                         max_files=p["maxFiles"], max_file_bytes=p["maxFileBytes"], max_bytes=p["maxBytes"],
+                         isolate_git_process_group=False)
         self.check_metadata()
 
     def check_metadata(self):
@@ -156,12 +157,15 @@ class ProtectedSourceBroker(broker._SourceBrokerCore):
         # inventory. Inode equality alone cannot prove absence of an earlier writer.
         observed = self.metadata_authority()
         require(observed == self.metadata_identity, "metadata_authority_changed")
+        self.check_metadata_pins()
+
+    def check_metadata_pins(self):
         for key, path in (("checkout", self.workspace), ("git", self.workspace / ".git")):
             try:
                 fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
                 try:
                     info = os.fstat(fd)
-                    require({"device": info.st_dev, "inode": info.st_ino} == observed[key], "metadata_identity_changed")
+                    require({"device": info.st_dev, "inode": info.st_ino} == self.metadata_identity[key], "metadata_identity_changed")
                 finally:
                     os.close(fd)
             except OSError:
@@ -182,7 +186,7 @@ class ProtectedSourceBroker(broker._SourceBrokerCore):
 
         def read(kind, object_sha):
             nonlocal total
-            self.check_metadata()
+            self.check_metadata_pins()
             raw = self._execute(["--git-dir=" + str(self.git_dir), "cat-file", kind, object_sha], object_directory=objects)
             require(broker.object_id(kind, raw) == object_sha, "parent_object_mismatch")
             total += len(raw)
@@ -236,6 +240,11 @@ class ProtectedSourceBroker(broker._SourceBrokerCore):
         with self.lock():
             entry = self.load(operation_id)
             require(entry["phase"] in {"prepared", "published"}, "publication_phase_ambiguous")
+            if entry["phase"] == "prepared":
+                # Reserve room for normal identity/object/ref/PR calls, bounded
+                # lost-ACK lookup and fresh readbacks before asking for effects.
+                required = 24 + 3 * (len(entry["manifest"]) + len(entry["trees"]))
+                require(entry["requestsUsed"] + required <= broker.MAX_REQUESTS, "provider_request_budget_preflight")
             return {"operationId": operation_id, "policyDigest": sha(canonical(self.publication_policy)),
                     "manifest": {"files": entry["manifest"], "deletions": sorted(entry["request"]["deletions"])},
                     "target": {"headSha": entry["commit"]["sha"], "treeSha": entry["commit"]["tree"],
@@ -247,6 +256,9 @@ class ProtectedSourceBroker(broker._SourceBrokerCore):
         with self.lock():
             entry = self.load(operation_id)
             require(entry["phase"] in {"prepared", "published", "held"}, "publication_phase_ambiguous")
+            if entry["phase"] == "prepared":
+                required = 24 + 3 * (len(entry["manifest"]) + len(entry["trees"]))
+                require(entry["requestsUsed"] + required <= broker.MAX_REQUESTS, "provider_request_budget_preflight")
             for key in ("ownerId", "taskId", "managerBindingId", "attemptId", "repositoryId", "providerAccountId",
                         "fullName", "parentSha", "sourceVersion"):
                 require(grant.get(key) == self.scope[key], "publication_grant_mismatch")

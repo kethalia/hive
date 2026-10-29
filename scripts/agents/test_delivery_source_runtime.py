@@ -131,6 +131,18 @@ class ProtectedBrokerTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.PublicationHold, "authority_required"):
             self.b.publish(self.request["operationId"], None)
 
+    def test_protected_git_children_stay_in_the_workers_killable_process_group(self):
+        original = MODULE.broker.subprocess.Popen
+        children = []
+        def observe(*args, **kwargs):
+            child = original(*args, **kwargs)
+            children.append((kwargs.get("start_new_session"), os.getpgid(child.pid)))
+            return child
+        with patch.object(MODULE.broker.subprocess, "Popen", side_effect=observe):
+            self.b.import_parent()
+        self.assertGreater(len(children), 3)
+        self.assertTrue(all(not detached and group == os.getpgrp() for detached, group in children))
+
     def test_publish_fresh_readbacks_and_historical_replay_do_not_resend(self):
         (self.workspace / "src/main.txt").write_text("edited later")
         result = self.publish()
@@ -256,6 +268,42 @@ class ProtectedBrokerTests(unittest.TestCase):
         self.b.scope["parentSha"] = self.git("rev-parse", "HEAD").strip().decode()
         with self.assertRaisesRegex(MODULE.PublicationHold, "parent_storage_unsupported"):
             self.b.import_parent()
+
+
+    def test_large_parent_preserves_unchanged_trees_and_only_uploads_changed_paths(self):
+        for index in range(96):
+            directory = self.workspace / "docs" / f"section{index}"
+            directory.mkdir(parents=True)
+            (directory / "file.txt").write_text(f"unchanged asset {index}\n")
+        self.git("add", "docs", "src")
+        self.git("-c", "user.name=Initial", "-c", "user.email=initial@example.invalid", "commit", "-m", "test: large parent")
+        self.scope["parentSha"] = self.git("rev-parse", "HEAD").strip().decode()
+        self.private = self.private.with_name("large-private")
+        self.b = self.construct()
+        with patch.object(self.b, "metadata_authority", wraps=self.metadata) as authority:
+            imported = self.b.import_parent()
+            self.assertEqual(authority.call_count, 2)  # Fences bracket bounded local work.
+        self.assertGreater(imported["trees"], 96)
+        (self.workspace / "src/main.txt").write_text("only this changes\n")
+        prepared = self.b.prepare(self.request)
+        entry = self.b.load(self.request["operationId"])
+        self.assertEqual(len(entry["trees"]), 2)  # src and root; all docs are retained.
+        self.assertEqual(self.b._git(["rev-parse", prepared["commitSha"] + ":docs"]), self.git("rev-parse", "HEAD:docs"))
+        material = self.b.challenge_material(self.request["operationId"])
+        self.grant.update(parentSha=self.scope["parentSha"], target=material["target"])
+        self.assertEqual(self.publish()["phase"], "published")
+        self.assertEqual(sum(method == "POST" and url.endswith("/git/trees") for method, url, _ in self.remote.calls), 2)
+
+    def test_insufficient_request_budget_rejects_before_challenge_and_any_authentication(self):
+        entry = self.b.load(self.request["operationId"])
+        entry["requestsUsed"] = MODULE.broker.MAX_REQUESTS - 1
+        self.b.save(entry)
+        with self.assertRaisesRegex(MODULE.PublicationHold, "provider_request_budget_preflight"):
+            self.b.challenge_material(self.request["operationId"])
+        with self.assertRaisesRegex(MODULE.PublicationHold, "provider_request_budget_preflight"):
+            self.publish()
+        MODULE.auth.external_token.assert_not_called()
+        self.assertEqual(self.effects, [])
 
     def test_fixed_transport_rejects_redirect_arbitrary_repo_and_methods(self):
         transport = MODULE.AgentGitHubTransport("fixture/source", self.authorize)

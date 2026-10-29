@@ -1,0 +1,32 @@
+{
+  "observedAt": "2026-10-29T23:45:49.872398+00:00",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/delivery-source-broker.py": "a1046b274d4947924c5b10ba02b509982d629b8c332c6ac075aaf3f39638ba70",
+    "templates/ai-dev-k8s/scripts/delivery-source-runtime.py": "fe6bd196e98030449897ce5076ccc2688d48af127c5c9f68e0525212c8c926ef",
+    "scripts/agents/test_delivery_source_runtime.py": "9544b5ec519ec5e2ebcf698b55f68dd9a9b8c730894571460e0151c148a38e4d"
+  },
+  "parentTests": 43,
+  "independentReviewerTests": 43,
+  "blockingReviewFindings": [],
+  "cases": [
+    "96-directory inherited source imports with two metadata fences and only two changed-tree HTTP POSTs",
+    "API request budget rejects before challenge or credential retrieval",
+    "Actual protected Git subprocess inherits worker process group"
+  ],
+  "unchangedLimits": {
+    "changedTrees": 64,
+    "requests": 256,
+    "sealedBytes": 5242880
+  },
+  "parentImportLimits": {
+    "uniqueTrees": 2048,
+    "bytes": 5242880
+  },
+  "liveProviderRequests": false,
+  "activation": false,
+  "remaining": "JS parent group-absence/deadline/lock proof and installed guardian composition",
+  "cleanExportPackaging": {
+    "checks": 20,
+    "archiveBytes": 140681
+  }
+}

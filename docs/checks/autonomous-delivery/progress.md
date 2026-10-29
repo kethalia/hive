@@ -435,3 +435,9 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   incompatibility was fixed. Parallel startup timeouts also affect legacy mode and remain
   unresolved with failures preserved; startup diagnosis and installed independent metadata
   authority are still pilot gates. No activation, cleanup authority or external effects added.
+
+- Broker scale/shutdown follow-up: reviewed, moderate difficulty. A small change in
+  a large repository now reuses unchanged Git trees instead of uploading every directory;
+  insufficient provider budget rejects before effects. Production Git children remain in the
+  worker's process group so timeout cleanup can cover them. Parent and independent43-test
+  runs pass; the JS publisher still must prove group absence before releasing its lock.

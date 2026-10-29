@@ -102,9 +102,11 @@ def atomic(path, raw):
 class _SourceBrokerCore:
     def __init__(self, root, workspace, scope, *, allowed_prefixes=("src", "tests", "docs"), clock=time.time,
                  author_name="Hive fixture", author_email="fixture@example.invalid",
-                 max_files=MAX_FILES, max_file_bytes=MAX_FILE, max_bytes=MAX_BYTES):
+                 max_files=MAX_FILES, max_file_bytes=MAX_FILE, max_bytes=MAX_BYTES,
+                 isolate_git_process_group=True):
         self.author_name, self.author_email = author_name, author_email
         self.max_files, self.max_file_bytes, self.max_bytes = max_files, max_file_bytes, max_bytes
+        self.isolate_git_process_group = isolate_git_process_group
         fields = {"ownerId", "taskId", "managerBindingId", "attemptId", "repositoryId", "providerAccountId", "fullName",
                   "baseBranch", "parentSha", "sourceVersion", "serverInstanceId", "leaseId", "leaseGeneration", "checkoutIncarnation"}
         require(isinstance(scope, dict) and set(scope) == fields, "scope_invalid")
@@ -206,7 +208,8 @@ class _SourceBrokerCore:
         try:
             process = subprocess.Popen(command, cwd=self.root / "home", env=env,
                                        stdin=subprocess.PIPE if raw is not None else subprocess.DEVNULL,
-                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True)
+                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                       start_new_session=self.isolate_git_process_group)
         except OSError:
             raise PublicationHold("git_unavailable") from None
         output, offset, deadline = bytearray(), 0, time.monotonic() + 10
@@ -238,7 +241,11 @@ class _SourceBrokerCore:
             raise PublicationHold("git_unavailable") from None
         finally:
             if process.poll() is None:
-                os.killpg(process.pid, signal.SIGKILL); process.wait()
+                if self.isolate_git_process_group:
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
+                process.wait()
             if process.stdin and not process.stdin.closed: process.stdin.close()
             process.stdout.close()
         return bytes(output)
@@ -295,7 +302,7 @@ class _SourceBrokerCore:
         return {"path": path, "contentDigest": key, "size": len(raw), "mode": "100755" if before.st_mode & 0o111 else "100644",
                 "blobSha": object_id("blob", raw)}
 
-    def tree(self, files):
+    def tree(self, files, known_trees=frozenset()):
         root, trees = {}, []
         for path, value in files.items():
             node = root
@@ -315,7 +322,8 @@ class _SourceBrokerCore:
                 entries.append({"path": name, "mode": mode, "type": kind, "sha": object_sha})
             raw = b"".join(f"{v['mode']} {v['type']} {v['sha']}\t{v['path']}\0".encode() for v in entries)
             tree_sha = self._git(["mktree", "--missing", "-z"], raw).decode().strip()
-            trees.append({"sha": tree_sha, "entries": entries})
+            if tree_sha not in known_trees:
+                trees.append({"sha": tree_sha, "entries": entries})
             require(len(trees) <= 64, "tree_limit")
             return tree_sha
         return build(root), trees
@@ -354,7 +362,7 @@ class _SourceBrokerCore:
                     and commit.get("parents") == [self.scope["parentSha"]]
                     and commit.get("message") == entry["request"]["message"].rstrip("\n") + "\n"
                     and entry.get("branch") == f"codex/delivery/{self.scope['taskId']}/{operation_id}"
-                    and isinstance(trees, list) and 0 < len(trees) <= 64, "journal_commit_invalid")
+                    and isinstance(trees, list) and 0 <= len(trees) <= 64, "journal_commit_invalid")
             actor = {"name": self.author_name, "email": self.author_email, "date": entry.get("createdAt")}
             require(commit.get("author") == actor and commit.get("committer") == actor, "journal_commit_invalid")
             for tree in trees:
@@ -428,7 +436,15 @@ class _SourceBrokerCore:
                 require(sha(blob) == item["contentDigest"] and len(blob) == item["size"], "sealed_object_changed")
                 require(self._git(["hash-object", "--no-filters", "-w", "--stdin"], blob).decode().strip() == item["blobSha"], "blob_identity_changed")
                 files[item["path"]] = (item["mode"], item["blobSha"])
-            tree, trees = self.tree(files)
+            # Preserve verified parent subtree identities. Only changed trees
+            # need provider writes, regardless of the unchanged repository size.
+            known_trees = {self._git(["rev-parse", self.scope["parentSha"] + "^{tree}"]).decode().strip()}
+            for row in self._git(["ls-tree", "-d", "-r", "-z", self.scope["parentSha"]]).split(b"\0"):
+                if row:
+                    metadata = row.split(b"\t", 1)[0].decode().split(" ")
+                    require(len(metadata) == 3 and metadata[:2] == ["040000", "tree"] and oid(metadata[2]), "parent_tree_invalid")
+                    known_trees.add(metadata[2])
+            tree, trees = self.tree(files, known_trees)
             message = request["message"].rstrip("\n") + "\n"
             commit_sha = self._git(["commit-tree", tree, "-p", self.scope["parentSha"]], message.encode(), entry["createdAt"]).decode().strip()
             actor = {"name": self.author_name, "email": self.author_email, "date": entry["createdAt"]}
