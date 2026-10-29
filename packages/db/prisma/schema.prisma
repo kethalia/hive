@@ -206,6 +206,7 @@ model DeliveryStep {
   kind                  String
   acceptancePhase       String @default("implementation_preview") @map("acceptance_phase")
   state                 String @default("pending")
+  waitingReason         String? @map("waiting_reason")
   version               Int @default(0)
   reopenGeneration      Int @default(0) @map("reopen_generation")
   leaseGeneration       Int @default(0) @map("lease_generation")
@@ -251,6 +252,10 @@ model DeliveryAttempt {
   requestedEffort  String? @map("requested_effort")
   effectiveEffort  String? @map("effective_effort")
   outcome          String @default("running")
+  runtimeBinding   Json? @map("runtime_binding")
+  runtimeBindingDigest String? @map("runtime_binding_digest")
+  runtimeVersion   Int @default(0) @map("runtime_version")
+  quiescedAt       DateTime? @map("quiesced_at") @db.Timestamptz
   startedAt        DateTime @default(now()) @map("started_at") @db.Timestamptz
   finishedAt       DateTime? @map("finished_at") @db.Timestamptz
   step             DeliveryStep @relation(fields: [ownerId, stepId], references: [ownerId, id])
@@ -302,6 +307,7 @@ model DeliveryEvent {
   policyVersion    String @default("disabled-v1") @map("policy_version")
   type             String
   requestDigest    String @map("request_digest")
+  payload          Json?
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   task             DeliveryTask @relation(fields: [ownerId, taskId], references: [ownerId, id])
   step             DeliveryStep? @relation(fields: [ownerId, taskId, stepId], references: [ownerId, taskId, id], onDelete: Restrict)
@@ -311,6 +317,7 @@ model DeliveryEvent {
   @@unique([ownerId, id])
   @@unique([ownerId, stepId, id])
   @@unique([ownerId, aggregateKey, aggregateVersion])
+  @@index([ownerId, taskId, attemptId, aggregateVersion], map: "delivery_runtime_events_lookup")
   @@map("delivery_events")
 }
 

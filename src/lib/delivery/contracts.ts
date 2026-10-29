@@ -180,3 +180,98 @@ export const conversationBindingSchema = z
   .strict();
 export type DeliveryStepState = z.infer<typeof stepStateSchema>;
 export type EvidenceKind = z.infer<typeof evidenceKindSchema>;
+
+const stepCommand = z
+  .object({
+    schemaVersion: z.literal(1),
+    eventId: identifier,
+    taskId: identifier,
+    stepId: identifier,
+    expectedVersion: z.number().int().nonnegative(),
+    reason: z.string().min(1).max(1000),
+  })
+  .strict();
+export const stepControlSchema = stepCommand;
+export const attemptFailureSchema = stepCommand
+  .extend({
+    attemptId: identifier,
+    leaseGeneration: z.number().int().positive(),
+    sourceSha: sourceShaSchema,
+    disposition: z.enum(["failed", "blocked"]),
+    report: completionSchema.shape.report,
+    evidenceIds: z
+      .array(identifier)
+      .max(50)
+      .default([])
+      .refine((values) => new Set(values).size === values.length),
+  })
+  .strict();
+export const sourceChangeSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    eventId: identifier,
+    taskId: identifier,
+    expectedVersion: z.number().int().nonnegative(),
+    sourceSha: sourceShaSchema,
+    reason: z.string().min(1).max(1000),
+  })
+  .strict();
+export const nativeRuntimeBindingSchema = z
+  .object({
+    coderOwnerId: identifier,
+    workspaceId: identifier,
+    buildId: identifier,
+    serverInstanceId: label,
+    managerThreadId: label,
+    nativeThreadId: label,
+    nativeTurnId: label,
+    operationId: label,
+    lifetimeId: label,
+    sourceSha: sourceShaSchema,
+  })
+  .strict();
+const runtimeRequest = z
+  .object({
+    schemaVersion: z.literal(1),
+    eventId: identifier,
+    taskId: identifier,
+    stepId: identifier,
+    attemptId: identifier,
+    expectedRuntimeVersion: z.number().int().nonnegative(),
+  })
+  .strict();
+export const runtimeBindingRequestSchema = runtimeRequest
+  .extend({ binding: nativeRuntimeBindingSchema })
+  .strict();
+const runtimeStatus = z.enum(["quiescent", "running", "unknown"]);
+export const runtimeObservationSchema = runtimeRequest
+  .extend({
+    bindingDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    remoteId: label,
+    proofDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    observedAt: z.date(),
+    nativeTurn: runtimeStatus,
+    backgroundProcesses: runtimeStatus,
+    externalOperations: runtimeStatus,
+    externalEffects: z.enum(["none", "requires_reconciliation", "unknown"]),
+  })
+  .strict();
+export const runtimeObservationPayloadSchema = runtimeObservationSchema
+  .pick({
+    schemaVersion: true,
+    bindingDigest: true,
+    remoteId: true,
+    proofDigest: true,
+    nativeTurn: true,
+    backgroundProcesses: true,
+    externalOperations: true,
+    externalEffects: true,
+  })
+  .extend({ producer: label, observedAt: z.string().datetime() })
+  .strict();
+export const expiredAttemptReconciliationSchema = stepCommand
+  .extend({
+    attemptId: identifier,
+    quiescenceEventId: identifier,
+  })
+  .strict();

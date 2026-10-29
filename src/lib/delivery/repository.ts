@@ -1,18 +1,30 @@
 // Foundational persistence only: no HTTP result ingestion, queue consumer, merge,
 // deployment, runtime registration, or external-evidence producer is enabled here.
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
 import {
+  attemptFailureSchema,
   completionSchema,
   conversationBindingSchema,
   evidenceInputSchema,
+  expiredAttemptReconciliationSchema,
   leaseRequestSchema,
   pauseRequestSchema,
   projectBindingSchema,
+  runtimeBindingRequestSchema,
+  runtimeObservationPayloadSchema,
+  runtimeObservationSchema,
+  sourceChangeSchema,
+  stepControlSchema,
   taskDefinitionSchema,
 } from "./contracts";
-import { assertAcyclicSteps, assertCompletionEvidence, DeliveryConflict } from "./state";
+import {
+  assertAcyclicSteps,
+  assertCompletionEvidence,
+  DeliveryConflict,
+  dependentClosure,
+} from "./state";
 
 type Transaction = Prisma.TransactionClient;
 const ownerSchema = z.string().uuid();
@@ -20,6 +32,8 @@ interface EvidencePolicy {
   version: string;
   trustedProducers: readonly string[];
   maxAgeMs: number;
+  trustedRuntimeAdapters?: readonly string[];
+  maxRuntimeObservationAgeMs?: number;
 }
 
 function canonical(value: unknown): unknown {
@@ -59,15 +73,54 @@ async function replay(tx: Transaction, ownerId: string, eventId: string, request
   return event;
 }
 
+interface KnownDatabaseError {
+  code: string;
+  clientVersion: string;
+  name: string;
+  meta?: Record<string, unknown>;
+}
+function knownDatabaseError(error: unknown, code: "P2002" | "P2034"): error is KnownDatabaseError {
+  if (!error || typeof error !== "object") return false;
+  const value = error as Partial<KnownDatabaseError>;
+  return (
+    value.name === "PrismaClientKnownRequestError" &&
+    value.code === code &&
+    typeof value.clientVersion === "string" &&
+    /^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(value.clientVersion)
+  );
+}
+
 function replayKeyCollision(error: unknown, models: readonly string[], evidence = false) {
-  if (
-    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-    error.code !== "P2002" ||
-    !models.includes(String(error.meta?.modelName))
-  )
+  if (!knownDatabaseError(error, "P2002") || !models.includes(String(error.meta?.modelName)))
     return false;
-  const target = error.meta?.target;
-  if (!Array.isArray(target)) return false;
+  let target: unknown = error.meta?.target;
+  if (target === undefined) {
+    // PrismaNeon/workerd reports the same constraint through its adapter cause,
+    // without Node's meta.target. Accept only the observed structured variant.
+    const adapter = error.meta?.driverAdapterError;
+    if (
+      !adapter ||
+      typeof adapter !== "object" ||
+      !("name" in adapter) ||
+      adapter.name !== "DriverAdapterError" ||
+      !("cause" in adapter) ||
+      !adapter.cause ||
+      typeof adapter.cause !== "object"
+    )
+      return false;
+    const cause = adapter.cause;
+    if (
+      !("kind" in cause) ||
+      cause.kind !== "UniqueConstraintViolation" ||
+      !("constraint" in cause) ||
+      !cause.constraint ||
+      typeof cause.constraint !== "object" ||
+      !("fields" in cause.constraint)
+    )
+      return false;
+    target = cause.constraint.fields;
+  }
+  if (!Array.isArray(target) || !target.every((field) => typeof field === "string")) return false;
   const fields = target.join(",");
   return [
     "id",
@@ -89,10 +142,19 @@ export class DeliveryRepository {
       !policy.version.trim() ||
       !Number.isFinite(policy.maxAgeMs) ||
       policy.maxAgeMs <= 0 ||
-      policy.trustedProducers.some((producer) => !producer.trim())
+      policy.trustedProducers.some((producer) => !producer.trim()) ||
+      (policy.trustedRuntimeAdapters ?? []).some((producer) => !producer.trim()) ||
+      (policy.maxRuntimeObservationAgeMs !== undefined &&
+        (!Number.isFinite(policy.maxRuntimeObservationAgeMs) ||
+          policy.maxRuntimeObservationAgeMs <= 0))
     )
       throw new DeliveryConflict("invalid_evidence_policy");
-    this.policy = { ...policy, trustedProducers: [...policy.trustedProducers] };
+    this.policy = {
+      ...policy,
+      trustedProducers: [...policy.trustedProducers],
+      trustedRuntimeAdapters: [...(policy.trustedRuntimeAdapters ?? [])],
+      maxRuntimeObservationAgeMs: policy.maxRuntimeObservationAgeMs ?? 60_000,
+    };
   }
   private async transaction<T>(operation: (tx: Transaction) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
@@ -103,14 +165,118 @@ export class DeliveryRepository {
           timeout: 10_000,
         });
       } catch (error) {
-        if (
-          attempt < 2 &&
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2034"
-        )
+        if (attempt < 2 && knownDatabaseError(error, "P2034")) {
+          await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
           continue;
+        }
         throw error;
       }
+    }
+  }
+  private runtimeAuthority(producer: string) {
+    if (!this.policy.trustedRuntimeAdapters?.includes(producer))
+      throw new DeliveryConflict("untrusted_runtime_adapter");
+  }
+  private proofQuiescent(
+    attempt: { outcome: string; runtimeBindingDigest: string | null; quiescedAt: Date | null },
+    event?: { policyVersion: string; payload: unknown },
+  ) {
+    // Unbound successful steps are controller bookkeeping only: fresh leases do
+    // not authorize native execution before binding. Every unknown/failed/live
+    // execution still requires a positively verified native lifetime observation.
+    if (!attempt.runtimeBindingDigest) return attempt.outcome === "succeeded";
+    if (!attempt.quiescedAt || !event || event.policyVersion !== this.policy.version) return false;
+    const proof = runtimeObservationPayloadSchema.safeParse(event.payload);
+    return (
+      proof.success &&
+      this.policy.trustedRuntimeAdapters?.includes(proof.data.producer) &&
+      proof.data.bindingDigest === attempt.runtimeBindingDigest &&
+      proof.data.nativeTurn === "quiescent" &&
+      proof.data.backgroundProcesses === "quiescent" &&
+      proof.data.externalOperations === "quiescent" &&
+      proof.data.externalEffects === "none"
+    );
+  }
+  private async pendingWriters(
+    tx: Transaction,
+    ownerId: string,
+    taskId: string,
+    stepIds?: string[],
+  ) {
+    const attempts = await tx.deliveryAttempt.findMany({
+      where: { ownerId, step: { taskId }, ...(stepIds ? { stepId: { in: stepIds } } : {}) },
+    });
+    const observations = await tx.$queryRaw<
+      { attempt_id: string; policy_version: string; payload: unknown }[]
+    >`
+      SELECT DISTINCT ON (attempt_id) attempt_id, policy_version, payload FROM delivery_events
+      WHERE owner_id = ${ownerId}::uuid AND task_id = ${taskId}::uuid
+        AND type IN ('native_attempt_quiescent', 'native_attempt_observed')
+      ORDER BY attempt_id, aggregate_version DESC`;
+    const latest = new Map(
+      observations.map((event) => [
+        event.attempt_id,
+        { policyVersion: event.policy_version, payload: event.payload },
+      ]),
+    );
+    return attempts.filter((attempt) => !this.proofQuiescent(attempt, latest.get(attempt.id)));
+  }
+  private async refreshPause(tx: Transaction, ownerId: string, taskId: string) {
+    const task = await tx.deliveryTask.findUniqueOrThrow({
+      where: { ownerId_id: { ownerId, id: taskId } },
+    });
+    const schedulingPaused =
+      task.pauseRequested && (await this.pendingWriters(tx, ownerId, taskId)).length === 0;
+    if (task.schedulingPaused !== schedulingPaused)
+      await tx.deliveryTask.update({
+        where: { ownerId_id: { ownerId, id: taskId } },
+        data: { schedulingPaused },
+      });
+  }
+  private async runtimeAttempt(
+    tx: Transaction,
+    ownerId: string,
+    input: { taskId: string; stepId: string; attemptId: string },
+  ) {
+    const task = await lockTask(tx, ownerId, input.taskId);
+    const step = await tx.deliveryStep.findUnique({
+      where: { ownerId_taskId_id: { ownerId, taskId: task.id, id: input.stepId } },
+    });
+    const attempt =
+      step &&
+      (await tx.deliveryAttempt.findUnique({
+        where: { ownerId_stepId_id: { ownerId, stepId: step.id, id: input.attemptId } },
+      }));
+    if (!step || !attempt) throw new DeliveryConflict("attempt_not_found");
+    return { task, step, attempt };
+  }
+  private async safetyPause(
+    tx: Transaction,
+    ownerId: string,
+    taskId: string,
+    causeEventId: string,
+  ) {
+    const task = await tx.deliveryTask.findUniqueOrThrow({
+      where: { ownerId_id: { ownerId, id: taskId } },
+    });
+    if (!task.pauseRequested) {
+      await tx.deliveryTask.update({
+        where: { ownerId_id: { ownerId, id: task.id } },
+        data: { pauseRequested: true, schedulingPaused: false, version: { increment: 1 } },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: randomUUID(),
+          ownerId,
+          taskId,
+          aggregateKey: `task/${task.id}`,
+          aggregateVersion: task.version + 1,
+          type: "safety_pause_requested",
+          requestDigest: digest("safety_pause_requested", { causeEventId }),
+          policyVersion: this.policy.version,
+          payload: { causeEventId },
+        },
+      });
     }
   }
   async bindProject(owner: string, value: unknown) {
@@ -263,12 +429,14 @@ export class DeliveryRepository {
       if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
       if (step.kind === "release" || step.acceptancePhase === "activation_production")
         throw new DeliveryConflict("release_disabled");
-      if (!["pending", "ready", "failed"].includes(step.state))
+      if (!["pending", "ready"].includes(step.state))
         throw new DeliveryConflict(
           step.state === "running" ? "reconciliation_required" : "step_not_ready",
         );
       if (step.dependencies.some((edge) => edge.dependsOn.state !== "succeeded"))
         throw new DeliveryConflict("dependencies_pending");
+      if ((await this.pendingWriters(tx, ownerId, task.id)).length)
+        throw new DeliveryConflict("native_reconciliation_required");
       if (step.attemptCount >= step.attemptBudget)
         throw new DeliveryConflict("attempt_budget_exhausted");
       const timestamp = await now(tx);
@@ -313,7 +481,8 @@ export class DeliveryRepository {
         version,
         replayed: false,
         outcome: "running",
-        canRun: true,
+        canRun: false,
+        needsRuntimeBinding: true,
         needsReconciliation: false,
       };
     });
@@ -466,16 +635,7 @@ export class DeliveryRepository {
         })),
       });
       await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
-      if (
-        task.pauseRequested &&
-        (await tx.deliveryStep.count({
-          where: { ownerId, taskId: task.id, state: { in: ["running", "waiting_external"] } },
-        })) === 0
-      )
-        await tx.deliveryTask.update({
-          where: { ownerId_id: { ownerId, id: task.id } },
-          data: { schedulingPaused: true },
-        });
+      await this.refreshPause(tx, ownerId, task.id);
       return { eventId: input.eventId, reportId: report.id, version, replayed: false };
     });
   }
@@ -488,9 +648,7 @@ export class DeliveryRepository {
       const previous = await replay(tx, ownerId, input.eventId, requestDigest);
       if (previous) return { version: previous.aggregateVersion, replayed: true };
       if (task.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
-      const running = await tx.deliveryStep.count({
-        where: { ownerId, taskId: task.id, state: { in: ["running", "waiting_external"] } },
-      });
+      const running = (await this.pendingWriters(tx, ownerId, task.id)).length;
       await tx.deliveryTask.update({
         where: { ownerId_id: { ownerId, id: task.id } },
         data: {
@@ -512,6 +670,653 @@ export class DeliveryRepository {
         },
       });
       return { version: task.version + 1, replayed: false };
+    });
+  }
+
+  /** Trusted host adapter only. A manager-controlled request cannot register a native writer. */
+  async bindAttemptRuntime(owner: string, producer: string, value: unknown) {
+    this.runtimeAuthority(producer);
+    const ownerId = ownerSchema.parse(owner);
+    const input = runtimeBindingRequestSchema.parse(value);
+    const requestDigest = digest("native_runtime_bound", {
+      producer,
+      input,
+      policyVersion: this.policy.version,
+    });
+    return this.transaction(async (tx) => {
+      const { task, step, attempt } = await this.runtimeAttempt(tx, ownerId, input);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous)
+        return {
+          bindingDigest: attempt.runtimeBindingDigest,
+          runtimeVersion: previous.aggregateVersion,
+          replayed: true,
+          canRun: false,
+          needsReconciliation: true,
+        };
+      if (attempt.runtimeVersion !== input.expectedRuntimeVersion)
+        throw new DeliveryConflict("runtime_version_conflict");
+      if (attempt.runtimeBindingDigest) throw new DeliveryConflict("runtime_already_bound");
+      const user = await tx.user.findUniqueOrThrow({
+        where: { id: ownerId },
+        select: { coderUserId: true },
+      });
+      const conversation =
+        task.conversationId &&
+        (await tx.deliveryConversation.findUnique({
+          where: { ownerId_id: { ownerId, id: task.conversationId } },
+        }));
+      if (
+        !conversation ||
+        user.coderUserId !== input.binding.coderOwnerId ||
+        conversation.projectId !== task.projectId ||
+        conversation.workspaceId !== input.binding.workspaceId ||
+        conversation.buildId !== input.binding.buildId ||
+        conversation.serverInstanceId !== input.binding.serverInstanceId ||
+        conversation.nativeThreadId !== input.binding.managerThreadId ||
+        attempt.sourceSha !== input.binding.sourceSha
+      )
+        throw new DeliveryConflict("runtime_binding_unregistered");
+      const bindingDigest = digest("native_binding", {
+        ownerId,
+        taskId: task.id,
+        stepId: step.id,
+        attemptId: attempt.id,
+        leaseGeneration: attempt.leaseGeneration,
+        binding: input.binding,
+      });
+      const runtimeVersion = attempt.runtimeVersion + 1;
+      await tx.deliveryAttempt.update({
+        where: { ownerId_id: { ownerId, id: attempt.id } },
+        data: {
+          runtimeBinding: input.binding,
+          runtimeBindingDigest: bindingDigest,
+          runtimeVersion,
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          aggregateKey: `attempt/${attempt.id}`,
+          aggregateVersion: runtimeVersion,
+          type: "native_runtime_bound",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: { producer, binding: input.binding, bindingDigest },
+        },
+      });
+      const timestamp = await now(tx);
+      const canRun =
+        !task.pauseRequested &&
+        !task.schedulingPaused &&
+        step.state === "running" &&
+        attempt.outcome === "running" &&
+        step.leaseGeneration === attempt.leaseGeneration &&
+        attempt.leaseExpiresAt > timestamp &&
+        task.sourceSha === attempt.sourceSha;
+      return {
+        bindingDigest,
+        runtimeVersion,
+        replayed: false,
+        canRun,
+        needsReconciliation: !canRun,
+      };
+    });
+  }
+
+  /** A finished turn alone is insufficient: child processes and effects must be reconciled too. */
+  async observeAttemptRuntime(owner: string, producer: string, value: unknown) {
+    this.runtimeAuthority(producer);
+    const ownerId = ownerSchema.parse(owner);
+    const input = runtimeObservationSchema.parse(value);
+    const requestDigest = digest("native_attempt_observed", {
+      producer,
+      input,
+      policyVersion: this.policy.version,
+    });
+    return this.transaction(async (tx) => {
+      const { task, step, attempt } = await this.runtimeAttempt(tx, ownerId, input);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous)
+        return {
+          eventId: previous.id,
+          runtimeVersion: previous.aggregateVersion,
+          replayed: true,
+          canRetry: false,
+        };
+      if (attempt.runtimeVersion !== input.expectedRuntimeVersion)
+        throw new DeliveryConflict("runtime_version_conflict");
+      if (!attempt.runtimeBindingDigest || attempt.runtimeBindingDigest !== input.bindingDigest)
+        throw new DeliveryConflict("runtime_binding_mismatch");
+      const timestamp = await now(tx);
+      if (
+        input.observedAt > timestamp ||
+        timestamp.getTime() - input.observedAt.getTime() >
+          (this.policy.maxRuntimeObservationAgeMs ?? 60_000)
+      )
+        throw new DeliveryConflict("stale_runtime_observation");
+      const payload = runtimeObservationPayloadSchema.parse({
+        schemaVersion: 1,
+        producer,
+        bindingDigest: input.bindingDigest,
+        remoteId: input.remoteId,
+        proofDigest: input.proofDigest,
+        nativeTurn: input.nativeTurn,
+        backgroundProcesses: input.backgroundProcesses,
+        externalOperations: input.externalOperations,
+        externalEffects: input.externalEffects,
+        observedAt: input.observedAt.toISOString(),
+      });
+      const quiescent =
+        payload.nativeTurn === "quiescent" &&
+        payload.backgroundProcesses === "quiescent" &&
+        payload.externalOperations === "quiescent" &&
+        payload.externalEffects === "none";
+      const runtimeVersion = attempt.runtimeVersion + 1;
+      await tx.deliveryAttempt.update({
+        where: { ownerId_id: { ownerId, id: attempt.id } },
+        data: {
+          runtimeVersion,
+          ...(quiescent && !attempt.quiescedAt ? { quiescedAt: timestamp } : {}),
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          aggregateKey: `attempt/${attempt.id}`,
+          aggregateVersion: runtimeVersion,
+          type: quiescent ? "native_attempt_quiescent" : "native_attempt_observed",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload,
+        },
+      });
+      if (attempt.quiescedAt && !quiescent) {
+        // Later contradictory facts halt scheduling; old accepted reports stay immutable.
+        await this.safetyPause(tx, ownerId, task.id, input.eventId);
+        await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
+      }
+      await this.refreshPause(tx, ownerId, task.id);
+      return { eventId: input.eventId, runtimeVersion, replayed: false, canRetry: false };
+    });
+  }
+
+  /** Expiry is released only by a trusted adapter referencing its accepted terminal proof. */
+  async reconcileExpiredAttempt(owner: string, producer: string, value: unknown) {
+    this.runtimeAuthority(producer);
+    const ownerId = ownerSchema.parse(owner);
+    const input = expiredAttemptReconciliationSchema.parse(value);
+    const requestDigest = digest("expired_attempt_reconciled", {
+      producer,
+      input,
+      policyVersion: this.policy.version,
+    });
+    return this.transaction(async (tx) => {
+      const { task, step, attempt } = await this.runtimeAttempt(tx, ownerId, input);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous) return { version: previous.aggregateVersion, replayed: true };
+      if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
+      const latestAttempt = await tx.deliveryAttempt.findFirst({
+        where: { ownerId, stepId: step.id },
+        orderBy: { leaseGeneration: "desc" },
+      });
+      const timestamp = await now(tx);
+      if (
+        latestAttempt?.id !== attempt.id ||
+        attempt.outcome !== "running" ||
+        !["running", "waiting_external", "blocked"].includes(step.state)
+      )
+        throw new DeliveryConflict("stale_attempt");
+      if (attempt.leaseExpiresAt > timestamp) throw new DeliveryConflict("lease_not_expired");
+      const proof = await tx.deliveryEvent.findFirst({
+        where: {
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          type: { in: ["native_attempt_quiescent", "native_attempt_observed"] },
+        },
+        orderBy: { aggregateVersion: "desc" },
+      });
+      const parsedProof = runtimeObservationPayloadSchema.safeParse(proof?.payload);
+      if (
+        !proof ||
+        proof.id !== input.quiescenceEventId ||
+        !parsedProof.success ||
+        !this.proofQuiescent(attempt, {
+          policyVersion: proof.policyVersion,
+          payload: proof.payload,
+        }) ||
+        timestamp.getTime() - new Date(parsedProof.data.observedAt).getTime() >
+          (this.policy.maxRuntimeObservationAgeMs ?? 60_000)
+      )
+        throw new DeliveryConflict("native_not_quiescent");
+      const version = step.version + 1;
+      await tx.deliveryAttempt.update({
+        where: { ownerId_id: { ownerId, id: attempt.id } },
+        data: { outcome: "expired_quiescent", finishedAt: timestamp },
+      });
+      await tx.deliveryStep.update({
+        where: { ownerId_id: { ownerId, id: step.id } },
+        data: {
+          state: "failed",
+          waitingReason: input.reason,
+          version,
+          leaseGeneration: { increment: 1 },
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          aggregateKey: `step/${step.id}`,
+          aggregateVersion: version,
+          type: "expired_attempt_reconciled",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: { producer, quiescenceEventId: proof.id, reason: input.reason },
+        },
+      });
+      await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
+      await this.refreshPause(tx, ownerId, task.id);
+      return { version, replayed: false };
+    });
+  }
+
+  async failAttempt(owner: string, value: unknown) {
+    const ownerId = ownerSchema.parse(owner);
+    const input = attemptFailureSchema.parse(value);
+    const requestDigest = digest("attempt_failed", input);
+    return this.transaction(async (tx) => {
+      const { task, step, attempt } = await this.runtimeAttempt(tx, ownerId, input);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous) return { version: previous.aggregateVersion, replayed: true };
+      if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
+      const timestamp = await now(tx);
+      if (
+        !["running", "waiting_external"].includes(step.state) ||
+        attempt.outcome !== "running" ||
+        attempt.leaseGeneration !== input.leaseGeneration ||
+        step.leaseGeneration !== input.leaseGeneration ||
+        attempt.leaseExpiresAt <= timestamp
+      )
+        throw new DeliveryConflict("stale_attempt");
+      if (task.sourceSha !== input.sourceSha || attempt.sourceSha !== input.sourceSha)
+        throw new DeliveryConflict("source_revision_changed");
+      const evidence = await tx.deliveryEvidence.findMany({
+        where: { ownerId, stepId: step.id, id: { in: input.evidenceIds } },
+      });
+      if (
+        evidence.length !== input.evidenceIds.length ||
+        evidence.some(
+          (proof) =>
+            proof.sourceSha !== task.sourceSha ||
+            proof.invalidatedAt !== null ||
+            proof.policyVersion !== this.policy.version ||
+            !this.policy.trustedProducers.includes(proof.producer),
+        )
+      )
+        throw new DeliveryConflict("invalid_evidence");
+      const version = step.version + 1;
+      await tx.deliveryAttempt.update({
+        where: { ownerId_id: { ownerId, id: attempt.id } },
+        data: { outcome: input.disposition, finishedAt: timestamp },
+      });
+      await tx.deliveryStep.update({
+        where: { ownerId_id: { ownerId, id: step.id } },
+        data: {
+          state: input.disposition,
+          waitingReason: input.reason,
+          version,
+          leaseGeneration: { increment: 1 },
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          aggregateKey: `step/${step.id}`,
+          aggregateVersion: version,
+          type: input.disposition === "failed" ? "attempt_failed" : "attempt_blocked",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: { reason: input.reason },
+        },
+      });
+      const report = await tx.deliveryStepReport.create({
+        data: {
+          ownerId,
+          stepId: step.id,
+          attemptId: attempt.id,
+          eventId: input.eventId,
+          ...input.report,
+        },
+      });
+      if (input.evidenceIds.length)
+        await tx.deliveryReportEvidence.createMany({
+          data: input.evidenceIds.map((evidenceId) => ({
+            ownerId,
+            stepId: step.id,
+            reportId: report.id,
+            evidenceId,
+          })),
+        });
+      await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
+      await this.refreshPause(tx, ownerId, task.id);
+      return { version, replayed: false };
+    });
+  }
+
+  async blockStep(owner: string, value: unknown) {
+    const ownerId = ownerSchema.parse(owner);
+    const input = stepControlSchema.parse(value);
+    const requestDigest = digest("step_blocked", input);
+    return this.transaction(async (tx) => {
+      const task = await lockTask(tx, ownerId, input.taskId);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous) return { version: previous.aggregateVersion, replayed: true };
+      const step = await tx.deliveryStep.findUnique({
+        where: { ownerId_taskId_id: { ownerId, taskId: task.id, id: input.stepId } },
+      });
+      if (!step) throw new DeliveryConflict("step_not_found");
+      if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
+      if (["succeeded", "canceled"].includes(step.state))
+        throw new DeliveryConflict("invalid_transition");
+      const version = step.version + 1;
+      await tx.deliveryStep.update({
+        where: { ownerId_id: { ownerId, id: step.id } },
+        data: {
+          state: "blocked",
+          waitingReason: input.reason,
+          version,
+          ...(["running", "waiting_external"].includes(step.state)
+            ? { leaseGeneration: { increment: 1 } }
+            : {}),
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          aggregateKey: `step/${step.id}`,
+          aggregateVersion: version,
+          type: "step_blocked",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: { reason: input.reason },
+        },
+      });
+      await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
+      await this.refreshPause(tx, ownerId, task.id);
+      return { version, replayed: false };
+    });
+  }
+
+  async retryStep(owner: string, value: unknown) {
+    const ownerId = ownerSchema.parse(owner);
+    const input = stepControlSchema.parse(value);
+    const requestDigest = digest("step_retry_requested", input);
+    return this.transaction(async (tx) => {
+      const task = await lockTask(tx, ownerId, input.taskId);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous) return { version: previous.aggregateVersion, replayed: true };
+      const step = await tx.deliveryStep.findUnique({
+        where: { ownerId_taskId_id: { ownerId, taskId: task.id, id: input.stepId } },
+        include: { dependencies: { include: { dependsOn: true } } },
+      });
+      if (!step) throw new DeliveryConflict("step_not_found");
+      if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
+      if (task.pauseRequested || task.schedulingPaused) throw new DeliveryConflict("task_paused");
+      if (!["failed", "blocked"].includes(step.state))
+        throw new DeliveryConflict("explicit_reopen_required");
+      if (step.attemptCount >= step.attemptBudget)
+        throw new DeliveryConflict("attempt_budget_exhausted");
+      if ((await this.pendingWriters(tx, ownerId, task.id, [step.id])).length)
+        throw new DeliveryConflict("native_not_quiescent");
+      const active = await tx.deliveryAttempt.count({
+        where: { ownerId, stepId: step.id, outcome: "running" },
+      });
+      if (active) throw new DeliveryConflict("attempt_reconciliation_required");
+      const version = step.version + 1;
+      await tx.deliveryStep.update({
+        where: { ownerId_id: { ownerId, id: step.id } },
+        data: {
+          state: step.dependencies.every((edge) => edge.dependsOn.state === "succeeded")
+            ? "ready"
+            : "pending",
+          waitingReason: null,
+          version,
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          aggregateKey: `step/${step.id}`,
+          aggregateVersion: version,
+          type: "step_retry_requested",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: { reason: input.reason },
+        },
+      });
+      return { version, replayed: false };
+    });
+  }
+
+  private async invalidateSteps(
+    tx: Transaction,
+    ownerId: string,
+    taskId: string,
+    ids: Set<string>,
+    causeEventId: string,
+    reason: string,
+    pendingIds = ids,
+  ) {
+    const timestamp = await now(tx);
+    const steps = await tx.deliveryStep.findMany({
+      where: { ownerId, taskId },
+      include: { dependencies: true },
+    });
+    const held = new Set(
+      (await this.pendingWriters(tx, ownerId, taskId, [...ids])).map((attempt) => attempt.stepId),
+    );
+    const invalidated = await tx.deliveryEvidence.updateMany({
+      where: { ownerId, stepId: { in: [...ids] }, invalidatedAt: null },
+      data: { invalidatedAt: timestamp },
+    });
+    await tx.deliveryAttempt.updateMany({
+      where: { ownerId, stepId: { in: [...ids] }, outcome: "running" },
+      data: { outcome: "superseded", finishedAt: timestamp },
+    });
+    for (const step of steps) {
+      if (!ids.has(step.id)) continue;
+      const dependenciesDone = step.dependencies.every(
+        (edge) =>
+          !pendingIds.has(edge.dependsOnStepId) &&
+          steps.some(
+            (candidate) => candidate.id === edge.dependsOnStepId && candidate.state === "succeeded",
+          ),
+      );
+      const state =
+        step.state === "canceled"
+          ? "canceled"
+          : held.has(step.id)
+            ? "blocked"
+            : dependenciesDone
+              ? "ready"
+              : "pending";
+      const waitingReason = held.has(step.id)
+        ? `Previous native execution requires reconciliation: ${reason}`.slice(0, 1000)
+        : null;
+      const version = step.version + 1;
+      await tx.deliveryStep.update({
+        where: { ownerId_id: { ownerId, id: step.id } },
+        data: {
+          state,
+          waitingReason,
+          version,
+          leaseGeneration: { increment: 1 },
+          reopenGeneration: { increment: 1 },
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: randomUUID(),
+          ownerId,
+          taskId,
+          stepId: step.id,
+          aggregateKey: `step/${step.id}`,
+          aggregateVersion: version,
+          type: "step_invalidated",
+          requestDigest: digest("step_invalidated", { causeEventId, stepId: step.id, reason }),
+          policyVersion: this.policy.version,
+          payload: { causeEventId, reason },
+        },
+      });
+    }
+    return { invalidatedEvidenceCount: invalidated.count, held: held.size > 0 };
+  }
+
+  async reopenStep(owner: string, value: unknown) {
+    const ownerId = ownerSchema.parse(owner);
+    const input = stepControlSchema.parse(value);
+    const requestDigest = digest("step_reopened", input);
+    return this.transaction(async (tx) => {
+      const task = await lockTask(tx, ownerId, input.taskId);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous) return { version: previous.aggregateVersion, replayed: true };
+      const step = await tx.deliveryStep.findUnique({
+        where: { ownerId_taskId_id: { ownerId, taskId: task.id, id: input.stepId } },
+      });
+      if (!step) throw new DeliveryConflict("step_not_found");
+      if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
+      if (step.state !== "succeeded") throw new DeliveryConflict("invalid_transition");
+      const edges = await tx.deliveryStepDependency.findMany({
+        where: { ownerId, taskId: task.id },
+      });
+      const affected = dependentClosure([step.id], edges);
+      // Root event uses the caller's digest for safe replay; descendants use their
+      // own versions and retain immutable reports from earlier completions.
+      const timestamp = await now(tx);
+      const held = (await this.pendingWriters(tx, ownerId, task.id, [...affected])).length > 0;
+      await tx.deliveryEvidence.updateMany({
+        where: { ownerId, stepId: step.id, invalidatedAt: null },
+        data: { invalidatedAt: timestamp },
+      });
+      const descendants = new Set([...affected].filter((id) => id !== step.id));
+      if (descendants.size)
+        await this.invalidateSteps(
+          tx,
+          ownerId,
+          task.id,
+          descendants,
+          input.eventId,
+          input.reason,
+          affected,
+        );
+      await tx.deliveryStep.update({
+        where: { ownerId_id: { ownerId, id: step.id } },
+        data: {
+          state: held ? "blocked" : "ready",
+          waitingReason: held ? "Previous native execution requires reconciliation." : null,
+          version: { increment: 1 },
+          leaseGeneration: { increment: 1 },
+          reopenGeneration: { increment: 1 },
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          aggregateKey: `step/${step.id}`,
+          aggregateVersion: step.version + 1,
+          type: "step_reopened",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: { reason: input.reason, affectedSteps: [...affected] },
+        },
+      });
+      await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
+      if (held) await this.safetyPause(tx, ownerId, task.id, input.eventId);
+      await this.refreshPause(tx, ownerId, task.id);
+      return { version: step.version + 1, replayed: false };
+    });
+  }
+
+  async changeSource(owner: string, value: unknown) {
+    const ownerId = ownerSchema.parse(owner);
+    const input = sourceChangeSchema.parse(value);
+    const requestDigest = digest("source_changed", input);
+    return this.transaction(async (tx) => {
+      const task = await lockTask(tx, ownerId, input.taskId);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous) return { version: previous.aggregateVersion, replayed: true };
+      if (task.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
+      if (task.sourceSha === input.sourceSha) throw new DeliveryConflict("source_unchanged");
+      const steps = await tx.deliveryStep.findMany({
+        where: { ownerId, taskId: task.id },
+        select: { id: true },
+      });
+      const invalidated = await this.invalidateSteps(
+        tx,
+        ownerId,
+        task.id,
+        new Set(steps.map((step) => step.id)),
+        input.eventId,
+        input.reason,
+      );
+      const version = task.version + 1;
+      await tx.deliveryTask.update({
+        where: { ownerId_id: { ownerId, id: task.id } },
+        data: {
+          sourceSha: input.sourceSha,
+          version,
+          pauseRequested: true,
+          schedulingPaused: false,
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          aggregateKey: `task/${task.id}`,
+          aggregateVersion: version,
+          type: "source_changed",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: {
+            previousSourceSha: task.sourceSha,
+            sourceSha: input.sourceSha,
+            reason: input.reason,
+            invalidatedEvidenceCount: invalidated.invalidatedEvidenceCount,
+          },
+        },
+      });
+      await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
+      await this.refreshPause(tx, ownerId, task.id);
+      return { version, replayed: false };
     });
   }
 }
