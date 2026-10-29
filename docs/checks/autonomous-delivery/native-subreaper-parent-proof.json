@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-10-29T21:28:19.877818+00:00",
+  "sourceSha256": "74b590b7d716804fedaecbfb4f8a2d0271a61cd87af5918626970e279b5e2042",
+  "compilerChecks": "C11 O2 Wall Wextra Werror",
+  "cases": [
+    {
+      "case": "detached",
+      "supervisorPid": 436694,
+      "supervisorStartTicks": 970919520,
+      "closedAdmissionDrainSucceeded": true,
+      "targetOmissionHeld": true,
+      "ordinaryWaitExcludedLiveClone": false,
+      "writerSurvivedSupervisorCrash": false,
+      "unrelatedWriterPreserved": true,
+      "reaped": 3,
+      "fixtureCleanupEchild": true
+    },
+    {
+      "case": "nested_subreaper",
+      "supervisorPid": 436742,
+      "supervisorStartTicks": 970919546,
+      "closedAdmissionDrainSucceeded": true,
+      "targetOmissionHeld": true,
+      "ordinaryWaitExcludedLiveClone": false,
+      "writerSurvivedSupervisorCrash": false,
+      "unrelatedWriterPreserved": true,
+      "reaped": 3,
+      "fixtureCleanupEchild": true
+    },
+    {
+      "case": "clone_signal",
+      "supervisorPid": 436854,
+      "supervisorStartTicks": 970919572,
+      "closedAdmissionDrainSucceeded": true,
+      "targetOmissionHeld": true,
+      "ordinaryWaitExcludedLiveClone": true,
+      "writerSurvivedSupervisorCrash": false,
+      "unrelatedWriterPreserved": true,
+      "reaped": 1,
+      "fixtureCleanupEchild": true
+    },
+    {
+      "case": "supervisor_crash",
+      "supervisorPid": 436894,
+      "supervisorStartTicks": 970919598,
+      "closedAdmissionDrainSucceeded": false,
+      "targetOmissionHeld": false,
+      "ordinaryWaitExcludedLiveClone": false,
+      "writerSurvivedSupervisorCrash": true,
+      "unrelatedWriterPreserved": true,
+      "reaped": 0,
+      "fixtureCleanupEchild": true
+    }
+  ],
+  "passed": true,
+  "scope": "Primary independent synthetic Linux fixture only; no installed runtime or cleanup authority change"
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "accountInference": false,
+  "productionAuthority": false,
+  "failure": "socket_unavailable",
+  "phase": "freshStart",
+  "evidenceLimitation": "Probe asserted before emitting per-run JSON; native stderr was discarded. Cause unestablished. Previous separate run passed; this failed rerun is retained.",
+  "fixtureCleanup": "Supervisor drain assertion and finally scratch removal returned before outer assertion."
+}

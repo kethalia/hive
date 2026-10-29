@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "productionAuthority": false,
+  "inference": false,
+  "network": false,
+  "kernel": "6.8.0-134-generic",
+  "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+  "sourceSha256": "74b590b7d716804fedaecbfb4f8a2d0271a61cd87af5918626970e279b5e2042",
+  "executableSha256": "5209fc00ddfb1b26405d9ee89a44494b5d4ab746fc876f63b711f5b0a4a12e76",
+  "compile": ["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"],
+  "durationMs": 1063,
+  "cases": [
+    {
+      "case": "detached",
+      "supervisorPid": 432174,
+      "supervisorStartTicks": 970901755,
+      "closedAdmissionDrainSucceeded": true,
+      "targetOmissionHeld": true,
+      "ordinaryWaitExcludedLiveClone": false,
+      "writerSurvivedSupervisorCrash": false,
+      "unrelatedWriterPreserved": true,
+      "reaped": 3,
+      "fixtureCleanupEchild": true
+    },
+    {
+      "case": "nested_subreaper",
+      "supervisorPid": 432180,
+      "supervisorStartTicks": 970901782,
+      "closedAdmissionDrainSucceeded": true,
+      "targetOmissionHeld": true,
+      "ordinaryWaitExcludedLiveClone": false,
+      "writerSurvivedSupervisorCrash": false,
+      "unrelatedWriterPreserved": true,
+      "reaped": 3,
+      "fixtureCleanupEchild": true
+    },
+    {
+      "case": "clone_signal",
+      "supervisorPid": 432186,
+      "supervisorStartTicks": 970901808,
+      "closedAdmissionDrainSucceeded": true,
+      "targetOmissionHeld": true,
+      "ordinaryWaitExcludedLiveClone": true,
+      "writerSurvivedSupervisorCrash": false,
+      "unrelatedWriterPreserved": true,
+      "reaped": 1,
+      "fixtureCleanupEchild": true
+    },
+    {
+      "case": "supervisor_crash",
+      "supervisorPid": 432191,
+      "supervisorStartTicks": 970901834,
+      "closedAdmissionDrainSucceeded": false,
+      "targetOmissionHeld": false,
+      "ordinaryWaitExcludedLiveClone": false,
+      "writerSurvivedSupervisorCrash": true,
+      "unrelatedWriterPreserved": true,
+      "reaped": 0,
+      "fixtureCleanupEchild": true
+    }
+  ]
+}
