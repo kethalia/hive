@@ -29,9 +29,8 @@ test("Coder shell startup loads a large host package from a mounted file, outsid
     const { createHash } = await import("node:crypto");
     assert.equal(result.stdout.trim(), createHash("sha256").update(archive).digest("hex"));
     const bootstrap = await readFile(`${template}/hive-host.tf`, "utf8");
-    assert.match(bootstrap, /immutable\s*=\s*true/);
-    assert.match(bootstrap, /create_before_destroy\s*=\s*true/);
-    assert.match(bootstrap, /length\(base64encode\(content\)\).*<= 950000/);
+    assert.doesNotMatch(bootstrap, /resource "kubernetes_config_map/);
+    assert.match(bootstrap, /length\(base64encode\(content\)\).*<= 240000/);
     const deployment = await readFile(`${template}/main.tf`, "utf8");
     assert.match(
       deployment,
@@ -39,7 +38,7 @@ test("Coder shell startup loads a large host package from a mounted file, outsid
     );
     assert.match(
       deployment,
-      /name\s*=\s*kubernetes_config_map_v1\.hive_host\[0\]\.metadata\[0\]\.name/,
+      /field_path\s*=\s*"metadata.annotations\['hive.kethalia.com\/host-request'\]"/,
     );
   } finally {
     await rm(temporary, { recursive: true, force: true });
@@ -63,6 +62,7 @@ test("host archive has the same digest across checkouts sharing a dependency sto
     const actual = await hostArchive(temporary);
     assert.equal(actual.sha256, expected.sha256);
     assert.deepEqual(actual.archive, expected.archive);
+    assert.deepEqual(actual.compressed, expected.compressed);
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }

@@ -56,18 +56,25 @@ which executes the complete script through shell `-c`. A local reproduction with
 same template package produced a 532,915-byte argument and Linux `E2BIG`; putting a
 here-document inside that argument does not avoid the limit.
 
-The corrected template places the public archive, public controller configuration and
-installer into an immutable Kubernetes ConfigMap. It mounts that exact content-addressed
-ConfigMap read-only in the development container. The small startup command reads the
-request from a file. A changed build/configuration changes the ConfigMap name and pod
-specification; create-before-destroy avoids replacing the input under a live host.
-The Terraform precondition bounds the combined UTF-8 data below 950,000 bytes, leaving
-headroom below Kubernetes' one-MiB limit. No private issuer key or account credential
-belongs in this resource.
+The corrected template places a compressed public archive, public controller configuration
+and installer into bounded pod annotations, projected into a read-only Downward API
+volume. The small startup command reads the request from a file. Changed bootstrap
+annotations change the pod template, triggering its existing Recreate strategy. The
+installer still rejects changed live configuration instead of replacing a running host.
+The Terraform precondition bounds annotation key/value UTF-8 bytes below 240,000 bytes,
+leaving headroom below Kubernetes' 256-KiB annotation limit. Build tooling additionally
+limits the compressed archive to 160,000 bytes; the installer bounds decompression to
+two MiB before validating the original tar digest and file manifest. No private issuer
+key or account credential belongs in pod metadata.
+
+An intermediate immutable ConfigMap implementation passed Terraform validation but
+failed test build `08dfc377-6f0f-4914-8750-808e2b019f50`: the Coder service account
+cannot create ConfigMaps. No RBAC changes were made. The Downward API implementation
+uses the already-authorized Deployment and does not introduce another resource type.
 
 The regression test executes the real small shell script with a package over the Linux
-argument limit and verifies its entire SHA-256 through stdin. All 86 template tests pass
-from an isolated staged export. Terraform formatting and validation pass in the new
+argument limit and verifies its entire SHA-256 through stdin. All 86 template checks pass from an isolated staged export, including the new bounded
+decompression test in the installer suite. Terraform formatting and validation pass in the new
 bounded infrastructure workspace recorded in `infrastructure-bootstrap/workspace-creation.json`.
 The previously used infrastructure workspace was already stopped and deleted; its
 creation record was not reused.

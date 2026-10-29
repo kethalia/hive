@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 import tar from "tar-stream";
 
 export async function hostArchive(root) {
@@ -38,7 +39,9 @@ export async function hostArchive(root) {
     await collected;
     const archive = Buffer.concat(chunks);
     if (archive.length > 2 * 1024 * 1024) throw new Error("Host archive exceeds installer bounds");
-    return { archive, sha256: createHash("sha256").update(archive).digest("hex") };
+    const compressed = gzipSync(archive, { level: 9 });
+    if (compressed.length > 160000) throw new Error("Host archive exceeds pod metadata budget");
+    return { archive, compressed, sha256: createHash("sha256").update(archive).digest("hex") };
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }
@@ -48,11 +51,15 @@ export async function syncHostArchive(root, check = false) {
   const artifact = await hostArchive(root);
   const destination = join(root, "templates/ai-dev-k8s/assets/codex-host.tar");
   if (check) {
-    if (!(await readFile(destination)).equals(artifact.archive))
+    if (
+      !(await readFile(destination)).equals(artifact.archive) ||
+      !(await readFile(`${destination}.gz`)).equals(artifact.compressed)
+    )
       throw new Error("Host package is stale; run pnpm templates:sync");
   } else {
     await mkdir(join(root, "templates/ai-dev-k8s/assets"), { recursive: true });
     await writeFile(destination, artifact.archive);
+    await writeFile(`${destination}.gz`, artifact.compressed);
   }
   return artifact.sha256;
 }

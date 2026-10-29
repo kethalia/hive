@@ -1,4 +1,6 @@
 import hashlib
+import base64
+import gzip
 import importlib.util
 import io
 import json
@@ -31,6 +33,17 @@ def archive(entries):
 
 
 class HostInstallerTests(unittest.TestCase):
+    def test_compressed_bootstrap_decodes_with_strict_expansion_bounds(self):
+        raw = b"template-owned fixture"
+        request = {"archive": base64.b64encode(gzip.compress(raw, mtime=0)).decode(), "archiveEncoding": "gzip"}
+        self.assertEqual(installer.decode_archive(request), raw)
+        request["archive"] = base64.b64encode(gzip.compress(b"x" * (2 * 1024 * 1024 + 1), mtime=0)).decode()
+        with self.assertRaises(RuntimeError):
+            installer.decode_archive(request)
+        request["archiveEncoding"] = "unknown"
+        with self.assertRaises(RuntimeError):
+            installer.decode_archive(request)
+
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()

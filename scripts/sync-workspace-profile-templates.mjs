@@ -42,6 +42,7 @@ const sharedRelativePaths = [
   "docker.tf",
   "hive-host.tf",
   "assets/codex-host.tar",
+  "assets/codex-host.tar.gz",
   "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
 ].sort();
