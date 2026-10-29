@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hive-delivery-capability-preview",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": false },
+    "redact_query_string": true
+  },
+  "vars": {
+    "CODER_URL": "https://coder.kethalia.com",
+    "SOURCE_REVISION": "unconfigured",
+    "NEON_PREVIEW_HOST": "unconfigured",
+    "NEON_PREVIEW_BRANCH_ID": "unconfigured",
+    "PROBE_RUN_ID": "unconfigured"
+  }
+}
