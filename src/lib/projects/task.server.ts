@@ -186,6 +186,39 @@ export async function readProjectTask(user: ProjectPrincipal, projectId: string,
   return pendingTaskStatus(await store.get(user.id, projectId, input.taskId, input.workspaceId));
 }
 
+/** Explicit owner recovery never includes a prompt or changes task identity.
+ * The installed host proves a pre-execution retry is safe, or returns the already
+ * running task. Ambiguous execution remains held by the host journal. */
+export async function retryProjectTask(user: ProjectPrincipal, projectId: string, value: unknown) {
+  const input = projectTaskReadSchema.parse(value);
+  const project = await ownedProject(user, projectId);
+  const store = taskIntentStore();
+  const snapshot = await store.recoverySnapshot(
+    user.id,
+    projectId,
+    input.taskId,
+    input.workspaceId,
+  );
+  if (
+    snapshot.row.repositoryId !== project.providerRepositoryId ||
+    snapshot.row.providerAccountId !== project.providerAccountId
+  )
+    throw new TaskIntentConflict("task_identity_conflict");
+  if (snapshot.row.phase !== "blocked") return pendingTaskStatus(snapshot.row);
+  const current = status(
+    await signedHostProjectRequest(user, input.workspaceId, "/projects/tasks/retry", {
+      schemaVersion: 1,
+      projectId,
+      taskId: input.taskId,
+      requestId: input.requestId,
+    }),
+    projectId,
+    input.taskId,
+  );
+  await store.recover(snapshot, current);
+  return pendingTaskStatus(await store.get(user.id, projectId, input.taskId, input.workspaceId));
+}
+
 export async function readHostProjectTask(
   user: ProjectPrincipal,
   projectId: string,

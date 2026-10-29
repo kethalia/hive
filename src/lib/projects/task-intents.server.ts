@@ -120,6 +120,38 @@ export class ProjectTaskIntents {
     if (!row) throw new TaskIntentConflict("task_not_found");
     return row;
   }
+  async recoverySnapshot(ownerId: string, projectId: string, taskId: string, workspaceId: string) {
+    for (const value of [ownerId, projectId, taskId, workspaceId]) uuid.parse(value);
+    // Read the exact timestamp before loading the row. If it changes between
+    // reads (or during the host request), recovery's compare-and-set must fail.
+    const versions = await this.db.$queryRaw<{ version: string }[]>`
+      SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS version
+      FROM project_task_intents WHERE id=${taskId}::uuid AND owner_id=${ownerId}::uuid
+        AND project_id=${projectId}::uuid AND workspace_id=${workspaceId}::uuid`;
+    if (!versions[0]) throw new TaskIntentConflict("task_not_found");
+    return {
+      row: await this.get(ownerId, projectId, taskId, workspaceId),
+      version: versions[0].version,
+    };
+  }
+  async recover(snapshot: { row: ProjectTaskIntent; version: string }, value: ProjectTaskStatus) {
+    const { row, version } = snapshot;
+    const status = projectTaskStatusSchema.parse(value);
+    if (status.taskId !== row.id || status.projectId !== row.projectId)
+      throw new Error("Intent recovery binding mismatch");
+    if (status.phase === "awaitingTask" || status.phase === "blocked") return false;
+    const phase = status.phase === "running" ? "running" : "preparing";
+    const count = await this.db.$executeRaw`
+      UPDATE project_task_intents SET phase=${phase}, status=${JSON.stringify(status)}::jsonb,
+        failure_count=0,lease_id=NULL,lease_until=NULL,progress_at=clock_timestamp(),updated_at=clock_timestamp(),next_attempt_at=clock_timestamp(),
+        ciphertext=CASE WHEN ${phase}='running' THEN NULL ELSE ciphertext END,
+        iv=CASE WHEN ${phase}='running' THEN NULL ELSE iv END,
+        auth_tag=CASE WHEN ${phase}='running' THEN NULL ELSE auth_tag END
+      WHERE id=${row.id}::uuid AND owner_id=${row.ownerId}::uuid AND project_id=${row.projectId}::uuid
+        AND workspace_id=${row.workspaceId}::uuid AND phase='blocked'
+        AND to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')=${version}`;
+    return count === 1;
+  }
   async claim(target?: { ownerId: string; taskId: string }) {
     if (target) {
       uuid.parse(target.ownerId);

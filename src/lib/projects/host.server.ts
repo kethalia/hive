@@ -14,6 +14,7 @@ const endpoints = {
   "/projects/open": "projects:open",
   "/projects/tasks/start": "projects:task:start",
   "/projects/tasks/status": "projects:task:read",
+  "/projects/tasks/retry": "projects:task:retry",
 } as const;
 /** Internal controller only. The endpoint and scope pair is fixed here; browser
  * inputs are parsed by each operation before reaching this signer. */

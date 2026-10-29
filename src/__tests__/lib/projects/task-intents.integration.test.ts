@@ -252,6 +252,44 @@ describe.skipIf(!url)("durable project preparation", () => {
     expect(row.phase).toBe("blocked");
     expect(row.failureCount).toBe(5);
   });
+  it("fences explicit recovery against a changed blocked state and never replaces the original intent", async () => {
+    const f = await fixture();
+    await store.enqueue(f.payload);
+    await db.projectTaskIntent.update({
+      where: { id: f.payload.taskId },
+      data: { phase: "blocked", failureCount: 5 },
+    });
+    const snapshot = await store.recoverySnapshot(
+      f.user.id,
+      f.project.id,
+      f.payload.taskId,
+      f.payload.workspaceId,
+    );
+    await expect(
+      store.recoverySnapshot(randomUUID(), f.project.id, f.payload.taskId, f.payload.workspaceId),
+    ).rejects.toThrow("task_not_found");
+    await db.projectTaskIntent.update({
+      where: { id: f.payload.taskId },
+      data: { updatedAt: new Date(Date.now() + 1000) },
+    });
+    expect(await store.recover(snapshot, status(f.payload))).toBe(false);
+    const fresh = await store.recoverySnapshot(
+      f.user.id,
+      f.project.id,
+      f.payload.taskId,
+      f.payload.workspaceId,
+    );
+    expect(
+      await store.recover(fresh, { ...status(f.payload), taskId: randomUUID() }).catch(() => false),
+    ).toBe(false);
+    expect(await store.recover(fresh, status(f.payload))).toBe(true);
+    const row = await store.get(f.user.id, f.project.id, f.payload.taskId, f.payload.workspaceId);
+    expect(row.phase).toBe("preparing");
+    expect(row.failureCount).toBe(0);
+    expect(row.requestId).toBe(f.payload.requestId);
+    expect(store.payload(row)).toEqual(f.payload);
+    expect(await store.recover(fresh, status(f.payload, "running"))).toBe(false);
+  });
   it("bounds unchanged preparation polling without timing out a running native task", async () => {
     const f = await fixture();
     await store.enqueue(f.payload);

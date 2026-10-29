@@ -187,3 +187,36 @@ it("terminal cookie exchange is independently fixed to /terminal", async () => {
   expect(f.coder.getApplicationAuthRedirect).toHaveBeenCalledWith(`${origin}/terminal`);
   expect(f.fetcher).toHaveBeenCalledTimes(1);
 });
+
+it("permits the bounded encoding expansion of a maximum-length escaped task prompt", async () => {
+  const f = fixture();
+  const path = "/projects/tasks/start";
+  f.coder.getApplicationAuthRedirect.mockResolvedValue(
+    `${origin}${path}?coder_application_connect_api_key_35e783=encrypted`,
+  );
+  f.fetcher
+    .mockReset()
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 303,
+        headers: {
+          Location: path,
+          "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+        },
+      }),
+    )
+    .mockResolvedValueOnce(Response.json({ accepted: true }));
+  const payload = Buffer.from(JSON.stringify({ request: { text: "\t".repeat(32768) } })).toString(
+    "base64url",
+  );
+  const body = JSON.stringify({ ticket: `header.${payload}.signature` });
+  expect(Buffer.byteLength(body)).toBeGreaterThan(65536);
+  await expect(
+    postToVerifiedWorkspaceApp(
+      f.coder,
+      f.issued.binding,
+      { path, body, expiresAt: f.issued.expiresAt },
+      f.fetcher,
+    ),
+  ).resolves.toEqual({ accepted: true });
+});

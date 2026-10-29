@@ -9,6 +9,9 @@ const mock = vi.hoisted(() => ({
   resolve: vi.fn(),
   enqueue: vi.fn(),
   intent: vi.fn(),
+  snapshot: vi.fn(),
+  recover: vi.fn(),
+  get: vi.fn(),
 }));
 vi.mock("@hive/db", () => ({
   getDb: () => ({
@@ -36,6 +39,9 @@ vi.mock("@/lib/projects/task-intents.server", async (original) => ({
   ...(await original()),
   ProjectTaskIntents: class {
     enqueue = mock.enqueue;
+    recoverySnapshot = mock.snapshot;
+    recover = mock.recover;
+    get = mock.get;
   },
 }));
 
@@ -43,6 +49,7 @@ import {
   projectTaskId,
   readHostProjectTask as readProjectTask,
   startProjectTask,
+  retryProjectTask,
 } from "@/lib/projects/task.server";
 
 const user = { id: "11111111-1111-4111-8111-111111111111", coderUserId: "owner" };
@@ -109,6 +116,41 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("project task controller", () => {
+  it("owner recovery sends only the fixed existing-task identity and does not enqueue or resubmit a prompt", async () => {
+    const row = {
+      id: taskId,
+      projectId,
+      workspaceId,
+      phase: "blocked",
+      repositoryId: "123",
+      providerAccountId: "456",
+      status: { ...result, phase: "blocked", reason: "native_unavailable" },
+    };
+    const snapshot = { row, version: "exact-db-version" };
+    mock.snapshot.mockResolvedValue(snapshot);
+    mock.get.mockResolvedValue({ ...row, phase: "preparing", status: result });
+    const request = { workspaceId, taskId, requestId };
+    expect(await retryProjectTask(user, projectId, request)).toEqual(result);
+    expect(mock.snapshot).toHaveBeenCalledWith(user.id, projectId, taskId, workspaceId);
+    expect(mock.host).toHaveBeenCalledWith(user, workspaceId, "/projects/tasks/retry", {
+      schemaVersion: 1,
+      projectId,
+      taskId,
+      requestId,
+    });
+    expect(mock.recover).toHaveBeenCalledWith(snapshot, result);
+    expect(mock.enqueue).not.toHaveBeenCalled();
+    await expect(
+      retryProjectTask(user, projectId, { ...request, text: "replacement prompt" }),
+    ).rejects.toThrow();
+    mock.host.mockClear();
+    mock.snapshot.mockResolvedValue({
+      ...snapshot,
+      row: { ...row, phase: "running", status: { ...result, phase: "running" } },
+    });
+    expect((await retryProjectTask(user, projectId, request)).phase).toBe("running");
+    expect(mock.host).not.toHaveBeenCalled();
+  });
   it("isolates deterministic task intent by owner, project and original request", async () => {
     expect(projectTaskId(user.id, projectId, requestId)).toBe(taskId);
     expect(projectTaskId("other", projectId, requestId)).not.toBe(taskId);
