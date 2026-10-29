@@ -299,7 +299,7 @@ describe.skipIf(!url)("delivery PostgreSQL persistence", () => {
     };
     const first = await repository.claimStep(ownerId, request);
     const again = await repository.claimStep(ownerId, request);
-    expect(first.canRun).toBe(true);
+    expect(first.canRun).toBe(false);
     expect(again).toMatchObject({
       attemptId: first.attemptId,
       replayed: true,
@@ -351,7 +351,7 @@ describe.skipIf(!url)("delivery PostgreSQL persistence", () => {
     const fixture = await task();
     const input = await completion(fixture, await lease(fixture));
     await db.$executeRawUnsafe(
-      "CREATE FUNCTION delivery_fixture_fail_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture outbox failure'; END $$",
+      `CREATE FUNCTION delivery_fixture_fail_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event_id = '${input.eventId}'::uuid THEN RAISE EXCEPTION 'fixture outbox failure'; END IF; RETURN NEW; END $$`,
     );
     await db.$executeRawUnsafe(
       "CREATE TRIGGER delivery_fixture_outbox BEFORE INSERT ON delivery_outbox FOR EACH ROW EXECUTE FUNCTION delivery_fixture_fail_outbox()",

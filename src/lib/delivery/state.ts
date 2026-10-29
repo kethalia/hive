@@ -48,6 +48,22 @@ export function assertAcyclicSteps(
   for (const id of stepIds) visit(id);
 }
 
+export function dependentClosure(
+  rootIds: string[],
+  dependencies: { stepId: string; dependsOnStepId: string }[],
+) {
+  const result = new Set(rootIds);
+  const queue = [...rootIds];
+  for (let index = 0; index < queue.length; index++)
+    for (const edge of dependencies) {
+      if (edge.dependsOnStepId === queue[index] && !result.has(edge.stepId)) {
+        result.add(edge.stepId);
+        queue.push(edge.stepId);
+      }
+    }
+  return result;
+}
+
 interface EvidenceClaim {
   ownerId: string;
   stepId: string;
