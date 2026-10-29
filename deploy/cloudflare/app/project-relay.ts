@@ -48,10 +48,18 @@ export type RelayDependencies = {
   upgrade(url: string, init: RequestInit): Promise<UpgradeResponse>;
   pair(): { client: RelaySocket; server: RelaySocket };
   response(client: RelaySocket): Response;
+  reauthorize(
+    request: Request,
+    projectId: string,
+    signal: AbortSignal,
+  ): Promise<{ principal: RelayPrincipal; target: RelayTarget }>;
+  trackCleanup?: (cleanup: Promise<void>) => void;
   now?: () => number;
   onClosed?: () => void;
 };
-export const RELAY_MAX_MS = 60000;
+export const RELAY_REAUTHORIZE_MS = 20000;
+export const RELAY_AUTH_TIMEOUT_MS = 10000;
+export const RELAY_RATE_WINDOW_MS = 1000;
 export const RELAY_MAX_FRAME = 1024 * 1024;
 export const RELAY_MAX_BYTES = 8 * RELAY_MAX_FRAME;
 export const RELAY_MAX_MESSAGES = 256;
@@ -160,13 +168,8 @@ export async function openProjectRelay(
       return failure(401);
     const freshTarget = await deps.authorize(freshPrincipal, path.projectId);
     if (identity(freshTarget) !== identity(target)) return failure(403);
-    const deadline = Math.min(
-      now() + RELAY_MAX_MS,
-      previewExpiresAt,
-      principal.expiresAt,
-      freshPrincipal.expiresAt,
-      freshTarget.expiresAt * 1000,
-    );
+    const hardDeadline = Math.min(previewExpiresAt, principal.expiresAt, freshPrincipal.expiresAt);
+    let deadline = Math.min(hardDeadline, freshTarget.expiresAt * 1000);
     if (deadline - now() < 1000 || request.signal.aborted) return failure(403);
     const handshake = new AbortController();
     const handshakeTimer = setTimeout(() => handshake.abort(), Math.min(10000, deadline - now()));
@@ -197,28 +200,98 @@ export async function openProjectRelay(
     const { client, server } = deps.pair();
     let stopped = false,
       bytes = 0,
-      messages = 0;
+      messages = 0,
+      windowStart = now();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let refresh: Promise<void> | undefined;
+    let refreshController: AbortController | undefined;
     const listeners: Array<{ socket: RelaySocket; event: string; listener: unknown }> = [];
     const finish = (code: number, reason: string) => {
       if (stopped) return;
       stopped = true;
       clearTimeout(timer);
+      clearTimeout(refreshTimer);
+      refreshController?.abort();
       for (const { socket, event, listener } of listeners)
         socket.removeEventListener(event, listener);
       request.signal.removeEventListener("abort", abort);
       safeClose(server, code, reason);
       safeClose(upstream, code, reason);
-      deps.onClosed?.();
+      const release = () => {
+        try {
+          deps.onClosed?.();
+        } catch {}
+      };
+      // Keep the reservation until an in-flight, request-local authorization
+      // has drained and closed its database; never disconnect a client early
+      // and allow a late Prisma continuation to reconnect that same client.
+      if (refresh) {
+        const cleanup = refresh.then(release, release);
+        deps.trackCleanup?.(cleanup);
+      } else release();
     };
     const abort = () => finish(1008, "Project connection closed");
     close = () => finish(1011, "Project transport unavailable");
+    const resetDeadline = () => {
+      clearTimeout(timer);
+      timer = setTimeout(
+        () => finish(1008, "Project authorization expired"),
+        Math.max(1, deadline - now()),
+      );
+    };
+    const scheduleRefresh = () => {
+      if (stopped || hardDeadline - now() <= RELAY_REAUTHORIZE_MS) return;
+      refreshTimer = setTimeout(
+        renew,
+        Math.max(1, Math.min(RELAY_REAUTHORIZE_MS, Math.floor((deadline - now()) / 2))),
+      );
+    };
+    const renew = () => {
+      if (stopped || refresh) return;
+      const controller = new AbortController();
+      refreshController = controller;
+      const timeout = setTimeout(() => {
+        controller.abort();
+        finish(1008, "Project authorization unavailable");
+      }, RELAY_AUTH_TIMEOUT_MS);
+      const pending = (async () => {
+        const authority = await deps.reauthorize(request, path.projectId, controller.signal);
+        if (stopped || controller.signal.aborted) return;
+        const renewed = authority.principal;
+        if (
+          renewed.hiveUserId !== principal.hiveUserId ||
+          renewed.coderUserId !== principal.coderUserId ||
+          renewed.coderOrigin !== principal.coderOrigin ||
+          identity(authority.target) !== identity(target)
+        )
+          throw new Error("Project authority changed");
+        deadline = Math.min(hardDeadline, renewed.expiresAt, authority.target.expiresAt * 1000);
+        if (deadline - now() < 1000) throw new Error("Project authorization expired");
+        resetDeadline();
+      })()
+        .catch(() => {
+          if (!stopped) finish(1008, "Project authorization unavailable");
+        })
+        .finally(() => {
+          clearTimeout(timeout);
+          if (refresh === pending) refresh = undefined;
+          if (refreshController === controller) refreshController = undefined;
+          scheduleRefresh();
+        });
+      refresh = pending;
+    };
     for (const [from, to] of [
       [server, upstream],
       [upstream, server],
     ] as const) {
       const message = (event: Message) => {
         if (stopped) return;
+        if (now() - windowStart >= RELAY_RATE_WINDOW_MS) {
+          windowStart = now();
+          bytes = 0;
+          messages = 0;
+        }
         const size = frameSize(event.data);
         bytes += size;
         messages++;
@@ -258,10 +331,8 @@ export async function openProjectRelay(
       );
     }
     request.signal.addEventListener("abort", abort, { once: true });
-    timer = setTimeout(
-      () => finish(1008, "Project authorization expired"),
-      Math.max(1, deadline - now()),
-    );
+    resetDeadline();
+    scheduleRefresh();
     // Workers defaults binary frames to Blob with current compatibility dates.
     // Explicit ArrayBuffer delivery keeps synchronous size/backpressure bounds.
     server.binaryType = "arraybuffer";

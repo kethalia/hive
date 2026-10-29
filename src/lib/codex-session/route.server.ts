@@ -38,12 +38,22 @@ export async function boundedSessionJson(request: Request, limit = 65536) {
       ]).finally(() => clearTimeout(timer));
       if (result.done) break;
       size += result.value.length;
-      if (size > limit) throw new Error("invalid_request");
+      if (size > limit || chunks.length >= 1024) throw new Error("invalid_request");
       chunks.push(result.value);
     }
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } finally {
-    await reader.cancel().catch(() => {});
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        reader.cancel().catch(() => {}),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 100);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 export async function authorizeSessionOwner(request: Request) {

@@ -157,17 +157,28 @@ owner cookies/tokens, upstream Set-Cookie/Location and upstream close reasons ar
 The host still requires the separately signed read or terminal ticket; a transport connection does
 not confer native RPC or terminal authority.
 
-Database clients close before a 101 response is returned. The socket then performs no DB/auth I/O.
-This first preview caps a connection at 60 seconds and earlier preview/session/registration expiry,
-1 MiB per frame, 8 MiB total, 256 messages, and four per-isolate reservations. Close/error events
-close both peers and release resources once. These bounds deliberately require reconnect and are
-not final persistent-session acceptance. Production readiness needs periodic fresh authorization
-without forced disconnect, active terminal checkout-lease enforcement, and real provider/browser
-evidence. Terminal routing remains explicitly disabled unless configured and validated.
+Initial database clients close before a 101 response is returned. The local followup removes the
+60-second transport cap: a serialized check every 20 seconds freshly verifies the Hive session,
+owner, current Coder build/app and active registration. Each check creates its own database scope
+and closes it before publishing renewed authority. Only the same registration/build/server/thread
+identity may extend its lease; initial preview-cookie and Hive-session expiry remain hard limits.
+Initial setup and each refresh have a 10-second cancellation deadline. Coder requests combine this
+signal with existing shorter bounds, and relay database scopes configure Neon `query_timeout` and
+Prisma transaction/max-wait bounds of 10 seconds. Cancelled SQL reads drain before disconnect;
+checkpoints prevent later queries from starting. This does not promise instantaneous PostgreSQL
+cancellation. Reservations remain held until cleanup drains; `waitUntil` retains only cleanup.
+
+Traffic is limited to 1 MiB per frame, 8 MiB and 256 messages per second, supported send buffering,
+and four per-isolate reservations. Close/error/revocation/timeout stops scheduling and closes both
+peers once. Current local evidence is not live Coder/browser acceptance, and the existing 100 ms
+Worker CPU limit is unchanged. The previously deployed preview kept gateway/terminal flags off.
+Terminal routing remains explicitly disabled unless configured and validated.
 
 The actual local workerd fixture uses a second Worker service binding as its simulated provider.
 It proved text/binary forwarding, sanitized close, oversized-frame rejection and earlier-expiry
-closure. It does not prove real Coder authentication or registered host data. See
+closure. Its sustained mode also kept the same socket open for over 66 seconds through three
+fresh authorization checks. Provider and auth metadata are simulated; it does not prove real Coder
+authentication or registered host data. See
 `docs/checks/autonomous-delivery/cloudflare-relay-local.json` and the preserved first failure.
 The real runtime caught a March-2026 compatibility change: binary frames default to Blob. The
 relay explicitly sets `binaryType = "arraybuffer"` on both sockets before accept, preserving
@@ -175,7 +186,29 @@ synchronous frame limits. Run the bounded transport proof with:
 
 ```sh
 node deploy/cloudflare/app/run-local-relay-proof.mjs
+node deploy/cloudflare/app/run-local-relay-proof.mjs --sustained
+node deploy/cloudflare/app/run-local-database-bounds.mjs
 ```
+
+The last command uses only the restricted isolated Neon runtime URL and fixed read-only
+`SELECT pg_sleep(2)`. The actual local Workers proof configured a 500 ms query timeout, observed
+`query_read_timeout`, and completed scope close after the rejected read.
+See `cloudflare-database-bounds.json`; this records actual rejection and cleanup timing separately.
+
+## Native host callbacks
+
+With the gateway flag explicitly enabled, only JSON POSTs at `/api/codex-host/registrations` and
+`/api/codex-host/registrations/<uuid>/heartbeat` may reach the existing native handlers without a
+preview cookie/bearer. Queries, encoded path components, browser Origin/fetch metadata, upgrades,
+Next Actions, compression and oversized declared bodies retain the outer private gate. This
+transport exception does not authenticate a host: native issuer/host signatures, replay fences and
+current registration checks remain mandatory. Preview/Hive browser credentials cannot replace
+native authority. Other APIs and assets remain private. The default gateway flag remains off.
+
+Handlers bound registration JSON to 64 KiB, heartbeat JSON to 4 KiB, reads to five seconds and
+1024 chunks, and cancellation wait to 100 ms. Unit route integration rejects a well-formed grant
+signed by another issuer before database or browser-session access. Actual host callback and
+browser/native integration require a separately reviewed committed build and bounded preview plan.
 
 ## Primary vendor references
 

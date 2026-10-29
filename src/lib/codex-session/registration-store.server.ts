@@ -30,19 +30,24 @@ const requireValue = (v: unknown) => {
 async function clock(tx: Tx) {
   return (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
 }
-async function lockSlot(tx: Tx, ownerId: string, id: string) {
+async function lockSlot(tx: Tx, ownerId: string, id: string, signal?: AbortSignal) {
+  signal?.throwIfAborted();
   const rows = await tx.$queryRaw<
     { id: string }[]
   >`SELECT id FROM codex_host_slots WHERE owner_id=${ownerId}::uuid AND id=${id}::uuid FOR UPDATE`;
+  signal?.throwIfAborted();
   requireValue(rows.length === 1);
   return tx.codexHostSlot.findUniqueOrThrow({ where: { ownerId_id: { ownerId, id } } });
 }
-async function verifyOwner(tx: Tx, b: RegistrationBinding) {
+async function verifyOwner(tx: Tx, b: RegistrationBinding, signal?: AbortSignal) {
+  signal?.throwIfAborted();
   const owner = await tx.user.findUnique({ where: { id: b.hiveUserId } });
+  signal?.throwIfAborted();
   requireValue(owner?.coderUserId === b.ownerId && owner?.coderUrl === b.coderOrigin);
   const projects = await tx.deliveryProject.findMany({
     where: { ownerId: b.hiveUserId, id: { in: b.projects.map((p) => p.projectId) } },
   });
+  signal?.throwIfAborted();
   requireValue(
     projects.length === b.projects.length &&
       b.projects.every((p) =>
@@ -61,34 +66,41 @@ async function verifyOwner(tx: Tx, b: RegistrationBinding) {
 export async function lockActiveRegistration(
   tx: Tx,
   input: { ownerId: string; registrationId: string },
+  signal?: AbortSignal,
 ) {
+  signal?.throwIfAborted();
   const registration = await tx.codexHostRegistration.findUnique({
     where: { ownerId_id: { ownerId: input.ownerId, id: input.registrationId } },
     include: { threads: true },
   });
+  signal?.throwIfAborted();
   requireValue(registration);
   if (!registration) throw new RegistrationRejected();
-  const slot = await lockSlot(tx, input.ownerId, registration.slotId);
+  const slot = await lockSlot(tx, input.ownerId, registration.slotId, signal);
+  signal?.throwIfAborted();
   // SERIALIZABLE callers retain their first-read snapshot even after waiting for
   // the slot lock. Lock the authority row itself: a concurrent revocation/renewal
   // then forces a serialization failure instead of permitting stale authority.
   const locked = await tx.$queryRaw<
     { id: string }[]
   >`SELECT id FROM codex_host_registrations WHERE owner_id=${input.ownerId}::uuid AND slot_id=${slot.id}::uuid AND id=${input.registrationId}::uuid FOR UPDATE`;
+  signal?.throwIfAborted();
   requireValue(locked.length === 1);
 
   const fresh = await tx.codexHostRegistration.findUniqueOrThrow({
     where: { id: registration.id },
     include: { threads: true },
   });
+  signal?.throwIfAborted();
   const now = await clock(tx);
+  signal?.throwIfAborted();
   requireValue(
     slot.activeRegistrationId === fresh.id &&
       slot.generation === fresh.generation &&
       !fresh.revokedAt &&
       fresh.expiresAt > now,
   );
-  await verifyOwner(tx, fresh.binding as unknown as RegistrationBinding);
+  await verifyOwner(tx, fresh.binding as unknown as RegistrationBinding, signal);
   return { registration: fresh, slot, now };
 }
 export class PrismaRegistrationStore implements RegistrationStore {

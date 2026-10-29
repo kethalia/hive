@@ -11,6 +11,7 @@ const paths = [
   "deploy/cloudflare/app/local-relay-provider.ts",
   "deploy/cloudflare/app/run-local-relay-proof.mjs",
 ];
+const sustained = process.argv.includes("--sustained");
 const digest = async () =>
   Object.fromEntries(
     await Promise.all(
@@ -155,6 +156,27 @@ try {
   const [bytes, isBinary] = await binary;
   if (!isBinary || !bytes.equals(Buffer.from([1, 2, 3])))
     throw new Error("Binary transport failed");
+  let sustainedMilliseconds = 0,
+    reauthorizations = 0;
+  if (sustained) {
+    stage = "sustained-same-connection";
+    const started = Date.now();
+    for (let index = 0; index < 6; index++) {
+      await new Promise((resolve) => setTimeout(resolve, 11000));
+      const reply = once(socket, "message"),
+        value = `sustained-${index}`;
+      socket.send(value);
+      if ((await reply)[0].toString() !== value) throw new Error("Sustained transport failed");
+    }
+    sustainedMilliseconds = Date.now() - started;
+    const status = await fetch("http://127.0.0.1:8794/__local-relay-status", {
+      headers: { Authorization: `Bearer ${bearer}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    reauthorizations = (await status.json()).reauthorizations;
+    if (sustainedMilliseconds < 65000 || reauthorizations < 3)
+      throw new Error("Sustained authority refresh missing");
+  }
   const closed = once(socket, "close");
   stage = "sanitized-close";
   socket.send("fixture-close");
@@ -187,7 +209,9 @@ try {
       sanitizedClose: true,
       oversizedFrameRejected: true,
       shorterPreviewDeadlineClosed: true,
+      ...(sustained ? { sameConnectionBeyond60Seconds: true, periodicFreshAuthority: true } : {}),
     },
+    ...(sustained ? { sustainedMilliseconds, reauthorizations } : {}),
     providerSimulated: true,
     authMetadataSimulated: true,
     databaseUsed: false,

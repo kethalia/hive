@@ -58,11 +58,17 @@ function parseApplicationsHost(host: string): string {
 export class CoderClient {
   private baseUrl: string;
   private sessionToken: string;
+  private signal?: AbortSignal;
 
   constructor(config: CoderClientConfig) {
     // Strip trailing slash for consistent URL construction
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.sessionToken = config.sessionToken;
+    this.signal = config.signal;
+  }
+
+  private requestSignal(signal?: AbortSignal | null) {
+    return this.signal && signal ? AbortSignal.any([this.signal, signal]) : (signal ?? this.signal);
   }
 
   getSessionToken(): string {
@@ -88,10 +94,12 @@ export class CoderClient {
   async getApplicationAuthRedirect(redirectUri: string): Promise<string> {
     const endpoint = new URL("/api/v2/applications/auth-redirect", this.baseUrl);
     endpoint.searchParams.set("redirect_uri", redirectUri);
+    const signal = this.requestSignal(AbortSignal.timeout(APPLICATION_AUTH_REDIRECT_TIMEOUT_MS));
+    signal?.throwIfAborted();
     const response = await fetchCoderApi(endpoint, {
       headers: { "Coder-Session-Token": this.sessionToken },
       redirect: "manual",
-      signal: AbortSignal.timeout(APPLICATION_AUTH_REDIRECT_TIMEOUT_MS),
+      signal,
     });
     const location = response.headers.get("location");
     if (response.status < 300 || response.status >= 400 || !location) {
@@ -113,8 +121,11 @@ export class CoderClient {
    */
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${path}`;
+    const signal = this.requestSignal(init?.signal);
+    signal?.throwIfAborted();
     const res = await fetchCoderApi(url, {
       ...init,
+      signal,
       headers: {
         "Content-Type": "application/json",
         "Coder-Session-Token": this.sessionToken,

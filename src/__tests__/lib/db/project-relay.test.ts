@@ -30,6 +30,7 @@ class Socket implements RelaySocket {
 const origin = "https://preview.example",
   projectId = "00000000-0000-4000-8000-000000000001";
 const now = Date.parse("2026-10-29T18:00:00Z");
+const closers: Array<() => void> = [];
 function request(path = `/api/projects/${projectId}/session`, extra: HeadersInit = {}) {
   return new Request(`${origin}${path}`, {
     headers: {
@@ -67,6 +68,8 @@ function fixture() {
   const deps = {
     authenticate: vi.fn().mockResolvedValue(principal),
     authorize: vi.fn().mockResolvedValue(target),
+    reauthorize: vi.fn().mockImplementation(async () => ({ principal, target })),
+    trackCleanup: vi.fn(),
     exchange: vi.fn().mockImplementation(async (_principal, target, kind) => ({
       url: `${target.appOrigin}/${kind}`,
       cookie: `coder_subdomain_app_session_token_${"a".repeat(32)}=scoped-cookie`,
@@ -88,15 +91,20 @@ function fixture() {
     principal,
     target,
     deps,
-    open: (r = request(), expires = now + 900000) => openProjectRelay(r, origin, expires, deps),
+    open: async (r = request(), expires = now + 900000) => {
+      const result = await openProjectRelay(r, origin, expires, deps);
+      closers.push(result.close);
+      return result;
+    },
   };
 }
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(now);
 });
-afterEach(() => {
-  vi.runOnlyPendingTimers();
+afterEach(async () => {
+  for (const close of closers.splice(0)) close();
+  await vi.runOnlyPendingTimersAsync();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -182,16 +190,74 @@ describe("scoped project WebSocket relay", () => {
       expect(f.deps.upgrade).not.toHaveBeenCalled();
     }
   });
-  it("caps lifetime at60s and earlier preview expiry without keeping auth IO alive", async () => {
+  it("keeps the same connection beyond60s with periodic fresh authority and hard preview expiry", async () => {
     const f = fixture();
     await f.open();
-    vi.advanceTimersByTime(60000);
-    expect(f.server.close).toHaveBeenCalledWith(1008, "Project authorization expired");
+    await vi.advanceTimersByTimeAsync(65000);
+    expect(f.server.close).not.toHaveBeenCalled();
+    expect(f.deps.reauthorize).toHaveBeenCalledTimes(3);
     expect(f.deps.authenticate).toHaveBeenCalledTimes(2);
     const short = fixture();
-    await short.open(request(), Date.now() + 2000);
-    vi.advanceTimersByTime(2000);
+    await short.open(request(), Date.now() + 4000);
+    await vi.advanceTimersByTimeAsync(4000);
     expect(short.upstream.close).toHaveBeenCalledWith(1008, "Project authorization expired");
+  });
+  it("extends only the current registration lease while preserving owner and initial session limits", async () => {
+    const f = fixture();
+    f.target.expiresAt = Math.floor(now / 1000) + 30;
+    f.deps.reauthorize.mockImplementation(async () => ({
+      principal: f.principal,
+      target: { ...f.target, expiresAt: Math.floor(Date.now() / 1000) + 60 },
+    }));
+    await f.open();
+    await vi.advanceTimersByTimeAsync(65000);
+    expect(f.server.close).not.toHaveBeenCalled();
+    f.deps.reauthorize.mockResolvedValue({
+      principal: f.principal,
+      target: { ...f.target, binding: { ...f.target.binding, threadId: "different-thread" } },
+    });
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(f.server.close).toHaveBeenCalledWith(1008, "Project authorization unavailable");
+  });
+  it("does not accept late authority or release a reservation before an aborted check drains", async () => {
+    const f = fixture();
+    let resolve: (authority: { principal: typeof f.principal; target: typeof f.target }) => void;
+    let signal: AbortSignal | undefined;
+    f.deps.reauthorize.mockImplementation((_request, _project, currentSignal) => {
+      signal = currentSignal;
+      return new Promise((done) => {
+        resolve = done;
+      });
+    });
+    await f.open();
+    await vi.advanceTimersByTimeAsync(20000);
+    f.server.emit("close", { code: 1000 });
+    expect(signal?.aborted).toBe(true);
+    expect(f.deps.onClosed).not.toHaveBeenCalled();
+    expect(f.deps.trackCleanup).toHaveBeenCalledOnce();
+    resolve!({ principal: f.principal, target: f.target });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.deps.onClosed).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(f.deps.reauthorize).toHaveBeenCalledOnce();
+  });
+  it("bounds a stalled reauthorization then drains it without scheduling another check", async () => {
+    const f = fixture();
+    let reject: (error: Error) => void;
+    f.deps.reauthorize.mockImplementation(
+      () =>
+        new Promise((_done, fail) => {
+          reject = fail;
+        }),
+    );
+    await f.open();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(f.server.close).toHaveBeenCalledWith(1008, "Project authorization unavailable");
+    expect(f.deps.onClosed).not.toHaveBeenCalled();
+    reject!(new Error("Cancelled read drained"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.deps.onClosed).toHaveBeenCalledOnce();
+    expect(f.deps.reauthorize).toHaveBeenCalledOnce();
   });
   it("cancels the fetch handshake timeout after101 so it cannot abort an accepted socket", async () => {
     // AbortSignal.timeout uses the native clock in Node; model Workers' timer
@@ -246,6 +312,13 @@ describe("scoped project WebSocket relay", () => {
     buffered.upstream.bufferedAmount = 2 * RELAY_MAX_FRAME + 1;
     buffered.server.emit("message", { data: "x" });
     expect(buffered.upstream.send).not.toHaveBeenCalled();
+    const windows = fixture();
+    await windows.open();
+    for (let index = 0; index < 256; index++) windows.server.emit("message", { data: "x" });
+    vi.advanceTimersByTime(1000);
+    for (let index = 0; index < 256; index++) windows.server.emit("message", { data: "x" });
+    expect(windows.upstream.send).toHaveBeenCalledTimes(512);
+    expect(windows.server.close).not.toHaveBeenCalled();
   });
   it("cancels non-upgrade bodies and never returns redirect or upstream headers", async () => {
     const f = fixture(),
