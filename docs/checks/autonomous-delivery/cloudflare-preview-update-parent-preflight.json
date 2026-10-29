@@ -1,0 +1,150 @@
+{
+  "observedAt": "2026-10-29T20:52:39.671Z",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "targets": [
+    {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deployment": {
+        "id": "beb77274-466b-4dfd-b3d1-5a701c3d3778",
+        "source": "wrangler",
+        "strategy": "percentage",
+        "annotations": {
+          "workers/message": "Automatic deployment on upload.",
+          "workers/triggered_by": "upload"
+        },
+        "versions": [
+          {
+            "version_id": "c9401e7b-a3f0-43c0-8f18-5b170d4ee5a9",
+            "percentage": 100
+          }
+        ],
+        "created_on": "2026-10-29T19:15:15.567988Z"
+      },
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "limits": {
+        "cpu_ms": 100
+      },
+      "logpush": false,
+      "bindings": [
+        {
+          "name": "ASSETS",
+          "type": "assets"
+        },
+        {
+          "name": "AUTH_SERVICE",
+          "type": "service"
+        },
+        {
+          "name": "AUTH_SERVICE_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "CODER_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "COOKIE_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "DATABASE_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "ENCRYPTION_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "HIVE_DELIVERY_ENABLED",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DISABLE_BACKGROUND_WORKERS",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_PREVIEW_ORIGIN",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_RUNTIME_TARGET",
+          "type": "plain_text"
+        },
+        {
+          "name": "PREVIEW_BEARER",
+          "type": "secret_text"
+        },
+        {
+          "name": "PREVIEW_COOKIE_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "SOURCE_REVISION",
+          "type": "plain_text",
+          "value": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f"
+        }
+      ]
+    },
+    {
+      "name": "hive-auth-compatibility-preview",
+      "tag": "731fb2f125fb472e8682ea6ed4d1f53d",
+      "createdOn": "2026-10-29T19:13:42.822748Z",
+      "deployment": {
+        "id": "cf315309-8602-402a-9e6c-4ed45ee708fd",
+        "source": "wrangler",
+        "strategy": "percentage",
+        "annotations": {
+          "workers/message": "Automatic deployment on upload.",
+          "workers/triggered_by": "upload"
+        },
+        "versions": [
+          {
+            "version_id": "cf6cd1be-4060-4fcb-99fa-be73d39cd6f2",
+            "percentage": 100
+          }
+        ],
+        "created_on": "2026-10-29T19:13:42.822748Z"
+      },
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "limits": {
+        "cpu_ms": 100
+      },
+      "logpush": false,
+      "bindings": [
+        {
+          "name": "AUTH_SERVICE_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "CODER_URL",
+          "type": "plain_text"
+        },
+        {
+          "name": "DATABASE_URL",
+          "type": "secret_text"
+        },
+        {
+          "name": "ENCRYPTION_KEY",
+          "type": "secret_text"
+        },
+        {
+          "name": "HIVE_RUNTIME_TARGET",
+          "type": "plain_text"
+        },
+        {
+          "name": "SOURCE_REVISION",
+          "type": "plain_text",
+          "value": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f"
+        }
+      ]
+    }
+  ]
+}
