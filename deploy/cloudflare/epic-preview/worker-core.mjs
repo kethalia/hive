@@ -74,6 +74,39 @@ async function hasRequestBody(request) {
   }
 }
 
+function safeFetchDiagnostic(error) {
+  const names = ["Error", "TypeError", "AbortError", "TimeoutError"];
+  const codes = [
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "ENOTFOUND",
+    "EAI_AGAIN",
+    "UND_ERR_CONNECT_TIMEOUT",
+    "CERT_HAS_EXPIRED",
+    "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+    "DEPTH_ZERO_SELF_SIGNED_CERT",
+  ];
+  const message = typeof error?.message === "string" ? error.message : "";
+  const category = /redirect/i.test(message)
+    ? "redirect"
+    : /dns|resolve.*host/i.test(message)
+      ? "dns"
+      : /certificate|ssl|tls/i.test(message)
+        ? "tls"
+        : /timeout|timed out|aborted/i.test(message)
+          ? "timeout"
+          : /itself|loop/i.test(message)
+            ? "routing-loop"
+            : "unknown";
+  const causeCode = error?.cause?.code ?? error?.code;
+  return {
+    name: names.includes(error?.name) ? error.name : "unknown",
+    category,
+    causeCode: codes.includes(causeCode) ? causeCode : "unknown",
+  };
+}
+
 const INSERT = `INSERT INTO hive_epic_preview.probes (run_id, phase, payload)
 VALUES ($1::uuid, $2, $3::jsonb) ON CONFLICT (run_id, phase) DO NOTHING RETURNING run_id`;
 const SELECT = `SELECT phase, payload FROM hive_epic_preview.probes
@@ -167,10 +200,21 @@ export function createHandler({ createSql, probePrisma, fetchUpstream = fetch })
         const upstream = await fetchUpstream(`${CODER_ORIGIN}/api/v2/users/me`, {
           method: "GET",
           headers: { "Coder-Session-Token": env.CODER_API_TOKEN, Accept: "application/json" },
-          redirect: "error",
+          redirect: "manual",
           signal: AbortSignal.timeout(10_000),
         });
-        if (!upstream.ok) return response(502, { error: "CODER_IDENTITY_REJECTED" });
+        if (!upstream.ok) {
+          const location = upstream.headers.get("location");
+          let redirectOrigin = null;
+          try {
+            if (location) redirectOrigin = new URL(location, CODER_ORIGIN).origin;
+          } catch {}
+          return response(502, {
+            error: "CODER_IDENTITY_REJECTED",
+            upstreamStatus: upstream.status,
+            redirectOrigin,
+          });
+        }
         const user = await upstream.json();
         if (!UUID.test(user.id ?? "") || typeof user.username !== "string")
           return response(502, { error: "CODER_IDENTITY_INVALID" });
@@ -178,8 +222,11 @@ export function createHandler({ createSql, probePrisma, fetchUpstream = fetch })
           sourceRevision: env.SOURCE_REVISION,
           coder: { authenticated: true, userId: user.id },
         });
-      } catch {
-        return response(502, { error: "CODER_IDENTITY_UNAVAILABLE" });
+      } catch (error) {
+        return response(502, {
+          error: "CODER_IDENTITY_UNAVAILABLE",
+          diagnostic: safeFetchDiagnostic(error),
+        });
       }
     }
     if (url.pathname === "/api/probe/neon") {

@@ -74,7 +74,7 @@ test("Coder probe only makes fixed identity GET and returns sanitized identity",
       calls++;
       assert.equal(url, "https://coder.kethalia.com/api/v2/users/me");
       assert.equal(options.method, "GET");
-      assert.equal(options.redirect, "error");
+      assert.equal(options.redirect, "manual");
       assert.equal(options.headers["Coder-Session-Token"], env.CODER_API_TOKEN);
       return Response.json({
         id: env.PROBE_RUN_ID,
@@ -102,6 +102,39 @@ test("Coder failure bodies and thrown credentials are never reflected", async ()
     const result = await fetch(request("/api/probe/coder"), env);
     assert.equal(result.status, 502);
     assert.ok(!(await result.text()).includes(env.CODER_API_TOKEN));
+  }
+});
+
+test("Coder diagnostics retain only allowlisted categories and redirect origin", async () => {
+  for (const [fetchUpstream, expected] of [
+    [
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { Location: "https://access.example.invalid/login?signed=private" },
+        }),
+      {
+        error: "CODER_IDENTITY_REJECTED",
+        upstreamStatus: 302,
+        redirectOrigin: "https://access.example.invalid",
+      },
+    ],
+    [
+      async () => {
+        throw Object.assign(new Error("TLS certificate private credentials"), {
+          cause: { code: "private" },
+        });
+      },
+      {
+        error: "CODER_IDENTITY_UNAVAILABLE",
+        diagnostic: { name: "Error", category: "tls", causeCode: "unknown" },
+      },
+    ],
+  ]) {
+    const fetch = createHandler({ createSql: unavailable, fetchUpstream });
+    const result = await fetch(request("/api/probe/coder"), env);
+    assert.equal(result.status, 502);
+    assert.deepEqual(await result.json(), expected);
   }
 });
 
