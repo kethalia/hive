@@ -44,6 +44,8 @@ model CoderToken {
   authTag    Bytes    @map("auth_tag")
   version    Int       @default(1)
   expiresAt  DateTime? @map("expires_at") @db.Timestamptz
+  // Only a positively identified key created by Hive; legacy credentials stay null.
+  remoteKeyId String? @map("remote_key_id")
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
