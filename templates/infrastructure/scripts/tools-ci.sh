@@ -86,4 +86,10 @@ if [ "$HIVE_WORKSPACE_PROFILE" = "software" ]; then
 fi
 # Resolve GitHub authentication at execution time through the existing helper.
 # Never embed the provider access token in Coder's readable startup metadata.
-"$HOME/clone-repositories.sh"
+# Managed projects prepare one repository on demand. Retain existing clones and
+# the user-owned manifest, while keeping manual bootstrap available.
+if [ "$HIVE_MANAGED_PROJECTS" = "true" ]; then
+  printf '[ok] managed projects defer repository checkout until a task starts\n'
+else
+  "$HOME/clone-repositories.sh"
+fi
