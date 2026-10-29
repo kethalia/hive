@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T16:04:35Z",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "plan": "paid-user-confirmed",
+  "source": "connected Cloudflare GraphQL Analytics API, account-wide overview datasets",
+  "window": { "startInclusive": "2026-09-29T00:00:00Z", "endExclusive": "2026-10-29T16:05:00Z" },
+  "datasets": {
+    "workersOverviewRequestsAdaptiveGroups": {
+      "count": 269260,
+      "sumCpuTimeUs": 19574976880,
+      "sumCpuTimeMs": 19574976.88
+    },
+    "workersOverviewDataAdaptiveGroups": {
+      "sumStandardCpuTimeUs": 1698086405,
+      "sumStandardCpuTimeMs": 1698086.405
+    }
+  },
+  "publishedStandardIncludedAllowance": {
+    "requestsPerMonth": 10000000,
+    "cpuMillisecondsPerMonth": 30000000,
+    "source": "https://developers.cloudflare.com/workers/platform/pricing/"
+  },
+  "interpretation": "Substantial apparent headroom even using the larger returned CPU sum; datasets are adaptive/sampled, not authoritative billing usage. Query end is later than observation by 25 seconds; only data available at observation was returned. Billing cycle start is unavailable; query window conservatively covers possible current monthly cycles as of observation.",
+  "billingReadStatus": 403,
+  "exactInvoiceUsageVerified": false,
+  "futureHeadroomReserved": false,
+  "additionalCostsAuthorized": false,
+  "approvedProbeRequestMaximum": 20,
+  "newPaidProductsAllowed": false,
+  "probeCpuLimitMsPerRequest": 100,
+  "query": "query { viewer { accounts(filter:{accountTag:\"225177f82b9234ede14e897fe15e0cb5\"}) { cpu: workersOverviewDataAdaptiveGroups(limit:1,filter:{datetime_geq:\"2026-09-29T00:00:00Z\",datetime_lt:\"2026-10-29T16:05:00Z\"}) { sum { standardCpuTimeUs } } invocations: workersOverviewRequestsAdaptiveGroups(limit:1,filter:{datetime_geq:\"2026-09-29T00:00:00Z\",datetime_lt:\"2026-10-29T16:05:00Z\"}) { count sum {cpuTimeUs} } } } }"
+}

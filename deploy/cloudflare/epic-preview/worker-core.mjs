@@ -57,6 +57,23 @@ function authorized(request, token) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+async function hasRequestBody(request) {
+  if (request.body === null) return false;
+  const reader = request.body.getReader();
+  try {
+    // HTTP runtimes may represent Content-Length: 0 as an empty stream.
+    // Read only enough to distinguish empty from nonempty; never buffer input.
+    for (let chunks = 0; chunks < 4; chunks++) {
+      const { done, value } = await reader.read();
+      if (done) return false;
+      if (value.byteLength > 0) return true;
+    }
+    return true;
+  } finally {
+    await reader.cancel();
+  }
+}
+
 const INSERT = `INSERT INTO hive_epic_preview.probes (run_id, phase, payload)
 VALUES ($1::uuid, $2, $3::jsonb) ON CONFLICT (run_id, phase) DO NOTHING RETURNING run_id`;
 const SELECT = `SELECT phase, payload FROM hive_epic_preview.probes
@@ -107,7 +124,7 @@ export async function probeDatabase(sql, runId, revision) {
   };
 }
 
-export function createHandler({ createSql, fetchUpstream = fetch }) {
+export function createHandler({ createSql, probePrisma, fetchUpstream = fetch }) {
   return async (request, env) => {
     // Fail closed, including unknown paths, before any external request.
     const invalid = validateConfig(env);
@@ -127,7 +144,11 @@ export function createHandler({ createSql, fetchUpstream = fetch }) {
         neonBranchId: env.NEON_PREVIEW_BRANCH_ID,
         scope: "isolated-api-probe",
         configuredCoderOrigin: CODER_ORIGIN,
-        supportedProbes: ["coder-read-only-identity", "neon-http-transaction"],
+        supportedProbes: [
+          "coder-read-only-identity",
+          "neon-http-transaction",
+          "prisma-interactive-transaction",
+        ],
         unverified: [
           "hive-auth",
           "framework-build",
@@ -165,7 +186,8 @@ export function createHandler({ createSql, fetchUpstream = fetch }) {
       if (request.method !== "POST") return response(405, { error: "METHOD_NOT_ALLOWED" });
       // Fixed run identity caps durable data to one committed row per configured
       // revision/run. No caller SQL, parameters, arbitrary database or URLs.
-      if (request.body !== null) return response(400, { error: "REQUEST_BODY_NOT_SUPPORTED" });
+      if (await hasRequestBody(request))
+        return response(400, { error: "REQUEST_BODY_NOT_SUPPORTED" });
       try {
         const result = await probeDatabase(
           createSql(env.DATABASE_URL),
@@ -180,6 +202,21 @@ export function createHandler({ createSql, fetchUpstream = fetch }) {
       } catch {
         // Driver exceptions can contain SQL, endpoint details or credentials.
         return response(502, { error: "NEON_TRANSACTION_PROBE_FAILED" });
+      }
+    }
+    if (url.pathname === "/api/probe/prisma") {
+      if (request.method !== "POST") return response(405, { error: "METHOD_NOT_ALLOWED" });
+      if (await hasRequestBody(request))
+        return response(400, { error: "REQUEST_BODY_NOT_SUPPORTED" });
+      try {
+        const result = await probePrisma(env.DATABASE_URL, env.PROBE_RUN_ID, env.SOURCE_REVISION);
+        return response(200, {
+          sourceRevision: env.SOURCE_REVISION,
+          runId: env.PROBE_RUN_ID,
+          prisma: result,
+        });
+      } catch {
+        return response(502, { error: "PRISMA_TRANSACTION_PROBE_FAILED" });
       }
     }
     return response(404, { error: "NOT_FOUND" });

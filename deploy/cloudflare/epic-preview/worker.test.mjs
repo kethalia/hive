@@ -200,3 +200,26 @@ test("driver failures never leak connection strings through the Worker", async (
   assert.equal(result.status, 502);
   assert.deepEqual(await result.json(), { error: "NEON_TRANSACTION_PROBE_FAILED" });
 });
+
+test("accepts an empty HTTP POST stream without accepting caller parameters", async () => {
+  let called = 0;
+  const fetch = createHandler({
+    createSql: unavailable,
+    probePrisma: async (url, runId, revision) => {
+      called++;
+      assert.equal(url, env.DATABASE_URL);
+      assert.equal(runId, env.PROBE_RUN_ID);
+      assert.equal(revision, env.SOURCE_REVISION);
+      return { testStub: true };
+    },
+  });
+  assert.equal(
+    (await fetch(request("/api/probe/prisma", { method: "POST", body: "" }), env)).status,
+    200,
+  );
+  assert.equal(
+    (await fetch(request("/api/probe/prisma", { method: "POST", body: "{}" }), env)).status,
+    400,
+  );
+  assert.equal(called, 1);
+});

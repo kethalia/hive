@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { probePrisma } from "./prisma-probe.mjs";
 import { createHandler } from "./worker-core.mjs";
 
 // HTTP supports atomic noninteractive batches. Interactive Prisma transactions
@@ -6,5 +7,6 @@ import { createHandler } from "./worker-core.mjs";
 export default {
   fetch: createHandler({
     createSql: (url) => neon(url, { fetchOptions: { signal: AbortSignal.timeout(15_000) } }),
+    probePrisma,
   }),
 };
