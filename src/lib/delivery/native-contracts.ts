@@ -14,6 +14,15 @@ const common = {
 export const nativeSourceSchema = z.discriminatedUnion("kind", [
   z
     .object({
+      kind: z.literal("root_boundary"),
+      parentTurnId: nativeId,
+      nextParentTurnId: nativeId,
+      cursorVersion: z.number().int().positive().max(2147483646),
+      observedAt: z.string().datetime({ offset: true }),
+    })
+    .strict(),
+  z
+    .object({
       ...common,
       kind: z.literal("started"),
       requestedModel: nativeId.nullable(),

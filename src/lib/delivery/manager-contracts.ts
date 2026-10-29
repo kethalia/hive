@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   attemptFailureSchema,
   completionSchema,
+  continuationSchema,
   informationalReportSchema,
   leaseRequestSchema,
   taskDefinitionSchema,
@@ -74,13 +75,19 @@ export const managerEnvelopeSchema = z
     managerThreadId: nativeId,
     nativeTurnId: nativeId,
     nativeCallId: nativeId,
+    // Installed host field, signed outside model-controlled command/payload.
+    continuation: continuationSchema.optional(),
     issuedAt: z.number().int().nonnegative(),
     expiresAt: z.number().int().positive(),
     command,
     checkoutBinding: managerCheckoutSchema,
     proof: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.continuation && value.command.operation !== "claim_step")
+      ctx.addIssue({ code: "custom", message: "Continuation is claim-only" });
+  });
 export type ManagerEnvelope = z.infer<typeof managerEnvelopeSchema>;
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);

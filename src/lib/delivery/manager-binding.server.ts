@@ -84,7 +84,7 @@ export async function lockManagerCheckout(
   tx: Tx,
   input: CheckoutHostEnvelope,
   authenticated: { ownerId: string; hostPublicKeyPem: string },
-  options: { create?: boolean; allowBlocked?: boolean } = {},
+  options: { create?: boolean; allowBlocked?: boolean; progressionProtocol?: 1 } = {},
 ) {
   const { ownerId } = authenticated,
     context = input.checkoutBinding;
@@ -161,7 +161,12 @@ export async function lockManagerCheckout(
     await tx.projectTaskIntent.update({ where: { id: intent.id }, data: { updatedAt: now } });
     await tx.deliveryManagerBinding.upsert({
       where: { ownerId_id: { ownerId, id } },
-      create: { id, ...identity, bindingDigest },
+      create: {
+        id,
+        ...identity,
+        bindingDigest,
+        progressionProtocol: options.progressionProtocol ?? 0,
+      },
       update: {},
     });
   }
