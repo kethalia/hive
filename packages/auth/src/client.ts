@@ -18,13 +18,26 @@ export class AuthServiceClient {
     this.timeoutMs = timeoutMs;
   }
 
+  private async request(path: string, init: RequestInit): Promise<Response> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(this.timeoutMs),
+      // Workers does not implement redirect:"error". Manual also prevents the
+      // service credential/password from being forwarded to a redirect target.
+      redirect: "manual",
+    });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error("Auth service redirects are not allowed");
+    }
+    return response;
+  }
+
   async login(req: LoginRequest): Promise<LoginResponse> {
-    const res = await fetch(`${this.baseUrl}/login`, {
+    const res = await this.request("/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authServiceHeaders() },
       body: JSON.stringify(req),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
     });
 
     if (!res.ok) {
@@ -38,12 +51,10 @@ export class AuthServiceClient {
   }
 
   async logout(sessionId: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/logout`, {
+    const res = await this.request("/logout", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authServiceHeaders() },
       body: JSON.stringify({ sessionId }),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
     });
 
     if (!res.ok) {
@@ -55,10 +66,8 @@ export class AuthServiceClient {
   }
 
   async getSession(sessionId: string): Promise<SessionPayload | null> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}`, {
+    const res = await this.request(`/sessions/${sessionId}`, {
       headers: authServiceHeaders(),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
     });
 
     if (res.status === 404) {
@@ -76,10 +85,8 @@ export class AuthServiceClient {
   }
 
   async getCredentials(sessionId: string): Promise<CredentialResponse | null> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/credentials`, {
+    const res = await this.request(`/sessions/${sessionId}/credentials`, {
       headers: authServiceHeaders(),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
     });
 
     if (res.status === 404) {
@@ -98,10 +105,8 @@ export class AuthServiceClient {
   }
 
   async getCoderToken(sessionId: string): Promise<CoderTokenResponse | null> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/token`, {
+    const res = await this.request(`/sessions/${sessionId}/token`, {
       headers: authServiceHeaders(),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
     });
 
     if (res.status === 404) {

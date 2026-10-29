@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit",
     "templates:sync": "node scripts/sync-workspace-profile-templates.mjs",
     "templates:check": "node scripts/sync-workspace-profile-templates.mjs --check",
-    "test:runtime": "node --test scripts/verify-coder-install.test.mjs scripts/verify-workspace-downloads.test.mjs services/migrate/test/preflight.test.mjs",
+    "test:runtime": "node --test scripts/verify-coder-install.test.mjs scripts/verify-workspace-downloads.test.mjs services/migrate/test/preflight.test.mjs scripts/verify-codex-session-bridge.test.mjs deploy/cloudflare/app/build-integrity.test.mjs",
     "verify:standalone": "node scripts/verify-standalone-runtime.mjs",
     "test:templates": "node --test scripts/verify-ai-dev-k8s-template.test.mjs scripts/verify-workspace-profile-templates.test.mjs scripts/verify-desktop-isolation.test.mjs scripts/verify-coder-credential-boundary.test.mjs scripts/verify-tmux-retirement.test.mjs scripts/verify-agent-tools.test.mjs",
     "test": "node --test deploy/cloudflare/worker.test.mjs && pnpm test:templates && pnpm test:runtime && vitest run",
@@ -35,7 +35,9 @@
     "db:generate": "pnpm --filter @hive/db db:generate",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "ci:release": "changeset tag"
+    "ci:release": "changeset tag",
+    "build:cloudflare": "pnpm --filter @hive/db db:generate:cloudflare && node deploy/cloudflare/app/build.mjs",
+    "preview:cloudflare": "node deploy/cloudflare/app/preview.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
@@ -45,6 +47,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hive/auth": "workspace:*",
     "@hive/db": "workspace:*",
+    "@opennextjs/cloudflare": "1.20.14",
     "@tanstack/react-query": "^5.104.5",
     "@tanstack/react-virtual": "^3.13.23",
     "@use-gesture/react": "^10.3.1",
@@ -107,6 +110,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "wrangler": "4.155.0"
   }
 }
