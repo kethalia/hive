@@ -461,6 +461,7 @@ class ManagedProjects:
                 "checkoutDirectory": str(project / "checkout") if record.get("checkoutIdentity") else None,
                 "revision": record["revision"], "status": record["status"], "lease": record["lease"],
                 "checkoutIncarnation": record.get("checkoutIncarnation"), "renewalSequence": record.get("renewalSequence", 0),
+                "checkoutIdentity": {key: str(value) for key, value in record["checkoutIdentity"].items()} if record.get("checkoutIdentity") else None,
                 "preservedStages": [stage["name"] for stage in record["stages"] if stage["status"] != "published"]}
 
     def inspect(self, repository_id):

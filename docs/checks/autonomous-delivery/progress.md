@@ -426,3 +426,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   synthetic HTTP remains explicit. Fixed JS signing/deadline composition, real guardian metadata
   authority, broader repository scale and an installed provider pilot remain; no live writes or
   activation. CI/images/native guardian builds are green at the preceding92f7b25 checkpoint.
+
+- Read-only Git metadata: reviewed protection checkpoint accepted, high difficulty.
+  Native root, child, CLI and resumed thread keep working-tree writes while complete Git
+  metadata and the project parent stay read-only. FD-pinned mounts survive pathname swaps;
+  host atomic ref updates remain visible. Parent13 actual cases and clean-export89 template/
+  4 package/30 helper checks pass; producer sequential native57 passes. A real readiness cwd
+  incompatibility was fixed. Parallel startup timeouts also affect legacy mode and remain
+  unresolved with failures preserved; startup diagnosis and installed independent metadata
+  authority are still pilot gates. No activation, cleanup authority or external effects added.

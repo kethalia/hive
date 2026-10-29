@@ -21,7 +21,11 @@ import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
-import { NATIVE_PROFILE, prepareNativeNamespace } from "./codex-native-namespace.mjs";
+import {
+  NATIVE_PROFILE,
+  prepareNativeNamespace,
+  validateMetadataApproval,
+} from "./codex-native-namespace.mjs";
 import { processIdentity } from "./codex-process-identity.mjs";
 
 export const VERSION = "0.165.0";
@@ -74,10 +78,16 @@ export function validateSupervisorConfig(raw) {
       "codexSha256",
       "projects",
       "executionMode",
+      "metadataReadOnly",
     ]) &&
       raw.schemaVersion === 1 &&
       raw.profile === "software",
     "unsupported_configuration",
+  );
+  check(
+    (raw.metadataReadOnly === undefined || typeof raw.metadataReadOnly === "boolean") &&
+      (!raw.metadataReadOnly || raw.executionMode === "isolated"),
+    "unsupported_metadata_mode",
   );
   for (const key of ["ownerId", "workspaceId", "buildId"]) check(id(raw[key]), "invalid_identity");
   check(
@@ -128,6 +138,10 @@ export function validateSupervisorConfig(raw) {
 // supplies these values; external registration must independently authenticate them.
 export async function openSupervisor(raw, dependencies = {}) {
   const config = validateSupervisorConfig(raw);
+  check(
+    !config.metadataReadOnly || typeof dependencies.metadataAuthority === "function",
+    "metadata_authority_required",
+  );
   const executionAuthority = dependencies.executionAuthority;
   if (executionAuthority)
     check(
@@ -204,6 +218,10 @@ export async function openSupervisor(raw, dependencies = {}) {
         "registry_identity_changed",
       );
     }
+    check(
+      !state.metadataLaunch || config.metadataReadOnly === true,
+      "metadata_mode_downgrade_rejected",
+    );
     const save = () => atomic(statePath, { state, signature: sign(state) });
     state.serverInstanceId = randomUUID();
     state.buildId = config.buildId;
@@ -217,12 +235,41 @@ export async function openSupervisor(raw, dependencies = {}) {
     supervisor.executionAuthority = executionAuthority;
     await executionAuthority?.fence();
     executionAuthority?.assert();
+    let metadataApproval;
+    if (config.metadataReadOnly) {
+      check(!state.metadataLaunch, "metadata_launch_reconciliation_required");
+      state.metadataLaunch = {
+        phase: "reservationRequested",
+        projectsDigest: hash(JSON.stringify(config.projects)),
+      };
+      save();
+      let timer;
+      try {
+        metadataApproval = validateMetadataApproval(
+          await Promise.race([
+            Promise.resolve().then(() =>
+              dependencies.metadataAuthority({ projects: structuredClone(config.projects) }),
+            ),
+            new Promise((_, reject) => {
+              timer = setTimeout(() => reject(new Error("metadata_authority_timeout")), 5000);
+            }),
+          ]),
+          config.projects,
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+      executionAuthority?.assert();
+      state.metadataLaunch = { phase: "reserved", approval: metadataApproval };
+      save();
+    }
     runtime = await (dependencies.runtimeFactory ?? launchNative)({
       config,
       home,
       stateDirectory,
       lock,
       executionAuthority,
+      metadataApproval,
     });
     executionAuthority?.assert();
     if (executionAuthority) {
@@ -235,6 +282,18 @@ export async function openSupervisor(raw, dependencies = {}) {
       };
     }
     supervisor.runtime = runtime;
+    if (config.metadataReadOnly) {
+      check(
+        runtime.metadataPins?.metadataPolicyDigest === metadataApproval.metadataPolicyDigest,
+        "metadata_protection_missing",
+      );
+      state.metadataLaunch = {
+        ...state.metadataLaunch,
+        phase: "started",
+        pins: runtime.metadataPins,
+      };
+      save();
+    }
     if (dependencies.managerAdapter) supervisor.setManagerAdapter(dependencies.managerAdapter);
     runtime.onClose(() => supervisor.revoke());
     check(runtime.version === VERSION && runtime.alive(), "unsupported_native_runtime");
@@ -288,6 +347,7 @@ export class ProjectSupervisor {
       // checkout cleanup. Every execution command independently verifies lease.
       return;
     }
+    check(!this.config.metadataReadOnly, "metadata_inventory_fixed");
     const next = validateSupervisorConfig({
       ...this.config,
       projects: [...this.config.projects, project],
@@ -1482,7 +1542,15 @@ export async function launchNative({
   lock,
   fixtureProvider,
   executionAuthority,
+  metadataApproval,
 }) {
+  check(
+    !config.metadataReadOnly || config.executionMode === "isolated",
+    "unsupported_metadata_mode",
+  );
+  const approvedMetadata = config.metadataReadOnly
+    ? validateMetadataApproval(metadataApproval, config.projects)
+    : undefined;
   await executionAuthority?.fence();
   executionAuthority?.assert();
   const executable = readFileSync(config.codexExecutable);
@@ -1523,6 +1591,7 @@ export async function launchNative({
           stateDirectory,
           codexExecutable: config.codexExecutable,
           fixtureProvider,
+          metadataApproval: approvedMetadata,
         })
       : null;
   if (namespace) env = namespace.env;
@@ -1535,9 +1604,15 @@ export async function launchNative({
     "--ws-token-file",
     tokenPath,
   ];
-  const nativeCommand = namespace
-    ? namespace.command(nativeArgs, { holdLock: true })
-    : [config.codexExecutable, ...nativeArgs];
+  let nativeCommand;
+  try {
+    nativeCommand = namespace
+      ? namespace.command(nativeArgs, { holdLock: true })
+      : [config.codexExecutable, ...nativeArgs];
+  } catch (error) {
+    namespace?.close();
+    throw error;
+  }
   // Linux parent-death signal survives exec; inherited flock fd prevents a second
   // supervisor until this exact child exits, including abrupt supervisor death.
   const guardian =
@@ -1591,6 +1666,7 @@ export async function launchNative({
         timeout: 2000,
       });
     } catch {}
+    namespace?.close();
   };
   try {
     for (let attempt = 0; attempt < 40; attempt++) {
@@ -1669,6 +1745,7 @@ export async function launchNative({
     return {
       version: VERSION,
       processIdentity: executionIdentity.native,
+      metadataPins: namespace?.metadataPins ?? null,
       executionIdentity,
       setManagerAdapter: (adapter) => {
         check(!managerAdapter, "manager_adapter_already_installed");
