@@ -25,16 +25,11 @@
       "code": "P2002",
       "clientVersion": "6.19.3",
       "modelName": "Session",
-      "metaKeys": [
-        "modelName",
-        "driverAdapterError"
-      ],
+      "metaKeys": ["modelName", "driverAdapterError"],
       "adapterErrorName": "DriverAdapterError",
       "adapterCauseKind": "UniqueConstraintViolation",
       "constraint": {
-        "fields": [
-          "session_id"
-        ]
+        "fields": ["session_id"]
       }
     },
     "appChecks": {

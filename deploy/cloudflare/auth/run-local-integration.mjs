@@ -59,6 +59,7 @@ const database = new URL(runtimeUrl);
 if (database.username !== "hive_app_runtime" || database.pathname !== "/hive_app_preview")
   throw new Error("Isolated least-privilege app database is required");
 const bearer = randomBytes(32).toString("hex");
+const previewBearer = randomBytes(32).toString("hex");
 const runId = randomUUID();
 const config = {
   name: "hive-auth-local-proof",
@@ -92,6 +93,7 @@ await writeFile(
     ENCRYPTION_KEY: randomBytes(32).toString("hex"),
     COOKIE_SECRET: randomBytes(32).toString("hex"),
     PROOF_BEARER: bearer,
+    PREVIEW_BEARER: previewBearer,
     RUN_UUID: runId,
   })
     .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
@@ -158,7 +160,25 @@ try {
       const seed = await control("/__local-auth-seed");
       if (!seed.ok) throw new Error("Local synthetic app fixture setup failed");
       const { cookie, taskId } = await seed.json();
-      const headers = { Cookie: cookie, "sec-fetch-site": "same-origin" };
+      const headers = {
+        Cookie: cookie,
+        "sec-fetch-site": "same-origin",
+        Authorization: `Bearer ${previewBearer}`,
+      };
+      const unauthenticated = await request("/login");
+      if (unauthenticated.status !== 401) throw new Error("Actual app preview guard failed");
+      appChecks.privatePreviewGuardBeforeFramework = true;
+      const privateAsset = "/icons/hive-mark.svg";
+      if ((await request(privateAsset)).status !== 401)
+        throw new Error("Actual app preview static asset guard failed");
+      const authorizedAsset = await request(privateAsset, { headers });
+      if (
+        authorizedAsset.status !== 200 ||
+        !authorizedAsset.headers.get("cache-control")?.includes("no-store")
+      )
+        throw new Error("Actual app preview asset privacy failed");
+      await authorizedAsset.arrayBuffer();
+      appChecks.privateStaticAssetsGuardAndNoStore = true;
       const list = await request("/api/delivery/tasks", { headers });
       const payload = await list.json();
       if (list.status !== 200 || payload.tasks?.length !== 1 || payload.tasks[0].id !== taskId)
