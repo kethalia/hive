@@ -35,12 +35,13 @@ status, freshness, invalidation, phase, required kinds and lease/revision fences
 
 GitHub policy applies to code-quality step kinds `implement`, `review`, `validate`
 and `release`, and any step explicitly requiring check/review evidence. Analysis-only
-`understand` work does not acquire a PR prerequisite. It retains the existing
-independent-evidence contract: no trusted analysis producer or separate successful
-informational outcome exists yet. An informational failed/blocked report with no
-evidence can be recorded before a PR exists; it grants no code-quality acceptance
-or native quiescence. Change, migration, artifact and analysis evidence adapters
-remain separate work. Repo-wide delivery/release eligibility must continue using
+`understand` work does not acquire a PR prerequisite. The subsequent
+[informational report checkpoint](informational-reports.md) adds a separate
+`reported` outcome for model-authored understanding, without creating trusted
+analysis evidence. An informational failed/blocked report can also be recorded
+before a PR exists. Neither grants code-quality acceptance or native quiescence.
+Change, migration, artifact and independently verified analysis adapters remain
+separate work. Repo-wide delivery/release eligibility must continue using
 controller requirements, not the manager's choice of informational steps.
 
 Native execution observations remain a separate authority. Accepting a result does

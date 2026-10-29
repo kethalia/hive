@@ -232,6 +232,7 @@ export class DeliveryManagerService {
         }
         if (
           input.command.operation === "complete_step" ||
+          input.command.operation === "report_step" ||
           input.command.operation === "fail_attempt"
         ) {
           const attempt = await tx.deliveryAttempt.findUnique({
@@ -327,10 +328,13 @@ export class DeliveryManagerService {
         };
       }
       case "complete_step":
+      case "report_step":
       case "fail_attempt": {
         const payload = input.command.payload;
         if (input.command.operation === "complete_step")
           return repository.completeStep(ownerId, { ...payload, ...common });
+        if (input.command.operation === "report_step")
+          return repository.reportStep(ownerId, { ...payload, ...common });
         return repository.failAttempt(ownerId, { ...payload, ...common });
       }
       default:

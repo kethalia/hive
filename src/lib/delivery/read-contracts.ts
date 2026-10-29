@@ -16,6 +16,7 @@ export const deliveryTaskSummarySchema = z.object({
   counts: z.object({
     total: z.number().int(),
     succeeded: z.number().int(),
+    reported: z.number().int().default(0),
     attention: z.number().int(),
   }),
 });
@@ -25,6 +26,8 @@ export const deliveryTaskPageSchema = z.object({
 });
 export const deliveryReportSchema = z.object({
   id,
+  informational: z.boolean().default(false),
+  sourceSha: z.string().optional(),
   summary: z.string(),
   difficulty: z.string(),
   difficultyReason: z.string(),

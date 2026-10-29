@@ -20,6 +20,7 @@ export const stepStateSchema = z.enum([
   "waiting_external",
   "blocked",
   "succeeded",
+  "reported",
   "failed",
   "canceled",
 ]);
@@ -139,6 +140,8 @@ export const completionSchema = z
       .strict(),
   })
   .strict();
+/** A model-authored informational result is not verification evidence. */
+export const informationalReportSchema = completionSchema.omit({ evidenceIds: true }).strict();
 export const evidenceInputSchema = z
   .object({
     id: identifier,

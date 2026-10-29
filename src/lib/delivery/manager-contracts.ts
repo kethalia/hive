@@ -2,11 +2,18 @@ import { z } from "zod";
 import {
   attemptFailureSchema,
   completionSchema,
+  informationalReportSchema,
   leaseRequestSchema,
   taskDefinitionSchema,
 } from "./contracts";
 
 const command = z.discriminatedUnion("operation", [
+  z
+    .object({
+      operation: z.literal("report_step"),
+      payload: informationalReportSchema.omit({ schemaVersion: true, eventId: true }),
+    })
+    .strict(),
   z
     .object({
       operation: z.literal("create_task"),

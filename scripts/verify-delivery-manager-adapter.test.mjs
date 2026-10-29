@@ -136,6 +136,51 @@ test("default disabled, fixed configured HTTPS endpoint and exact registered nat
   await assert.rejects(adapter.handleToolCall(f.request), /registration/);
   assert.equal(calls, 0);
 });
+test("informational report uses the signed manager path without creating execution or evidence authority", async (t) => {
+  const f = fixture(t),
+    payload = {
+      taskId: randomUUID(),
+      stepId: randomUUID(),
+      attemptId: randomUUID(),
+      expectedVersion: 1,
+      leaseGeneration: 1,
+      sourceSha: "a".repeat(40),
+      report: {
+        summary: "Understanding recorded",
+        difficulty: "low",
+        difficultyReason: "Bounded analysis",
+        issues: [],
+        remainingUncertainty: "Unverified model report",
+        nextAction: "Implement",
+      },
+    };
+  const adapter = createDeliveryManagerAdapter({
+    ...f.options,
+    fetchImpl: async (url, init) => {
+      assert.equal(url, "https://hive.example.invalid/api/delivery/host");
+      const body = JSON.parse(init.body);
+      assert.equal(
+        verify(
+          null,
+          Buffer.from(deliveryProofPayload(body)),
+          f.key.publicKey,
+          Buffer.from(body.proof, "base64url"),
+        ),
+        true,
+      );
+      assert.deepEqual(body.command, { operation: "report_step", payload });
+      return Response.json({ informational: true, reportId: "fixture-report", replayed: false });
+    },
+  });
+  assert.ok(adapter.tools()[0].inputSchema.properties.operation.enum.includes("report_step"));
+  const result = await adapter.handleToolCall({
+    ...f.request,
+    arguments: { operation: "report_step", payload },
+  });
+  assert.equal(result.success, true);
+  assert.equal(JSON.parse(result.contentItems[0].text).informational, true);
+  assert.equal(JSON.parse(result.contentItems[0].text).canRun, undefined);
+});
 test("signed native-call journal survives adapter restart and changed-body replay conflicts", async (t) => {
   const f = fixture(t),
     sent = [];

@@ -2,6 +2,7 @@ const labels: Record<string, string> = {
   task_created: "Task created",
   attempt_started: "Step started",
   step_completed: "Step completed",
+  step_reported: "Analysis report accepted",
   attempt_failed: "Step failed",
   attempt_blocked: "Step blocked",
   step_blocked: "Step blocked",

@@ -1,0 +1,23 @@
+✔ native delegation reducer matches exact parent/turn/call and never persists prompt text (1.098501ms)
+✔ default disabled, fixed configured HTTPS endpoint and exact registered native thread (2.957222ms)
+✔ informational report uses the signed manager path without creating execution or evidence authority (12.062081ms)
+✔ signed native-call journal survives adapter restart and changed-body replay conflicts (5.429288ms)
+✔ ambiguous response may replay only the same event; redirects and excessive response fail closed (3.131511ms)
+✔ installed native 0.165 emits a real dynamic tool call and consumes its result using only a local Responses fixture (484.550254ms)
+✔ claim receipt then exact native child facts create bounded ordered digest-only observations (36.108513ms)
+✔ private spool survives lost acknowledgement and restart; history hydration repeats no source identities (29.489995ms)
+✔ offline observations are retained and signed only after current registration returns (22.685284ms)
+✔ another native lifetime never replays old writer facts or admits a new claim (32.008735ms)
+✔ a spawn from another parent turn cannot inherit a reservation (8.473904ms)
+✔ same native item identity with changed exit/output becomes a controller conflict and keeps the writer held (46.090401ms)
+✔ partial native history and missing previous claim state fail closed (20.028935ms)
+✔ signed journal tampering is rejected rather than silently resetting source state (3.256805ms)
+✔ failed history lookup persists a reconciliation hold across restart (14.079582ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 571.222031

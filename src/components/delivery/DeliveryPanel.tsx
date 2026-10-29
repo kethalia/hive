@@ -39,6 +39,12 @@ function StepReport({ report, selected }: { report: DeliveryReport; selected: bo
     >
       <summary className="cursor-pointer break-words font-medium">{report.summary}</summary>
       <div className="mt-3 space-y-3">
+        {report.informational && <p>Informational report · not independently verified</p>}
+        {report.sourceSha && (
+          <p>
+            Report revision: <code>{report.sourceSha.slice(0, 12)}</code>
+          </p>
+        )}
         <p>
           <strong>Difficulty: {report.difficulty}.</strong> {report.difficultyReason}
         </p>
@@ -295,7 +301,9 @@ export function DeliveryPanel({
                 >
                   <span className="block break-words text-sm font-medium">{task.outcome}</span>
                   <span className="block break-words text-xs text-muted-foreground">
-                    {task.projectName} · {task.counts.succeeded}/{task.counts.total} steps complete
+                    {task.projectName} · {task.counts.succeeded} accepted with evidence ·{" "}
+                    {task.counts.reported} informational · {task.counts.total}{" "}
+                    {task.counts.total === 1 ? "step" : "steps"}
                     {task.counts.attention ? ` · ${task.counts.attention} need attention` : ""}
                   </span>
                 </button>
