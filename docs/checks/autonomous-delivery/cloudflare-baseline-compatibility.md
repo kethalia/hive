@@ -13,7 +13,7 @@ implementation dependencies; actual preview/browser evidence must be added befor
 | Existing generic terminals, discovery and file links | Coder PTY/proxy, server SSH helper | Needs bounded installed operations and authorized relay; project-terminal proof does not cover this surface. |
 | Agent tools, integrations and existing conversations | `agents/workspace.ts` SSH + source file | Needs fixed installed helper operations with current Coder ownership/build verification. |
 | Terminal uploads and voice | SSH upload, local socket/child process | Needs bounded authenticated host transport; retain MIME/size/path and microphone consent boundaries. |
-| Template staleness | Runtime template filesystem + Coder archive | Build manifest and reproducible content-addressed archives implemented; actual workerd archive comparison pending. |
+| Template staleness | Runtime template filesystem + Coder archive | Build manifest and reproducible content-addressed archives implemented; actual local workerd matches all five archives and rejects malformed/unknown inputs. Authenticated Coder download and deployed UI acceptance remain. |
 | Template publishing and logs | Redis/BullMQ, local Coder CLI, local log files | Replace with durable jobs using Coder file/template-version APIs and bounded replayable logs; preserve current activation semantics and owner checks. |
 | Notification installation and event delivery | SSH installer + Redis/BullMQ | Delivery reports have durable outbox; existing agent-hook installation/event queue still require adapters. |
 | Credential rotation | Redis/BullMQ | Provenance checks implemented; bounded durable scheduler pending. |
@@ -24,6 +24,17 @@ counts/sizes. The committed manifest binds content identity, archive digest and 
 builds verify the manifest before generating static archive assets; source/output readiness also
 covers those assets. Template synchronization updates the manifest. No runtime source directory,
 shell invocation, or user-provided artifact URL is needed for staleness lookup.
+
+The [local workerd proof](template-comparison-workerd.json) runs the canonical
+hashing functions against five real generated archives and a changed archive.
+It also checks malformed input, unknown templates and fixture authentication.
+Archives came from a clean staged-source export and each metadata entry was
+compared with the current manifest. This proves runtime compatibility of the
+comparison, not remote Coder download or template publishing. Reproduce with
+`node deploy/cloudflare/templates/run-local-comparison.mjs`; an optional
+`HIVE_TEMPLATE_PROOF_ROOT` selects a clean source export while active template
+work continues, and manifest equality is still required. No deployed Worker,
+provider credential or cloud request is used.
 
 Coder's documented template API supports file-backed version import and explicit active-version
 updates: https://coder.com/docs/reference/api/templates. This is an implementation direction,
