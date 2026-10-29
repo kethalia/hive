@@ -1,8 +1,8 @@
 # Managed host template installation checkpoint
 
-Status: packaging and Terraform validation pass. The first enabled test workspace exposed
-a Coder startup argument-size failure; the mounted bootstrap fix awaits deployed acceptance.
-Production manager execution remains disabled.
+Status: the pinned host starts and passes idempotent reinstallation in the persistent test
+workspace. Packaging and Terraform validation pass. Account-backed project/session acceptance
+and isolated native launch integration remain open. Production manager execution stays disabled.
 
 The software template has an opt-in `enable_hive_projects` parameter and a Hive account
 identifier. The deployment supplies the HTTPS controller origin, public Ed25519 issuer
@@ -78,3 +78,14 @@ decompression test in the installer suite. Terraform formatting and validation p
 bounded infrastructure workspace recorded in `infrastructure-bootstrap/workspace-creation.json`.
 The previously used infrastructure workspace was already stopped and deleted; its
 creation record was not reused.
+
+## Live test acceptance
+
+Inactive template `5ad25d5b-b8b5-46cd-b71e-7b43ccbde017` from `06e00da` was applied only
+to the persistent codex test workspace. Build `c9d8217c-c45a-4595-bc64-5b56c54b9bfd`
+succeeded. The installed host returned HTTP 200 on its fixed loopback health endpoint,
+matched the source archive digest, and reported `already_running` on an identical reinstall.
+The binding contains the new build identity. Both manager execution and native evidence
+ingestion remain disabled. The globally active software template stayed
+`1b6dbdb0-69d0-4213-9d53-b8a4f33e8c30`; the primary workspace was not rebuilt.
+See [sanitized live evidence](test-workspace-host-installation.json).
