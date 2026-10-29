@@ -100,7 +100,7 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
   // browser fields, and absent policy disables task execution.
   const model = z
     .string()
-    .regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,159}$/)
+    .regex(/^[a-z0-9][a-z0-9._-]{0,99}$/)
     .safeParse(process.env.HIVE_CODEX_MANAGER_MODEL);
   const effort = z
     .enum(["low", "medium", "high", "xhigh", "max", "ultra"])
