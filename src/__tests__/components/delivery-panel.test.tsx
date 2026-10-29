@@ -24,6 +24,16 @@ const summary = {
 };
 const detail = {
   ...summary,
+  recentEvents: [
+    {
+      id: "66666666-6666-4666-8666-666666666666",
+      label: "Step blocked",
+      reason: "Waiting for approval <script>unsafe()</script>",
+      stepId,
+      reportId: null,
+      createdAt: now,
+    },
+  ],
   steps: [
     {
       id: stepId,
@@ -94,6 +104,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("Delivery window", () => {
+  it("shows notices and renders their reasons as text", async () => {
+    mount({ taskId });
+    const activity = await screen.findByRole("region", { name: "Recent task activity" });
+    expect(activity).toHaveTextContent("Step blocked");
+    expect(activity).toHaveTextContent("Waiting for approval <script>unsafe()</script>");
+    expect(activity.querySelector("script")).toBeNull();
+  });
   it("does not fetch when disabled or hidden", () => {
     const view = mount({ enabled: false });
     expect(fetch).not.toHaveBeenCalled();

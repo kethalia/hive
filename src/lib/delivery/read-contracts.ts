@@ -46,12 +46,26 @@ export const deliveryReportSchema = z.object({
   ),
 });
 export const deliveryTaskDetailSchema = deliveryTaskSummarySchema.extend({
+  recentEvents: z
+    .array(
+      z.object({
+        id,
+        label: z.string(),
+        reason: z.string().nullable(),
+        stepId: id.nullable(),
+        reportId: id.nullable(),
+        createdAt: timestamp,
+      }),
+    )
+    .max(25)
+    .default([]),
   steps: z
     .array(
       z.object({
         id,
         kind: z.string(),
         state: z.string(),
+        waitingReason: z.string().nullable().default(null),
         acceptancePhase: z.string(),
         attemptCount: z.number().int(),
         attemptBudget: z.number().int(),
