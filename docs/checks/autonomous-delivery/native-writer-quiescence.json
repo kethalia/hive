@@ -18,9 +18,7 @@
         "inode": "4196065"
       },
       "pidNamespace": "pid:[4026533255]",
-      "nspid": [
-        341295
-      ],
+      "nspid": [341295],
       "daemonDoubleFork": true,
       "daemonSessionEscaped": true,
       "inheritedUnlinkedFdWritesBeforeDrain": true,
@@ -43,10 +41,7 @@
         "inode": "4196057"
       },
       "pidNamespace": "pid:[4026537109]",
-      "nspid": [
-        341495,
-        1
-      ],
+      "nspid": [341495, 1],
       "daemonDoubleFork": true,
       "daemonSessionEscaped": true,
       "inheritedUnlinkedFdWritesBeforeDrain": true,
@@ -69,10 +64,7 @@
         "inode": "4196057"
       },
       "pidNamespace": "pid:[4026537109]",
-      "nspid": [
-        341618,
-        1
-      ],
+      "nspid": [341618, 1],
       "daemonDoubleFork": true,
       "daemonSessionEscaped": true,
       "inheritedUnlinkedFdWritesBeforeDrain": true,
