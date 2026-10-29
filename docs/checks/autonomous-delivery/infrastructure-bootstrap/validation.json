@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "task": "hive-epic-bootstrap-validation",
+  "workspaceId": "bbeb36d4-e4c1-46fd-8ed5-c3f5b044f6df",
+  "terraform": "1.15.8",
+  "providerLockUnchanged": true,
+  "format": true,
+  "validate": true,
+  "templateTests": {
+    "passed": 86,
+    "failed": 0
+  },
+  "startupRegression": {
+    "originalScriptBytes": 532915,
+    "originalErrno": "E2BIG",
+    "mountedInputSha256Verified": true
+  },
+  "productionChanged": false
+}

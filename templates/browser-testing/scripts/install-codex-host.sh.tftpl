@@ -1,9 +1,6 @@
 #!/bin/sh
-# Terraform supplies only public configuration and the template-pinned package.
-# Keep the large payload on stdin, outside argv/env limits and log output.
+# Public template data is mounted read-only; keep packages out of shell argv.
 set -eu
 set +x
 test "$HIVE_WORKSPACE_PROFILE" = software
-/usr/bin/python3 -c 'import base64; exec(compile(base64.b64decode("${installer_base64}"), "installed-codex-host", "exec"))' <<'HIVE_HOST_INSTALL_REQUEST'
-${request_json}
-HIVE_HOST_INSTALL_REQUEST
+exec /usr/bin/python3 -B /opt/hive-codex-host-template/install-codex-host.py < /opt/hive-codex-host-template/request.json
