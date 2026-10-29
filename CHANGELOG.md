@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.31.0
+
+### Minor Changes
+
+- 701e244: Add the official Neon PostgreSQL skill and MCP setup to software workspaces, and schedule daily updates for Codex, Claude Code, and allowlisted official skills. Preserve user configuration and modified skills, defer tool upgrades while agents are active, and retain working installations on update failure. Publish the updated templates and update workspaces to enable these capabilities; Neon authentication remains a per-user step.
+
 ## 2.30.5
 
 ### Patch Changes
