@@ -90,6 +90,7 @@ export type RegistrationDependencies = {
   authorizedProjects(
     principal: RegistrationPrincipal,
     workspaceId: string,
+    requestedProjectIds: string[],
   ): Promise<RegistrationProject[]>;
   store: RegistrationStore;
   now?: () => number;
@@ -144,6 +145,134 @@ function projects(value: RegistrationProject[]) {
 export function registrationProofPayload(request: Omit<RegistrationRequest, "proof">): string {
   return `hive-registration-v1\n${digest(request.grant)}\n${JSON.stringify({ serverInstanceId: request.serverInstanceId, protocolVersion: request.protocolVersion, threads: request.threads, hostPublicKeyPem: request.hostPublicKeyPem })}`;
 }
+export type VerifiedHostBinding = Omit<RegistrationBinding, "projects">;
+export type VerifiedHostConfig = Pick<
+  Config,
+  "hiveOrigin" | "softwareTemplateIds" | "appSlug" | "gatewayPort" | "cookieDomains"
+>;
+/** Shared fresh Coder authority resolution. No project enrollment or native thread
+ * is needed for discovery. Ambiguous matching connected agents fail closed. */
+export async function resolveVerifiedWorkspaceHost(
+  config: VerifiedHostConfig,
+  coderForPrincipal: RegistrationDependencies["coderForPrincipal"],
+  principal: RegistrationPrincipal,
+  workspaceId: string,
+  agentId?: string,
+): Promise<{ coder: CoderReader; binding: VerifiedHostBinding }> {
+  requireValue(
+    /^[a-z0-9][a-z0-9-]{0,62}$/.test(config.appSlug) &&
+      config.softwareTemplateIds.length > 0 &&
+      config.softwareTemplateIds.every(identifier) &&
+      Number.isInteger(config.gatewayPort) &&
+      config.gatewayPort > 0 &&
+      config.gatewayPort <= 65535,
+  );
+  origin(config.hiveOrigin);
+  requireValue(
+    identifier(principal.hiveUserId) &&
+      identifier(principal.coderUserId) &&
+      identifier(workspaceId) &&
+      (agentId === undefined || identifier(agentId)),
+  );
+  const coder = await coderForPrincipal(principal);
+  const coderOrigin = origin(coder.getBaseUrl()).origin;
+  const workspace = await coder.getWorkspace(workspaceId);
+  requireValue(
+    workspace.id === workspaceId &&
+      workspace.owner_id === principal.coderUserId &&
+      workspace.latest_build.status === "running" &&
+      config.softwareTemplateIds.includes(workspace.template_id),
+  );
+  const resources = await coder.getWorkspaceResources(workspaceId, workspace.latest_build.id);
+  const agents = resources
+    .flatMap((resource) => resource.agents ?? [])
+    .filter((agent) => {
+      if (agent.status !== "connected" || (agentId !== undefined && agent.id !== agentId))
+        return false;
+      const apps: unknown = (agent as unknown as { apps?: unknown }).apps;
+      return (
+        Array.isArray(apps) &&
+        apps.some(
+          (app) =>
+            app &&
+            app.slug === config.appSlug &&
+            app.sharing_level === "owner" &&
+            app.subdomain === true &&
+            app.external === false,
+        )
+      );
+    });
+  requireValue(agents.length === 1);
+  // Coder's full WorkspaceAgent response carries apps. Current local SDK type
+  // omits it; absence fails closed, never replaced with caller app metadata.
+  const apps: unknown = (agents[0] as unknown as { apps?: unknown }).apps;
+  requireValue(Array.isArray(apps));
+  const matches = apps.filter(
+    (app) =>
+      app &&
+      app.slug === config.appSlug &&
+      app.sharing_level === "owner" &&
+      app.subdomain === true &&
+      app.external === false,
+  );
+  requireValue(matches.length === 1);
+  requireValue(identifier(matches[0].id) && typeof matches[0].url === "string");
+  const appTarget = new URL(matches[0].url);
+  requireValue(
+    appTarget.protocol === "http:" &&
+      ["127.0.0.1", "localhost"].includes(appTarget.hostname) &&
+      Number(appTarget.port) === config.gatewayPort &&
+      appTarget.pathname === "/" &&
+      !appTarget.search &&
+      !appTarget.hash &&
+      !appTarget.username &&
+      !appTarget.password,
+  );
+  const parts = [config.appSlug, agents[0].name, workspace.name, workspace.owner_name];
+  requireValue(parts.every((part) => /^[a-z0-9][a-z0-9-]{0,62}$/.test(part)));
+  const label = parts.join("--");
+  requireValue(label.length <= 63);
+  const host = await coder.getApplicationsHost();
+  requireValue(typeof host === "string" && (host.match(/\*/g) ?? []).length === 1);
+  const appUrl = new URL(
+    host.includes("://") ? host.replace("*", label) : `https://${host.replace("*", label)}`,
+  );
+  requireValue(
+    appUrl.protocol === "https:" &&
+      appUrl.pathname === "/" &&
+      !appUrl.search &&
+      !appUrl.hash &&
+      appUrl.hostname.split(".")[0] === label,
+  );
+  origin(appUrl.origin);
+  assertWorkspaceAppIsolated(
+    appUrl.origin,
+    origin(config.hiveOrigin).hostname,
+    config.cookieDomains,
+  );
+  const fresh = await coder.getWorkspace(workspaceId);
+  requireValue(
+    fresh.id === workspace.id &&
+      fresh.owner_id === workspace.owner_id &&
+      fresh.latest_build.id === workspace.latest_build.id &&
+      fresh.latest_build.status === "running" &&
+      fresh.template_id === workspace.template_id,
+  );
+  return {
+    coder,
+    binding: {
+      coderOrigin,
+      hiveUserId: principal.hiveUserId,
+      ownerId: principal.coderUserId,
+      workspaceId,
+      buildId: workspace.latest_build.id,
+      agentId: agents[0].id,
+      templateId: workspace.template_id,
+      appOrigin: appUrl.origin,
+      appId: matches[0].id,
+    },
+  };
+}
 export class WorkspaceRegistrationAuthority {
   private key;
   private publicKey;
@@ -176,104 +305,65 @@ export class WorkspaceRegistrationAuthority {
     principal: RegistrationPrincipal,
     workspaceId: string,
     agentId: string,
+    requestedProjectIds: string[],
   ): Promise<RegistrationBinding> {
     requireValue(
-      identifier(principal.hiveUserId) &&
-        identifier(principal.coderUserId) &&
-        identifier(workspaceId) &&
-        identifier(agentId),
+      Array.isArray(requestedProjectIds) &&
+        requestedProjectIds.length > 0 &&
+        requestedProjectIds.length <= 32 &&
+        requestedProjectIds.every(identifier) &&
+        new Set(requestedProjectIds).size === requestedProjectIds.length,
     );
-    const coder = await this.dependencies.coderForPrincipal(principal);
-    const coderOrigin = origin(coder.getBaseUrl()).origin;
-    const workspace = await coder.getWorkspace(workspaceId);
-    requireValue(
-      workspace.id === workspaceId &&
-        workspace.owner_id === principal.coderUserId &&
-        workspace.latest_build.status === "running" &&
-        this.config.softwareTemplateIds.includes(workspace.template_id),
-    );
-    const resources = await coder.getWorkspaceResources(workspaceId, workspace.latest_build.id);
-    const agents = resources
-      .flatMap((resource) => resource.agents ?? [])
-      .filter((agent) => agent.id === agentId && agent.status === "connected");
-    requireValue(agents.length === 1);
-    // Coder's full WorkspaceAgent response carries apps. Current local SDK type
-    // omits it; absence fails closed, never replaced with caller app metadata.
-    const apps: unknown = (agents[0] as unknown as { apps?: unknown }).apps;
-    requireValue(Array.isArray(apps));
-    const matches = apps.filter(
-      (app) =>
-        app &&
-        app.slug === this.config.appSlug &&
-        app.sharing_level === "owner" &&
-        app.subdomain === true &&
-        app.external === false,
-    );
-    requireValue(matches.length === 1);
-    requireValue(identifier(matches[0].id) && typeof matches[0].url === "string");
-    const appTarget = new URL(matches[0].url);
-    requireValue(
-      appTarget.protocol === "http:" &&
-        ["127.0.0.1", "localhost"].includes(appTarget.hostname) &&
-        Number(appTarget.port) === this.config.gatewayPort &&
-        appTarget.pathname === "/" &&
-        !appTarget.search &&
-        !appTarget.hash &&
-        !appTarget.username &&
-        !appTarget.password,
-    );
-    const parts = [this.config.appSlug, agents[0].name, workspace.name, workspace.owner_name];
-    requireValue(parts.every((part) => /^[a-z0-9][a-z0-9-]{0,62}$/.test(part)));
-    const label = parts.join("--");
-    requireValue(label.length <= 63);
-    const host = await coder.getApplicationsHost();
-    requireValue(typeof host === "string" && (host.match(/\*/g) ?? []).length === 1);
-    const appUrl = new URL(
-      host.includes("://") ? host.replace("*", label) : `https://${host.replace("*", label)}`,
-    );
-    requireValue(
-      appUrl.protocol === "https:" &&
-        appUrl.pathname === "/" &&
-        !appUrl.search &&
-        !appUrl.hash &&
-        appUrl.hostname.split(".")[0] === label,
-    );
-    origin(appUrl.origin);
-    assertWorkspaceAppIsolated(
-      appUrl.origin,
-      origin(this.config.hiveOrigin).hostname,
-      this.config.cookieDomains,
-    );
-    const authorized = projects(await this.dependencies.authorizedProjects(principal, workspaceId));
-    const fresh = await coder.getWorkspace(workspaceId);
-    requireValue(
-      fresh.owner_id === workspace.owner_id &&
-        fresh.latest_build.id === workspace.latest_build.id &&
-        fresh.latest_build.status === "running" &&
-        fresh.template_id === workspace.template_id,
-    );
-    return {
-      coderOrigin,
-      hiveUserId: principal.hiveUserId,
-      ownerId: principal.coderUserId,
+    const { binding } = await resolveVerifiedWorkspaceHost(
+      this.config,
+      this.dependencies.coderForPrincipal,
+      principal,
       workspaceId,
-      buildId: workspace.latest_build.id,
       agentId,
-      templateId: workspace.template_id,
-      appOrigin: appUrl.origin,
-      appId: matches[0].id,
-      projects: authorized,
-    };
+    );
+    const authorized = projects(
+      await this.dependencies.authorizedProjects(principal, workspaceId, requestedProjectIds),
+    );
+    requireValue(
+      authorized.length === requestedProjectIds.length &&
+        authorized.every((p) => requestedProjectIds.includes(p.projectId)),
+    );
+    return { ...binding, projects: authorized };
+  }
+  /** Fresh Coder owner/build/app validation before heartbeat or read issuance. */
+  async reauthorize(binding: RegistrationBinding) {
+    const fresh = await this.resolve(
+      { hiveUserId: binding.hiveUserId, coderUserId: binding.ownerId },
+      binding.workspaceId,
+      binding.agentId,
+      projects(binding.projects).map((p) => p.projectId),
+    );
+    const canonical = (b: RegistrationBinding) =>
+      JSON.stringify([
+        b.coderOrigin,
+        b.hiveUserId,
+        b.ownerId,
+        b.workspaceId,
+        b.buildId,
+        b.agentId,
+        b.templateId,
+        b.appOrigin,
+        b.appId,
+        b.projects.map((p) => [p.projectId, p.repositoryId]).sort(),
+      ]);
+    requireValue(canonical(fresh) === canonical(binding), "Coder authority changed.");
+    return fresh;
   }
   /** Called by trusted provisioner/session controller; never return grant to the browser. */
   async issue(
     principal: RegistrationPrincipal,
     workspaceId: string,
     agentId: string,
+    requestedProjectIds: string[],
     ttlSeconds = 60,
   ) {
     requireValue(Number.isInteger(ttlSeconds) && ttlSeconds > 0 && ttlSeconds <= 60);
-    const binding = await this.resolve(principal, workspaceId, agentId);
+    const binding = await this.resolve(principal, workspaceId, agentId, requestedProjectIds);
     const iat = this.now();
     const exp = iat + ttlSeconds;
     const jti = randomUUID();
@@ -367,6 +457,7 @@ export class WorkspaceRegistrationAuthority {
       { hiveUserId: binding.hiveUserId, coderUserId: binding.ownerId },
       binding.workspaceId,
       binding.agentId,
+      projects(binding.projects).map((p) => p.projectId),
     );
     requireValue(
       JSON.stringify(fresh) === JSON.stringify(binding),

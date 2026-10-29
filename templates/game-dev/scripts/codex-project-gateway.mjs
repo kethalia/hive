@@ -5,7 +5,7 @@ import { startBridge } from "./codex-session-bridge.mjs";
  * register the host with Hive or establish provisioner authority; deployment stays
  * disabled until the registration result has been durably accepted by Hive.
  */
-export function startProjectGateway(config, supervisor) {
+export function startProjectGateway(config, supervisor, controllerRegistration, discovery) {
   const keys = [
     "schemaVersion",
     "protocolVersion",
@@ -27,9 +27,22 @@ export function startProjectGateway(config, supervisor) {
   return startBridge(
     { ...config, binding },
     {
-      authorizeBinding: (candidate) => supervisor.authorizeBinding(candidate),
+      authorizeBinding: (candidate) => {
+        if (controllerRegistration && !controllerRegistration.isActive())
+          throw new Error("controller_registration_unavailable");
+        return supervisor.authorizeBinding(candidate);
+      },
+      handleBootstrap: controllerRegistration?.handleBootstrap,
+      handleProjects: discovery?.handleProjects,
       createNativeSocket: () => supervisor.runtime.createReadSocket(),
-      onRevoked: (callback) => supervisor.onRevoked(callback),
+      onRevoked: (callback) => {
+        const native = supervisor.onRevoked(callback);
+        const controller = controllerRegistration?.onRevoked(callback);
+        return () => {
+          native();
+          controller?.();
+        };
+      },
     },
   );
 }

@@ -59,6 +59,14 @@ export const taskDefinitionSchema = z
     id: identifier,
     projectId: identifier,
     epicId: identifier.optional(),
+    initialEpic: z
+      .object({
+        id: identifier,
+        outcome: z.string().min(1).max(4000),
+        criteria: z.array(criterion).min(1).max(20),
+      })
+      .strict()
+      .optional(),
     conversationId: identifier.optional(),
     outcome: z.string().min(1).max(4000),
     branch: z.string().min(1).max(255),
@@ -242,6 +250,19 @@ const runtimeRequest = z
   .strict();
 export const runtimeBindingRequestSchema = runtimeRequest
   .extend({ binding: nativeRuntimeBindingSchema })
+  .strict();
+export const nativeDelegationSchema = runtimeRequest
+  .extend({
+    bindingDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    managerThreadId: label,
+    parentTurnId: label,
+    spawnCallId: label,
+    childThreadId: label,
+    requestedModel: label.nullable(),
+    requestedEffort: label.nullable(),
+    effectiveModel: label.nullable(),
+    effectiveEffort: label.nullable(),
+  })
   .strict();
 const runtimeStatus = z.enum(["quiescent", "running", "unknown"]);
 export const runtimeObservationSchema = runtimeRequest

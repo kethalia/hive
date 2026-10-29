@@ -204,6 +204,7 @@ export async function openSupervisor(raw, dependencies = {}) {
       lock,
     });
     supervisor.runtime = runtime;
+    if (dependencies.managerAdapter) supervisor.setManagerAdapter(dependencies.managerAdapter);
     runtime.onClose(() => supervisor.revoke());
     check(runtime.version === VERSION && runtime.alive(), "unsupported_native_runtime");
     state.status = "ready";
@@ -304,6 +305,83 @@ export class ProjectSupervisor {
       firstPromptRequestId: entry?.firstPrompt?.requestId ?? null,
     };
   }
+  // Registration can precede the first actual prompt. Browser history and CLI
+  // attachment continue to require binding()'s persisted state below.
+  registrationBinding(projectId) {
+    const project = this.project(projectId),
+      entry = this.state.projects[projectId];
+    check(
+      this.state.status === "ready" &&
+        this.runtime.alive() &&
+        entry &&
+        id(entry.threadId) &&
+        entry.repositoryId === project.repositoryId &&
+        entry.serverInstanceId === this.state.serverInstanceId &&
+        ["awaitingFirstTurn", "firstPromptUncertain", "awaitingPersistence", "persisted"].includes(
+          entry.phase,
+        ),
+      "registration_binding_unavailable",
+    );
+    return {
+      ownerId: this.config.ownerId,
+      workspaceId: this.config.workspaceId,
+      buildId: this.config.buildId,
+      serverInstanceId: this.state.serverInstanceId,
+      threadId: entry.threadId,
+    };
+  }
+  setManagerAdapter(adapter) {
+    check(
+      !this.managerAdapter &&
+        adapter &&
+        typeof adapter.tools === "function" &&
+        typeof adapter.handleToolCall === "function" &&
+        typeof this.runtime.setManagerAdapter === "function",
+      "invalid_manager_adapter",
+    );
+    this.managerAdapter = adapter;
+    this.runtime.setManagerAdapter({
+      handleToolCall: async (params) => {
+        const project = this.config.projects.find(
+          (p) => this.state.projects[p.projectId]?.threadId === params.threadId,
+        );
+        check(
+          project && this.registrationBinding(project.projectId).threadId === params.threadId,
+          "manager_thread_unregistered",
+        );
+        return adapter.handleToolCall(params);
+      },
+      observe: adapter.observe
+        ? (notification) => {
+            const threadId = notification?.params?.threadId;
+            const project = this.config.projects.find(
+              (p) => this.state.projects[p.projectId]?.threadId === threadId,
+            );
+            if (project && this.registrationBinding(project.projectId).threadId === threadId)
+              return adapter.observe(notification);
+          }
+        : undefined,
+    });
+  }
+  managerTools(projectId) {
+    if (!this.managerAdapter) return [];
+    const tools = this.managerAdapter.tools(projectId);
+    check(
+      Array.isArray(tools) &&
+        tools.length <= 1 &&
+        Buffer.byteLength(JSON.stringify(tools)) <= 65536 &&
+        tools.every(
+          (t) =>
+            t.type === "function" &&
+            t.name === "hive_delivery" &&
+            typeof t.description === "string" &&
+            t.inputSchema &&
+            typeof t.inputSchema === "object",
+        ),
+      "invalid_manager_tools",
+    );
+    return structuredClone(tools);
+  }
   binding(projectId) {
     const entry = this.state.projects[projectId];
     check(
@@ -396,6 +474,9 @@ export class ProjectSupervisor {
           allowProviderModelFallback: false,
           config: { model_reasoning_effort: project.effort },
           historyMode: "paginated",
+          ...(this.managerAdapter
+            ? { dynamicTools: this.managerTools(project.projectId), experimentalRawEvents: true }
+            : {}),
         });
         check(
           id(started?.thread?.id) &&
@@ -519,6 +600,71 @@ export class ProjectSupervisor {
   }
 }
 
+/** Native server requests have a separate ID namespace from client responses.
+ * Only the installed hive_delivery tool can be answered. Approval/input requests
+ * remain unanswered; never confuse a server request with a pending client reply. */
+export function createNativeManagerRouter(getAdapter, reply) {
+  let active = 0;
+  const failed = {
+    contentItems: [
+      { type: "inputText", text: "Delivery controller unavailable or request rejected." },
+    ],
+    success: false,
+  };
+  return (message) => {
+    if (typeof message.method !== "string") return false;
+    const adapter = getAdapter();
+    if (["item/started", "item/completed", "rawResponseItem/completed"].includes(message.method)) {
+      try {
+        void Promise.resolve(
+          adapter?.observe?.({ method: message.method, params: message.params }),
+        ).catch(() => {});
+      } catch {}
+      return true;
+    }
+    if (message.method !== "item/tool/call" || !Object.hasOwn(message, "id")) return true;
+    const params = message.params;
+    if (
+      !adapter ||
+      !params ||
+      params.tool !== "hive_delivery" ||
+      (params.namespace !== null && params.namespace !== undefined) ||
+      active >= 8
+    ) {
+      reply(message.id, failed);
+      return true;
+    }
+    active++;
+    let timer;
+    void Promise.race([
+      Promise.resolve().then(() => adapter.handleToolCall(params)),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("manager_timeout")), 15000);
+      }),
+    ])
+      .then((result) => {
+        check(
+          result &&
+            typeof result.success === "boolean" &&
+            Array.isArray(result.contentItems) &&
+            result.contentItems.length <= 8 &&
+            result.contentItems.every(
+              (i) => i.type === "inputText" && typeof i.text === "string",
+            ) &&
+            Buffer.byteLength(JSON.stringify(result)) <= 65536,
+          "invalid_manager_result",
+        );
+        reply(message.id, result);
+      })
+      .catch(() => reply(message.id, failed))
+      .finally(() => {
+        clearTimeout(timer);
+        active--;
+      });
+    return true;
+  };
+}
+
 export async function launchNative({ config, home, stateDirectory, lock }) {
   const executable = readFileSync(config.codexExecutable);
   check(
@@ -574,6 +720,13 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
   let ws;
   let closing = false;
   let callback = () => {};
+  let managerAdapter;
+  const managerRouter = createNativeManagerRouter(
+    () => managerAdapter,
+    (id, result) => {
+      if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ id, result }));
+    },
+  );
   const pending = new Map();
   let next = 1;
   const revoke = () => {
@@ -629,6 +782,7 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
       try {
         check(!binary, "native_binary_frame");
         const message = JSON.parse(data.toString());
+        if (managerRouter(message)) return;
         const p = pending.get(message.id);
         if (p) {
           clearTimeout(p.timer);
@@ -669,6 +823,10 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
     ws.send(JSON.stringify({ method: "initialized" }));
     return {
       version: VERSION,
+      setManagerAdapter: (adapter) => {
+        check(!managerAdapter, "manager_adapter_already_installed");
+        managerAdapter = adapter;
+      },
       call,
       createReadSocket: () => {
         check(

@@ -4,6 +4,7 @@ import {
   type HostRegistration,
   type RegistrationStore,
   registrationProofPayload,
+  resolveVerifiedWorkspaceHost,
   WorkspaceRegistrationAuthority,
 } from "@/lib/codex-session/registration.server";
 
@@ -92,7 +93,7 @@ function fixture() {
   };
   const authority = new WorkspaceRegistrationAuthority(config, dependencies);
   const principal = { hiveUserId: "hive-user", coderUserId: "owner" };
-  const issue = () => authority.issue(principal, "workspace", "agent");
+  const issue = () => authority.issue(principal, "workspace", "agent", ["project"]);
   const request = (grant: string) => {
     const value = {
       grant,
@@ -144,7 +145,9 @@ describe("provisioner registration authority", () => {
   it("rejects other owners, nonsoftware templates and nonprivate apps", async () => {
     const f = fixture();
     await expect(
-      f.authority.issue({ ...f.principal, coderUserId: "stranger" }, "workspace", "agent"),
+      f.authority.issue({ ...f.principal, coderUserId: "stranger" }, "workspace", "agent", [
+        "project",
+      ]),
     ).rejects.toThrow();
     f.workspace.template_id = "browser";
     await expect(f.issue()).rejects.toThrow();
@@ -213,11 +216,46 @@ describe("provisioner registration authority", () => {
       { ...f.config, cookieDomains: ["example.com"] },
       f.dependencies,
     );
-    await expect(unsafe.issue(f.principal, "workspace", "agent")).rejects.toThrow();
+    await expect(unsafe.issue(f.principal, "workspace", "agent", ["project"])).rejects.toThrow();
     f.coder.getWorkspace = async () => {
       throw new Error("Coder unavailable");
     };
     await expect(f.issue()).rejects.toThrow("Coder unavailable");
     expect(f.registered()).toBeUndefined();
+  });
+});
+
+describe("shared host metadata authority", () => {
+  it("resolves a unique owner-only app before any project enrollment", async () => {
+    const f = fixture();
+    f.dependencies.authorizedProjects = async () => [];
+    const result = await resolveVerifiedWorkspaceHost(
+      f.config,
+      f.dependencies.coderForPrincipal,
+      f.principal,
+      "workspace",
+    );
+    expect(result.binding.agentId).toBe("agent");
+    expect("projects" in result.binding).toBe(false);
+    await expect(f.issue()).rejects.toThrow();
+  });
+  it("rejects ambiguous matching connected agents", async () => {
+    const f = fixture();
+    f.coder.getWorkspaceResources = async () => [
+      {
+        id: "resource",
+        name: "pod",
+        type: "pod",
+        agents: [f.agent, { ...f.agent, id: "other-agent" }],
+      },
+    ];
+    await expect(
+      resolveVerifiedWorkspaceHost(
+        f.config,
+        f.dependencies.coderForPrincipal,
+        f.principal,
+        "workspace",
+      ),
+    ).rejects.toThrow();
   });
 });

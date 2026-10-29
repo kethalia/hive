@@ -19,6 +19,7 @@ import test from "node:test";
 import { WebSocket } from "ws";
 import { startProjectGateway } from "../templates/ai-dev-k8s/scripts/codex-project-gateway.mjs";
 import {
+  createNativeManagerRouter,
   launchNative,
   openSupervisor,
   validateSupervisorConfig,
@@ -769,5 +770,106 @@ test("SIGKILL supervisor terminates its actual native child and permits a fresh 
   assert.ok(
     !existsSync(statusPath) || /^State:\s+Z/m.test(readFileSync(statusPath, "utf8")),
     "old native child must not remain running",
+  );
+});
+
+test("registered empty thread supports first-turn manager enrollment but no premature history attach", async (t) => {
+  const f = fixture(t);
+  let installed;
+  f.runtime.setManagerAdapter = (adapter) => {
+    installed = adapter;
+  };
+  const adapter = {
+    tools: () => [
+      {
+        type: "function",
+        name: "hive_delivery",
+        description: "Fixture installed tool",
+        inputSchema: { type: "object" },
+      },
+    ],
+    handleToolCall: async () => ({
+      contentItems: [{ type: "inputText", text: "fixture" }],
+      success: true,
+    }),
+  };
+  const s = await openSupervisor(config(), { ...f.options, managerAdapter: adapter });
+  t.after(() => s.close());
+  await s.command(ensure);
+  assert.equal(s.registrationBinding("project").threadId, "thread-one");
+  assert.throws(() => s.registrationBinding("unknown"));
+  assert.throws(() => s.binding("project"), /session_not_available/);
+  assert.equal(f.calls.find((c) => c.method === "thread/start").params.experimentalRawEvents, true);
+  assert.equal(
+    f.calls.find((c) => c.method === "thread/start").params.dynamicTools[0].name,
+    "hive_delivery",
+  );
+  assert.equal((await installed.handleToolCall({ threadId: "thread-one" })).success, true);
+  await assert.rejects(installed.handleToolCall({ threadId: "other" }));
+});
+test("native tool router separates request IDs and never answers approvals or arbitrary tools", async () => {
+  const replies = [],
+    calls = [];
+  const route = createNativeManagerRouter(
+    () => ({
+      handleToolCall: async (p) => {
+        calls.push(p);
+        return { contentItems: [{ type: "inputText", text: "ok" }], success: true };
+      },
+    }),
+    (id, result) => replies.push({ id, result }),
+  );
+  assert.equal(route({ id: 1, result: { thread: { id: "thread" } } }), false);
+  assert.equal(route({ id: 1, method: "item/commandExecution/requestApproval", params: {} }), true);
+  assert.equal(replies.length, 0);
+  route({
+    id: 2,
+    method: "item/tool/call",
+    params: { tool: "hive_delivery", namespace: null, threadId: "known" },
+  });
+  route({ id: 3, method: "item/tool/call", params: { tool: "arbitrary_shell", namespace: null } });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(calls.length, 1);
+  assert.equal(replies.find((r) => r.id === 2).result.success, true);
+  assert.equal(replies.find((r) => r.id === 3).result.success, false);
+});
+
+test("registration cannot adopt an empty thread after a failed new-lifetime rejoin", async (t) => {
+  const f = fixture(t);
+  let s = await openSupervisor(config(), f.options);
+  await s.command(ensure);
+  await s.close();
+  const next = fixture(t);
+  const options = { ...next.options, home: f.home };
+  next.runtime.call = async () => {
+    throw new Error("no rollout");
+  };
+  s = await openSupervisor(config(), options);
+  try {
+    assert.throws(() => s.registrationBinding("project"), /registration_binding_unavailable/);
+    await assert.rejects(
+      s.command({ operation: "rejoin", projectId: "project" }),
+      /history_rejoin_unsupported/,
+    );
+    assert.throws(() => s.registrationBinding("project"), /registration_binding_unavailable/);
+  } finally {
+    await s.close();
+  }
+});
+
+test("installed manager observer receives exact notification methods, never approval requests", () => {
+  const observed = [];
+  const route = createNativeManagerRouter(
+    () => ({ observe: (value) => observed.push(value) }),
+    () => {
+      throw new Error("not a request");
+    },
+  );
+  for (const method of ["item/started", "item/completed", "rawResponseItem/completed"])
+    route({ method, params: { threadId: "manager", turnId: "turn", item: { type: "fixture" } } });
+  route({ id: 1, method: "item/commandExecution/requestApproval", params: {} });
+  assert.deepEqual(
+    observed.map((v) => v.method),
+    ["item/started", "item/completed", "rawResponseItem/completed"],
   );
 });

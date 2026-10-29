@@ -1,0 +1,82 @@
+{
+  "observedAt": "2026-10-29T17:51:17.420316+00:00",
+  "gitHeadAtValidation": "6ae325d203c922739368b9c27a944d42741f7ed2",
+  "validation": {
+    "vitestTotal": 73,
+    "actualPostgresTests": 54,
+    "otherDomainAndRouteTests": 19,
+    "files": 8,
+    "fileParallelism": false,
+    "hostAdapterTests": 5,
+    "nativeCli": "0.165.0",
+    "typecheck": "passed",
+    "scopedBiome": "passed"
+  },
+  "nativeProof": {
+    "localResponsesFixture": true,
+    "accountCredentialsPresent": false,
+    "accountBackedInference": false,
+    "actualNativeDynamicToolRoundtrip": true,
+    "actualReadOnlyChildStarted": true,
+    "requestedSource": "rawResponseItem/completed function_call namespace=collaboration name=spawn_agent",
+    "resolvedSource": "subAgentActivity kind=started",
+    "identityCorrelation": "same manager thread + parent turn + raw call_id equals started item.id; actual child thread recorded",
+    "settings": {
+      "requestedModel": "gpt-6.1-sol",
+      "requestedEffort": "low",
+      "resolvedModel": "gpt-6.1-sol",
+      "resolvedEffort": "low"
+    },
+    "legacyCollabAgentToolCallEmitted": false,
+    "rawPromptPersistedInEvidence": false
+  },
+  "postgresProof": [
+    "Signed command payload/path domain and registered native scope",
+    "Initial epic/task atomic creation and digest replay/conflict",
+    "Cross-owner/thread denial and forged evidence producer/effective-setting rejection",
+    "Revocation after external authorization rejects before writes",
+    "Actual competing slot-lock revocation rejects stale Serializable snapshot after exact registration row lock fix",
+    "Native settings stay unknown until trusted exact bound observation; unknown pauses scheduling",
+    "Trusted persisted evidence accepted once; report/event/outbox replay does not duplicate",
+    "Failure report does not assert native quiescence",
+    "Foundation, recovery, read projection and outbox compatibility"
+  ],
+  "sourceSha256": {
+    "src/lib/delivery/contracts.ts": "de0195d7e6ef58d73f94657a6acd0fc131c79db3e7646062a2f5a96cc03ee55d",
+    "src/lib/delivery/repository.ts": "ede6a8f374947f8a51d9be5dd9845b9c94c09350708e02424647b43841f6498f",
+    "src/lib/delivery/manager-contracts.ts": "f8a08a2f4e4eaa090b81d382019aa2379a78df64e5523143ca21408596b90f63",
+    "src/lib/delivery/manager.server.ts": "afb5c55316010994a899fb5a23a959c768140f1f18adf78a3f4b476d0f1d8ba3",
+    "src/app/api/delivery/host/route.ts": "a967b9623b1c9c9158d39e4238037b23f80cdce3fe1bf843ea1df6e92860aed0",
+    "src/__tests__/lib/delivery/manager.integration.test.ts": "cf911fd6377b59d686e021986de454a8dac236aa8eb9d56a35eb811fe05abb49",
+    "src/__tests__/lib/delivery/manager-route.test.ts": "dcbd3f67b8b4731dfd83341751e2b926178f5241ca604fac1c6bd6b29d88fe76",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "5e749661de78b57e9a4bbc1cab1aa8bb72fdd810c51ab6163fe359b48666c24b",
+    "scripts/verify-delivery-manager-adapter.test.mjs": "67387882abf23677a3812710d546fafe3a93818cf5f763c42ca9315e6b985b78",
+    "docs/checks/autonomous-delivery/manager-transport.md": "0aafd40fe9e3915a73e2c464b901d36695fbd12336dbe072f5682687705ddd64"
+  },
+  "integrationReferenceSha256": {
+    "src/lib/codex-session/registration-store.server.ts": "b5c1a59195138f4d8ad208f19bd6d15bf854ae708ab7786a916778cb53ac6601",
+    "src/lib/codex-session/registration.server.ts": "a29e1cf84b8c9f25e47c999eec94681c06bd316e1507694978ddcdc350a61d90",
+    "src/__tests__/lib/codex-session/registration-store.integration.test.ts": "b9c562da35bfdd65b2112acb32b3d4f310dce872f3599ae8b5ea2c984843645c"
+  },
+  "localDatabase": {
+    "clusterPath": "/tmp/hive-delivery-pg-5gcusk89",
+    "port": 36229,
+    "database": "hive_delivery_test",
+    "running": true,
+    "retainedFor": "Coordinator-requested continuing integration tests"
+  },
+  "activation": {
+    "hostRouteDefaultOff": true,
+    "defaultEvidenceProducerAllowlistEmpty": true,
+    "productionPhaseCompletionDisabled": true,
+    "mergeDeployDisabled": true
+  },
+  "remainingGates": [
+    "Deployment-authenticated native observation channel with current registered host verification",
+    "Durable offline observation spool and history reconstruction after lost native events",
+    "Authoritative GitHub checks/review source adapter and object preservation",
+    "Installed host adapter composition and runtime lease/process confinement",
+    "Account-backed native delegation plus Cloudflare preview/browser acceptance",
+    "Production pilots, main merge and cutover remain owner-controlled"
+  ]
+}
