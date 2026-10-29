@@ -41,3 +41,10 @@ test("GitHub project discovery preserves credentials and validates pagination", 
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
+
+test("managed checkouts preserve work and enforce signed lifecycle boundaries", () => {
+  const result = spawnSync("python3", ["-B", "scripts/agents/test_managed_projects.py"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
