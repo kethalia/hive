@@ -1,0 +1,64 @@
+import assert from "node:assert/strict";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import tar from "tar-stream";
+import { templateArtifact } from "./build-template-artifacts.mjs";
+
+async function fixture(t) {
+  const path = await mkdtemp(join(tmpdir(), "hive-template-artifact-"));
+  t.after(() => rm(path, { recursive: true, force: true }));
+  await writeFile(join(path, "main.tf"), "terraform {}\n");
+  return path;
+}
+test("reproducible archive preserves executable scripts and matches file content identity", async (t) => {
+  const path = await fixture(t);
+  await mkdir(join(path, "scripts"));
+  await writeFile(join(path, "scripts/run.sh"), "#!/bin/sh\ntrue\n", { mode: 0o755 });
+  const a = await templateArtifact(path),
+    b = await templateArtifact(path);
+  assert.deepEqual(a, b);
+  const files = [];
+  const extractor = tar.extract();
+  const extracted = new Promise((resolve, reject) => {
+    extractor.on("entry", (header, stream, next) => {
+      files.push(header);
+      stream.resume();
+      stream.on("end", next);
+    });
+    extractor.on("finish", resolve);
+    extractor.on("error", reject);
+  });
+  extractor.end(a.archive);
+  await extracted;
+  assert.deepEqual(
+    files.map((file) => file.name),
+    ["main.tf", "scripts/run.sh"],
+  );
+  assert.equal(files[1].mode, 0o755);
+  assert.equal(a.metadata.archiveBytes, a.archive.length);
+  assert.equal(a.metadata.fileCount, 2);
+  await writeFile(join(path, "main.tf"), 'terraform { required_version = ">= 1" }\n');
+  assert.notEqual((await templateArtifact(path)).metadata.contentHash, a.metadata.contentHash);
+});
+test("provider caches are excluded and private files or symlinks fail the build", async (t) => {
+  const path = await fixture(t);
+  const initial = await templateArtifact(path);
+  await mkdir(join(path, ".terraform"));
+  await writeFile(join(path, ".terraform/cache"), "ignored cache");
+  assert.deepEqual(await templateArtifact(path), initial);
+  await writeFile(join(path, ".env.local"), "private-value");
+  await assert.rejects(templateArtifact(path), /private configuration/);
+  await rm(join(path, ".env.local"));
+  await symlink("/etc/passwd", join(path, "external"));
+  await assert.rejects(templateArtifact(path), /non-regular/);
+});
+test("a missing entrypoint or oversized file cannot become a published artifact", async (t) => {
+  const path = await fixture(t);
+  await writeFile(join(path, "large"), Buffer.alloc(4 * 1024 * 1024 + 1));
+  await assert.rejects(templateArtifact(path), /bounds/);
+  await rm(join(path, "large"));
+  await rm(join(path, "main.tf"));
+  await assert.rejects(templateArtifact(path), /main.tf/);
+});

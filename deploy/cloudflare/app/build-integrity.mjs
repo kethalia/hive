@@ -10,6 +10,8 @@ export const READY_FILE = ".open-next/hive-build-ready.json";
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const sourcePaths = [
   "src",
+  "templates",
+  "scripts/build-template-artifacts.mjs",
   "packages",
   "public",
   "services/auth/src",
@@ -51,10 +53,16 @@ export async function sourceDigests(root = process.cwd()) {
   const sources = listed.filter(
     (path) =>
       path.startsWith("public/") ||
+      path.startsWith("templates/") ||
       ((/\.(ts|tsx|js|mjs|cjs|json|jsonc|css|prisma|yaml)$/.test(path) ||
         path.endsWith(".gitignore")) &&
         path !== "deploy/cloudflare/app/local-evidence.json"),
   );
+  try {
+    sources.push(...(await filesBelow(root, "public/hive-template-artifacts")));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   // This ignored generated client is an actual input of the custom Worker.
   sources.push(...(await filesBelow(root, "packages/db/src/generated/prisma-workerd")));
   return digestFiles(root, sources);

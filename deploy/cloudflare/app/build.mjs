@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, open, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildTemplateArtifacts } from "../../../scripts/build-template-artifacts.mjs";
 import {
   EMPTY_ENV_MODULE,
   READY_FILE,
@@ -27,6 +28,7 @@ try {
   await unlink(READY_FILE).catch((error) => {
     if (error.code !== "ENOENT") throw error;
   });
+  await buildTemplateArtifacts(process.cwd(), "assets");
   inputs = await sourceDigests();
   if (await exists(".next/lock"))
     throw new Error("Another Next build/dev process owns .next; stop it before this build.");

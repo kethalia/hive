@@ -1,6 +1,7 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Every path is derived from repository-owned template roots. */
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { buildTemplateArtifacts } from "./build-template-artifacts.mjs";
 
 const repositoryRoot = process.cwd();
 const canonicalRoot = join(repositoryRoot, "templates", "ai-dev-k8s");
@@ -91,3 +92,6 @@ if (checkOnly && drift.length > 0) {
   const cleanup = removedScripts > 0 ? `; removed ${removedScripts} obsolete scripts` : "";
   console.log(`Synchronized ${targetRoots.length} workspace profile scaffolds${cleanup}.`);
 }
+
+if (!process.exitCode)
+  await buildTemplateArtifacts(repositoryRoot, checkOnly ? "check" : "manifest");
