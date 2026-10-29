@@ -2,16 +2,17 @@
 // Software profile opt-in only. Fixed installed configuration; no startup hook.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, lstatSync, mkdirSync } from "node:fs";
+import { lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createHostRegistration } from "./codex-host-registration.mjs";
 import { createProjectController } from "./codex-project-controller.mjs";
 import { createProjectDiscovery, startDiscoveryGateway } from "./codex-project-discovery.mjs";
-import { openSupervisor } from "./codex-project-supervisor.mjs";
-import { createHostRegistration } from "./codex-host-registration.mjs";
 import { startProjectGateway } from "./codex-project-gateway.mjs";
+import { openSupervisor } from "./codex-project-supervisor.mjs";
 import { createDeliveryManagerAdapter } from "./delivery-manager-adapter.mjs";
+
 const check = (v) => {
   if (!v) throw new Error("host_configuration_or_runtime_rejected");
 };
@@ -47,12 +48,15 @@ export function validateHostConfig(value) {
   ];
   check(
     value &&
-      Object.keys(value).length === keys.length &&
-      Object.keys(value).every((k) => keys.includes(k)) &&
+      [keys.length, keys.length + 1].includes(Object.keys(value).length) &&
+      Object.keys(value).every((k) => keys.includes(k) || k === "nativeIsolationEnabled") &&
       value.schemaVersion === 1 &&
       value.enabled === true &&
       value.profile === "software" &&
-      typeof value.managerEnabled === "boolean",
+      typeof value.managerEnabled === "boolean" &&
+      (value.nativeIsolationEnabled === undefined ||
+        typeof value.nativeIsolationEnabled === "boolean") &&
+      (!value.managerEnabled || value.nativeIsolationEnabled === true),
   );
   check(
     Number.isInteger(value.port) &&
@@ -252,6 +256,7 @@ export async function startWorkspaceHost(raw) {
             codexExecutable: executable,
             codexSha256: pin,
             projects,
+            executionMode: config.nativeIsolationEnabled ? "isolated" : "direct",
           });
           registration = createHostRegistration(supervisor, {
             hiveOrigin: config.hiveOrigin,

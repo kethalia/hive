@@ -36,6 +36,7 @@ const modules = [
   "codex-project-controller.mjs",
   "codex-project-discovery.mjs",
   "codex-project-supervisor.mjs",
+  "codex-native-namespace.mjs",
   "codex-project-gateway.mjs",
   "codex-session-bridge.mjs",
   "codex-host-registration.mjs",

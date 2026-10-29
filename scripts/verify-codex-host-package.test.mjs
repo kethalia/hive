@@ -16,6 +16,7 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
     const manifest = JSON.parse(readFileSync(join(out, "package-manifest.json")));
     assert.equal(manifest.wsVersion, "8.21.3");
     assert.equal(manifest.nativeVersion, "0.165.0");
+    assert.ok(Object.hasOwn(manifest.files, "codex-native-namespace.mjs"));
     for (const [name, sha] of Object.entries(manifest.files))
       assert.equal(
         createHash("sha256")
@@ -60,8 +61,19 @@ test("host config cannot request unreviewed startup fields or profiles", () => {
     { codexExecutable: "/arbitrary" },
     { port: 22 },
     { command: "bad" },
+    { managerEnabled: true },
+    { nativeIsolationEnabled: "true" },
   ])
     assert.throws(() => validateHostConfig({ ...config, ...patch }));
+  assert.equal(
+    validateHostConfig({ ...config, nativeIsolationEnabled: true }).nativeIsolationEnabled,
+    true,
+  );
+  assert.equal(
+    validateHostConfig({ ...config, nativeIsolationEnabled: true, managerEnabled: true })
+      .managerEnabled,
+    true,
+  );
 });
 
 test("JS controller and installed Python authority agree on actual kernel process identity", () => {
