@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T19:03:31.952Z",
+  "testedRevision": "3ad51083d3843d607917dcdd10b33eef23447031",
+  "testedSourceCommitted": true,
+  "sourceDigests": {
+    "deploy/cloudflare/app/project-relay.ts": "069869e4c87f8f3fbffe1869b34bca381b177f0e1465191c2c6136c20f050fb4",
+    "deploy/cloudflare/app/local-relay-fixture.ts": "ffcb4c32c5dc8cfedb213c4a38cca8e7102fb289ff6cacb1a49ef8ceb7d6a9f7",
+    "deploy/cloudflare/app/local-relay-provider.ts": "3e93de2ada6bc6aac103d9c88a8a4580efb3110fb659341f2b2c6d85fc9d51a3",
+    "deploy/cloudflare/app/run-local-relay-proof.mjs": "cd149ea672b1c4413ef6018fb8f8a8613b3e9e9c245e093217eb685bcd115523"
+  },
+  "result": "failed",
+  "stage": "expiry",
+  "failureDetail": "Original harness reports only expiry-stage failure; exact close code/deadline subtype not recorded in that first run. Diagnostic rerun recorded below.",
+  "earlierStagesPassed": ["text", "binary", "sanitized-close", "oversized-frame"],
+  "scope": "actual local workerd relay with simulated provider/auth metadata",
+  "logSHA256": "088058c35e62e7cbfd298c31dc7f835e69f8f638fc48d0ba4ab253e07b7d0c80",
+  "cloudWrites": 0,
+  "diagnostic": {
+    "observedCloseCode": 1000,
+    "harnessFile": ".artifacts/cloudflare/relay-diagnostic.mjs",
+    "harnessSHA256": "550981cb7e4a5712075e1d619524e9dd19149e26e98475521d9742b1299566f6",
+    "harnessCommitted": false,
+    "interpretation": "Handshake fetch AbortSignal remains active after101, racing relay authorization-expiry close. Clearable handshake-only timeout fix under test."
+  }
+}
