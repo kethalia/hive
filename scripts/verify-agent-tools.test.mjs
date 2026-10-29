@@ -34,3 +34,10 @@ test("optional agent integrations stay in software and do not block login", () =
   assert.match(script, /typescript-language-server@5\.1\.3 typescript@5\.9\.3/);
   assert.match(script, /typescript-lsp@claude-plugins-official/);
 });
+
+test("GitHub project discovery preserves credentials and validates pagination", () => {
+  const result = spawnSync("python3", ["-B", "scripts/agents/test_github_projects.py"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});

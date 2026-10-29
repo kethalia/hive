@@ -4,6 +4,7 @@ import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { Suspense, useId } from "react";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -17,6 +18,9 @@ import type { CoderWorkspace } from "@/lib/coder/types";
 import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
+const ProjectBrowser = dynamic(() =>
+  import("@/components/projects/ProjectBrowser").then((m) => m.ProjectBrowser),
+);
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -89,6 +93,7 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
+  const { projectDiscoveryEnabled } = useRuntimeConfig();
   const workspace =
     workspaces.find((w) => w.id === pane.workspaceId) ??
     workspaces.find((w) => w.latest_build.status === "running") ??
@@ -120,7 +125,7 @@ export function HiveWorkspacePane({
           </p>
         }
       >
-        {pane.tool === "agents" ? (
+        {pane.tool === "agents" || pane.tool === "projects" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
             <div className="space-y-2 text-sm">
               <label htmlFor={workspaceSelectId} className="block">
@@ -139,7 +144,7 @@ export function HiveWorkspacePane({
               >
                 <SelectTrigger
                   id={workspaceSelectId}
-                  aria-label="Agent workspace"
+                  aria-label={pane.tool === "projects" ? "Project workspace" : "Agent workspace"}
                   className="w-full"
                 >
                   <SelectValue placeholder="No workspaces available" />
@@ -154,16 +159,27 @@ export function HiveWorkspacePane({
               </Select>
             </div>
             {workspace?.latest_build.status === "running" ? (
-              <AgentToolsPanel
-                key={`${workspace.id}:${workspace.latest_build.id}`}
-                workspaceId={workspace.id}
-                buildId={workspace.latest_build.id}
-                open={visible}
-                onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
-              />
+              pane.tool === "projects" ? (
+                <ProjectBrowser
+                  key={workspace.id}
+                  workspaceId={workspace.id}
+                  enabled={Boolean(projectDiscoveryEnabled)}
+                  visible={visible}
+                />
+              ) : (
+                <AgentToolsPanel
+                  key={`${workspace.id}:${workspace.latest_build.id}`}
+                  workspaceId={workspace.id}
+                  buildId={workspace.latest_build.id}
+                  open={visible}
+                  onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
+                />
+              )
             ) : (
               <p className="text-sm text-muted-foreground">
-                Start a Coder workspace to view its agent conversations.
+                {pane.tool === "projects"
+                  ? "Start a Coder workspace to browse connected repositories."
+                  : "Start a Coder workspace to view its agent conversations."}
               </p>
             )}
           </div>
