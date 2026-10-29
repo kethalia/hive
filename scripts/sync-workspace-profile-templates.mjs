@@ -20,6 +20,7 @@ async function collectFiles(directory) {
   const files = [];
 
   for (const entry of entries) {
+    if (entry.name === "__pycache__" && entry.isDirectory()) continue;
     const absolutePath = join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...(await collectFiles(absolutePath)));

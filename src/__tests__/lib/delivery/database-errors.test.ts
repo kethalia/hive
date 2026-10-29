@@ -42,6 +42,30 @@ describe("database errors across generated Prisma runtimes", () => {
     expect(transaction).toHaveBeenCalledTimes(1);
   });
 
+  it("retries only the known PostgreSQL serialization code from raw row locks", async () => {
+    for (const [code, retried] of [
+      ["40001", true],
+      ["23505", false],
+      ["40P01", false],
+    ] as const) {
+      const failure = Object.assign(new SeparateRuntimeDatabaseError("raw conflict"), {
+        code: "P2010",
+        meta: { code },
+      });
+      const transaction = vi
+        .fn()
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValueOnce({ id: "binding" });
+      const repository = new DeliveryRepository({
+        $transaction: transaction,
+      } as unknown as PrismaClient);
+      if (retried)
+        expect(await repository.bindConversation(owner, input)).toEqual({ id: "binding" });
+      else await expect(repository.bindConversation(owner, input)).rejects.toBe(failure);
+      expect(transaction).toHaveBeenCalledTimes(retried ? 2 : 1);
+    }
+  });
+
   it("recognizes only exact replay keys in the observed workerd adapter constraint shape", async () => {
     const task = {
       schemaVersion: 1,

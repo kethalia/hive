@@ -8,6 +8,9 @@ import pwd
 import re
 import sys
 
+# Installed package bytes are immutable; helper imports must not add cache files.
+sys.dont_write_bytecode = True
+
 
 def module(name, filename):
     spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(filename))

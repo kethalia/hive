@@ -5,6 +5,8 @@ import type { RegistrationBinding } from "@/lib/codex-session/registration.serve
 import { PrismaRegistrationStore } from "@/lib/codex-session/registration-store.server";
 import { DeliveryManagerService } from "@/lib/delivery/manager.server";
 import { managerProofPayload } from "@/lib/delivery/manager-contracts";
+import { DeliveryNativeSourceService } from "@/lib/delivery/native.server";
+import { nativeProofPayload } from "@/lib/delivery/native-contracts";
 import { DeliveryRepository } from "@/lib/delivery/repository";
 
 const url = process.env.HIVE_DELIVERY_TEST_DATABASE_URL;
@@ -93,12 +95,54 @@ async function fixture() {
       },
     }),
   ).toBe(true);
+  const checkoutBinding = {
+    projectId: project.id,
+    preparationIntentId: randomUUID(),
+    repositoryId: "123",
+    revision: sha,
+    leaseId: randomUUID(),
+    leaseGeneration: 1,
+  };
+  await db.projectTaskIntent.create({
+    data: {
+      id: checkoutBinding.preparationIntentId,
+      ownerId: user.id,
+      projectId: project.id,
+      workspaceId: binding.workspaceId,
+      requestId: randomUUID(),
+      requestDigest: "a".repeat(64),
+      repositoryId: "123",
+      providerAccountId: "456",
+      sourceSha: sha,
+      phase: "running",
+      status: {
+        schemaVersion: 1,
+        projectId: project.id,
+        taskId: checkoutBinding.preparationIntentId,
+        phase: "running",
+        nativeThreadId: managerThreadId,
+        terminalSessionName: null,
+        reason: null,
+      },
+    },
+  });
   const reauthorize = async (value: RegistrationBinding) => value;
-  const service = new DeliveryManagerService(db, { reauthorize, evidencePolicy: policy });
+  const service = new DeliveryManagerService(db, {
+    reauthorize,
+    evidencePolicy: policy,
+    allowedModelEfforts: [{ model: "fixture-model", effort: "low" }],
+  });
+  const nativeService = new DeliveryNativeSourceService(db, {
+    reauthorize,
+    evidencePolicy: policy,
+  });
+  let lastClaimTurnId = "";
+  let lastNative: { started: unknown; completed: unknown } | null = null;
   const envelope = (command: unknown, overrides = {}) => {
     const value = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       registrationId,
+      checkoutBinding,
       serverInstanceId,
       eventId: randomUUID(),
       managerThreadId,
@@ -122,7 +166,6 @@ async function fixture() {
     id: taskId,
     outcome: "Synthetic manager task",
     branch: "fixture",
-    sourceSha: sha,
     steps: [
       { id: stepId, kind: "validate", criterionIds: ["C1"], requiredEvidenceKinds: ["check"] },
     ],
@@ -131,66 +174,86 @@ async function fixture() {
     await service.execute(envelope({ operation: "create_task", payload: definition }));
   }
   async function claim() {
-    return (await service.execute(
-      envelope({
-        operation: "claim_step",
-        payload: {
-          taskId,
-          stepId,
-          expectedVersion: 0,
-          requestedModel: "fixture-model",
-          requestedEffort: "low",
-        },
-      }),
-    )) as unknown as {
+    const request = envelope({
+      operation: "claim_step",
+      payload: {
+        taskId,
+        stepId,
+        expectedVersion: 0,
+        requestedModel: "fixture-model",
+        requestedEffort: "low",
+      },
+    });
+    lastClaimTurnId = request.nativeTurnId;
+    return (await service.execute(request)) as unknown as {
       attemptId: string;
       version: number;
       leaseGeneration: number;
       canRun: boolean;
+      managerBindingId: string;
+      nativeSequence: number;
+    };
+  }
+  function nativeEnvelope(
+    attempt: Awaited<ReturnType<typeof claim>>,
+    source: unknown,
+    sequence: number,
+    eventId = randomUUID(),
+  ) {
+    const value = {
+      schemaVersion: 1,
+      registrationId,
+      serverInstanceId,
+      managerThreadId,
+      checkoutBinding,
+      eventId,
+      managerBindingId: attempt.managerBindingId,
+      taskId,
+      stepId,
+      attemptId: attempt.attemptId,
+      leaseGeneration: attempt.leaseGeneration,
+      sequence,
+      source,
+      issuedAt: Date.now() - 100,
+      expiresAt: Date.now() + 30000,
+    };
+    return {
+      ...value,
+      proof: sign(null, Buffer.from(nativeProofPayload(value)), keys.privateKey).toString(
+        "base64url",
+      ),
     };
   }
   async function trustedEvidence(attempt: Awaited<ReturnType<typeof claim>>, settings = {}) {
     const repository = new DeliveryRepository(db, policy);
-    const childThreadId = randomUUID(),
-      spawnCallId = randomUUID();
-    const bound = await repository.bindAttemptRuntime(user.id, "fixture-runtime", {
-      schemaVersion: 1,
-      eventId: randomUUID(),
-      taskId,
-      stepId,
-      attemptId: attempt.attemptId,
-      expectedRuntimeVersion: 0,
-      binding: {
-        coderOwnerId: user.coderUserId,
-        workspaceId: binding.workspaceId,
-        buildId: binding.buildId,
-        serverInstanceId,
-        managerThreadId,
-        nativeThreadId: childThreadId,
-        nativeTurnId: randomUUID(),
-        operationId: spawnCallId,
-        lifetimeId: randomUUID(),
-        sourceSha: sha,
+    const common = {
+      parentTurnId: lastClaimTurnId,
+      spawnCallId: randomUUID(),
+      childThreadId: randomUUID(),
+      childTurnId: randomUUID(),
+      observedAt: new Date(Date.now() - 100).toISOString(),
+    };
+    const started = nativeEnvelope(
+      attempt,
+      {
+        ...common,
+        kind: "started",
+        requestedModel: "fixture-model",
+        requestedEffort: "low",
+        effectiveModel: "fixture-model",
+        effectiveEffort: "low",
+        ...settings,
       },
-    });
-    await repository.recordNativeDelegation(user.id, "fixture-runtime", {
-      schemaVersion: 1,
-      eventId: randomUUID(),
-      taskId,
-      stepId,
-      attemptId: attempt.attemptId,
-      expectedRuntimeVersion: bound.runtimeVersion,
-      bindingDigest: bound.bindingDigest,
-      managerThreadId,
-      parentTurnId: randomUUID(),
-      spawnCallId,
-      childThreadId,
-      requestedModel: "fixture-model",
-      requestedEffort: "low",
-      effectiveModel: "fixture-model",
-      effectiveEffort: "low",
-      ...settings,
-    });
+      1,
+    );
+    await nativeService.ingest(started);
+    const completed = nativeEnvelope(
+      attempt,
+      { ...common, kind: "turn_completed", status: "completed" },
+      2,
+    );
+    await nativeService.ingest(completed);
+    lastNative = { started, completed };
     const evidenceId = randomUUID();
     await repository.recordEvidence(user.id, "fixture-ci", {
       id: evidenceId,
@@ -232,6 +295,10 @@ async function fixture() {
     create,
     claim,
     trustedEvidence,
+    checkoutBinding,
+    nativeService,
+    nativeEnvelope,
+    lastNative: () => lastNative!,
   };
 }
 
@@ -448,7 +515,7 @@ describe.skipIf(!url)("registered manager/controller PostgreSQL transport", () =
     ).toBeNull();
     expect(await db.deliveryOutbox.count({ where: { ownerId: f.user.id } })).toBe(1);
   });
-  it("keeps unavailable native settings unknown, pauses scheduling and fences conflicting native metadata", async () => {
+  it("keeps unavailable native settings unknown and holds scheduling until explicit reviewed reconciliation", async () => {
     const f = await fixture();
     await f.create();
     const attempt = await f.claim();
@@ -459,46 +526,21 @@ describe.skipIf(!url)("registered manager/controller PostgreSQL transport", () =
     const row = await db.deliveryAttempt.findUniqueOrThrow({ where: { id: attempt.attemptId } });
     expect(row.effectiveModel).toBeNull();
     expect(row.effectiveEffort).toBeNull();
+    expect(row.quiescedAt).toBeNull();
     expect(
       (await db.deliveryTask.findUniqueOrThrow({ where: { id: f.taskId } })).pauseRequested,
     ).toBe(true);
     await expect(
       f.service.execute(f.envelope({ operation: "complete_step", payload })),
-    ).rejects.toThrow("native_settings_unverified");
-    const event = await db.deliveryEvent.findFirstOrThrow({
-      where: { ownerId: f.user.id, type: "native_delegation_observed" },
-    });
-    const {
-      producer: _producer,
-      settingsMatch: _match,
-      ...input
-    } = event.payload as Record<string, unknown>;
-    const repo = new DeliveryRepository(db, policy);
-    expect(await repo.recordNativeDelegation(f.user.id, "fixture-runtime", input)).toMatchObject({
+    ).rejects.toThrow("native_reconciliation_required");
+    expect(await f.nativeService.ingest(f.lastNative().started)).toMatchObject({
+      accepted: true,
       replayed: true,
+      blocked: true,
     });
-    await expect(
-      repo.recordNativeDelegation(f.user.id, "manager-self-asserted", input),
-    ).rejects.toThrow("untrusted_runtime_adapter");
-    await expect(
-      repo.recordNativeDelegation(f.user.id, "fixture-runtime", {
-        ...input,
-        eventId: randomUUID(),
-        expectedRuntimeVersion: row.runtimeVersion,
-        childThreadId: randomUUID(),
-      }),
-    ).rejects.toThrow("native_delegation_binding_mismatch");
-    await expect(
-      repo.recordNativeDelegation(f.user.id, "fixture-runtime", {
-        ...input,
-        eventId: randomUUID(),
-        expectedRuntimeVersion: row.runtimeVersion,
-        effectiveModel: "fixture-model",
-        effectiveEffort: "low",
-      }),
-    ).resolves.toMatchObject({ settingsMatch: true });
-    expect(
-      (await db.deliveryTask.findUniqueOrThrow({ where: { id: f.taskId } })).pauseRequested,
-    ).toBe(true);
+    const repo = new DeliveryRepository(db, policy);
+    await expect(repo.recordNativeSource(f.user.id, "manager-self-asserted", {})).rejects.toThrow(
+      "untrusted_runtime_adapter",
+    );
   });
 });

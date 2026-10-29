@@ -21,6 +21,7 @@ import {
   stepControlSchema,
   taskDefinitionSchema,
 } from "./contracts";
+import { nativeSourceInputSchema } from "./native-contracts";
 import {
   assertAcyclicSteps,
   assertCompletionEvidence,
@@ -81,7 +82,10 @@ interface KnownDatabaseError {
   name: string;
   meta?: Record<string, unknown>;
 }
-function knownDatabaseError(error: unknown, code: "P2002" | "P2034"): error is KnownDatabaseError {
+function knownDatabaseError(
+  error: unknown,
+  code: "P2002" | "P2034" | "P2010",
+): error is KnownDatabaseError {
   if (!error || typeof error !== "object") return false;
   const value = error as Partial<KnownDatabaseError>;
   return (
@@ -142,6 +146,10 @@ export class DeliveryRepository {
     // Server-held authorization executes in every transaction/retry. Never a
     // callback constructed from manager JSON or a middleware-only result.
     private readonly authorizeTransaction?: (tx: Transaction) => Promise<void>,
+    private readonly afterAttemptClaimed?: (
+      tx: Transaction,
+      attempt: { id: string; managerBindingId: string | null },
+    ) => Promise<void>,
   ) {
     if (
       !policy.version.trim() ||
@@ -176,7 +184,11 @@ export class DeliveryRepository {
           },
         );
       } catch (error) {
-        if (attempt < 2 && knownDatabaseError(error, "P2034")) {
+        if (
+          attempt < 2 &&
+          (knownDatabaseError(error, "P2034") ||
+            (knownDatabaseError(error, "P2010") && error.meta?.code === "40001"))
+        ) {
           await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
           continue;
         }
@@ -384,6 +396,7 @@ export class DeliveryRepository {
           projectId: input.projectId,
           epicId: input.epicId,
           conversationId: input.conversationId,
+          managerBindingId: input.managerBindingId,
           outcome: input.outcome,
           branch: input.branch,
           sourceSha: input.sourceSha,
@@ -480,6 +493,7 @@ export class DeliveryRepository {
         data: {
           ownerId,
           stepId: step.id,
+          managerBindingId: task.managerBindingId,
           leaseGeneration,
           leaseHolder: input.leaseHolder,
           leaseExpiresAt: new Date(timestamp.getTime() + input.leaseMs),
@@ -504,10 +518,12 @@ export class DeliveryRepository {
           aggregateKey: `step/${step.id}`,
           aggregateVersion: version,
           type: "attempt_started",
+          ...(input.nativeClaim ? { payload: { nativeClaim: input.nativeClaim } } : {}),
           requestDigest,
           policyVersion: this.policy.version,
         },
       });
+      await this.afterAttemptClaimed?.(tx, attempt);
       return {
         attemptId: attempt.id,
         leaseGeneration,
@@ -704,6 +720,272 @@ export class DeliveryRepository {
         },
       });
       return { version: task.version + 1, replayed: false };
+    });
+  }
+
+  /** Exact installed native observer scope; no manager-reported pass/producer. */
+  async recordNativeSource(owner: string, producer: string, value: unknown) {
+    this.runtimeAuthority(producer);
+    const ownerId = ownerSchema.parse(owner),
+      input = nativeSourceInputSchema.parse(value);
+    const requestDigest = digest("native_source_observed", {
+      producer,
+      input,
+      policyVersion: this.policy.version,
+    });
+    return this.transaction(async (tx) => {
+      const { task, step, attempt } = await this.runtimeAttempt(tx, ownerId, input);
+      const manager = await tx.deliveryManagerBinding.findUniqueOrThrow({
+        where: { ownerId_id: { ownerId, id: input.managerBindingId } },
+      });
+      if (
+        task.managerBindingId !== manager.id ||
+        attempt.managerBindingId !== manager.id ||
+        attempt.leaseGeneration !== input.leaseGeneration
+      )
+        throw new DeliveryConflict("native_source_binding_mismatch");
+      const previous = await tx.deliveryEvent.findUnique({
+        where: { ownerId_id: { ownerId, id: input.eventId } },
+      });
+      const timestamp = await now(tx);
+      const block = async (reason: string, eventId: string, advanceSequence: boolean) => {
+        const conflict = await tx.deliveryEvent.findUnique({
+          where: { ownerId_id: { ownerId, id: eventId } },
+        });
+        if (!conflict) {
+          const runtimeVersion = attempt.runtimeVersion + 1;
+          await tx.deliveryAttempt.update({
+            where: { ownerId_id: { ownerId, id: attempt.id } },
+            data: { runtimeVersion },
+          });
+          await tx.deliveryManagerBinding.update({
+            where: { ownerId_id: { ownerId, id: manager.id } },
+            data: {
+              blockedReason: reason,
+              ...(advanceSequence ? { nativeSequence: input.sequence } : {}),
+            },
+          });
+          await tx.deliveryEvent.create({
+            data: {
+              id: eventId,
+              ownerId,
+              taskId: task.id,
+              stepId: step.id,
+              attemptId: attempt.id,
+              aggregateKey: `attempt/${attempt.id}`,
+              aggregateVersion: runtimeVersion,
+              type: "native_source_conflict",
+              requestDigest,
+              policyVersion: this.policy.version,
+              payload: {
+                producer,
+                nativeSourceKind: input.source.kind,
+                sequence: input.sequence,
+                reason,
+                source: input.source,
+              },
+            },
+          });
+          await this.safetyPause(tx, ownerId, task.id, eventId);
+          await tx.deliveryOutbox.create({ data: { ownerId, eventId, channel: "push" } });
+        }
+        return {
+          accepted: advanceSequence,
+          blocked: true,
+          replayed: !!conflict,
+          sequence: input.sequence,
+          activeAttemptHeld: true,
+        };
+      };
+      if (previous) {
+        if (previous.requestDigest !== requestDigest) {
+          const hex = digest("native_source_conflict", {
+            ownerId,
+            eventId: input.eventId,
+            requestDigest,
+          });
+          const conflictId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+          return block("native_source_replay_conflict", conflictId, false);
+        }
+        return {
+          accepted: true,
+          replayed: true,
+          blocked: manager.blockedReason !== null,
+          sequence: input.sequence,
+          runtimeVersion: previous.aggregateVersion,
+          activeAttemptHeld: true,
+        };
+      }
+      if (manager.activeAttemptId !== attempt.id)
+        throw new DeliveryConflict("native_attempt_not_held");
+      if (input.sequence !== manager.nativeSequence + 1)
+        throw new DeliveryConflict("native_sequence_gap");
+      if (Date.parse(input.source.observedAt) > timestamp.getTime())
+        throw new DeliveryConflict("native_observation_future");
+      const claim = await tx.deliveryEvent.findFirst({
+        where: { ownerId, attemptId: attempt.id, type: "attempt_started" },
+      });
+      const claimed = (
+        claim?.payload as {
+          nativeClaim?: { managerThreadId?: unknown; parentTurnId?: unknown };
+        } | null
+      )?.nativeClaim;
+      if (
+        claimed?.managerThreadId !== manager.nativeThreadId ||
+        claimed?.parentTurnId !== input.source.parentTurnId
+      )
+        return block("native_parent_turn_mismatch", input.eventId, true);
+      const runtimeVersion = attempt.runtimeVersion + 1;
+      let payload: Prisma.InputJsonObject;
+      let eventType = "native_command_observed",
+        unsafe = false;
+      if (input.source.kind === "started") {
+        if (attempt.runtimeBindingDigest)
+          return block("native_child_already_bound", input.eventId, true);
+        if (input.source.childThreadId === manager.nativeThreadId)
+          return block("native_child_binding_invalid", input.eventId, true);
+        const user = await tx.user.findUniqueOrThrow({
+          where: { id: ownerId },
+          select: { coderUserId: true },
+        });
+        const binding = {
+          coderOwnerId: user.coderUserId,
+          workspaceId: manager.workspaceId,
+          buildId: manager.buildId,
+          serverInstanceId: manager.serverInstanceId,
+          managerThreadId: manager.nativeThreadId,
+          nativeThreadId: input.source.childThreadId,
+          nativeTurnId: input.source.childTurnId,
+          operationId: input.source.spawnCallId,
+          lifetimeId: manager.serverInstanceId,
+          sourceSha: attempt.sourceSha,
+        };
+        const bindingDigest = digest("native_binding", {
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          leaseGeneration: attempt.leaseGeneration,
+          binding,
+        });
+        const settingsMatch =
+          !!attempt.requestedModel &&
+          !!attempt.requestedEffort &&
+          attempt.requestedModel === input.source.requestedModel &&
+          attempt.requestedEffort === input.source.requestedEffort &&
+          attempt.requestedModel === input.source.effectiveModel &&
+          attempt.requestedEffort === input.source.effectiveEffort;
+        unsafe =
+          !settingsMatch ||
+          attempt.leaseExpiresAt <= timestamp ||
+          attempt.outcome !== "running" ||
+          step.state !== "running";
+        await tx.deliveryAttempt.update({
+          where: { ownerId_id: { ownerId, id: attempt.id } },
+          data: {
+            runtimeVersion,
+            runtimeBinding: binding,
+            runtimeBindingDigest: bindingDigest,
+            effectiveModel: input.source.effectiveModel,
+            effectiveEffort: input.source.effectiveEffort,
+          },
+        });
+        eventType = "native_runtime_started";
+        payload = {
+          producer,
+          nativeSourceKind: "started",
+          sequence: input.sequence,
+          binding,
+          bindingDigest,
+          settingsMatch,
+          source: input.source,
+        };
+      } else {
+        const binding = nativeRuntimeBindingSchema.safeParse(attempt.runtimeBinding);
+        if (
+          !binding.success ||
+          binding.data.nativeThreadId !== input.source.childThreadId ||
+          binding.data.nativeTurnId !== input.source.childTurnId ||
+          binding.data.operationId !== input.source.spawnCallId
+        )
+          return block("native_child_turn_mismatch", input.eventId, true);
+        await tx.deliveryAttempt.update({
+          where: { ownerId_id: { ownerId, id: attempt.id } },
+          data: { runtimeVersion },
+        });
+        payload = {
+          producer,
+          nativeSourceKind: input.source.kind,
+          sequence: input.sequence,
+          source: input.source,
+        };
+        if (input.source.kind === "turn_completed") {
+          eventType = "native_attempt_observed";
+          unsafe = input.source.status !== "completed";
+          payload = {
+            ...payload,
+            turnStatus: input.source.status,
+            schemaVersion: 1,
+            bindingDigest: attempt.runtimeBindingDigest,
+            remoteId: input.source.childTurnId,
+            proofDigest: digest("native_turn_source", input.source),
+            observedAt: input.source.observedAt,
+            nativeTurn: "quiescent",
+            backgroundProcesses: "unknown",
+            externalOperations: "unknown",
+            externalEffects: "unknown",
+            ...(unsafe
+              ? {
+                  reason:
+                    "Native child ended without successful completion; writer reconciliation remains required.",
+                }
+              : {}),
+          };
+        }
+      }
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          aggregateKey: `attempt/${attempt.id}`,
+          aggregateVersion: runtimeVersion,
+          type: eventType,
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload,
+        },
+      });
+      await tx.deliveryManagerBinding.update({
+        where: { ownerId_id: { ownerId, id: manager.id } },
+        data: {
+          nativeSequence: input.sequence,
+          ...(unsafe
+            ? {
+                blockedReason:
+                  input.source.kind === "started"
+                    ? "native_settings_or_lease_unverified"
+                    : "native_turn_failed",
+              }
+            : {}),
+        },
+      });
+      if (unsafe) {
+        await this.safetyPause(tx, ownerId, task.id, input.eventId);
+        await tx.deliveryOutbox.create({
+          data: { ownerId, eventId: input.eventId, channel: "push" },
+        });
+      }
+      return {
+        accepted: true,
+        replayed: false,
+        blocked: unsafe || manager.blockedReason !== null,
+        sequence: input.sequence,
+        runtimeVersion,
+        activeAttemptHeld: true,
+      };
     });
   }
 

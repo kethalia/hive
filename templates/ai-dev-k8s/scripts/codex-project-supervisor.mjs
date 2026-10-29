@@ -227,6 +227,7 @@ export class ProjectSupervisor {
     this.closed = false;
     this.busy = false;
     this.revocationListeners = new Set();
+    this.executionRevocations = new Map();
   }
   onRevoked(listener) {
     this.revocationListeners.add(listener);
@@ -309,39 +310,65 @@ export class ProjectSupervisor {
     return value;
   }
   async revokeExecution(projectId, reason = "lease_renewal_failed") {
+    const previous = this.executionRevocations.get(projectId) ?? Promise.resolve();
+    const operation = previous
+      .catch(() => {})
+      .then(() => this.stopProjectExecution(projectId, reason));
+    this.executionRevocations.set(projectId, operation);
+    try {
+      return await operation;
+    } finally {
+      if (this.executionRevocations.get(projectId) === operation)
+        this.executionRevocations.delete(projectId);
+    }
+  }
+  async stopProjectExecution(projectId, reason) {
     this.project(projectId);
     const entry = this.state.projects[projectId];
     check(
       entry?.threadId && entry.serverInstanceId === this.state.serverInstanceId,
       "native_thread_unavailable",
     );
-    if (entry.executionRevoked) return entry.executionRevoked;
-    entry.executionRevoked = { reason, at: Date.now(), reviewRequired: true };
+    entry.executionRevoked ??= { reason, at: Date.now(), reviewRequired: true };
+    entry.executionRevoked.reviewRequired = true;
     this.save(); // Fence all new execution before any best-effort interruption.
-    let interrupted = false,
+    let interrupted = true,
       detached = false;
+    const deadline = Date.now() + 10000;
+    const targets = [
+      entry.threadId,
+      ...Object.entries(entry.children ?? {})
+        .filter(([, child]) => child.serverInstanceId === this.state.serverInstanceId)
+        .map(([threadId]) => threadId),
+    ];
+    for (const threadId of targets) {
+      try {
+        check(this.runtime.alive() && Date.now() < deadline, "native_lifetime_revoked");
+        const latest = await this.runtime.call("thread/turns/list", {
+          threadId,
+          limit: 1,
+          sortDirection: "desc",
+          itemsView: "full",
+        });
+        check(Array.isArray(latest?.data) && latest.data.length <= 1, "invalid_native_history");
+        const turn = latest.data[0];
+        if (turn?.status === "inProgress") {
+          check(id(turn.id), "invalid_native_turn");
+          await this.runtime.call("turn/interrupt", { threadId, turnId: turn.id });
+        } else
+          check(
+            !turn || ["completed", "interrupted", "failed"].includes(turn.status),
+            "unknown_native_turn_state",
+          );
+      } catch {
+        interrupted = false;
+      }
+    }
     try {
-      check(this.runtime.alive(), "native_lifetime_revoked");
-      const latest = await this.runtime.call("thread/turns/list", {
-        threadId: entry.threadId,
-        limit: 1,
-        sortDirection: "desc",
-        itemsView: "full",
-      });
-      check(Array.isArray(latest?.data) && latest.data.length <= 1, "invalid_native_history");
-      const turn = latest.data[0];
-      if (turn?.status === "inProgress") {
-        check(id(turn.id), "invalid_native_turn");
-        await this.runtime.call("turn/interrupt", { threadId: entry.threadId, turnId: turn.id });
-      } else
-        check(
-          !turn || ["completed", "interrupted", "failed"].includes(turn.status),
-          "unknown_native_turn_state",
-        );
-      // A root interrupt acknowledgement does not establish child quiescence.
-      // Until the installed child router supplies an exact ownership map, any
-      // unknown loaded active thread retains the hold; never interrupt another
-      // project's thread by inference from a shared server.
+      check(Date.now() < deadline, "native_quiescence_unproven");
+      // An interrupt acknowledgement alone does not establish child quiescence.
+      // Unknown active threads retain the hold; never infer ownership from
+      // sharing a native server with a registered project.
       const loaded = await this.runtime.call("thread/loaded/list", { limit: 64 });
       check(
         Array.isArray(loaded?.data) &&
@@ -357,9 +384,15 @@ export class ProjectSupervisor {
             ([key, value]) =>
               key !== projectId && value.serverInstanceId === this.state.serverInstanceId,
           )
-          .map(([, value]) => value.threadId),
+          .flatMap(([, value]) => [
+            value.threadId,
+            ...Object.entries(value.children ?? {})
+              .filter(([, child]) => child.serverInstanceId === this.state.serverInstanceId)
+              .map(([threadId]) => threadId),
+          ]),
       );
       for (const threadId of loaded.data) {
+        check(Date.now() < deadline, "native_quiescence_unproven");
         check(id(threadId), "invalid_native_thread");
         if (otherProjects.has(threadId)) continue;
         const result = await this.runtime.call("thread/read", { threadId, includeTurns: false });
@@ -368,8 +401,9 @@ export class ProjectSupervisor {
           "native_quiescence_unproven",
         );
       }
-      interrupted = true;
-    } catch {}
+    } catch {
+      interrupted = false;
+    }
     try {
       if (entry.attached) await this.runtime.detach(projectId);
       detached = true;
@@ -471,6 +505,86 @@ export class ProjectSupervisor {
       threadId: entry.threadId,
     };
   }
+  // Installed observer only: these methods are absent from command() and the
+  // browser RPC allowlist. The observer supplies native-proven spawn identity.
+  registerChild(managerThreadId, childThreadId, spawnCallId) {
+    check(
+      !this.closed &&
+        [managerThreadId, childThreadId, spawnCallId].every(id) &&
+        managerThreadId !== childThreadId,
+      "invalid_native_child",
+    );
+    const project = this.config.projects.find(
+      (p) => this.state.projects[p.projectId]?.threadId === managerThreadId,
+    );
+    check(
+      project && this.registrationBinding(project.projectId).threadId === managerThreadId,
+      "manager_thread_unregistered",
+    );
+    const entry = this.state.projects[project.projectId];
+    const existing = entry.children?.[childThreadId];
+    if (existing) {
+      check(
+        existing.spawnCallId === spawnCallId &&
+          existing.serverInstanceId === this.state.serverInstanceId,
+        "native_child_conflict",
+      );
+      return;
+    }
+    check(
+      Object.keys(entry.children ?? {}).length < 64 &&
+        !Object.values(this.state.projects).some(
+          (other) =>
+            other.threadId === childThreadId ||
+            Object.entries(other.children ?? {}).some(
+              ([key, child]) =>
+                key === childThreadId || (other === entry && child.spawnCallId === spawnCallId),
+            ),
+        ),
+      "native_child_conflict",
+    );
+    entry.children ??= {};
+    entry.children[childThreadId] = { spawnCallId, serverInstanceId: this.state.serverInstanceId };
+    if (entry.executionRevoked) entry.executionRevoked.reviewRequired = true;
+    this.save();
+    // A delayed spawn observation after revocation must lose execution too.
+    if (entry.executionRevoked) void this.revokeExecution(project.projectId).catch(() => {});
+  }
+  async readNativeHistory(request) {
+    check(
+      !this.closed &&
+        exact(request, ["managerThreadId", "childThreadId", "spawnCallId"]) &&
+        Object.keys(request).length === 3 &&
+        Object.values(request).every(id),
+      "invalid_native_child",
+    );
+    const project = this.config.projects.find(
+      (p) => this.state.projects[p.projectId]?.threadId === request.managerThreadId,
+    );
+    const entry = project && this.state.projects[project.projectId],
+      child = entry?.children?.[request.childThreadId];
+    check(
+      project &&
+        child?.spawnCallId === request.spawnCallId &&
+        child.serverInstanceId === this.state.serverInstanceId &&
+        this.registrationBinding(project.projectId).threadId === request.managerThreadId,
+      "native_child_unregistered",
+    );
+    const history = await this.runtime.call("thread/turns/list", {
+      threadId: request.childThreadId,
+      limit: 20,
+      sortDirection: "asc",
+      itemsView: "full",
+    });
+    check(
+      Array.isArray(history?.data) &&
+        history.data.length <= 20 &&
+        Buffer.byteLength(JSON.stringify(history)) <= 2 * 1024 * 1024 &&
+        (history.nextCursor == null || typeof history.nextCursor === "string"),
+      "invalid_native_history",
+    );
+    return { data: history.data, nextCursor: history.nextCursor ?? null };
+  }
   setManagerAdapter(adapter) {
     check(
       !this.managerAdapter &&
@@ -499,6 +613,14 @@ export class ProjectSupervisor {
               (p) => this.state.projects[p.projectId]?.threadId === threadId,
             );
             if (project && this.registrationBinding(project.projectId).threadId === threadId)
+              return adapter.observe(notification);
+            if (!["turn/started", "turn/completed", "item/completed"].includes(notification.method))
+              return;
+            const parent = this.config.projects.find((p) => {
+              const entry = this.state.projects[p.projectId];
+              return entry?.children?.[threadId]?.serverInstanceId === this.state.serverInstanceId;
+            });
+            if (parent && this.registrationBinding(parent.projectId))
               return adapter.observe(notification);
           }
         : undefined,
@@ -735,7 +857,12 @@ export class ProjectSupervisor {
       this.revoke();
     } finally {
       try {
-        await this.runtime.close();
+        try {
+          await Promise.allSettled([...this.executionRevocations.values()]);
+          await this.managerAdapter?.close?.();
+        } finally {
+          await this.runtime.close();
+        }
       } finally {
         closeSync(this.lock);
       }
@@ -757,7 +884,15 @@ export function createNativeManagerRouter(getAdapter, reply) {
   return (message) => {
     if (typeof message.method !== "string") return false;
     const adapter = getAdapter();
-    if (["item/started", "item/completed", "rawResponseItem/completed"].includes(message.method)) {
+    if (
+      [
+        "item/started",
+        "item/completed",
+        "rawResponseItem/completed",
+        "turn/started",
+        "turn/completed",
+      ].includes(message.method)
+    ) {
       try {
         void Promise.resolve(
           adapter?.observe?.({ method: message.method, params: message.params }),

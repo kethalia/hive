@@ -142,6 +142,7 @@ model DeliveryProject {
   taskIntents          ProjectTaskIntent[]
   epics                DeliveryEpic[]
   tasks                DeliveryTask[]
+  managerBindings      DeliveryManagerBinding[]
   @@unique([ownerId, id])
   @@unique([ownerId, provider, providerRepositoryId])
   @@map("delivery_projects")
@@ -159,6 +160,7 @@ model DeliveryConversation {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   project       DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
   tasks         DeliveryTask[]
+  managerBindings DeliveryManagerBinding[]
   registeredThreads CodexRegisteredThread[]
   @@unique([ownerId, id])
   @@unique([ownerId, projectId, id])
@@ -187,6 +189,7 @@ model DeliveryTask {
   projectId        String @map("project_id") @db.Uuid
   epicId           String? @map("epic_id") @db.Uuid
   conversationId   String? @map("conversation_id") @db.Uuid
+  managerBindingId String? @map("manager_binding_id") @db.Uuid
   outcome          String
   sourceSha        String @map("source_sha")
   branch           String
@@ -199,6 +202,7 @@ model DeliveryTask {
   project          DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
   epic             DeliveryEpic? @relation(fields: [ownerId, projectId, epicId], references: [ownerId, projectId, id], onDelete: Restrict)
   conversation     DeliveryConversation? @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id], onDelete: Restrict)
+  managerBinding   DeliveryManagerBinding? @relation(fields: [ownerId, projectId, managerBindingId], references: [ownerId, projectId, id], onDelete: Restrict)
   steps            DeliveryStep[]
   events           DeliveryEvent[]
   @@unique([ownerId, id])
@@ -249,6 +253,7 @@ model DeliveryAttempt {
   id               String @id @default(uuid()) @db.Uuid
   ownerId          String @map("owner_id") @db.Uuid
   stepId           String @map("step_id") @db.Uuid
+  managerBindingId String? @map("manager_binding_id") @db.Uuid
   leaseGeneration  Int @map("lease_generation")
   leaseHolder      String @map("lease_holder")
   leaseExpiresAt   DateTime @map("lease_expires_at") @db.Timestamptz
@@ -267,8 +272,11 @@ model DeliveryAttempt {
   step             DeliveryStep @relation(fields: [ownerId, stepId], references: [ownerId, id])
   reports          DeliveryStepReport[]
   events           DeliveryEvent[]
+  managerBinding   DeliveryManagerBinding? @relation("ManagerAttempt", fields: [ownerId, managerBindingId], references: [ownerId, id], onDelete: Restrict)
+  activeForBindings DeliveryManagerBinding[] @relation("ActiveManagerAttempt")
   @@unique([ownerId, id])
   @@unique([ownerId, stepId, id])
+  @@unique([ownerId, managerBindingId, id])
   @@unique([ownerId, stepId, leaseGeneration])
   @@map("delivery_attempts")
 }
@@ -483,8 +491,46 @@ model ProjectTaskIntent {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  managerBindings DeliveryManagerBinding[]
   @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id])
   @@unique([ownerId, projectId, requestId])
   @@index([phase, nextAttemptAt])
   @@map("project_task_intents")
+}
+
+// Immutable native checkout identity, independent of manager-selected task IDs
+// and short-lived host registration credentials. The intent row serializes all
+// lifetimes before one native writer can claim this checkout.
+model DeliveryManagerBinding {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  preparationIntentId String @map("preparation_intent_id") @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  buildId String @map("build_id") @db.Uuid
+  serverInstanceId String @map("server_instance_id")
+  nativeThreadId String @map("native_thread_id")
+  repositoryId String @map("repository_id")
+  sourceSha String @map("source_sha")
+  leaseId String @map("lease_id") @db.Uuid
+  leaseGeneration Int @map("lease_generation")
+  bindingDigest String @map("binding_digest")
+  activeAttemptId String? @map("active_attempt_id") @db.Uuid
+  nativeSequence Int @default(0) @map("native_sequence")
+  blockedReason String? @map("blocked_reason")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  preparationIntent ProjectTaskIntent @relation(fields: [ownerId, projectId, preparationIntentId], references: [ownerId, projectId, id], onDelete: Restrict)
+  conversation DeliveryConversation @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id], onDelete: Restrict)
+  activeAttempt DeliveryAttempt? @relation("ActiveManagerAttempt", fields: [ownerId, id, activeAttemptId], references: [ownerId, managerBindingId, id], onDelete: Restrict)
+  attempts DeliveryAttempt[] @relation("ManagerAttempt")
+  tasks DeliveryTask[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id])
+  @@unique([ownerId, bindingDigest])
+  @@index([ownerId, preparationIntentId])
+  @@map("delivery_manager_bindings")
 }

@@ -68,6 +68,7 @@ export const taskDefinitionSchema = z
       .strict()
       .optional(),
     conversationId: identifier.optional(),
+    managerBindingId: identifier.optional(),
     outcome: z.string().min(1).max(4000),
     branch: z.string().min(1).max(255),
     sourceSha: sourceShaSchema,
@@ -96,6 +97,10 @@ export const leaseRequestSchema = z
     effectiveModel: label.nullable().default(null),
     requestedEffort: label.nullable().default(null),
     effectiveEffort: label.nullable().default(null),
+    nativeClaim: z
+      .object({ managerThreadId: label, parentTurnId: label, callId: label })
+      .strict()
+      .optional(),
   })
   .strict();
 export const completionSchema = z
