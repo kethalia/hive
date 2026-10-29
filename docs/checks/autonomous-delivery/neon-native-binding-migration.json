@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "6005d2d",
+  "database": "hive_app_preview",
+  "host": "ep-jolly-sky-b7fhirib.c-13.us-east-1.aws.neon.tech",
+  "role": "hive_epic_owner",
+  "beforeMigrationCount": 18,
+  "afterMigrationCount": 19,
+  "applied": ["20261029090000_delivery_manager_binding"],
+  "migrationChecksum": "a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2",
+  "existingMigrationHistoryPreserved": true,
+  "allSourceChecksumsMatch": true,
+  "baselinePreflight": true,
+  "productionDatabaseAccessed": false,
+  "runtimeRoleUsedForDDL": false,
+  "observedAt": "2026-10-29T19:57:54.200206+00:00"
+}
