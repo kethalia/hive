@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdtempSync,
@@ -32,6 +33,11 @@ function fixture(t, { tmux = false, rejectBarrier = false } = {}) {
   const directory = mkdtempSync(join(tmpdir(), "hive-host-guardian-")),
     packageDirectory = join(directory, "package");
   const build = buildNativeGuardian(resolve("."), packageDirectory);
+  // setup-node caches can be owned by another account or group writable.
+  // Pin a private copy; never relax the production executable ownership policy.
+  const nodeExecutable = join(directory, "node");
+  copyFileSync(realpathSync(process.execPath), nodeExecutable);
+  chmodSync(nodeExecutable, 0o500);
   copyFileSync(
     "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs",
     join(packageDirectory, "codex-guardian-worker.mjs"),
@@ -78,8 +84,8 @@ setInterval(()=>{},1000);`;
     packageDirectory,
     packageManifestSha256: hash(join(packageDirectory, "package-manifest.json")),
     workerName: "fixture-worker.mjs",
-    nodeExecutable: realpathSync(process.execPath),
-    nodeSha256: hash(realpathSync(process.execPath)),
+    nodeExecutable,
+    nodeSha256: hash(nodeExecutable),
     workerCwd: directory,
     stateDirectory: join(directory, "outer"),
     bindingDigest: "a".repeat(64),
