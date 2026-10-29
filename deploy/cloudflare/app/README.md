@@ -50,8 +50,9 @@ cookie/CSP behavior still requires full integration and browser validation befor
 `packages/db/scripts/generate-cloudflare.mjs` derives a `workerd` JavaScript-engine generator from
 the canonical schema without modifying schema/migration ownership. It generates the full Hive
 client at ignored `packages/db/src/generated/prisma-workerd`. Node's client and singleton remain.
-The `workerd` package export and Cloudflare-only Next resolver alias choose a request-only entry
-whose runtime Prisma exports come from that generator, avoiding eager native-engine path setup.
+The `workerd` package export chooses a request-only entry whose runtime Prisma exports come from
+that generator, avoiding eager native-engine path setup. Cloudflare-only `serverExternalPackages`
+keeps this package out of Next's Node bundling so Wrangler resolves its runtime and WASM imports.
 
 The custom Worker creates a lazy request-local `PrismaNeon` WebSocket client. `getDb()` first
 consults AsyncLocalStorage, shared by a global symbol across separately bundled modules. Clients
