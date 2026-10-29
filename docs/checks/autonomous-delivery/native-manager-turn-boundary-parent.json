@@ -1,0 +1,588 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T21:28:19.010Z",
+  "baseRevision": "b19e3765448eb50231777aa095418c71d4daeff0",
+  "sourceDigests": {
+    "scripts/probe-codex-manager-turn-boundary.mjs": "6e4eb26af869d9ea4514cbaead64e5c0411d49b39cea89988af98e0aa90a6007",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "db1615976ee85ebd839d441523e92dfcfdfc25a241a97273154c6ecb23ff2dcb",
+    "templates/ai-dev-k8s/scripts/codex-process-identity.mjs": "c93b5845f0d4b9eb0c98177ed0746f86a521332f0568403082d6aed5fd6da24c",
+    "docs/checks/autonomous-delivery/manager-progression-design.md": "3edbcdc171c9b412ec853d27648f0ff6f3583f14a458ac25f839342e5d6affe5"
+  },
+  "testedSourcesCommitted": false,
+  "runtimeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "modelProvider": "local_mock_responses_only",
+  "accountCredentials": false,
+  "accountInference": false,
+  "cloudMutations": false,
+  "canonicalHostChanges": false,
+  "executionFlagsEnabled": false,
+  "checks": {
+    "actualConcurrentDynamicHandlers": true,
+    "rootCanFinishBeforeChild": true,
+    "terminalRootHistoryDoesNotDrainObserver": true,
+    "boundaryHoldsForChildAndObserver": true,
+    "completedRootHistoryCanGainDelayedChildFact": true,
+    "requestedAndPersistedSpawnIdentitiesMatch": true,
+    "notificationFenceStableAfterChildAndObserverDrain": true,
+    "noUnknownLoadedThreadsAtBoundary": true,
+    "fullBoundedHistoryResolvesSpawnAndTools": true,
+    "fullViewAndAllItemCursorsExhaustedWithoutTruncationSignal": true,
+    "childTerminalHistoryAvailable": true,
+    "exactlyOneContinuationSameRootAndNativeLifetime": true,
+    "turnPaginationExhausted": true,
+    "nativeConcurrentStartCharacterized": true
+  },
+  "history": {
+    "beforeChildCompletion": {
+      "root": [
+        {
+          "id": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+          "status": "completed",
+          "rootTurnId": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+          "itemsView": "full",
+          "keys": [
+            "id",
+            "rootTurnId",
+            "items",
+            "itemsView",
+            "status",
+            "error",
+            "startedAt",
+            "completedAt",
+            "durationMs"
+          ],
+          "items": [
+            {
+              "id": "01a18990-5218-73d3-bfeb-4aab0bdf9604",
+              "type": "userMessage",
+              "keys": ["type", "id", "clientId", "content"]
+            },
+            {
+              "id": "spawn_boundary_child",
+              "type": "subAgentActivity",
+              "keys": [
+                "type",
+                "model",
+                "reasoningEffort",
+                "id",
+                "kind",
+                "agentThreadId",
+                "agentPath"
+              ],
+              "agentThreadId": "01a18990-5230-7cb1-bd9d-fb9343b6e444",
+              "kind": "started",
+              "model": "gpt-6.1-sol",
+              "reasoningEffort": "low"
+            },
+            {
+              "id": "probe_tool_one",
+              "type": "dynamicToolCall",
+              "keys": [
+                "type",
+                "id",
+                "namespace",
+                "tool",
+                "arguments",
+                "status",
+                "contentItems",
+                "success",
+                "durationMs"
+              ]
+            },
+            {
+              "id": "probe_tool_two",
+              "type": "dynamicToolCall",
+              "keys": [
+                "type",
+                "id",
+                "namespace",
+                "tool",
+                "arguments",
+                "status",
+                "contentItems",
+                "success",
+                "durationMs"
+              ]
+            },
+            {
+              "id": "root_final",
+              "type": "agentMessage",
+              "keys": ["type", "id", "text", "phase", "memoryCitation", "delivery", "questions"]
+            }
+          ]
+        }
+      ],
+      "child": [
+        {
+          "id": "01a18990-5232-7ce1-9801-09a8e78d33e4",
+          "status": "inProgress",
+          "rootTurnId": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+          "itemsView": "full",
+          "keys": [
+            "id",
+            "rootTurnId",
+            "items",
+            "itemsView",
+            "status",
+            "error",
+            "startedAt",
+            "completedAt",
+            "durationMs"
+          ],
+          "items": []
+        }
+      ],
+      "pendingObservers": 1
+    },
+    "reconciled": {
+      "root": [
+        {
+          "id": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+          "status": "completed",
+          "rootTurnId": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+          "itemsView": "full",
+          "keys": [
+            "id",
+            "rootTurnId",
+            "items",
+            "itemsView",
+            "status",
+            "error",
+            "startedAt",
+            "completedAt",
+            "durationMs"
+          ],
+          "items": [
+            {
+              "id": "01a18990-5218-73d3-bfeb-4aab0bdf9604",
+              "type": "userMessage",
+              "keys": ["type", "id", "clientId", "content"]
+            },
+            {
+              "id": "spawn_boundary_child",
+              "type": "subAgentActivity",
+              "keys": [
+                "type",
+                "model",
+                "reasoningEffort",
+                "id",
+                "kind",
+                "agentThreadId",
+                "agentPath"
+              ],
+              "agentThreadId": "01a18990-5230-7cb1-bd9d-fb9343b6e444",
+              "kind": "started",
+              "model": "gpt-6.1-sol",
+              "reasoningEffort": "low"
+            },
+            {
+              "id": "probe_tool_one",
+              "type": "dynamicToolCall",
+              "keys": [
+                "type",
+                "id",
+                "namespace",
+                "tool",
+                "arguments",
+                "status",
+                "contentItems",
+                "success",
+                "durationMs"
+              ]
+            },
+            {
+              "id": "probe_tool_two",
+              "type": "dynamicToolCall",
+              "keys": [
+                "type",
+                "id",
+                "namespace",
+                "tool",
+                "arguments",
+                "status",
+                "contentItems",
+                "success",
+                "durationMs"
+              ]
+            },
+            {
+              "id": "root_final",
+              "type": "agentMessage",
+              "keys": ["type", "id", "text", "phase", "memoryCitation", "delivery", "questions"]
+            },
+            {
+              "id": "subagent-completed-01a18990-5232-7ce1-9801-09a8e78d33e4",
+              "type": "subAgentActivity",
+              "keys": [
+                "type",
+                "model",
+                "reasoningEffort",
+                "id",
+                "kind",
+                "agentThreadId",
+                "agentPath"
+              ],
+              "agentThreadId": "01a18990-5230-7cb1-bd9d-fb9343b6e444",
+              "kind": "completed"
+            }
+          ]
+        }
+      ],
+      "child": [
+        {
+          "id": "01a18990-5232-7ce1-9801-09a8e78d33e4",
+          "status": "completed",
+          "rootTurnId": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+          "itemsView": "full",
+          "keys": [
+            "id",
+            "rootTurnId",
+            "items",
+            "itemsView",
+            "status",
+            "error",
+            "startedAt",
+            "completedAt",
+            "durationMs"
+          ],
+          "items": [
+            {
+              "id": "child_final",
+              "type": "agentMessage",
+              "keys": ["type", "id", "text", "phase", "memoryCitation", "delivery", "questions"]
+            }
+          ]
+        }
+      ],
+      "rootItemPages": 6,
+      "childItemPages": 1,
+      "rootItemTypes": [
+        "userMessage",
+        "subAgentActivity",
+        "dynamicToolCall",
+        "dynamicToolCall",
+        "agentMessage",
+        "subAgentActivity"
+      ],
+      "childItemTypes": ["agentMessage"],
+      "notificationSequenceBefore": 63,
+      "notificationSequenceAfter": 63,
+      "reconciliationReads": 1,
+      "loadedThreadIds": [
+        "01a18990-51ec-7483-811f-a7f1d8224e68",
+        "01a18990-5230-7cb1-bd9d-fb9343b6e444"
+      ],
+      "pendingObservers": 0,
+      "pendingHandlers": 0
+    },
+    "afterContinuation": {
+      "turnPages": 2,
+      "turns": [
+        {
+          "id": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+          "status": "completed",
+          "rootTurnId": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+          "itemsView": "full",
+          "keys": [
+            "id",
+            "rootTurnId",
+            "items",
+            "itemsView",
+            "status",
+            "error",
+            "startedAt",
+            "completedAt",
+            "durationMs"
+          ],
+          "items": [
+            {
+              "id": "01a18990-5218-73d3-bfeb-4aab0bdf9604",
+              "type": "userMessage",
+              "keys": ["type", "id", "clientId", "content"]
+            },
+            {
+              "id": "spawn_boundary_child",
+              "type": "subAgentActivity",
+              "keys": [
+                "type",
+                "model",
+                "reasoningEffort",
+                "id",
+                "kind",
+                "agentThreadId",
+                "agentPath"
+              ],
+              "agentThreadId": "01a18990-5230-7cb1-bd9d-fb9343b6e444",
+              "kind": "started",
+              "model": "gpt-6.1-sol",
+              "reasoningEffort": "low"
+            },
+            {
+              "id": "probe_tool_one",
+              "type": "dynamicToolCall",
+              "keys": [
+                "type",
+                "id",
+                "namespace",
+                "tool",
+                "arguments",
+                "status",
+                "contentItems",
+                "success",
+                "durationMs"
+              ]
+            },
+            {
+              "id": "probe_tool_two",
+              "type": "dynamicToolCall",
+              "keys": [
+                "type",
+                "id",
+                "namespace",
+                "tool",
+                "arguments",
+                "status",
+                "contentItems",
+                "success",
+                "durationMs"
+              ]
+            },
+            {
+              "id": "root_final",
+              "type": "agentMessage",
+              "keys": ["type", "id", "text", "phase", "memoryCitation", "delivery", "questions"]
+            },
+            {
+              "id": "subagent-completed-01a18990-5232-7ce1-9801-09a8e78d33e4",
+              "type": "subAgentActivity",
+              "keys": [
+                "type",
+                "model",
+                "reasoningEffort",
+                "id",
+                "kind",
+                "agentThreadId",
+                "agentPath"
+              ],
+              "agentThreadId": "01a18990-5230-7cb1-bd9d-fb9343b6e444",
+              "kind": "completed"
+            }
+          ]
+        },
+        {
+          "id": "01a18990-52c2-73c1-97b5-b2241777f668",
+          "status": "completed",
+          "rootTurnId": "01a18990-52c2-73c1-97b5-b2241777f668",
+          "itemsView": "full",
+          "keys": [
+            "id",
+            "rootTurnId",
+            "items",
+            "itemsView",
+            "status",
+            "error",
+            "startedAt",
+            "completedAt",
+            "durationMs"
+          ],
+          "items": [
+            {
+              "id": "01a18990-52c8-7042-b22f-5520596f88e6",
+              "type": "userMessage",
+              "keys": ["type", "id", "clientId", "content"]
+            },
+            {
+              "id": "next_final",
+              "type": "agentMessage",
+              "keys": ["type", "id", "text", "phase", "memoryCitation", "delivery", "questions"]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Synthetic provider and read-only dynamic tool handlers only; no controller transaction, signed boundary receipt, supervisor admission journal, CLI/browser attachment or account model inference tested.",
+    "Router handler/observer counters are local fixture accounting, not a native admission watermark. Native can execute unadmitted work; no JavaScript mutex is claimed to prevent spawning.",
+    "Only the small captured histories are reconciled; hard page/byte/frame limits must fail closed for larger or truncated histories. Terminal turns do not prove OS-process/background/external-operation quiescence.",
+    "Full itemsView plus exhausted cursors proves the fixture's native UI item set, not unlimited raw Responses history, untruncated shell output or a global collaboration admission freeze. Persist requested spawn settings from the original raw event; history retains resolved child/model/effort identities but not the entire spawn argument object."
+  ],
+  "passed": true,
+  "officialProtocolReference": "https://learn.chatgpt.com/docs/app-server",
+  "bounds": {
+    "nativeRuntimeMilliseconds": 90000,
+    "rpcMilliseconds": 8000,
+    "providerRequests": 24,
+    "providerBodyBytes": 4194304,
+    "frames": 4096,
+    "totalFrameBytes": 33554432,
+    "historyPages": 32,
+    "historyItems": 512
+  },
+  "nativeVersion": "0.165.0",
+  "processBefore": {
+    "pid": 436720,
+    "startTime": "970919542",
+    "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+    "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+    "device": "2128",
+    "inode": "4196065"
+  },
+  "rootThreadId": "01a18990-51ec-7483-811f-a7f1d8224e68",
+  "rootTurnId": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+  "router": {
+    "activeHandlersBeforeRelease": 2,
+    "peakHandlers": 2,
+    "canonicalRouterReturnsSynchronously": true,
+    "observersAreDetached": true,
+    "nativeGlobalWatermarkClaimed": false
+  },
+  "childThreadId": "01a18990-5230-7cb1-bd9d-fb9343b6e444",
+  "boundaryOrder": {
+    "priorCompletedReceiveSequence": 56,
+    "nextStartSentAfterReceiveSequence": 80,
+    "nextStartedReceiveSequence": 83,
+    "nextStartResponseReceiveSequence": 81,
+    "responseAndStartedFrameTurnIdMatch": true
+  },
+  "nextRootTurnId": "01a18990-52c2-73c1-97b5-b2241777f668",
+  "processAfter": {
+    "pid": 436720,
+    "startTime": "970919542",
+    "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+    "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+    "device": "2128",
+    "inode": "4196065"
+  },
+  "concurrencyControl": {
+    "separateThreadId": "01a18990-52f1-78c1-a367-fd451df824e6",
+    "initialTurnId": "01a18990-52f5-7ab3-958d-b33b9aa037db",
+    "results": [
+      {
+        "accepted": true,
+        "turnId": "01a18990-52f5-7ab3-958d-b33b9aa037db",
+        "status": "inProgress"
+      },
+      {
+        "accepted": true,
+        "turnId": "01a18990-52f5-7ab3-958d-b33b9aa037db",
+        "status": "inProgress"
+      }
+    ],
+    "notRunOnManagerRoot": true,
+    "history": [
+      {
+        "id": "01a18990-52f5-7ab3-958d-b33b9aa037db",
+        "status": "completed",
+        "rootTurnId": "01a18990-52f5-7ab3-958d-b33b9aa037db",
+        "itemsView": "full",
+        "keys": [
+          "id",
+          "rootTurnId",
+          "items",
+          "itemsView",
+          "status",
+          "error",
+          "startedAt",
+          "completedAt",
+          "durationMs"
+        ],
+        "items": [
+          {
+            "id": "01a18990-52ff-7221-9267-c9ec7121cdfb",
+            "type": "userMessage",
+            "keys": ["type", "id", "clientId", "content"]
+          },
+          {
+            "id": "01a18990-5324-7cb3-bdf1-776e8b66c547",
+            "type": "userMessage",
+            "keys": ["type", "id", "clientId", "content"]
+          },
+          {
+            "id": "01a18990-5326-78b3-96f9-6a9146f90348",
+            "type": "userMessage",
+            "keys": ["type", "id", "clientId", "content"]
+          },
+          {
+            "id": "fixture_response_7_final",
+            "type": "agentMessage",
+            "keys": ["type", "id", "text", "phase", "memoryCitation", "delivery", "questions"]
+          }
+        ]
+      }
+    ],
+    "inputOrder": ["HIVE_CONCURRENT_A", "HIVE_CONCURRENT_B", "HIVE_CONCURRENT_C"],
+    "nativeRejectedCompetingStarts": false,
+    "acceptedAsExistingTurnInput": true,
+    "exclusiveSupervisorAdmissionRequired": true
+  },
+  "nativeProcessExitedDuringCleanup": true,
+  "providerRequests": [
+    {
+      "kind": "root"
+    },
+    {
+      "kind": "root"
+    },
+    {
+      "kind": "child"
+    },
+    {
+      "kind": "root"
+    },
+    {
+      "kind": "continuation"
+    },
+    {
+      "kind": "concurrency_control"
+    },
+    {
+      "kind": "concurrency_control"
+    }
+  ],
+  "turnStartCalls": [
+    {
+      "requestId": 3,
+      "threadId": "01a18990-51ec-7483-811f-a7f1d8224e68",
+      "sentAfterReceiveSequence": 5,
+      "responseReceiveSequence": 6,
+      "returnedTurnId": "01a18990-51f6-73d3-974f-b2930c4a2e16",
+      "rpcCode": null
+    },
+    {
+      "requestId": 18,
+      "threadId": "01a18990-51ec-7483-811f-a7f1d8224e68",
+      "sentAfterReceiveSequence": 80,
+      "responseReceiveSequence": 81,
+      "returnedTurnId": "01a18990-52c2-73c1-97b5-b2241777f668",
+      "rpcCode": null
+    },
+    {
+      "requestId": 22,
+      "threadId": "01a18990-52f1-78c1-a367-fd451df824e6",
+      "sentAfterReceiveSequence": 100,
+      "responseReceiveSequence": 101,
+      "returnedTurnId": "01a18990-52f5-7ab3-958d-b33b9aa037db",
+      "rpcCode": null
+    },
+    {
+      "requestId": 23,
+      "threadId": "01a18990-52f1-78c1-a367-fd451df824e6",
+      "sentAfterReceiveSequence": 105,
+      "responseReceiveSequence": 106,
+      "returnedTurnId": "01a18990-52f5-7ab3-958d-b33b9aa037db",
+      "rpcCode": null
+    },
+    {
+      "requestId": 24,
+      "threadId": "01a18990-52f1-78c1-a367-fd451df824e6",
+      "sentAfterReceiveSequence": 105,
+      "responseReceiveSequence": 107,
+      "returnedTurnId": "01a18990-52f5-7ab3-958d-b33b9aa037db",
+      "rpcCode": null
+    }
+  ],
+  "framesReceived": 123,
+  "frameBytes": 165911,
+  "stderrCapturedPrivatelyOnly": true
+}
