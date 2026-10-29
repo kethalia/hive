@@ -1,0 +1,59 @@
+{
+  "freshMigrations": "passed",
+  "upgradeMigrations": "passed",
+  "historicalMigrationRowsUnchanged": true,
+  "legacyUserSessionTokenBytesRetained": true,
+  "oldMigrationCount": 7,
+  "newMigrationCount": 3,
+  "schemaDrift": "none",
+  "domainTests": 12,
+  "databaseTests": 18,
+  "externalEffects": "none",
+  "evidenceProducer": "synthetic fixture adapter",
+  "productionVerified": false,
+  "restartReplay": "passed",
+  "sameReportAfterRestart": true,
+  "completionOutboxRowsAfterRestart": 1,
+  "harnessAdjustments": [
+    "Explicit fixture port/socket on restart",
+    "CommonJS source interop in independent tsx process"
+  ],
+  "observedAt": "2026-10-29T16:40:18.438822+00:00",
+  "gitHeadAtValidation": "c607525b8dd849a5a824f63eb3cd9bca41f1fc08",
+  "runtime": {
+    "node": "v24.21.0",
+    "postgres": "postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)"
+  },
+  "sourceSha256": {
+    "packages/db/prisma/schema.prisma": "6bb33f2550c67d9539ce3e3686b3a6a7ab76d9d574ce1de6ff0f1829623720b3",
+    "src/lib/delivery/contracts.ts": "08ad83c16174bbd4983dea4caa464c43e1fdde25bef234dc52ce30a7dcf3f6cb",
+    "src/lib/delivery/state.ts": "4a12fdd040a6056313c37c1bf884196b4f6418d4d9ac171001951331b1107ebf",
+    "src/lib/delivery/repository.ts": "a15ca417a2885087266ef7c9c922a93c81768a36a17d7ff81fc5f6b1fbcc7ae2",
+    "src/lib/delivery/reads.ts": "1d17900b8903c954b1ede26117fc28ed87bef558ae1504ee57c03855096a5483",
+    "src/lib/delivery/read-contracts.ts": "0dc622293463a47b1d63f09307aad7af484dc771b181eaeb99d72f6006a695d1",
+    "src/__tests__/lib/delivery/state.test.ts": "eec2191f9544270010cca22ae2ef90648fc4f5684f157b5fa5ebf9ec919a69db",
+    "src/__tests__/lib/delivery/repository.integration.test.ts": "4f535e9bfb7114165fa3b1c18de78d27093285cdc0feac075ab09dda71c8268a",
+    "packages/db/prisma/migrations/20261029000000_add_delivery_foundation/migration.sql": "5afb3dcb698bdae86a0ed905b35bea9255681f9f85f89e893165e549d830dc04",
+    "packages/db/prisma/migrations/20261029010000_delivery_audit_integrity/migration.sql": "3f7bd5aa766c76446d4ba03f13950869aa9834afa6a71ca1d3e4cfb91be10f12",
+    "packages/db/prisma/migrations/20261029020000_delivery_report_event_binding/migration.sql": "b3f460809b36fd2f465d86c2510fd771d5b82830195fd5f569d0af5de2703ddb"
+  },
+  "localClusterPath": "/tmp/hive-delivery-pg-5gcusk89",
+  "clusterStopped": true,
+  "provenance": "Created by this primary task with installed PostgreSQL binaries; no Docker, system install, live Neon or production data.",
+  "commands": [
+    "prisma migrate deploy on empty isolated local fixture",
+    "prisma migrate deploy prior 7 migrations, seed synthetic users/sessions/token bytes, deploy 3 additive migrations",
+    "HIVE_DELIVERY_TEST_DATABASE_URL=<guarded-local-fixture> pnpm exec vitest run src/__tests__/lib/delivery/state.test.ts src/__tests__/lib/delivery/repository.integration.test.ts",
+    "prisma migrate diff --from-url <guarded-local-fixture> --to-schema-datamodel prisma/schema.prisma --exit-code",
+    "pg_ctl stop/start explicit fixture port/socket; independent tsx process replays accepted completion"
+  ],
+  "remainingGates": [
+    "Failure/block/reopen transitions and explicit expired lease reconciliation",
+    "Source change transition and transactional evidence invalidation",
+    "Runtime binding verification and scoped authenticated manager/result ingestion",
+    "Real external evidence adapters and R2 object preservation",
+    "Notification outbox consumer/retry/recovery",
+    "Cloudflare interactive transaction compatibility and real preview/browser validation",
+    "Production activation and production pilots remain pending"
+  ]
+}
