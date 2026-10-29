@@ -221,10 +221,21 @@ export class ProjectSupervisor {
     Object.assign(this, { config, home, stateDirectory, state, save, lock });
     this.closed = false;
     this.busy = false;
+    this.revocationListeners = new Set();
+  }
+  onRevoked(listener) {
+    this.revocationListeners.add(listener);
+    if (this.state.status === "revoked") listener();
+    return () => this.revocationListeners.delete(listener);
   }
   revoke() {
     if (this.state.status === "revoked") return;
     this.state.status = "revoked";
+    for (const listener of this.revocationListeners) {
+      try {
+        listener();
+      } catch {}
+    }
     for (const entry of Object.values(this.state.projects)) entry.attached = false;
     this.save();
   }
@@ -659,6 +670,22 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
     return {
       version: VERSION,
       call,
+      createReadSocket: () => {
+        check(
+          !closing &&
+            child.exitCode === null &&
+            child.signalCode === null &&
+            ws.readyState === WebSocket.OPEN,
+          "native_unavailable",
+        );
+        return new WebSocket(endpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+          handshakeTimeout: 5000,
+          maxPayload: 1024 * 1024,
+          followRedirects: false,
+          perMessageDeflate: false,
+        });
+      },
       alive: () =>
         !closing &&
         child.exitCode === null &&

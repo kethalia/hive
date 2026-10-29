@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { once } from "node:events";
 import {
   existsSync,
@@ -16,6 +16,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { WebSocket } from "ws";
+import { startProjectGateway } from "../templates/ai-dev-k8s/scripts/codex-project-gateway.mjs";
 import {
   launchNative,
   openSupervisor,
@@ -586,6 +588,110 @@ test("actual native first text persists through local mock provider then same-th
   assert.deepEqual((await native.call("thread/loaded/list", {})).data, [created.threadId]);
   await s.command(prompt);
   assert.equal(requests.length, 1);
+  const gatewayKeys = generateKeyPairSync("ed25519");
+  const gatewayState = join(f.home, "gateway");
+  mkdirSync(gatewayState, { mode: 0o700 });
+  const gatewayConfig = {
+    schemaVersion: 1,
+    protocolVersion: "0.165.0",
+    hiveOrigin: "https://hive.example.com",
+    appOrigin: "https://session.coder.example.com",
+    publicKeyPem: gatewayKeys.publicKey.export({ type: "spki", format: "pem" }),
+    keyId: "fixture-key",
+    stateDirectory: gatewayState,
+    port: 0,
+  };
+  async function readViaGateway(host) {
+    const gateway = await startProjectGateway(gatewayConfig, host);
+    const ws = new WebSocket(`ws://127.0.0.1:${gateway.port}/session`, {
+      headers: { Origin: gatewayConfig.hiveOrigin, Host: new URL(gatewayConfig.appOrigin).host },
+    });
+    const messages = [];
+    ws.on("message", (data) => messages.push(JSON.parse(data)));
+    ws.on("error", () => {});
+    const until = async (fn) => {
+      for (let n = 0; n < 100; n++) {
+        const value = fn();
+        if (value) return value;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      throw new Error("native_gateway_timeout");
+    };
+    try {
+      await until(() => ws.readyState === WebSocket.OPEN);
+      const binding = host.binding("project");
+      const now = Math.floor(Date.now() / 1000);
+      const header = Buffer.from(
+        JSON.stringify({ alg: "EdDSA", typ: "JWT", kid: gatewayConfig.keyId }),
+      ).toString("base64url");
+      const body = Buffer.from(
+        JSON.stringify({
+          iss: gatewayConfig.hiveOrigin,
+          aud: gatewayConfig.appOrigin,
+          origin: gatewayConfig.hiveOrigin,
+          scope: "session:read",
+          sub: binding.ownerId,
+          workspaceId: binding.workspaceId,
+          buildId: binding.buildId,
+          serverInstanceId: binding.serverInstanceId,
+          threadId: binding.threadId,
+          iat: now,
+          exp: now + 60,
+          jti: randomUUID(),
+        }),
+      ).toString("base64url");
+      ws.send(
+        JSON.stringify({
+          type: "authenticate",
+          ticket: `${header}.${body}.${sign(null, Buffer.from(`${header}.${body}`), gatewayKeys.privateKey).toString("base64url")}`,
+        }),
+      );
+      const ack = await until(() => messages.find((m) => m.type === "authenticated"));
+      assert.deepEqual(ack.binding, binding);
+      ws.send(
+        JSON.stringify({
+          id: 1,
+          method: "initialize",
+          params: { clientInfo: { name: "native-fixture" } },
+        }),
+      );
+      await until(() => messages.find((m) => m.id === 1));
+      ws.send(JSON.stringify({ method: "initialized" }));
+      ws.send(
+        JSON.stringify({
+          id: 2,
+          method: "thread/resume",
+          params: { threadId: binding.threadId, excludeTurns: true },
+        }),
+      );
+      assert.equal(
+        (await until(() => messages.find((m) => m.id === 2))).result.thread.id,
+        created.threadId,
+      );
+      ws.send(
+        JSON.stringify({
+          id: 3,
+          method: "thread/turns/list",
+          params: {
+            threadId: binding.threadId,
+            limit: 10,
+            sortDirection: "asc",
+            itemsView: "full",
+          },
+        }),
+      );
+      assert.ok(
+        JSON.stringify(await until(() => messages.find((m) => m.id === 3))).includes(
+          "HIVE_LOCAL_PROVIDER_REPLY",
+        ),
+      );
+      assert.deepEqual((await native.call("thread/loaded/list", {})).data, [created.threadId]);
+    } finally {
+      ws.terminate();
+      await gateway.close();
+    }
+  }
+  await readViaGateway(s);
   await s.close();
   rmSync(f.checkout, { recursive: true });
   const restarted = await openSupervisor(c, {
@@ -601,6 +707,7 @@ test("actual native first text persists through local mock provider then same-th
   const rejoined = await restarted.command({ operation: "rejoin", projectId: "project" });
   assert.equal(rejoined.phase, "persisted");
   assert.equal(restarted.binding("project").threadId, created.threadId);
+  await readViaGateway(restarted);
   assert.equal(existsSync(f.checkout), false, "read rejoin must not recreate checkout");
   await assert.rejects(restarted.command({ operation: "attach", projectId: "project" }));
   assert.equal(requests.length, 1, "history rejoin must not invoke the provider again");

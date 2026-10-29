@@ -56,7 +56,7 @@ function privatePath(path, directory = false) {
   );
 }
 
-export function validateConfig(raw) {
+export function validateConfig(raw, registeredHost = false) {
   check(
     own(raw, [
       "schemaVersion",
@@ -76,21 +76,28 @@ export function validateConfig(raw) {
     "Unsupported Codex protocol version",
   );
   check(
-    own(raw.binding, BINDING_KEYS) && BINDING_KEYS.every((key) => identifier(raw.binding[key])),
+    own(raw.binding, registeredHost ? BINDING_KEYS.slice(0, -1) : BINDING_KEYS) &&
+      (registeredHost ? BINDING_KEYS.slice(0, -1) : BINDING_KEYS).every((key) =>
+        identifier(raw.binding[key]),
+      ),
     "Invalid independently configured host binding",
   );
-  const native = new URL(raw.nativeUrl);
-  check(
-    native.protocol === "ws:" &&
-      native.hostname === "127.0.0.1" &&
-      native.port &&
-      native.pathname === "/" &&
-      !native.username &&
-      !native.password &&
-      !native.search &&
-      !native.hash,
-    "Native endpoint must be a pinned loopback WebSocket",
-  );
+  if (registeredHost)
+    check(raw.nativeUrl === undefined, "Registered native endpoint is host-owned");
+  else {
+    const native = new URL(raw.nativeUrl);
+    check(
+      native.protocol === "ws:" &&
+        native.hostname === "127.0.0.1" &&
+        native.port &&
+        native.pathname === "/" &&
+        !native.username &&
+        !native.password &&
+        !native.search &&
+        !native.hash,
+      "Native endpoint must be a pinned loopback WebSocket",
+    );
+  }
   check(identifier(raw.keyId) && Number.isInteger(raw.port) && raw.port >= 0 && raw.port <= 65535);
   privatePath(raw.stateDirectory, true);
   check(
@@ -117,7 +124,7 @@ export function validateConfig(raw) {
   });
 }
 
-function createTicketVerifier(config) {
+function createTicketVerifier(config, authorizeBinding) {
   const digest = createHash("sha256")
     .update(JSON.stringify(BINDING_KEYS.map((key) => config.binding[key])))
     .digest("hex");
@@ -220,11 +227,19 @@ function createTicketVerifier(config) {
     );
     check(
       claims.sub === config.binding.ownerId &&
-        BINDING_KEYS.filter((key) => key !== "ownerId").every(
+        BINDING_KEYS.filter((key) => key !== "ownerId" && Object.hasOwn(config.binding, key)).every(
           (key) => claims[key] === config.binding[key],
         ),
       "Ticket host binding mismatch",
     );
+    check(identifier(claims.threadId), "Invalid ticket thread binding");
+    authorizeBinding?.({
+      ownerId: claims.sub,
+      workspaceId: claims.workspaceId,
+      buildId: claims.buildId,
+      serverInstanceId: claims.serverInstanceId,
+      threadId: claims.threadId,
+    });
     const now = Date.now() / 1000;
     check(
       Number.isSafeInteger(claims.iat) &&
@@ -311,13 +326,15 @@ function projectEvent(message, threadId) {
   return null;
 }
 
-function connectNative(config, emit, closed) {
-  const socket = new WebSocket(config.nativeUrl, {
-    maxPayload: MAX_FRAME,
-    handshakeTimeout: 5000,
-    followRedirects: false,
-    perMessageDeflate: false,
-  });
+function connectNative(config, emit, closed, createNativeSocket) {
+  const socket = createNativeSocket
+    ? createNativeSocket()
+    : new WebSocket(config.nativeUrl, {
+        maxPayload: MAX_FRAME,
+        handshakeTimeout: 5000,
+        followRedirects: false,
+        perMessageDeflate: false,
+      });
   const pending = new Map();
   let sequence = 0;
   socket.on("error", () => {
@@ -412,9 +429,15 @@ function validateRequest(message, threadId) {
   } else throw new Error("RPC method is not allowed");
 }
 
-export async function startBridge(rawConfig) {
-  const config = validateConfig(rawConfig);
-  const verifier = createTicketVerifier(config);
+export async function startBridge(rawConfig, registeredHost) {
+  if (registeredHost)
+    check(
+      typeof registeredHost.authorizeBinding === "function" &&
+        typeof registeredHost.createNativeSocket === "function" &&
+        typeof registeredHost.onRevoked === "function",
+    );
+  const config = validateConfig(rawConfig, Boolean(registeredHost));
+  const verifier = createTicketVerifier(config, registeredHost?.authorizeBinding);
   const server = createServer((request, response) => {
     response.setHeader("Cache-Control", "no-store");
     response.writeHead(request.method === "GET" && request.url === "/healthz" ? 200 : 404);
@@ -424,6 +447,9 @@ export async function startBridge(rawConfig) {
     noServer: true,
     maxPayload: MAX_FRAME,
     perMessageDeflate: false,
+  });
+  const unsubscribe = registeredHost?.onRevoked(() => {
+    for (const client of websocket.clients) client.close(1008, "Native lifetime revoked");
   });
   server.on("upgrade", (request, socket, head) => {
     if (
@@ -453,6 +479,8 @@ export async function startBridge(rawConfig) {
     const ids = new Set();
     let expiryTimer;
     let expiresAt = 0;
+    let connectionBinding;
+    const authorize = () => registeredHost?.authorizeBinding(connectionBinding);
     const authTimer = setTimeout(() => client.close(1008, "Authentication required"), 5000);
     const send = (message) => {
       if (client.readyState !== WebSocket.OPEN) return;
@@ -484,17 +512,32 @@ export async function startBridge(rawConfig) {
           );
           authenticating = true;
           const claims = verifier.accept(message.ticket);
+          connectionBinding = {
+            ownerId: claims.sub,
+            workspaceId: claims.workspaceId,
+            buildId: claims.buildId,
+            serverInstanceId: claims.serverInstanceId,
+            threadId: claims.threadId,
+          };
           expiresAt = claims.exp * 1000;
           expiryTimer = setTimeout(
             () => client.close(1008, "Capability expired"),
             Math.max(0, claims.exp * 1000 - Date.now()),
           );
           native = connectNative(
-            config,
+            { ...config, binding: connectionBinding },
             (event) => {
-              if (authenticated) send(event);
+              if (authenticated) {
+                try {
+                  authorize();
+                  send(event);
+                } catch {
+                  client.close(1008, "Native lifetime revoked");
+                }
+              }
             },
             () => client.close(1011, "Native session unavailable"),
+            registeredHost?.createNativeSocket,
           );
           nativeInfo = await native.call("initialize", {
             clientInfo: { name: "hive_session_bridge", version: "1" },
@@ -506,15 +549,18 @@ export async function startBridge(rawConfig) {
           );
           native.notify("initialized");
           check(client.readyState === WebSocket.OPEN);
+          authorize();
           authenticated = true;
           clearTimeout(authTimer);
-          send({ type: "authenticated", protocolVersion: VERSION, binding: config.binding });
+          send({ type: "authenticated", protocolVersion: VERSION, binding: connectionBinding });
           return;
         }
         check(Date.now() < expiresAt, "Capability expired");
+        authorize();
         if (own(message, ["type", "ticket"]) && message.type === "renew") {
           try {
             const claims = verifier.accept(message.ticket);
+            check(claims.threadId === connectionBinding.threadId, "Renewal cannot switch threads");
             check(claims.exp * 1000 > expiresAt, "Renewal must extend the active capability");
             expiresAt = claims.exp * 1000;
             clearTimeout(expiryTimer);
@@ -534,7 +580,7 @@ export async function startBridge(rawConfig) {
           acknowledged = true;
           return;
         }
-        validateRequest(message, config.binding.threadId);
+        validateRequest(message, connectionBinding.threadId);
         const requestKey = `${typeof message.id}:${message.id}`;
         check(
           !ids.has(requestKey) && ids.size < MAX_REQUESTS && inFlight < 8,
@@ -560,16 +606,18 @@ export async function startBridge(rawConfig) {
               check(!resumed, "Already subscribed");
               const loaded = await native.call("thread/loaded/list", { limit: 1000 });
               check(
-                Array.isArray(loaded?.data) && loaded.data.includes(config.binding.threadId),
+                Array.isArray(loaded?.data) && loaded.data.includes(connectionBinding.threadId),
                 "Native thread is not already loaded",
               );
               const result = await native.call("thread/resume", message.params);
-              check(result?.thread?.id === config.binding.threadId);
+              check(result?.thread?.id === connectionBinding.threadId);
+              authorize();
               resumed = true;
-              send({ id: message.id, result: { thread: { id: config.binding.threadId } } });
+              send({ id: message.id, result: { thread: { id: connectionBinding.threadId } } });
             } else {
               check(resumed, "Subscribe to the configured thread first");
               const result = await native.call("thread/turns/list", message.params);
+              authorize();
               check(
                 Array.isArray(result?.data) &&
                   result.data.length <= 100 &&
@@ -587,7 +635,7 @@ export async function startBridge(rawConfig) {
             error: {
               code: error.missing ? -32600 : -32000,
               message: error.missing
-                ? `no rollout found for thread id ${config.binding.threadId}`
+                ? `no rollout found for thread id ${connectionBinding.threadId}`
                 : "Native session request rejected",
             },
           });
@@ -605,12 +653,14 @@ export async function startBridge(rawConfig) {
       server.listen(config.port, "127.0.0.1", resolve);
     });
   } catch (error) {
+    unsubscribe?.();
     verifier.close();
     throw error;
   }
   return {
     port: server.address().port,
     close: async () => {
+      unsubscribe?.();
       for (const client of websocket.clients) client.terminate();
       await new Promise((resolve) => websocket.close(resolve));
       await new Promise((resolve) => server.close(resolve));

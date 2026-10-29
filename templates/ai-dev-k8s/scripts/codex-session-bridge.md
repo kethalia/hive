@@ -48,13 +48,24 @@ handoffs. Example placeholders, not deployment configuration:
 }
 ```
 
-This initial bridge serves exactly one configured thread per instance. It retains
+The standalone bridge configuration serves exactly one configured thread per instance. It retains
 the configuration externally rather than accepting an arbitrary native URL,
 rollout path, or conversation from web input. The supervisor must preserve the
 native Codex home outside removable checkouts, persist the project/thread/native
 server association, and rotate `serverInstanceId` when the native server changes.
 The native protocol does not return a cryptographic server-lifetime identity;
 that binding is a supervisor responsibility, not a guarantee provided by this file.
+
+The integrated `codex-project-gateway.mjs` entry point accepts a trusted running
+supervisor instead of a caller-supplied native URL. It derives the workspace/server
+binding independently, then authorizes each signed ticket's exact thread against
+the supervisor registry. This supports multiple project threads through one gateway
+port without exposing arbitrary thread selection. The private socket factory adds
+the native capability token; it never appears in ticket claims or browser data.
+Renewals cannot switch threads, and supervisor lifetime revocation closes clients
+with code 1008. Read history remains authorized independently of checkout existence.
+This entry point has no CLI/startup activation. Registration/persistence proposal and
+evidence: [gateway registration](../../../docs/checks/autonomous-delivery/gateway-registration.md).
 
 The runtime needs Linux, the installed util-linux `/usr/bin/flock`, Node, and `ws`
 **8.21.3**, currently resolved by this repository's
