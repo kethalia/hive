@@ -2,6 +2,7 @@ import { verifyCookie } from "@hive/auth";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getSessionCookieValuesFromHeader } from "./lib/auth/session-cookie";
+import { isHostCallbackTransport } from "./lib/codex-session/host-callback-transport";
 import {
   buildContentSecurityPolicy,
   buildPermissionsPolicy,
@@ -32,6 +33,9 @@ export function proxy(request: NextRequest) {
   }
 
   if (
+    // These exact native transports authenticate their issuer/host signatures
+    // in the route. Browser cookies cannot replace that separate authority.
+    isHostCallbackTransport(request, process.env.HIVE_CODEX_GATEWAY_ENABLED) ||
     // Discovery authenticates in its route and must return JSON 401, not login HTML.
     pathname.startsWith("/api/discovery/") ||
     pathname === "/api/notifications/events" ||

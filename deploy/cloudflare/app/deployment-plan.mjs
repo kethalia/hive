@@ -4,7 +4,8 @@ import { validatePreviewRedeployment } from "./redeployment-policy.mjs";
 export const ACCOUNT_ID = "225177f82b9234ede14e897fe15e0cb5";
 export const APP_NAME = "hive-app-compatibility-preview";
 export const AUTH_NAME = "hive-auth-compatibility-preview";
-export const MAX_REQUESTS = 30;
+export const DEFAULT_REQUESTS = 30;
+export const MAX_REQUESTS = 200;
 export const CPU_LIMIT_MS = 100;
 
 export function validatePreflight(preflight, now = Date.now(), previous) {
@@ -33,7 +34,8 @@ export function validatePreflight(preflight, now = Date.now(), previous) {
         preflight.targets.some((target) => target.name === name && target.exists === false),
         "Verify new Worker names are absent",
       );
-  assert.equal(preflight.approvedProbeRequestMaximum, MAX_REQUESTS);
+  const maximum = preflight.approvedProbeRequestMaximum;
+  assert.ok(Number.isInteger(maximum) && maximum > 0 && maximum <= MAX_REQUESTS);
   const requests = preflight.publishedIncludedAllowance.requestsPerMonth - preflight.usage.requests;
   const cpu =
     preflight.publishedIncludedAllowance.cpuMillisecondsPerMonth -
@@ -41,7 +43,7 @@ export function validatePreflight(preflight, now = Date.now(), previous) {
   // Adaptive metrics are not billing guarantees. Require ample observed room
   // for app + two auth calls per scripted request, with a tenfold reserve.
   assert.ok(
-    requests >= MAX_REQUESTS * 10 && cpu >= MAX_REQUESTS * CPU_LIMIT_MS * 3 * 10,
+    requests >= maximum * 10 && cpu >= maximum * CPU_LIMIT_MS * 3 * 10,
     "Insufficient observed included allowance; review costs before deployment",
   );
 }

@@ -16,6 +16,33 @@ afterEach(() => {
 });
 
 describe("proxy", () => {
+  it("passes only enabled exact native callback POSTs to their own signature handlers", () => {
+    const origin = "https://hive.local.kethalia.com";
+    const registration = "/api/codex-host/registrations";
+    const heartbeat = `${registration}/00000000-0000-4000-8000-000000000001/heartbeat`;
+    const request = (path: string, method = "POST", extra: Record<string, string> = {}) =>
+      new NextRequest(`${origin}${path}`, {
+        method,
+        headers: { "Content-Type": "application/json", ...extra },
+      });
+    vi.stubEnv("HIVE_CODEX_GATEWAY_ENABLED", "false");
+    expect(proxy(request(registration)).headers.get("location")).toBe(`${origin}/login`);
+    vi.stubEnv("HIVE_CODEX_GATEWAY_ENABLED", "true");
+    for (const path of [registration, heartbeat]) {
+      const response = proxy(request(path));
+      expect(response.headers.get("location")).toBeNull();
+      expect(response.headers.get("content-security-policy")).not.toBeNull();
+    }
+    for (const invalid of [
+      request(registration, "GET"),
+      request(`${registration}?invalid=1`),
+      request("/api/codex-host/%72egistrations"),
+      request("/api/projects", "POST"),
+      request(registration, "POST", { Origin: origin }),
+    ])
+      expect(proxy(invalid).headers.get("location")).toBe(`${origin}/login`);
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+  });
   it("keeps the marketing homepage public without exposing dashboard routes", () => {
     const homepageResponse = proxy(new NextRequest("https://hive.local.kethalia.com/"));
     const dashboardResponse = proxy(new NextRequest("https://hive.local.kethalia.com/workspaces"));

@@ -76,13 +76,11 @@ try {
           ),
         )
       : undefined;
-  validatePreflight(
-    JSON.parse(
-      await readFile("docs/checks/autonomous-delivery/cloudflare-app-preflight.json", "utf8"),
-    ),
-    Date.now(),
-    previous,
+  const preflight = JSON.parse(
+    await readFile("docs/checks/autonomous-delivery/cloudflare-app-preflight.json", "utf8"),
   );
+  validatePreflight(preflight, Date.now(), previous);
+  assert.ok(record.maxScriptedRequests <= preflight.approvedProbeRequestMaximum);
   if (process.argv.includes("--check-only")) {
     console.log(
       JSON.stringify({

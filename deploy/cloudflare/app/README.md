@@ -126,8 +126,9 @@ across artifacts. Missing or mismatched identity fails closed; this command does
 App and auth share the encryption key required by their existing encrypted Coder-token
 architecture and the internal service secret. The manifest records identity ID/scope digest only.
 Owner database URLs and Coder passwords/tokens are never
-bound. A private manifest ties source, tested artifact, account, configs and a maximum of 30
-scripted requests together. It rejects routes, cron, public URLs and additional product bindings;
+bound. A private manifest ties source, tested artifact, account, configs and the explicitly
+approved request budget together (30 by default, at most 200 for a separately reviewed browser
+plan). It rejects routes, cron, public URLs and additional product bindings;
 both Workers cap request CPU at 100 ms, with stored observability logs disabled.
 
 Wrangler 4.155.0 is already authenticated to the reviewed account with Worker write scopes.
