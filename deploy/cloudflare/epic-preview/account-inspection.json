@@ -19,11 +19,11 @@
       "observedAt": "2026-10-29T15:58:24Z",
       "publishedIncludedRequestsPerMonth": 10000000,
       "publishedIncludedCpuMillisecondsPerMonth": 30000000,
-      "remainingHeadroom": "unverified",
+      "remainingHeadroom": "substantial apparent headroom in subsequent adaptive overview query; see cloudflare-usage.json",
       "billingUsageStatus": 403,
       "billingUsageReason": "OAuth cannot cover Billing Read",
-      "analyticsGraphqlStatus": "rate-limited",
-      "analyticsGraphqlReason": "Rate limiter budget depleted; retry after five minutes",
+      "analyticsGraphqlStatus": "subsequently-succeeded",
+      "analyticsGraphqlReason": "Initial request was rate-limited; account-wide overview query succeeded after cooldown",
       "workersAccountDefaultUsageModel": "standard",
       "additionalCostsAuthorized": false
     },
@@ -44,7 +44,14 @@
     "endpointState": "idle",
     "mcpCreateBranchCopiesParentData": true,
     "mcpCreateBranchSchemaOnlyOption": false,
-    "selectedPreviewProject": null,
+    "selectedPreviewProject": {
+      "id": "purple-math-59583745",
+      "name": "hive-epic-preview",
+      "branchId": "br-ancient-violet-b7pcun87",
+      "endpointId": "ep-jolly-sky-b7fhirib",
+      "provenance": "Primary agent created a clean separate Free test project; no production data copied",
+      "creationEvidence": "../../../docs/checks/autonomous-delivery/neon-preview.json"
+    },
     "resourceMutations": 0
   },
   "deploymentStatus": "not-deployed"

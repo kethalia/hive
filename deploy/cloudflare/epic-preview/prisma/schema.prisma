@@ -1,0 +1,26 @@
+// A fixture client for the existing isolated test table. This does not replace
+// packages/db or establish compatibility of the full Hive application schema.
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  runtime      = "workerd"
+  moduleFormat = "esm"
+  engineType   = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["hive_epic_preview"]
+}
+
+model Probe {
+  runId     String   @map("run_id") @db.Uuid
+  phase     String
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([runId, phase])
+  @@map("probes")
+  @@schema("hive_epic_preview")
+}

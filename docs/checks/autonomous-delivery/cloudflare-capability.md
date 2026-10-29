@@ -150,7 +150,7 @@ resolve the driver/network uncertainty they target.
 The subsequent isolated implementation is in
 [deploy/cloudflare/epic-preview](../../../deploy/cloudflare/epic-preview/README.md).
 Its [local evidence](../../../deploy/cloudflare/epic-preview/local-evidence.json) distinguishes
-11 passing focused tests and local workerd/dry-run results from unperformed live integration.
+the initial 11 passing focused tests and local workerd/dry-run results from unperformed live integration.
 It implements a dedicated bearer gate, fixed read-only Coder identity request, and Neon HTTP
 batch commit/replay/rollback checks against a preview-only schema. This deliberately does not
 claim the Prisma, interactive transaction, framework, Hive authentication or terminal gates.
@@ -168,3 +168,19 @@ milliseconds/month, but remaining headroom is unverified: billing usage is also 
 OAuth, and the initial analytics GraphQL request was rate-limited. Deployment remains pending
 usage verification; no plan upgrade or paid add-on is authorized. No resource has been created
 or deployed by this probe.
+
+Subsequent [Cloudflare usage inspection](../../../deploy/cloudflare/epic-preview/cloudflare-usage.json)
+succeeded after cooldown and showed substantial apparent included-allowance headroom. The primary
+accepted that evidence for a maximum of 20 scripted requests on a new preview Worker, with no
+paid products or plan changes. Adaptive usage is not invoice proof or a future quota reservation.
+The primary created a clean separate Neon Free project, avoiding any production-data branch copy.
+
+The [Prisma fixture proof](../../../deploy/cloudflare/epic-preview/prisma-workerd-evidence.json)
+now records real **local workerd → Neon** interactive transactions using Prisma/client/adapter
+6.19.3 and a `workerd` JavaScript-engine generator. It observed commit, duplicate replay and
+rollback following an awaited callback throw, plus UUID/JSON/timestamptz round trips with the
+restricted SELECT/INSERT role. Exact file digests bind the initial uncommitted source; the SHA
+is explicitly labeled a base revision. The rerun helper requires committed source by default.
+This closes a narrow transport uncertainty, not the complete F02/framework/auth/schema gate.
+Cloudflare network execution remains pending until the primary commits and authorizes that
+exact artifact for deployment.
