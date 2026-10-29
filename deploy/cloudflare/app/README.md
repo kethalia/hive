@@ -13,9 +13,12 @@ pnpm preview:cloudflare --port 8792
 ```
 
 This preview is private by default. A missing/invalid runtime `PREVIEW_BEARER` returns 503;
-requests require its separate `Authorization: Bearer …` header and otherwise receive 401 before
-OpenNext or database access. Query parameters never authorize preview access. The credential is
-stripped before framework/upstream handling. `assets.run_worker_first` covers static assets, and
+requests require its separate `Authorization: Bearer …` header or the signed private-preview
+cookie and otherwise receive 401 before OpenNext or database access. The only cookie bootstrap is
+an empty bearer-authenticated POST to `/__hive-preview/access` with the exact configured Origin.
+It issues a Secure/HttpOnly/SameSite=Strict `__Host-` cookie, HMAC-bound to that origin for at most
+15 minutes, with no Domain. A cookie cannot renew itself. Query parameters never authorize preview
+access. Both preview credentials are stripped before framework/upstream handling. `assets.run_worker_first` covers static assets, and
 authorized responses use private/no-store caching. An unconfigured manual local server therefore
 remains closed. The bounded `auth/run-local-integration.mjs --app` helper privately generates and
 supplies the header for synthetic app tests; it never places credentials in URLs or logs.
@@ -102,7 +105,8 @@ After committing source, building in the retained clean validation checkout, and
 guarded `--app` proof at that revision:
 
 ```sh
-node deploy/cloudflare/app/prepare-deployment.mjs
+HIVE_PREVIEW_IDENTITY_FILE=/tmp/hive-epic-coder-auth/app-preview-identity.json \
+  node deploy/cloudflare/app/prepare-deployment.mjs
 ```
 
 Preparation requires the exact ready artifact and successful committed app proof, including its
@@ -112,8 +116,16 @@ included-allowance headroom, not an invoice or future billing guarantee. Refresh
 deployment decision if stale. No additional charges or paid products are authorized.
 
 The script creates a fresh private directory containing separate app/auth secret files and
-configs; it reads only the isolated runtime database URL and creates distinct preview, internal
-service, encryption and cookie secrets. Owner database URLs and Coder passwords/tokens are never
+configs; it reads only the isolated runtime database URL and an explicitly selected private
+preview identity. For the first preparation only, add `--create-preview-identity` to create that
+file if absent. Its parent must be owned by this user with mode700; the regular, single-link
+file must have mode600 and cannot use a symlink. The identity is pinned to this account, Worker
+names and exact isolated database endpoint/name/role. Preserve it outside the checkout for later
+preparations: encryption, Hive-cookie, preview-cookie, internal-service and bearer keys are reused
+across artifacts. Missing or mismatched identity fails closed; this command does not rotate keys.
+App and auth share the encryption key required by their existing encrypted Coder-token
+architecture and the internal service secret. The manifest records identity ID/scope digest only.
+Owner database URLs and Coder passwords/tokens are never
 bound. A private manifest ties source, tested artifact, account, configs and a maximum of 30
 scripted requests together. It rejects routes, cron, public URLs and additional product bindings;
 both Workers cap request CPU at 100 ms, with stored observability logs disabled.
@@ -133,6 +145,38 @@ bearer gate for every asset/request; auth remains service-only. Preserve deploym
 sanitized results and disable public URLs after the authorized bounded probes. Browser automation
 requires origin-scoped authorization handling in Browser Testing and remains a separate gate.
 
+## Scoped project WebSocket compatibility relay
+
+The Worker accepts only GET upgrades at `/api/projects/<uuid>/session` and the separately enabled
+`/api/projects/<uuid>/terminal`; no query, caller-selected origin/path or subprotocol credential is
+accepted. Both require the private preview gate and the Hive signed session. The relay independently
+checks owner/project/active registration/current Coder build and checks them again after the
+request-local Coder app-cookie exchange. Only the fixed registered `/session` or `/terminal` URL
+receives an upgrade with its app-scoped cookie and the fixed configured Hive Origin. Caller headers,
+owner cookies/tokens, upstream Set-Cookie/Location and upstream close reasons are never forwarded.
+The host still requires the separately signed read or terminal ticket; a transport connection does
+not confer native RPC or terminal authority.
+
+Database clients close before a 101 response is returned. The socket then performs no DB/auth I/O.
+This first preview caps a connection at 60 seconds and earlier preview/session/registration expiry,
+1 MiB per frame, 8 MiB total, 256 messages, and four per-isolate reservations. Close/error events
+close both peers and release resources once. These bounds deliberately require reconnect and are
+not final persistent-session acceptance. Production readiness needs periodic fresh authorization
+without forced disconnect, active terminal checkout-lease enforcement, and real provider/browser
+evidence. Terminal routing remains explicitly disabled unless configured and validated.
+
+The actual local workerd fixture uses a second Worker service binding as its simulated provider.
+It proved text/binary forwarding, sanitized close, oversized-frame rejection and earlier-expiry
+closure. It does not prove real Coder authentication or registered host data. See
+`docs/checks/autonomous-delivery/cloudflare-relay-local.json` and the preserved first failure.
+The real runtime caught a March-2026 compatibility change: binary frames default to Blob. The
+relay explicitly sets `binaryType = "arraybuffer"` on both sockets before accept, preserving
+synchronous frame limits. Run the bounded transport proof with:
+
+```sh
+node deploy/cloudflare/app/run-local-relay-proof.mjs
+```
+
 ## Primary vendor references
 
 - [OpenNext setup](https://opennext.js.org/cloudflare/get-started)
@@ -140,4 +184,6 @@ requires origin-scoped authorization handling in Browser Testing and remains a s
 - [Runtime-specific packages](https://opennext.js.org/cloudflare/howtos/workerd)
 - [OpenNext environment handling](https://opennext.js.org/cloudflare/howtos/env-vars)
 - [Workers redirect support](https://developers.cloudflare.com/workers/runtime-apis/request/)
+- [Workers WebSocket API](https://developers.cloudflare.com/workers/runtime-apis/websockets/)
+- [Current binary WebSocket defaults](https://developers.cloudflare.com/changelog/post/2026-04-21-websocket-standard-binary-type/)
 - [Prisma v6 JavaScript engine](https://www.prisma.io/docs/orm/v6/reference/prisma-client-reference)

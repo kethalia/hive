@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T18:36:49.010Z",
+  "scope": "local workerd relay with provider/auth simulated",
+  "ok": false,
+  "observation": "Fixture provider observed two messages and proof did not finish while waiting for another event. Root cause was not yet established; harness lacked per-step event/close timeouts. Next fixture uses an actual local Worker service-binding upgrade and bounded event waits.",
+  "providerMessages": 2,
+  "sourceDigests": {
+    "deploy/cloudflare/app/project-relay.ts": "5d2136d54168cf01c584e036d68e4584b7e76d089dc15bdd27e672c6f1bf1823",
+    "deploy/cloudflare/app/local-relay-fixture.ts": "0f9b5028712f36bcc2e05780703048cb4f830fc7daa34cdb88edfc24bf2f378d",
+    "deploy/cloudflare/app/run-local-relay-proof.mjs": "8bef9ff272b6561a97736a3e86d5b6afd0e3d28f1ed279923ec0d179efdc79f1"
+  },
+  "cloudWrites": 0,
+  "subsequentDiagnosis": "Bounded two-Worker reproduction reached binary frame step and rejected it. Current Workers compatibility defaults binaryType to Blob; explicit arraybuffer is required before accept() for synchronous frame bounds.",
+  "vendorReference": "https://developers.cloudflare.com/changelog/post/2026-04-21-websocket-standard-binary-type/"
+}
