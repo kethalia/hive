@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "inference": false,
+  "stateDirectory": "/home/coder/.local/state/hive/native-account-readiness-44a2376d-9521-44d5-b513-aa6f34c84afa",
+  "steps": [
+    {
+      "method": "initialize",
+      "passed": true
+    },
+    {
+      "method": "configRequirements/read",
+      "passed": true
+    },
+    {
+      "method": "command/exec",
+      "passed": true,
+      "result": {
+        "exitCode": 0,
+        "positive": true
+      },
+      "cwdCategory": "managedRoot"
+    },
+    {
+      "method": "command/exec",
+      "passed": true,
+      "result": {
+        "exitCode": 0,
+        "denialControl": true
+      }
+    }
+  ],
+  "profile": "software",
+  "apparmor": "hive-codex-v1 (enforce)",
+  "runtimeVersion": "0.165.0",
+  "requirements": {
+    "defaultPermissions": "hive-native-isolated",
+    "allowedPermissionProfiles": {
+      "hive-native-isolated": true
+    },
+    "allowedApprovalPolicies": ["never"],
+    "allowedSandboxModes": ["read-only", "workspace-write"]
+  },
+  "passed": true
+}

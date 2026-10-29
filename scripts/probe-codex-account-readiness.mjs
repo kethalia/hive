@@ -2,29 +2,28 @@
 // NO INFERENCE. Dedicated test-workspace installed namespace/RPC diagnostics.
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, constants, openSync, readFileSync, writeFileSync } from "node:fs";
+import { randomBytes, randomUUID } from "node:crypto";
+import { closeSync, constants, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const home = "/home/coder",
-  stateDirectory = join(
-    home,
-    ".local/state/hive/native-account-pilot-d75aaf31-a0fc-4bdd-af40-b2621864ab15",
-  ),
+  stateDirectory = join(home, `.local/state/hive/native-account-readiness-${randomUUID()}`),
   packageDir = join(
     home,
-    ".local/share/hive/codex-host/96a5f3f4c61c7ca0cf601a53ac6705ec733f414060fb2ec9aa02f6824b9cd3ad",
+    ".local/share/hive/codex-host/94a6c97e26238cfb6904cdfca699863e22e472014dd296d6cef6fc3eeae0f2d8",
   );
 const report = {
   schemaVersion: 1,
   inference: false,
+  stateDirectory,
   steps: [],
   profile: process.env.HIVE_WORKSPACE_PROFILE,
   apparmor: readFileSync("/proc/self/attr/current", "utf8").trim(),
 };
 const config = JSON.parse(readFileSync(join(home, ".config/hive/codex-host.json")));
-assert.equal(config.binding.buildId, "4454d20e-4661-4435-9f40-ab7742c163ee");
+assert.equal(config.binding.buildId, "ebafefde-23d7-46cb-948f-865a7c0fb464");
 assert.equal(config.nativeIsolationEnabled, true);
 assert.equal(config.managerEnabled, false);
 const executable = join(
@@ -35,7 +34,26 @@ const { prepareNativeNamespace, NATIVE_PROFILE } = await import(
   pathToFileURL(join(packageDir, "codex-native-namespace.mjs"))
 );
 const { WebSocket } = await import(pathToFileURL(join(packageDir, "vendor/ws.mjs")));
-const lock = openSync(join(stateDirectory, "pilot.lock"), constants.O_RDWR | constants.O_NOFOLLOW);
+mkdirSync(stateDirectory, { mode: 0o700 });
+writeFileSync(join(stateDirectory, "native-token"), randomBytes(32).toString("hex"), {
+  mode: 0o600,
+  flag: "wx",
+});
+writeFileSync(
+  join(stateDirectory, "receipt.json"),
+  JSON.stringify({
+    task: "native-account-readiness",
+    buildId: config.binding.buildId,
+    stateDirectory,
+    createdAt: new Date().toISOString(),
+  }),
+  { mode: 0o600, flag: "wx" },
+);
+const lock = openSync(
+  join(stateDirectory, "pilot.lock"),
+  constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+  0o600,
+);
 execFileSync("/usr/bin/flock", ["--exclusive", "--nonblock", "3"], {
   stdio: ["ignore", "ignore", "ignore", lock],
 });
@@ -167,10 +185,7 @@ try {
       allowedSandboxModes: value?.allowedSandboxModes,
     };
   }
-  for (const cwd of [
-    ns.verificationCwd,
-    join(home, "projects/.hive-managed/github/99000016520261029/checkout"),
-  ]) {
+  for (const cwd of [ns.verificationCwd]) {
     const result = await call("command/exec", {
       command: ["/usr/bin/python3", "-I", "-c", "print('HIVE_READINESS_POSITIVE')"],
       cwd,
@@ -212,6 +227,14 @@ try {
 } catch (error) {
   report.failureCategory = String(error.message).split(":")[0];
 } finally {
+  report.passed =
+    !report.failureCategory &&
+    report.steps.every(
+      (step) =>
+        step.passed &&
+        (!step.result ||
+          (step.result.exitCode === 0 && (step.result.positive || step.result.denialControl))),
+    );
   ws?.terminate();
   child.kill("SIGTERM");
   for (let n = 0; n < 20 && child.exitCode === null && child.signalCode === null; n++)

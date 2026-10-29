@@ -19,10 +19,10 @@ import { userInfo } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const archive = "96a5f3f4c61c7ca0cf601a53ac6705ec733f414060fb2ec9aa02f6824b9cd3ad";
+const archive = "94a6c97e26238cfb6904cdfca699863e22e472014dd296d6cef6fc3eeae0f2d8";
 const nativePin = "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5";
 const workspaceId = "22c4f094-46f0-4a76-86ca-37ad74254872",
-  buildId = "4454d20e-4661-4435-9f40-ab7742c163ee";
+  buildId = "ebafefde-23d7-46cb-948f-865a7c0fb464";
 const repoId = "99000016520261029";
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const digest = (value) => createHash("sha256").update(value).digest("hex");

@@ -1,0 +1,14 @@
+{
+  "buildId": "4454d20e-4661-4435-9f40-ab7742c163ee",
+  "nativeIsolationEnabled": true,
+  "managerEnabled": false,
+  "archiveSha256": "96a5f3f4c61c7ca0cf601a53ac6705ec733f414060fb2ec9aa02f6824b9cd3ad",
+  "packagePath": "/home/coder/.local/share/hive/codex-host/96a5f3f4c61c7ca0cf601a53ac6705ec733f414060fb2ec9aa02f6824b9cd3ad",
+  "healthStatus": 200,
+  "schemaVersion": 1,
+  "sourceRevision": "2e7aa31",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "templateVersionId": "4bec462b-de81-4a8a-9558-fec3182e1ccc",
+  "accountInferenceValidated": false,
+  "productionChanged": false
+}
