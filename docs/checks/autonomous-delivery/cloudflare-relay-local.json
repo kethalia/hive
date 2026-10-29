@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-10-29T19:04:48.939Z",
-  "testedRevision": "3ad51083d3843d607917dcdd10b33eef23447031",
-  "testedSourceCommitted": false,
+  "observedAt": "2026-10-29T19:07:17.065Z",
+  "testedRevision": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f",
+  "testedSourceCommitted": true,
   "sourceStable": true,
   "sourceDigests": {
     "deploy/cloudflare/app/project-relay.ts": "4976d73141fd5847cc03f7b3ce0f448c8c8c0d5aeb81e3d6c4e8ee7dd4d3570d",

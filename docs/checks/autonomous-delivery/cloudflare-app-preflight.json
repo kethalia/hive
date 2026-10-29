@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-10-29T18:55:17Z",
+  "observedAt": "2026-10-29T19:08:03Z",
   "accountId": "225177f82b9234ede14e897fe15e0cb5",
   "workersSubdomain": "b00ste",
   "plan": "paid-user-confirmed",
@@ -26,13 +26,13 @@
   },
   "window": {
     "startInclusive": "2026-09-28T00:00:00Z",
-    "endExclusive": "2026-10-29T18:55:17Z"
+    "endExclusive": "2026-10-29T19:08:03Z"
   },
   "usage": {
-    "requests": 276920,
-    "rawCpuTimeUs": 20316693130,
-    "standardCpuTimeUs": 2298358146,
-    "conservativeCpuMilliseconds": 20316693.13
+    "requests": 276940,
+    "rawCpuTimeUs": 20322269930,
+    "standardCpuTimeUs": 2303009886,
+    "conservativeCpuMilliseconds": 20322269.93
   },
   "publishedIncludedAllowance": {
     "requestsPerMonth": 10000000,

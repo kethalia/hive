@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "observedAt": "2026-10-29T19:02:22.722Z",
-  "testedRevision": "3ad51083d3843d607917dcdd10b33eef23447031",
+  "observedAt": "2026-10-29T19:09:59.851Z",
+  "testedRevision": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f",
   "testedSourceCommitted": true,
   "sourceWorktreeClean": true,
   "build": {
@@ -10,9 +10,9 @@
     "nodeBuildAndStandaloneVerification": true,
     "nodeMiddleware": "OpenNext vendor warns experimental and not officially maintained",
     "appUpload": {
-      "uncompressedKiB": 22904.25,
-      "gzipKiB": 5255.56,
-      "dryRunLogSHA256": "14981404290aeb030af305677d497e095299c96a7ca59dccf077314030c91170"
+      "uncompressedKiB": 22904.44,
+      "gzipKiB": 5255.63,
+      "dryRunLogSHA256": "00424e8b1d85a0ea6974dbd25916e4fba89e59f19b536897a22b305f5203f977"
     },
     "authUpload": {
       "uncompressedKiB": 3597.42,
@@ -21,16 +21,14 @@
     },
     "artifactCount": 254,
     "sourceInputCount": 924,
-    "readinessSHA256": "b9449a36cca2c7b64f6a68f0fcaf58fb18d1383d0b9901e6c4fa523d531ce5f3",
-    "sourceInputSetSHA256": "62d81d32c5cdbb12f6e635cb35efb501b7d018fb1bc31d3701bc5cfc25bd7338",
-    "artifactSetSHA256": "2acb6c1a614554970cca819d49a952fe7e3d109890c5bab6288d6237c559f9de",
+    "readinessSHA256": "f9d4421c09edb027804aaf4486c0c8c9b1642c5106f5e9bb1469c652918cac2d",
+    "sourceInputSetSHA256": "e74e1cc7040aaec8f5ea666fc3832640f698ee4f1787b42737f40899e2cd2448",
+    "artifactSetSHA256": "7a789d734a94035ddababe88fcb9969e987ad0b155a63249672f519c91412e50",
     "artifactDigests": {
       ".open-next/.build/durable-objects/bucket-cache-purge.js": "c25ba62edef4bbadbede9b86783db59a73c020b6ced574208987426989f97a32",
-      ".open-next/.build/durable-objects/queue.js": "274798245a0fa38e5f78d80d9b6bf17eb820cbea3f0570455f3056a1eefdbf85",
+      ".open-next/.build/durable-objects/queue.js": "9b54220c609d4c15d1ec97dea70f043004dd3ca28afa88d22bfdf203479f348d",
       ".open-next/.build/durable-objects/sharded-tag-cache.js": "508f109b74268721618df35e2e14f5de4270a9c971a9718832f803eff18d1135",
-      ".open-next/assets/BUILD_ID": "6677e29061d38dbddcb926e3384c03ecee83088e70d858a776acb356f48cef38",
-      ".open-next/assets/_next/static/2f6f3813-b69f-4e21-b07a-9bc0427a2785/_buildManifest.js": "5eba35c59bb5be1a9245ac8b54d100dd7d9067aec68239ce6317b053f4a4f8f6",
-      ".open-next/assets/_next/static/2f6f3813-b69f-4e21-b07a-9bc0427a2785/_ssgManifest.js": "678f6ce2cb80b1fe72fc67e7412be6e2ab6ada083111b64f7c40d35e3cba5e00",
+      ".open-next/assets/BUILD_ID": "41f5329679d30758c64c0f8bd9cc8bbb866ec06edd4b8bea7be6f8a03b56b3f5",
       ".open-next/assets/_next/static/chunks/1019.75005abdbc940f69.js": "3e9c7e10fe8c1bc842b3441e4abdcd80cfa8b420c1af5ec1a6752e376e35a667",
       ".open-next/assets/_next/static/chunks/111acf76.3d8b0b2f7bc77cdd.js": "358e9d5a6eb9109559c948027469991cbcc563d94e51f0641be8b027ead40e8b",
       ".open-next/assets/_next/static/chunks/1258-902a2d6836c6d5c7.js": "bf75aa72ada56c889030fcc062821469923006bf46a027b5d804e088269328b2",
@@ -40,7 +38,7 @@
       ".open-next/assets/_next/static/chunks/2444.09a2345b7f6be566.js": "ad98a53a36238cf4f3ab191d7e5c744829599181af5b3a22b1143f4a52211010",
       ".open-next/assets/_next/static/chunks/2571.ae68adaa884517f6.js": "08aeb68e65f516e0f3542457ec385bfa23480eb5f3e333433d194f81d79c8e64",
       ".open-next/assets/_next/static/chunks/2721.ae590635ec0490a6.js": "c79064ae4a8f793376b90736190d2b573d1b560fd4cfbd13c2f870cba16017e4",
-      ".open-next/assets/_next/static/chunks/327.c793cea5f34351f4.js": "03f3ede9e6248d972f7da1ec69d21870de0db9d5ef41f31bbec41804e1830a5e",
+      ".open-next/assets/_next/static/chunks/327.bb7ec316045c9c55.js": "afc2859b6472563b2f4c4c803ea334e3f5e92b166e72909c0ecfc0b0df04942a",
       ".open-next/assets/_next/static/chunks/3315.ea50752f42606a81.js": "ed3a53194d72767d42ff6f5d39f96d11614e61446522f6d5d89a552608d51862",
       ".open-next/assets/_next/static/chunks/4221.82b46306e2b4e734.js": "c150dc4c4f7a5981ec7eaa7a303fa144d8ea0594f8935674b212b0515c77958d",
       ".open-next/assets/_next/static/chunks/4421.8840a797fd8b4134.js": "e402678570450acfcf96c7d3a1f57a85f5e3e27854039ee387ac550941bc4ce7",
@@ -106,10 +104,12 @@
       ".open-next/assets/_next/static/chunks/next/dist/client/components/builtin/not-found-df7324689a06fe25.js": "c8455f392267e2991b3929d088159d9f1a468adf66a642e169c6010254d08296",
       ".open-next/assets/_next/static/chunks/next/dist/client/components/builtin/unauthorized-df7324689a06fe25.js": "c8455f392267e2991b3929d088159d9f1a468adf66a642e169c6010254d08296",
       ".open-next/assets/_next/static/chunks/polyfills-42372ed130431b0a.js": "0973c1d64c88adc8e3c950410cb58b288f72118d5965b78049438deb8f2f9683",
-      ".open-next/assets/_next/static/chunks/webpack-9455e8ad57d53bd0.js": "3b05b0697d25d87b25e9f3aef58b670b697b7196ba04e2023b6a6ce9d2d7877a",
+      ".open-next/assets/_next/static/chunks/webpack-e3b6107020683cad.js": "d90f492f11d86eba0b5ec9c575fba244b26c5809834b2b6f915ab56f70c21e24",
       ".open-next/assets/_next/static/css/62559f546de1761d.css": "c0f419c02af65cd82378a1a43c325db1d894dc894c29cb5e6fd2e43b991eb104",
       ".open-next/assets/_next/static/css/659eccb5db697b76.css": "51c67a5ecae0ee343fcda125f670aba4ac79870bb05d74e6c72ffacf9d51022b",
       ".open-next/assets/_next/static/css/d825c52001c67727.css": "c93835a9b6fd935ad8afcf00062ee0daecde409cf471ff44c2fc228df2dd1bac",
+      ".open-next/assets/_next/static/da8cfe4e-ace0-4e2c-b511-9b389525ff85/_buildManifest.js": "5eba35c59bb5be1a9245ac8b54d100dd7d9067aec68239ce6317b053f4a4f8f6",
+      ".open-next/assets/_next/static/da8cfe4e-ace0-4e2c-b511-9b389525ff85/_ssgManifest.js": "678f6ce2cb80b1fe72fc67e7412be6e2ab6ada083111b64f7c40d35e3cba5e00",
       ".open-next/assets/apple-touch-icon.png": "32d95e4d738d0597a237bba53b6ddc03a518e6dbe879aae493bd03434e89dd6d",
       ".open-next/assets/fonts/FiraCode-Medium.ttf": "020c87bb2cdd248aa1d6a6f644f5d5c9c9fc09ef3f6d3c5df3922a8adc24cb95",
       ".open-next/assets/fonts/FiraCode-Regular.ttf": "bb7f3fc4bd68bbbb16b3bf204bc96d9ba7b4a1a6fc221bba49e2b2a03390e76c",
@@ -125,20 +125,20 @@
       ".open-next/assets/icons/icon-maskable-192.png": "e826e74177fceb9bd78dfce3afd80fa654cd9a04b5c7ff539ae8876ba9a20f74",
       ".open-next/assets/icons/icon-maskable-512.png": "60b6cb860cc8814e8d64b93ccfe1fea8bd52704a8329255cfc276cf4df402426",
       ".open-next/assets/sw.js": "879a3b7b32bdad48807de88af6d2dc6028aa01a90e0eb519349f657443066caa",
-      ".open-next/cloudflare/cache-assets-manifest.sql": "e99694c4c5d12b8a7d6630ded2cebe256a1d94f03fe3b46f0a3f7d000ed034a3",
+      ".open-next/cloudflare/cache-assets-manifest.sql": "0ea92013506202e6d5ead303c596dd6a1dcd53e91290f652b3f012069419db13",
       ".open-next/cloudflare/images.js": "5fedebf5b88bcad47effc1098e9e7004cf854aa5761c729f647b3181e6fc8e16",
-      ".open-next/cloudflare/init.js": "d97af871d1b66c9cb84bac2283767cfed5966ec932e289e237fd506f50272874",
+      ".open-next/cloudflare/init.js": "33b195eff37cbb1f19cfe238a9c7e5cf87668f66633e4583d35e79b4c81e16ef",
       ".open-next/cloudflare/next-env.mjs": "416accf14b168ff3fa513587aba2bccc654257a8fc6e7c6aafa679c98a817046",
       ".open-next/cloudflare/skew-protection.js": "5d6bce850a475cfe6faae58396de58d368e567201312cfc740c62d49eb09bf20",
-      ".open-next/middleware/.next/BUILD_ID": "6677e29061d38dbddcb926e3384c03ecee83088e70d858a776acb356f48cef38",
-      ".open-next/middleware/.next/app-path-routes-manifest.json": "42d05d8633255854d2e0600a0eaf429a18e248865403ca051702d351e7b4ef77",
-      ".open-next/middleware/.next/build-manifest.json": "9eb5f65a7f5ecf9db9b0b7fa90e18f5a4bca662df17962896f38829e4fdd6b59",
+      ".open-next/middleware/.next/BUILD_ID": "41f5329679d30758c64c0f8bd9cc8bbb866ec06edd4b8bea7be6f8a03b56b3f5",
+      ".open-next/middleware/.next/app-path-routes-manifest.json": "9525dc4e940ef283eb3cce0a817e0d7f8e1cfc5ce22c4ba9d7cf41fd90ff7f55",
+      ".open-next/middleware/.next/build-manifest.json": "e9b46f5a736f92432ffa126c800f7358bc19552144e81f9f883ca7601bc1511e",
       ".open-next/middleware/.next/package.json": "091a04fa67c7907b98e106fcff8b964e13129754fce72d24f3025b97c4887fa3",
       ".open-next/middleware/.next/prerender-manifest.json": "9c18d2426e358a16ef95a6d86c84eb811875b5dbe36be38fe6b478544b25f38e",
-      ".open-next/middleware/.next/react-loadable-manifest.json": "1a055cd146fbaeb31fad8d11f068c152a37fdcbd466280c31806ae5d9c791627",
-      ".open-next/middleware/.next/required-server-files.json": "54854659c8eccda9797c94a96f3c87b292d9ca00f8603461f0098ab0097b45eb",
+      ".open-next/middleware/.next/react-loadable-manifest.json": "ee15af1e3836a38675b93fdcf37604b0e08e6d263c69530c5de303b323e2ac3d",
+      ".open-next/middleware/.next/required-server-files.json": "7e7661a1a6f5e2843b0a31d91df29f2d4328e06c851a0e6c6f19034caa7afdec",
       ".open-next/middleware/.next/routes-manifest.json": "f58da3955f32486f69f9f4a589f8cbb4f811f34230c1e27c53283194cd56d618",
-      ".open-next/middleware/.next/server/app-paths-manifest.json": "a29545b89da1f0fe7ee37a0cd716a9ed243da90c48fffd80c3fb5f1fa296ed54",
+      ".open-next/middleware/.next/server/app-paths-manifest.json": "73f86dc2f6a2ad0b62b4637012c93f5e54c5468500b147f96ecd4a3729dcc9bf",
       ".open-next/middleware/.next/server/chunks/26.js": "db955066804813e76c06db7b45cc347db51ef443bc84f1646329554aa17c395f",
       ".open-next/middleware/.next/server/chunks/3334.js": "9e302ed77f367669f1218af44f119aa494e8a4eee46a0d5220ae70d5019217de",
       ".open-next/middleware/.next/server/chunks/3903.js": "542a4ad3d3742623f7dc23ee64db17c576a1979c1cbafb1ff4ea9512c38c4d2a",
@@ -148,9 +148,9 @@
       ".open-next/middleware/.next/server/functions-config-manifest.json": "72dffd64adcfaf04ed6731a811f6a486cf249880b76990eca53f8fb55e1c153e",
       ".open-next/middleware/.next/server/instrumentation.js": "133ca49d389057963d05d89db9a0c836d2a36359f35b9f4760824cbcad0619d2",
       ".open-next/middleware/.next/server/instrumentation.js.nft.json": "37b1083c6efeb35a29262da46ef4d06d6987bfa7eac8ce6e371cbe1a650d6f03",
-      ".open-next/middleware/.next/server/middleware-build-manifest.js": "1849e58bddee1c2b716416eb77dedc63e3feefc11e0795ff1851e6d22871936b",
+      ".open-next/middleware/.next/server/middleware-build-manifest.js": "42d9076ebab55ec1fde9471b43506a17e894e0b0af99a5599c94776827823e78",
       ".open-next/middleware/.next/server/middleware-manifest.json": "0a8520bc7e076f7ae717c2d62713990c83e8a3d74626f327a3844bc0504e210c",
-      ".open-next/middleware/.next/server/middleware-react-loadable-manifest.js": "5fab73a4f3150bae1f5c8c5b1c55ee13d425aa91b300e5c44af1d063e2d1a148",
+      ".open-next/middleware/.next/server/middleware-react-loadable-manifest.js": "860b074c89777d04a6abb4c4977dc893afb30cd957d49890af118613a97942c7",
       ".open-next/middleware/.next/server/middleware.js": "69cd8915ac2c3e586fe0dcf640f94f913775c8f5103d472971abaac5b5a22e59",
       ".open-next/middleware/.next/server/middleware.js.nft.json": "d5b3ba619dcc1bc6c27b1772e2cebc976e2db0b0d2fe543110c5b760239d2dd8",
       ".open-next/middleware/.next/server/next-font-manifest.js": "2c0f5bbb79d07dfea405146a62d7e15a7a9e890d29e38b7db2631fcf6e480da8",
@@ -161,7 +161,7 @@
       ".open-next/middleware/.next/server/server-reference-manifest.js": "a41f38b607ffec9fdbee770a85363d224fe02601175ed425186ae41ba0f17764",
       ".open-next/middleware/.next/server/server-reference-manifest.json": "2bc81c379d0a19b047bc0dfdf07160a163bb4ecc7444ebe70bcc962c71d0a4f8",
       ".open-next/middleware/.next/server/webpack-runtime.js": "474b13f7e03e46c44624242291c88e04244b2edab9581412c7dc5803fb5f81e7",
-      ".open-next/middleware/handler.mjs": "7d10b2333dc48a5086ff2189f2b79d0e743614011b333d0c7db7855780366d06",
+      ".open-next/middleware/handler.mjs": "4ac5b7bf940eefb836bfaa63049c64be5d99967fcbd43ac41cf06920a955c4df",
       ".open-next/middleware/node_modules/.pnpm/@swc+helpers@0.5.23/node_modules/@swc/helpers/_/_interop_require_default/package.json": "9cf5cdb2fda7dff60167b91a89a618c78d63f6e044e7681075efdb03a3834ed5",
       ".open-next/middleware/node_modules/.pnpm/@swc+helpers@0.5.23/node_modules/@swc/helpers/cjs/_interop_require_default.cjs": "6334b55f9a3a432db4d9e6f79a741cabb464f452b4ee2db94f6223c05d121a99",
       ".open-next/middleware/node_modules/.pnpm/@swc+helpers@0.5.23/node_modules/@swc/helpers/esm/_interop_require_default.js": "fa62cd79d0408b12be293ae2e0cc26d4d0a1b8dbdd52edbb2f3d8d71ce102483",
@@ -277,11 +277,11 @@
       ".open-next/middleware/open-next.config.mjs": "235a399ecd1934dc9bd06c66c6093ccb04402973493db943e1ad652b2f6276fe",
       ".open-next/middleware/package.json": "f09620666cbc81f584e1e110b6ea6c90fd0df6b433529e5504768fbc1f6de5f2",
       ".open-next/middleware/patchedAsyncStorage.cjs": "2815066bb00bee2df026e5379c3e6eeca9e18ec5207634856842096eb616e37e",
-      ".open-next/server-functions/default/handler.mjs": "4573257ff8254d3be9deff8700e6b43e3173299fb39dd3c8c09baf5bd7e884e1",
+      ".open-next/server-functions/default/handler.mjs": "ee03f40b50c9adf0267d32e955bce05c15b149bf8a67de1bcf0ea4d19b2989f4",
       ".open-next/worker.js": "d05223bf4d44c84108a102ab62aa3bc9c5568f0c3ac2064c37be5cc65c64bc45"
     },
-    "nodeBuildLogSHA256": "d962d66881865996275deb7822a2198c9f9c52aed972fe81ab9053f9568a39cb",
-    "cloudflareBuildLogSHA256": "1e5da0c0a20626d4ae53fb2b58bcf7a0a5c8524910e6728f46599f19c060da8b"
+    "nodeBuildLogSHA256": "8a5eb06197c2b418f4b012cdc11932a85db3ae45b2ec8e36baacd1df212303c3",
+    "cloudflareBuildLogSHA256": "9870b64865b264d8ecc72f9b1636399fcbfbe94e24752701fb18258cc9d2e7f4"
   },
   "runtimeProof": {
     "file": "cloudflare-auth-app.json",
@@ -308,14 +308,35 @@
       "crossSiteReadRejected": true,
       "actualAppLogoutAndRevokedCookieRejected": true
     },
-    "serviceBindingTransportVerified": true
+    "serviceBindingTransportVerified": true,
+    "relayFile": "cloudflare-relay-local.json",
+    "relayChecks": {
+      "textRelay": true,
+      "binaryRelay": true,
+      "sanitizedClose": true,
+      "oversizedFrameRejected": true,
+      "shorterPreviewDeadlineClosed": true
+    },
+    "relayProviderAndAuthMetadataSimulated": true
   },
   "typecheck": {
     "root": true,
-    "recursivePackages": true
+    "recursivePackages": true,
+    "note": "Root typecheck ran after build; simultaneous first attempt raced generated Next type-directory moves and was discarded"
+  },
+  "prepared": {
+    "runId": "63df38a9-e496-4b67-baa6-6142e4d53fb6",
+    "sourceRevision": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f",
+    "configDigests": {
+      "app": "1f7df6eaa9f0883b4a0bf3a29e5341e8c017ae316f89b855a70df88b1a7c649c",
+      "auth": "6f7a435a4125a2b193c8781ecad2967003d959a5f5575e3fde3141b1aa12773b"
+    },
+    "previewIdentityId": "0d4d2304-ed4e-4224-939d-e363c5833811",
+    "previewIdentityScopeSHA256": "99b9af68f98c377011027a74075007277416302d28b57c5e949cc2426a883a5f"
   },
   "cloudDeployed": false,
-  "cloudResourceMutations": 0,
+  "cloudflareResourceMutations": 0,
+  "isolatedNeonFixtureDml": true,
   "coderLoginPerformed": false,
   "runtimeStopped": true,
   "limitations": [
