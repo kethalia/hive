@@ -150,3 +150,30 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Removed provider-token interpolation from all new template startup scripts; the existing
   runtime external-auth helper still authenticates repository bootstrap. Rotation of the exposed
   Coder/GitHub authorization was requested. Existing active templates were not changed.
+
+### Mounted host bootstrap and native isolation checkpoint
+
+- **Implement / Validate: completed for template installation; high difficulty.** The live
+  persistent test workspace exposed two gaps after local tests: Coder's shell argument limit
+  rejected the inline archive, and the service account rejected a ConfigMap creation. The final
+  implementation uses compressed, byte-bounded public pod metadata projected read-only through
+  the Downward API. All 86 template checks and specialist Terraform validation pass. The exact
+  `06e00da` inactive template now starts a host, returns HTTP 200, and reuses it on repeated
+  installation. No cluster RBAC or global active template was changed. Evidence:
+  [template installation](workspace-template-installation.md) and
+  [live result](test-workspace-host-installation.json).
+- **Review / Validate: completed for the isolated native fixture; high difficulty.** Parent
+  independently reran the pinned runtime proof successfully. Root, resume and child commands
+  cannot access protected synthetic files; the profile-only negative control demonstrates why
+  the legacy override fence is also required. Commit `0bc7894` preserves both passing and failing
+  evidence. Installed launcher integration is underway; background-writer quiescence remains
+  unproven and must keep delivery writer holds. No fixture result enables production execution.
+- **CI:** all required checks passed at `68b4aaf`; new template checkpoints are pushed for CI.
+  The main-targeting epic PR remains a draft, with account-backed browser/session tests and the
+  remaining delivery and Cloudflare compatibility work still required.
+
+- **GitHub connection recheck:** the installed helper successfully read the first 100 accessible
+  repositories using the test workspace's own agent-scoped external authentication; Hive was
+  included and the response reported another page. This verifies the reconnect and installed
+  helper, not complete pagination or the web application path. No repository was cloned by
+  this read. [Sanitized result](test-workspace-github-discovery.json).

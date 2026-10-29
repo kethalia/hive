@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "bbeb36d4-e4c1-46fd-8ed5-c3f5b044f6df",
+  "task": "hive-epic-bootstrap-validation",
+  "installedSignedHelperUsed": true,
+  "completedEvidence": "validation-complete.json",
+  "stoppedBeforeDeletion": true,
+  "freshOwnerWorkspaceListAbsent": true,
+  "primaryAndUnrelatedWorkspacesRetained": true
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "task": "hive-epic-bootstrap-validation",
+  "workspaceId": "bbeb36d4-e4c1-46fd-8ed5-c3f5b044f6df",
+  "primaryVerifiedCompletion": true,
+  "activeTerraformProcesses": 0,
+  "otherActiveTask": false,
+  "sourcePreservedInCommit": "06e00da",
+  "validationEvidence": "docs/checks/autonomous-delivery/infrastructure-bootstrap/validation.json",
+  "validationSha256": "eb4398b07ee5e737e0838212f247527fa5a51fbb64d1f0965649c282dcfa9d9e",
+  "liveTestBuild": "c9d8217c-c45a-4595-bc64-5b56c54b9bfd",
+  "liveHostHealth": 200,
+  "preservedPrimary": "/home/coder/projects/kethalia/hive",
+  "purposeComplete": true
+}

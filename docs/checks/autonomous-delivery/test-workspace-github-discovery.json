@@ -1,0 +1,18 @@
+{
+  "helperExit": 0,
+  "schemaVersion": 1,
+  "repositoriesCount": 100,
+  "nextPage": 2,
+  "hiveVisible": true,
+  "error": null,
+  "sourceRevision": "06e00da",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "buildId": "c9d8217c-c45a-4595-bc64-5b56c54b9bfd",
+  "transport": "direct installed helper through test-account Coder SSH",
+  "boundedPage": 1,
+  "perPage": 100,
+  "fullPaginationValidated": false,
+  "appTransportValidated": false,
+  "credentialsPrinted": false,
+  "repositoryCheckoutRequested": false
+}
