@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "inference": false,
+  "productionChanged": false,
+  "cases": [
+    {
+      "mode": "baseline",
+      "exitCode": 127,
+      "output": "",
+      "stderr": "",
+      "error": null,
+      "denialsPreserved": true
+    },
+    {
+      "mode": "pinnedRgPath",
+      "exitCode": 127,
+      "output": "",
+      "stderr": "",
+      "error": null,
+      "denialsPreserved": true
+    },
+    {
+      "mode": "pinnedRgPathAndExactRead",
+      "exitCode": 0,
+      "output": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-path/rg\nripgrep 15.2.0 (rev e89fff89ac)\n\nfeatures:+pcre2\nsimd(compile):+SSE2,-SSSE3,-AVX2\nsimd(runtime):+SSE2,+SSSE3,+AVX2\n\nPCRE2 10.45 is available (JIT is available)\n",
+      "stderr": "",
+      "error": null,
+      "denialsPreserved": true
+    }
+  ]
+}
