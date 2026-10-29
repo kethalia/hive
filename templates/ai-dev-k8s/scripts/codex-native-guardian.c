@@ -195,7 +195,7 @@ static bool bootstrap(struct input *in) {
   state = READY; return true;
 }
 static void child_error(int fd) {
-  int error = errno ? errno : EIO; (void)write(fd, &error, sizeof(error)); _exit(123);
+  int error = errno ? errno : EIO; if (write(fd, &error, sizeof(error)) != sizeof(error)) _exit(125); _exit(123);
 }
 static pid_t launch(unsigned index) {
   if (index >= root_count) return -1;
@@ -212,7 +212,7 @@ static pid_t launch(unsigned index) {
     for (int i = 0; i <= 2; ++i) if (dup2(null, i) != i) child_error(report_fd);
     if (syscall(SYS_close_range, 3, 63, 0) || syscall(SYS_close_range, 66, UINT_MAX, 0)) child_error(report_fd);
     fexecve(exec_fd, r->argv, r->env);
-    int error = errno; (void)write(report_fd, &error, sizeof(error)); _exit(124);
+    int error = errno; if (write(report_fd, &error, sizeof(error)) != sizeof(error)) _exit(125); _exit(124);
   }
   close(status_pipe[1]);
   if (pid < 0) { close(status_pipe[0]); return -1; }
