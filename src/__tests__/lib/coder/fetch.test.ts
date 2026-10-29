@@ -40,7 +40,7 @@ describe("fetchCoderApi", () => {
     });
     expect(mockUndiciFetch).toHaveBeenCalledWith(
       "https://coder.example.com/api/v2/buildinfo",
-      expect.objectContaining({ dispatcher: expect.anything(), redirect: "error" }),
+      expect.objectContaining({ dispatcher: expect.anything(), redirect: "manual" }),
     );
     expect(mockAgentClose).toHaveBeenCalledOnce();
   });

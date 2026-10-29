@@ -28,6 +28,17 @@ describe("auth-service fetchCoderApi", () => {
     vi.unstubAllEnvs();
   });
 
+  it("rejects redirect responses and closes the private-CA dispatcher", async () => {
+    mockUndiciFetch.mockResolvedValue(
+      new Response("redirect", { status: 302, headers: { Location: "https://other.example" } }),
+    );
+    const { fetchCoderApi } = await import("../src/auth/coder-fetch.js");
+    await expect(fetchCoderApi("https://coder.example.com/api/v2/users/me")).rejects.toThrow(
+      "Coder API redirect rejected",
+    );
+    expect(mockAgentClose).toHaveBeenCalledOnce();
+  });
+
   it("uses and closes a verified private-CA dispatcher", async () => {
     const { fetchCoderApi } = await import("../src/auth/coder-fetch.js");
 
@@ -69,7 +80,7 @@ describe("auth-service fetchCoderApi", () => {
       });
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ redirect: "error" }),
+        expect.objectContaining({ redirect: "manual" }),
       );
     } finally {
       vi.unstubAllGlobals();
