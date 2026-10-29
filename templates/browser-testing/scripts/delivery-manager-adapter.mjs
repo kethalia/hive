@@ -180,7 +180,7 @@ function journal(directory, key, digest) {
   );
   return entry.eventId;
 }
-async function readResponse(response) {
+async function readResponse(response, deadline = Date.now() + 10000) {
   check(response.status >= 200 && response.status < 300, "delivery_request_rejected");
   check(
     response.headers.get("content-type")?.split(";")[0] === "application/json",
@@ -190,17 +190,42 @@ async function readResponse(response) {
   check(reader, "invalid_delivery_response");
   const chunks = [];
   let size = 0;
+  let active = true,
+    timer;
   try {
-    while (true) {
-      const part = await reader.read();
-      if (part.done) break;
-      size += part.value.length;
-      check(size <= 65536, "delivery_response_limit");
-      chunks.push(part.value);
-    }
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return await Promise.race([
+      (async () => {
+        for (let reads = 0; reads < 1024 && active; reads++) {
+          const part = await reader.read();
+          check(active, "delivery_response_timeout");
+          if (part.done) return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          size += part.value.length;
+          check(size <= 65536, "delivery_response_limit");
+          chunks.push(part.value);
+        }
+        throw new Error("delivery_response_limit");
+      })(),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("delivery_response_timeout")),
+          Math.max(1, deadline - Date.now()),
+        );
+      }),
+    ]);
   } finally {
-    await reader.cancel().catch(() => {});
+    active = false;
+    clearTimeout(timer);
+    let cancellation;
+    try {
+      await Promise.race([
+        reader.cancel().catch(() => {}),
+        new Promise((done) => {
+          cancellation = setTimeout(done, 100);
+        }),
+      ]);
+    } finally {
+      clearTimeout(cancellation);
+    }
   }
 }
 /** currentRegistration is provided by trusted host registration/heartbeat state.
@@ -234,6 +259,15 @@ export function createDeliveryManagerAdapter(options) {
   const key = createPrivateKey(hostPrivateKeyPem);
   check(key.asymmetricKeyType === "ed25519", "invalid_delivery_key");
   check(typeof currentProjectContext === "function", "trusted_checkout_context_required");
+  const progression = options.progressionProtocol === 1;
+  check(
+    !progression ||
+      (nativeEnabled &&
+        typeof options.continueRoot === "function" &&
+        typeof options.revalidateBoundary === "function" &&
+        typeof options.drainNativeRouting === "function"),
+    "trusted_progression_callbacks_required",
+  );
   const nativeSpool = nativeEnabled
     ? createDeliveryNativeSpool({
         stateDirectory: join(stateDirectory, "native"),
@@ -242,8 +276,10 @@ export function createDeliveryManagerAdapter(options) {
         currentServerInstanceId: options.currentServerInstanceId,
         registerChild: options.registerChild,
         readNativeHistory: options.readNativeHistory,
+        progressionProtocol: progression ? 1 : 0,
         onHold: options.onObserverHold,
         deliver: async (value) => {
+          const deadline = Date.now() + (progression ? 3000 : 10000);
           const proof = sign(null, Buffer.from(nativeSourceProofPayload(value)), key).toString(
             "base64url",
           );
@@ -253,13 +289,89 @@ export function createDeliveryManagerAdapter(options) {
             credentials: "omit",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...value, proof }),
-            signal: AbortSignal.timeout(10000),
+            signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
           });
-          return readResponse(response);
+          return readResponse(response, deadline);
         },
       })
     : null;
   const active = new Set();
+  const activeRoots = new Map();
+  const continuationTasks = new Map();
+  let closed = false;
+  const assertAuthority = (expected, allowFailure = false) => {
+    try {
+      const fresh = currentRegistration();
+      check(
+        !closed &&
+          fresh?.id === expected.registrationId &&
+          fresh.expiresAt > Date.now() &&
+          fresh.serverInstanceId === expected.serverInstanceId &&
+          options.currentServerInstanceId() === expected.serverInstanceId &&
+          fresh.threads.some(
+            (value) =>
+              value.threadId === expected.managerThreadId &&
+              value.projectId === expected.checkoutBinding.projectId,
+          ) &&
+          hash(JSON.stringify(canonical(currentProjectContext(expected.managerThreadId)))) ===
+            hash(JSON.stringify(canonical(expected.checkoutBinding))),
+        "delivery_authority_changed",
+      );
+      nativeSpool.assertAvailable(expected.managerThreadId, allowFailure);
+      return fresh;
+    } catch {
+      nativeSpool.hold(expected.managerThreadId, "native_progression_authority_changed");
+      throw new Error("delivery_authority_changed");
+    }
+  };
+  const continuationRequest = (claim) => ({
+    managerThreadId: claim.managerThreadId,
+    parentTurnId: claim.parentTurnId,
+    priorAttemptId: claim.attemptId,
+    cursorVersion: claim.cursorVersion,
+    registrationId: claim.registrationId,
+    serverInstanceId: claim.serverInstanceId,
+    requestId: hash(
+      JSON.stringify([
+        "delivery-continuation-v1",
+        claim.serverInstanceId,
+        claim.managerBindingId,
+        claim.attemptId,
+        claim.cursorVersion,
+      ]),
+    ),
+    checkoutBinding: structuredClone(claim.checkoutBinding),
+    spawns: nativeSpool.boundarySpawns(claim.managerThreadId),
+    cohort: nativeSpool.boundaryChildren(claim.managerThreadId),
+  });
+  const scheduleContinuation = (managerThreadId) => {
+    if (!progression || closed || continuationTasks.has(managerThreadId)) return;
+    const claim = nativeSpool.continuationCandidate(managerThreadId);
+    if (!claim || nativeSpool.continuationStart(managerThreadId)) return;
+    // Detach from the observer promise before asking the supervisor to drain
+    // router work. Otherwise that drain would wait on this very observer.
+    const operation = Promise.resolve()
+      .then(async () => {
+        const request = continuationRequest(claim),
+          deadline = Date.now() + 5000;
+        for (;;) {
+          check(!closed, "delivery_closed");
+          assertAuthority(request);
+          try {
+            const receipt = await options.continueRoot(request);
+            nativeSpool.recordContinuationStart(managerThreadId, receipt);
+            return;
+          } catch (error) {
+            if (error.message !== "supervisor_busy_or_closed" || closed || Date.now() >= deadline)
+              throw error;
+            await new Promise((done) => setTimeout(done, 20));
+          }
+        }
+      })
+      .catch(() => nativeSpool.hold(managerThreadId, "native_continuation_requires_reconciliation"))
+      .finally(() => continuationTasks.delete(managerThreadId));
+    continuationTasks.set(managerThreadId, operation);
+  };
   const nativeObserver = createNativeDelegationObserver((threadId) => {
     const registration = currentRegistration();
     return (
@@ -268,9 +380,25 @@ export function createDeliveryManagerAdapter(options) {
     );
   });
   return {
+    progressionProtocol: progression ? 1 : 0,
+    assertProgressionAuthority(request) {
+      check(progression && id(request?.managerThreadId), "native_progression_unavailable");
+      const claim = nativeSpool.currentClaim(request.managerThreadId);
+      check(
+        claim?.attemptId === request.priorAttemptId &&
+          claim.parentTurnId === request.parentTurnId &&
+          claim.cursorVersion === request.cursorVersion &&
+          claim.registrationId === request.registrationId &&
+          claim.serverInstanceId === request.serverInstanceId,
+        "native_progression_scope_changed",
+      );
+      return assertAuthority(request);
+    },
     tools: () => [structuredClone(deliveryManagerToolSpec)],
     observe(notification) {
       nativeSpool?.observe(notification);
+      if (progression && notification?.method === "turn/completed")
+        scheduleContinuation(notification.params?.threadId);
       const observation = nativeObserver(notification);
       // A distinct trusted observer callback may persist metadata; native tool
       // arguments cannot call it or select a producer. No evidence is created.
@@ -281,6 +409,8 @@ export function createDeliveryManagerAdapter(options) {
       return observation;
     },
     async handleToolCall(params) {
+      check(!closed, "delivery_closed");
+      const deadline = Date.now() + (progression ? 12000 : 10000);
       check(
         params?.tool === "hive_delivery" &&
           (params.namespace === null || params.namespace === undefined) &&
@@ -289,7 +419,8 @@ export function createDeliveryManagerAdapter(options) {
           id(params.callId),
         "invalid_delivery_native_call",
       );
-      const registered = currentRegistration();
+      const observedRegistration = currentRegistration();
+      const registered = progression ? structuredClone(observedRegistration) : observedRegistration;
       check(
         registered &&
           registered.expiresAt > Date.now() &&
@@ -349,55 +480,171 @@ export function createDeliveryManagerAdapter(options) {
         params.callId,
       ]);
       check(!active.has(identity), "delivery_call_busy");
+      if (progression && activeRoots.has(params.threadId)) {
+        nativeSpool.hold(params.threadId, "native_concurrent_delivery_calls");
+        throw new Error("native_concurrent_delivery_calls");
+      }
       active.add(identity);
+      if (progression) activeRoots.set(params.threadId, identity);
       try {
+        let continuation;
+        if (progression) {
+          await continuationTasks.get(params.threadId);
+          nativeSpool.assertAvailable(params.threadId, command.operation === "fail_attempt");
+          const current = nativeSpool.currentClaim(params.threadId);
+          if (current && current.parentTurnId !== params.turnId) {
+            check(command.operation === "claim_step", "native_first_operation_must_claim");
+            const receipt = nativeSpool.continuationStart(params.threadId);
+            check(
+              receipt?.nextParentTurnId === params.turnId,
+              "native_continuation_receipt_missing",
+            );
+            const request = continuationRequest(current);
+            const checked = await options.revalidateBoundary(request, params.turnId, {
+              threadId: params.threadId,
+              turnId: params.turnId,
+              callId: params.callId,
+            });
+            continuation = await nativeSpool.publishBoundary(
+              params.threadId,
+              params.turnId,
+              checked.observedAt,
+            );
+          } else if (current && command.operation === "claim_step") {
+            check(current.claimCallId === params.callId, "native_same_turn_claim_unavailable");
+          }
+        }
+        if (progression && nativeSpool && command.operation === "complete_step") {
+          await options.drainNativeRouting?.({
+            excludeCall: {
+              threadId: params.threadId,
+              turnId: params.turnId,
+              callId: params.callId,
+            },
+            timeoutMs: 5000,
+          });
+          await nativeSpool.requireCompletedChild(params.threadId, command.payload.attemptId);
+        }
+        nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
         const eventId = journal(
           stateDirectory,
           identity,
-          hash(JSON.stringify(canonical({ command, checkoutBinding }))),
+          hash(
+            JSON.stringify(
+              canonical({ command, checkoutBinding, ...(continuation ? { continuation } : {}) }),
+            ),
+          ),
         );
-        const now = Date.now();
-        const value = {
-          schemaVersion: 2,
+        const operationAuthority = {
+          managerThreadId: params.threadId,
           registrationId: registered.id,
           serverInstanceId: registered.serverInstanceId,
-          eventId,
-          managerThreadId: params.threadId,
-          nativeTurnId: params.turnId,
-          nativeCallId: params.callId,
-          issuedAt: now,
-          expiresAt: Math.min(now + 30_000, registered.expiresAt),
-          command,
           checkoutBinding,
         };
-        const proof = sign(null, Buffer.from(deliveryProofPayload(value)), key).toString(
-          "base64url",
+        nativeSpool?.beginClaim(
+          params,
+          command,
+          eventId,
+          checkoutBinding,
+          continuation,
+          operationAuthority,
         );
-        const response = await fetchImpl(`${hiveOrigin}/api/delivery/host`, {
-          method: "POST",
-          redirect: "manual",
-          credentials: "omit",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...value, proof }),
-          signal: AbortSignal.timeout(10_000),
-        });
-        const result = await readResponse(response);
-        nativeSpool?.recordClaim(params, command, result, checkoutBinding);
+        let result;
+        const attempts = progression && command.operation === "complete_step" ? 2 : 1;
+        for (let attempt = 0; attempt < attempts; attempt++) {
+          check(!closed && Date.now() < deadline, "delivery_request_deadline");
+          const fresh = progression
+            ? assertAuthority(operationAuthority, command.operation === "fail_attempt")
+            : registered;
+          nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
+          const now = Date.now(),
+            value = {
+              schemaVersion: 2,
+              registrationId: fresh.id,
+              serverInstanceId: fresh.serverInstanceId,
+              eventId,
+              managerThreadId: params.threadId,
+              nativeTurnId: params.turnId,
+              nativeCallId: params.callId,
+              issuedAt: now,
+              expiresAt: Math.min(now + 30_000, fresh.expiresAt),
+              command,
+              checkoutBinding,
+              ...(continuation ? { continuation } : {}),
+            };
+          const proof = sign(null, Buffer.from(deliveryProofPayload(value)), key).toString(
+            "base64url",
+          );
+          let response;
+          try {
+            response = await fetchImpl(`${hiveOrigin}/api/delivery/host`, {
+              method: "POST",
+              redirect: "manual",
+              credentials: "omit",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...value, proof }),
+              signal: AbortSignal.timeout(
+                Math.max(1, Math.min(progression ? 3000 : 10000, deadline - Date.now())),
+              ),
+            });
+          } catch (error) {
+            if (attempt + 1 < attempts && Date.now() < deadline) continue;
+            throw error;
+          }
+          if (response.status >= 500 && attempt + 1 < attempts && Date.now() < deadline) {
+            void response.body?.cancel().catch(() => {});
+            continue;
+          }
+          result = await readResponse(response, deadline);
+          if (progression) {
+            try {
+              assertAuthority(operationAuthority, command.operation === "fail_attempt");
+            } catch (error) {
+              nativeSpool.recordUncertainResponse(params, command, result, operationAuthority);
+              throw error;
+            }
+          }
+          break;
+        }
+        try {
+          nativeSpool?.recordClaim(params, command, result, checkoutBinding);
+          nativeSpool?.recordTask(command, result);
+          nativeSpool?.recordResult(params, command, result);
+        } catch (error) {
+          if (progression) nativeSpool.hold(params.threadId, "native_manager_receipt_conflict");
+          throw error;
+        }
+        nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
+        if (progression) {
+          try {
+            assertAuthority(operationAuthority, command.operation === "fail_attempt");
+          } catch (error) {
+            nativeSpool.recordUncertainResponse(params, command, result, operationAuthority);
+            throw error;
+          }
+        }
+        if (progression) scheduleContinuation(params.threadId);
         return {
           contentItems: [{ type: "inputText", text: JSON.stringify(result) }],
           success: true,
         };
       } finally {
         active.delete(identity);
+        if (progression && activeRoots.get(params.threadId) === identity)
+          activeRoots.delete(params.threadId);
       }
     },
     async resume() {
       await nativeSpool?.resume();
+      // Restart never manufactures a runnable claim from a historical replay.
+      // Existing acknowledged claims may reconcile their exact native history.
     },
     async flushNative() {
       await nativeSpool?.flush();
     },
     async close() {
+      closed = true;
+      await Promise.allSettled(continuationTasks.values());
       await nativeSpool?.close();
     },
     inspectNative() {

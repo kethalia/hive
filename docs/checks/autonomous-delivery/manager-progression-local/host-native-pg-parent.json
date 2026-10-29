@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T22:08:59.849Z",
+  "baseRevision": "accccac3fde744423926b97ac8a0c12efcb42a9a",
+  "sourceDigests": {
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "cfc97dff77787b73957dceca953e871a3ea164c91eccc2c0896b0e6228a96848",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "703171269863271a54225aec2f06039c7215b4483830f1fbec7f373e771711c9",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "3f6f42aac20931da4fb5430ec2110145ec866e5ff6f251745b9c922af1e100c5",
+    "src/__tests__/lib/delivery/host-progression.integration.test.ts": "86f046338ae50b33c9688e14be17f5cb0ad584a5fa91f18c19026eae3ab86e8d",
+    "src/lib/delivery/manager.server.ts": "bf871c27081f0d860a251d719db788c6524590915561862bba9968dbdd020613",
+    "src/lib/delivery/progression.server.ts": "e53a242c7bab60a90cbb8c49bcddd9092c094e9c8f56318e78027ef20fb89c54",
+    "src/lib/delivery/repository.ts": "0032d6c12d9cbc8d79747e2b3108fe2a7d7986d6b3012a4651a4eefb3230804b"
+  },
+  "testedSourcesCommitted": false,
+  "nativeVersion": "0.165.0",
+  "runtimeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "accountCredentials": false,
+  "accountInference": false,
+  "cloudMutations": false,
+  "passed": true,
+  "checks": {
+    "sameRootAndNativeLifetime": true,
+    "exactlyThreeRootTurns": true,
+    "twoDistinctDelegatedChildren": true,
+    "cursorVersionThree": true,
+    "physicalAnchorRetained": true,
+    "currentAttemptThird": true,
+    "signedBoundariesConsumedOnce": true,
+    "noQuiescenceClaim": true,
+    "noBrowserPromptRequired": true,
+    "reservationNeverPromotedToCanRun": true
+  },
+  "limitations": [
+    "Mocked Responses and simulated trusted fixture check evidence; not real CI or model inference.",
+    "Injected signed local controller transport and managed checkout inspection; no production Coder callbacks or source advance.",
+    "Physical anchor and unknown background/external writer state remain held; no cleanup/handoff/quiescence authority.",
+    "Lost native start or historical claim replay retains a hold; runnable restart recovery is deliberately not accepted."
+  ],
+  "native": {
+    "rootThreadId": "01a189b5-93fa-7960-91bb-b0213e702796",
+    "serverInstanceId": "71b1ca42-f2e9-4334-8c09-d2d1764e1dfb",
+    "processBefore": {
+      "pid": 486836,
+      "startTime": "971163705",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+      "device": "2128",
+      "inode": "4196065"
+    },
+    "processAfter": {
+      "pid": 486836,
+      "startTime": "971163705",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+      "device": "2128",
+      "inode": "4196065"
+    },
+    "rootTurns": [
+      {
+        "id": "01a189b5-941d-7341-a31e-623d79f7d6b7",
+        "status": "completed"
+      },
+      {
+        "id": "01a189b5-9547-7691-9378-1bce178aabf1",
+        "status": "completed"
+      },
+      {
+        "id": "01a189b5-9690-7642-af0a-019bd1fc95ff",
+        "status": "completed"
+      }
+    ],
+    "children": [
+      {
+        "threadId": "01a189b5-95d3-75c1-b4da-7348d02ffb09",
+        "spawnCallId": "spawn_1"
+      },
+      {
+        "threadId": "01a189b5-9723-70c1-8036-6ae48688edcf",
+        "spawnCallId": "spawn_2"
+      }
+    ]
+  },
+  "database": {
+    "ownerId": "4725384b-78c6-407f-ba4e-3559b0d68d66",
+    "taskId": "dcba2d08-0a0b-4443-9081-da26d652b3ce",
+    "managerBindingId": "23e44a83-b2a7-5a5a-898c-78de946eff25",
+    "cursorVersion": 3,
+    "nativeSequence": 6,
+    "activeAttemptId": "5b721766-11d5-4b9c-92d5-c2017e6c0f70",
+    "currentAttemptId": "180da559-7045-4e12-8495-01b350151080",
+    "attempts": [
+      {
+        "id": "5b721766-11d5-4b9c-92d5-c2017e6c0f70",
+        "outcome": "reported",
+        "quiescedAt": null
+      },
+      {
+        "id": "6bbfd2e7-13c5-4384-87a5-dea50500c9cd",
+        "outcome": "succeeded",
+        "quiescedAt": null
+      },
+      {
+        "id": "180da559-7045-4e12-8495-01b350151080",
+        "outcome": "succeeded",
+        "quiescedAt": null
+      }
+    ]
+  },
+  "reservationReceipts": [
+    {
+      "attemptId": "5b721766-11d5-4b9c-92d5-c2017e6c0f70",
+      "cursorVersion": 1,
+      "nativeSequence": 0,
+      "canRun": false,
+      "needsRuntimeBinding": true
+    },
+    {
+      "attemptId": "6bbfd2e7-13c5-4384-87a5-dea50500c9cd",
+      "cursorVersion": 2,
+      "nativeSequence": 1,
+      "canRun": false,
+      "needsRuntimeBinding": true
+    },
+    {
+      "attemptId": "180da559-7045-4e12-8495-01b350151080",
+      "cursorVersion": 3,
+      "nativeSequence": 4,
+      "canRun": false,
+      "needsRuntimeBinding": true
+    }
+  ],
+  "providerRequests": 14,
+  "controllerOperations": [
+    {
+      "path": "/api/delivery/host",
+      "operation": "create_task",
+      "source": null,
+      "sequence": null
+    },
+    {
+      "path": "/api/delivery/host",
+      "operation": "claim_step",
+      "source": null,
+      "sequence": null
+    },
+    {
+      "path": "/api/delivery/host",
+      "operation": "report_step",
+      "source": null,
+      "sequence": null
+    },
+    {
+      "path": "/api/delivery/native",
+      "operation": null,
+      "source": "root_boundary",
+      "sequence": 1
+    },
+    {
+      "path": "/api/delivery/host",
+      "operation": "claim_step",
+      "source": null,
+      "sequence": null
+    },
+    {
+      "path": "/api/delivery/native",
+      "operation": null,
+      "source": "started",
+      "sequence": 2
+    },
+    {
+      "path": "/api/delivery/native",
+      "operation": null,
+      "source": "turn_completed",
+      "sequence": 3
+    },
+    {
+      "path": "/api/delivery/host",
+      "operation": "complete_step",
+      "source": null,
+      "sequence": null
+    },
+    {
+      "path": "/api/delivery/native",
+      "operation": null,
+      "source": "root_boundary",
+      "sequence": 4
+    },
+    {
+      "path": "/api/delivery/host",
+      "operation": "claim_step",
+      "source": null,
+      "sequence": null
+    },
+    {
+      "path": "/api/delivery/native",
+      "operation": null,
+      "source": "started",
+      "sequence": 5
+    },
+    {
+      "path": "/api/delivery/native",
+      "operation": null,
+      "source": "turn_completed",
+      "sequence": 6
+    },
+    {
+      "path": "/api/delivery/host",
+      "operation": "complete_step",
+      "source": null,
+      "sequence": null
+    }
+  ],
+  "safeErrorCodes": [],
+  "spool": {
+    "pending": 0,
+    "held": 1,
+    "blocked": 0,
+    "attempts": 3,
+    "currentCursors": {
+      "01a189b5-93fa-7960-91bb-b0213e702796": {
+        "attemptId": "180da559-7045-4e12-8495-01b350151080",
+        "cursorVersion": 3,
+        "sequence": 6,
+        "acknowledgedSequence": 6
+      }
+    },
+    "violations": 0
+  },
+  "cleanup": {
+    "status": "removed_after_native_exit",
+    "nativeProcessObservedGone": true
+  }
+}

@@ -319,3 +319,177 @@ test("failed history lookup persists a reconciliation hold across restart", asyn
   assert.throws(() => restarted.assertAvailable(f.managerThreadId), /reconciliation/);
   assert.equal(restarted.inspect().held, 1);
 });
+
+function protocolOne(f) {
+  const spool = f.make({
+    progressionProtocol: 1,
+    readNativeHistory: async () => ({ data: [{ ...f.turn, itemsView: "full" }], nextCursor: null }),
+    deliver: async (value) => {
+      f.sent.push(structuredClone(value));
+      return {
+        accepted: true,
+        blocked: false,
+        sequence: value.sequence,
+        ...(value.source.kind === "root_boundary"
+          ? { boundaryEventId: value.eventId, cursorVersion: value.source.cursorVersion }
+          : {}),
+      };
+    },
+  });
+  const receipt = {
+    ...f.claim,
+    progressionProtocol: 1,
+    cursorVersion: 1,
+    checkoutBindingDigest: "a".repeat(64),
+    outcome: "running",
+    canRun: false,
+    needsRuntimeBinding: true,
+    needsReconciliation: false,
+  };
+  spool.beginClaim(f.request, f.command, randomUUID(), f.context);
+  spool.recordClaim(f.request, f.command, receipt, f.context);
+  return { spool, receipt };
+}
+
+test("protocol one preserves physical anchor and old attempt attribution across a monotonic logical cursor", async (t) => {
+  const f = fixture(t),
+    { spool, receipt } = protocolOne(f);
+  f.events(spool);
+  await spool.requireCompletedChild(f.managerThreadId, receipt.attemptId);
+  spool.recordResult(
+    f.request,
+    { operation: "complete_step", payload: { ...f.command.payload, attemptId: receipt.attemptId } },
+    { eventId: randomUUID(), reportId: randomUUID() },
+  );
+  spool.observe({
+    method: "turn/completed",
+    params: { threadId: f.managerThreadId, turn: { id: f.parentTurnId, status: "completed" } },
+  });
+  assert.equal(spool.continuationCandidate(f.managerThreadId).attemptId, receipt.attemptId);
+  const nextTurn = randomUUID();
+  spool.recordContinuationStart(f.managerThreadId, {
+    parentTurnId: f.parentTurnId,
+    priorAttemptId: receipt.attemptId,
+    cursorVersion: 1,
+    nextParentTurnId: nextTurn,
+    serverInstanceId: f.options.currentServerInstanceId(),
+  });
+  const checkpoint = await spool.publishBoundary(
+    f.managerThreadId,
+    nextTurn,
+    new Date().toISOString(),
+  );
+  assert.equal(checkpoint.sequence, 4);
+  const nextRequest = { ...f.request, turnId: nextTurn, callId: "next-claim" };
+  const nextCommand = { ...f.command, payload: { ...f.command.payload, stepId: randomUUID() } };
+  const nextReceipt = { ...receipt, attemptId: randomUUID(), cursorVersion: 2, nativeSequence: 4 };
+  spool.beginClaim(nextRequest, nextCommand, randomUUID(), f.context, checkpoint);
+  spool.recordClaim(nextRequest, nextCommand, nextReceipt, f.context);
+  assert.equal(spool.currentClaim(f.managerThreadId).attemptId, nextReceipt.attemptId);
+  const saved = JSON.parse(
+    readFileSync(join(f.options.stateDirectory, "source.json"), "utf8"),
+  ).state;
+  assert.equal(saved.claims[f.managerThreadId].attemptId, receipt.attemptId);
+  assert.equal(saved.attempts[nextReceipt.attemptId].parentTurnId, nextTurn);
+  // An exact late duplicate stays harmless and attributed to the old attempt.
+  spool.observe({ method: "turn/completed", params: { threadId: f.childThreadId, turn: f.turn } });
+  spool.assertAvailable(f.managerThreadId);
+  assert.equal(spool.inspect().pending, 0);
+  // A new old-turn fact cannot be promoted to the current cursor.
+  spool.observe({
+    method: "item/completed",
+    params: {
+      threadId: f.childThreadId,
+      turnId: f.childTurnId,
+      item: { ...f.item, id: "late-command" },
+    },
+  });
+  assert.throws(() => spool.assertAvailable(f.managerThreadId), /reconciliation/);
+  const after = JSON.parse(
+    readFileSync(join(f.options.stateDirectory, "source.json"), "utf8"),
+  ).state;
+  assert.equal(after.events.at(-1).input.attemptId, receipt.attemptId);
+  assert.equal(after.events.at(-1).input.sequence, 5);
+  assert.equal(after.cursors[f.managerThreadId].attemptId, nextReceipt.attemptId);
+});
+
+test("protocol one never promotes a spawn observed before its claim receipt", async (t) => {
+  const f = fixture(t),
+    spool = f.make({ progressionProtocol: 1 });
+  spool.observe(f.requested);
+  spool.observe(f.resolved);
+  assert.throws(() => spool.assertAvailable(f.managerThreadId), /reconciliation/);
+  spool.beginClaim(f.request, f.command, randomUUID(), f.context);
+  spool.recordClaim(
+    f.request,
+    f.command,
+    {
+      ...f.claim,
+      progressionProtocol: 1,
+      cursorVersion: 1,
+      checkoutBindingDigest: "a".repeat(64),
+      outcome: "running",
+      canRun: false,
+      needsRuntimeBinding: true,
+      needsReconciliation: false,
+    },
+    f.context,
+  );
+  const saved = JSON.parse(
+    readFileSync(join(f.options.stateDirectory, "source.json"), "utf8"),
+  ).state;
+  assert.equal(Object.keys(saved.fragments).length, 0);
+  assert.equal(Object.values(saved.violations)[0].attemptId, null);
+  assert.equal(Object.values(saved.violations)[0].childThreadId, f.childThreadId);
+  assert.equal(f.children.length, 0);
+  assert.throws(() => spool.assertAvailable(f.managerThreadId), /reconciliation/);
+});
+
+test("a protocol-one historical claim replay remains held despite an exact pre-send journal", async (t) => {
+  const f = fixture(t),
+    { spool, receipt } = protocolOne(f);
+  spool.recordClaim(
+    f.request,
+    f.command,
+    { ...receipt, replayed: true, canRun: false, needsReconciliation: true },
+    f.context,
+  );
+  assert.throws(() => spool.assertAvailable(f.managerThreadId), /reconciliation/);
+  await spool.close();
+  const restarted = f.make({ progressionProtocol: 1 });
+  assert.throws(() => restarted.assertAvailable(f.managerThreadId), /reconciliation/);
+  assert.equal(restarted.inspect().held, 1);
+});
+
+for (const patch of [
+  { canRun: true },
+  { needsRuntimeBinding: false },
+  { needsReconciliation: undefined },
+  { replayed: undefined },
+  { outcome: "succeeded" },
+])
+  test(`unknown fresh reservation authority shape holds: ${JSON.stringify(patch)}`, async (t) => {
+    const f = fixture(t),
+      { spool, receipt } = protocolOne(f);
+    assert.throws(
+      () => spool.recordClaim(f.request, f.command, { ...receipt, ...patch }, f.context),
+      /authority_unknown/,
+    );
+    assert.throws(() => spool.assertAvailable(f.managerThreadId), /reconciliation/);
+  });
+
+test("typed command work before a protocol-one claim cannot escape raw-event admission checks", async (t) => {
+  const f = fixture(t),
+    spool = f.make({ progressionProtocol: 1 });
+  spool.observe({
+    method: "item/started",
+    params: {
+      threadId: f.managerThreadId,
+      turnId: f.parentTurnId,
+      item: { id: "early-command", type: "commandExecution", status: "inProgress" },
+    },
+  });
+  assert.throws(() => spool.assertAvailable(f.managerThreadId), /reconciliation/);
+  assert.equal(spool.inspect().violations, 1);
+  assert.equal(f.sent.length, 0);
+});

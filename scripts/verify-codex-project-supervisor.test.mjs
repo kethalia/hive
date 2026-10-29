@@ -909,6 +909,299 @@ test("native tool router separates request IDs and never answers approvals or ar
   assert.equal(replies.find((r) => r.id === 3).result.success, false);
 });
 
+test("router drain tracks detached observers and excludes read responses from its notification fence", async () => {
+  let release;
+  const observer = new Promise((resolve) => {
+    release = resolve;
+  });
+  const route = createNativeManagerRouter(
+    () => ({ observe: () => observer }),
+    () => {},
+  );
+  route({ method: "turn/completed", params: { threadId: "root" } });
+  const sequence = route.inspect().receiveSequence;
+  assert.equal(route({ id: 22, result: { data: [] } }), false);
+  assert.equal(route.inspect().receiveSequence, sequence);
+  assert.equal(route.inspect().pendingObservers, 1);
+  await assert.rejects(route.drain({ timeoutMs: 10 }), /drain_timeout/);
+  release();
+  await route.drain({ timeoutMs: 100 });
+  assert.equal(route.inspect().pendingObservers, 0);
+});
+
+test("a claim handler can drain others without awaiting itself or excluding a foreign same-named call", async () => {
+  let route;
+  const replies = [];
+  route = createNativeManagerRouter(
+    () => ({
+      handleToolCall: async (params) => {
+        const result = await route.drain({ excludeCall: params, timeoutMs: 100 });
+        assert.equal(result.activeHandlers, 0);
+        return { success: true, contentItems: [] };
+      },
+    }),
+    (id, result) => replies.push({ id, result }),
+  );
+  route({
+    id: 9,
+    method: "item/tool/call",
+    params: {
+      tool: "hive_delivery",
+      namespace: null,
+      threadId: "root",
+      turnId: "turn",
+      callId: "claim",
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(replies[0].result.success, true);
+  let release;
+  const work = new Promise((resolve) => {
+    release = resolve;
+  });
+  const other = createNativeManagerRouter(
+    () => ({ handleToolCall: () => work }),
+    () => {},
+  );
+  other({
+    id: 10,
+    method: "item/tool/call",
+    params: {
+      tool: "hive_delivery",
+      namespace: null,
+      threadId: "foreign",
+      turnId: "turn",
+      callId: "claim",
+    },
+  });
+  await assert.rejects(
+    other.drain({
+      excludeCall: { threadId: "root", turnId: "turn", callId: "claim" },
+      timeoutMs: 10,
+    }),
+    /drain_timeout/,
+  );
+  release({ success: true, contentItems: [] });
+  await other.drain({ timeoutMs: 100 });
+});
+
+async function progressionSupervisor(t) {
+  const f = fixture(t);
+  const lease = f.runtime.inspectLease;
+  f.runtime.inspectLease = (project) => {
+    const result = lease(project);
+    result.data.revision = "a".repeat(40);
+    return result;
+  };
+  f.runtime.setManagerAdapter = () => {};
+  f.runtime.inspectManagerRouting = () => ({
+    receiveSequence: 0,
+    pendingObservers: 0,
+    activeHandlers: 0,
+    observerFailures: [],
+  });
+  f.runtime.drainManagerRouting = async () => f.runtime.inspectManagerRouting();
+  const adapter = {
+    progressionProtocol: 1,
+    assertProgressionAuthority: () => {},
+    tools: () => [],
+    handleToolCall: async () => ({ success: true, contentItems: [] }),
+  };
+  const supervisor = await openSupervisor(config(), { ...f.options, managerAdapter: adapter });
+  t.after(() => supervisor.close());
+  await supervisor.command(ensure);
+  await supervisor.command(prompt);
+  const root = {
+    id: "turn-one",
+    status: "completed",
+    itemsView: "full",
+    items: [{ id: "first-input", type: "userMessage", clientId: prompt.requestId }],
+  };
+  const history = [root];
+  const original = f.runtime.call;
+  f.runtime.call = async (method, params) => {
+    if (method === "thread/turns/list") return { data: structuredClone(history), nextCursor: null };
+    if (method === "thread/items/list")
+      return {
+        data: history
+          .find((turn) => turn.id === params.turnId)
+          .items.map((item) => ({ turnId: params.turnId, item })),
+        nextCursor: null,
+      };
+    if (method === "thread/loaded/list") return { data: ["thread-one"], nextCursor: null };
+    if (method === "turn/start") {
+      f.calls.push({ method, params });
+      history.push({
+        id: "turn-two",
+        status: "inProgress",
+        itemsView: "full",
+        items: [
+          { id: "next-input", type: "userMessage", clientId: params.clientUserMessageId },
+          {
+            id: "next-claim",
+            type: "dynamicToolCall",
+            tool: "hive_delivery",
+            arguments: { operation: "claim_step" },
+          },
+        ],
+      });
+      return { turn: { id: "turn-two" } };
+    }
+    return original(method, params);
+  };
+  const request = {
+    managerThreadId: "thread-one",
+    parentTurnId: "turn-one",
+    priorAttemptId: "attempt-one",
+    cursorVersion: 1,
+    requestId: "continuation-one",
+    spawns: [],
+    cohort: [],
+    checkoutBinding: {
+      projectId: "project",
+      preparationIntentId: "task",
+      repositoryId: "123",
+      leaseId: "lease",
+      leaseGeneration: 1,
+      revision: "a".repeat(40),
+    },
+  };
+  return { ...f, supervisor, history, request };
+}
+
+test("protocol one journals one private continuation and revalidates the exact claim without opening CLI admission", async (t) => {
+  const f = await progressionSupervisor(t);
+  const receipt = await f.supervisor.continueDeliveryRoot(f.request);
+  assert.equal(receipt.nextParentTurnId, "turn-two");
+  assert.deepEqual(await f.supervisor.continueDeliveryRoot(f.request), receipt);
+  assert.equal(f.calls.filter((call) => call.method === "turn/start").length, 2);
+  const checkpoint = await f.supervisor.revalidateDeliveryBoundary(f.request, "turn-two", {
+    threadId: "thread-one",
+    turnId: "turn-two",
+    callId: "next-claim",
+  });
+  assert.equal(checkpoint.receiveSequence, 0);
+  await assert.rejects(
+    f.supervisor.command({ operation: "attach", projectId: "project" }),
+    /attachment_forbidden/,
+  );
+  await assert.rejects(
+    f.supervisor.command({ operation: "rejoin", projectId: "project" }),
+    /attachment_forbidden/,
+  );
+  const stored = JSON.parse(
+    readFileSync(join(f.supervisor.stateDirectory, "registry.json"), "utf8"),
+  ).state;
+  assert.equal(stored.projects.project.deliveryContinuations["continuation-one"].phase, "started");
+});
+
+test("an ambiguous continuation start stays journaled and never sends a second native start", async (t) => {
+  const f = await progressionSupervisor(t),
+    original = f.runtime.call;
+  f.runtime.call = async (method, params) => {
+    const result = await original(method, params);
+    if (method === "turn/start") throw new Error("lost_ack");
+    return result;
+  };
+  await assert.rejects(f.supervisor.continueDeliveryRoot(f.request), /lost_ack/);
+  await assert.rejects(f.supervisor.continueDeliveryRoot(f.request), /continuation_uncertain/);
+  assert.equal(f.calls.filter((call) => call.method === "turn/start").length, 2);
+});
+
+test("parallel native input and work before claim receipt retain the continuation hold", async (t) => {
+  const f = await progressionSupervisor(t);
+  await f.supervisor.continueDeliveryRoot(f.request);
+  f.history
+    .at(-1)
+    .items.push({ id: "foreign-input", type: "userMessage", clientId: "external-producer" });
+  await assert.rejects(
+    f.supervisor.revalidateDeliveryBoundary(f.request, "turn-two", { callId: "next-claim" }),
+    /parallel_input/,
+  );
+  f.history.at(-1).items.pop();
+  f.history.at(-1).items.push({ type: "commandExecution", id: "unadmitted-command" });
+  await assert.rejects(
+    f.supervisor.revalidateDeliveryBoundary(f.request, "turn-two", { callId: "next-claim" }),
+    /work_before_claim/,
+  );
+});
+
+test("protocol-one boundary refuses unknown inventory and inconsistent full-item history", async (t) => {
+  const f = await progressionSupervisor(t),
+    original = f.runtime.call;
+  f.runtime.call = async (method, params) =>
+    method === "thread/loaded/list"
+      ? { data: ["thread-one", "unknown-thread"], nextCursor: null }
+      : original(method, params);
+  await assert.rejects(f.supervisor.continueDeliveryRoot(f.request), /unknown_native_inventory/);
+  f.runtime.call = async (method, params) => {
+    const result = await original(method, params);
+    if (method === "thread/items/list")
+      result.data[0].item = { ...result.data[0].item, clientId: "different-input" };
+    return result;
+  };
+  await assert.rejects(f.supervisor.continueDeliveryRoot(f.request), /history_incomplete/);
+  assert.equal(f.calls.filter((call) => call.method === "turn/start").length, 1);
+});
+
+test("router timeout keeps the actual handler tracked until its underlying work settles", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let release;
+  const work = new Promise((resolve) => {
+      release = resolve;
+    }),
+    replies = [];
+  const route = createNativeManagerRouter(
+    () => ({ handleToolCall: () => work }),
+    (id, result) => replies.push({ id, result }),
+  );
+  route({
+    id: 1,
+    method: "item/tool/call",
+    params: { tool: "hive_delivery", threadId: "root", turnId: "turn", callId: "call" },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(15001);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(replies.length, 1);
+  assert.equal(replies[0].result.success, false);
+  assert.equal(route.inspect().activeHandlers, 1);
+  release({ success: true, contentItems: [] });
+  await route.drain({ timeoutMs: 100 });
+  assert.equal(route.inspect().activeHandlers, 0);
+  assert.equal(replies.length, 1);
+});
+
+test("continuation rechecks registration after awaited history and again after durable start intent", async (t) => {
+  for (const when of ["history", "journal"]) {
+    const f = await progressionSupervisor(t);
+    let expiresAt = Date.now() + 60000;
+    f.supervisor.managerAdapter.assertProgressionAuthority = () => {
+      if (expiresAt <= Date.now()) throw new Error("delivery_authority_changed");
+    };
+    if (when === "history") {
+      const original = f.runtime.call;
+      f.runtime.call = async (method, params) => {
+        const value = await original(method, params);
+        if (method === "thread/items/list") expiresAt = Date.now() - 1;
+        return value;
+      };
+    } else {
+      const save = f.supervisor.save;
+      f.supervisor.save = () => {
+        save();
+        if (
+          f.supervisor.state.projects.project.deliveryContinuations?.[f.request.requestId]
+            ?.phase === "start-uncertain"
+        )
+          expiresAt = Date.now() - 1;
+      };
+    }
+    await assert.rejects(f.supervisor.continueDeliveryRoot(f.request), /authority_changed/);
+    assert.equal(f.calls.filter((call) => call.method === "turn/start").length, 1);
+  }
+});
+
 test("registration cannot adopt an empty thread after a failed new-lifetime rejoin", async (t) => {
   const f = fixture(t);
   let s = await openSupervisor(config(), f.options);
