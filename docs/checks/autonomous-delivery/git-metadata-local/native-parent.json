@@ -3,9 +3,7 @@
   "scope": "Local mock only; no account inference or production authority",
   "metadataPolicyDigest": "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b",
   "threadId": "01a189fd-6012-79f2-9be6-7d8b7c493e4b",
-  "childThreadIds": [
-    "01a189fd-6a23-7db2-84e6-a9d26def0305"
-  ],
+  "childThreadIds": ["01a189fd-6a23-7db2-84e6-a9d26def0305"],
   "requests": 10,
   "rootDenials": 11,
   "childDenials": 11,
