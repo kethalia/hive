@@ -7,13 +7,23 @@ import {
   type SessionGrant,
   SessionTransportError,
 } from "@/lib/codex-session/browser-transport";
+import {
+  type ExpectedProjectSession,
+  matchesExpectedProjectSession,
+} from "@/lib/codex-session/session-target";
 
 const initial: SessionView = { phase: "loading", turns: [], needsRefresh: true, error: null };
 class SessionDenied extends Error {}
 
 /** One read connection per mounted project. Reconnect only reauthorizes and loads
  * history: no API here can create a thread, attach a CLI or submit a prompt. */
-export function useProjectConversation(projectId: string, enabled: boolean) {
+export function useProjectConversation(
+  projectId: string,
+  enabled: boolean,
+  expected?: ExpectedProjectSession,
+) {
+  const expectedWorkspace = expected?.workspaceId;
+  const expectedThread = expected?.threadId;
   const [view, setView] = useState<SessionView>(initial);
   const [generation, setGeneration] = useState(0);
   const reconnect = useCallback(() => setGeneration((value) => value + 1), []);
@@ -35,13 +45,24 @@ export function useProjectConversation(projectId: string, enabled: boolean) {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
+        redirect: "error",
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
       });
       if (!response.ok) {
         if ([401, 403, 404].includes(response.status)) throw new SessionDenied();
         throw new Error("Session authorization unavailable");
       }
-      return response.json();
+      const grant = await response.json();
+      if (
+        !matchesExpectedProjectSession(
+          grant,
+          expectedWorkspace && expectedThread
+            ? { workspaceId: expectedWorkspace, threadId: expectedThread }
+            : undefined,
+        )
+      )
+        throw new SessionDenied();
+      return grant;
     };
     const schedule = () => {
       if (disposed || retries >= 3 || retryTimer) return;
@@ -112,6 +133,6 @@ export function useProjectConversation(projectId: string, enabled: boolean) {
       window.removeEventListener("online", recover);
       document.removeEventListener("visibilitychange", recover);
     };
-  }, [projectId, enabled, generation]);
+  }, [projectId, enabled, generation, expectedWorkspace, expectedThread]);
   return { view, reconnect };
 }

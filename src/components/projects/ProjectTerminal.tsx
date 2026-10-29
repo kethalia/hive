@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import {
+  type ExpectedProjectSession,
+  matchesExpectedProjectSession,
+} from "@/lib/codex-session/session-target";
 import "@xterm/xterm/css/xterm.css";
 
 const grantSchema = z
@@ -30,7 +34,17 @@ const frameSchema = z.discriminatedUnion("type", [
 ]);
 /** Attaches a PTY to the already-registered tmux session. Hidden tabs retain their
  * socket; visibility changes only resize it and never start another native agent. */
-export function ProjectTerminal({ projectId, visible }: { projectId: string; visible: boolean }) {
+export function ProjectTerminal({
+  projectId,
+  visible,
+  expected,
+}: {
+  projectId: string;
+  visible: boolean;
+  expected?: ExpectedProjectSession;
+}) {
+  const expectedWorkspace = expected?.workspaceId;
+  const expectedThread = expected?.threadId;
   const element = useRef<HTMLDivElement>(null);
   const fit = useRef<(() => void) | null>(null);
   const [error, setError] = useState(false);
@@ -64,10 +78,20 @@ export function ProjectTerminal({ projectId, visible }: { projectId: string; vis
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
+        redirect: "error",
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
       });
       if (!response.ok) throw new Error("Terminal unavailable");
       const grant = grantSchema.parse(await response.json());
+      if (
+        !matchesExpectedProjectSession(
+          grant,
+          expectedWorkspace && expectedThread
+            ? { workspaceId: expectedWorkspace, threadId: expectedThread }
+            : undefined,
+        )
+      )
+        throw new Error("The linked manager conversation is no longer registered");
       const url = new URL(grant.url);
       if (
         url.origin !== window.location.origin ||
@@ -213,7 +237,7 @@ export function ProjectTerminal({ projectId, visible }: { projectId: string; vis
       terminal?.dispose();
       fit.current = null;
     };
-  }, [projectId, generation]);
+  }, [projectId, generation, expectedWorkspace, expectedThread]);
   return (
     <section aria-label="Project terminal" className="flex h-full min-h-0 flex-col">
       {error ? (
