@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   authorizePreview,
   bootstrapPreview,
@@ -59,8 +59,8 @@ describe("private app preview authority", () => {
 describe("same-origin private preview cookie", () => {
   const origin = "https://preview.example";
   const options = { origin, cookieSecret: "b".repeat(64), now: Date.parse("2026-10-29T18:00:00Z") };
-  function issue() {
-    const response = bootstrapPreview(
+  async function issue() {
+    const response = await bootstrapPreview(
       new Request(`${origin}/__hive-preview/access`, {
         method: "POST",
         headers: { Origin: origin, Authorization: `Bearer ${secret}` },
@@ -76,8 +76,8 @@ describe("same-origin private preview cookie", () => {
     expect(header).not.toContain(secret);
     return header.split(";")[0];
   }
-  it("bootstraps signed15min cookie for assets/WS and strips preview authority before delegation", () => {
-    const cookie = issue();
+  it("bootstraps signed15min cookie for assets/WS and strips preview authority before delegation", async () => {
+    const cookie = await issue();
     const request = new Request(
       `${origin}/api/projects/00000000-0000-4000-8000-000000000000/session`,
       { headers: { Cookie: `${cookie}; __Host-hive-session=owner-session`, Upgrade: "websocket" } },
@@ -87,8 +87,8 @@ describe("same-origin private preview cookie", () => {
     expect(delegated.headers.get("cookie")).toBe("__Host-hive-session=owner-session");
     expect(delegated.headers.has("authorization")).toBe(false);
   });
-  it("rejects tampering, expiry, wrongorigin, duplicatecookies and missingruntimecookiekey", () => {
-    const cookie = issue();
+  it("rejects tampering, expiry, wrongorigin, duplicatecookies and missingruntimecookiekey", async () => {
+    const cookie = await issue();
     const request = (value: string, base = origin) =>
       new Request(`${base}/login`, { headers: { Cookie: value } });
     expect(authorizePreview(request(`${cookie}tampered`), secret, options)?.status).toBe(401);
@@ -101,8 +101,8 @@ describe("same-origin private preview cookie", () => {
     expect(authorizePreview(request(`${cookie}; ${cookie}`), secret, options)?.status).toBe(401);
     expect(authorizePreview(request(cookie), secret, { origin })?.status).toBe(401);
   });
-  it("requires bearer plus exact Origin, emptybody and noquery forbootstrap; cookiealone cannotrenew", () => {
-    const cookie = issue();
+  it("requires bearer plus exact Origin, emptybody and noquery forbootstrap; cookiealone cannotrenew", async () => {
+    const cookie = await issue();
     for (const [url, init, expected] of [
       [
         `${origin}/__hive-preview/access`,
@@ -133,7 +133,63 @@ describe("same-origin private preview cookie", () => {
       ],
       [`${origin}/__hive-preview/access`, { method: "GET" }, 405],
     ] as const)
-      expect(bootstrapPreview(new Request(url, init), secret, options)?.status).toBe(expected);
+      expect((await bootstrapPreview(new Request(url, init), secret, options))?.status).toBe(
+        expected,
+      );
     expect(cookie.startsWith(`${PREVIEW_COOKIE}=`)).toBe(true);
+  });
+  function streamed(body: ReadableStream<Uint8Array>) {
+    return new Request(`${origin}/__hive-preview/access`, {
+      method: "POST",
+      headers: { Origin: origin, Authorization: `Bearer ${secret}` },
+      body,
+      duplex: "half",
+    } as RequestInit);
+  }
+  it("accepts a non-null empty network stream, including bounded empty chunks", async () => {
+    const request = streamed(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array());
+          controller.close();
+        },
+      }),
+    );
+    expect(request.body).not.toBeNull();
+    expect((await bootstrapPreview(request, secret, options))?.status).toBe(204);
+  });
+  it("cancels on the first nonempty chunk or too many empty chunks without buffering the body", async () => {
+    for (const nonempty of [true, false]) {
+      const cancel = vi.fn();
+      let reads = 0;
+      const request = streamed(
+        new ReadableStream(
+          {
+            pull(controller) {
+              reads++;
+              controller.enqueue(nonempty ? new Uint8Array([1]) : new Uint8Array());
+            },
+            cancel,
+          },
+          { highWaterMark: 0 },
+        ),
+      );
+      expect((await bootstrapPreview(request, secret, options))?.status).toBe(400);
+      expect(reads).toBe(nonempty ? 1 : 8);
+      expect(cancel).toHaveBeenCalledOnce();
+    }
+  });
+  it("bounds a stalled read and stalled cancellation", async () => {
+    vi.useFakeTimers();
+    try {
+      const cancel = vi.fn(() => new Promise<void>(() => {}));
+      const request = streamed(new ReadableStream({ cancel }));
+      const result = bootstrapPreview(request, secret, options);
+      await vi.advanceTimersByTimeAsync(1100);
+      expect((await result)?.status).toBe(400);
+      expect(cancel).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
