@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-10-29",
+  "scope": "local-only",
+  "nodeVersion": "24.21.0",
+  "pnpmVersion": "10.32.1",
+  "wranglerVersion": "4.155.0",
+  "neonDriverVersion": "1.2.0",
+  "unitTests": { "passed": 11, "failed": 0, "database": "in-memory atomic model, not Neon" },
+  "dryRun": { "uploaded": false, "uncompressedKiB": 208.18, "gzipKiB": 56.37 },
+  "workerd": {
+    "mode": "wrangler dev --local",
+    "bindAddress": "127.0.0.1",
+    "syntheticCredentialsOnly": true,
+    "checks": [
+      { "name": "incomplete-configuration", "status": 503 },
+      { "name": "missing-bearer", "status": 401 },
+      { "name": "capability-artifact", "status": 200 },
+      { "name": "query-parameters-rejected", "status": 400 }
+    ],
+    "externalProbeRequests": 0,
+    "processStopped": true,
+    "syntheticBindingsRemoved": true
+  },
+  "realCoderAuthenticationVerified": false,
+  "realNeonTransactionVerified": false,
+  "f02Complete": false
+}

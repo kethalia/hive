@@ -1,0 +1,18 @@
+{
+  "name": "hive-epic-preview-probe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "test": "node --test worker.test.mjs",
+    "preview": "wrangler dev --local --ip 127.0.0.1",
+    "build": "wrangler deploy --dry-run --outdir dist"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.2.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.155.0"
+  }
+}

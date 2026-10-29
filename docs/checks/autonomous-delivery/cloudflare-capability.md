@@ -144,3 +144,27 @@ identity; label mocks/local workerd/deployed integration/browser results separat
 The primary agent should reconcile this audit with its account and runtime findings before marking
 D01 accepted. The next bounded implementation is slices 1–2; only real deployed evidence can
 resolve the driver/network uncertainty they target.
+
+## Initial probe implementation and account inspection
+
+The subsequent isolated implementation is in
+[deploy/cloudflare/epic-preview](../../../deploy/cloudflare/epic-preview/README.md).
+Its [local evidence](../../../deploy/cloudflare/epic-preview/local-evidence.json) distinguishes
+11 passing focused tests and local workerd/dry-run results from unperformed live integration.
+It implements a dedicated bearer gate, fixed read-only Coder identity request, and Neon HTTP
+batch commit/replay/rollback checks against a preview-only schema. This deliberately does not
+claim the Prisma, interactive transaction, framework, Hive authentication or terminal gates.
+
+[Read-only account inspection](../../../deploy/cloudflare/epic-preview/account-inspection.json)
+found the connected Neon organization is Free, but its existing project reports an effective
+512 MiB branch limit, lower than the public plan page. Only its default `production` branch
+exists. The available MCP branch-create operation copies parent data and exposes no schema-only
+option, so a clean test project or verified schema-only API must be selected before test writes.
+The Cloudflare connection can inspect Workers/subdomain, but subscription inspection returned
+403 because its OAuth connection cannot cover Billing Read. Workers `standard` usage model
+does not establish Free versus Paid. The user subsequently confirmed an existing **Paid** Workers
+plan and did not authorize additional cost. Published Standard includes 10M requests and 30M CPU
+milliseconds/month, but remaining headroom is unverified: billing usage is also inaccessible via
+OAuth, and the initial analytics GraphQL request was rate-limited. Deployment remains pending
+usage verification; no plan upgrade or paid add-on is authorized. No resource has been created
+or deployed by this probe.
