@@ -84,5 +84,6 @@ if [ "$HIVE_WORKSPACE_PROFILE" = "software" ]; then
   chmod 755 "$workspace_helper"
   mv -fT -- "$workspace_helper" "$HOME/.local/bin/hive-workspace"
 fi
-export GH_TOKEN="${github_token}"
+# Resolve GitHub authentication at execution time through the existing helper.
+# Never embed the provider access token in Coder's readable startup metadata.
 "$HOME/clone-repositories.sh"
