@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "workerd": "./src/workerd.ts",
+      "default": "./src/index.ts"
+    },
     "./cloudflare": "./src/cloudflare.ts"
   },
   "files": [

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import type { NextConfig } from "next";
 import { version } from "./package.json";
 import {
@@ -25,6 +26,10 @@ const nextConfig: NextConfig = {
   },
   ...(cloudflareBuild
     ? {
+        webpack(config) {
+          config.resolve.alias["@hive/db$"] = resolve("packages/db/src/workerd.ts");
+          return config;
+        },
         serverExternalPackages: [
           "@prisma/client",
           "@prisma/adapter-neon",

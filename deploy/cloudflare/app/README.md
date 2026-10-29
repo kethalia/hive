@@ -33,13 +33,13 @@ interrupted-build recovery path. Runtime secrets must be explicit Worker binding
 printed. Cloudflare-only tracing excludes templates, Git state, task artifacts and local env files;
 host-side helper/template operations remain outside this preview.
 
-The actual application built and ran in local workerd: `/login` returned real SSR HTML and its
-sign-in form; `/runtime-config.js` returned JavaScript. The dry-run upload was 21,147.12 KiB
-uncompressed / 4,940.71 KiB gzip with 138 assets. See [local evidence](local-evidence.json).
-These results are from an uncommitted working tree with concurrent epic edits, not an identified
-release artifact. The final tracing exclusions were added after that successful build; perform a
-fresh post-commit build before deployment. Root and DB typechecks, six request-isolation/lifetime
-tests, 56 auth-package tests and 145 auth-service tests passed.
+The actual application built and ran in local workerd at committed `fbafe43`: `/login` returned
+real SSR HTML and its sign-in form; `/runtime-config.js` returned JavaScript. The clean frozen-lock
+install generated both clients, and the dry-run upload was 21,159.33 KiB uncompressed / 4,947.91 KiB
+gzip with 138 assets. See [committed build evidence](../../../docs/checks/autonomous-delivery/cloudflare-app-build.json).
+Root and recursive package typechecks passed. That evidence predates the auth binding/conditional
+DB export followup; each subsequent source change requires a new committed build before preview.
+The earlier [working-tree evidence](local-evidence.json) is retained with its original limitations.
 
 OpenNext warns that the application's Node `proxy.ts` middleware support is experimental and
 not officially maintained. Anonymous SSR and boundary checks ran successfully; authenticated
@@ -50,6 +50,8 @@ cookie/CSP behavior still requires full integration and browser validation befor
 `packages/db/scripts/generate-cloudflare.mjs` derives a `workerd` JavaScript-engine generator from
 the canonical schema without modifying schema/migration ownership. It generates the full Hive
 client at ignored `packages/db/src/generated/prisma-workerd`. Node's client and singleton remain.
+The `workerd` package export and Cloudflare-only Next resolver alias choose a request-only entry
+whose runtime Prisma exports come from that generator, avoiding eager native-engine path setup.
 
 The custom Worker creates a lazy request-local `PrismaNeon` WebSocket client. `getDb()` first
 consults AsyncLocalStorage, shared by a global symbol across separately bundled modules. Clients
@@ -58,19 +60,19 @@ pool remains alive through response streaming and tracked `waitUntil`/Next `afte
 disconnects; canceled and failed rendering also clean up. Interleaved requests, duplicate module
 copies, cleanup and streaming lifetime have focused tests.
 
-This slice does not claim full-schema database integration. The primary has prepared a separate
-`hive_app_preview` database on the existing isolated Neon Free project; owner credentials must
-never become Worker bindings. Actual application transactions, serializable retries and owner
-isolation must run against its least-privileged runtime role in the next gate. Error guards must
-handle generated Node/Worker Prisma errors without relying on shared constructor identity.
+The [auth local proof](../auth/README.md) exercises actual full-schema Serializable transactions,
+row locks, sessions and task-read functions against the isolated `hive_app_preview` database.
+The app route/service-binding proof is a separate supported mode; see its actual evidence before
+claiming it passed. Owner credentials never become Worker bindings. Serialization retry behavior
+and generated Node/Worker error metadata still require their own repository-level checks.
 
 ## Remaining host and authentication boundaries
 
 The app still uses the `AuthServiceClient` contract. Its portable requests use `redirect: manual`
 and explicitly reject every 3xx before consuming a body or forwarding credentials. Without a
-preview auth service, `/api/auth/login` returns 503. Port/reuse the existing auth domain on Workers
-or a Worker service binding next; pointing this preview at the existing Kubernetes Hive auth
-service would retain an origin dependency and does not complete F02/F07.
+preview auth binding, `/api/auth/login` returns 503. The separate auth Worker reuses the existing
+domain; Workers clients require its binding and secret and never fall back to a Node/Kubernetes URL.
+The Node service URL behavior is unchanged. Real account login and rotation remain pending.
 
 The wrapper returns explicit 503 for all upgrade requests, the retired workspace-proxy path,
 native server actions, template operations, discovery,
