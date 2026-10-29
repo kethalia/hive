@@ -1,0 +1,112 @@
+{
+  "scope": "isolated own PostgreSQL17 only; schema22 fixture43811 read-only dump, no cloud or applied-history-row changes",
+  "freshMigrations": 23,
+  "upgradeFrom": 22,
+  "upgradeTo": 23,
+  "priorTablesPreserved": true,
+  "heldWriterAnchorsPreserved": 150,
+  "sourceRevisionsAfterUpgrade": 0,
+  "tableDigests": {
+    "coder_tokens": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "codex_host_registrations": {
+      "count": 184,
+      "sha256": "51271cf80d181cc6067fe81075b78c18936a45883c0360941a472f187aacab63"
+    },
+    "codex_host_slots": {
+      "count": 170,
+      "sha256": "fd154559257c0020493190a76b36de872cdaaf74648cdb065ef4fa698c4e54f6"
+    },
+    "codex_registered_threads": {
+      "count": 184,
+      "sha256": "da26bba678d03a532fd75718cc227ad89649e58ba52d96cb9de5a63aa1103e08"
+    },
+    "codex_registration_grants": {
+      "count": 185,
+      "sha256": "94b982d5a40d0f5b3ae60f6228556525b3db7986a6b8f6bb2482b7ee4fff0b3d"
+    },
+    "delivery_attempts": {
+      "count": 228,
+      "sha256": "18c9db1748c878bb0a1c3e473bdc22d827c657112b03e1c46042b841d430a5a4"
+    },
+    "delivery_conversations": {
+      "count": 192,
+      "sha256": "2c0578421e7b3caf6c40e57c9f475e8c0c92f9acee5d38a9347936b2cd010743"
+    },
+    "delivery_epics": {
+      "count": 1,
+      "sha256": "edf9fb765402d61da1d3c126de7c38827c599619e6ad8bf1b9fbfb8afbb231c4"
+    },
+    "delivery_events": {
+      "count": 946,
+      "sha256": "59811f7274da8d5f162fdcb0104c2ba6cf4f74656f4d066f955a7df106d490c2"
+    },
+    "delivery_evidence": {
+      "count": 127,
+      "sha256": "5e46241ddaab1b685edc2bbb09c1fd32c42e4a1457cb7dbe30202da3644b0f50"
+    },
+    "delivery_manager_bindings": {
+      "count": 167,
+      "sha256": "a7c00cecf671598cc4e1cd8241cadee173c3e967ee5e77a31f354998e94336a3"
+    },
+    "delivery_outbox": {
+      "count": 143,
+      "sha256": "b52ca384213b9416f0e905f4816e65f09c7e9240e634bc8c5f467bd733a21bda"
+    },
+    "delivery_projects": {
+      "count": 247,
+      "sha256": "4bda7890a7f360867be1ef11c9030e141d295f21db8df9f18c0f96321057ca66"
+    },
+    "delivery_report_evidence": {
+      "count": 42,
+      "sha256": "931d555ec39e07b6d62dbb76cf601468af94b8a79001d7c9d6ba935472c3c8b0"
+    },
+    "delivery_step_dependencies": {
+      "count": 168,
+      "sha256": "581672f08e9a642abb2f5cdbfbcc6c0ccda33a135a66a18877d55f7f1565cef2"
+    },
+    "delivery_step_reports": {
+      "count": 118,
+      "sha256": "efda44602c2b32ed1289dfef5c687561ed6153a4fefc6e8b6faa911d019ff3ff"
+    },
+    "delivery_steps": {
+      "count": 417,
+      "sha256": "800f3b129bc9d7580cb8e84e0da291a9405ec7403a50d75f9c3530e23cf76cac"
+    },
+    "delivery_tasks": {
+      "count": 249,
+      "sha256": "b2b99754e7b018938c7d2e95d9cf7a641ab0e74aa6d1179f85c4025993d3e874"
+    },
+    "navigation_favorites": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "notification_sources": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "project_task_intents": {
+      "count": 170,
+      "sha256": "f59e723d5046a2fe62822b8033763c6e99f324c3b14ae6d4b522b72315aa4409"
+    },
+    "push_subscriptions": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "sessions": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "users": {
+      "count": 196,
+      "sha256": "4a23da6636a3ce0c21c6168e62822d221a467a3560d7c78e0688ba0f3df20910"
+    },
+    "vapid_keys": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "migrationSha256": "fd8777426fd15a9417e4e3f3e6914b0b1d28e499fd01f1e7ab5fe6d8e3416bb1"
+}

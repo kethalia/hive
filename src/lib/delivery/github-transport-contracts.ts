@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sourceContextSchema } from "./contracts";
 import { githubSnapshotSchema, githubSourceTargetSchema } from "./github-contracts";
 import { canonicalGitHubSource } from "./github-evidence.server";
 import { managerCheckoutSchema } from "./manager-contracts";
@@ -12,6 +13,7 @@ const host = {
   serverInstanceId: z.string().regex(/^[A-Za-z0-9_.:-]{1,160}$/),
   managerThreadId: z.string().regex(/^[A-Za-z0-9_.:-]{1,160}$/),
   checkoutBinding: managerCheckoutSchema,
+  sourceContext: sourceContextSchema.optional(),
   taskId: uuid,
   stepId: uuid,
   issuedAt: z.number().int().nonnegative(),

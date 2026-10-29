@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sourceContextSchema } from "./contracts";
 import { managerCheckoutSchema } from "./manager-contracts";
 
 const nativeId = z.string().regex(/^[A-Za-z0-9_.:-]{1,160}$/),
@@ -69,6 +70,7 @@ export const nativeEnvelopeSchema = nativeSourceInputSchema
     serverInstanceId: nativeId,
     managerThreadId: nativeId,
     checkoutBinding: managerCheckoutSchema,
+    sourceContext: sourceContextSchema.optional(),
     issuedAt: z.number().int().nonnegative(),
     expiresAt: z.number().int().positive(),
     proof: z.string().regex(/^[A-Za-z0-9_-]{86}$/),

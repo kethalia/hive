@@ -1,0 +1,109 @@
+{
+  "recordedAt": "2026-10-29T22:49:32.980761+00:00",
+  "baseCommit": "5b7168ebec06a637eccd7c78f21b98c38844f5b8",
+  "scope": "Internal server-only immutable source revision/output acceptance, independent signed synthetic producer/native/GitHub facts; no real broker/provider/installed native composition or cloud/database migration",
+  "validation": {
+    "deliveryTestsPassed": 258,
+    "deliveryTestsSkipped": 3,
+    "testFilesPassed": 24,
+    "testFilesSkipped": 3,
+    "newSourceTestsPassed": 16,
+    "command": "HIVE_DELIVERY_TEST_DATABASE_URL=<isolated-schema23-fixture> pnpm exec vitest run src/__tests__/lib/delivery --no-file-parallelism",
+    "testLog": "tests.txt",
+    "optionalSkips": [
+      "Actual native+PG host progression (separate schema22 parent proof retained)",
+      "Actual native runtime (separate existing proof retained)",
+      "Local R2 runtime (separate existing proof retained)"
+    ],
+    "typecheck": {
+      "passed": true,
+      "log": "typecheck.txt"
+    },
+    "biome": {
+      "passed": true,
+      "files": 18,
+      "log": "biome.txt"
+    },
+    "freshMigrations": 23,
+    "upgradeFrom": 22,
+    "upgradeTo": 23,
+    "priorTableDigestsPreserved": true,
+    "heldWriterAnchorsPreserved": 150,
+    "migrationEvidence": "migrations.json",
+    "newSchemaDrift": false,
+    "existingSchemaRepresentations": [
+      "codex_host_slots_active_registration_fkey custom relation",
+      "project_task_intents_project_fkey name"
+    ],
+    "schemaDiff": "schema-diff.sql"
+  },
+  "fixture": {
+    "directory": "/tmp/hive-source-pg-p0my2ss_",
+    "port": 39789,
+    "database": "hive_delivery_test",
+    "schema22BaselinePort43811": "unchanged; read-only dump for upgrade proof",
+    "runningForParentValidation": true
+  },
+  "acceptance": {
+    "physicalBaseAndLeaseHeld": true,
+    "attemptInputImmutable": true,
+    "acceptedOutputAppendOnly": true,
+    "sourceContextRequiredForAdvancedTasks": true,
+    "actionCompletionPreserved": true,
+    "twoImplementationThenFinalValidationConverges": true,
+    "implementationAttemptsEach": 1,
+    "qualityOnlyReopening": true,
+    "externalActionReconciliationPausePersistsDespiteRejection": true,
+    "heldReplayNoticeNotDuplicated": true,
+    "lateCurrentContextOldAttemptDurablyPauses": true,
+    "historicalReportAndNoticeOutputShaStable": true
+  },
+  "authority": {
+    "publicRoute": false,
+    "defaultVerifier": false,
+    "fixtureBrokerReceiptsAccepted": false,
+    "liveProviderTransport": false,
+    "hostOrTemplateChanges": false,
+    "writerQuiescenceClaimed": false,
+    "productionEnabled": false
+  },
+  "remainingGates": [
+    "Protected real broker producer: metadata read-only projection and actual current-HEAD/immutable base separation",
+    "Trusted native-host current-source callback, immutable request journals and fresh source/claim readback",
+    "Real agent GitHub connection, complete remote readbacks and durable retrievable signed-receipt artifact behind proof digest",
+    "One-use scoped source challenge and persisted producer revocation/transactional authority adapter",
+    "Authenticated preview transport/default-off rollout and bounded real two-implementation/current-head GitHub check/review proof",
+    "Change/migration/artifact evidence adapters, same-PR updates/reconciliation/retirement and owner production approval"
+  ],
+  "sourceSha256": {
+    "packages/db/prisma/schema.prisma": "a6e9f1763ab4db7141e583ec505c6f2c91c258570089fd26c147bb527c2d3edf",
+    "packages/db/prisma/migrations/20261029120000_delivery_source_revisions/migration.sql": "fd8777426fd15a9417e4e3f3e6914b0b1d28e499fd01f1e7ab5fe6d8e3416bb1",
+    "src/lib/delivery/contracts.ts": "12979b595e095bd6edfda636efa12782066245aeea1d8efaece233a881edcad1",
+    "src/lib/delivery/event-labels.ts": "38e5f0bdea7ca7e1bfdac3c4033f6820cb4fea2c24e7826aea05dca845466045",
+    "src/lib/delivery/github-persistence.server.ts": "25e387c94892ee3a81ac7d7985abc7be5a2d920472c56f3959b389e9f076d31f",
+    "src/lib/delivery/github-policy.server.ts": "60ca2a05bfe386713eab42ec17c95265d9be8f311c922ef47a40d83151eeb1af",
+    "src/lib/delivery/github-transport-contracts.ts": "6fe02c98fa5e365819bcbc188779874beaa9b6c64995008edeec3ada5b35e9cd",
+    "src/lib/delivery/github-transport.server.ts": "a1aeff793c7986eb0c9b7a46aa97f2ff8061c50f22093da79db7ff07f835d68b",
+    "src/lib/delivery/manager-binding.server.ts": "62008702d8e52d504bdc7dbbbe8e51e406a30d09cc64c799bf80f66950f5523c",
+    "src/lib/delivery/manager-contracts.ts": "40245a4dc9116ecc8dbd1cce732f3eddead20cf15806f8af68c07b582899e1b3",
+    "src/lib/delivery/manager.server.ts": "d397da3ab577ff955de1f78fcb78c7271f4eba224ff5a1b1214738bd0f46fab7",
+    "src/lib/delivery/native-contracts.ts": "640a3d1f9681dad6c24789034690b4865f514fc98c1ffa8b8f9983eba22a6896",
+    "src/lib/delivery/native.server.ts": "c9ec731a09939c529941fec43496cc86befd48ffb2b0df8c7c36d17693474b08",
+    "src/lib/delivery/outbox.ts": "7b5754b1a810230567501a6d98bd8b4475eba3c1f60443cf6c00527b050831b2",
+    "src/lib/delivery/progression.server.ts": "2f6f25994faddc8bdcea66d26d391f79c08dc722e2e205eae29c934b3afefa67",
+    "src/lib/delivery/reads.ts": "e5307f9f1fc09a7f82d8373eb840fc4f6b42da5438c977ec8bcc9b8bc8f7d448",
+    "src/lib/delivery/repository.ts": "68c180b718d82f2115f5e99996e51c591fc58973d2f6f49bdce559f540f704d9",
+    "src/lib/delivery/source-publication.server.ts": "b6a6a9bb5ebe1202ddf5e26bd9d8880573ea17c7c376636b02738d00d42f0fb1",
+    "src/lib/delivery/source-resolver.server.ts": "bb60c7cc8f1172608475a9ba7dbde6cff73bc09deb9e3fbc570a4ce2432bdf27",
+    "src/__tests__/lib/delivery/source-publication.integration.test.ts": "15690cf8232cb314807602627dec51fdad90a69e1985254e0ba16b3716967185",
+    "docs/checks/autonomous-delivery/source-revision-server.md": "a211515137d535741798d761826b2597a015a345d2eac18feddea43b074f27b4"
+  },
+  "artifactSha256": {
+    "migrations.json": "ad86d3c0376d431e9b63966d9fc0d767e1294a11f1d8adeb9aeb9e0f15bb7b46",
+    "tests.txt": "30c0a381040f37a1ef5dead196cd586146052bc5bcf5e0c2c6a9aa7585270720",
+    "typecheck.txt": "fc52cf26cbc19500c50a065d5fce046e588f330ab13837032e1766b13582dd30",
+    "migrations.txt": "77eea7c35c82d4ab54199e035258ad15a2200e17796f68ca6c7c733a9e8ee21e",
+    "biome.txt": "9155fa70fc6b621787c2e20b0c8f9fcda3e55f06f617dcab6f3884b7d98b4bb3",
+    "schema-diff.sql": "acda559e910c75a1887e4a05f9a557dbb275d3a7e5d7a86f463b4074e5bd5afc"
+  }
+}

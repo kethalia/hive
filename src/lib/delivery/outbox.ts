@@ -61,7 +61,8 @@ export class DeliveryOutbox {
   async notification(value: DeliveryNotificationClaim): Promise<DeliveryNotification | null> {
     const claim = claimSchema.parse(value);
     // Both the claim fence and all relation owners are checked in this query.
-    // Historical reports use their attempt SHA, never the task's later revision.
+    // Historical reports use the immutable accepted output (or input), never a
+    // later task revision. Output binding is owner/step/producing-attempt scoped.
     const rows = await this.db.$queryRaw<
       {
         reportId: string | null;
@@ -74,13 +75,16 @@ export class DeliveryOutbox {
       }[]
     >`
       SELECT report.id AS "reportId", event.task_id AS "taskId", step.kind,
-        event.type AS "eventType", attempt.source_sha AS "sourceSha",
+        event.type AS "eventType", COALESCE(revision.head_sha, attempt.source_sha) AS "sourceSha",
         report.difficulty, project.full_name AS "projectName"
       FROM delivery_outbox AS item
       JOIN delivery_events AS event ON event.id = item.event_id AND event.owner_id = item.owner_id
       LEFT JOIN delivery_step_reports AS report ON report.event_id = event.id AND report.owner_id = item.owner_id
       LEFT JOIN delivery_steps AS step ON step.id = event.step_id AND step.owner_id = item.owner_id
       LEFT JOIN delivery_attempts AS attempt ON attempt.id = event.attempt_id AND attempt.owner_id = item.owner_id
+      LEFT JOIN delivery_source_revisions AS revision ON revision.id = attempt.output_revision_id
+        AND revision.owner_id = item.owner_id AND revision.step_id = attempt.step_id
+        AND revision.producing_attempt_id = attempt.id
       JOIN delivery_tasks AS task ON task.id = event.task_id AND task.owner_id = item.owner_id
       JOIN delivery_projects AS project ON project.id = task.project_id AND project.owner_id = item.owner_id
       WHERE item.id = ${claim.id}::uuid AND item.owner_id = ${claim.ownerId}::uuid

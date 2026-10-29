@@ -1,0 +1,30 @@
+✔ an initially empty lifetime admits projects durably and never forgets earlier bindings (22.505741ms)
+✔ a pinned worker receives only its separate inherited channel and its descendants are drained (46.657109ms)
+✔ agent environment is restricted to the essential host role and never admits owner sessions (136.026216ms)
+✔ pinned roots drain only after complete project authorization, receipt persistence and ACK (36.305104ms)
+✔ adopts and drains detached writers without touching an outside sibling (144.092035ms)
+✔ adopts and drains nested writers without touching an outside sibling (152.344407ms)
+✔ adopts and drains clone_parent writers without touching an outside sibling (143.367858ms)
+✔ adopts and drains clone_signal writers without touching an outside sibling (153.892036ms)
+✔ root child inherits neither guardian control/descriptors nor ambient credential environment (60.624685ms)
+✔ changed pinned executable between bootstrap and launch revokes the lifetime (31.980534ms)
+✔ duplicate launch and incomplete stop authorization cannot create another root or certify a drain (42.780722ms)
+✔ receipt journal failure never becomes successful cleanup authority (26.851452ms)
+✔ controller channel loss drains descendants but produces no accepted receipt (133.852742ms)
+✔ guardian crash cannot be certified by a replacement empty lifetime (39.373062ms)
+✔ oversize and out-of-order private frames fail closed before any spawn (4.563504ms)
+✔ pin and environment errors are rejected before a lifetime is created (18.924771ms)
+✔ a leader's exit does not hide live writer threads (187.310366ms)
+✔ bounded concurrent forks remain owned while drain closes the tree (134.828599ms)
+✔ owned ptrace relationships do not turn a stopped child into an empty tree (144.048276ms)
+✔ an inherited unlinked writable FD stops changing only after the owned tree drains (124.043409ms)
+✔ an exact private-frame replay acknowledges the same PID without another fork (15.547263ms)
+✔ a completed terminal helper does not revoke another active root (145.87271ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2005.718152

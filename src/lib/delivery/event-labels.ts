@@ -10,6 +10,8 @@ const labels: Record<string, string> = {
   step_invalidated: "Step evidence invalidated",
   step_reopened: "Step reopened",
   source_changed: "Source revision changed; scheduling paused",
+  source_advanced: "Source published; independent checks pending",
+  source_publication_held: "Source publication paused for reconciliation",
   pause_requested: "Pause requested",
   scheduling_resumed: "Scheduling resumed",
   safety_pause_requested: "Scheduling paused for review",

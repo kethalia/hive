@@ -83,7 +83,7 @@ export function resolveControllerGitHubManagerPolicy(
     providerAccountId: scope.providerAccountId,
     fullName: scope.fullName,
     expectedHeadSha: scope.sourceSha,
-    pullNumber: configured.pullNumber,
+    pullNumber: scope.sourcePullNumber ?? configured.pullNumber,
   });
   const producer = githubEvidenceProducer(scope.repositoryId, configured.policy);
   const policy = {

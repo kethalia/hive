@@ -15,6 +15,7 @@ import {
   type GitHubSourceConnection,
   githubSourceDigest,
 } from "./github-evidence.server";
+import { resolveTaskSource } from "./source-resolver.server";
 import { DeliveryConflict } from "./state";
 
 type Tx = Prisma.TransactionClient;
@@ -189,6 +190,7 @@ export class GitHubEvidencePublisher {
     });
     if (!task || task.project.provider !== "github" || task.steps.length !== 1)
       throw new DeliveryConflict("github_task_not_found");
+    await resolveTaskSource(this.db, ownerId, taskId);
     const observation = await new GitHubEvidenceAdapter(this.source, this.clock).observe(
       {
         schemaVersion: 1,
@@ -318,6 +320,7 @@ export class GitHubEvidencePublisher {
               where: { ownerId_id: { ownerId, id: taskId } },
               include: { project: true },
             });
+            await resolveTaskSource(tx, ownerId, taskId);
             const step = await tx.deliveryStep.findUnique({
               where: { ownerId_taskId_id: { ownerId, taskId, id: stepId } },
             });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
+import type { SourceContext } from "./contracts";
 import { githubSourceDigest } from "./github-evidence.server";
 import { isGitHubSerializationConflict } from "./github-persistence.server";
 import {
@@ -12,6 +13,7 @@ import {
 import { managerEnvelopeSchema, managerProofPayload } from "./manager-contracts";
 import { authorizeProgressionClaim } from "./progression.server";
 import { DeliveryRepository, type EvidencePolicy } from "./repository";
+import { resolveAttemptSource, resolveTaskSource } from "./source-resolver.server";
 import { DeliveryConflict } from "./state";
 
 if (typeof window !== "undefined") throw new Error("Delivery manager is server-only.");
@@ -43,6 +45,9 @@ export interface ManagerPolicyScope {
   criterionIds: string[];
   requiredEvidenceKinds: string[];
   acceptancePhase: string;
+  sourceRevisionId?: string;
+  sourceVersion?: number;
+  sourcePullNumber?: number;
 }
 export interface ResolvedManagerEvidencePolicy {
   policy: EvidencePolicy;
@@ -63,7 +68,9 @@ async function loadPolicyScope(
   taskId: string,
   stepId: string,
   host: Awaited<ReturnType<typeof lockManagerCheckout>>,
+  context?: SourceContext,
 ): Promise<ManagerPolicyScope> {
+  const source = await resolveTaskSource(tx, ownerId, taskId, context, true);
   const task = await tx.deliveryTask.findUnique({
     where: { ownerId_id: { ownerId, id: taskId } },
     include: { project: true, steps: { where: { id: stepId } } },
@@ -75,7 +82,6 @@ async function loadPolicyScope(
     task.projectId !== host.thread.projectId ||
     task.conversationId !== host.thread.conversationId ||
     task.managerBindingId !== host.binding.id ||
-    task.sourceSha !== host.binding.sourceSha ||
     task.project.provider !== "github"
   )
     throw new RegistrationRejected();
@@ -95,6 +101,13 @@ async function loadPolicyScope(
     criterionIds: step.criterionIds,
     requiredEvidenceKinds: step.requiredEvidenceKinds,
     acceptancePhase: step.acceptancePhase,
+    ...(source.context
+      ? {
+          sourceRevisionId: source.context.revisionId,
+          sourceVersion: source.context.version,
+          sourcePullNumber: source.task.currentSourceRevision?.pullNumber,
+        }
+      : {}),
   };
 }
 /** No producer trust can be supplied by a manager request. Until external adapters
@@ -159,6 +172,7 @@ export class DeliveryManagerService {
                 resultCommand.payload.taskId,
                 resultCommand.payload.stepId,
                 host,
+                input.sourceContext,
               );
               return resolvePolicy(scope);
             },
@@ -176,6 +190,8 @@ export class DeliveryManagerService {
     }
     const selectedPolicyDigest = resolutionDigest(selectedPolicy);
     let nativeSequence = 0;
+    let currentSourceContext: SourceContext | undefined;
+    let claimInputSha: string | undefined;
     let progression: Awaited<ReturnType<typeof authorizeProgressionClaim>> | null = null;
     const progressionReceipt = () =>
       progression ? { cursorVersion: progression.cursorVersion, progressionProtocol: 1 } : {};
@@ -198,10 +214,14 @@ export class DeliveryManagerService {
             !task ||
             task.projectId !== scope.thread.projectId ||
             task.conversationId !== scope.thread.conversationId ||
-            task.managerBindingId !== scope.binding.id ||
-            task.sourceSha !== scope.binding.sourceSha
+            task.managerBindingId !== scope.binding.id
           )
             throw new RegistrationRejected();
+          const source = await resolveTaskSource(tx, ownerId, task.id, input.sourceContext, true);
+          currentSourceContext = source.context;
+          claimInputSha = source.headSha;
+        } else if (input.sourceContext) {
+          throw new DeliveryConflict("source_context_stale");
         }
         if (resultCommand && resolvePolicy) {
           const currentScope = await loadPolicyScope(
@@ -210,6 +230,7 @@ export class DeliveryManagerService {
             resultCommand.payload.taskId,
             resultCommand.payload.stepId,
             scope,
+            input.sourceContext,
           );
           const currentPolicy = await resolvePolicy(currentScope);
           if (resolutionDigest(currentPolicy) !== selectedPolicyDigest)
@@ -360,17 +381,20 @@ export class DeliveryManagerService {
         });
         if (changed.count !== 1) throw new DeliveryConflict("checkout_writer_busy");
       },
-      async (_tx, attempts) => {
+      async (tx, attempts) => {
         if (
           !progression?.continuing ||
           attempts.some(
             (attempt) =>
               attempt.managerBindingId !== expected.id ||
-              attempt.sourceSha !== input.checkoutBinding.revision ||
               !["reported", "succeeded"].includes(attempt.outcome),
           )
         )
           throw new DeliveryConflict("native_reconciliation_required");
+        if (input.command.operation !== "claim_step")
+          throw new DeliveryConflict("invalid_continuation");
+        for (const attempt of attempts)
+          await resolveAttemptSource(tx, ownerId, input.command.payload.taskId, attempt.id, false);
       },
     );
     const common = { schemaVersion: 1, eventId: input.eventId };
@@ -415,6 +439,7 @@ export class DeliveryManagerService {
                     cursorVersion: progression.cursorVersion,
                     sequence: progression.sequence,
                     ...(input.continuation ? { continuation: input.continuation } : {}),
+                    ...(currentSourceContext ? { sourceContext: currentSourceContext } : {}),
                   }
                 : undefined,
           )),
@@ -422,6 +447,8 @@ export class DeliveryManagerService {
           checkoutBindingDigest: expected.bindingDigest,
           nativeSequence,
           ...progressionReceipt(),
+          ...(currentSourceContext ? { sourceContext: currentSourceContext } : {}),
+          inputSourceSha: claimInputSha,
         };
       }
       case "complete_step":

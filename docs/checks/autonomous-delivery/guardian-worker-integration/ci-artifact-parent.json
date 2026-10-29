@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-10-29T22:49:59.967397+00:00",
+  "workflowRunId": 40968234189,
+  "workflowHead": "17dbf2563b3a13d125a08f88ce7d97ce45470954",
+  "artifactId": 12939316274,
+  "archiveSha256": "1f7ad3109d3ff9f24c2ad59131ad1a7412bbecbc0b3f6a823042ef438f122b43",
+  "manifest": {
+    "schemaVersion": 1,
+    "platform": "linux",
+    "architecture": "x64",
+    "sourceSha256": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "recipeSha256": "2e9905ec726242e9b87fb6b186746f43690c58de80a4fe75aceac182e90b8f83",
+    "builderSha256": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+    "flags": [
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fPIE",
+      "-pie",
+      "-fstack-protector-strong",
+      "-D_FORTIFY_SOURCE=3",
+      "-Wl,-z,relro,-z,now",
+      "-Wl,--build-id=none"
+    ],
+    "elfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "compiler": {
+      "sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+      "version": "x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "target": "x86_64-linux-gnu"
+    },
+    "ci": {
+      "repository": "kethalia/hive",
+      "commit": "bc2bc45da5a9c6063f473f483bcba24ae5593770",
+      "runId": "40968234189",
+      "runAttempt": "1"
+    }
+  },
+  "exactBinaryParentTests": {
+    "passed": 22,
+    "failed": 0,
+    "skipped": 0,
+    "platform": "Debian13 software workspace"
+  },
+  "installed": false,
+  "productionActivated": false
+}

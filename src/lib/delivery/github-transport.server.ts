@@ -23,6 +23,7 @@ import {
   lockManagerCheckout,
   stableDeliveryUuid,
 } from "./manager-binding.server";
+import { resolveTaskSource } from "./source-resolver.server";
 import { DeliveryConflict } from "./state";
 
 type Tx = Prisma.TransactionClient;
@@ -91,10 +92,16 @@ export class GitHubSourceTransport {
       task.managerBindingId !== host.binding.id ||
       task.steps.length !== 1 ||
       task.projectId !== host.binding.projectId ||
-      task.conversationId !== host.binding.conversationId ||
-      task.sourceSha !== host.binding.sourceSha
+      task.conversationId !== host.binding.conversationId
     )
       throw new RegistrationRejected();
+    const source = await resolveTaskSource(
+      tx,
+      authenticated.ownerId,
+      task.id,
+      input.sourceContext,
+      true,
+    );
     const configured = policyTarget.parse(
       await this.dependencies.resolveTargetPolicy({
         ownerId: authenticated.ownerId,
@@ -110,7 +117,7 @@ export class GitHubSourceTransport {
       providerRepositoryId: task.project.providerRepositoryId,
       providerAccountId: task.project.providerAccountId,
       fullName: task.project.fullName,
-      pullNumber: configured.pullNumber,
+      pullNumber: source.task.currentSourceRevision?.pullNumber ?? configured.pullNumber,
       expectedHeadSha: task.sourceSha,
     };
     return {

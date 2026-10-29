@@ -388,3 +388,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   stop decisions remain. General CI repeated a terminal-helper fixture failure on Ubuntu26.04;
   the fixture now uses pinned Python to avoid provider-dependent coreutils dispatch, retaining
   the unchanged100ms assertion and sanitized diagnostics. CI confirmation is pending.
+
+- Accepted source revisions: reviewed internal server slice complete, high difficulty. Immutable
+  attempt inputs and accepted outputs now form an append-only source chain under one physical
+  writer. Two implementations plus final validation converge without reopening completed work;
+  prior-head quality evidence is invalidated, while completed external actions require a durable
+  reconciliation pause. Parent38 PostgreSQL checks, producer258 delivery checks and separate
+  Astra review pass. Fresh23/copy-upgrade22→23 preserves all prior data and150 writer anchors.
+  The real broker, scoped producer transport and installed current-source readback remain gates;
+  no remote schema was changed. The exact CI-built guardian ELF also passed22 parent checks.
