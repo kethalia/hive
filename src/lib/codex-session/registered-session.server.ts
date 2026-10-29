@@ -78,20 +78,28 @@ export function registeredSessionConfig(): RegisteredSessionConfig {
       .parse(process.env.HIVE_CODEX_SESSION_TRANSPORT ?? "direct"),
   };
 }
-export function createRegisteredSessionService(db: PrismaClient, config: RegisteredSessionConfig) {
+export function createRegisteredSessionService(
+  db: PrismaClient,
+  config: RegisteredSessionConfig,
+  options: { signal?: AbortSignal } = {},
+) {
   const store = new PrismaRegistrationStore(db);
   const authority = new WorkspaceRegistrationAuthority(config, {
     store,
     coderForPrincipal: async (principal) => {
+      options.signal?.throwIfAborted();
       const user = await db.user.findUnique({ where: { id: principal.hiveUserId } });
+      options.signal?.throwIfAborted();
       if (!user || user.coderUserId !== principal.coderUserId) throw new RegistrationRejected();
-      return getCoderClientForUser(user.id);
+      return options.signal
+        ? getCoderClientForUser(user.id, options)
+        : getCoderClientForUser(user.id);
     },
     // The internal controller selects active projects; historical projects do not count.
     authorizedProjects: (principal, _workspaceId, requestedProjectIds) =>
       loadActiveRegistrationProjects(db, principal, requestedProjectIds),
   });
-  return new RegisteredSessionService(db, config, authority, store);
+  return new RegisteredSessionService(db, config, authority, store, options.signal);
 }
 export class RegisteredSessionService {
   constructor(
@@ -99,6 +107,7 @@ export class RegisteredSessionService {
     private readonly config: RegisteredSessionConfig,
     readonly authority: WorkspaceRegistrationAuthority,
     private readonly store: PrismaRegistrationStore,
+    private readonly signal?: AbortSignal,
   ) {}
   async redeem(value: unknown) {
     const r = await this.authority.redeem(value);
@@ -146,6 +155,7 @@ export class RegisteredSessionService {
       binding: SessionBinding;
     }) => T,
   ): Promise<T> {
+    this.signal?.throwIfAborted();
     z.string().uuid().parse(projectId);
     const rows = await this.db.codexRegisteredThread.findMany({
       where: {
@@ -156,20 +166,25 @@ export class RegisteredSessionService {
       include: { registration: true },
       take: 2,
     });
+    this.signal?.throwIfAborted();
     if (rows.length !== 1) throw new RegistrationRejected();
     const row = rows[0],
       binding = row.registration.binding as unknown as RegistrationBinding;
     if (binding.ownerId !== principal.coderUserId) throw new RegistrationRejected();
     await this.authority.reauthorize(binding);
+    this.signal?.throwIfAborted();
     return this.db.$transaction(async (tx) => {
+      this.signal?.throwIfAborted();
       const {
         registration: r,
         slot,
         now,
-      } = await lockActiveRegistration(tx, {
-        ownerId: principal.hiveUserId,
-        registrationId: row.registrationId,
-      });
+      } = await lockActiveRegistration(
+        tx,
+        { ownerId: principal.hiveUserId, registrationId: row.registrationId },
+        this.signal,
+      );
+      this.signal?.throwIfAborted();
       const thread = r.threads.find(
         (t) =>
           t.projectId === projectId &&
@@ -180,6 +195,7 @@ export class RegisteredSessionService {
       const conversation = await tx.deliveryConversation.findUniqueOrThrow({
         where: { ownerId_id: { ownerId: principal.hiveUserId, id: thread.conversationId } },
       });
+      this.signal?.throwIfAborted();
       if (
         conversation.buildId !== r.buildId ||
         conversation.serverInstanceId !== r.serverInstanceId ||

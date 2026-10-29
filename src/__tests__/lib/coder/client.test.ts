@@ -50,6 +50,47 @@ describe("CoderClient", () => {
     vi.restoreAllMocks();
   });
 
+  it("combines instance cancellation with per-call bounds and starts no request after cancellation", async () => {
+    const lifetime = new AbortController(),
+      call = new AbortController();
+    const client = new CoderClient({
+      baseUrl: BASE_URL,
+      sessionToken: TOKEN,
+      signal: lifetime.signal,
+    });
+    fetchSpy.mockResolvedValue(jsonResponse(mockWorkspace()));
+    await client.getWorkspace("workspace", call.signal);
+    const signal = fetchSpy.mock.calls[0][1].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    call.abort();
+    expect(signal.aborted).toBe(true);
+    lifetime.abort();
+    await expect(client.getWorkspace("workspace")).rejects.toThrow();
+    await expect(client.getApplicationsHost()).rejects.toThrow();
+    await expect(
+      client.getApplicationAuthRedirect("https://fixed.example/session"),
+    ).rejects.toThrow();
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the shorter applications-host timeout alongside request lifetime cancellation", async () => {
+    const timeout = new AbortController(),
+      lifetime = new AbortController();
+    vi.spyOn(AbortSignal, "timeout").mockReturnValue(timeout.signal);
+    const client = new CoderClient({
+      baseUrl: BASE_URL,
+      sessionToken: TOKEN,
+      signal: lifetime.signal,
+    });
+    fetchSpy.mockResolvedValue(jsonResponse({ host: "*.apps.example" }));
+    await client.getApplicationsHost();
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(2000);
+    const signal = fetchSpy.mock.calls[0][1].signal as AbortSignal;
+    timeout.abort();
+    expect(signal.aborted).toBe(true);
+    expect(lifetime.signal.aborted).toBe(false);
+  });
+
   // ── createWorkspace ────────────────────────────────────────────
 
   it("createWorkspace sends correct URL, method, headers, and body", async () => {

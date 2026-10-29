@@ -136,13 +136,68 @@ beforeEach(() => {
     },
   );
 });
-afterEach(() => {
-  vi.runOnlyPendingTimers();
+afterEach(async () => {
+  for (const pair of pairs) pair.server.emit("close", { code: 1000 });
+  await vi.runOnlyPendingTimersAsync();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe("project relay request/database boundary (edge socket simulated)", () => {
+  it("reauthorizes in a distinct bounded database scope and closes it before continuing", async () => {
+    const scopes: Array<{ run: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }> = [];
+    mock.scope.mockImplementation(() => {
+      const scope = {
+        run: vi.fn((run: () => unknown) => run()),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      scopes.push(scope);
+      return scope;
+    });
+    const bindings = env();
+    expect((await projectRelay(request(), bindings, Date.now() + 900000)).status).toBe(101);
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0].close).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(scopes).toHaveLength(2);
+    expect(scopes[1]).not.toBe(scopes[0]);
+    expect(mock.scope).toHaveBeenLastCalledWith(undefined, {
+      queryTimeoutMillis: 10000,
+      transactionTimeoutMillis: 10000,
+    });
+    expect(scopes[1].close).toHaveBeenCalledOnce();
+    expect(bindings.AUTH_SERVICE.fetch).toHaveBeenCalledTimes(3);
+    pairs[0].server.emit("close", { code: 1000 });
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(scopes).toHaveLength(2);
+    expect(bindings.AUTH_SERVICE.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("aborts an active session refresh on close and never starts target/DB work afterward", async () => {
+    const bindings = env(),
+      cleanup = vi.fn();
+    expect(
+      (await projectRelay(request(), bindings, Date.now() + 900000, { waitUntil: cleanup })).status,
+    ).toBe(101);
+    bindings.AUTH_SERVICE.fetch.mockImplementationOnce(
+      (_input, init) =>
+        new Promise((_done, reject) => {
+          init.signal.addEventListener("abort", () => reject(new Error("Session read cancelled")), {
+            once: true,
+          });
+        }),
+    );
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(mock.close).toHaveBeenCalledTimes(1);
+    pairs[0].server.emit("close", { code: 1000 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(mock.close).toHaveBeenCalledTimes(2);
+    expect(mock.authorize).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(mock.scope).toHaveBeenCalledTimes(2);
+    expect(bindings.AUTH_SERVICE.fetch).toHaveBeenCalledTimes(3);
+  });
   it("releases reservations when database scope creation rejects", async () => {
     mock.scope.mockImplementationOnce(() => {
       throw new Error("Invalid database configuration");

@@ -68,6 +68,20 @@ describe("getCoderClientForUser", () => {
     delete process.env.ENCRYPTION_KEY;
   });
 
+  it("does not continue credential lookup or create a client after lifetime cancellation", async () => {
+    vi.clearAllMocks();
+    const controller = new AbortController();
+    mockDb.coderToken.findFirst.mockImplementationOnce(async () => {
+      controller.abort();
+      return null;
+    });
+    await expect(
+      getCoderClientForUser(MOCK_USER_ID, { signal: controller.signal }),
+    ).rejects.toThrow();
+    expect(mockDb.user.findUnique).not.toHaveBeenCalled();
+    expect(CoderClient).not.toHaveBeenCalled();
+  });
+
   it("returns a CoderClient when user and token exist", async () => {
     const user = mockUser();
     const token = mockToken({ user });
