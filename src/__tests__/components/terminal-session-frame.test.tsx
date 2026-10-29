@@ -26,6 +26,31 @@ describe("SingleTerminalSessionHeader", () => {
 describe("TerminalSessionFrame", () => {
   afterEach(cleanup);
 
+  it("cycles width without starting a drag or invoking the frame's other actions", () => {
+    const cycle = vi.fn(),
+      drag = vi.fn(),
+      activate = vi.fn(),
+      close = vi.fn();
+    render(
+      <TerminalSessionFrame
+        label="Settings"
+        onCycleWidth={cycle}
+        onActivate={activate}
+        onClose={close}
+        dragHandleListeners={{ onPointerDown: drag }}
+      >
+        Settings content
+      </TerminalSessionFrame>,
+    );
+    const button = screen.getByRole("button", { name: "Cycle width of Settings" });
+    fireEvent.pointerDown(button);
+    fireEvent.click(button);
+    expect(cycle).toHaveBeenCalledOnce();
+    expect(drag).not.toHaveBeenCalled();
+    expect(activate).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it("uses the titlebar as a drag surface without capturing header controls", () => {
     const onHeaderMouseDown = vi.fn();
     const onHeaderPointerDown = vi.fn();
@@ -64,7 +89,7 @@ describe("TerminalSessionFrame", () => {
     expect(title).toHaveTextContent("VS Code");
     expect(subtitle).toHaveTextContent("projects/kethalia/hive");
     expect(title.parentElement?.parentElement).toHaveClass("items-center");
-    expect(close).toHaveClass("size-8", "min-h-8");
+    expect(close).toHaveClass("size-7", "min-h-7");
 
     fireEvent.mouseDown(title);
     expect(onHeaderMouseDown).toHaveBeenCalledOnce();
@@ -99,7 +124,7 @@ describe("TerminalSessionFrame", () => {
     );
 
     const more = screen.getByRole("button", { name: "Open actions for Terminal one" });
-    expect(more).toHaveClass("size-11", "min-h-11");
+    expect(more).toHaveClass("size-9", "min-h-9");
     fireEvent.click(more);
     expect(onOpenActions).toHaveBeenCalledTimes(1);
     expect(onOpenActions).toHaveBeenLastCalledWith(more);

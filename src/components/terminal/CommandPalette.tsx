@@ -100,6 +100,7 @@ const dragHandleStyle: CSSProperties = {
 };
 
 interface CommandPaletteBodyProps {
+  autoFocusInput: boolean;
   tabs: CommandPaletteProps["tabs"];
   onSelectTab: (tabId: string) => void;
   onOpenChange: (open: boolean) => void;
@@ -160,6 +161,7 @@ function selectedOptionIndex(
 }
 
 function CommandPaletteBody({
+  autoFocusInput,
   tabs,
   onSelectTab,
   onOpenChange,
@@ -186,8 +188,11 @@ function CommandPaletteBody({
   const updateScrollHints = useCallback(() => {
     const list = commandListRef.current;
     if (!list) return;
-    const nextCanScrollUp = list.scrollTop > 1;
-    const nextCanScrollDown = list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+    // iOS can report fractional offsets or overscroll past either end.
+    const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
+    const scrollTop = Math.max(0, Math.min(list.scrollTop, maxScroll));
+    const nextCanScrollUp = scrollTop > 2;
+    const nextCanScrollDown = scrollTop < maxScroll - 2;
     setCanScrollUp((current) => (current === nextCanScrollUp ? current : nextCanScrollUp));
     setCanScrollDown((current) => (current === nextCanScrollDown ? current : nextCanScrollDown));
   }, []);
@@ -377,7 +382,7 @@ function CommandPaletteBody({
       ) : null}
       <CommandInput
         ref={inputRef}
-        autoFocus
+        autoFocus={autoFocusInput}
         aria-label={page?.input?.label ?? "Search Hive"}
         maxLength={page?.input?.maxLength}
         readOnly={busy}
@@ -398,12 +403,9 @@ function CommandPaletteBody({
           aria-hidden="true"
           data-testid="command-scroll-hint-up"
           data-visible={canScrollUp ? "true" : "false"}
-          className={cn(
-            "pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground transition-opacity duration-150 motion-reduce:transition-none",
-            canScrollUp ? "opacity-100" : "opacity-0",
-          )}
+          className="pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground"
         >
-          <Triangle className="size-3 fill-current" />
+          {canScrollUp ? <Triangle className="size-3 fill-current" /> : null}
         </div>
         <CommandList
           ref={commandListRef}
@@ -520,12 +522,9 @@ function CommandPaletteBody({
           aria-hidden="true"
           data-testid="command-scroll-hint-down"
           data-visible={canScrollDown ? "true" : "false"}
-          className={cn(
-            "pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground transition-opacity duration-150 motion-reduce:transition-none",
-            canScrollDown ? "opacity-100" : "opacity-0",
-          )}
+          className="pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground"
         >
-          <Triangle className="size-3 rotate-180 fill-current" />
+          {canScrollDown ? <Triangle className="size-3 rotate-180 fill-current" /> : null}
         </div>
       </div>
     </div>
@@ -548,6 +547,7 @@ export function CommandPalette({
   groupHeading = "Sessions",
 }: CommandPaletteProps) {
   const isMobile = useIsMobile();
+  const sheetRef = useRef<HTMLDivElement>(null);
   const [localSearch, setLocalSearch] = useState("");
   const changeSearch = useCallback(
     (value: string) => {
@@ -558,6 +558,7 @@ export function CommandPalette({
   );
   const [stack, setStack] = useState<Array<{ id: string; query: string }>>([]);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
+  const [keepInputFocus, setKeepInputFocus] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(false);
@@ -582,6 +583,9 @@ export function CommandPalette({
   const navigate = useCallback(
     (navigation: CommandPaletteNavigation) => {
       if (pending.current) return;
+      // Continue keyboard navigation only when the user was already typing.
+      // Touch browsing must not focus a search field merely by changing pages.
+      setKeepInputFocus(document.activeElement?.hasAttribute("cmdk-input") ?? false);
       setError("");
       if ("back" in navigation) {
         const previous = stack.at(-1);
@@ -628,6 +632,7 @@ export function CommandPalette({
       setStack([]);
       setError("");
       setDirection("forward");
+      setKeepInputFocus(false);
     }
   }, [open]);
   const body = (
@@ -641,6 +646,7 @@ export function CommandPalette({
       )}
     >
       <CommandPaletteBody
+        autoFocusInput={!isMobile || !!page?.input || keepInputFocus}
         tabs={page ? [] : tabs}
         onSelectTab={onSelectTab}
         onOpenChange={changeOpen}
@@ -684,7 +690,9 @@ export function CommandPalette({
     return (
       <Sheet open={open} onOpenChange={changeOpen}>
         <SheetContent
+          ref={sheetRef}
           side="bottom"
+          initialFocus={sheetRef}
           finalFocus={restoreWorkspaceFocus}
           showCloseButton={false}
           data-launcher-gesture-ignore="true"

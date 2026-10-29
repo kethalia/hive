@@ -8,7 +8,7 @@ import { GLOBAL_COMMAND_PALETTE_KEYS } from "@/lib/keyboard-shortcuts";
 import { openGlobalCommandPalette } from "@/lib/terminal/global-command-palette";
 import { cn } from "@/lib/utils";
 
-const headerButtonClassName =
+export const WORKSPACE_HEADER_BUTTON_CLASS_NAME =
   "size-10 min-h-10 shrink-0 p-0 max-[1024px]:size-11 max-[1024px]:min-h-11 pointer-coarse:size-11 pointer-coarse:min-h-11";
 
 export function WorkspaceSearchButton() {
@@ -20,7 +20,7 @@ export function WorkspaceSearchButton() {
         <Button
           variant="ghost"
           size="icon"
-          className={headerButtonClassName}
+          className={WORKSPACE_HEADER_BUTTON_CLASS_NAME}
           aria-label="Search Hive"
           onClick={openGlobalCommandPalette}
         >
@@ -50,7 +50,7 @@ export function WorkspaceHeaderButton({
           type="button"
           variant="ghost"
           size="icon"
-          className={cn(headerButtonClassName, className)}
+          className={cn(WORKSPACE_HEADER_BUTTON_CLASS_NAME, className)}
           aria-label={label}
           {...props}
         >

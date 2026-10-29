@@ -1,5 +1,29 @@
 # hive-orchestrator
 
+## 2.31.0
+
+### Minor Changes
+
+- 701e244: Add the official Neon PostgreSQL skill and MCP setup to software workspaces, and schedule daily updates for Codex, Claude Code, and allowlisted official skills. Preserve user configuration and modified skills, defer tool upgrades while agents are active, and retain working installations on update failure. Publish the updated templates and update workspaces to enable these capabilities; Neon authentication remains a per-user step.
+
+## 2.30.5
+
+### Patch Changes
+
+- 638a22a: Open mobile search without automatically showing the keyboard, and enable border resizing alongside width presets in pane view.
+
+## 2.30.4
+
+### Patch Changes
+
+- 421c696: Fit Grid windows to the available viewport, resize along shared borders without visible grips, and keep narrow pane controls accessible.
+
+## 2.30.3
+
+### Patch Changes
+
+- ea1965d: Hide search arrows at scroll boundaries, replace touch pane width grips with preset cycling, and align header button sizes.
+
 ## 2.30.2
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 import type { PANE_CONTROL_SHORTCUTS } from "@/lib/keyboard-shortcuts";
 
 export const TERMINAL_CONTROL_BUTTON_CLASS_NAME =
-  "size-8 min-h-8 shrink-0 rounded-sm p-0 max-[1024px]:size-11 max-[1024px]:min-h-11 pointer-coarse:size-11 pointer-coarse:min-h-11";
+  "size-7 min-h-7 shrink-0 rounded-sm p-0 max-[1024px]:size-9 max-[1024px]:min-h-9 pointer-coarse:size-9 pointer-coarse:min-h-9";
 
 const FRAME_SELECTOR = '[data-terminal-audio-frame="true"], [data-terminal-audio-shell="true"]';
 const OVERLAY_SELECTOR =

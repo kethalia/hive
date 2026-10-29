@@ -49,6 +49,41 @@ function board(mode: "grid" | "strip" = "strip"): GeneralBoard {
   };
 }
 describe("window layouts", () => {
+  it("cycles all desktop width presets and wraps without changing neighboring columns", () => {
+    let b = board();
+    const initial = b.manager!.columns.slice(1);
+    for (const expected of [2 / 3, 0.75, 1, 0.25, 1 / 3, 0.5]) {
+      b = applyWindowAction(b, "cycle-width", 1440, 800);
+      expect(b.manager!.columns[0].width).toBeCloseTo(expected);
+      expect(b.manager!.columns.slice(1)).toEqual(initial);
+    }
+  });
+
+  it.each([
+    390, 744, 1194,
+  ])("cycles visible sizes and keeps the last pane in view at %spx", (width) => {
+    let b = board();
+    b.activeWindowId = "c";
+    const ids = b.windows.map((w) => w.id);
+    let previous = windowGeometry(b.manager!, b.layout, ids, "c", width, 800).rects.get("c")!.width;
+    for (let step = 0; step < 8; step++) {
+      b = applyWindowAction(b, "cycle-width", width, 800);
+      const rect = windowGeometry(b.manager!, b.layout, ids, "c", width, 800).rects.get("c")!;
+      expect(Math.abs(rect.width - previous)).toBeGreaterThan(1);
+      expect(rect.x).toBeGreaterThanOrEqual(-1);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
+      previous = rect.width;
+    }
+  });
+
+  it("cycles floating widths through the usable presets", () => {
+    let b = applyWindowAction(board(), "float", 390, 800);
+    for (const expected of [0.75, 1, 280 / 390]) {
+      b = applyWindowAction(b, "cycle-width", 390, 800);
+      expect(b.manager!.floating.a.width).toBeCloseTo(expected);
+    }
+  });
+
   it.each([
     390, 744, 1194,
   ])("offers an inward-facing leading grip for the last Strip column at %spx", (width) => {
@@ -157,11 +192,47 @@ describe("window layouts", () => {
     delete state.boards[0].manager;
     expect(parseGeneralWorkspace(JSON.stringify(state))?.boards[0].manager?.mode).toBe("grid");
   });
-  it("keeps tiles above minimum sizes even in a crowded grid", () => {
-    const b = board("grid");
-    const g = windowGeometry(b.manager!, b.layout, ["a", "b", "c"], "a", 400, 220);
-    expect([...g.rects.values()].every((r) => r.width >= 280 && r.height >= 160)).toBe(true);
-    expect(g.width).toBeGreaterThan(400);
+  it.each([
+    [320, 180],
+    [390, 740],
+    [744, 400],
+    [1440, 900],
+  ])("fits every Grid tile in a %s × %s viewport and leaves room to resize", (width, height) => {
+    for (const count of [3, 6, 12]) {
+      const ids = Array.from({ length: count }, (_, index) => `window-${index}`);
+      const root = reconcileWorkspaceWindowLayout(undefined, ids, {
+        viewportWidth: 1200,
+        viewportHeight: 800,
+      })!;
+      const original = JSON.stringify(root);
+      const manager = reconcileWindowManager(newWindowManager("grid"), ids);
+      const check = (layout: typeof root) => {
+        const geometry = windowGeometry(manager, layout, ids, ids[0], width, height);
+        expect(geometry.width).toBe(width);
+        expect(geometry.height).toBe(height);
+        expect(geometry.rects.size).toBe(count);
+        let area = 0;
+        for (const rect of geometry.rects.values()) {
+          expect(rect.x).toBeGreaterThanOrEqual(-0.001);
+          expect(rect.y).toBeGreaterThanOrEqual(-0.001);
+          expect(rect.width).toBeGreaterThan(0);
+          expect(rect.height).toBeGreaterThan(0);
+          expect(rect.x + rect.width).toBeLessThanOrEqual(width + 0.001);
+          expect(rect.y + rect.height).toBeLessThanOrEqual(height + 0.001);
+          area += rect.width * rect.height;
+        }
+        expect(area).toBeCloseTo(width * height);
+        return geometry;
+      };
+      const geometry = check(root);
+      for (const divider of geometry.dividers) {
+        expect(divider.max - divider.min).toBeGreaterThan(0.01);
+        if (divider.target.kind !== "grid") throw new Error("Expected a Grid boundary");
+        check(resizeWorkspaceSplit(root, divider.target.path, divider.min));
+        check(resizeWorkspaceSplit(root, divider.target.path, divider.max));
+      }
+      expect(JSON.stringify(root)).toBe(original);
+    }
   });
   it("scrolls to focus without shrinking existing strip columns", () => {
     const b = board(),

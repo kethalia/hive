@@ -1,7 +1,7 @@
 "use client";
 
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
-import { Ellipsis, GripVertical, Minus, Plus, X } from "lucide-react";
+import { Columns3, Ellipsis, GripVertical, Minus, Plus, X } from "lucide-react";
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -148,6 +148,7 @@ interface TerminalSessionFrameProps {
   showHeader?: boolean;
   onActivate?: () => void;
   onClose?: (event: MouseEvent<HTMLButtonElement>) => void;
+  onCycleWidth?: () => void;
   onMouseMove?: () => void;
   onFocusActivate?: boolean;
   closeLabel?: string;
@@ -175,6 +176,7 @@ export function TerminalSessionFrame({
   showHeader = true,
   onActivate,
   onClose,
+  onCycleWidth,
   onMouseMove,
   onFocusActivate = false,
   closeLabel,
@@ -230,7 +232,7 @@ export function TerminalSessionFrame({
     <div
       role={interactive ? "button" : "group"}
       className={cn(
-        "relative flex h-full min-h-0 resize-none flex-col overflow-hidden border bg-black shadow-sm outline-none transition-[border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring",
+        "@container/window-frame relative flex h-full min-h-0 resize-none flex-col overflow-hidden border bg-black shadow-sm outline-none transition-[border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring",
         layoutMode === "single" ? "rounded-lg" : "rounded-md",
         active ? "border-primary ring-1 ring-primary" : "border-border",
         isDropTarget && "border-primary/80 ring-2 ring-inset ring-primary/60",
@@ -257,12 +259,14 @@ export function TerminalSessionFrame({
             draggableHeader && "touch-none cursor-grab active:cursor-grabbing",
           )}
           data-window-drag-surface={draggableHeader ? "true" : undefined}
+          data-window-header="true"
           data-launcher-gesture-ignore={draggableHeader ? "true" : undefined}
           data-testid={dataTestId ? `${dataTestId}-header` : undefined}
           onContextMenu={handleHeaderContextMenu}
         >
           <div
             className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch"
+            data-window-title="true"
             title={
               draggableHeader
                 ? "Drag to rearrange. Ctrl/Cmd+Alt+Shift+Arrow moves the focused pane."
@@ -295,6 +299,32 @@ export function TerminalSessionFrame({
             </span>
           </div>
           <div data-terminal-audio-slot="true" className="flex shrink-0" />
+          {onCycleWidth ? (
+            <ShortcutTooltip
+              label="Cycle window width"
+              trigger={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className={cn(
+                    TERMINAL_CONTROL_BUTTON_CLASS_NAME,
+                    TERMINAL_CONTROL_HOVER_CLASS_NAME,
+                    "text-foreground hover:text-foreground",
+                  )}
+                  aria-label={`Cycle width of ${label}`}
+                  data-testid={dataTestId ? `${dataTestId}-cycle-width` : undefined}
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCycleWidth();
+                  }}
+                >
+                  <Columns3 className="size-4" />
+                </Button>
+              }
+            />
+          ) : null}
           {touchOptimizedActions ? null : headerActions}
           {onOpenActions ? (
             <ShortcutTooltip
@@ -310,7 +340,7 @@ export function TerminalSessionFrame({
                     TERMINAL_CONTROL_BUTTON_CLASS_NAME,
                     TERMINAL_CONTROL_HOVER_CLASS_NAME,
                     "text-foreground hover:text-foreground",
-                    touchOptimizedActions && "size-11 min-h-11",
+                    touchOptimizedActions && "size-9 min-h-9",
                   )}
                   aria-label={`Open actions for ${label}`}
                   data-terminal-control="actions"
@@ -339,7 +369,7 @@ export function TerminalSessionFrame({
                   className={cn(
                     TERMINAL_CONTROL_BUTTON_CLASS_NAME,
                     TERMINAL_CLOSE_HOVER_CLASS_NAME,
-                    touchOptimizedActions && "size-11 min-h-11",
+                    touchOptimizedActions && "size-9 min-h-9",
                   )}
                   aria-label={closeLabel ?? `Close ${label}`}
                   data-terminal-control="close"

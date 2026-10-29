@@ -565,6 +565,16 @@ try {
   page.on("pageerror", (error) => report.errors.push(error.message));
   await page.goto("http://127.0.0.1:8831");
   await page.getByLabel("codex input").waitFor();
+  for (const button of [
+    page.getByRole("button", { name: "Search Hive", exact: true }),
+    page.getByRole("button", { name: "Switch to Strip view", exact: true }),
+    page.getByTestId("workspace-board-tab-board-1"),
+    page.getByRole("button", { name: "Create workspace", exact: true }),
+  ]) {
+    const box = await button.boundingBox();
+    assert.equal(box.width, 40);
+    assert.equal(box.height, 40);
+  }
   await page.getByRole("button", { name: "Switch to Strip view" }).click();
   await page.getByRole("button", { name: "Switch to Grid view" }).click();
   await page.evaluate(() => {

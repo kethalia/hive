@@ -111,9 +111,9 @@ try {
     assert.equal(Math.round((await search.boundingBox()).x), 8);
     const drag = async (handle, dx, dy) => {
       const box = await handle.boundingBox();
-      assert.equal(box.width, 44);
-      assert.equal(box.height, 44);
-      await swipe(page, [[box.x + 22, box.y + 22]], dx, dy);
+      assert.equal(dx ? box.width : box.height, 16);
+      assert.equal(await handle.locator("span").count(), 0);
+      await swipe(page, [[box.x + box.width / 2, box.y + box.height / 2]], dx, dy);
     };
     const axis = width < 600 ? "height" : "width";
     await pane.getByLabel("a input").focus();
@@ -133,21 +133,26 @@ try {
     await page.getByRole("button", { name: "Switch to Strip view" }).click();
     await page.waitForTimeout(200);
     before = await pane.boundingBox();
-    await drag(page.getByRole("separator", { name: "Resize width", exact: true }).first(), 60, 0);
-    assert((await pane.boundingBox()).width > before.width + 30);
+    await page.getByRole("button", { name: "Cycle width of a", exact: true }).tap();
+    await page.waitForTimeout(200);
+    assert((await pane.boundingBox()).width > before.width + 1);
     assert.equal(await pane.getAttribute("data-active"), "true");
     await page.screenshot({ path: resolve(evidence, `strip-resize-${width}.png`) });
     await pane.getByTestId("general-window-a-title").click();
     await page.keyboard.press("Control+Alt+t");
     await page.waitForTimeout(200);
     before = await pane.boundingBox();
+    await page.getByRole("button", { name: "Cycle width of a", exact: true }).tap();
+    await page.waitForTimeout(200);
+    assert((await pane.boundingBox()).width > before.width + 1);
+    before = await pane.boundingBox();
     await drag(page.getByRole("separator", { name: "Resize floating width", exact: true }), 25, 0);
-    assert((await pane.boundingBox()).width > before.width + 10);
+    assert((await pane.boundingBox()).width > before.width + 15);
     before = await pane.boundingBox();
     await drag(page.getByRole("separator", { name: "Resize floating height", exact: true }), 0, 25);
     assert((await pane.boundingBox()).height > before.height + 10);
     report.checks.push(
-      `${width}px: left-aligned header and native touch Grid, Strip, and floating resize without switching windows`,
+      `${width}px: Grid resizing and Strip/floating width presets plus border resizing without switching windows`,
     );
 
     const shell = page.getByTestId("terminal-mobile-shell");

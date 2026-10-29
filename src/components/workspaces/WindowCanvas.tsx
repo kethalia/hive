@@ -304,7 +304,7 @@ export function WindowCanvas({
     >
       <div
         ref={scroller}
-        className={`relative min-h-0 flex-1 overflow-auto ${manager.mode === "strip" ? "overflow-x-hidden overscroll-x-none" : ""} ${dragId || resizing ? "[&_iframe]:pointer-events-none" : ""}`}
+        className={`relative min-h-0 flex-1 ${manager.mode === "strip" ? "overflow-y-auto overflow-x-hidden overscroll-x-none" : "overflow-hidden"} ${dragId || resizing ? "[&_iframe]:pointer-events-none" : ""}`}
         data-mobile-scroll-allow="true"
       >
         <div
@@ -370,7 +370,6 @@ export function WindowCanvas({
                           ? (["width", "height"] as const).map((axis) => (
                               <WindowResizeHandle
                                 key={axis}
-                                touchOptimized={mobile}
                                 label={`Resize floating ${axis}`}
                                 axis={axis}
                                 value={rect[axis] / (axis === "width" ? width : canvasHeight)}
@@ -384,32 +383,19 @@ export function WindowCanvas({
                                 }
                                 extent={axis === "width" ? width : canvasHeight}
                                 style={
-                                  mobile
+                                  axis === "width"
                                     ? {
-                                        left:
-                                          axis === "width"
-                                            ? rect.width - 44
-                                            : (rect.width - 44) / 2,
-                                        top:
-                                          axis === "height"
-                                            ? rect.height - 44
-                                            : (rect.height - 44) / 2,
-                                        width: 44,
-                                        height: 44,
+                                        left: rect.width - (mobile ? 16 : 6),
+                                        top: 40,
+                                        width: mobile ? 16 : 6,
+                                        height: Math.max(0, rect.height - 40),
                                       }
-                                    : axis === "width"
-                                      ? {
-                                          left: rect.width - 6,
-                                          top: 35,
-                                          width: 6,
-                                          height: rect.height - 35,
-                                        }
-                                      : {
-                                          left: 0,
-                                          top: rect.height - 6,
-                                          width: rect.width,
-                                          height: 6,
-                                        }
+                                    : {
+                                        left: 0,
+                                        top: rect.height - (mobile ? 16 : 6),
+                                        width: rect.width,
+                                        height: mobile ? 16 : 6,
+                                      }
                                 }
                                 onInteraction={(active) => {
                                   setResizing(active);
@@ -453,7 +439,6 @@ export function WindowCanvas({
             ? activeGeometry.dividers.map((d) => (
                 <WindowResizeHandle
                   key={d.id}
-                  touchOptimized={mobile}
                   label={`Resize ${d.axis}`}
                   axis={d.axis}
                   value={d.value}
@@ -463,15 +448,18 @@ export function WindowCanvas({
                   style={styleRect(
                     mobile
                       ? {
-                          x:
-                            d.edge === "start"
-                              ? d.rect.x
-                              : d.edge === "end"
-                                ? d.rect.x + d.rect.width - 44
-                                : d.rect.x + d.rect.width / 2 - 22,
-                          y: d.rect.y + d.rect.height / 2 - 22,
-                          width: 44,
-                          height: 44,
+                          ...d.rect,
+                          ...(d.axis === "width"
+                            ? {
+                                x:
+                                  d.edge === "start"
+                                    ? d.rect.x
+                                    : d.edge === "end"
+                                      ? d.rect.x + d.rect.width - 16
+                                      : d.rect.x + d.rect.width / 2 - 8,
+                                width: 16,
+                              }
+                            : { y: d.rect.y + d.rect.height / 2 - 8, height: 16 }),
                         }
                       : d.rect,
                   )}

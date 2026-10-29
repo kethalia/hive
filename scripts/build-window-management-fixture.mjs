@@ -44,7 +44,7 @@ await build({
           "@/lib/actions/agent-tools":
             'export async function configureAgentToolsAction(){return {data:{message:"Updated"}};} export async function resumeAgentSessionAction(){return {data:{sessionName:"codex"}};}',
           "@/lib/actions/settings-window":
-            "export async function getSettingsWindowAction(){return {data:{connectedWorkspaceIds:[],pendingWorkspaceIds:[],workspaces:[],workspaceError:false}};}",
+            'export async function getSettingsWindowAction(){return {data:{email:"fixture@example.test",coderUrl:"https://coder.example.test",connectedWorkspaceIds:[],pendingWorkspaceIds:[],workspaces:[],workspaceError:false}};}',
           "@/lib/push/actions":
             "export async function testPushAction(){return {data:{success:true}};} export async function getVapidPublicKeyAction(){return {data:{}};}",
           "@/lib/push/subscribe":

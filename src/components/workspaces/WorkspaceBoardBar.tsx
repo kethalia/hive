@@ -5,6 +5,7 @@ import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { WORKSPACE_HEADER_BUTTON_CLASS_NAME } from "./WorkspaceHeaderButton";
 export interface WorkspaceBoardTab {
   key: string;
   name: string;
@@ -128,15 +129,16 @@ export function WorkspaceBoardBar({
               type="button"
               role="tab"
               variant={isDanger ? "destructive" : isActive ? "secondary" : "ghost"}
-              size="xs"
+              size="icon"
               aria-label={isDanger ? `Delete workspace ${number}` : `Open workspace ${number}`}
               aria-selected={isActive}
               tabIndex={isActive ? 0 : -1}
               data-active={isActive ? "true" : "false"}
               data-testid={`workspace-board-tab-${board.key}`}
               className={cn(
-                "shrink-0 px-0 font-mono text-xs tabular-nums",
-                touchOptimized ? "size-11 min-h-11" : "h-7 min-h-0 w-7",
+                WORKSPACE_HEADER_BUTTON_CLASS_NAME,
+                "font-mono text-xs tabular-nums",
+                touchOptimized && "size-11 min-h-11",
               )}
               onClick={() => handleBoardPress(board.key)}
               onKeyDown={(event) => handleTabKeyDown(event, board.key)}
@@ -162,11 +164,12 @@ export function WorkspaceBoardBar({
       <Button
         type="button"
         variant="outline"
-        size="xs"
+        size="icon"
         onClick={onCreate}
         className={cn(
-          "shrink-0 px-0 font-mono text-xs",
-          touchOptimized ? "size-11 min-h-11" : "h-7 min-h-0 w-7",
+          WORKSPACE_HEADER_BUTTON_CLASS_NAME,
+          "font-mono text-xs",
+          touchOptimized && "size-11 min-h-11",
         )}
         aria-label="Create workspace"
         data-testid="workspace-board-new"
