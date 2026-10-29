@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T17:23:43.188Z",
+  "scope": "actual full-schema Prisma6 + auth Worker/domain and task read functions in local workerd, isolated Neon synthetic fixtures only",
+  "testedRevision": "4c0eedf38fcff1f1c3ffad8e9e0921c2262a635b",
+  "testedSourceCommitted": true,
+  "sourceStable": true,
+  "runId": "479eb84d-75c1-46d9-b802-f7fbdc7faf19",
+  "httpStatus": 200,
+  "result": {
+    "ok": true,
+    "checks": {
+      "restrictedRuntimeRole": true,
+      "serializableInteractiveFullSchemaCommit": true,
+      "parameterizedRowLockAndServerClock": true,
+      "actualAuthWorkerSessionAndEncryptedCredentials": true,
+      "credentialEncryptionVersionCAS": true,
+      "workerdKnownErrorObserved": true,
+      "actualTaskReadFunctionsAndOwnerIsolation": true,
+      "serializableInteractiveRollback": true,
+      "expiredAndRevokedSessionsRejected": true
+    },
+    "knownError": {
+      "name": "PrismaClientKnownRequestError",
+      "code": "P2002",
+      "clientVersion": "6.19.3",
+      "modelName": "Session",
+      "metaKeys": [
+        "modelName",
+        "driverAdapterError"
+      ],
+      "adapterErrorName": "DriverAdapterError",
+      "adapterCauseKind": "UniqueConstraintViolation",
+      "constraint": {
+        "fields": [
+          "session_id"
+        ]
+      }
+    },
+    "appChecks": {
+      "authenticatedAppListThroughServiceBinding": true,
+      "authenticatedAppDetailThroughServiceBinding": true,
+      "authenticatedMiddlewareCSPAndPrivateCache": true,
+      "foreignOrMissingTaskRejected": true,
+      "crossSiteReadRejected": true,
+      "actualAppLogoutAndRevokedCookieRejected": true
+    }
+  },
+  "sourceDigests": {
+    "deploy/cloudflare/auth/worker.ts": "928aa513ed35574563328422e5095030ef97b7342b0a4a8df77db0bee380f93a",
+    "deploy/cloudflare/auth/local-integration.worker.ts": "bcae21ecaa4f8afe08a6ead981c86d58e20b45f67f7e135db1877c8abb5e0312",
+    "deploy/cloudflare/auth/run-local-integration.mjs": "2a0cbf26d048df47b2f3a3b2bc6b18ba8543ac20a228db15b391a053771d072e",
+    "deploy/cloudflare/app/request-lifetime.ts": "e0a29d32d10d8f4d84a1b605630ae42aace6e28b4f837a53f4214fbe398ae600",
+    "services/auth/src/fetch-handler.ts": "c74234eef3f023369cf864957052dbf46ee53ba97c3dec634db9687b6d268fe0",
+    "services/auth/src/auth/domain.ts": "cdeb0d0c3517c086f6b2a9fc35e2269e3991da1b48e45a4a86dec598b01c438f",
+    "services/auth/src/auth/login.ts": "1f80404c15e9e5def0b28313427b79bfc19dd8e643d0283087b6be1ad3a24325",
+    "services/auth/src/auth/session.ts": "4e762e184b8c8e604a34469fa83c6adde9d679802fdba85d45d1b6b713994187",
+    "services/auth/src/auth/token-status.ts": "47aeb557a48d201a3e024abeded06dd3975a39a4ce2fd946aa448f7b231535bd",
+    "packages/auth/src/client.ts": "c83bb6f2acd176d25c859c06e2fc2f9b777f2485f91291ebdb2051d771f882c0",
+    "packages/auth/src/encryption.ts": "ca8f029d4eb6556c19512c1f2785c9bd507a1f6704a4bab1644dfc746a566eb4",
+    "packages/auth/src/cookie.ts": "f1d71a5e875bc9b7ead31797ff375ae5cb8398e5470b9b8a4b83393ab03dc8bf",
+    "packages/db/prisma/schema.prisma": "0e4d446994daf161a8aeb01fb44c17381c3bf79bb0e333ef151053284abe469f",
+    "packages/db/src/cloudflare.ts": "e62006dc5644f3871467ee699a41f408b1f95edd42c158fae4932d52c37aa5d7",
+    "packages/db/src/workerd.ts": "14a1cd94f36a92922ce651f7c632914689a30667899aa83fc43a5a42f0763be1",
+    "packages/db/src/request-scope.ts": "bf61a6ae3b04b33f7eaf29261cde262b5d12723bd10fa43280fecb5dca80b43a",
+    "packages/db/src/generated/prisma-workerd/client.ts": "127f7cf3c0a26a7f2f17392a7961a62647a596545337c5268cb8c3e194c4cf98",
+    "packages/db/src/generated/prisma-workerd/internal/class.ts": "c4e4af6f70997e967815ea63afcf7a95a93f79c84502f90aadc06ba5be73c5fc",
+    "packages/db/package.json": "549f879af85ca17963ee9598b76dd315cba79eaf219311334d3b6f68aa980d8f",
+    "next.config.ts": "a94614d630f5f8487c82b828fb135faf46e664fbd984647315e0bf0f2c2f1bea",
+    "src/lib/auth/service-client.ts": "90979b852c228baaef5288a202afd64ad15a9781e1a43b19f9523858c38d4edc",
+    "deploy/cloudflare/app/worker.ts": "fee2cc597836ca45f6daf828431ff5bdcb1c55720d399cdc7f771d53b62325cb",
+    "src/lib/delivery/reads.ts": "c6698edf37ffcd0b1ab7e66e9ae3e298f454b6b8bc37b3c4699f7f96484861ee"
+  },
+  "coderLoginPerformed": false,
+  "serviceBindingTransportVerified": true,
+  "credentialRotationControllerVerified": false,
+  "cloudDeployed": false,
+  "appBuildReadySHA256": "b24a4dbb2ac7bc6f80312a90a7a727bf49077ecfa033fbf5f947259462a489ca"
+}

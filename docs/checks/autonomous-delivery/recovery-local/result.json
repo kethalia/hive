@@ -1,0 +1,53 @@
+{
+  "observedAt": "2026-10-29T17:25:13.964247+00:00",
+  "recoveryCommit": "7a0b3da",
+  "gitHeadAtValidation": "4c0eedf38fcff1f1c3ffad8e9e0921c2262a635b",
+  "tests": {
+    "total": 52,
+    "state": 12,
+    "databaseErrors": 3,
+    "repositoryPostgres": 18,
+    "recoveryPostgres": 12,
+    "outboxPostgres": 7
+  },
+  "testFileParallelism": false,
+  "freshMigrations": "passed",
+  "freshDatabase": "hive_delivery_recovery_fresh_7c77b530",
+  "upgradeLegacyUserSessionCiphertextRetained": true,
+  "appliedMigrationCount": 11,
+  "appliedMigrationChecksumsMatchRepository": true,
+  "schemaDrift": "none",
+  "runtime": {
+    "node": "v24.21.0",
+    "postgres": "postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)"
+  },
+  "sourceSha256": {
+    "packages/db/prisma/schema.prisma": "0e4d446994daf161a8aeb01fb44c17381c3bf79bb0e333ef151053284abe469f",
+    "packages/db/prisma/migrations/20261029030000_delivery_runtime_recovery/migration.sql": "22df1aff4ead962203f7297269593721094a69af6cf52b93031ea2b6ceeb2fae",
+    "src/lib/delivery/contracts.ts": "34baa1af099336730277295dca61c43ba850b0f95f161a09b283a1caddc6e4e5",
+    "src/lib/delivery/state.ts": "0055838486a2d6667af75d601acf4567bef3d5f36abf65ffc463e64495ea126d",
+    "src/lib/delivery/repository.ts": "f9f6ded234309b8a76ddc454c2add9ef3198beee14d5c14315ea0e2d4db752fe",
+    "src/__tests__/lib/delivery/repository.integration.test.ts": "f60e3ea7590cb4ca9635bedc3c4c90230c3c7cdb193f4640e7dd2ae8a157d374",
+    "src/__tests__/lib/delivery/database-errors.test.ts": "d06cdd430691a45de1176adaef67f9cd481f9854ff1e5eab2848df15b632451b",
+    "src/__tests__/lib/delivery/recovery.integration.test.ts": "4c4069acdf24aa5c18b34fcec7d599ae658dec9951bea6416b28572f7e1d2d89",
+    "src/lib/delivery/outbox.ts": "899db8616c28a4b9620242962b66b189bf3050f3ad62579a60475224aaf04749",
+    "src/lib/delivery/reads.ts": "c6698edf37ffcd0b1ab7e66e9ae3e298f454b6b8bc37b3c4699f7f96484861ee",
+    "src/__tests__/lib/delivery/outbox.integration.test.ts": "3502df57603eaf88f195479a3948a7cb3ce71a84bdd3a3523530cb776af4b9af"
+  },
+  "localCluster": {
+    "path": "/tmp/hive-delivery-pg-5gcusk89",
+    "port": 36229,
+    "running": true,
+    "retainedFor": "Parent requested continued integration testing; stop only on coordinator confirmation"
+  },
+  "provenance": "Private primary-task PostgreSQL cluster and synthetic fixtures only. This agent did not mutate Neon or production. Native runtime status/evidence adapters in these tests are synthetic.",
+  "independentOutboxReview": "Owner joins, bounded SKIP LOCKED claims/exhaustion, monotonic attempt CAS and historical attempt source revision checked after fixes; sender remains injected, no scheduler activated.",
+  "remainingGates": [
+    "Authenticated manager/result ingestion with verified host registration and evidence producer authority",
+    "Live native runtime quiescence plus external-operation reconciliation adapter",
+    "Real external evidence and object preservation",
+    "Concurrent-tenant Serializable load: parallel integration files exhausted bounded P2034 retries; sequential suites and intentional same-task races pass",
+    "Production acceptance and release remain disabled"
+  ],
+  "priorEvidence": "../persistence-local/result.json documents earlier seven-to-ten migration upgrade and restart/replay proof; this check revalidated retained legacy records and all eleven migration checksums."
+}

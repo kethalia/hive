@@ -1,0 +1,69 @@
+Recovery targeted suite
+Command: HIVE_DELIVERY_TEST_DATABASE_URL=<isolated-local-fixture> pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/state.test.ts src/__tests__/lib/delivery/database-errors.test.ts src/__tests__/lib/delivery/repository.integration.test.ts src/__tests__/lib/delivery/recovery.integration.test.ts src/__tests__/lib/delivery/outbox.integration.test.ts
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/recovery.integration.test.ts (12 tests) 679ms
+ ✓ src/__tests__/lib/delivery/repository.integration.test.ts (18 tests) 535ms
+ ✓ src/__tests__/lib/delivery/outbox.integration.test.ts (7 tests) 258ms
+ ✓ src/__tests__/lib/delivery/database-errors.test.ts (3 tests) 94ms
+ ✓ src/__tests__/lib/delivery/state.test.ts (12 tests) 6ms
+
+ Test Files  5 passed (5)
+      Tests  52 passed (52)
+   Start at  17:18:33
+   Duration  2.51s (transform 150ms, setup 0ms, collect 345ms, tests 1.57s, environment 1ms, prepare 181ms)
+
+
+Fresh eleven-migration deployment
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "hive_delivery_recovery_fresh_7c77b530", schema "public" at "127.0.0.1:36229"
+
+11 migrations found in prisma/migrations
+
+Applying migration `0_init`
+Applying migration `20260602000000_add_navigation_favorites`
+Applying migration `20260603000000_add_terminal_controls_beyond_mobile`
+Applying migration `20260714000000_add_navigation_favorite_position`
+Applying migration `20260814000000_remove_legacy_tasks`
+Applying migration `20261016000000_add_agent_notifications`
+Applying migration `20261016010000_stage_notification_credentials`
+Applying migration `20261029000000_add_delivery_foundation`
+Applying migration `20261029010000_delivery_audit_integrity`
+Applying migration `20261029020000_delivery_report_event_binding`
+Applying migration `20261029030000_delivery_runtime_recovery`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 0_init/
+    └─ migration.sql
+  └─ 20260602000000_add_navigation_favorites/
+    └─ migration.sql
+  └─ 20260603000000_add_terminal_controls_beyond_mobile/
+    └─ migration.sql
+  └─ 20260714000000_add_navigation_favorite_position/
+    └─ migration.sql
+  └─ 20260814000000_remove_legacy_tasks/
+    └─ migration.sql
+  └─ 20261016000000_add_agent_notifications/
+    └─ migration.sql
+  └─ 20261016010000_stage_notification_credentials/
+    └─ migration.sql
+  └─ 20261029000000_add_delivery_foundation/
+    └─ migration.sql
+  └─ 20261029010000_delivery_audit_integrity/
+    └─ migration.sql
+  └─ 20261029020000_delivery_report_event_binding/
+    └─ migration.sql
+  └─ 20261029030000_delivery_runtime_recovery/
+    └─ migration.sql
+      
+All migrations have been successfully applied.
+
+Schema comparison
+No difference detected.
+
+
+Upgrade fixture retained original user/session/ciphertext 010203; all eleven applied migration checksums equal source.
+Typecheck passed on final recovery source before commit. No production/native authority enabled.
