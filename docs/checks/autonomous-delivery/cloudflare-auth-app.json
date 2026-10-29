@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-10-29T20:44:24.298Z",
+  "observedAt": "2026-10-29T21:23:49.787Z",
   "scope": "actual full-schema Prisma6 + auth Worker/domain and task read functions in local workerd, isolated Neon synthetic fixtures only",
-  "testedRevision": "106721df264ae25e860229efb43362d7d77d23b2",
+  "testedRevision": "3d17cbbce15b8d8e9a6db1c5635f7172d8226cc9",
   "testedSourceCommitted": true,
   "sourceStable": true,
-  "runId": "bb7e6b95-b0c4-4d44-b615-3555c2a98a96",
+  "runId": "2a0a58c3-a734-4545-8477-d6b3d6ed58ce",
   "httpStatus": 200,
   "result": {
     "ok": true,
@@ -71,22 +71,22 @@
     "packages/db/src/workerd.ts": "14a1cd94f36a92922ce651f7c632914689a30667899aa83fc43a5a42f0763be1",
     "packages/db/src/request-scope.ts": "bf61a6ae3b04b33f7eaf29261cde262b5d12723bd10fa43280fecb5dca80b43a",
     "packages/db/src/generated/prisma-workerd/client.ts": "179ee6cf16476b0fe55543cf8ab0165b9e37b4557f539582eab6b0279e7d4712",
-    "packages/db/src/generated/prisma-workerd/internal/class.ts": "1196cb5d8e7e354e1165e902a2b80801412695bc580a8aa12a88278592725706",
+    "packages/db/src/generated/prisma-workerd/internal/class.ts": "bb1d4aedac9523a2b4d917c0787236799c43f4eee86f454a4cd37c3beff1dc48",
     "packages/db/package.json": "549f879af85ca17963ee9598b76dd315cba79eaf219311334d3b6f68aa980d8f",
     "next.config.ts": "a94614d630f5f8487c82b828fb135faf46e664fbd984647315e0bf0f2c2f1bea",
     "src/lib/auth/service-client.ts": "90979b852c228baaef5288a202afd64ad15a9781e1a43b19f9523858c38d4edc",
     "deploy/cloudflare/app/worker.ts": "a99e72910b934c687c34bb88a8dac2e41479a6c03328a55fd357d07ada8b8240",
     "deploy/cloudflare/app/host-callback.ts": "b66c49b0b1d636cf492c62e9b068c79f2e2629a9c467e71935436bed55b55aee",
     "src/lib/codex-session/host-callback-transport.ts": "023018c1380a537612a595995e334c021dd9e7d7b2b0945ab8aa34ca2dda4976",
-    "src/proxy.ts": "0864f35720c4c99241a1e31c2a7eaa197bd6693fd180bac31d712aa0de673ab7",
+    "src/proxy.ts": "1137679e6ac48f5fb74518b8ea076976028759cbe7272516b24dba9c8eb60708",
     "src/lib/codex-session/route.server.ts": "768010897b4b36573287bf39e6ca4d8cfb2ae2661c60716b6c7d2f8f11c3b528",
     "src/lib/codex-session/registered-session.server.ts": "9db3f050938a7d43829756647aff89ca8390dd66b72e90950961c67e0faa8e46",
     "src/lib/codex-session/registration.server.ts": "a29e1cf84b8c9f25e47c999eec94681c06bd316e1507694978ddcdc350a61d90",
-    "src/lib/delivery/reads.ts": "8d464b32b48114c90df6e8b577f4786bcb6ed2afa6b2b5aef9e04b21c9482070"
+    "src/lib/delivery/reads.ts": "c7c19c37f0bb0d022620d95a4b39f95134cec6efe3555ce6bd45562229eeb500"
   },
   "coderLoginPerformed": false,
   "serviceBindingTransportVerified": true,
   "credentialRotationControllerVerified": false,
   "cloudDeployed": false,
-  "appBuildReadySHA256": "75ca1627ed732457758dcad4dffe8f371832101b5272afb3096fc69c678380e2"
+  "appBuildReadySHA256": "972f29e5806d1f4ced46ce946c8c139a04f21ed0f1de0e8353ecd68d74c9d678"
 }
