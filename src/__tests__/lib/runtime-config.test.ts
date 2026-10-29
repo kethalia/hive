@@ -174,3 +174,17 @@ describe("runtime-config", () => {
     });
   });
 });
+
+it("only exposes delivery when explicitly enabled by the server", () => {
+  vi.stubEnv("HIVE_DELIVERY_ENABLED", "false");
+  expect(getServerRuntimeConfig().deliveryEnabled).toBeUndefined();
+  vi.stubEnv("HIVE_DELIVERY_ENABLED", "true");
+  expect(getServerRuntimeConfig().deliveryEnabled).toBe(true);
+  expect(parseRuntimeConfig('{"terminalWsUrl":"","deliveryEnabled":true}')?.deliveryEnabled).toBe(
+    true,
+  );
+  expect(
+    parseRuntimeConfig('{"terminalWsUrl":"","deliveryEnabled":"true"}')?.deliveryEnabled,
+  ).toBeUndefined();
+  vi.unstubAllEnvs();
+});

@@ -35,7 +35,7 @@ const DIAGNOSTICS_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
 
 export function DashboardKeyboardController() {
   const router = useRouter();
-  const { projectDiscoveryEnabled } = useRuntimeConfig();
+  const { projectDiscoveryEnabled, deliveryEnabled } = useRuntimeConfig();
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -147,6 +147,13 @@ export function DashboardKeyboardController() {
       ...(
         [
           [
+            "delivery",
+            "Delivery",
+            "Track tasks, step reports, and important notices",
+            undefined,
+            ["tasks", "progress", "reports"],
+          ],
+          [
             "projects",
             "Projects",
             "Browse repositories from your connected GitHub account",
@@ -197,7 +204,11 @@ export function DashboardKeyboardController() {
           ],
         ] as const
       )
-        .filter(([tool]) => tool !== "projects" || projectDiscoveryEnabled)
+        .filter(
+          ([tool]) =>
+            (tool !== "projects" || projectDiscoveryEnabled) &&
+            (tool !== "delivery" || deliveryEnabled),
+        )
         .map(([tool, label, description, keys, aliases]) => ({
           id: `dashboard:open-${tool}`,
           label,
@@ -226,7 +237,14 @@ export function DashboardKeyboardController() {
         onSelect: toggleFullscreen,
       },
     ],
-    [source?.actions, openTool, fullscreen, toggleFullscreen, projectDiscoveryEnabled],
+    [
+      source?.actions,
+      openTool,
+      fullscreen,
+      toggleFullscreen,
+      projectDiscoveryEnabled,
+      deliveryEnabled,
+    ],
   );
   const launcher = useMemo(() => {
     const groups = new Map<string, CommandPaletteAction[]>();

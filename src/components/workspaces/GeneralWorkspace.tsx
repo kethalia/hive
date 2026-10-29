@@ -328,6 +328,9 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     if (panel.success)
       openHiveTool({
         tool: panel.data,
+        taskId: hiveWindowRequestSchema.shape.taskId.safeParse(query.get("task") ?? undefined).data,
+        reportId: hiveWindowRequestSchema.shape.reportId.safeParse(query.get("report") ?? undefined)
+          .data,
         sessionName: panel.data === "logs" ? (sessionName ?? undefined) : undefined,
         template: query.get("template") ?? undefined,
         workspaceId: workspaceId ?? undefined,
