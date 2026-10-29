@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "scope": "actual local workerd crypto and Fetch adapter; provider responses simulated; no external push delivery",
+  "testedSourceCommitted": false,
+  "sourceDigests": {
+    "src/lib/push/fetch-transport.ts": "2d0c077fb5260cbfbc073c804dad48c596f2e0cb1140da9cc60f4c98a14c560b",
+    "deploy/cloudflare/push/local-transport-fixture.ts": "3f74167e51f0fcd7941d8e916549ccddf08acb6d7426062220b4f656bb63404c"
+  },
+  "checks": {
+    "encrypted": true,
+    "vapid": true,
+    "manualRedirects": true,
+    "statuses": [302, 404, 410, 429, 503],
+    "externalRequests": 0
+  },
+  "cloudDeployed": false
+}

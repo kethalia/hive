@@ -185,12 +185,17 @@ describe.skipIf(!url)("delivery notification outbox PostgreSQL", () => {
         await deliverClaim(worker, claim, async () => {
           throw new Error("transport unavailable");
         }),
-      ).toBe("retry");
+      ).toBe(i === 5 ? "failed" : "retry");
       expect(await worker.claim(f.ownerId)).toEqual([]);
       if (i < 5) await expire(claim.id);
     }
     const row = await db.deliveryOutbox.findFirstOrThrow({ where: { ownerId: f.ownerId } });
     expect(row.status).toBe("failed");
+    expect(
+      (await readDeliveryTask(db, f.ownerId, f.taskId))?.recentEvents.some(
+        (event) => event.reportId === f.reportId && event.notificationStatus === "failed",
+      ),
+    ).toBe(true);
     expect(await db.deliveryStepReport.findUnique({ where: { id: f.reportId } })).not.toBeNull();
   });
 

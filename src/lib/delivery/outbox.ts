@@ -132,5 +132,6 @@ export async function deliverClaim(
   } catch {
     result = "retry";
   }
-  return (await outbox.settle(claim, result)) ? result : ("stale" as const);
+  const outcome = result === "retry" && claim.attempt >= MAX_ATTEMPTS ? "failed" : result;
+  return (await outbox.settle(claim, outcome)) ? outcome : ("stale" as const);
 }

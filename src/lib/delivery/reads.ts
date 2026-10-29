@@ -118,6 +118,7 @@ export async function readDeliveryTask(
           createdAt: true,
           stepId: true,
           report: { select: { id: true } },
+          outbox: { where: { ownerId, channel: "push" }, take: 1, select: { status: true } },
         },
       },
       steps: {
@@ -181,6 +182,7 @@ export async function readDeliveryTask(
         reason,
         stepId: event.stepId,
         reportId: event.report?.id ?? null,
+        notificationStatus: event.outbox[0]?.status ?? null,
         createdAt: event.createdAt.toISOString(),
       };
     }),
