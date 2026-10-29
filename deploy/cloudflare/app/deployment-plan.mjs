@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { validatePreviewRedeployment } from "./redeployment-policy.mjs";
 
 export const ACCOUNT_ID = "225177f82b9234ede14e897fe15e0cb5";
 export const APP_NAME = "hive-app-compatibility-preview";
@@ -6,7 +7,7 @@ export const AUTH_NAME = "hive-auth-compatibility-preview";
 export const MAX_REQUESTS = 30;
 export const CPU_LIMIT_MS = 100;
 
-export function validatePreflight(preflight, now = Date.now()) {
+export function validatePreflight(preflight, now = Date.now(), previous) {
   assert.equal(preflight.accountId, ACCOUNT_ID, "Preview account mismatch");
   const age = now - Date.parse(preflight.observedAt);
   assert.ok(
@@ -21,11 +22,17 @@ export function validatePreflight(preflight, now = Date.now()) {
   );
   assert.equal(preflight.additionalCostsAuthorized, false);
   assert.equal(preflight.newPaidProductsAllowed, false);
-  for (const name of [APP_NAME, AUTH_NAME])
-    assert.ok(
-      preflight.targets.some((target) => target.name === name && target.exists === false),
-      "Verify new Worker names are absent",
-    );
+  if (previous)
+    validatePreviewRedeployment(preflight, previous, ACCOUNT_ID, {
+      app: APP_NAME,
+      auth: AUTH_NAME,
+    });
+  else
+    for (const name of [APP_NAME, AUTH_NAME])
+      assert.ok(
+        preflight.targets.some((target) => target.name === name && target.exists === false),
+        "Verify new Worker names are absent",
+      );
   assert.equal(preflight.approvedProbeRequestMaximum, MAX_REQUESTS);
   const requests = preflight.publishedIncludedAllowance.requestsPerMonth - preflight.usage.requests;
   const cpu =

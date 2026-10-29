@@ -145,6 +145,43 @@ bearer gate for every asset/request; auth remains service-only. Preserve deploym
 sanitized results and disable public URLs after the authorized bounded probes. Browser automation
 requires origin-scoped authorization handling in Browser Testing and remains a separate gate.
 
+## Updating the owned private preview
+
+An existing preview uses `--update-preview`. Fresh account evidence must identify the exact
+task-created Worker tags and creation timestamps, current deployment/version IDs, and disabled
+public/preview URLs. Preparation compares these with the previous deployment evidence from
+committed Git; unexpected or partially existing resources fail closed. The existing private
+identity ID and five runtime keys must be retained. Update mode rejects first-create identity
+requests. It does not recreate resources or rotate keys.
+
+```sh
+HIVE_PREVIEW_IDENTITY_FILE=/tmp/hive-epic-coder-auth/preview-deployment-identity.json \
+HIVE_PREVIEW_HOST_IDENTITY_FILE=/tmp/hive-epic-coder-auth/project-host-identity.json \
+  node deploy/cloudflare/app/prepare-deployment.mjs --update-preview
+```
+
+The optional host identity must be a private, matching Ed25519 key pair scoped to this exact
+Hive origin, Coder origin and software template ID. The private key becomes only an app secret;
+its public key, key ID and scope are recorded without private material. Default preparation
+keeps the gateway disabled. A separately reviewed `--native-gateway-candidate` additionally
+requires the committed actual `--app --callbacks` policy proof, configures only the fixed host
+application/port and same-origin relay, and still performs no cloud operation. Installed-host,
+native account and real login acceptance remain separate activation requirements.
+
+Use the guarded runner with the selected private manifest and `auth` or `app`. It defaults to
+a dry run; `--check-only` validates without invoking Wrangler. Only after the primary's concrete
+ownership/quota/activation review does `--deploy` upload. Each invocation verifies current HEAD,
+the exact ready source/output set, config and private secret-file digests, allowed binding names,
+account/main/assets paths and fresh ownership/headroom evidence. An old prepared directory cannot
+silently upload a later checkout with its old `SOURCE_REVISION`. Raw Wrangler bypasses this guard
+and is not the supported update path. Auth stays service-only; temporary app URL exposure and its
+unconditional cleanup remain the primary's separately bounded probe operation.
+
+```sh
+node deploy/cloudflare/app/deploy-prepared.mjs /tmp/<private-run>/prepared-deployment.json auth --check-only
+node deploy/cloudflare/app/deploy-prepared.mjs /tmp/<private-run>/prepared-deployment.json auth
+```
+
 ## Scoped project WebSocket compatibility relay
 
 The Worker accepts only GET upgrades at `/api/projects/<uuid>/session` and the separately enabled

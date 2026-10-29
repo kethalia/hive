@@ -93,3 +93,16 @@ test("new source files and ignored generated client changes invalidate readiness
     await put("src/app/new-route.ts", "export const GET = () => null;");
     await assert.rejects(assertBuildReady(root), /sources changed/);
   }));
+
+test("auth worker edits and newly added auth modules invalidate a prepared readiness record", async () =>
+  fixture(async ({ root, put }) => {
+    const original = "export default { fetch: () => new Response('private auth') };";
+    await put("deploy/cloudflare/auth/worker.ts", original);
+    await writeBuildReady(await sourceDigests(root), root);
+    await put("deploy/cloudflare/auth/worker.ts", "export default { changed: true };");
+    await assert.rejects(assertBuildReady(root), /sources changed/);
+    await put("deploy/cloudflare/auth/worker.ts", original);
+    await assertBuildReady(root);
+    await put("deploy/cloudflare/auth/new-domain.mjs", "export const altered = true;");
+    await assert.rejects(assertBuildReady(root), /sources changed/);
+  }));

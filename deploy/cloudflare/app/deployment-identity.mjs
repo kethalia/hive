@@ -36,8 +36,7 @@ function validateIdentity(identity, scope) {
   return identity;
 }
 
-/** Explicit private identity, preserved across artifacts; never a production key source. */
-export async function loadPreviewIdentity(path, scope, { createIfMissing = false } = {}) {
+async function openPrivateFile(path) {
   assert.ok(
     typeof path === "string" && isAbsolute(path),
     "Choose an absolute private identity file",
@@ -48,9 +47,33 @@ export async function loadPreviewIdentity(path, scope, { createIfMissing = false
   assert.equal(directory.uid, process.getuid());
   assert.equal(directory.mode & 0o777, 0o700, "Identity directory must be private mode700");
   assert.equal(await realpath(parent), resolve(parent), "Identity directory cannot use symlinks");
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const stat = await handle.stat();
+    assert.ok(stat.isFile() && stat.nlink === 1, "Identity must be a single-link regular file");
+    assert.equal(stat.uid, process.getuid());
+    assert.equal(stat.mode & 0o777, 0o600, "Identity file must have mode600");
+    return handle;
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
+}
+
+export async function readPreviewPrivateJson(path) {
+  const handle = await openPrivateFile(path);
+  try {
+    return JSON.parse(await handle.readFile("utf8"));
+  } finally {
+    await handle.close();
+  }
+}
+
+/** Explicit private identity, preserved across artifacts; never a production key source. */
+export async function loadPreviewIdentity(path, scope, { createIfMissing = false } = {}) {
   let handle;
   try {
-    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    handle = await openPrivateFile(path);
   } catch (error) {
     if (error.code !== "ENOENT" || !createIfMissing) throw error;
     const identity = {
@@ -75,10 +98,6 @@ export async function loadPreviewIdentity(path, scope, { createIfMissing = false
     return loadPreviewIdentity(path, scope);
   }
   try {
-    const stat = await handle.stat();
-    assert.ok(stat.isFile() && stat.nlink === 1, "Identity must be a single-link regular file");
-    assert.equal(stat.uid, process.getuid());
-    assert.equal(stat.mode & 0o777, 0o600, "Identity file must have mode600");
     return validateIdentity(JSON.parse(await handle.readFile("utf8")), scope);
   } finally {
     await handle.close();
