@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -7,9 +7,13 @@ import { assertBuildReady } from "../app/build-integrity.mjs";
 
 const root = process.cwd();
 const appMode = process.argv.includes("--app");
+const callbacks = process.argv.includes("--callbacks");
+if (callbacks && !appMode) throw new Error("Callback proof requires actual app mode");
+const callbackIssuer = callbacks ? generateKeyPairSync("ed25519") : null;
 if (appMode) await assertBuildReady();
 const sourcePaths = [
   "deploy/cloudflare/auth/worker.ts",
+  "deploy/cloudflare/auth/local-callback-app.worker.ts",
   "deploy/cloudflare/auth/local-integration.worker.ts",
   "deploy/cloudflare/auth/run-local-integration.mjs",
   "deploy/cloudflare/app/request-lifetime.ts",
@@ -34,6 +38,10 @@ const sourcePaths = [
   "next.config.ts",
   "src/lib/auth/service-client.ts",
   "deploy/cloudflare/app/worker.ts",
+  "deploy/cloudflare/app/host-callback.ts",
+  "src/lib/codex-session/route.server.ts",
+  "src/lib/codex-session/registered-session.server.ts",
+  "src/lib/codex-session/registration.server.ts",
   "src/lib/delivery/reads.ts",
 ];
 async function sourceDigests() {
@@ -78,10 +86,23 @@ if (appMode) {
     const next = JSON.parse(await readFile(`deploy/cloudflare/${service}/wrangler.jsonc`, "utf8"));
     delete next.$schema;
     next.main = resolve(`deploy/cloudflare/${service}/worker.ts`);
+    if (callbacks && service === "app")
+      next.main = resolve("deploy/cloudflare/auth/local-callback-app.worker.ts");
     next.vars = {
       ...next.vars,
       HIVE_DELIVERY_ENABLED: "true",
       HIVE_PREVIEW_ORIGIN: "http://127.0.0.1:8793",
+      ...(callbacks
+        ? {
+            HIVE_CODEX_GATEWAY_ENABLED: "true",
+            HIVE_CODEX_ISSUER_KEY_ID: "local-proof-issuer",
+            HIVE_CODEX_HIVE_ORIGIN: "https://local-callback-proof.invalid",
+            HIVE_CODEX_SOFTWARE_TEMPLATE_IDS: "local-software",
+            HIVE_CODEX_APP_SLUG: "codex-session",
+            HIVE_CODEX_GATEWAY_PORT: "13341",
+            HIVE_CODEX_SESSION_TRANSPORT: "relay",
+          }
+        : {}),
     };
     if (next.assets) next.assets.directory = resolve(".open-next/assets");
     const path = join(privateDirectory, `${service}.json`);
@@ -100,6 +121,13 @@ await writeFile(
     PREVIEW_BEARER: previewBearer,
     PREVIEW_COOKIE_SECRET: randomBytes(32).toString("hex"),
     RUN_UUID: runId,
+    ...(callbackIssuer
+      ? {
+          HIVE_CODEX_ISSUER_PRIVATE_KEY: callbackIssuer.privateKey
+            .export({ type: "pkcs8", format: "pem" })
+            .toString(),
+        }
+      : {}),
   })
     .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
     .join("\n"),
@@ -227,13 +255,85 @@ try {
       const revoked = await request("/api/delivery/tasks", { headers });
       if (![307, 401].includes(revoked.status)) throw new Error("Revoked app cookie accepted");
       appChecks.actualAppLogoutAndRevokedCookieRejected = true;
+      if (callbacks) {
+        const configured = await request("/__local-callback-configuration", {
+          headers: { Authorization: `Bearer ${bearer}` },
+        });
+        const expectedPublic = createHash("sha256")
+          .update(callbackIssuer.publicKey.export({ type: "spki", format: "der" }))
+          .digest("hex");
+        if (
+          configured.status !== 200 ||
+          (await configured.json()).issuerPublicKeySHA256 !== expectedPublic
+        )
+          throw new Error("Native registration transport issuer configuration invalid");
+        appChecks.nativeCallbackIssuerConfigurationVerified = true;
+        const forged = generateKeyPairSync("ed25519");
+        const head = Buffer.from(
+            JSON.stringify({ alg: "EdDSA", typ: "JWT", kid: "local-proof-issuer" }),
+          ).toString("base64url"),
+          payload = Buffer.from("{}").toString("base64url");
+        const grant = `${head}.${payload}.${sign(null, Buffer.from(`${head}.${payload}`), forged.privateKey).toString("base64url")}`;
+        const callbackHeaders = { "Content-Type": "application/json" };
+        const rejected = await request("/api/codex-host/registrations", {
+          method: "POST",
+          headers: callbackHeaders,
+          body: JSON.stringify({
+            grant,
+            serverInstanceId: "local-instance",
+            protocolVersion: "0.165.0",
+            threads: [],
+            hostPublicKeyPem: forged.publicKey.export({ type: "spki", format: "pem" }).toString(),
+            proof: "a".repeat(86),
+          }),
+        });
+        if (rejected.status !== 403 || (await rejected.json()).error !== "registration_rejected")
+          throw new Error("Native registration transport did not enforce issuer signature");
+        appChecks.nativeRegistrationTransportRejectsForgedIssuer = true;
+        const registrationId = randomUUID();
+        const heartbeat = await request(
+          `/api/codex-host/registrations/${registrationId}/heartbeat`,
+          {
+            method: "POST",
+            headers: callbackHeaders,
+            body: JSON.stringify({
+              registrationId,
+              serverInstanceId: "local-instance",
+              sequence: 1,
+              nonce: randomUUID(),
+              proof: "a".repeat(86),
+            }),
+          },
+        );
+        if (heartbeat.status !== 403 || (await heartbeat.json()).error !== "registration_rejected")
+          throw new Error("Native heartbeat transport did not enforce registered authority");
+        appChecks.nativeHeartbeatRejectsUnknownRegistration = true;
+        for (const [path, init] of [
+          ["/api/codex-host/registrations", { method: "GET" }],
+          [
+            "/api/codex-host/%72egistrations",
+            { method: "POST", headers: callbackHeaders, body: "{}" },
+          ],
+          [
+            "/api/codex-host/registrations?invalid=1",
+            { method: "POST", headers: callbackHeaders, body: "{}" },
+          ],
+          ["/api/projects", { method: "POST", headers: callbackHeaders, body: "{}" }],
+        ]) {
+          const ordinary = await request(path, init);
+          if (ordinary.status !== 401)
+            throw new Error("Callback exception widened the private gate");
+          await ordinary.body?.cancel();
+        }
+        appChecks.nativeCallbackExceptionRemainsExactAndPrivate = true;
+      }
       result.appChecks = appChecks;
     } catch (failure) {
       result.ok = false;
       result.appChecks = appChecks;
       const message = failure instanceof Error ? failure.message : "";
       result.appFailure =
-        /^(Actual app|Authenticated app|App owner|Cross-site app|Revoked app|Local synthetic)/.test(
+        /^(Actual app|Authenticated app|App owner|Cross-site app|Revoked app|Local synthetic|Native registration transport|Native heartbeat transport|Callback exception)/.test(
           message,
         )
           ? message

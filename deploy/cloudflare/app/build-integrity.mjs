@@ -16,6 +16,7 @@ const sourcePaths = [
   "public",
   "services/auth/src",
   "deploy/cloudflare/app",
+  "deploy/cloudflare/auth",
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
