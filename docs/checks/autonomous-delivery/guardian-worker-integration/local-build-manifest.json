@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "platform": "linux",
+  "architecture": "x64",
+  "sourceSha256": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+  "recipeSha256": "2e9905ec726242e9b87fb6b186746f43690c58de80a4fe75aceac182e90b8f83",
+  "builderSha256": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+  "flags": [
+    "-std=c11",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fPIE",
+    "-pie",
+    "-fstack-protector-strong",
+    "-D_FORTIFY_SOURCE=3",
+    "-Wl,-z,relro,-z,now",
+    "-Wl,--build-id=none"
+  ],
+  "elfSha256": "fddcaadd85806c6e13b776433ad827de9a90ed4b59a167b78d332dfc54c0b616",
+  "compiler": {
+    "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+    "version": "x86_64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "target": "x86_64-linux-gnu"
+  },
+  "ci": null
+}

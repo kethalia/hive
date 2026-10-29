@@ -379,3 +379,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   `a03f497` matches all five generated template archives, detects changed bytes and rejects
   malformed/unknown inputs. No cloud requests; authenticated Coder download and deployed UI
   acceptance remain. [Evidence](template-comparison-workerd.json).
+
+- Guardian worker boundary: independently reviewed local checkpoint accepted, high difficulty.
+  The exact pinned worker receives a private inherited channel; task admissions and a durable
+  closed barrier precede whole-tree drain. Actual tmux and PTY descendants are included; active
+  work blocks planned drain. Parent27 checks and clean-export87 template/32 package checks pass.
+  These receipts are not cleanup authority. Installed startup attestation and independent server
+  stop decisions remain. General CI repeated a terminal-helper fixture failure on Ubuntu26.04;
+  the fixture now uses pinned Python to avoid provider-dependent coreutils dispatch, retaining
+  the unchanged100ms assertion and sanitized diagnostics. CI confirmation is pending.

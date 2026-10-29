@@ -1,0 +1,30 @@
+✔ an initially empty lifetime admits projects durably and never forgets earlier bindings (15.493682ms)
+✔ a pinned worker receives only its separate inherited channel and its descendants are drained (45.36113ms)
+✔ agent environment is restricted to the essential host role and never admits owner sessions (20.266302ms)
+✔ pinned roots drain only after complete project authorization, receipt persistence and ACK (19.986148ms)
+✔ adopts and drains detached writers without touching an outside sibling (133.513986ms)
+✔ adopts and drains nested writers without touching an outside sibling (141.624956ms)
+✔ adopts and drains clone_parent writers without touching an outside sibling (130.78047ms)
+✔ adopts and drains clone_signal writers without touching an outside sibling (142.54691ms)
+✔ root child inherits neither guardian control/descriptors nor ambient credential environment (52.646171ms)
+✔ changed pinned executable between bootstrap and launch revokes the lifetime (7.454505ms)
+✔ duplicate launch and incomplete stop authorization cannot create another root or certify a drain (20.6461ms)
+✔ receipt journal failure never becomes successful cleanup authority (14.462868ms)
+✔ controller channel loss drains descendants but produces no accepted receipt (125.687955ms)
+✔ guardian crash cannot be certified by a replacement empty lifetime (21.478077ms)
+✔ oversize and out-of-order private frames fail closed before any spawn (5.388167ms)
+✔ pin and environment errors are rejected before a lifetime is created (0.746179ms)
+✔ a leader's exit does not hide live writer threads (187.766025ms)
+✔ bounded concurrent forks remain owned while drain closes the tree (140.790815ms)
+✔ owned ptrace relationships do not turn a stopped child into an empty tree (142.542231ms)
+✔ an inherited unlinked writable FD stops changing only after the owned tree drains (118.459481ms)
+✔ an exact private-frame replay acknowledges the same PID without another fork (16.015271ms)
+✔ a completed terminal helper does not revoke another active root (116.673513ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1683.103573

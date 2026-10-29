@@ -17,6 +17,12 @@ const allowedEnv = new Set([
   "TERM",
   "HIVE_NATIVE_CODEX_TOKEN",
 ]);
+const hostEnv = new Set([
+  "HIVE_WORKSPACE_PROFILE",
+  "CODER_AGENT_TOKEN",
+  "CODER_AGENT_TOKEN_FILE",
+  "CODER_AGENT_URL",
+]);
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const fail = () => {
   throw new Error("guardian_contract_rejected");
@@ -90,7 +96,9 @@ function rootDescriptor(root) {
   check(
     root &&
       /^[a-z0-9_-]{1,64}$/.test(root.id) &&
-      ["native", "tmux", "terminal"].includes(root.role),
+      ["native", "tmux", "terminal", "host"].includes(root.role) &&
+      (root.role !== "host" || root.workerChannel === true) &&
+      (root.workerChannel === undefined || root.workerChannel === true),
   );
   check(
     Array.isArray(root.args) &&
@@ -115,7 +123,8 @@ function rootDescriptor(root) {
       env.length <= 16 &&
         env.every(
           ([k, v]) =>
-            allowedEnv.has(k) &&
+            (allowedEnv.has(k) || (root.role === "host" && hostEnv.has(k))) &&
+            (k !== "HIVE_WORKSPACE_PROFILE" || v === "software") &&
             typeof v === "string" &&
             !v.includes("\0") &&
             Buffer.byteLength(`${k}=${v}`) <= 4096,
@@ -154,7 +163,7 @@ function encodeBootstrap(
   roots.forEach((root, index) => {
     const s = root.executable.stat;
     e.str(root.id)
-      .u32({ native: 1, tmux: 2, terminal: 3 }[root.role])
+      .u32({ native: 1, tmux: 2, terminal: 3, host: 4 }[root.role])
       .u32(4 + index * 2)
       .u32(5 + index * 2)
       .u64(s.dev)
@@ -171,6 +180,11 @@ function encodeBootstrap(
     e.u32(root.environment.length);
     for (const v of root.environment) e.str(v);
   });
+  const workerIndex = roots.findIndex((root) => root.workerChannel);
+  if (workerIndex >= 0)
+    e.u32(1)
+      .u32(workerIndex)
+      .u32(4 + roots.length * 2);
   return e.result();
 }
 
@@ -224,10 +238,10 @@ export class NativeGuardian {
             pending &&
               response.requestId === pending.id &&
               response.protocolVersion === 1 &&
-              response.lifetimeId === binding.lifetimeId &&
-              response.bindingDigest === binding.bindingDigest &&
-              response.ownershipDigest === binding.ownershipDigest &&
-              response.launchSetDigest === binding.launchSetDigest,
+              response.lifetimeId === this.#binding.lifetimeId &&
+              response.bindingDigest === this.#binding.bindingDigest &&
+              response.ownershipDigest === this.#binding.ownershipDigest &&
+              response.launchSetDigest === this.#binding.launchSetDigest,
           );
           check(
             Object.keys(response).sort().join() ===
@@ -331,6 +345,70 @@ export class NativeGuardian {
       ...this.#binding,
       generation: this.#generation,
       guardianIdentity: this.#identity,
+      ...(this.#failure
+        ? {
+            failure: {
+              reason: this.#failure.message,
+              exitCode: this.#child.exitCode,
+              signal: this.#child.signalCode,
+            },
+          }
+        : {}),
+    });
+  }
+  workerChannel(rootId) {
+    const root = this.#roots.find((value) => value.id === rootId);
+    check(this.#phase === "open" && root?.workerChannel === true);
+    return this.#child.stdio[4 + this.#roots.length * 2];
+  }
+  admitProject(project) {
+    return this.#serialized(async () => {
+      check(
+        this.#phase === "open" &&
+          uuid.test(project?.projectId) &&
+          digest.test(project?.bindingDigest),
+      );
+      const prior = this.#binding.projects.find((value) => value.projectId === project.projectId);
+      if (prior) {
+        check(prior.bindingDigest === project.bindingDigest);
+        return this.state;
+      }
+      check(this.#binding.projects.length < 32);
+      for (const name of ["admissionIntent", "admissionAccepted"])
+        check(typeof this.#options.journal[name] === "function");
+      const projects = Object.freeze([
+        ...this.#binding.projects,
+        Object.freeze({ projectId: project.projectId, bindingDigest: project.bindingDigest }),
+      ]);
+      const next = Object.freeze({
+        ...this.#binding,
+        projects,
+        ownershipDigest: sha(JSON.stringify(projects)),
+      });
+      try {
+        await this.#options.journal.admissionIntent({
+          ...next,
+          expectedGeneration: this.#generation,
+          previousOwnershipDigest: this.#binding.ownershipDigest,
+        });
+        const payload = new Encoding()
+          .u32(this.#generation)
+          .str(this.#binding.ownershipDigest)
+          .str(next.ownershipDigest)
+          .str(project.projectId)
+          .str(project.bindingDigest)
+          .result();
+        this.#binding = next;
+        const result = await this.#rpc(7, payload);
+        check(result.phase === "open" && result.generation === this.#generation + 1);
+        this.#generation = result.generation;
+        await this.#options.journal.admissionAccepted(this.state);
+        return this.state;
+      } catch (error) {
+        this.#reject("guardian_admission_uncertain");
+        await this.#failureJournal;
+        throw error;
+      }
     });
   }
   launch(rootId) {
@@ -362,7 +440,9 @@ export class NativeGuardian {
   drain() {
     return this.#serialized(async () => {
       check(this.#phase === "open");
-      const decisions = await this.#options.authorizeDrain(structuredClone(this.#binding));
+      const decisions = structuredClone(
+        await this.#options.authorizeDrain(structuredClone(this.#binding)),
+      );
       check(Array.isArray(decisions) && decisions.length === this.#binding.projects.length);
       this.#binding.projects.forEach((p, i) => {
         check(
@@ -409,6 +489,11 @@ export class NativeGuardian {
           finalWaitResult: "ECHILD",
           waitFlags: "__WALL",
           reaped: result.reaped,
+          decisions: decisions.map(({ projectId, bindingDigest, decisionId }) => ({
+            projectId,
+            bindingDigest,
+            decisionId,
+          })),
         });
         await this.#options.journal.acceptReceipt(receipt);
         this.#phase = "acknowledging";
@@ -460,9 +545,7 @@ export async function openNativeGuardian(options) {
     "indeterminate",
   ])
     check(typeof options.journal?.[operation] === "function");
-  check(
-    Array.isArray(options.projects) && options.projects.length > 0 && options.projects.length <= 32,
-  );
+  check(Array.isArray(options.projects) && options.projects.length <= 32);
   const projects = options.projects
     .map((p) => {
       check(uuid.test(p.projectId) && digest.test(p.bindingDigest));
@@ -474,6 +557,8 @@ export async function openNativeGuardian(options) {
     Array.isArray(options.roots) &&
       options.roots.length > 0 &&
       options.roots.length <= 8 &&
+      options.roots.filter((root) => root.workerChannel).length <= 1 &&
+      (!options.roots.some((root) => root.role === "host") || options.roots.length === 1) &&
       new Set(options.roots.map((r) => r.id)).size === options.roots.length,
   );
   const guardianPin = pin(options.executable, options.sha256),
@@ -492,6 +577,7 @@ export async function openNativeGuardian(options) {
           envDigest: sha(JSON.stringify(r.environment)),
           cwdDevice: String(fstatSync(r.cwd).dev),
           cwdInode: String(fstatSync(r.cwd).ino),
+          ...(r.workerChannel ? { workerChannelFd: 3 } : {}),
         })),
       ),
     );
@@ -522,6 +608,7 @@ export async function openNativeGuardian(options) {
         "ignore",
         "pipe",
         ...roots.flatMap((r) => [r.executable.fd, r.cwd]),
+        ...(roots.some((root) => root.workerChannel) ? ["pipe"] : []),
       ],
     });
     guardian = new NativeGuardian(child, options, roots, binding);

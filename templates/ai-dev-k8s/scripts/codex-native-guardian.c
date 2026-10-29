@@ -1,5 +1,5 @@
 /* Hive native guardian protocol 1. Standalone foundation, NOT cleanup authority.
- * One waiter owns one immutable root/ownership set. Never installed by this file.
+ * One waiter owns pinned roots and an append-only ownership set.
  */
 #define _GNU_SOURCE
 #include <arpa/inet.h>
@@ -34,7 +34,7 @@ enum phase { BOOT, READY, OPEN, CLOSED, HELD, DRAINED };
 struct input { const unsigned char *p; size_t n, at; bool bad; };
 struct root {
   char *id, *argv[MAX_ARGS + 1], *env[MAX_ENV + 1];
-  int executable, cwd; unsigned role; struct stat pinned; pid_t pid; int pidfd;
+  int executable, cwd, channel; unsigned role; struct stat pinned; pid_t pid; int pidfd;
 };
 static struct root roots[MAX_ROOTS];
 static unsigned root_count, project_count, generation = 1, closed_request, drain_request;
@@ -78,11 +78,17 @@ static bool name(const char *s) {
   for (; *s; ++s) if (!strchr("abcdefghijklmnopqrstuvwxyz0123456789_-", *s)) return false;
   return true;
 }
-static bool env_allowed(const char *s) {
+static bool env_allowed(const char *s, unsigned role) {
   const char *names[] = {"PATH=", "HOME=", "CODEX_HOME=", "USER=", "LANG=", "LC_ALL=", "TERM=", "HIVE_NATIVE_CODEX_TOKEN="};
   if (!s) return false;
   for (unsigned i = 0; i < sizeof(names)/sizeof(names[0]); ++i)
     if (strncmp(s, names[i], strlen(names[i])) == 0) return true;
+  if (role == 4) {
+    if (!strcmp(s, "HIVE_WORKSPACE_PROFILE=software")) return true;
+    const char *agent[] = {"CODER_AGENT_TOKEN=", "CODER_AGENT_TOKEN_FILE=", "CODER_AGENT_URL="};
+    for (unsigned i = 0; i < sizeof(agent)/sizeof(agent[0]); ++i)
+      if (!strncmp(s, agent[i], strlen(agent[i]))) return true;
+  }
   return false;
 }
 static bool pinned_stat(const struct stat *a, const struct stat *b) {
@@ -157,7 +163,7 @@ static bool bootstrap(struct input *in) {
   lifetime = str(in, 36); binding = str(in, 64); ownership = str(in, 64); launch_set = str(in, 64);
   if (!uuid(lifetime) || !hex(binding, 64) || !hex(ownership, 64) || !hex(launch_set, 64)) return false;
   project_count = u32(in);
-  if (!project_count || project_count > MAX_PROJECTS) return false;
+  if (project_count > MAX_PROJECTS) return false;
   for (unsigned i = 0; i < project_count; ++i) {
     projects[i] = str(in, 36); project_bindings[i] = str(in, 64);
     if (!uuid(projects[i]) || !hex(project_bindings[i], 64)) return false;
@@ -165,9 +171,9 @@ static bool bootstrap(struct input *in) {
   }
   root_count = u32(in); if (!root_count || root_count > MAX_ROOTS) return false;
   for (unsigned i = 0; i < root_count; ++i) {
-    struct root *r = &roots[i]; r->pidfd = -1; r->id = str(in, 64); r->role = u32(in);
+    struct root *r = &roots[i]; r->pidfd = -1; r->channel = -1; r->id = str(in, 64); r->role = u32(in);
     r->executable = u32(in); r->cwd = u32(in);
-    if (r->role < 1 || r->role > 3 || !name(r->id) || r->executable != 4 + (int)i * 2 || r->cwd != r->executable + 1) return false;
+    if (r->role < 1 || r->role > 4 || !name(r->id) || r->executable != 4 + (int)i * 2 || r->cwd != r->executable + 1) return false;
     for (unsigned j = 0; j < i; ++j) if (!strcmp(roots[j].id, r->id)) return false;
     struct stat expected = {0}, directory;
     expected.st_dev = u64(in); expected.st_ino = u64(in); expected.st_size = u64(in);
@@ -184,18 +190,36 @@ static bool bootstrap(struct input *in) {
     for (unsigned j = 0; j < args; ++j) r->argv[j] = str(in, 4096);
     unsigned envs = u32(in); if (envs > MAX_ENV) return false;
     for (unsigned j = 0; j < envs; ++j) {
-      r->env[j] = str(in, 4096); if (!env_allowed(r->env[j])) return false;
+      r->env[j] = str(in, 4096); if (!env_allowed(r->env[j], r->role)) return false;
       const char *equal = strchr(r->env[j], '='); size_t size = (size_t)(equal - r->env[j]) + 1;
       for (unsigned k = 0; k < j; ++k) if (!strncmp(r->env[k], r->env[j], size)) return false;
     }
   }
+  // Optional dedicated worker channel. It is never the guardian control FD.
+  // Old descriptor-only bootstrap frames remain supported by this pinned pair.
+  unsigned channels = 0;
+  if (in->at < in->n) {
+    channels = u32(in); if (channels > 1) return false;
+    for (unsigned i = 0; i < channels; ++i) {
+      unsigned index = u32(in), fd = u32(in);
+      struct ucred peer; socklen_t size = sizeof(peer);
+      if (index >= root_count || fd != 4 + root_count * 2 + i ||
+          getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &peer, &size) ||
+          peer.pid != getppid() || peer.uid != getuid()) return false;
+      roots[index].channel = (int)fd;
+    }
+  }
+  for (unsigned i = 0; i < root_count; ++i)
+    if (roots[i].role == 4 && (root_count != 1 || roots[i].channel < 0)) return false;
   if (in->bad || in->at != in->n) return false;
   // No ambient descriptor may be retained beyond the explicitly pinned set.
-  if (syscall(SYS_close_range, 4 + root_count * 2, UINT_MAX, 0)) return false;
+  if (syscall(SYS_close_range, 4 + root_count * 2 + channels, UINT_MAX, 0)) return false;
   state = READY; return true;
 }
 static void child_error(int fd) {
-  int error = errno ? errno : EIO; if (write(fd, &error, sizeof(error)) != sizeof(error)) _exit(125); _exit(123);
+  int error = errno ? errno : EIO;
+  if (write(fd, &error, sizeof(error)) != sizeof(error)) _exit(125);
+  _exit(123);
 }
 static pid_t launch(unsigned index) {
   if (index >= root_count) return -1;
@@ -210,9 +234,12 @@ static pid_t launch(unsigned index) {
     if (exec_fd != 64 || report_fd != 65 || fchdir(r->cwd)) child_error(status_pipe[1]);
     int null = open("/dev/null", O_RDWR); if (null < 0) child_error(report_fd);
     for (int i = 0; i <= 2; ++i) if (dup2(null, i) != i) child_error(report_fd);
-    if (syscall(SYS_close_range, 3, 63, 0) || syscall(SYS_close_range, 66, UINT_MAX, 0)) child_error(report_fd);
+    if (r->channel >= 0 && dup2(r->channel, 3) != 3) child_error(report_fd);
+    if (syscall(SYS_close_range, r->channel >= 0 ? 4 : 3, 63, 0) || syscall(SYS_close_range, 66, UINT_MAX, 0)) child_error(report_fd);
     fexecve(exec_fd, r->argv, r->env);
-    int error = errno; if (write(report_fd, &error, sizeof(error)) != sizeof(error)) _exit(125); _exit(124);
+    int error = errno;
+    if (write(report_fd, &error, sizeof(error)) != sizeof(error)) _exit(125);
+    _exit(124);
   }
   close(status_pipe[1]);
   if (pid < 0) { close(status_pipe[0]); return -1; }
@@ -223,6 +250,21 @@ static pid_t launch(unsigned index) {
   close(status_pipe[0]);
   if (r->pidfd < 0 || ready <= 0 || n != 0) return -1;
   return pid;
+}
+static bool admit_project(struct input *in) {
+  unsigned expected = u32(in);
+  char *prior = str(in, 64), *next = str(in, 64);
+  char *project = str(in, 36), *bind = str(in, 64);
+  bool ok = expected == generation && hex(prior, 64) && hex(next, 64) &&
+    !strcmp(prior, ownership) && strcmp(prior, next) && uuid(project) && hex(bind, 64) &&
+    project_count < MAX_PROJECTS && !in->bad && in->at == in->n;
+  for (unsigned i = 0; i < project_count && ok; ++i)
+    if (!strcmp(project, projects[i])) ok = false;
+  free(prior);
+  if (!ok) { free(next); free(project); free(bind); return false; }
+  projects[project_count] = project; project_bindings[project_count++] = bind;
+  free(ownership); ownership = next; ++generation;
+  return true;
 }
 static bool close_admission(struct input *in, unsigned id) {
   unsigned requested = u32(in); char *digest = str(in, 64);
@@ -300,6 +342,8 @@ int main(int argc, char **argv) {
           unsigned expected = u32(&in), request = u32(&in);
           if (expected != generation || request != drain_request || in.bad || in.at != in.n) { code = "receipt_rejected"; channel_live = false; }
           else acknowledged = true;
+        } else if (op == 7 && state == OPEN) {
+          if (!admit_project(&in)) { code = "project_admission_rejected"; channel_live = false; }
         } else { code = "operation_rejected"; channel_live = false; }
         response(last_response, id, code, pid);
         memcpy(previous, data + 4, length); previous_size = length; last_id = id;
