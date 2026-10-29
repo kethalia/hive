@@ -5,6 +5,7 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateGuardianArtifact } from "./build-native-guardian.mjs";
 
 const require = createRequire(import.meta.url),
   { build } = require("esbuild");
@@ -54,6 +55,10 @@ const assets = [
   "codex-project-lease.py",
   "install-codex-runtime.py",
 ];
+// A separately built, reviewed artifact is opt-in. This never invokes a compiler.
+const guardianArtifact = process.env.HIVE_GUARDIAN_ARTIFACT_DIR
+  ? validateGuardianArtifact(root, resolve(process.env.HIVE_GUARDIAN_ARTIFACT_DIR))
+  : null;
 for (const name of modules)
   writeFileSync(
     join(out, name),
@@ -61,8 +66,19 @@ for (const name of modules)
     { mode: 0o500, flag: "wx" },
   );
 for (const name of assets) copyFileSync(join(source, name), join(out, name), 1);
+if (guardianArtifact) {
+  writeFileSync(join(out, "codex-native-guardian"), guardianArtifact.binary, {
+    mode: 0o500,
+    flag: "wx",
+  });
+}
 const files = Object.fromEntries(
-  [...modules, ...assets, "vendor/ws.mjs"].map((name) => [
+  [
+    ...modules,
+    ...assets,
+    "vendor/ws.mjs",
+    ...(guardianArtifact ? ["codex-native-guardian"] : []),
+  ].map((name) => [
     name,
     createHash("sha256")
       .update(readFileSync(join(out, name)))
@@ -72,7 +88,14 @@ const files = Object.fromEntries(
 writeFileSync(
   join(out, "package-manifest.json"),
   `${JSON.stringify(
-    { schemaVersion: 1, nodeMajor: 24, wsVersion: ws.version, nativeVersion: "0.165.0", files },
+    {
+      schemaVersion: 1,
+      nodeMajor: 24,
+      wsVersion: ws.version,
+      nativeVersion: "0.165.0",
+      files,
+      ...(guardianArtifact ? { guardian: guardianArtifact.manifest } : {}),
+    },
     null,
     2,
   )}\n`,

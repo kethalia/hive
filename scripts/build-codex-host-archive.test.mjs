@@ -55,6 +55,10 @@ test("host archive has the same digest across checkouts sharing a dependency sto
       "scripts/build-codex-host-bundle.mjs",
       join(temporary, "scripts/build-codex-host-bundle.mjs"),
     );
+    await cp(
+      "scripts/build-native-guardian.mjs",
+      join(temporary, "scripts/build-native-guardian.mjs"),
+    );
     await mkdir(join(temporary, "templates/ai-dev-k8s"), { recursive: true });
     await cp("templates/ai-dev-k8s/scripts", join(temporary, "templates/ai-dev-k8s/scripts"), {
       recursive: true,

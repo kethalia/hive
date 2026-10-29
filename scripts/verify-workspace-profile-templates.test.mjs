@@ -232,6 +232,10 @@ test("profile synchronization detects and removes obsolete shared scripts", (t) 
     join(repositoryRoot, "scripts/build-codex-host-bundle.mjs"),
     join(fixtureRoot, "scripts/build-codex-host-bundle.mjs"),
   );
+  cpSync(
+    join(repositoryRoot, "scripts/build-native-guardian.mjs"),
+    join(fixtureRoot, "scripts/build-native-guardian.mjs"),
+  );
   symlinkSync(join(repositoryRoot, "node_modules"), join(fixtureRoot, "node_modules"), "dir");
   writeFileSync(join(canonical, "WORKSPACE_ROUTING.md"), "# Canonical routing\n");
 

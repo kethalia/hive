@@ -7,6 +7,29 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import { processIdentity } from "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs";
 import { validateHostConfig } from "../templates/ai-dev-k8s/scripts/codex-workspace-host.mjs";
+import { buildNativeGuardian } from "./build-native-guardian.mjs";
+
+test("optional guardian bundle copies the verified build artifact without compiling at install", () => {
+  const directory = mkdtempSync(join(tmpdir(), "hive-guardian-package-"));
+  try {
+    const artifact = join(directory, "artifact");
+    const guardian = buildNativeGuardian(process.cwd(), artifact);
+    const output = join(directory, "package");
+    execFileSync(process.execPath, ["scripts/build-codex-host-bundle.mjs", output], {
+      env: { ...process.env, HIVE_GUARDIAN_ARTIFACT_DIR: artifact },
+      stdio: "pipe",
+    });
+    const manifest = JSON.parse(readFileSync(join(output, "package-manifest.json")));
+    assert.deepEqual(manifest.guardian, guardian);
+    assert.equal(manifest.files["codex-native-guardian"], guardian.elfSha256);
+    assert.deepEqual(
+      readFileSync(join(output, "codex-native-guardian")),
+      readFileSync(join(artifact, "codex-native-guardian")),
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("bundles only locked ws locally and keeps modules inert on import", () => {
   const dir = mkdtempSync(join(tmpdir(), "hive-host-package-")),
