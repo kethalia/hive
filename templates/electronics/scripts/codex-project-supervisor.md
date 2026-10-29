@@ -7,9 +7,11 @@
 This is an opt-in, local software-workspace process. It does not install a service,
 change Codex settings/trust, provision a Coder app, register with Hive, start a
 public gateway, or grant a browser input/approval scope. No account-backed model
-inference was performed during development. The existing read bridge is unchanged
-and **cannot yet connect to this supervisor's token-authenticated native listener**.
-Native-token plumbing and workspace-wide gateway integration remain reviewed work.
+inference was performed during development. `codex-project-gateway.mjs` now connects
+the read bridge through the supervisor's private token-authenticated socket factory,
+supporting multiple independently registered project threads in one workspace gateway.
+The registration authority primitive is implemented separately; durable persistence,
+provisioner delivery and public API activation remain pending.
 
 ## Verified bootstrap behavior
 
@@ -177,7 +179,7 @@ unloads; it does not prove an atomic native resume-only-if-loaded primitive.
 
 `binding(projectId)` and `authorizeBinding(candidate)` are internal registry seams:
 only registered persisted threads in the live lifetime qualify independently of checkout lease,
-and owner/workspace/build/server/thread must match exactly. They support a future
+and owner/workspace/build/server/thread must match exactly. They support the local
 single workspace gateway with a registered thread set; a ticket still names one
 exact thread. They are not a registration API, ticket issuer or replacement for
 signature/origin/scope verification. No browser sees the native token or endpoint.
@@ -246,7 +248,7 @@ it is a test-runner override, not a production configuration bypass.
 
 Still pending: independent review; installed versioned software wrapper; immutable
 native binary distribution; real account first-turn/approval validation; authenticated
-registration and lease renewal; bridge native-token/registered-set integration;
+registration persistence/provisioner delivery and lease renewal;
 actual Coder app transport/browser tests; persistent-volume crash behavior; and
 controller revocation/cleanup interlock. This slice does not complete F04/D12 or
 activate autonomous production delivery.

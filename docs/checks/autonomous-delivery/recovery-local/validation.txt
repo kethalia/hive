@@ -58,7 +58,7 @@ migrations/
     └─ migration.sql
   └─ 20261029030000_delivery_runtime_recovery/
     └─ migration.sql
-      
+
 All migrations have been successfully applied.
 
 Schema comparison
