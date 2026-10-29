@@ -6,6 +6,7 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": false,
   "preview_urls": false,
+  "services": [{ "binding": "AUTH_SERVICE", "service": "hive-auth-compatibility-preview" }],
   "assets": { "directory": "../../../.open-next/assets", "binding": "ASSETS" },
   "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
   "vars": {

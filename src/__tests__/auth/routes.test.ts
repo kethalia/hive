@@ -141,6 +141,37 @@ describe("auth route cookies", () => {
     expect(setCookies[4]).not.toContain("Domain=");
   });
 
+  it.each([
+    "203.0.113.5",
+    null,
+  ])("Worker login forwards only the platform client IP (%s), ignoring spoofed forwarding headers", async (platformIp) => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    mockServiceClient.login.mockResolvedValue({
+      sessionId: "worker-session",
+      applicationsHost: "",
+      user: { coderUrl: "https://coder.example.com" },
+    });
+    const response = await loginPOST(
+      new Request("https://hive.example.com/api/auth/login", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "spoofed-forwarded",
+          "x-real-ip": "spoofed-real",
+          "x-hive-client-ip": "spoofed-internal",
+          ...(platformIp ? { "cf-connecting-ip": platformIp } : {}),
+        },
+        body: JSON.stringify({ email: "test@example.com", password: "pass" }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(platformIp ?? "unknown");
+    expect(mockServiceClient.login).toHaveBeenCalledWith(
+      { email: "test@example.com", password: "pass" },
+      platformIp ?? "unknown",
+    );
+  });
+
   it("login rejects invalid input without calling auth service", async () => {
     const response = await loginPOST(
       new Request("https://hive.local.kethalia.com/api/auth/login", {

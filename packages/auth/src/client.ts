@@ -9,17 +9,28 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+export interface AuthServiceTransport {
+  fetch?: typeof fetch;
+  serviceSecret?: string;
+}
+
 export class AuthServiceClient {
   private baseUrl: string;
   private timeoutMs: number;
+  private transport: AuthServiceTransport;
 
-  constructor(baseUrl: string, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  constructor(
+    baseUrl: string,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    transport: AuthServiceTransport = {},
+  ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.timeoutMs = timeoutMs;
+    this.transport = transport;
   }
 
   private async request(path: string, init: RequestInit): Promise<Response> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await (this.transport.fetch ?? fetch)(`${this.baseUrl}${path}`, {
       ...init,
       signal: AbortSignal.timeout(this.timeoutMs),
       // Workers does not implement redirect:"error". Manual also prevents the
@@ -33,10 +44,14 @@ export class AuthServiceClient {
     return response;
   }
 
-  async login(req: LoginRequest): Promise<LoginResponse> {
+  async login(req: LoginRequest, clientIp?: string): Promise<LoginResponse> {
     const res = await this.request("/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authServiceHeaders() },
+      headers: {
+        "Content-Type": "application/json",
+        ...authServiceHeaders(this.transport.serviceSecret),
+        ...(clientIp ? { "X-Hive-Client-IP": clientIp } : {}),
+      },
       body: JSON.stringify(req),
     });
 
@@ -53,7 +68,10 @@ export class AuthServiceClient {
   async logout(sessionId: string): Promise<void> {
     const res = await this.request("/logout", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authServiceHeaders() },
+      headers: {
+        "Content-Type": "application/json",
+        ...authServiceHeaders(this.transport.serviceSecret),
+      },
       body: JSON.stringify({ sessionId }),
     });
 
@@ -67,7 +85,7 @@ export class AuthServiceClient {
 
   async getSession(sessionId: string): Promise<SessionPayload | null> {
     const res = await this.request(`/sessions/${sessionId}`, {
-      headers: authServiceHeaders(),
+      headers: authServiceHeaders(this.transport.serviceSecret),
     });
 
     if (res.status === 404) {
@@ -86,7 +104,7 @@ export class AuthServiceClient {
 
   async getCredentials(sessionId: string): Promise<CredentialResponse | null> {
     const res = await this.request(`/sessions/${sessionId}/credentials`, {
-      headers: authServiceHeaders(),
+      headers: authServiceHeaders(this.transport.serviceSecret),
     });
 
     if (res.status === 404) {
@@ -106,7 +124,7 @@ export class AuthServiceClient {
 
   async getCoderToken(sessionId: string): Promise<CoderTokenResponse | null> {
     const res = await this.request(`/sessions/${sessionId}/token`, {
-      headers: authServiceHeaders(),
+      headers: authServiceHeaders(this.transport.serviceSecret),
     });
 
     if (res.status === 404) {

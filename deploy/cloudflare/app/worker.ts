@@ -3,7 +3,7 @@ import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
 import handler from "../../../.open-next/worker.js";
 import { runRequestLifetime } from "./request-lifetime";
 
-type Environment = { DATABASE_URL?: string; AUTH_SERVICE_URL?: string };
+type Environment = { DATABASE_URL?: string; AUTH_SERVICE?: { fetch: typeof fetch } };
 type Context = { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void };
 
 export default {
@@ -27,7 +27,7 @@ export default {
         { error: "This capability requires the scoped host bridge or durable job adapter." },
         { status: 503, headers: { "Cache-Control": "private, no-store" } },
       );
-    if (pathname === "/api/auth/login" && !env.AUTH_SERVICE_URL)
+    if (pathname === "/api/auth/login" && !env.AUTH_SERVICE)
       return Response.json(
         { error: "Preview authentication service is not configured." },
         { status: 503, headers: { "Cache-Control": "private, no-store" } },
