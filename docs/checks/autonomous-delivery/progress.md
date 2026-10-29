@@ -21,9 +21,10 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
 | D02/D03 persistence | Foundation, recovery and informational reports validated locally | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation. 2e3c10e adds informational reported outcomes separate from verified acceptance, with two additive local migrations and PostgreSQL CI coverage. |
+| D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Signed transport and manager policy integration passed locally; live composition pending | 8571cd1 binds result references to the exact PR, checkout and full controller policy; 92 focused checks pass, including real PostgreSQL races. a4fa338 preserves pending retry bytes while retiring validated expired records. Live R2 retention/integrity passed; cleanup is complete. Installed source composition remains. GitHub reports no required PR checks. |
-| Test workspace | Created and healthy | User reconnected GitHub; verified valid. codex/hive-epic-test is running, agent connected and ready; two-hour autostop. Identity is preserved in test-workspace-creation.json. No primary credentials copied. |
+| Test workspace | Created; last inspection healthy | User reconnected GitHub; verified valid. codex/hive-epic-test has a two-hour autostop and must be freshly inspected before the next installed pilot. Identity is preserved in test-workspace-creation.json. No primary credentials copied. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
@@ -359,3 +360,22 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   then reproduced registration expiry before continuation and during a claim HTTP response.
   These must be fixed and revalidated before the host slice is accepted; successful simulated
   progression alone does not establish current execution authorization.
+
+- **Implement / Validate / Review: bounded host progression committed; high difficulty.**
+  `69a868b` closes both expiry findings and advances the canonical native manager across three
+  root turns/two child steps using actual PostgreSQL. Parent passes all76 runtime checks and
+  repeats the native/PG proof with source stability checked through shutdown. The schema23
+  fixture exercises base-task compatibility only; simulated model/check evidence is explicit.
+  Clean packaging passes87 template and4 package tests. Installed execution, advanced source,
+  recovery, large epics and multi-project/CLI coexistence remain. [Evidence](manager-progression-local/host-parent-review.json).
+- **Build / Validate: guardian artifact pipeline accepted; moderate difficulty.**
+  `e53f561` builds and tests the exact Linux ELF in GitHub Actions, records source/builder/recipe
+  identity and supports explicit inclusion in a pinned private host package without workspace
+  compilation. Parent and independent build/installer checks pass. The first artifact job passes;
+  overall CI separately exposed a terminal-helper lifetime failure under its full runtime suite,
+  which is being investigated without weakening the assertion. No artifact has been installed.
+  [CI artifact metadata](guardian-build-ci.json).
+- **Validate: template comparison works in actual local workerd; low difficulty.**
+  `a03f497` matches all five generated template archives, detects changed bytes and rejects
+  malformed/unknown inputs. No cloud requests; authenticated Coder download and deployed UI
+  acceptance remain. [Evidence](template-comparison-workerd.json).
