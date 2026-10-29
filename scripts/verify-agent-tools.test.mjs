@@ -53,6 +53,8 @@ for (const [label, script] of [
   ["pinned native Codex runtime installation", "test_codex_runtime_install.py"],
   ["authoritative GitHub evidence collection", "test_github_evidence.py"],
   ["fixture-only source publication boundaries", "test_delivery_source_broker.py"],
+  ["protected source broker and bounded provider transport", "test_delivery_source_runtime.py"],
+  ["private source worker protocol and recovery", "test_delivery_source_worker.py"],
   ["managed project lease renewal", "test_codex_project_lease.py"],
   ["pinned host package installation and provisioner identity", "test_codex_host_install.py"],
 ]) {
