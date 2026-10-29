@@ -21,6 +21,7 @@ import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
+import { processIdentity } from "./codex-process-identity.mjs";
 
 export const VERSION = "0.165.0";
 const id = (x) => typeof x === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(x);
@@ -194,6 +195,8 @@ export async function openSupervisor(raw, dependencies = {}) {
     state.serverInstanceId = randomUUID();
     state.buildId = config.buildId;
     state.status = "starting";
+    state.hostProcess = processIdentity(process.pid);
+    state.nativeProcess = null;
     for (const entry of Object.values(state.projects)) entry.attached = false;
     save();
     const supervisor = new ProjectSupervisor(config, home, stateDirectory, state, save, lock);
@@ -208,6 +211,7 @@ export async function openSupervisor(raw, dependencies = {}) {
     runtime.onClose(() => supervisor.revoke());
     check(runtime.version === VERSION && runtime.alive(), "unsupported_native_runtime");
     state.status = "ready";
+    state.nativeProcess = runtime.processIdentity ?? null;
     save();
     return supervisor;
   } catch (error) {
@@ -271,6 +275,7 @@ export class ProjectSupervisor {
     return path;
   }
   lease(project) {
+    check(!this.state.projects[project.projectId]?.executionRevoked, "project_execution_revoked");
     const helper = new URL("./managed-projects.py", import.meta.url);
     const result = this.runtime.inspectLease
       ? this.runtime.inspectLease(project)
@@ -302,6 +307,77 @@ export class ProjectSupervisor {
       "checkout_lease_changed",
     );
     return value;
+  }
+  async revokeExecution(projectId, reason = "lease_renewal_failed") {
+    this.project(projectId);
+    const entry = this.state.projects[projectId];
+    check(
+      entry?.threadId && entry.serverInstanceId === this.state.serverInstanceId,
+      "native_thread_unavailable",
+    );
+    if (entry.executionRevoked) return entry.executionRevoked;
+    entry.executionRevoked = { reason, at: Date.now(), reviewRequired: true };
+    this.save(); // Fence all new execution before any best-effort interruption.
+    let interrupted = false,
+      detached = false;
+    try {
+      check(this.runtime.alive(), "native_lifetime_revoked");
+      const latest = await this.runtime.call("thread/turns/list", {
+        threadId: entry.threadId,
+        limit: 1,
+        sortDirection: "desc",
+        itemsView: "full",
+      });
+      check(Array.isArray(latest?.data) && latest.data.length <= 1, "invalid_native_history");
+      const turn = latest.data[0];
+      if (turn?.status === "inProgress") {
+        check(id(turn.id), "invalid_native_turn");
+        await this.runtime.call("turn/interrupt", { threadId: entry.threadId, turnId: turn.id });
+      } else
+        check(
+          !turn || ["completed", "interrupted", "failed"].includes(turn.status),
+          "unknown_native_turn_state",
+        );
+      // A root interrupt acknowledgement does not establish child quiescence.
+      // Until the installed child router supplies an exact ownership map, any
+      // unknown loaded active thread retains the hold; never interrupt another
+      // project's thread by inference from a shared server.
+      const loaded = await this.runtime.call("thread/loaded/list", { limit: 64 });
+      check(
+        Array.isArray(loaded?.data) &&
+          loaded.data.length <= 64 &&
+          !loaded.nextCursor &&
+          loaded.data.includes(entry.threadId) &&
+          new Set(loaded.data).size === loaded.data.length,
+        "native_thread_inventory_incomplete",
+      );
+      const otherProjects = new Set(
+        Object.entries(this.state.projects)
+          .filter(
+            ([key, value]) =>
+              key !== projectId && value.serverInstanceId === this.state.serverInstanceId,
+          )
+          .map(([, value]) => value.threadId),
+      );
+      for (const threadId of loaded.data) {
+        check(id(threadId), "invalid_native_thread");
+        if (otherProjects.has(threadId)) continue;
+        const result = await this.runtime.call("thread/read", { threadId, includeTurns: false });
+        check(
+          result?.thread?.id === threadId && result.thread.status?.type === "idle",
+          "native_quiescence_unproven",
+        );
+      }
+      interrupted = true;
+    } catch {}
+    try {
+      if (entry.attached) await this.runtime.detach(projectId);
+      detached = true;
+      entry.attached = false;
+    } catch {}
+    entry.executionRevoked.reviewRequired = !interrupted || !detached;
+    this.save();
+    return entry.executionRevoked;
   }
   snapshot(projectId) {
     this.project(projectId);
@@ -545,6 +621,7 @@ export class ProjectSupervisor {
                 typeof request.text === "string" &&
                 request.text.trim().length > 0 &&
                 Buffer.byteLength(request.text) <= 32768 &&
+                // biome-ignore lint/suspicious/noControlCharactersInRegex: Explicitly reject ASCII controls except tab, LF and CR before native input.
                 !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(request.text),
               "invalid_first_prompt",
             );
@@ -841,6 +918,7 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
     ws.send(JSON.stringify({ method: "initialized" }));
     return {
       version: VERSION,
+      processIdentity: processIdentity(child.pid),
       setManagerAdapter: (adapter) => {
         check(!managerAdapter, "manager_adapter_already_installed");
         managerAdapter = adapter;
@@ -871,6 +949,16 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
         callback = fn;
       },
       close: stop,
+      async detach(projectId) {
+        check(id(projectId), "invalid_project");
+        const socket = join(stateDirectory, "tmux.sock"),
+          name = `project-${hash(projectId).slice(0, 24)}`;
+        execFileSync("/usr/bin/tmux", ["-S", socket, "kill-session", "-t", `=${name}`], {
+          env,
+          stdio: "ignore",
+          timeout: 2000,
+        });
+      },
       async attach(threadId, cwd, projectId) {
         const socket = join(stateDirectory, "tmux.sock");
         const name = `project-${hash(projectId).slice(0, 24)}`;

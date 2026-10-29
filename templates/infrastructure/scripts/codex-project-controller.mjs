@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { processIdentity } from "./codex-process-identity.mjs";
 const check = (v, code = "project_request_rejected") => {
   if (!v) throw new Error(code);
 };
@@ -97,6 +98,7 @@ export function validateProjectOperation(path, r) {
         typeof r.text === "string" &&
         r.text.trim() &&
         Buffer.byteLength(r.text) <= 32768 &&
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: Explicitly reject ASCII controls except tab, LF and CR before native input.
         !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(r.text),
     );
   else check(false);
@@ -145,6 +147,7 @@ export function createProjectController(config, deps) {
     queue = Promise.resolve(),
     runtime = null;
   const pending = new Set();
+  const historyRecovered = new Set();
   const statePath = join(config.stateDirectory, "projects.json"),
     keyPath = join(config.stateDirectory, "projects.key");
   let state, key;
@@ -215,6 +218,8 @@ export function createProjectController(config, deps) {
       closeSync(fd);
     }
   }
+  state.hostProcess = processIdentity(process.pid);
+  save();
   function project(id) {
     const p = state.projects[id];
     check(p, "project_not_enrolled");
@@ -273,7 +278,8 @@ export function createProjectController(config, deps) {
   }
   async function advance(p) {
     const t = p.task;
-    if (closed || !t || t.phase === "blocked") return;
+    if (closed || !t || (t.phase === "blocked" && !(t.executionRevoked && t.prepared))) return;
+    if (t.executionRevoked) historyRecovered.add(p.projectId);
     try {
       if (!t.prepared) {
         const resolved = await resolve(t.request);
@@ -306,6 +312,8 @@ export function createProjectController(config, deps) {
             ready.lease.expiresAt > Date.now() / 1000,
           "checkout_unavailable",
         );
+        t.checkoutIncarnation = ready.checkoutIncarnation;
+        t.renewalSequence = ready.renewalSequence ?? 0;
         t.prepared = {
           projectId: p.projectId,
           repositoryId: p.repositoryId,
@@ -324,16 +332,23 @@ export function createProjectController(config, deps) {
       const supervisor = runtime.supervisor;
       supervisor.enrollPreparedProject(t.prepared);
       let snap = supervisor.snapshot(p.projectId);
-      if (snap.phase === "not-created")
+      if (snap.phase === "not-created") {
+        check(!t.executionRevoked, "native_unavailable");
         snap = await supervisor.command({
           operation: "ensureProject",
           projectId: p.projectId,
           creationIntentId: t.taskId,
         });
+      }
       if (snap.phase === "rejoinRequired")
         snap = await supervisor.command({ operation: "rejoin", projectId: p.projectId });
-      check(snap.threadId, "native_unavailable");
+      check(
+        snap.threadId && (!t.nativeThreadId || t.nativeThreadId === snap.threadId),
+        "native_unavailable",
+      );
+      if (t.executionRevoked) check(snap.phase === "persisted", "native_unavailable");
       t.nativeThreadId = snap.threadId;
+      t.nativeServerInstanceId = snap.serverInstanceId;
       const active = runtime.registration.currentRegistration();
       if (
         !active ||
@@ -341,6 +356,13 @@ export function createProjectController(config, deps) {
         !active.threads.some((x) => x.projectId === p.projectId && x.threadId === snap.threadId)
       ) {
         t.phase = "awaitingRegistration";
+        save();
+        return;
+      }
+      if (t.executionRevoked) {
+        t.phase = "blocked";
+        t.reason = "checkout_unavailable";
+        t.terminalSessionName = null;
         save();
         return;
       }
@@ -372,7 +394,18 @@ export function createProjectController(config, deps) {
     }
   }
   function schedule(p) {
-    if (closed || pending.has(p.projectId) || p.task?.phase === "blocked") return;
+    if (
+      closed ||
+      pending.has(p.projectId) ||
+      (p.task?.phase === "blocked" &&
+        !(
+          p.task.executionRevoked &&
+          p.task.prepared &&
+          p.task.nativeThreadId &&
+          !historyRecovered.has(p.projectId)
+        ))
+    )
+      return;
     pending.add(p.projectId);
     queue = queue.then(() => advance(p)).finally(() => pending.delete(p.projectId));
   }
@@ -443,6 +476,69 @@ export function createProjectController(config, deps) {
       } else check(p.task?.taskId === r.taskId, "task_identity_conflict");
       schedule(p);
       return status(p);
+    },
+    renewLeases() {
+      if (closed || !runtime) return;
+      for (const p of Object.values(state.projects)) {
+        if (
+          !p.task?.prepared ||
+          !p.task.nativeThreadId ||
+          p.task.executionRevoked ||
+          pending.has(p.projectId)
+        )
+          continue;
+        pending.add(p.projectId);
+        queue = queue
+          .then(async () => {
+            if (closed) return;
+            const t = p.task;
+            if (t.executionRevoked) return;
+            try {
+              // Phase transitions never exempt a live native task from expiry.
+              // Inspection also fails closed on changed checkout provenance.
+              const lease = runtime.supervisor.lease(t.prepared);
+              check(lease?.lease?.expiresAt > Date.now() / 1000, "checkout_unavailable");
+              if (
+                !["running", "awaitingFirstPrompt"].includes(t.phase) ||
+                typeof deps.renewLease !== "function"
+              )
+                return;
+              const binding = runtime.supervisor.registrationBinding(p.projectId),
+                active = runtime.registration.currentRegistration();
+              check(
+                active?.serverInstanceId === binding.serverInstanceId &&
+                  active.threads.some(
+                    (x) => x.projectId === p.projectId && x.threadId === binding.threadId,
+                  ),
+                "registration_unavailable",
+              );
+              if (lease.lease.expiresAt * 1000 - Date.now() > 15 * 60 * 1000) return;
+              check(typeof t.checkoutIncarnation === "string", "checkout_unavailable");
+              const next = await deps.renewLease(p.projectId);
+              check(
+                next?.checkoutIncarnation === t.checkoutIncarnation &&
+                  next.revision === t.request.revision &&
+                  next.lease?.id === t.prepared.leaseId &&
+                  next.lease.taskId === t.taskId &&
+                  next.lease.generation === t.prepared.leaseGeneration &&
+                  next.lease.expiresAt > Date.now() / 1000 &&
+                  Number.isSafeInteger(next.renewalSequence) &&
+                  next.renewalSequence > t.renewalSequence,
+                "checkout_unavailable",
+              );
+              t.renewalSequence = next.renewalSequence;
+              save();
+            } catch {
+              t.executionRevoked = { reason: "lease_renewal_failed", at: Date.now() };
+              t.phase = "blocked";
+              t.reason = "checkout_unavailable";
+              t.terminalSessionName = null;
+              save();
+              await runtime.supervisor.revokeExecution(p.projectId).catch(() => {});
+            }
+          })
+          .finally(() => pending.delete(p.projectId));
+      }
     },
     currentProjectContext(threadId) {
       check(runtime, "native_unavailable");

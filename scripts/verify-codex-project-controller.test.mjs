@@ -48,6 +48,10 @@ function fixture(t) {
     },
     lease() {
       assert.ok(prepared?.lease.expiresAt > Date.now() / 1000);
+      return prepared;
+    },
+    async revokeExecution() {
+      calls.push("revokeExecution");
     },
     snapshot() {
       return { phase, threadId, serverInstanceId: "server", attached };
@@ -90,6 +94,8 @@ function fixture(t) {
         status: "ready",
         checkoutVerified: true,
         revision: start.revision,
+        checkoutIncarnation: "fixture-incarnation",
+        renewalSequence: 0,
         lease: { taskId, id: randomUUID(), generation: 1, expiresAt: Date.now() / 1000 + 900 },
       };
       return prepared;
@@ -122,6 +128,9 @@ function fixture(t) {
     },
     register() {
       registered = true;
+    },
+    unregister() {
+      registered = false;
     },
     setPrepared(v) {
       prepared = v;
@@ -265,3 +274,130 @@ test("manager checkout context is derived from registered thread and verified le
   f.setPrepared({ ...context, lease: { expiresAt: 0 } });
   assert.throws(() => f.controller.currentProjectContext(state.nativeThreadId));
 });
+
+test("safe lease renewal keeps immutable intent and failed renewal revokes only execution", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  f.register();
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  const context = f.controller.currentProjectContext(
+    (await f.controller.handle("/projects/tasks/status", f.status)).nativeThreadId,
+  );
+  await f.controller.drain();
+  let calls = 0;
+  f.deps.renewLease = async (projectId) => {
+    calls++;
+    assert.equal(projectId, f.open.projectId);
+    return {
+      checkoutIncarnation: "fixture-incarnation",
+      revision: f.start.revision,
+      renewalSequence: calls,
+      lease: {
+        id: context.leaseId,
+        generation: context.leaseGeneration,
+        taskId: context.preparationIntentId,
+        expiresAt: Date.now() / 1000 + 3600,
+      },
+    };
+  };
+  f.controller.renewLeases();
+  await f.controller.drain();
+  assert.equal(calls, 1);
+  assert.deepEqual(
+    f.controller.currentProjectContext(
+      (await f.controller.handle("/projects/tasks/status", f.status)).nativeThreadId,
+    ),
+    context,
+  );
+  await f.controller.drain();
+  f.deps.renewLease = async () => {
+    throw new Error("denied");
+  };
+  f.controller.renewLeases();
+  await f.controller.drain();
+  const result = await f.controller.handle("/projects/tasks/status", f.status);
+  assert.equal(result.phase, "blocked");
+  assert.equal(result.reason, "checkout_unavailable");
+  assert.ok(result.nativeThreadId);
+  assert.equal(f.calls.filter((x) => x === "revokeExecution").length, 1);
+  f.controller.renewLeases();
+  await f.controller.drain();
+  assert.equal(f.calls.filter((x) => x === "firstPrompt").length, 1);
+});
+
+test("revoked execution can re-register existing history after restart without new prompt or attach", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  f.register();
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  f.deps.renewLease = async () => {
+    throw new Error("denied");
+  };
+  f.controller.renewLeases();
+  await f.controller.drain();
+  const beforePrompt = f.calls.filter((x) => x === "firstPrompt").length,
+    beforeAttach = f.calls.filter((x) => x === "attach").length;
+  await f.restart();
+  f.controller.resumePending();
+  await f.controller.drain();
+  const status = await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  assert.equal(status.phase, "blocked");
+  assert.ok(status.nativeThreadId);
+  assert.equal(status.terminalSessionName, null);
+  assert.equal(f.calls.filter((x) => x === "firstPrompt").length, beforePrompt);
+  assert.equal(f.calls.filter((x) => x === "attach").length, beforeAttach);
+});
+
+for (const phase of ["awaitingRegistration", "blocked"]) {
+  test(`lease expiry revokes ${phase} native execution without renewing or discarding history`, async (t) => {
+    const f = fixture(t);
+    await f.controller.handle("/projects/open", f.open);
+    await f.controller.handle("/projects/tasks/start", f.start);
+    await f.controller.drain();
+    f.register();
+    await f.controller.handle("/projects/tasks/status", f.status);
+    await f.controller.drain();
+    if (phase === "awaitingRegistration") f.unregister();
+    else f.setPhase("firstPromptUncertain");
+    await f.controller.handle("/projects/tasks/status", f.status);
+    await f.controller.drain();
+    const before = await f.controller.handle("/projects/tasks/status", f.status);
+    await f.controller.drain();
+    assert.equal(before.phase, phase);
+    let renewals = 0;
+    f.deps.renewLease = async () => {
+      renewals++;
+      throw new Error("must_not_renew");
+    };
+    f.controller.renewLeases();
+    await f.controller.drain();
+    assert.equal(renewals, 0, "blocked and registration-pending work cannot extend authority");
+    assert.equal(
+      f.calls.includes("revokeExecution"),
+      false,
+      "valid lease survives phase transition",
+    );
+    // Expiry enforcement must still run without an available renewal helper.
+    delete f.deps.renewLease;
+    f.setPrepared({ status: "ready", lease: { expiresAt: Date.now() / 1000 - 1 } });
+    f.controller.renewLeases();
+    await f.controller.drain();
+    const result = await f.controller.handle("/projects/tasks/status", f.status);
+    assert.equal(result.phase, "blocked");
+    assert.equal(result.reason, "checkout_unavailable");
+    assert.equal(result.nativeThreadId, before.nativeThreadId);
+    assert.equal(result.terminalSessionName, null);
+    assert.equal(f.calls.filter((x) => x === "revokeExecution").length, 1);
+    assert.equal(f.calls.filter((x) => x === "firstPrompt").length, 1);
+    f.controller.renewLeases();
+    await f.controller.drain();
+    assert.equal(f.calls.filter((x) => x === "revokeExecution").length, 1);
+  });
+}

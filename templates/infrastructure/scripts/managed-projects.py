@@ -364,7 +364,7 @@ class ManagedProjects:
                           "projectIdentity": self.identity(project), "checkoutIdentity": None, "checkoutIncarnation": None,
                           "revision": requested_revision, "status": "preparing", "stages": [],
                           "preparationId": str(uuid.uuid4()),
-                          "leaseGeneration": 0, "lease": None, "lastTaskId": task_id, "cleanupRequests": []}
+                          "leaseGeneration": 0, "renewalSequence": 0, "lease": None, "lastTaskId": task_id, "cleanupRequests": []}
             require(record["canonicalUrl"] == remote.canonical_url, "repository_canonical_url_changed")
             checkout = self.safe(project / "checkout")
             publishing = next((stage for stage in record["stages"] if stage["status"] == "publishing"), None)
@@ -457,6 +457,7 @@ class ManagedProjects:
         return {"provider": "github", "repositoryId": record["repositoryId"], "projectDirectory": str(project),
                 "checkoutDirectory": str(project / "checkout") if record.get("checkoutIdentity") else None,
                 "revision": record["revision"], "status": record["status"], "lease": record["lease"],
+                "checkoutIncarnation": record.get("checkoutIncarnation"), "renewalSequence": record.get("renewalSequence", 0),
                 "preservedStages": [stage["name"] for stage in record["stages"] if stage["status"] != "published"]}
 
     def inspect(self, repository_id):
@@ -473,6 +474,37 @@ class ManagedProjects:
             if verified:
                 self.checkout_valid(project / "checkout", record)
             return {**self.summary(project, record), "checkoutVerified": verified}
+
+    def _renew_controller_lease(self, repository_id, project_id, authority, ttl=3600):
+        """Installed helper only. No dispatch/CLI operation accepts renewal fields.
+
+        Authority re-reads private signed journals and kernel process identities
+        under the managed writer lock. Dirty/untracked/ignored work is retained.
+        """
+        require(authority is not None and type(ttl) is int and 30 <= ttl <= 3600, "renewal_authority_required")
+        with self.lock():
+            project, receipt, record = self.load(repository_id)
+            lease = record.get("lease")
+            require(record["status"] == "ready" and lease and lease["expiresAt"] > time.time(), "lease_not_active")
+            sequence = record.get("renewalSequence", 0)
+            require(type(sequence) is int and 0 <= sequence < 9007199254740991, "invalid_renewal_sequence")
+            expected = {"repositoryId": repository_id, "taskId": lease["taskId"], "leaseId": lease["id"],
+                        "leaseGeneration": lease["generation"], "revision": record["revision"],
+                        "checkoutIncarnation": record["checkoutIncarnation"]}
+            require(identifier(expected["checkoutIncarnation"]), "checkout_incarnation_missing")
+            authority.verify(project_id, expected)
+            self.checkout_valid(project / "checkout", record)
+            # Recheck expiry after bounded authority/provenance inspection; a
+            # slow validation cannot revive an authority that expired meanwhile.
+            now = time.time()
+            require(lease["expiresAt"] > now, "lease_not_active")
+            lease["expiresAt"] = now + ttl
+            record["renewalSequence"] = sequence + 1
+            record["lastRenewedAt"] = now
+            # Keep old requests as evidence. Their sequence no longer authorizes
+            # cleanup, even after release; clearing a flag alone is insufficient.
+            self.write(receipt, record)
+            return self.summary(project, record)
 
     def release_lease(self, repository_id, task_id, lease_id, generation, expected_revision):
         require(revision(expected_revision), "invalid_revision")
@@ -496,7 +528,7 @@ class ManagedProjects:
             project, receipt, record = self.load(repository_id)
             require(task_id == record["lastTaskId"], "cleanup_task_mismatch")
             require(len(record["cleanupRequests"]) < 100, "cleanup_request_limit")
-            record["cleanupRequests"].append({"id": str(uuid.uuid4()), "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record.get("checkoutIncarnation"), "leaseGeneration": record["leaseGeneration"], "requestedAt": time.time()})
+            record["cleanupRequests"].append({"id": str(uuid.uuid4()), "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record.get("checkoutIncarnation"), "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "requestedAt": time.time()})
             self.write(receipt, record)
             return {"status": "controller_authority_unavailable", "checkoutRetained": True,
                     "requestId": record["cleanupRequests"][-1]["id"]}
@@ -516,9 +548,10 @@ class ManagedProjects:
                     and cleanup_request["checkoutIdentity"] == record["checkoutIdentity"]
                     and identifier(record.get("checkoutIncarnation"))
                     and cleanup_request.get("checkoutIncarnation") == record["checkoutIncarnation"]
-                    and cleanup_request.get("leaseGeneration") == record["leaseGeneration"], "cleanup_request_stale")
+                    and cleanup_request.get("leaseGeneration") == record["leaseGeneration"]
+                    and cleanup_request.get("renewalSequence") == record.get("renewalSequence", 0), "cleanup_request_stale")
             expected = {"repositoryId": repository_id, "taskId": task_id, "revision": record["revision"],
-                        "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "cleanupRequestId": cleanup_request["id"]}
+                        "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "cleanupRequestId": cleanup_request["id"]}
             evidence = authority.verify(signed_evidence, expected)
             require(isinstance(evidence, dict) and evidence.get("binding") == expected
                     and identifier(evidence.get("completionEventId")) and identifier(evidence.get("policyVersion")), "invalid_completion_evidence")

@@ -102,6 +102,7 @@ function installedFiles(directory) {
     "managed-projects.py",
     "github-projects.py",
     "codex-project-terminal.py",
+    "codex-project-lease.py",
     "vendor/ws.mjs",
   ];
   for (const name of required) {
@@ -112,7 +113,7 @@ function installedFiles(directory) {
   }
   return manifest.files;
 }
-function managedRunner(helperPath, helperHash) {
+function managedRunner(helperPath, helperHash, timeoutMs = 120000, agentAuth = true) {
   return (request) =>
     new Promise((resolve, reject) => {
       check(hash(readFileSync(helperPath)) === helperHash);
@@ -122,9 +123,7 @@ function managedRunner(helperPath, helperHash) {
           "HOME",
           "USER",
           "LANG",
-          "CODER_AGENT_TOKEN",
-          "CODER_AGENT_TOKEN_FILE",
-          "CODER_AGENT_URL",
+          ...(agentAuth ? ["CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE", "CODER_AGENT_URL"] : []),
         ]
           .filter((k) => process.env[k] !== undefined)
           .map((k) => [k, process.env[k]]),
@@ -146,7 +145,7 @@ function managedRunner(helperPath, helperHash) {
         } catch {}
         reject(new Error("checkout_unavailable"));
       };
-      const timer = setTimeout(fail, 120000);
+      const timer = setTimeout(fail, timeoutMs);
       child.on("error", fail);
       child.stdin.on("error", fail);
       child.stdout.on("data", (chunk) => {
@@ -204,6 +203,12 @@ export async function startWorkspaceHost(raw) {
     join(directory, "managed-projects.py"),
     pins["managed-projects.py"],
   );
+  const renew = managedRunner(
+    join(directory, "codex-project-lease.py"),
+    pins["codex-project-lease.py"],
+    5000,
+    false,
+  );
   let gateway,
     discovery,
     supervisor,
@@ -219,6 +224,7 @@ export async function startWorkspaceHost(raw) {
     },
     {
       resolveRepository: (request) => discovery.resolveRepository(request),
+      renewLease: (projectId) => renew({ schemaVersion: 1, projectId }),
       inspectCheckout: (repositoryId) =>
         managed({ schemaVersion: 1, operation: "inspect", provider: "github", repositoryId }),
       prepareCheckout: (r) =>
@@ -326,6 +332,8 @@ export async function startWorkspaceHost(raw) {
     throw error;
   }
   const tick = setInterval(() => controller.resumePending(), 5000);
+  const renewal = setInterval(() => controller.renewLeases(), 60000);
+  renewal.unref();
   tick.unref();
   controller.resumePending();
   return {
@@ -333,6 +341,7 @@ export async function startWorkspaceHost(raw) {
       if (closed) return;
       closed = true;
       clearInterval(tick);
+      clearInterval(renewal);
       await controller.close();
       registration?.close();
       await gateway.close();

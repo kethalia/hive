@@ -29,6 +29,7 @@ await build({
 const source = join(root, "templates/ai-dev-k8s/scripts");
 const modules = [
   "codex-workspace-host.mjs",
+  "codex-process-identity.mjs",
   "codex-project-controller.mjs",
   "codex-project-discovery.mjs",
   "codex-project-supervisor.mjs",
@@ -42,6 +43,7 @@ const assets = [
   "managed-projects.py",
   "github-projects.py",
   "codex-project-terminal.py",
+  "codex-project-lease.py",
   "install-codex-runtime.py",
 ];
 for (const name of modules)
@@ -61,11 +63,11 @@ const files = Object.fromEntries(
 );
 writeFileSync(
   join(out, "package-manifest.json"),
-  JSON.stringify(
+  `${JSON.stringify(
     { schemaVersion: 1, nodeMajor: 24, wsVersion: ws.version, nativeVersion: "0.165.0", files },
     null,
     2,
-  ) + "\n",
+  )}\n`,
   { mode: 0o400, flag: "wx" },
 );
 console.log(
