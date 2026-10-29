@@ -22,7 +22,7 @@ export const taskIntentPayloadSchema = z
         taskId: uuid,
         requestId: uuid,
         revision: z.string().regex(/^[a-f0-9]{40}$/),
-        model: z.string().min(1).max(160),
+        model: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,99}$/),
         effort: z.string().min(1).max(20),
         text: z
           .string()

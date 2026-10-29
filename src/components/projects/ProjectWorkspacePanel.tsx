@@ -11,7 +11,11 @@ import {
   type RepositoryProject,
 } from "@/lib/projects/contracts";
 import { type OpenedProject, openedProjectSchema } from "@/lib/projects/session-contracts";
-import { type ProjectTaskStatus, projectTaskStatusSchema } from "@/lib/projects/task-contracts";
+import {
+  preparationReasonMessages,
+  type ProjectTaskStatus,
+  projectTaskStatusSchema,
+} from "@/lib/projects/task-contracts";
 import { ConversationView } from "./ConversationView";
 import { ProjectBrowser } from "./ProjectBrowser";
 
@@ -178,7 +182,7 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
   const preparing = Boolean(task && !["running", "blocked"].includes(task.phase));
   // biome-ignore lint/correctness/useExhaustiveDependencies: pollGeneration deliberately restarts the bounded status loop.
   useEffect(() => {
-    if (!taskId || !preparing) return;
+    if (!taskId) return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
@@ -200,6 +204,7 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
           throw new Error("Project status changed. Reopen the project.");
         if (disposed) return;
         setTask(result);
+        setError(null);
         if (["running", "blocked"].includes(result.phase)) return;
         if (++attempts >= 20) {
           setError(
@@ -326,7 +331,10 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
       ) : null}
       {task?.phase === "blocked" ? (
         <p role="alert" className="text-sm">
-          The task needs attention. Its session and work are preserved.
+          {task.reason
+            ? preparationReasonMessages[task.reason]
+            : "The task needs attention. Refresh its status or inspect the workspace."}{" "}
+          Existing work is retained.
         </p>
       ) : null}
       {nativeThreadId ? (

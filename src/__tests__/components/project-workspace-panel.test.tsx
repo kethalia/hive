@@ -123,6 +123,28 @@ describe("project task workspace", () => {
     expect(screen.getByText("Attached terminal fixture")).toBeInTheDocument();
     expect(startsCalls).toHaveLength(2);
   });
+  it("loads the reason for a reopened blocked task without resubmitting its prompt", async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) => {
+      if (String(args[0]) === "/api/projects/open")
+        return response({ ...opened, phase: "blocked", currentTaskId: taskId });
+      if (String(args[0]).endsWith("/tasks/status"))
+        return response({
+          ...prepared,
+          phase: "blocked",
+          nativeThreadId: null,
+          terminalSessionName: null,
+          reason: "prompt_submission_uncertain",
+        });
+      return defaultFetch(...args);
+    });
+    await select();
+    await screen.findByText(/The task may already have started/);
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/tasks/start"))).toBe(
+      false,
+    );
+    expect(screen.queryByRole("button", { name: "Start task" })).not.toBeInTheDocument();
+  });
   it("waits for registered persisted history before opening the read connection", async () => {
     const defaultFetch = vi.mocked(fetch).getMockImplementation()!;
     let observations = 0;

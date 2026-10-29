@@ -58,3 +58,26 @@ export const projectTaskStatusSchema = z
   })
   .strict();
 export type ProjectTaskStatus = z.infer<typeof projectTaskStatusSchema>;
+
+export const preparationReasonMessages: Record<NonNullable<ProjectTaskStatus["reason"]>, string> = {
+  github_auth_required: "Reconnect GitHub in your Coder account before retrying preparation.",
+  repository_identity_changed:
+    "Repository access or ownership changed. Reopen the project to verify access.",
+  checkout_busy: "The project checkout is already in use. Resolve its active work before retrying.",
+  checkout_unavailable:
+    "The workspace could not prepare the checkout. Inspect the workspace before retrying.",
+  revision_unavailable:
+    "The requested revision is unavailable. Reopen the project to select current source.",
+  model_unavailable:
+    "The configured model is unavailable for this workspace account. Check its Codex sign-in and model access.",
+  native_unavailable:
+    "Codex could not be reached in the workspace. Check its connection and sign-in.",
+  registration_unavailable:
+    "The workspace could not establish its Hive connection. Check the workspace host configuration.",
+  prompt_submission_uncertain:
+    "The task may already have started. Inspect the existing conversation before taking further action.",
+  task_identity_conflict:
+    "This project already has another task or a different accepted request. Inspect its existing work.",
+  preparation_timeout:
+    "Preparation stopped making progress. Inspect the workspace before retrying.",
+};
