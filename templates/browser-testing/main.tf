@@ -765,6 +765,26 @@ resource "kubernetes_deployment_v1" "workspace" {
             name       = "home"
             mount_path = "/home/coder"
           }
+
+          dynamic "volume_mount" {
+            for_each = local.hive_host_enabled ? [true] : []
+            content {
+              name       = "hive-host-bootstrap"
+              mount_path = "/opt/hive-codex-host-template"
+              read_only  = true
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_host_enabled ? [true] : []
+          content {
+            name = "hive-host-bootstrap"
+            config_map {
+              name         = kubernetes_config_map_v1.hive_host[0].metadata[0].name
+              default_mode = "0444"
+            }
+          }
         }
 
         volume {

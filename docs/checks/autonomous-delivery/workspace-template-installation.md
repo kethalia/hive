@@ -1,7 +1,8 @@
 # Managed host template installation checkpoint
 
-Status: implemented and validated locally; inactive preview template and test-workspace
-acceptance are still required. Production manager execution remains disabled.
+Status: packaging and Terraform validation pass. The first enabled test workspace exposed
+a Coder startup argument-size failure; the mounted bootstrap fix awaits deployed acceptance.
+Production manager execution remains disabled.
 
 The software template has an opt-in `enable_hive_projects` parameter and a Hive account
 identifier. The deployment supplies the HTTPS controller origin, public Ed25519 issuer
@@ -44,3 +45,29 @@ Validation used a staged source export to exclude concurrent manager implementat
 These checks establish packaging behavior, not account-backed inference, trusted manager
 evidence, browser acceptance, or production readiness. See `native-authority-isolation.md`
 for the unresolved same-UID authority boundary.
+
+## Mounted bootstrap correction
+
+The first enabled test build (`cbb961eb-5074-4dd1-b9ea-877b356b8528`) provisioned
+successfully but its managed-host script exited 255 before producing any output or
+installing files. Coder 2.38.4's [script runner](https://github.com/coder/coder/blob/v2.38.4/agent/agentscripts/agentscripts.go)
+passes the script to [CreateCommand](https://github.com/coder/coder/blob/v2.38.4/agent/agentssh/agentssh.go),
+which executes the complete script through shell `-c`. A local reproduction with the
+same template package produced a 532,915-byte argument and Linux `E2BIG`; putting a
+here-document inside that argument does not avoid the limit.
+
+The corrected template places the public archive, public controller configuration and
+installer into an immutable Kubernetes ConfigMap. It mounts that exact content-addressed
+ConfigMap read-only in the development container. The small startup command reads the
+request from a file. A changed build/configuration changes the ConfigMap name and pod
+specification; create-before-destroy avoids replacing the input under a live host.
+The Terraform precondition bounds the combined UTF-8 data below 950,000 bytes, leaving
+headroom below Kubernetes' one-MiB limit. No private issuer key or account credential
+belongs in this resource.
+
+The regression test executes the real small shell script with a package over the Linux
+argument limit and verifies its entire SHA-256 through stdin. All 86 template tests pass
+from an isolated staged export. Terraform formatting and validation pass in the new
+bounded infrastructure workspace recorded in `infrastructure-bootstrap/workspace-creation.json`.
+The previously used infrastructure workspace was already stopped and deleted; its
+creation record was not reused.
