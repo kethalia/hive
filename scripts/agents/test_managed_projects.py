@@ -53,7 +53,7 @@ class TestControllerAuthority:
         return hmac.new(self.key, json.dumps(payload, sort_keys=True).encode(), hashlib.sha256).hexdigest()
 
     def issue(self, record):
-        binding = {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"], "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
+        binding = {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"], "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
         digest = "sha256:" + "a" * 64
         payload = {"binding": binding, "completionEventId": "controller-completion-1", "policyVersion": "reviewed-policy-1", "artifact": {"digest": digest, "objectVersion": "immutable-r2-version-1"}, "productionObservation": {"id": "independently-queried-observation-1", "revision": record["revision"], "artifactDigest": digest}}
         return {"payload": payload, "signature": self.signature(payload)}
@@ -486,6 +486,64 @@ class ManagedProjectsTests(unittest.TestCase):
             with self.assertRaisesRegex(MODULE.ManagedError, "repository_account_changed"):
                 MODULE.GitHubResolver("456").resolve("123")
         helper.github_json.assert_called_once_with("fixture-private-token", "/user")
+
+    def renewal_authority(self, value):
+        expected = {"repositoryId": "123", "taskId": value["lease"]["taskId"], "leaseId": value["lease"]["id"],
+                    "leaseGeneration": value["lease"]["generation"], "revision": value["revision"], "checkoutIncarnation": value["checkoutIncarnation"]}
+        class Authority:
+            def verify(inner, project_id, actual):
+                MODULE.require(project_id == "project-fixture" and actual == expected, "renewal_binding_changed")
+        return Authority()
+
+    def test_renewal_preserves_dirty_untracked_ignored_work_and_lease_identity(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        checkout = Path(value["checkoutDirectory"])
+        (checkout / "README.md").write_text("in progress")
+        (checkout / "untracked.txt").write_text("preserved")
+        (checkout / "ignored.cache").write_text("preserved")
+        renewed = self.manager._renew_controller_lease("123", "project-fixture", self.renewal_authority(value))
+        self.assertEqual(renewed["lease"]["id"], value["lease"]["id"])
+        self.assertEqual(renewed["lease"]["generation"], value["lease"]["generation"])
+        self.assertEqual(renewed["renewalSequence"], 1)
+        self.assertGreater(renewed["lease"]["expiresAt"], value["lease"]["expiresAt"])
+        self.assertEqual((checkout / "README.md").read_text(), "in progress")
+        self.assertTrue((checkout / "untracked.txt").exists() and (checkout / "ignored.cache").exists())
+        with self.assertRaisesRegex(MODULE.ManagedError, "invalid_request"):
+            MODULE.dispatch(self.manager, {"schemaVersion": 1, "provider": "github", "repositoryId": "123", "operation": "renewLease"})
+
+    def test_renewal_never_revives_expired_or_released_leases_and_rejects_changed_incarnation(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        authority = self.renewal_authority(value)
+        with self.manager.lock():
+            _, path, record = self.manager.load("123")
+            record["checkoutIncarnation"] = "different-incarnation"
+            self.manager.write(path, record)
+        with self.assertRaisesRegex(MODULE.ManagedError, "renewal_binding_changed"):
+            self.manager._renew_controller_lease("123", "project-fixture", authority)
+        with self.manager.lock():
+            _, path, record = self.manager.load("123")
+            record["checkoutIncarnation"] = value["checkoutIncarnation"]
+            record["lease"]["expiresAt"] = 1
+            self.manager.write(path, record)
+        with self.assertRaisesRegex(MODULE.ManagedError, "lease_not_active"):
+            self.manager._renew_controller_lease("123", "project-fixture", authority)
+        self.manager.release_lease("123", "task", value["lease"]["id"], value["lease"]["generation"], self.sha)
+        with self.assertRaisesRegex(MODULE.ManagedError, "lease_not_active"):
+            self.manager._renew_controller_lease("123", "project-fixture", authority)
+
+    def test_renewal_sequence_fences_prior_signed_cleanup_completion(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        self.manager.request_cleanup("123", "task")
+        with self.manager.lock():
+            _, _, record = self.manager.load("123")
+            old_evidence = self.authority.issue(record)
+        renewed = self.manager._renew_controller_lease("123", "project-fixture", self.renewal_authority(value))
+        self.manager.release_lease("123", "task", renewed["lease"]["id"], renewed["lease"]["generation"], self.sha)
+        with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_request_stale"):
+            self.manager._remove_with_authority("123", "task", old_evidence, self.authority)
+        self.manager.request_cleanup("123", "task")
+        with self.assertRaisesRegex(MODULE.ManagedError, "controller_binding_mismatch"):
+            self.manager._remove_with_authority("123", "task", old_evidence, self.authority)
 
 
 if __name__ == "__main__":

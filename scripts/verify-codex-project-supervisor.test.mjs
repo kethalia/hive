@@ -474,6 +474,7 @@ test("actual native first text persists through local mock provider then same-th
 }, async (t) => {
   const f = fixture(t);
   const requests = [];
+  let holdResponse = false;
   const server = createServer((req, res) => {
     let input = "";
     req.on("data", (chunk) => {
@@ -482,6 +483,12 @@ test("actual native first text persists through local mock provider then same-th
     req.on("end", () => {
       requests.push(input);
       res.writeHead(200, { "Content-Type": "text/event-stream" });
+      if (holdResponse) {
+        res.write(
+          `event: response.created\ndata: ${JSON.stringify({ type: "response.created", response: { id: "resp_interrupt", status: "in_progress", output: [] } })}\n\n`,
+        );
+        return;
+      }
       const message = {
         id: "msg_fixture",
         type: "message",
@@ -602,7 +609,7 @@ test("actual native first text persists through local mock provider then same-th
     stateDirectory: gatewayState,
     port: 0,
   };
-  async function readViaGateway(host) {
+  async function readViaGateway(host, expectedLoaded = [created.threadId]) {
     const gateway = await startProjectGateway(gatewayConfig, host);
     const ws = new WebSocket(`ws://127.0.0.1:${gateway.port}/session`, {
       headers: { Origin: gatewayConfig.hiveOrigin, Host: new URL(gatewayConfig.appOrigin).host },
@@ -686,14 +693,57 @@ test("actual native first text persists through local mock provider then same-th
           "HIVE_LOCAL_PROVIDER_REPLY",
         ),
       );
-      assert.deepEqual((await native.call("thread/loaded/list", {})).data, [created.threadId]);
+      assert.deepEqual((await native.call("thread/loaded/list", {})).data, expectedLoaded);
     } finally {
       ws.terminate();
       await gateway.close();
     }
   }
   await readViaGateway(s);
+  holdResponse = true;
+  await native.call("turn/start", {
+    threadId: created.threadId,
+    clientUserMessageId: randomUUID(),
+    input: [{ type: "text", text: "Local interruption fixture only.", text_elements: [] }],
+  });
+  for (let n = 0; n < 40 && requests.length < 2; n++) await new Promise((r) => setTimeout(r, 50));
+  assert.ok(requests.length >= 2);
+  // CLI title generation is asynchronous relative to the actual user turn.
+  // Wait for its separately held local response before checking quiescence.
+  for (let n = 0; n < 100 && requests.length < 3; n++)
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(requests.length, 3, "two project turns plus native CLI title generation");
+  const secondTurnLoaded = (await native.call("thread/loaded/list", {})).data;
+  const unknownThreads = secondTurnLoaded.filter((threadId) => threadId !== created.threadId);
+  assert.equal(
+    unknownThreads.length,
+    1,
+    "native title generation has an unmapped ephemeral thread",
+  );
+  for (const threadId of unknownThreads) {
+    const { thread } = await native.call("thread/read", { threadId, includeTurns: false });
+    assert.equal(thread.ephemeral, true);
+    assert.equal(thread.parentThreadId, null);
+    assert.equal(thread.status.type, "active");
+  }
+  const revocation = await s.revokeExecution("project");
+  assert.equal(
+    revocation.reviewRequired,
+    unknownThreads.length > 0,
+    "unmapped active ephemeral threads must retain review hold despite acknowledged root interrupt",
+  );
+  const rootAfterInterrupt = await native.call("thread/read", {
+    threadId: created.threadId,
+    includeTurns: false,
+  });
+  assert.equal(rootAfterInterrupt.thread.status.type, "idle");
+  await assert.rejects(
+    s.command({ operation: "attach", projectId: "project" }),
+    /project_execution_revoked/,
+  );
+  await readViaGateway(s, secondTurnLoaded);
   await s.close();
+  const providerCallsBeforeHistoryRejoin = requests.length;
   rmSync(f.checkout, { recursive: true });
   const restarted = await openSupervisor(c, {
     home: f.home,
@@ -711,7 +761,23 @@ test("actual native first text persists through local mock provider then same-th
   await readViaGateway(restarted);
   assert.equal(existsSync(f.checkout), false, "read rejoin must not recreate checkout");
   await assert.rejects(restarted.command({ operation: "attach", projectId: "project" }));
-  assert.equal(requests.length, 1, "history rejoin must not invoke the provider again");
+  assert.equal(
+    requests.length,
+    providerCallsBeforeHistoryRejoin,
+    "history rejoin must not invoke the provider again",
+  );
+  for (const body of requests.slice(2)) {
+    const input = JSON.parse(body).input;
+    const last = input
+      .at(-1)
+      ?.content?.map((part) => part.text ?? "")
+      .join("");
+    assert.match(
+      last,
+      /^Generate a concise, single-line task title/,
+      "the extra native ephemeral request is title generation, never a second manager prompt",
+    );
+  }
 });
 
 test("SIGKILL supervisor terminates its actual native child and permits a fresh lifetime", {
@@ -873,3 +939,145 @@ test("installed manager observer receives exact notification methods, never appr
     ["item/started", "item/completed", "rawResponseItem/completed"],
   );
 });
+
+test("renewal failure durably fences execution, interrupts exact turn and preserves reads and other project", async (t) => {
+  const f = fixture(t),
+    raw = config();
+  raw.projects.push({
+    ...raw.projects[0],
+    projectId: "other",
+    repositoryId: "456",
+    taskId: "task-other",
+    leaseId: "lease-other",
+  });
+  const second = join(f.home, "projects/.hive-managed/github/456/checkout");
+  mkdirSync(second, { recursive: true });
+  f.runtime.inspectLease = (p) => ({
+    ok: true,
+    data: {
+      status: "ready",
+      checkoutVerified: true,
+      checkoutDirectory: p.projectId === "project" ? f.checkout : second,
+      lease: {
+        id: p.leaseId,
+        taskId: p.taskId,
+        generation: p.leaseGeneration,
+        expiresAt: Date.now() / 1000 + 900,
+      },
+    },
+  });
+  f.runtime.call = async (method, params) => {
+    f.calls.push({ method, params });
+    if (method === "thread/start")
+      return {
+        thread: { id: params.cwd === f.checkout ? "thread-one" : "thread-other", cwd: params.cwd },
+        model: "gpt-6.1-sol",
+        reasoningEffort: "low",
+      };
+    if (method === "turn/start") return { turn: { id: "turn-one" } };
+    if (method === "thread/turns/list") return { data: [{ id: "turn-one", status: "inProgress" }] };
+    if (method === "turn/interrupt") return {};
+    if (method === "thread/loaded/list")
+      return { data: ["thread-one", "thread-other"], nextCursor: null };
+    if (method === "thread/read")
+      return {
+        thread: {
+          id: params.threadId,
+          status: { type: params.threadId === "thread-one" ? "idle" : "active" },
+        },
+      };
+    throw new Error("unexpected_rpc");
+  };
+  f.runtime.detach = async (projectId) => f.calls.push({ method: "detach", projectId });
+  const s = await openSupervisor(raw, f.options);
+  t.after(() => s.close());
+  await s.command(ensure);
+  await s.command(prompt);
+  await s.command({ operation: "attach", projectId: "project" });
+  await s.command({
+    operation: "ensureProject",
+    projectId: "other",
+    creationIntentId: "other-intent",
+  });
+  await s.command({ ...prompt, projectId: "other" });
+  await s.revokeExecution("project");
+  assert.equal(s.state.projects.project.executionRevoked.reviewRequired, false);
+  assert.deepEqual(
+    f.calls.filter((c) => c.method === "turn/interrupt").map((c) => c.params),
+    [{ threadId: "thread-one", turnId: "turn-one" }],
+  );
+  assert.deepEqual(
+    f.calls.filter((c) => c.method === "detach").map((c) => c.projectId),
+    ["project"],
+  );
+  assert.equal(s.binding("project").threadId, "thread-one");
+  assert.equal(s.binding("other").threadId, "thread-other");
+  await assert.rejects(s.command({ ...prompt, requestId: "later" }), /project_execution_revoked/);
+  await assert.rejects(
+    s.command({ operation: "attach", projectId: "project" }),
+    /project_execution_revoked/,
+  );
+  await s.command({ operation: "attach", projectId: "other" });
+  assert.equal(s.snapshot("other").attached, true);
+});
+test("uncertain turn interruption stays durably revoked for review", async (t) => {
+  const f = fixture(t),
+    s = await openSupervisor(config(), f.options);
+  t.after(() => s.close());
+  await s.command(ensure);
+  await s.command(prompt);
+  f.runtime.call = async () => {
+    throw new Error("unavailable");
+  };
+  await s.revokeExecution("project");
+  assert.equal(s.state.projects.project.executionRevoked.reviewRequired, true);
+  assert.equal(s.binding("project").threadId, "thread-one");
+  await assert.rejects(
+    s.command({ operation: "attach", projectId: "project" }),
+    /project_execution_revoked/,
+  );
+});
+
+for (const inventory of ["unknown-active", "truncated", "missing-root"]) {
+  test(`revocation retains review hold for ${inventory} native inventory`, async (t) => {
+    const f = fixture(t),
+      s = await openSupervisor(config(), f.options);
+    t.after(() => s.close());
+    await s.command(ensure);
+    await s.command(prompt);
+    const interrupted = [];
+    f.runtime.call = async (method, params) => {
+      if (method === "thread/turns/list")
+        return { data: [{ id: "turn-one", status: "inProgress" }] };
+      if (method === "turn/interrupt") {
+        interrupted.push(params.threadId);
+        return {};
+      }
+      if (method === "thread/loaded/list")
+        return {
+          data: inventory === "missing-root" ? [] : ["thread-one", "unknown"],
+          nextCursor: inventory === "truncated" ? "more" : null,
+        };
+      if (method === "thread/read")
+        return {
+          thread: {
+            id: params.threadId,
+            status: { type: params.threadId === "unknown" ? "active" : "idle" },
+          },
+        };
+      throw new Error("unexpected_rpc");
+    };
+    const revoked = await s.revokeExecution("project");
+    assert.equal(revoked.reviewRequired, true);
+    assert.deepEqual(
+      interrupted,
+      ["thread-one"],
+      "unknown thread must not be interrupted by guessed ownership",
+    );
+    assert.equal(s.binding("project").threadId, "thread-one");
+    await assert.rejects(
+      s.command({ operation: "attach", projectId: "project" }),
+      /project_execution_revoked/,
+    );
+  });
+}

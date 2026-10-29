@@ -3,7 +3,8 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { processIdentity } from "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs";
 import test from "node:test";
 import { validateHostConfig } from "../templates/ai-dev-k8s/scripts/codex-workspace-host.mjs";
 test("bundles only locked ws locally and keeps modules inert on import", () => {
@@ -60,4 +61,15 @@ test("host config cannot request unreviewed startup fields or profiles", () => {
     { command: "bad" },
   ])
     assert.throws(() => validateHostConfig({ ...config, ...patch }));
+});
+
+test("JS controller and installed Python authority agree on actual kernel process identity", () => {
+  const path = resolve("templates/ai-dev-k8s/scripts/codex-project-lease.py");
+  const script = `import importlib.util,json,os
+s=importlib.util.spec_from_file_location('lease',${JSON.stringify(path)})
+m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+print(json.dumps(m.process_identity(os.getppid())))
+`;
+  const value = JSON.parse(execFileSync("/usr/bin/python3", ["-c", script], { encoding: "utf8" }));
+  assert.deepEqual(value, processIdentity(process.pid));
 });

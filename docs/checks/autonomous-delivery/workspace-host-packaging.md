@@ -183,10 +183,66 @@ On 2026-10-29 at approximately 18:22 UTC:
 Activation remains disabled pending parent review, trusted per-build template
 configuration, inactive preview packaging/test-workspace build and browser relay
 validation. Native account login/inference remains a separate explicit gate.
-Current lease TTL is one hour; dirty-safe installed-controller renewal is the next
-bounded change, not silently assumed. Manager tools stay disabled until their
+The installed controller now renews the one-hour checkout lease while fewer than
+15 minutes remain; the check runs every minute. Manager tools stay disabled until their
 signed envelope/server consumes `currentProjectContext(threadId)`:
 `{projectId, preparationIntentId, repositoryId, revision, leaseId, leaseGeneration}`.
 That context is derived from the host journal, active registered native thread and
 verified lease; a model-selected delivery task ID is not the preparation intent.
 Trusted delegation/evidence persistence is a further manager activation gate.
+
+
+### Dirty-safe lease renewal checkpoint (2026-10-29)
+
+The fixed installed `codex-project-lease.py` accepts only a project UUID on stdin.
+It verifies the signed controller and supervisor journals, exact task/lease/source/
+checkout incarnation, and Linux parent/native PID, kernel start time, boot ID and
+executable device/inode identity under the managed checkout lock. It cannot revive
+an expired or released lease. The renewal preserves lease ID/generation and dirty,
+untracked and ignored work; a monotonic `renewalSequence` invalidates every older
+cleanup request and completion authorization. Cleanup remains unavailable in the CLI.
+The helper receives no owner, GitHub, agent or OpenAI credential environment.
+
+Every prepared task with a native thread is inspected for expiry regardless of
+controller phase, including registration outages and ambiguous-prompt blocks.
+Only running/awaiting-first-prompt phases may extend a valid lease; expiry and
+provenance failure revoke execution even if the renewal helper is unavailable.
+
+Failure durably fences first input and terminal execution before attempting the
+exact active root-turn interrupt and exact private tmux-session termination.
+History remains readable, including after controller restart without checkout
+recreation. A bounded native loaded-thread inventory must establish idle state;
+unmapped active threads or an incomplete inventory retain `reviewRequired`. Known
+child interruption/observation routing is a separate pending checkpoint; this
+slice does not claim that all delegated work has stopped.
+
+Actual installed 0.165 with the local mock provider revealed a native ephemeral
+title-generation thread during the second prompt while CLI was attached. Its
+`parentThreadId` was null and it remained active after the root interrupt returned.
+The mock received a separate “Generate a concise, single-line task title” request.
+The regression preserves the same project thread for CLI/history, proves root
+interruption and read-only restart, and requires a review hold for that unmapped
+active thread. No account-backed inference was used. The native runtime may perform
+its own ancillary inference; one project thread does not imply one provider request.
+
+Private 0600 journals, keys and PID checks are not isolation against hostile code
+running under the same Unix UID. Manager activation additionally requires actual
+native permissions/sandbox enforcement protecting controller/signing state,
+native transport credentials and process credential aliases, or a separate signer
+identity. Signed observer payloads alone do not establish independent evidence.
+
+Validation commands for this checkpoint:
+
+- `python3 -m unittest scripts.agents.test_managed_projects scripts.agents.test_codex_project_lease`
+- `node --test scripts/verify-codex-host-package.test.mjs scripts/verify-codex-project-controller.test.mjs`
+- `HIVE_TEST_NATIVE_CODEX=1 node --test scripts/verify-codex-project-supervisor.test.mjs`
+
+Scoped canonical JavaScript Biome lint also covers the intentional ASCII-control
+validation suppression and terminal output-loop fixes. Template copies and the
+artifact manifest are left for the parent’s coordinated sync after review.
+
+Checkpoint results: 33 Python tests and 18 package/controller/terminal tests pass.
+The parent reran these against the staged source, excluding concurrent D04 edits.
+The complete opt-in installed-native supervisor suite passes, including real local
+mock first prompt, CLI attach, interruption and history-only restart. No skip was
+used in that native run.

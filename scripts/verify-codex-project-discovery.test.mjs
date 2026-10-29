@@ -197,7 +197,7 @@ test("signed project operations are exact-path scoped and accept bounded escaped
         revision: "a".repeat(40),
         model: "gpt-6.1-sol",
         effort: "low",
-        text: "x" + "\n".repeat(32767),
+        text: `x${"\n".repeat(32767)}`,
       };
     const headers = { Host: "app.example.com", "Content-Type": "application/json" },
       base = `http://127.0.0.1:${gateway.port}`;

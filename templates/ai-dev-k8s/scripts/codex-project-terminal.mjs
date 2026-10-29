@@ -109,8 +109,8 @@ export function createProjectTerminal(config, { authorize, onRevoked, launch = l
             try {
               output = Buffer.concat([output, chunk]);
               check(output.length <= 262144);
-              let at;
-              while ((at = output.indexOf(10)) !== -1) {
+              while (output.includes(10)) {
+                const at = output.indexOf(10);
                 const line = output.subarray(0, at);
                 output = output.subarray(at + 1);
                 const message = JSON.parse(line);
@@ -171,7 +171,7 @@ export function createProjectTerminal(config, { authorize, onRevoked, launch = l
               exact(value, ["type", "cols", "rows"]) &&
               [value.cols, value.rows].every((v) => Number.isInteger(v) && v >= 2 && v <= 500),
           );
-        pty.stdin.write(JSON.stringify(value) + "\n");
+        pty.stdin.write(`${JSON.stringify(value)}\n`);
       } catch {
         close();
       }
