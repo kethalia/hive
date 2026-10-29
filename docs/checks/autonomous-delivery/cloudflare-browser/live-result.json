@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "origin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+  "checks": {
+    "previewBootstrap": true,
+    "fixedHostForm": true
+  },
+  "screenshots": false,
+  "traces": false,
+  "consoleCaptured": false,
+  "accountInference": false,
+  "terminalOpened": false,
+  "projectTasksStarted": false,
+  "coderKeyRetainedForRotation": true,
+  "cleanupAttempted": false,
+  "cleanupSucceeded": false,
+  "browser": "155.0.8059.79",
+  "passed": false,
+  "failureStep": "login",
+  "deadlineReached": false,
+  "budget": {
+    "forwarded": 21,
+    "limit": 200,
+    "loginPosts": 0,
+    "cleanupReserved": true,
+    "elapsedMs": 13783,
+    "blocked": {
+      "scope": 7
+    }
+  },
+  "observedAt": "2026-10-29T21:02:14.615125+00:00",
+  "parentExitCode": 0,
+  "deployedSource": "106721df264ae25e860229efb43362d7d77d23b2",
+  "appVersion": "9dd91379-967f-47b8-85e1-67c82dcd73b9",
+  "authVersion": "31f32411-94f1-438e-87dc-40280749910c"
+}
