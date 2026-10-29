@@ -10,11 +10,7 @@
   "initialUserTableCount": 0,
   "schemaApplied": "deploy/cloudflare/epic-preview/schema.sql",
   "runtimeRole": "hive_epic_probe",
-  "grants": [
-    "USAGE schema",
-    "SELECT table",
-    "INSERT table"
-  ],
+  "grants": ["USAGE schema", "SELECT table", "INSERT table"],
   "productionDataCopied": false,
   "runId": "b36227d6-528b-4a90-94cc-2e014bb9fbfc",
   "sourceRevision": "0e9c101c7594c6911ce98da7b2d3ba2771f61128",
