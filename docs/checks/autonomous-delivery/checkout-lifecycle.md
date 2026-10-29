@@ -55,7 +55,10 @@ contains a fixed error code and exits nonzero. No raw provider responses or Git 
 | `releaseLease` | `taskId`, current `leaseId`, integer `generation`, actual `revision` | Updated state with no active lease |
 | `requestCleanup` | `taskId` matching the latest task | `status: "controller_authority_unavailable"`, `checkoutRetained: true`, `requestId` |
 
-Inspection reports the signed record; it does not certify a clean or currently usable checkout.
+Inspection reports the signed record and, for `ready` checkouts, verifies checkout inode,
+Git storage/configuration and canonical remote before returning `checkoutVerified: true`.
+It deliberately does not require clean source: unfinished edits remain readable and resumable.
+Other states return `checkoutVerified: false`; they do not authorize execution.
 An interrupted clone can leave a recorded checkout identity before publication completes. Always
 use `prepare` with the inspected lease to reconcile it before launching a consumer.
 
@@ -153,7 +156,7 @@ python3 -m py_compile templates/ai-dev-k8s/scripts/managed-projects.py
 git diff --check
 ```
 
-The 21 local tests use temporary bare Git repositories and isolated homes. They cover exact
+The 23 local tests use temporary bare Git repositories and isolated homes. They cover exact
 revision/inode reuse, generation fencing, second-writer rejection, expired lease retention,
 primary/history preservation, interrupted clone and post-rename recovery, bounded recovery and
 stage substitution, disabled CLI deletion, independent fixture authority and wrong-revision
@@ -162,6 +165,11 @@ file references, linked worktrees, mounts, symlinks, private receipt tampering, 
 and reflog-only commits, production credential/environment construction, real local feature
 branch/upstream pushes through release and fixture cleanup, rejection of 14 unsafe/ambiguous
 configuration changes, and preservation of dirty active-task edits and leases during inspection.
+Inspection also rejects a replacement checkout at the same path and a changed remote. Process
+enumeration in these fixtures is bounded to the test process and explicitly tracked real child;
+this avoids unrelated same-UID nondumpable CI processes. Real cwd/open-file detection remains
+covered, along with explicit inaccessible-process rejection. Production enumeration and its
+PermissionError fail-closed behavior are unchanged; no runtime flag enables this fixture scope.
 
 Next activation gates: independent review; versioned trusted helper installation; real GitHub
 agent auth and canonical identity validation; controller project/session registry binding;

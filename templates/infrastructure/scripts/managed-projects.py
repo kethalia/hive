@@ -454,7 +454,12 @@ class ManagedProjects:
     def inspect(self, repository_id):
         with self.lock():
             project, _, record = self.load(repository_id)
-            return self.summary(project, record)
+            # Read-only provenance check, deliberately without clean(): unfinished
+            # edits are valid active-task state, but a replaced checkout is not.
+            verified = record["status"] == "ready"
+            if verified:
+                self.checkout_valid(project / "checkout", record)
+            return {**self.summary(project, record), "checkoutVerified": verified}
 
     def release_lease(self, repository_id, task_id, lease_id, generation, expected_revision):
         require(revision(expected_revision), "invalid_revision")

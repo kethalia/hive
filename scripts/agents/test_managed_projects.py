@@ -3,6 +3,7 @@ import hmac
 import importlib.util
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -84,6 +85,18 @@ class ManagedProjectsTests(unittest.TestCase):
         self.backend = FixtureGit(self.bare)
         self.manager = MODULE.ManagedProjects(self.home, FixtureResolver(), self.backend)
         self.authority = TestControllerAuthority()
+        # CI may host unrelated same-UID nondumpable processes. Enumerate only
+        # this fixture's real process and explicitly tracked real children.
+        # Production still scans all of /proc and fails closed on PermissionError.
+        self.process_ids = {os.getpid()}
+        original_iterdir = Path.iterdir
+        def fixture_iterdir(path):
+            if path == Path("/proc"):
+                return iter(Path("/proc") / str(pid) for pid in self.process_ids)
+            return original_iterdir(path)
+        process_patch = mock.patch.object(Path, "iterdir", fixture_iterdir)
+        process_patch.start()
+        self.addCleanup(process_patch.stop)
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -275,13 +288,43 @@ class ManagedProjectsTests(unittest.TestCase):
     def test_active_process_blocks_cleanup(self):
         checkout = self.retired_ready()
         child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"], cwd=checkout)
+        self.process_ids.add(child.pid)
         try:
             with self.assertRaisesRegex(MODULE.ManagedError, "checkout_in_use"):
                 self.cleanup()
         finally:
             child.kill()
             child.wait()
+            self.process_ids.discard(child.pid)
         self.assertTrue(checkout.exists())
+
+    def test_inaccessible_same_owner_process_blocks_cleanup(self):
+        checkout = self.retired_ready()
+        original = os.readlink
+        def unreadable(path, *args, **kwargs):
+            if Path(path) == Path(f"/proc/{os.getpid()}/cwd"):
+                raise PermissionError("fixture nondumpable process")
+            return original(path, *args, **kwargs)
+        with mock.patch.object(MODULE.os, "readlink", side_effect=unreadable):
+            with self.assertRaisesRegex(MODULE.ManagedError, "process_inspection_unavailable"):
+                self.cleanup()
+        self.assertTrue(checkout.exists())
+
+    def test_inspect_verifies_checkout_provenance_without_rejecting_dirty_work(self):
+        prepared = self.prepare()
+        checkout = Path(prepared["checkoutDirectory"])
+        (checkout / "README.md").write_text("unfinished edits")
+        self.assertTrue(self.manager.inspect("123")["checkoutVerified"])
+        saved = checkout.with_name("original-checkout")
+        checkout.rename(saved)
+        shutil.copytree(saved, checkout)
+        with self.assertRaisesRegex(MODULE.ManagedError, "checkout_identity_changed"):
+            self.manager.inspect("123")
+        shutil.rmtree(checkout)
+        saved.rename(checkout)
+        git(checkout, "remote", "set-url", "origin", "https://github.com/other/repository.git")
+        with self.assertRaisesRegex(MODULE.ManagedError, "git_configuration_changed"):
+            self.manager.inspect("123")
 
     def test_open_file_reference_and_linked_worktree_block_cleanup(self):
         checkout = self.retired_ready()
