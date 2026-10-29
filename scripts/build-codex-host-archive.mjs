@@ -50,16 +50,18 @@ export async function hostArchive(root) {
 export async function syncHostArchive(root, check = false) {
   const artifact = await hostArchive(root);
   const destination = join(root, "templates/ai-dev-k8s/assets/codex-host.tar");
+  const checksum = Buffer.from(`${artifact.sha256}\n`);
   if (check) {
     if (
-      !(await readFile(destination)).equals(artifact.archive) ||
+      !(await readFile(`${destination}.sha256`)).equals(checksum) ||
       !(await readFile(`${destination}.gz`)).equals(artifact.compressed)
     )
       throw new Error("Host package is stale; run pnpm templates:sync");
   } else {
     await mkdir(join(root, "templates/ai-dev-k8s/assets"), { recursive: true });
-    await writeFile(destination, artifact.archive);
+    await writeFile(`${destination}.sha256`, checksum);
     await writeFile(`${destination}.gz`, artifact.compressed);
+    await rm(destination, { force: true });
   }
   return artifact.sha256;
 }

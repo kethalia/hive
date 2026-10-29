@@ -62,6 +62,8 @@ export async function templateArtifact(directory) {
   pack.finalize();
   await collected;
   const archive = Buffer.concat(chunks);
+  // The configured Coder deployment rejects file uploads above one MiB.
+  if (archive.length > 1024 * 1024) throw new Error("Template archive exceeds Coder upload bounds");
   return {
     archive,
     metadata: {

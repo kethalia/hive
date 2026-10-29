@@ -60,6 +60,8 @@ test("a missing entrypoint or oversized file cannot become a published artifact"
   const path = await fixture(t);
   await writeFile(join(path, "large"), Buffer.alloc(4 * 1024 * 1024 + 1));
   await assert.rejects(templateArtifact(path), /bounds/);
+  await writeFile(join(path, "large"), Buffer.alloc(1024 * 1024));
+  await assert.rejects(templateArtifact(path), /Coder upload bounds/);
   await rm(join(path, "large"));
   await rm(join(path, "main.tf"));
   await assert.rejects(templateArtifact(path), /main.tf/);

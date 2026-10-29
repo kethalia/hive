@@ -89,3 +89,14 @@ The binding contains the new build identity. Both manager execution and native e
 ingestion remain disabled. The globally active software template stayed
 `1b6dbdb0-69d0-4213-9d53-b8a4f33e8c30`; the primary workspace was not rebuilt.
 See [sanitized live evidence](test-workspace-host-installation.json).
+
+## Coder upload capacity
+
+The next isolated-launcher template exposed Coder's one-MiB file-upload limit before
+any version or workspace build was created. The distributable template now retains only
+the deterministic gzip package and an uncompressed SHA-256 sidecar, removing the redundant
+raw tar. The installer verifies that original digest after bounded decompression.
+Artifact generation rejects complete archives over 1,048,576 bytes, with a regression
+for total upload size below the separate per-file safety limit. All 86 template checks
+pass. The software archive is 671,232 bytes at this checkpoint; sizes are tracked in the
+committed template artifact manifest rather than inferred from compressed source files.
