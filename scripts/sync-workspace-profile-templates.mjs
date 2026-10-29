@@ -1,6 +1,7 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Every path is derived from repository-owned template roots. */
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { syncHostArchive } from "./build-codex-host-archive.mjs";
 import { buildTemplateArtifacts } from "./build-template-artifacts.mjs";
 
 const repositoryRoot = process.cwd();
@@ -12,6 +13,7 @@ const targetRoots = [
   join(repositoryRoot, "templates", "infrastructure"),
 ];
 const checkOnly = process.argv.includes("--check");
+await syncHostArchive(repositoryRoot, checkOnly);
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -36,6 +38,8 @@ const canonicalScriptRelativePaths = new Set(
 const sharedRelativePaths = [
   ".terraform.lock.hcl",
   "main.tf",
+  "hive-host.tf",
+  "assets/codex-host.tar",
   "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
 ].sort();

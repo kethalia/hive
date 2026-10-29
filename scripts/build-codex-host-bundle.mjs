@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Build from the checked-out lockfile installation, without remote npm installs.
 import { createHash } from "node:crypto";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
 const require = createRequire(import.meta.url),
   { build } = require("esbuild");
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -16,6 +17,8 @@ if (ws.version !== "8.21.3") throw new Error("Unsupported locked ws distribution
 mkdirSync(out, { mode: 0o700 });
 mkdirSync(join(out, "vendor"), { mode: 0o700 });
 await build({
+  absWorkingDir: root,
+  preserveSymlinks: true,
   stdin: { contents: 'export {default,WebSocket,WebSocketServer} from "ws";', resolveDir: root },
   outfile: join(out, "vendor/ws.mjs"),
   bundle: true,

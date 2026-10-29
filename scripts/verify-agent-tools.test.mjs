@@ -52,6 +52,8 @@ test("managed checkouts preserve work and enforce signed lifecycle boundaries", 
 for (const [label, script] of [
   ["pinned native Codex runtime installation", "test_codex_runtime_install.py"],
   ["authoritative GitHub evidence collection", "test_github_evidence.py"],
+  ["managed project lease renewal", "test_codex_project_lease.py"],
+  ["pinned host package installation and provisioner identity", "test_codex_host_install.py"],
 ]) {
   test(label, () => {
     const result = spawnSync("python3", ["-B", `scripts/agents/${script}`], { encoding: "utf8" });

@@ -1,5 +1,9 @@
 terraform {
   required_providers {
+    external = {
+      source  = "hashicorp/external"
+      version = "= 2.4.2"
+    }
     coder = {
       source  = "coder/coder"
       version = "~> 2.15"

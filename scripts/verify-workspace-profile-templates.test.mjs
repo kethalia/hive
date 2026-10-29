@@ -1,7 +1,16 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are constrained to the repository template catalog. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -209,18 +218,22 @@ test("specialist templates stay synchronized with the canonical Kubernetes scaff
   assert.match(result.stdout, /synchronized \(4 variants\)/);
 });
 
-test("profile synchronization detects and removes obsolete shared scripts", () => {
+test("profile synchronization detects and removes obsolete shared scripts", (t) => {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "workspace-profile-sync-"));
+  t.after(() => rmSync(fixtureRoot, { recursive: true, force: true }));
   const fixtureTemplates = join(fixtureRoot, "templates");
   const canonical = join(fixtureTemplates, "ai-dev-k8s");
   const syncScript = join(repositoryRoot, "scripts/sync-workspace-profile-templates.mjs");
   const targetNames = ["browser-testing", "game-dev", "electronics", "infrastructure"];
 
-  mkdirSync(join(canonical, "scripts"), { recursive: true });
-  writeFileSync(join(canonical, ".terraform.lock.hcl"), "canonical lock\n");
-  writeFileSync(join(canonical, "main.tf"), "# canonical Terraform\n");
+  cpSync(join(templateRoot, "ai-dev-k8s"), canonical, { recursive: true });
+  mkdirSync(join(fixtureRoot, "scripts"));
+  cpSync(
+    join(repositoryRoot, "scripts/build-codex-host-bundle.mjs"),
+    join(fixtureRoot, "scripts/build-codex-host-bundle.mjs"),
+  );
+  symlinkSync(join(repositoryRoot, "node_modules"), join(fixtureRoot, "node_modules"), "dir");
   writeFileSync(join(canonical, "WORKSPACE_ROUTING.md"), "# Canonical routing\n");
-  writeFileSync(join(canonical, "scripts", "init.sh"), "#!/bin/sh\n");
 
   for (const targetName of targetNames) {
     mkdirSync(join(fixtureTemplates, targetName, "scripts"), { recursive: true });
