@@ -28,7 +28,7 @@ export interface AuthorizedSessionTransport {
   ): Promise<unknown>;
   notify(method: "initialized"): void;
   onNotification(listener: (event: unknown) => void): () => void;
-  onClose(listener: () => void): () => void;
+  onClose(listener: (reason?: "revoked" | "disconnected") => void): () => void;
   close(): void;
 }
 
@@ -79,7 +79,7 @@ export class CodexSessionAdapter {
     this.changed(this.snapshot);
   }
 
-  disconnect() {
+  disconnect(reason: "revoked" | "disconnected" = "disconnected") {
     this.generation++;
     for (const stop of this.unlisten.splice(0)) stop();
     this.transport?.close();
@@ -88,7 +88,12 @@ export class CodexSessionAdapter {
     this.hydration = undefined;
     this.invalidationRetries = 0;
     this.reconciliationScheduled = false;
-    this.view = { ...this.view, phase: "disconnected", needsRefresh: true };
+    this.view = {
+      ...this.view,
+      phase: "disconnected",
+      needsRefresh: true,
+      turns: reason === "revoked" ? [] : this.view.turns,
+    };
     this.publish();
   }
 
@@ -133,8 +138,8 @@ export class CodexSessionAdapter {
           this.fail("Session events are invalid or exceeded the supported limit.");
         }
       }),
-      transport.onClose(() => {
-        if (generation === this.generation) this.disconnect();
+      transport.onClose((reason) => {
+        if (generation === this.generation) this.disconnect(reason);
       }),
     ];
     this.publish();
@@ -295,7 +300,7 @@ export class CodexSessionAdapter {
   }
 
   private fail(error: string, phase: SessionView["phase"] = "error") {
-    this.disconnect();
+    this.disconnect("revoked");
     this.view = { ...this.view, phase, error, needsRefresh: true };
     this.publish();
   }
