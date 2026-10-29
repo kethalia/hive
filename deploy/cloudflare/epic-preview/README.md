@@ -6,6 +6,13 @@ workerd has passed Prisma interactive callback transactions against the isolated
 This does **not** establish the full Hive Prisma schema, Next.js, Hive browser authentication,
 workspace operations, terminal transport, or the shared native Codex session.
 
+On 2026-10-29, committed revision `e7110466dbe693a5501b5ef9e1738aa59f46b4b8` passed
+the bounded **Cloudflare network → Coder + Neon** checks. See [live results](live-evidence.json)
+and [deployment/version identity](deployment-evidence.json). Sixteen scripted Worker requests
+were used across initial diagnosis and final validation, within the authorized maximum of 20.
+The task Worker is retained with public `workers.dev` and version preview URLs **disabled**.
+The clean Neon test project is retained. No production routes, DNS, paid add-ons or plans changed.
+
 The probe has no production routes or `HIVE_ORIGIN`. Its Coder operation is fixed to
 `GET https://coder.kethalia.com/api/v2/users/me`; there is no caller-supplied URL, command,
 SQL, database name, run identity or Coder password. All endpoints require a dedicated preview
@@ -35,8 +42,10 @@ The initial HTTP-only 2026-10-29 check passed 11 focused tests, built a 208.18 K
 bearer (401), authenticated capability artifact (200), and rejected query parameters (400).
 No real Coder/Neon request was made by that check. See [initial local evidence](local-evidence.json).
 
-The subsequent Prisma fixture has 12 passing focused tests and a 2450.37 KiB uncompressed
-dry-run build (880.82 KiB gzip). [Real local-workerd evidence](prisma-workerd-evidence.json)
+The initial Prisma fixture had 12 passing focused tests and a 2450.37 KiB uncompressed
+dry-run build (880.82 KiB gzip). The final diagnostic revision has 13 passing tests and a
+2451.72 KiB upload (881.29 KiB gzip), with 51 ms Cloudflare startup time.
+[Real local-workerd evidence](prisma-workerd-evidence.json)
 records two successful requests against the clean Neon test project: awaited read/insert/read
 inside an interactive `$transaction` callback, duplicate replay, a deliberate callback throw
 whose inserted row is rolled back, UUID/JSON/date round trips, and SELECT/INSERT-only role checks.
@@ -59,8 +68,9 @@ schema/client/adapter versions. Root application dependencies are unchanged.
 
 ## Deployment proposal and prerequisites
 
-The primary agent coordinates deployment. **No cloud resources have been created or deployed by
-this probe.** Read-only account findings are in [account inspection](account-inspection.json).
+The primary agent coordinates deployment. The bounded probe has now completed; the procedure
+below records its prerequisites and reproduction path. Read-only account findings and the later
+task resource state are in [account inspection](account-inspection.json).
 
 1. The user confirmed an existing Cloudflare Workers **Paid** plan, with no authorization for
    additional cost. Verify sufficient included usage headroom before deployment. The connected
@@ -134,3 +144,10 @@ The next gates are the full existing Hive Prisma schema, supported framework bui
 Hive auth/terminal/workspace flows. See the [capability audit](../../../docs/checks/autonomous-delivery/cloudflare-capability.md).
 The HTTP driver supports noninteractive transaction batches; interactive transactions require
 another transport. [Official Neon driver documentation](https://neon.com/docs/serverless/serverless-driver).
+
+The initial live Coder request failed before making its outbound request because Workers does not
+support `redirect: "error"`. Switching to `manual`, rejecting non-OK status and retaining only a
+redirect's origin resolved it without forwarding credentials to another origin. This was a runtime
+compatibility defect, not a Coder account rejection or production routing defect. Both the initial
+failure and initial Neon success are preserved in suffixed `a3549b4` evidence files.
+[Official Workers Request behavior](https://developers.cloudflare.com/workers/runtime-apis/request/).

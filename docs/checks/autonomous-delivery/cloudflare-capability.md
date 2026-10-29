@@ -2,7 +2,7 @@
 
 Date: 2026-10-29. Source revision inspected: `d02e55438caa10041b1fbdccec9033cf21c62fab`
 on `codex/delivery-system-design`. Workspace profile: `software` / image variant `cli`.
-Scope: source inspection and current official documentation; no deployment, resource creation,
+Initial audit scope: source inspection and current official documentation; no deployment, resource creation,
 secret retrieval, production request, database mutation, or browser validation performed by this
 audit. Account/credential inspection and the specialist workspace record belong to the primary
 agent's separate evidence. F02 remains **unproven** until the real preview checks below run.
@@ -121,7 +121,8 @@ Workers Paid. [Workers and Containers pricing](https://developers.cloudflare.com
 
 ## Evidence required before F02 is accepted
 
-All items below are **pending** in this audit. Attach actual sanitized outcomes and deployment
+All items below were **pending at initial audit**. Subsequent fixture results in the final section
+close only their explicitly listed transport checks. Attach actual sanitized outcomes and deployment
 identity; label mocks/local workerd/deployed integration/browser results separately.
 
 - Adapter build plus `wrangler deploy --dry-run`: exact versions, uploaded bytes, startup timing,
@@ -182,5 +183,25 @@ rollback following an awaited callback throw, plus UUID/JSON/timestamptz round t
 restricted SELECT/INSERT role. Exact file digests bind the initial uncommitted source; the SHA
 is explicitly labeled a base revision. The rerun helper requires committed source by default.
 This closes a narrow transport uncertainty, not the complete F02/framework/auth/schema gate.
-Cloudflare network execution remains pending until the primary commits and authorizes that
-exact artifact for deployment.
+Cloudflare network execution has since passed at committed revision
+`e7110466dbe693a5501b5ef9e1738aa59f46b4b8`; see
+[live results](../../../deploy/cloudflare/epic-preview/live-evidence.json) and
+[deployment identity](../../../deploy/cloudflare/epic-preview/deployment-evidence.json).
+The final seven-request sequence observed unauthorized rejection, authenticated Coder identity,
+Prisma interactive commit/replay/rollback and typed round trips, and HTTP batch replay/rollback.
+Sixteen scripted Worker requests were used across diagnosis and final checks. The initial failure
+proved a concrete migration hazard: Workers does not implement Fetch's `redirect: "error"` and
+throws before sending the request. `manual` with explicit status handling passed while preventing
+credential forwarding. [Workers Request documentation](https://developers.cloudflare.com/workers/runtime-apis/request/).
+
+The task Worker remains retained with public `workers.dev` and version preview URLs disabled;
+the isolated Neon test project remains available for the next gates. No production routes, DNS,
+paid add-ons or plans changed. F02 remains partial: the full Hive schema, supported framework
+build, Hive session/authentication flow, scoped workspace operations and terminal transport are
+still unverified. A dedicated bearer gate and fixed Coder identity read do not close those gates.
+
+The verified redirect incompatibility also affects future ports of
+`packages/auth/src/client.ts` (five `redirect: "error"` requests) and
+`services/terminal-proxy/src/auth.ts` (two requests). These currently execute in Node; change their
+redirect handling only when moving those paths into Workers. Browser-side Fetch callers support
+`error` and must not be changed indiscriminately.

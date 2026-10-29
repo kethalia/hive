@@ -1,0 +1,35 @@
+{
+  "projectId": "purple-math-59583745",
+  "branchId": "br-ancient-violet-b7pcun87",
+  "endpointId": "ep-jolly-sky-b7fhirib",
+  "name": "hive-epic-preview",
+  "organizationId": "org-winter-salad-90993453",
+  "plan": "free",
+  "createdAt": "2026-10-29T15:57:26Z",
+  "database": "hive_epic_preview",
+  "initialUserTableCount": 0,
+  "schemaApplied": "deploy/cloudflare/epic-preview/schema.sql",
+  "runtimeRole": "hive_epic_probe",
+  "grants": [
+    "USAGE schema",
+    "SELECT table",
+    "INSERT table"
+  ],
+  "productionDataCopied": false,
+  "runId": "b36227d6-528b-4a90-94cc-2e014bb9fbfc",
+  "sourceRevision": "0e9c101c7594c6911ce98da7b2d3ba2771f61128",
+  "ranAt": "2026-10-29T16:01:33.969Z",
+  "executionOrigin": "software-workspace-node",
+  "cloudflareDeployed": false,
+  "result": {
+    "transport": "neon-http",
+    "transactionKind": "noninteractive-batch",
+    "committed": true,
+    "duplicateReplay": true,
+    "rollback": true,
+    "insertedThisRun": true,
+    "retainedRowsForRun": 1,
+    "prismaVerified": false,
+    "interactiveTransactionsVerified": false
+  }
+}

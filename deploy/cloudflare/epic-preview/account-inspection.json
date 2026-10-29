@@ -27,7 +27,8 @@
       "workersAccountDefaultUsageModel": "standard",
       "additionalCostsAuthorized": false
     },
-    "resourceMutations": 0
+    "resourceMutations": "Created and updated only task Worker; no routes/DNS/add-ons/plan changes",
+    "currentDeploymentEvidence": "deployment-evidence.json"
   },
   "neon": {
     "organizationId": "org-winter-salad-90993453",
@@ -54,5 +55,5 @@
     },
     "resourceMutations": 0
   },
-  "deploymentStatus": "not-deployed"
+  "deploymentStatus": "bounded-probe-passed-public-serving-disabled"
 }
