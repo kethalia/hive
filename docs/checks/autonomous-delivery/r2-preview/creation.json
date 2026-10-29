@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "bucket": "hive-delivery-proof-20261029-a4b19072",
+  "taskId": "67bf44fc-0ade-4eab-9795-814d4bff0612",
+  "createdBy": "primary agent /root",
+  "plannedAt": "2026-10-29T20:09:12.998871+00:00",
+  "lockExpiresAt": "2026-10-29T20:39:12.998871Z",
+  "maxStoredBytes": 10485760,
+  "userAuthorizedStorageCeilingBytes": 1000000000,
+  "objects": [
+    {
+      "key": "delivery/67bf44fc-0ade-4eab-9795-814d4bff0612/0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a.json",
+      "bytes": 117,
+      "sha256": "0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a"
+    }
+  ],
+  "freshPreflightBucketAbsent": true,
+  "bucketCreation": {
+    "name": "hive-delivery-proof-20261029-a4b19072",
+    "creation_date": "2026-10-29T20:09:33.480Z",
+    "location": "EEUR",
+    "storage_class": "Standard",
+    "jurisdiction": "default"
+  }
+}

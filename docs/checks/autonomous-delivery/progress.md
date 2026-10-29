@@ -6,8 +6,8 @@ Branch: `codex/delivery-system-design`.
 ## Authorization and boundaries
 
 The owner authorized autonomous implementation, trusted subagents, isolated preview validation,
-and a completed PR for their merge and production cutover approval. Use free tiers only; ask
-before adding costs. Do not change production, merge the final PR to main, rewrite history,
+and a completed PR for their merge and production cutover approval. Use free tiers by default; ask before adding costs. The owner separately authorized the
+bounded R2 proof and up to one GB if needed; its actual payload is 117 bytes. Do not change production, merge the final PR to main, rewrite history,
 or delete unrelated resources. Credentials stay outside source control and evidence.
 
 ## Current work
@@ -16,13 +16,13 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Complete | PR #401 merged main into epic through GitHub; pulled 4d8b821. Formatting-only conflict resolved. |
 | F01 fixed Coder host | Implemented; preview acceptance pending | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | Clean app/auth runtime proof passed; guarded preview pending | Actual OpenNext app and auth service binding passed against restricted Neon runtime role at 4c0eedf. Provenance-safe auth rotation committed 6ae325d; exact latest preview build and baseline compatibility remain. |
+| F02 Cloudflare/Neon | Guarded preview passed; updated candidate pending | Actual app/auth preview passed at b80a3e1; both public URLs are now disabled. Nineteen isolated Neon migrations are applied. Sustained local relay proof passed at 1107907. Updated native-callback candidate and baseline compatibility remain. |
 | F03 project discovery | Signed discovery and project enrollment implemented; preview pending | b0e278c ports discovery to verified Coder app transport, independently binds owner/build/app and uses agent-scoped GitHub access. No SSH fallback in Workers. 7635164 adds stable enrollment and durable first-task preparation; account-backed preview remains. |
-| F04 same native session | Native proof, registration and mounted UI implemented; browser acceptance pending | b0e278c persists host lifetime and thread bindings, reauthorizes capabilities and recovers exact lost heartbeat acknowledgements. 7635164 mounts both views to the registered native thread; real account-backed inference and deployed browser acceptance remain. |
+| F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
 | D02/D03 persistence | Foundation and recovery validated | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation; real PostgreSQL CI includes manager and registration regressions. |
 | D05 Delivery window | Initial read-only view validated | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Manager linking, pause UI, integrated deployment remain. |
-| D07/D08 eligibility | Authoritative GitHub adapter implemented; signed source integration pending | 25 focused tests pass, including delayed old runs, producer binding and current revision. 7635164 adds actual GitHub collection, immutable artifact interface, full-policy digest, source ordering and stale pass invalidation; signed source transport and R2 integration remain. Main currently has no required successful checks. |
+| D07/D08 eligibility | Signed transport and manager policy integration passed locally; live composition pending | 8571cd1 binds result references to the exact PR, checkout and full controller policy; 92 focused checks pass, including real PostgreSQL races. a4fa338 preserves pending retry bytes while retiring validated expired records. Live R2 retention/integrity passed; cleanup is complete. Installed source composition remains. GitHub reports no required PR checks. |
 | Test workspace | Created and healthy | User reconnected GitHub; verified valid. codex/hive-epic-test is running, agent connected and ready; two-hour autostop. Identity is preserved in test-workspace-creation.json. No primary credentials copied. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
@@ -50,8 +50,8 @@ from the creation response before use. Do not copy primary owner or Codex creden
 - Test account authentication: complete, low difficulty. Authenticated with supplied credentials
   using isolated private temporary session storage; primary Coder CLI login unchanged.
 - Test workspace preparation: complete after the owner reconnected GitHub, moderate difficulty.
-  Created and verified the isolated persistent test workspace. Account-backed Codex testing still
-  needs a fresh device login; the previous device code expired without completing authentication.
+  Created and verified the isolated persistent test workspace. Fresh dedicated Codex device authentication succeeded. The initial runtime-directory failure
+  was corrected; the real-account manager/child pilot now passes with evidence preservation underway.
 
 ## Completion gates
 
@@ -168,7 +168,7 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   the legacy override fence is also required. Commit `0bc7894` preserves both passing and failing
   evidence. Installed launcher integration is underway; background-writer quiescence remains
   unproven and must keep delivery writer holds. No fixture result enables production execution.
-- **CI:** all required checks passed at `68b4aaf`; new template checkpoints are pushed for CI.
+- **CI:** the available CI checks passed at `68b4aaf` (GitHub reports no required checks); new template checkpoints are pushed for CI.
   The main-targeting epic PR remains a draft, with account-backed browser/session tests and the
   remaining delivery and Cloudflare compatibility work still required.
 
@@ -177,3 +177,63 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   included and the response reported another page. This verifies the reconnect and installed
   helper, not complete pagination or the web application path. No repository was cloned by
   this read. [Sanitized result](test-workspace-github-discovery.json).
+
+### Installed runtime and live evidence checkpoint
+
+- **Implement / Validate: installed isolated host; high difficulty.** Commit `2e7aa31` also
+  removes duplicate uncompressed archives to fit Coder's one-MiB template upload limit. Inactive
+  version `4bec462b-de81-4a8a-9558-fec3182e1ccc` runs in the recorded persistent test workspace;
+  health returns 200, native isolation is enabled and manager execution remains disabled. The
+  global active template is unchanged. [Installed result](test-workspace-isolated-host.json).
+- **Validate: native writer drain remains blocked; high difficulty.** `faa9530` proves whole PID
+  namespace termination stops detached synthetic writers, including writers with unlinked files.
+  The complete native runtime does not yet pass in that namespace arrangement. Native turn
+  completion and empty terminal inventories are insufficient to release writer ownership.
+  [Evidence and limits](native-writer-quiescence.md).
+- **Validate: signed GitHub source transport; high difficulty.** `60f74a8` passed focused
+  source, collector, helper and composed PostgreSQL/local-workerd R2 checks. This exercises the
+  canonical modules; it does not establish an activated installed-host source collector.
+  [Evidence](github-transport.md).
+- **Validate: account-backed pilot stopped before inference; high difficulty.** Device login
+  succeeded in the test runtime's own Codex home. Startup then rejected command execution because
+  vendor-created runtime aliases conflicted with protected credential paths. A real-home
+  reproduction identified the conflict; the proposed private temporary-directory fix is under
+  test. No model task, child delegation or production work was claimed as successful.
+- **Validate: live R2 retention and integrity passed; low difficulty.** A private task-created
+  bucket stores 117 bytes. Full readback matches its recorded SHA-256; identical overwrite,
+  changed overwrite and deletion all failed under the thirty-minute lock. Cleanup completed after independently verifying the expired rule,
+  exact object and bucket identity; final storage is zero. [Live evidence](r2-preview/result.json).
+
+- **Validate: actual-account delegation passed; high difficulty.** The corrected `576b889`
+  host package is installed and independently rechecked in the test workspace. Installed command
+  readiness and credential-denial controls pass. A bounded real-account pilot then completed in
+  about 35 seconds with exactly one manager and one child using the requested/effective
+  `gpt-6.1-sol` at low reasoning. The child wrote a two-file fixture and ran six tests; the
+  manager independently reran them, and the copied fixture passes in the primary workspace.
+  This is runtime/delegation evidence, not activated delivery, background-writer quiescence or
+  production acceptance. A missing `rg` command was handled by the child using `ls`; its pinned
+  PATH integration remains a follow-up. Initial startup/test failures are preserved.
+- **Implement / Review: bounded retry journal retirement; moderate difficulty.** `a4fa338`
+  prevents the private GitHub spool from permanently filling after 32 requests. Fifteen tests
+  cover safe expiry retirement and exact pending retry preservation. Independent review found
+  validation-ordering and nonregular-file handling gaps; both were corrected before commit.
+  [Evidence](github-journal-retirement.md).
+
+- **Review / Validate: manager policy integration passed; high difficulty.** Parent reran all
+  92 focused checks, including twelve real PostgreSQL policy tests. Current PR identity,
+  complete requirements and source provenance are rechecked in the result transaction; a
+  policy change or revoked source cannot leave a successful report. `eff1727` includes these
+  regressions in PostgreSQL CI. [Evidence](manager-policy.md).
+- **Validate: actual Cloudflare callback path exposed a redirect; moderate difficulty.**
+  The local deployed-framework proof reached the configured issuer, then received HTTP 307
+  from browser middleware before native signature verification. The first failure is preserved.
+  The shared exact callback exception is being integrated into both middleware and the outer
+  Worker; no failed candidate was deployed.
+
+- **Validate / Cleanup: live R2 proof complete; moderate difficulty.** Integrity and locked
+  mutation rejection passed with 117 bytes. R2 still rejected deletion after the Date expiry;
+  fresh checks found no drift, so the primary removed only the authorized expired test rule.
+  The object and empty task-created bucket were then deleted; a fresh inventory confirms
+  absence and the original five unrelated buckets remain. Automatic Date-expiry deletion is
+  unverified. Thirty conservative reservations plus one earlier list read stayed within the
+  operating budget. [Cleanup and ledger](r2-preview/cleanup.json).
