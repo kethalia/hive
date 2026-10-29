@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "status": "source_frozen_for_review",
+  "scope": "Outer launcher and worker admission building block; actual software host wiring, installed-native composition and server barrier/receipt authority remain pending.",
+  "focusedTests": {
+    "tests": 27,
+    "pass": 27,
+    "fail": 0
+  },
+  "exactHardenedArtifactTests": {
+    "tests": 22,
+    "pass": 22,
+    "fail": 0
+  },
+  "actualLocalProcesses": [
+    "Node worker",
+    "foreground tmux server",
+    "tmux writing pane",
+    "Python forkpty helper",
+    "tmux attachment client"
+  ],
+  "noAccountInference": true,
+  "noCloudChanges": true,
+  "noWriterRelease": true,
+  "ciTerminalFailure": "unresolved_cause; see ci-terminal-helper.json",
+  "sourceHashes": {
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "731228834e262f4bfe930c3fa8a711d3b7ae2e2fc55d93f658b76dbff5648537",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "7ec65381b3901d08fdca039e25bdb1b4030a401096a7ed6f1398cf99a59ecc3a",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "f62154535008c5d258692d1c2ffba95c71f470174f66eed2252618453b89f4d8",
+    "scripts/verify-codex-native-guardian.test.mjs": "7b39eacf4e3ca9cdbd03e709c6cf979b8846a77f77f9cbd1f8da24befcaa00cb",
+    "scripts/verify-codex-host-guardian.test.mjs": "626ca5a24774e17f508daafb808daa7f63b05644bda4c131e9e2aab098bfa29c",
+    "docs/checks/autonomous-delivery/guardian-worker-integration.md": "81cd27258786a90f246ae567581317a96fbb967332ebeed8372341c4d73c9617"
+  }
+}

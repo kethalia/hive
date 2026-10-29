@@ -1,0 +1,35 @@
+✔ outer worker barrier refuses active project then drains actual tmux descendants and preserves a durable receipt (710.915226ms)
+✔ uncertain old lifetime cannot be adopted or restarted from an empty new guardian (581.059245ms)
+✔ failed durable worker barrier cannot produce a planned drain receipt or permit restart (571.215508ms)
+✔ worker import tampering is rejected before any guardian lifetime (399.108811ms)
+✔ private worker channel rejects repeated request IDs and bounded oversized frames (20.322703ms)
+✔ an initially empty lifetime admits projects durably and never forgets earlier bindings (16.15072ms)
+✔ a pinned worker receives only its separate inherited channel and its descendants are drained (38.821236ms)
+✔ agent environment is restricted to the essential host role and never admits owner sessions (20.733517ms)
+✔ pinned roots drain only after complete project authorization, receipt persistence and ACK (21.722208ms)
+✔ adopts and drains detached writers without touching an outside sibling (131.112297ms)
+✔ adopts and drains nested writers without touching an outside sibling (140.614892ms)
+✔ adopts and drains clone_parent writers without touching an outside sibling (133.177917ms)
+✔ adopts and drains clone_signal writers without touching an outside sibling (142.894007ms)
+✔ root child inherits neither guardian control/descriptors nor ambient credential environment (54.873908ms)
+✔ changed pinned executable between bootstrap and launch revokes the lifetime (5.280503ms)
+✔ duplicate launch and incomplete stop authorization cannot create another root or certify a drain (17.186619ms)
+✔ receipt journal failure never becomes successful cleanup authority (15.767772ms)
+✔ controller channel loss drains descendants but produces no accepted receipt (128.141787ms)
+✔ guardian crash cannot be certified by a replacement empty lifetime (19.657399ms)
+✔ oversize and out-of-order private frames fail closed before any spawn (2.696774ms)
+✔ pin and environment errors are rejected before a lifetime is created (1.2512ms)
+✔ a leader's exit does not hide live writer threads (177.722808ms)
+✔ bounded concurrent forks remain owned while drain closes the tree (139.528115ms)
+✔ owned ptrace relationships do not turn a stopped child into an empty tree (140.594753ms)
+✔ an inherited unlinked writable FD stops changing only after the owned tree drains (120.169022ms)
+✔ an exact private-frame replay acknowledges the same PID without another fork (15.273529ms)
+✔ a completed terminal helper does not revoke another active root (115.306408ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2335.464215

@@ -19,7 +19,6 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { after, test } from "node:test";
 import { openNativeGuardian } from "../templates/ai-dev-k8s/scripts/codex-native-guardian.mjs";
-
 import { validateGuardianArtifact } from "./build-native-guardian.mjs";
 
 const scratch = mkdtempSync(join(tmpdir(), "hive-guardian-test-"));
@@ -40,6 +39,8 @@ if (suppliedBinary) {
     executable,
   ]);
 const hash = (p) => createHash("sha256").update(readFileSync(p)).digest("hex");
+// Avoid provider-specific multicall dispatch in sleep/true after realpath + fexecve.
+// Python is already the pinned executable for the adversarial process fixtures.
 const python = realpathSync("/usr/bin/python3");
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 let safeCleanup = true;
@@ -49,14 +50,21 @@ after(() => {
 function configuration(overrides = {}) {
   const events = [];
   const journal = Object.fromEntries(
-    ["begin", "ready", "launchIntent", "closeIntent", "acceptReceipt", "indeterminate"].map(
-      (name) => [
-        name,
-        async (data) => {
-          events.push({ name, data });
-        },
-      ],
-    ),
+    [
+      "begin",
+      "ready",
+      "launchIntent",
+      "admissionIntent",
+      "admissionAccepted",
+      "closeIntent",
+      "acceptReceipt",
+      "indeterminate",
+    ].map((name) => [
+      name,
+      async (data) => {
+        events.push({ name, data });
+      },
+    ]),
   );
   return {
     executable,
@@ -67,10 +75,10 @@ function configuration(overrides = {}) {
       {
         id: "native",
         role: "native",
-        executable: realpathSync("/usr/bin/sleep"),
-        sha256: hash(realpathSync("/usr/bin/sleep")),
+        executable: python,
+        sha256: hash(python),
         cwd: scratch,
-        args: ["100"],
+        args: ["-I", "-c", "import time; time.sleep(100)"],
         env: { PATH: "/usr/bin:/bin" },
       },
     ],
@@ -80,6 +88,84 @@ function configuration(overrides = {}) {
     ...overrides,
   };
 }
+test("an initially empty lifetime admits projects durably and never forgets earlier bindings", async () => {
+  const config = configuration({ projects: [] });
+  const guardian = await openNativeGuardian(config);
+  try {
+    const first = { projectId: randomUUID(), bindingDigest: "c".repeat(64) };
+    const second = { projectId: randomUUID(), bindingDigest: "d".repeat(64) };
+    assert.equal((await guardian.admitProject(first)).generation, 2);
+    assert.equal((await guardian.admitProject(first)).generation, 2);
+    await assert.rejects(guardian.admitProject({ ...first, bindingDigest: "e".repeat(64) }));
+    assert.equal((await guardian.admitProject(second)).generation, 3);
+    assert.deepEqual(guardian.state.projects, [first, second]);
+    const receipt = await guardian.drain();
+    assert.equal(receipt.generation, 4);
+    assert.deepEqual(receipt.projects, [first, second]);
+    assert.equal(config.events.filter((event) => event.name === "admissionIntent").length, 2);
+    assert.equal(config.events.filter((event) => event.name === "admissionAccepted").length, 2);
+  } finally {
+    if (guardian.state.phase !== "closed") await guardian.abort();
+  }
+});
+
+test("a pinned worker receives only its separate inherited channel and its descendants are drained", async () => {
+  const root = pythonRoot(
+    "import os,socket,time\ns=socket.socket(fileno=3)\ns.sendall(b'WORKER_READY')\nassert s.recv(4)==b'PING'\ns.sendall(b'PONG')\nwhile True: time.sleep(1)",
+  );
+  root.workerChannel = true;
+  const guardian = await openNativeGuardian(configuration({ roots: [root] }));
+  const channel = guardian.workerChannel("native");
+  try {
+    const ready = once(channel, "data");
+    await guardian.launch("native");
+    assert.equal((await ready)[0].toString(), "WORKER_READY");
+    const reply = once(channel, "data");
+    channel.write("PING");
+    assert.equal((await reply)[0].toString(), "PONG");
+    const receipt = await guardian.drain();
+    assert.equal(receipt.finalWaitResult, "ECHILD");
+  } finally {
+    channel.destroy();
+    if (guardian.state.phase !== "closed") await guardian.abort();
+  }
+});
+
+test("agent environment is restricted to the essential host role and never admits owner sessions", async () => {
+  for (const role of ["native", "tmux", "terminal"]) {
+    const root = {
+      ...configuration().roots[0],
+      role,
+      env: { CODER_AGENT_TOKEN: "synthetic-agent" },
+    };
+    await assert.rejects(openNativeGuardian(configuration({ roots: [root] })), /contract_rejected/);
+  }
+  for (const env of [
+    { CODER_SESSION_TOKEN: "synthetic-owner" },
+    { HIVE_WORKSPACE_PROFILE: "browser" },
+  ]) {
+    const root = { ...configuration().roots[0], role: "host", workerChannel: true, env };
+    await assert.rejects(openNativeGuardian(configuration({ roots: [root] })), /contract_rejected/);
+  }
+  const root = {
+    ...configuration().roots[0],
+    role: "host",
+    workerChannel: true,
+    env: {
+      PATH: "/usr/bin:/bin",
+      HIVE_WORKSPACE_PROFILE: "software",
+      CODER_AGENT_TOKEN: "synthetic-agent",
+      CODER_AGENT_URL: "https://agent.invalid",
+    },
+  };
+  const guardian = await openNativeGuardian(configuration({ roots: [root] }));
+  try {
+    await guardian.launch("native");
+    await guardian.drain();
+  } finally {
+    await cleanAbort(guardian);
+  }
+});
 function pythonRoot(script) {
   return {
     id: "native",
@@ -204,7 +290,7 @@ test("root child inherits neither guardian control/descriptors nor ambient crede
 
 test("changed pinned executable between bootstrap and launch revokes the lifetime", async () => {
   const copy = join(scratch, "changed-root");
-  copyFileSync(realpathSync("/usr/bin/sleep"), copy);
+  copyFileSync(python, copy);
   chmodSync(copy, 0o500);
   const opts = configuration();
   opts.roots[0] = { ...opts.roots[0], executable: copy, sha256: hash(copy) };
@@ -399,7 +485,7 @@ test("an inherited unlinked writable FD stops changing only after the owned tree
 });
 
 test("an exact private-frame replay acknowledges the same PID without another fork", async () => {
-  const root = realpathSync("/usr/bin/sleep"),
+  const root = python,
     rootFd = openSync(root, "r"),
     cwdFd = openSync(scratch, "r");
   const pinned = fstatSync(rootFd, { bigint: true }),
@@ -470,9 +556,11 @@ test("an exact private-frame replay acknowledges the same PID without another fo
       u32(Number(pinned.mtimeNs % 1000000000n)),
       u64(pinned.ctimeNs / 1000000000n),
       u32(Number(pinned.ctimeNs % 1000000000n)),
-      u32(2),
+      u32(4),
       str(root),
-      str("100"),
+      str("-I"),
+      str("-c"),
+      str("import time; time.sleep(100)"),
       u32(1),
       str("PATH=/usr/bin:/bin"),
     ]);
@@ -507,14 +595,14 @@ test("an exact private-frame replay acknowledges the same PID without another fo
 
 test("a completed terminal helper does not revoke another active root", async () => {
   const options = configuration();
-  const terminal = realpathSync("/usr/bin/true");
+  const terminal = python;
   options.roots.push({
     id: "attach",
     role: "terminal",
     executable: terminal,
     sha256: hash(terminal),
     cwd: scratch,
-    args: [],
+    args: ["-I", "-c", "pass"],
     env: { PATH: "/usr/bin:/bin" },
   });
   const g = await openNativeGuardian(options);
@@ -522,7 +610,16 @@ test("a completed terminal helper does not revoke another active root", async ()
     await g.launch("native");
     await g.launch("attach");
     await delay(100);
-    assert.equal(g.state.phase, "open");
+    assert.equal(
+      g.state.phase,
+      "open",
+      JSON.stringify({
+        failure: g.state.failure ?? null,
+        journalReasons: options.events
+          .filter((event) => event.name === "indeterminate")
+          .map((event) => event.data.reason),
+      }),
+    );
     const receipt = await g.drain();
     assert.equal(receipt.reaped, 2);
   } finally {
