@@ -96,15 +96,16 @@ resource "coder_app" "hive_projects" {
   hidden       = true
 }
 
-# Public, immutable bootstrap input. Coder passes scripts through shell -c,
+# Public pod bootstrap input. Coder passes scripts through shell -c,
 # so embedding the package in a here-document still exceeds Linux argv limits.
 locals {
   hive_host_bootstrap_data = local.hive_host_enabled ? {
-    "install-codex-host.py" = file("${path.module}/scripts/install-codex-host.py")
-    "request.json" = jsonencode({
-      schemaVersion = 1
-      archive       = filebase64("${path.module}/assets/codex-host.tar")
-      archiveSha256 = filesha256("${path.module}/assets/codex-host.tar")
+    "hive.kethalia.com/host-installer" = file("${path.module}/scripts/install-codex-host.py")
+    "hive.kethalia.com/host-request" = jsonencode({
+      schemaVersion   = 1
+      archive         = filebase64("${path.module}/assets/codex-host.tar.gz")
+      archiveEncoding = "gzip"
+      archiveSha256   = filesha256("${path.module}/assets/codex-host.tar")
       config = {
         schemaVersion      = 1
         enabled            = true
@@ -132,24 +133,6 @@ locals {
   } : {}
 }
 
-resource "kubernetes_config_map_v1" "hive_host" {
-  count     = local.hive_host_enabled ? 1 : 0
-  immutable = true
-  metadata {
-    name      = "hive-host-${substr(data.coder_workspace.me.id, 0, 8)}-${substr(sha256(jsonencode(local.hive_host_bootstrap_data)), 0, 24)}"
-    namespace = "coder"
-  }
-  data = local.hive_host_bootstrap_data
-  lifecycle {
-    create_before_destroy = true
-    precondition {
-      # Base64 length gives a conservative byte bound, including Unicode input.
-      condition     = sum([for content in values(local.hive_host_bootstrap_data) : length(base64encode(content)) * 3 / 4]) <= 950000
-      error_message = "The managed host bootstrap exceeds its bounded ConfigMap capacity."
-    }
-  }
-}
-
 resource "coder_script" "hive_projects" {
   count              = local.hive_host_enabled ? 1 : 0
   agent_id           = coder_agent.main.id
@@ -158,6 +141,11 @@ resource "coder_script" "hive_projects" {
   start_blocks_login = false
   script             = file("${path.module}/scripts/install-codex-host.sh.tftpl")
   lifecycle {
+    precondition {
+      # Include key bytes and reserve space below Kubernetes' 256-KiB annotation limit.
+      condition     = sum([for key, content in local.hive_host_bootstrap_data : length(base64encode(key)) * 3 / 4 + length(base64encode(content)) * 3 / 4]) <= 240000
+      error_message = "The managed host bootstrap exceeds its bounded pod metadata capacity."
+    }
     precondition {
       condition     = can(regex("^https://[a-z0-9.-]+$", var.hive_control_origin)) && var.hive_issuer_public_key_pem != "" && can(regex("^[A-Za-z0-9._:-]{1,200}$", var.hive_issuer_key_id))
       error_message = "Managed projects require the deployment's HTTPS origin and public issuer key configuration."

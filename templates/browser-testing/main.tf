@@ -626,9 +626,9 @@ resource "kubernetes_deployment_v1" "workspace" {
         # Verify this compatibility annotation against deployed k3s before rollout.
         # Opt in only after the named policy is loaded on eligible nodes.
         # The seed-home container continues using the runtime's default policy.
-        annotations = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+        annotations = merge(local.hive_host_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
           "container.apparmor.security.beta.kubernetes.io/dev" = "localhost/${local.profile.codex_sandbox_apparmor_profile}"
-        }
+        })
 
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
@@ -780,9 +780,20 @@ resource "kubernetes_deployment_v1" "workspace" {
           for_each = local.hive_host_enabled ? [true] : []
           content {
             name = "hive-host-bootstrap"
-            config_map {
-              name         = kubernetes_config_map_v1.hive_host[0].metadata[0].name
+            downward_api {
               default_mode = "0444"
+              items {
+                path = "install-codex-host.py"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/host-installer']"
+                }
+              }
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/host-request']"
+                }
+              }
             }
           }
         }

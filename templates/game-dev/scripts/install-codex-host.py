@@ -2,6 +2,7 @@
 """Install a template-pinned host package. Preserve all task journals and checkouts."""
 import base64
 import fcntl
+import gzip
 import hashlib
 import io
 import json
@@ -142,9 +143,22 @@ def install_package(root, archive, digest):
     return target
 
 
+def decode_archive(request):
+    archive = base64.b64decode(request["archive"], validate=True)
+    encoding = request.get("archiveEncoding", "tar")
+    require(encoding in ("tar", "gzip"))
+    if encoding == "gzip":
+        require(len(archive) <= 160000)
+        with gzip.GzipFile(fileobj=io.BytesIO(archive)) as stream:
+            archive = stream.read(2 * 1024 * 1024 + 1)
+    require(len(archive) <= 2 * 1024 * 1024)
+    return archive
+
+
 def install(request):
     require(os.environ.get("HIVE_WORKSPACE_PROFILE") == "software")
-    require(set(request) == {"schemaVersion", "archive", "archiveSha256", "config"} and request["schemaVersion"] == 1)
+    required = {"schemaVersion", "archive", "archiveSha256", "config"}
+    require(set(request) in (required, required | {"archiveEncoding"}) and request["schemaVersion"] == 1)
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
     root = private_directory(home / ".local/share/hive/codex-host")
     config_root = private_directory(home / ".config/hive")
@@ -153,7 +167,7 @@ def install(request):
     require(os.fstat(lock).st_uid == os.getuid() and not os.fstat(lock).st_mode & 0o077)
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     try:
-        archive = base64.b64decode(request["archive"], validate=True)
+        archive = decode_archive(request)
         config = request["config"]
         # Manager activation requires the separate producer-isolation acceptance.
         require(isinstance(config, dict) and config.get("managerEnabled") is False and config.get("profile") == "software" and config.get("enabled") is True)

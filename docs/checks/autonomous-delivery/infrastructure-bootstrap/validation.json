@@ -15,5 +15,12 @@
     "originalErrno": "E2BIG",
     "mountedInputSha256Verified": true
   },
-  "productionChanged": false
+  "productionChanged": false,
+  "bootstrapTransport": "read-only pod Downward API",
+  "priorAttempt": {
+    "buildId": "08dfc377-6f0f-4914-8750-808e2b019f50",
+    "result": "Coder service account cannot create ConfigMaps",
+    "rbacChanged": false
+  },
+  "gzipExpansionTest": true
 }
