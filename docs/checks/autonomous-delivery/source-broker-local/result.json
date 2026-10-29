@@ -1,0 +1,65 @@
+{
+  "recordedAt": "2026-10-29T22:01:08.792692+00:00",
+  "baseCommit": "3604c1a28d0dfca515d0b6730568ddfb3f99865b",
+  "scope": "Unactivated fixture-only source broker foundation; real local Git plumbing and fake fixed GitHub API, no actual network transport/credentials/native runtime/cloud/database writes",
+  "validation": {
+    "testsPassed": 19,
+    "command": "python3 -B -m unittest discover -s scripts/agents -p test_delivery_source_broker.py -v",
+    "testLog": "tests.txt",
+    "pythonAstFiles": 3,
+    "whitespacePassed": true,
+    "gitVersion": "git version 2.47.3"
+  },
+  "authority": {
+    "fixtureConstructorRequired": true,
+    "runtimeImports": false,
+    "packagedOrGenerated": false,
+    "liveTransport": false,
+    "credentialsObtained": false,
+    "sourceAcceptanceAuthority": false,
+    "nativeGitMetadataProtected": false,
+    "quiescenceOrReleaseClaimed": false
+  },
+  "bounds": {
+    "changedOrDeletedPaths": 100,
+    "maxFileBytes": 1048576,
+    "maxSnapshotBytes": 5242880,
+    "maxTrees": 64,
+    "maxOperations": 32,
+    "durableRequestsPerOperation": 256,
+    "gitSubprocessSeconds": 10,
+    "gitOutputBytes": 10485760
+  },
+  "coverage": [
+    "Deterministic Git object identity independently calculated by fake provider",
+    "Raw-byte preservation, explicit deletions/executable modes, subsequent edits and process-object restart",
+    "Source Git config/filter/hook/environment injection cannot invoke callbacks",
+    "Protected paths; symlink/hardlink/FIFO/directory/size/file-replacement policies",
+    "Policy/workspace identity drift and canonical operation replay conflicts",
+    "MAC tampering, nonregular journals, unknown temporary files/capacity preserved",
+    "Fixed origin, redirect/malformed responses, account/repository/write permission scope and sanitized failure",
+    "POST blob/tree object identity checks; separate commit-parent/ref/PR readback, no ref overwrite/main update/merge/delete",
+    "Lost ref/PR ACK recovery only with exact matching remote state; ambiguity/restart phase remains held",
+    "Lock refusal, durable request budget and sealed-object tampering"
+  ],
+  "remainingGates": [
+    "Native metadata read-only projection and isolated protected broker authority",
+    "Real registration/lease/source capability and trusted parent import",
+    "Live transport streaming bounds/timeouts; synchronous injected fixture callback is not preemptible",
+    "Real provider object serialization and permission/revocation proof",
+    "Source-revision/output-acceptance transaction, recovery/retirement policy, runtime/package integration"
+  ],
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/delivery-source-broker.py": "c5240f4e5f620aab27741e70c9fd2af22eb8ca1bec542557a6a65ca16304f1c1",
+    "templates/ai-dev-k8s/scripts/delivery-source-provider.py": "698524efc41ed592b60ef919dfc1298e92d3b98635c3bc00b9f88390de02c529",
+    "scripts/agents/test_delivery_source_broker.py": "84c85eb425e53b680fffe8469265cb658a9fe7071c95184330ded895662c9e54",
+    "docs/checks/autonomous-delivery/source-broker-foundation.md": "7f148fd2a5a81745f70b35bb94055a3ae379762db58bafe40ed552d628c46f84"
+  },
+  "testLogSha256": "536de826159301ea7a99c4a2cb58e6e235b02be17eb4dbe2463f6ad8c16f6abd",
+  "vendorApiVersionEvidence": {
+    "version": "2026-03-10",
+    "checkedAt": "2026-10-29",
+    "supportedVersions": "https://docs.github.com/en/rest/about-the-rest-api/api-versions#supported-api-versions",
+    "officialExample": "https://docs.github.com/en/rest/git/trees#create-a-tree"
+  }
+}
