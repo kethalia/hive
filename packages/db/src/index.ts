@@ -1,6 +1,8 @@
 import { Prisma, PrismaClient } from "./generated/prisma/client";
+import { getRequestDb } from "./request-scope";
 
 export type * from "./generated/prisma/client";
+export { createDatabaseRequest } from "./request-scope";
 export { Prisma, PrismaClient };
 
 let client: PrismaClient | null = null;
@@ -13,6 +15,13 @@ let client: PrismaClient | null = null;
  * environments must fail loudly at startup.
  */
 export function getDb(): PrismaClient {
+  const requestClient = getRequestDb();
+  if (requestClient) return requestClient;
+  // A Workers caller must be inside the custom Worker's request lifetime. Never
+  // silently fall back to the Node singleton/native engine in an isolate.
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+    throw new Error("[@hive/db] Cloudflare database request context is missing");
+  }
   if (!client) {
     if (!process.env.DATABASE_URL) {
       throw new Error(

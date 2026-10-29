@@ -11,6 +11,7 @@ export const contentSecurityPolicy = buildContentSecurityPolicy();
 // Reuse one identity across Next's config loads and build workers.
 const appBuildId = process.env.HIVE_APP_BUILD_ID ?? randomUUID();
 process.env.HIVE_APP_BUILD_ID = appBuildId;
+const cloudflareBuild = process.env.HIVE_RUNTIME_TARGET === "cloudflare";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -18,16 +19,35 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_HIVE_APP_VERSION: version,
     NEXT_PUBLIC_HIVE_APP_BUILD: process.env.NODE_ENV === "production" ? appBuildId : "development",
+    ...(cloudflareBuild
+      ? { HIVE_RUNTIME_TARGET: "cloudflare", HIVE_DISABLE_BACKGROUND_WORKERS: "true" }
+      : {}),
   },
+  ...(cloudflareBuild
+    ? {
+        serverExternalPackages: [
+          "@prisma/client",
+          "@prisma/adapter-neon",
+          "@neondatabase/serverless",
+        ],
+        outputFileTracingExcludes: {
+          "/*": ["./templates/**/*", "./.git/**/*", "./.artifacts/**/*", "./.env*"],
+        },
+      }
+    : {}),
   // Next can resolve the ESM condition at runtime even when its file tracer
   // only discovers the CommonJS helper. Ship every conditional export.
   outputFileTracingIncludes: {
     "/*": [
       "./node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/**/*",
-      "./scripts/notifications/install.py",
-      "./scripts/notifications/agent-hook.py",
-      "./templates/ai-dev-k8s/scripts/agent-tools.py",
-      "./templates/ai-dev-k8s/scripts/github-projects.py",
+      ...(!cloudflareBuild
+        ? [
+            "./scripts/notifications/install.py",
+            "./scripts/notifications/agent-hook.py",
+            "./templates/ai-dev-k8s/scripts/agent-tools.py",
+            "./templates/ai-dev-k8s/scripts/github-projects.py",
+          ]
+        : []),
     ],
   },
   async redirects() {
