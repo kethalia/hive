@@ -18,6 +18,9 @@ import type { CoderWorkspace } from "@/lib/coder/types";
 import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
+const DeliveryPanel = dynamic(() =>
+  import("@/components/delivery/DeliveryPanel").then((m) => m.DeliveryPanel),
+);
 const ProjectBrowser = dynamic(() =>
   import("@/components/projects/ProjectBrowser").then((m) => m.ProjectBrowser),
 );
@@ -93,7 +96,7 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
-  const { projectDiscoveryEnabled } = useRuntimeConfig();
+  const { projectDiscoveryEnabled, deliveryEnabled } = useRuntimeConfig();
   const workspace =
     workspaces.find((w) => w.id === pane.workspaceId) ??
     workspaces.find((w) => w.latest_build.status === "running") ??
@@ -125,7 +128,16 @@ export function HiveWorkspacePane({
           </p>
         }
       >
-        {pane.tool === "agents" || pane.tool === "projects" ? (
+        {pane.tool === "delivery" ? (
+          <DeliveryPanel
+            key={userId}
+            userId={userId}
+            enabled={Boolean(deliveryEnabled)}
+            visible={visible}
+            taskId={pane.taskId}
+            reportId={pane.reportId}
+          />
+        ) : pane.tool === "agents" || pane.tool === "projects" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
             <div className="space-y-2 text-sm">
               <label htmlFor={workspaceSelectId} className="block">

@@ -26,6 +26,7 @@ export const GENERAL_WORKSPACE_OPEN_EVENT = "hive:workspace-open";
 export const HIVE_WINDOW_OPEN_EVENT = "hive:window-open";
 export const hiveToolSchema = z.enum([
   "projects",
+  "delivery",
   "agents",
   "diagnostics",
   "settings",
@@ -36,6 +37,7 @@ export const hiveToolSchema = z.enum([
 export type HiveTool = z.infer<typeof hiveToolSchema>;
 export const hiveToolLabels: Record<HiveTool, string> = {
   projects: "Projects",
+  delivery: "Delivery",
   templates: "Templates",
   logs: "Logs",
   agents: "Agents",
@@ -45,6 +47,8 @@ export const hiveToolLabels: Record<HiveTool, string> = {
 };
 export const hiveWindowRequestSchema = z.object({
   tool: hiveToolSchema,
+  taskId: z.string().uuid().optional(),
+  reportId: z.string().uuid().optional(),
   workspaceId: z.string().trim().min(1).max(200).optional(),
   launch: z.boolean().optional(),
   sessionName: z
@@ -57,6 +61,8 @@ export type HiveWindowRequest = z.infer<typeof hiveWindowRequestSchema>;
 export function hiveWindowHref(request: HiveWindowRequest) {
   const query = new URLSearchParams({ panel: request.tool });
   if (request.workspaceId) query.set("workspace", request.workspaceId);
+  if (request.taskId) query.set("task", request.taskId);
+  if (request.reportId) query.set("report", request.reportId);
   if (request.template) query.set("template", request.template);
   if (request.launch) query.set("launch", "1");
   if (request.sessionName) query.set("session", request.sessionName);
@@ -103,6 +109,8 @@ const hive = z.object({
     .optional(),
   kind: z.literal("hive"),
   tool: hiveToolSchema,
+  taskId: z.string().uuid().optional(),
+  reportId: z.string().uuid().optional(),
   template: identifier.optional(),
   workspaceId: identifier.optional(),
   label: z.string().min(1).max(512),
@@ -226,6 +234,8 @@ export function openHiveWindow(
         workspaceId: request.workspaceId,
         template: request.template,
         sessionName: request.sessionName,
+        taskId: request.taskId,
+        reportId: request.reportId,
       },
       id,
     );
@@ -245,6 +255,9 @@ export function openHiveWindow(
                     ...w,
                     ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
                     ...(request.template ? { template: request.template } : {}),
+                    ...(request.tool === "delivery" && request.taskId
+                      ? { taskId: request.taskId, reportId: request.reportId }
+                      : {}),
                     ...(request.tool === "logs"
                       ? { workspaceId: request.workspaceId, sessionName: request.sessionName }
                       : {}),
