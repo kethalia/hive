@@ -53,7 +53,7 @@ class TestControllerAuthority:
         return hmac.new(self.key, json.dumps(payload, sort_keys=True).encode(), hashlib.sha256).hexdigest()
 
     def issue(self, record):
-        binding = {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"], "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
+        binding = {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"], "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
         digest = "sha256:" + "a" * 64
         payload = {"binding": binding, "completionEventId": "controller-completion-1", "policyVersion": "reviewed-policy-1", "artifact": {"digest": digest, "objectVersion": "immutable-r2-version-1"}, "productionObservation": {"id": "independently-queried-observation-1", "revision": record["revision"], "artifactDigest": digest}}
         return {"payload": payload, "signature": self.signature(payload)}
@@ -207,6 +207,35 @@ class ManagedProjectsTests(unittest.TestCase):
         git(self.source, "push", str(self.bare), "main")
         resumed = self.manager.prepare("123", "task-two", sha)
         self.assertEqual(git(Path(resumed["checkoutDirectory"]), "rev-parse", "HEAD"), sha)
+
+    def test_reused_inode_cannot_revive_old_checkout_cleanup_authority(self):
+        # Deterministically model a filesystem reusing the same device/inode.
+        # Production identity checks are unchanged; nonce authority must suffice.
+        with mock.patch.object(self.manager, "identity", return_value={"device": 1, "inode": 2}):
+            checkout = self.retired_ready()
+            old_evidence = self.evidence()
+            self.cleanup(old_evidence)
+            restored = self.prepare()
+            self.release(restored)
+            with self.manager.lock():
+                record = self.manager.load("123")[2]
+                self.assertEqual(record["checkoutIdentity"], old_evidence["payload"]["binding"]["checkoutIdentity"])
+                self.assertNotEqual(record["checkoutIncarnation"], old_evidence["payload"]["binding"]["checkoutIncarnation"])
+            with self.assertRaisesRegex(MODULE.ManagedError, "request_stale"):
+                self.cleanup(old_evidence)
+            self.manager.request_cleanup("123", "task-one")
+            with self.assertRaisesRegex(MODULE.ManagedError, "controller_binding_mismatch"):
+                self.cleanup(old_evidence)
+            self.assertTrue(checkout.exists())
+
+    def test_new_lease_invalidates_cleanup_request_without_replacing_checkout(self):
+        checkout = self.retired_ready()
+        old_evidence = self.evidence()
+        restored = self.prepare()
+        self.release(restored)
+        with self.assertRaisesRegex(MODULE.ManagedError, "request_stale"):
+            self.cleanup(old_evidence)
+        self.assertTrue(checkout.exists())
 
     def test_feature_branch_push_upstream_release_and_cleanup(self):
         prepared = self.prepare()

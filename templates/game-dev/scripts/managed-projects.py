@@ -286,6 +286,7 @@ class ManagedProjects:
 
     def checkout_valid(self, checkout, record):
         self.safe(checkout)
+        require(identifier(record.get("checkoutIncarnation")), "checkout_incarnation_missing")
         require(record.get("checkoutIdentity") == self.identity(checkout), "checkout_identity_changed")
         self.safe(checkout / ".git")
         require((checkout / ".git").is_dir(), "checkout_not_primary")
@@ -354,7 +355,7 @@ class ManagedProjects:
                 project.mkdir(mode=0o700)
                 record = {"schemaVersion": 1, "provider": "github", "repositoryId": repository_id,
                           "canonicalUrl": remote.canonical_url, "createdAt": time.time(),
-                          "projectIdentity": self.identity(project), "checkoutIdentity": None,
+                          "projectIdentity": self.identity(project), "checkoutIdentity": None, "checkoutIncarnation": None,
                           "revision": requested_revision, "status": "preparing", "stages": [],
                           "preparationId": str(uuid.uuid4()),
                           "leaseGeneration": 0, "lease": None, "lastTaskId": task_id, "cleanupRequests": []}
@@ -429,6 +430,7 @@ class ManagedProjects:
             self.clean(stage)
             require(not (project / "checkout").exists(), "checkout_appeared_concurrently")
             record["checkoutIdentity"] = self.identity(stage)
+            record["checkoutIncarnation"] = str(uuid.uuid4())
             record["gitConfigDigest"] = self.config_digest(stage / ".git/config")
             record["gitConfigPolicy"] = 1
             record["revision"] = target
@@ -483,7 +485,7 @@ class ManagedProjects:
             project, receipt, record = self.load(repository_id)
             require(task_id == record["lastTaskId"], "cleanup_task_mismatch")
             require(len(record["cleanupRequests"]) < 100, "cleanup_request_limit")
-            record["cleanupRequests"].append({"id": str(uuid.uuid4()), "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "requestedAt": time.time()})
+            record["cleanupRequests"].append({"id": str(uuid.uuid4()), "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record.get("checkoutIncarnation"), "leaseGeneration": record["leaseGeneration"], "requestedAt": time.time()})
             self.write(receipt, record)
             return {"status": "controller_authority_unavailable", "checkoutRetained": True,
                     "requestId": record["cleanupRequests"][-1]["id"]}
@@ -500,9 +502,12 @@ class ManagedProjects:
             require(task_id == record["lastTaskId"] and record["cleanupRequests"] and not record["lease"], "cleanup_not_quiescent")
             cleanup_request = record["cleanupRequests"][-1]
             require(cleanup_request["taskId"] == task_id and cleanup_request["revision"] == record["revision"]
-                    and cleanup_request["checkoutIdentity"] == record["checkoutIdentity"], "cleanup_request_stale")
+                    and cleanup_request["checkoutIdentity"] == record["checkoutIdentity"]
+                    and identifier(record.get("checkoutIncarnation"))
+                    and cleanup_request.get("checkoutIncarnation") == record["checkoutIncarnation"]
+                    and cleanup_request.get("leaseGeneration") == record["leaseGeneration"], "cleanup_request_stale")
             expected = {"repositoryId": repository_id, "taskId": task_id, "revision": record["revision"],
-                        "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "cleanupRequestId": cleanup_request["id"]}
+                        "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "cleanupRequestId": cleanup_request["id"]}
             evidence = authority.verify(signed_evidence, expected)
             require(isinstance(evidence, dict) and evidence.get("binding") == expected
                     and identifier(evidence.get("completionEventId")) and identifier(evidence.get("policyVersion")), "invalid_completion_evidence")
@@ -543,6 +548,7 @@ class ManagedProjects:
             require(self.identity(checkout) == record["checkoutIdentity"] and shutil.rmtree.avoids_symlink_attacks, "safe_removal_unavailable")
             shutil.rmtree(checkout)
             record["checkoutIdentity"] = None
+            record["checkoutIncarnation"] = None
             record["gitConfigDigest"] = None
             record["preparationId"] = None
             record["status"] = "checkout_removed"

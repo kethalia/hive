@@ -30,7 +30,7 @@ data; it is not a sandbox against arbitrary code already running as the same wor
 
 The project receipt records schema version, provider, stable repository ID, credential-free
 canonical URL, creation timestamp, project and checkout identities, Git configuration digest,
-exact commit, preparation ID, staging attempts, last task, cleanup requests, lease generation,
+exact commit, preparation ID, fresh checkout incarnation UUID, staging attempts, last task, cleanup requests, lease generation,
 and the current task lease. A lease contains an opaque ID, task ID, generation and expiry.
 Lease expiry alone never permits takeover or cleanup. The same writer must present the current
 ID and generation to renew/resume; a second task fails closed. Releasing the lease requires the
@@ -121,7 +121,7 @@ its authorization transport are deliberately unimplemented, so operational delet
 
 An internal Python test seam exercises the prospective validator with a separately keyed fixture
 authority. Its signed evidence binds repository ID, task ID, exact revision, project/checkout
-identities and the latest cleanup request ID. It includes a controller completion event/policy
+identities, checkout incarnation UUID, current lease generation and the latest cleanup request ID. It includes a controller completion event/policy
 version, immutable artifact object version and digest, and a production observation bound to that
 same revision and artifact digest. Tests do not prove an R2 upload or production observation.
 
@@ -142,7 +142,10 @@ The validator requires all of the following before removing only the checkout ch
 
 Project identity, signed receipts, completion evidence and interrupted stages survive fixture
 checkout removal. A later preparation can rehydrate a new checkout; prior cleanup authorization
-does not match the new inode or request. The helper lock coordinates cooperating helper calls,
+does not match the new incarnation or request, even if the filesystem reuses the same inode
+for the same path/revision. Acquiring another lease also invalidates an older cleanup request
+without requiring replacement of the checkout. Legacy receipts missing incarnation authority
+fail closed; this prototype does not silently enroll them. The helper lock coordinates cooperating helper calls,
 not arbitrary concurrent owner processes: a real host supervisor must fence writers/consumers
 during the final validation/removal interval before this internal seam can become operational.
 
@@ -156,7 +159,7 @@ python3 -m py_compile templates/ai-dev-k8s/scripts/managed-projects.py
 git diff --check
 ```
 
-The 23 local tests use temporary bare Git repositories and isolated homes. They cover exact
+The 25 local tests use temporary bare Git repositories and isolated homes. They cover exact
 revision/inode reuse, generation fencing, second-writer rejection, expired lease retention,
 primary/history preservation, interrupted clone and post-rename recovery, bounded recovery and
 stage substitution, disabled CLI deletion, independent fixture authority and wrong-revision
@@ -170,6 +173,9 @@ enumeration in these fixtures is bounded to the test process and explicitly trac
 this avoids unrelated same-UID nondumpable CI processes. Real cwd/open-file detection remains
 covered, along with explicit inaccessible-process rejection. Production enumeration and its
 PermissionError fail-closed behavior are unchanged; no runtime flag enables this fixture scope.
+Two regressions deterministically model inode reuse and a new lease on an unchanged checkout,
+and require old cleanup requests/evidence to be rejected. This fixes the CI-only inode-reuse
+failure seen in run `53bf388`; the original stale-request assertion is retained.
 
 Next activation gates: independent review; versioned trusted helper installation; real GitHub
 agent auth and canonical identity validation; controller project/session registry binding;
