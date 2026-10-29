@@ -32,9 +32,14 @@ vi.mock("@/app/(dashboard)/workspaces/workspace-list-content", async () => {
   return { WorkspaceListContent: () => <p>Loaded workspace controls</p> };
 });
 vi.mock("@/lib/actions/clone-project", () => ({ cloneProjectAction: vi.fn() }));
-vi.mock("@/lib/actions/settings-window", () => ({
-  getSettingsWindowAction: vi.fn(async () => ({
-    data: { connectedWorkspaceIds: [], pendingWorkspaceIds: [], workspaces: [] },
+vi.mock("@/lib/settings/window-client", () => ({
+  fetchSettingsWindow: vi.fn(async () => ({
+    email: "owner@example.com",
+    coderUrl: "https://coder.example.com",
+    connectedWorkspaceIds: [],
+    pendingWorkspaceIds: [],
+    workspaces: [],
+    workspaceError: false,
   })),
 }));
 vi.mock("@/components/settings-content", () => ({

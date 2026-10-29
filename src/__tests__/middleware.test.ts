@@ -16,6 +16,24 @@ afterEach(() => {
 });
 
 describe("proxy", () => {
+  it("passes only the exact Settings GET to its route-owned JSON authentication", () => {
+    const origin = "https://hive.example";
+    const response = proxy(new NextRequest(`${origin}/api/settings/window`));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("location")).toBeNull();
+    for (const [path, method] of [
+      ["/api/settings/window", "POST"],
+      ["/api/settings/window", "HEAD"],
+      ["/api/settings/window/other", "GET"],
+      ["/api/settings/window-extra", "GET"],
+      ["/api/settings/%77indow", "GET"],
+    ]) {
+      expect(proxy(new NextRequest(`${origin}${path}`, { method })).headers.get("location")).toBe(
+        `${origin}/login`,
+      );
+    }
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+  });
   it("passes only enabled exact native callback POSTs to their own signature handlers", () => {
     const origin = "https://hive.local.kethalia.com";
     const registration = "/api/codex-host/registrations";

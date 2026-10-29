@@ -6,7 +6,7 @@ implementation dependencies; actual preview/browser evidence must be added befor
 
 | Capability | Existing dependency | Current epic disposition / next proof |
 | --- | --- | --- |
-| Login, sessions, settings reads | Auth service, PostgreSQL, Coder HTTP | Local workerd/auth/Neon proofs pass; deployed account and browser acceptance pending. |
+| Login, sessions, settings reads | Auth service, PostgreSQL, Coder HTTP | Real preview login, secure session, API logout and stale-session rejection pass. Settings now uses authenticated typed HTTP reads;46 local tests pass. Built preview Settings-screen logout acceptance remains. |
 | Workspace lifecycle and app authorization | Coder HTTP | REST client is portable; preview still blocks server actions until each callable capability is classified. |
 | Project discovery and first task | Installed signed project host | Durable server intents and installed controller implemented; account-backed deployed pilot pending. |
 | Conversation and project Terminal | Host native events, tmux PTY, scoped WebSocket | Dedicated relay implemented under review; persistent authorization and browser proof pending. |

@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-10-29T21:15:44.657602+00:00",
+  "scope": "Local authenticated Settings read portability; no Cloudflare upload or browser preview claim",
+  "parentTestsPassed": 46,
+  "agentTypecheck": "passed",
+  "agentBiome": "passed",
+  "parentReview": "Authenticated principal only; exact GET middleware exception delegates session auth to route; projected pending booleans and workspace names retain prior semantics; no generic server action enabled. Abort and parallel-read failure cleanup reviewed.",
+  "sourceSha256": {
+    "src/lib/settings/window-contracts.ts": "c32155532c36b06f81bc8f9c483e9257f7831caec22bc488f40e0618b38649d6",
+    "src/lib/settings/window.server.ts": "22eb040b6a3d3fe316c8cbd8e49a8cda0e78511e30269b5d983c7d365d4167e3",
+    "src/lib/settings/window-client.ts": "89ef4b1e021e96da3050788cb0c12f6d585444c843530e2658e6f29c2540b277",
+    "src/app/api/settings/window/route.ts": "0e988c7226b99781edbd875d35be5961b8deba2d9d4aeb646e443c884105e5c9",
+    "src/lib/actions/settings-window.ts": "b95fb78202cbabc3475708e3d96b36f809a297fcc8cf3a1290408f9eee62f16d",
+    "src/components/workspaces/HiveWorkspacePane.tsx": "672f85697d7370ce6fad1a0e3c5131f9ed2ef5f96cb731e4a66a64b1fa5df971",
+    "src/proxy.ts": "1137679e6ac48f5fb74518b8ea076976028759cbe7272516b24dba9c8eb60708",
+    "src/__tests__/lib/settings-window.test.ts": "454682decc9fc52b794f6f4a86b340f783b24fdf7c0913769a7ae22162424cab",
+    "src/__tests__/components/settings-window.test.tsx": "0946156db05e60967ad3f8af07ce77a670e81cb7ba357f87b1e6cb4339845933",
+    "src/__tests__/components/general-workspace-windows.test.tsx": "205fb85481e0a74e63766af8c7fcbfb0f08001a8dee9e2ab43128a064b142270",
+    "src/__tests__/middleware.test.ts": "5476cf5e65e3c5a3fcb0497dcea82676491ff2898c5dec799e8dadae228183c3"
+  },
+  "remaining": [
+    "Built Workers and normal Settings-screen logout acceptance",
+    "Login form pre-hydration interaction hardening",
+    "Other server action and baseline service portability"
+  ]
+}
