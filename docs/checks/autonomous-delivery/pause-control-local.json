@@ -13,9 +13,7 @@
     "Pause blocks new logical claims without asserting active process quiescence",
     "Resume changes scheduling only and preserves existing writer/evidence/release gates"
   ],
-  "remaining": [
-    "Deployed authenticated browser acceptance"
-  ],
+  "remaining": ["Deployed authenticated browser acceptance"],
   "sourceSha256": {
     "src/app/api/delivery/tasks/[taskId]/pause/route.ts": "6c9d6d8fcf66e1f73ef7337566d4f9f62f2113472c2635b31d9df7fe7bf45b85",
     "src/components/delivery/DeliveryPauseControl.tsx": "ce3ecdae8469f1ff837fea7fe2aa5534a902fa812182028ed65b8a5f609ac561",
