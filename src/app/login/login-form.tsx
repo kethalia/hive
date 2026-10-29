@@ -2,13 +2,20 @@
 
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverNotReady = () => false;
+
 export function LoginForm() {
   const router = useRouter();
+  // React uses the server snapshot during SSR and initial hydration. Enable
+  // controls only on its subsequent client snapshot, after handlers attach.
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientReady, serverNotReady);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +23,7 @@ export function LoginForm() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!hydrated || isPending) return;
     setError(null);
     setIsPending(true);
     try {
@@ -39,7 +47,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full space-y-5">
+    <form onSubmit={handleSubmit} aria-busy={!hydrated || isPending} className="w-full space-y-5">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -60,7 +68,7 @@ export function LoginForm() {
           }}
           required
           autoComplete="email"
-          disabled={isPending}
+          disabled={!hydrated || isPending}
         />
       </div>
       <div className="space-y-2">
@@ -77,10 +85,10 @@ export function LoginForm() {
           }}
           required
           autoComplete="current-password"
-          disabled={isPending}
+          disabled={!hydrated || isPending}
         />
       </div>
-      <Button type="submit" className="mt-2 w-full" size="lg" disabled={isPending}>
+      <Button type="submit" className="mt-2 w-full" size="lg" disabled={!hydrated || isPending}>
         {isPending ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />

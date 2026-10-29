@@ -266,3 +266,20 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Both public URLs are disabled. Normal Settings-screen logout, fonts/full visual parity,
   discovery, native-session interaction and other baseline features remain unverified.
   [Evidence](cloudflare-browser/live-hydration-followup.json).
+
+- **Implement / Validate: portable Settings and login readiness; moderate difficulty.**
+  `605b405` replaces the Settings window's server-action read with an authenticated typed GET,
+  keeping the existing action and Sign out behavior. Parent reran46 owner/auth/middleware/UI
+  checks. Login controls now stay disabled through SSR and initial hydration; five focused
+  tests include actual render-to-string/hydration, pending submission and retry behavior.
+  These changes are local; the deployed106721d preview has not been replaced with them.
+  [Settings evidence](settings-window-local.json).
+- **Validate / Cleanup: browser proof preserved; low difficulty.** The primary verified no
+  task processes remained, completed the signed disposable receipt, stopped the matching
+  workspace and requested deletion. A fresh Coder inventory confirms absence; the primary
+  and unrelated workspaces remain. [Cleanup evidence](cloudflare-browser/cleanup.json).
+- **Design: same-manager step progression; high difficulty.** `d72c92a` separates the
+  logical step cursor from held checkout ownership and requires completed root-turn boundaries.
+  A root manager can accept its completed child's result; pending observation transport is an
+  ordering problem, not a general self-turn deadlock. Server implementation and a real native
+  protocol fixture are next; neither child completion nor a logical cursor releases the writer.
