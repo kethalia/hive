@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
+import { githubFixture } from "./github-fixture";
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(),
@@ -29,6 +30,7 @@ import { POST as challenge } from "@/app/api/delivery/github-source/challenge/ro
 import { POST as snapshot } from "@/app/api/delivery/github-source/route";
 
 const taskId = randomUUID();
+const configured = { pullNumber: 5, policy: githubFixture().policy };
 const request = (body = "{}", headers = {}) =>
   new Request("https://hive.example/api/delivery/github-source", {
     method: "POST",
@@ -39,10 +41,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("HIVE_DELIVERY_GITHUB_SOURCE_ENABLED", "true");
   vi.stubEnv("HIVE_DELIVERY_MANAGER_ENABLED", "true");
-  vi.stubEnv(
-    "HIVE_DELIVERY_GITHUB_TARGETS_JSON",
-    JSON.stringify({ [taskId]: { server: "policy" } }),
-  );
+  vi.stubEnv("HIVE_DELIVERY_GITHUB_TARGETS_JSON", JSON.stringify({ [taskId]: configured }));
   mocks.context.mockResolvedValue({ env: { HIVE_DELIVERY_EVIDENCE: {} } });
   mocks.session.mockReturnValue({ authority: { reauthorize: vi.fn() } });
   mocks.ingest.mockResolvedValue({ evidenceIds: [] });
@@ -83,9 +82,13 @@ describe("default-off source-only route", () => {
     expect(mocks.context).not.toHaveBeenCalled();
   });
   it("no policy or no R2 binding fails closed with no local-memory fallback", async () => {
+    mocks.ingest.mockImplementation(async () =>
+      mocks.service.mock.calls.at(-1)?.[1].resolveTargetPolicy({ taskId }),
+    );
     vi.stubEnv("HIVE_DELIVERY_GITHUB_TARGETS_JSON", "");
     expect((await snapshot(request())).status).toBe(503);
     vi.stubEnv("HIVE_DELIVERY_GITHUB_TARGETS_JSON", "{}");
+    mocks.ingest.mockClear();
     mocks.context.mockResolvedValue({ env: {} });
     expect((await snapshot(request())).status).toBe(503);
     expect(mocks.ingest).not.toHaveBeenCalled();
@@ -98,7 +101,7 @@ describe("default-off source-only route", () => {
     expect(mocks.challenge).toHaveBeenCalledWith(body);
     expect(mocks.ingest).not.toHaveBeenCalled();
     const resolve = mocks.service.mock.calls[0][1].resolveTargetPolicy;
-    expect(resolve({ taskId })).toEqual({ server: "policy" });
+    expect(resolve({ taskId })).toEqual(configured);
     expect(() => resolve({ taskId: randomUUID() })).toThrow("github_task_policy_missing");
   });
   it("auth and internal failures never return raw credentials or snapshot details", async () => {

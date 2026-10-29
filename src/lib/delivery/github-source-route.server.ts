@@ -1,9 +1,10 @@
 import { getDb } from "@hive/db";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { ZodError, z } from "zod";
+import { ZodError } from "zod";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { boundedSessionJson, sessionService } from "@/lib/codex-session/route.server";
 import { type EvidenceR2Bucket, R2GitHubArtifactStore } from "./github-artifacts.server";
+import { resolveControllerGitHubTargetPolicy } from "./github-policy.server";
 import { GitHubSourceTransport } from "./github-transport.server";
 import { DeliveryConflict } from "./state";
 
@@ -30,12 +31,6 @@ export async function githubSourceRoute(request: Request, phase: "challenge" | "
     return response("invalid_request", 400);
   }
   try {
-    const raw = process.env.HIVE_DELIVERY_GITHUB_TARGETS_JSON;
-    if (!raw || Buffer.byteLength(raw) > 65536) throw new Error("Source policy unavailable");
-    // A controller-owned exact task map is the bounded initial policy boundary.
-    // User/host JSON and repository files cannot install target/producer policy.
-    const targets = z.record(z.string().uuid(), z.unknown()).parse(JSON.parse(raw));
-    if (Object.keys(targets).length > 100) throw new Error("Source policy unavailable");
     const { env } = await getCloudflareContext({ async: true });
     const bucket = (env as unknown as { HIVE_DELIVERY_EVIDENCE?: EvidenceR2Bucket })
       .HIVE_DELIVERY_EVIDENCE;
@@ -45,11 +40,7 @@ export async function githubSourceRoute(request: Request, phase: "challenge" | "
       getDb(),
       {
         reauthorize: (binding) => sessions.authority.reauthorize(binding),
-        resolveTargetPolicy: ({ taskId }) => {
-          if (!Object.hasOwn(targets, taskId))
-            throw new DeliveryConflict("github_task_policy_missing");
-          return targets[taskId];
-        },
+        resolveTargetPolicy: ({ taskId }) => resolveControllerGitHubTargetPolicy(taskId),
       },
       new R2GitHubArtifactStore(bucket),
     );
