@@ -337,3 +337,25 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   failures while clearing it on access denial. Thirty-one UI/connection and ten PostgreSQL
   checks pass, plus typecheck and independent review. Deployed browser/host acceptance remains.
   [Evidence](manager-navigation-local.json).
+
+- **Implement / Validate / Review: source publisher foundation committed; high difficulty.**
+  `753ca56` captures bounded raw source bytes, creates deterministic Git objects and journals
+  create-only branch/draft-PR publication with ambiguous-response recovery. Independent review
+  and both agent/parent 19-test runs pass; the clean template export passes all 87 checks.
+  The provider is simulated, source acceptance authority is disabled, and the installed runtime
+  does not import the scaffold files. Live transport, protected Git metadata and the database
+  output-revision contract remain. [Evidence](source-broker-local/parent-review.json).
+- **Implement / Validate / Review: native guardian foundation committed; high difficulty.**
+  `eabe291` pins the executable set, owns descendant reaping and closes admission before a
+  bounded whole-tree drain. Agent and parent each pass 19 synthetic tests and actual native
+  startup, credential-denial, drain and persisted-thread resume with a local canned provider.
+  The clean generated scaffold passes 35 packaging/guardian checks. The earlier readiness
+  failure is preserved without attributing a cause. Source copies do not install the guardian;
+  durable controller, shared-project/CLI/PTY integration and server authority remain.
+  [Evidence](guardian-foundation/parent-review.json).
+- **Review: host progression admission gaps found; high difficulty.** The parent reproduced
+  three root turns and two delegated steps against actual native Codex and PostgreSQL without
+  releasing the physical writer, and 66 focused native/runtime checks pass. Independent review
+  then reproduced registration expiry before continuation and during a claim HTTP response.
+  These must be fixed and revalidated before the host slice is accepted; successful simulated
+  progression alone does not establish current execution authorization.
