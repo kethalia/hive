@@ -397,3 +397,13 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Astra review pass. Fresh23/copy-upgrade22→23 preserves all prior data and150 writer anchors.
   The real broker, scoped producer transport and installed current-source readback remain gates;
   no remote schema was changed. The exact CI-built guardian ELF also passed22 parent checks.
+
+- Guarded host and installer composition: reviewed local checkpoint accepted, high difficulty.
+  Preparation admission now precedes Git helpers; late replies cannot reopen closed input.
+  Fixed outer/worker startup uses a private nonce/config/package-bound handshake and verifies
+  exact kernel process identity plus listener ownership. Parent112 actual runtime checks,12
+  installer checks and clean-export87 template/4 package/12 installer checks pass. Separate
+  actual fixed installer private-home proof remains in progress. Installed task preparation
+  and drain are deliberately denied until independent server admission/barrier authority lands.
+  CI, image builds and native-guardian artifact build are all green at c63506e, including both
+  CI fixture portability corrections and the schema23 source tests.

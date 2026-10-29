@@ -12,6 +12,7 @@ import tarfile
 import tempfile
 import types
 import unittest
+import uuid
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -168,6 +169,78 @@ class BuildIdentityTests(unittest.TestCase):
             else:
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.stdout, "")
+
+
+class GuardedReadinessTests(unittest.TestCase):
+    def test_kernel_identity_matches_actual_process_and_parent(self):
+        identity = installer.kernel_identity(os.getpid())
+        self.assertEqual(identity["parentPid"], os.getppid())
+        self.assertEqual({key: identity[key] for key in installer.process_identity(os.getpid())}, installer.process_identity(os.getpid()))
+        self.assertEqual(installer.kernel_identity(os.getpid(), False), {key: identity[key] for key in ("pid", "parentPid", "startTime", "bootId")})
+
+    def test_startup_channel_accepts_one_bounded_frame_only(self):
+        for payload, accepted in [(b'{"type":"ready"}\n', True), (b'{}\n{}\n', False), (b'x' * 32769, False), (b'not-json\n', False), (b'', False)]:
+            with self.subTest(size=len(payload)):
+                reader, writer = socket.socketpair()
+                try:
+                    writer.sendall(payload)
+                    writer.shutdown(socket.SHUT_WR)
+                    if accepted:
+                        self.assertEqual(installer.startup_reply(reader), {"type": "ready"})
+                    else:
+                        with self.assertRaises((RuntimeError, ValueError)):
+                            installer.startup_reply(reader)
+                finally:
+                    reader.close()
+                    writer.close()
+
+    def test_ready_binds_exact_nonce_package_config_and_kernel_chain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            node, guardian_path = root / "node", root / "codex-native-guardian"
+            node.write_bytes(b"fixture node bytes")
+            guardian_path.write_bytes(b"fixture guardian bytes")
+            node.chmod(0o500)
+            guardian_path.chmod(0o500)
+            digest = lambda value: hashlib.sha256(value).hexdigest()
+            worker_hash = digest(b"fixed worker")
+            manifest = {"files": {"codex-workspace-host-worker.mjs": worker_hash, "codex-native-guardian": digest(guardian_path.read_bytes())}, "guardian": {"elfSha256": digest(guardian_path.read_bytes())}}
+            manifest_bytes = json.dumps(manifest).encode()
+            installer.atomic(root / "package-manifest.json", manifest_bytes)
+            config = {"port": 43210, "guardianEnabled": True}
+            config_bytes = (json.dumps(config, separators=(",", ":"), sort_keys=True) + "\n").encode()
+            start = {"schemaVersion": 1, "type": "start", "nonce": base64.urlsafe_b64encode(b"x" * 32).decode().rstrip("="), "configSha256": digest(config_bytes), "packageManifestSha256": digest(manifest_bytes), "nodeSha256": digest(node.read_bytes()), "port": config["port"]}
+            def identity(pid, parent, path):
+                info = path.stat()
+                return {"pid": pid, "parentPid": parent, "startTime": str(pid + 100), "bootId": "a7c69fb9-d39d-4d88-99df-08190049c226", "executable": str(path), "device": str(info.st_dev), "inode": str(info.st_ino)}
+            outer, guardian, worker = identity(1000, os.getpid(), node), identity(1001, 1000, guardian_path), identity(1002, 1001, node)
+            ready = {**start, "type": "ready", "workerSha256": worker_hash, "guardianSha256": digest(guardian_path.read_bytes()), "lifetimeId": str(uuid.uuid4()), "bindingDigest": "a" * 64, "ownershipDigest": "b" * 64, "generation": 1, "phase": "open", "projects": [], "outerIdentity": outer, "guardianIdentity": guardian, "workerIdentity": worker}
+            receipt_identity = {key: outer[key] for key in ("pid", "startTime", "bootId", "executable")}
+            live = {entry["pid"]: entry for entry in (outer, guardian, worker)}
+            def inspect(pid, with_executable=True):
+                found = live[pid]
+                return dict(found) if with_executable else {key: found[key] for key in ("pid", "parentPid", "startTime", "bootId")}
+            startup = {"start": start, "ready": ready}
+            with patch.object(installer, "kernel_identity", side_effect=inspect):
+                self.assertEqual(installer.guarded_ready(receipt_identity, config, startup, root, initial=True), 1002)
+                # Parent exit may reparent the same outer; guardian and worker edges stay exact.
+                live[1000] = {**outer, "parentPid": 1}
+                self.assertEqual(installer.guarded_ready(receipt_identity, config, startup, root), 1002)
+                with self.assertRaises(RuntimeError):
+                    installer.guarded_ready(receipt_identity, config, startup, root, initial=True)
+                live[1000] = outer
+                mutations = [
+                    {"nonce": "y" * 43}, {"configSha256": "0" * 64}, {"packageManifestSha256": "0" * 64},
+                    {"workerSha256": "0" * 64}, {"guardianSha256": "0" * 64}, {"phase": "closed"},
+                    {"workerIdentity": {**worker, "startTime": "1"}}, {"workerIdentity": {**worker, "parentPid": 999}},
+                    {"guardianIdentity": {**guardian, "parentPid": 999}}, {"guardianIdentity": {**guardian, "inode": "0"}},
+                    {"outerIdentity": {**outer, "executable": "/tmp/other"}}, {"extra": True},
+                ]
+                for change in mutations:
+                    with self.subTest(change=change), self.assertRaises(RuntimeError):
+                        installer.guarded_ready(receipt_identity, config, {"start": start, "ready": {**ready, **change}}, root)
+                with self.assertRaises(RuntimeError):
+                    installer.guarded_ready(receipt_identity, config, {"start": start, "ready": None}, root)
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from pathlib import Path
 import pwd
 import re
 import shutil
+import socket
 import stat
 import subprocess
 import sys
@@ -84,13 +85,100 @@ def listener_owned(pid, port):
     return False
 
 
-def confirm_ready(identity, config):
+def kernel_identity(pid, with_executable=True):
+    require(type(pid) is int and pid > 0)
+    root = Path(f"/proc/{pid}")
+    raw = (root / "stat").read_text()
+    fields = raw[raw.rindex(") ") + 2:].split()
+    # Nondumpable guardians can have root-owned proc inodes. The status UIDs
+    # describe the process; directory ownership is not its execution identity.
+    uid_line = next(line for line in (root / "status").read_text().splitlines() if line.startswith("Uid:"))
+    require(all(int(value) == os.getuid() for value in uid_line.split()[1:]))
+    require(fields[0] not in ("Z", "X") and fields[19].isdigit() and fields[1].isdigit())
+    result = {"pid": pid, "parentPid": int(fields[1]), "startTime": fields[19], "bootId": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}
+    if with_executable:
+        executable = os.readlink(root / "exe")
+        info = (root / "exe").stat()
+        require(executable.startswith("/") and not executable.endswith(" (deleted)") and stat.S_ISREG(info.st_mode))
+        result.update(executable=executable, device=str(info.st_dev), inode=str(info.st_ino))
+    after = (root / "stat").read_text()
+    again = after[after.rindex(") ") + 2:].split()
+    require(again[0] not in ("Z", "X") and again[19] == fields[19] and again[1] == fields[1])
+    return result
+
+
+def guarded_ready(identity, config, startup, target, initial=False):
+    require(isinstance(startup, dict) and set(startup) == {"start", "ready"})
+    expected, ready = startup["start"], startup["ready"]
+    require(isinstance(expected, dict) and isinstance(ready, dict))
+    require(set(expected) == {"schemaVersion", "type", "nonce", "configSha256", "packageManifestSha256", "nodeSha256", "port"})
+    fields = {"schemaVersion", "type", "nonce", "configSha256", "packageManifestSha256", "nodeSha256", "workerSha256", "guardianSha256", "port", "lifetimeId", "bindingDigest", "generation", "ownershipDigest", "phase", "projects", "outerIdentity", "guardianIdentity", "workerIdentity"}
+    require(set(ready) == fields and type(expected["schemaVersion"]) is int and type(ready["schemaVersion"]) is int and expected["schemaVersion"] == ready["schemaVersion"] == 1 and expected["type"] == "start" and ready["type"] == "ready")
+    require(re.fullmatch(r"[A-Za-z0-9_-]{43}", expected["nonce"]) is not None)
+    for key in ("nonce", "configSha256", "packageManifestSha256", "nodeSha256", "port"):
+        require(ready[key] == expected[key])
+    encoded = (json.dumps(config, separators=(",", ":"), sort_keys=True) + "\n").encode()
+    require(hashlib.sha256(encoded).hexdigest() == ready["configSha256"])
+    require(type(ready["port"]) is int and ready["port"] == config["port"] and ready["phase"] == "open")
+    require(type(ready["generation"]) is int and ready["generation"] > 0 and str(uuid.UUID(ready["lifetimeId"])) == ready["lifetimeId"])
+    require(all(isinstance(ready[key], str) and re.fullmatch(r"[a-f0-9]{64}", ready[key]) for key in ("configSha256", "packageManifestSha256", "nodeSha256", "workerSha256", "guardianSha256", "bindingDigest", "ownershipDigest")))
+    require(isinstance(ready["projects"], list) and len(ready["projects"]) <= 32)
+    project_ids = set()
+    for project in ready["projects"]:
+        require(set(project) == {"projectId", "bindingDigest"} and str(uuid.UUID(project["projectId"])) == project["projectId"] and re.fullmatch(r"[a-f0-9]{64}", project["bindingDigest"]))
+        require(project["projectId"] not in project_ids)
+        project_ids.add(project["projectId"])
+    manifest_bytes = private_file(target / "package-manifest.json", 65536)
+    require(hashlib.sha256(manifest_bytes).hexdigest() == ready["packageManifestSha256"])
+    manifest = json.loads(manifest_bytes)
+    require(manifest["files"]["codex-workspace-host-worker.mjs"] == ready["workerSha256"])
+    require(manifest["guardian"]["elfSha256"] == manifest["files"]["codex-native-guardian"] == ready["guardianSha256"])
+    outer, guardian, worker = (ready[key] for key in ("outerIdentity", "guardianIdentity", "workerIdentity"))
+    identity_keys = {"pid", "parentPid", "startTime", "bootId", "executable", "device", "inode"}
+    for claimed in (outer, guardian, worker):
+        require(isinstance(claimed, dict) and set(claimed) == identity_keys)
+        require(type(claimed["parentPid"]) is int and claimed["parentPid"] > 0)
+    require({key: outer[key] for key in identity} == identity)
+    require(guardian["parentPid"] == outer["pid"] and worker["parentPid"] == guardian["pid"])
+    require(len({outer["pid"], guardian["pid"], worker["pid"]}) == 3)
+    actual_outer = kernel_identity(outer["pid"])
+    # The installer exits after startup; the same outer process is then reparented.
+    require(all(actual_outer[key] == outer[key] for key in identity_keys - {"parentPid"}))
+    if initial:
+        require(actual_outer["parentPid"] == outer["parentPid"] == os.getpid())
+    require(kernel_identity(worker["pid"]) == worker)
+    require(kernel_identity(guardian["pid"], False) == {key: guardian[key] for key in ("pid", "parentPid", "startTime", "bootId")})
+    require(worker["executable"] == outer["executable"])
+    for claimed, executable, digest in ((outer, Path(identity["executable"]), ready["nodeSha256"]), (worker, Path(identity["executable"]), ready["nodeSha256"]), (guardian, target / "codex-native-guardian", ready["guardianSha256"])):
+        info = executable.stat()
+        require(claimed["executable"] == str(executable) and claimed["device"] == str(info.st_dev) and claimed["inode"] == str(info.st_ino))
+        require(hashlib.sha256(executable.read_bytes()).hexdigest() == digest)
+    return worker["pid"]
+
+
+def startup_reply(channel):
+    deadline = time.monotonic() + 20
+    data = b""
+    while b"\n" not in data:
+        remaining = deadline - time.monotonic()
+        require(remaining > 0)
+        channel.settimeout(remaining)
+        chunk = channel.recv(32769 - len(data))
+        require(chunk)
+        data += chunk
+        require(len(data) <= 32768)
+    require(data.endswith(b"\n") and data.count(b"\n") == 1)
+    return json.loads(data)
+
+
+def confirm_ready(identity, config, startup=None, target=None):
     deadline = time.monotonic() + 20
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     request = urllib.request.Request(f"http://127.0.0.1:{config['port']}/healthz", headers={"Host": urlparse(config["binding"]["appOrigin"]).netloc})
     while time.monotonic() < deadline:
         require(process_identity(identity["pid"]) == identity)
-        if listener_owned(identity["pid"], config["port"]):
+        listener_pid = guarded_ready(identity, config, startup, target) if config.get("guardianEnabled") else identity["pid"]
+        if listener_owned(listener_pid, config["port"]):
             try:
                 with opener.open(request, timeout=1) as response:
                     if response.status == 200:
@@ -199,7 +287,7 @@ def install(request):
             if live:
                 require(receipt["archiveSha256"] == request["archiveSha256"] and receipt["configSha256"] == hashlib.sha256(encoded).hexdigest())
                 require(private_file(config_root / "codex-host.json", 16384) == encoded)
-                confirm_ready(receipt["process"], config)
+                confirm_ready(receipt["process"], config, receipt.get("guardianStartup"), target)
                 return {"status": "already_running", "archiveSha256": request["archiveSha256"]}
         subprocess.run(["/usr/bin/python3", str(target / "install-codex-runtime.py")], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180, check=True)
         atomic(config_root / "codex-host.json", encoded)
@@ -210,12 +298,49 @@ def install(request):
         # Never pass owner CLI authentication or unrelated integration credentials.
         log = os.open(state / "host.log", os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         require(os.fstat(log).st_uid == os.getuid() and not os.fstat(log).st_mode & 0o077)
-        child = subprocess.Popen([node, str(target / "codex-workspace-host.mjs")], env=host_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True, start_new_session=True)
-        os.close(log)
-        identity = process_identity(child.pid)
-        atomic(receipt_path, (json.dumps({"schemaVersion": 1, "archiveSha256": request["archiveSha256"], "configSha256": hashlib.sha256(encoded).hexdigest(), "process": identity}) + "\n").encode())
-        # Preserve process/work and receipt if readiness fails; never spawn a duplicate.
-        confirm_ready(identity, config)
+        channel = child_channel = None
+        startup = None
+        guarded = config.get("guardianEnabled") is True
+        try:
+            spawn_options = {}
+            if guarded:
+                manifest_bytes = private_file(target / "package-manifest.json", 65536)
+                manifest = json.loads(manifest_bytes)
+                require({"codex-workspace-host-outer.mjs", "codex-workspace-host-worker.mjs", "codex-native-guardian"} <= manifest["files"].keys() and "guardian" in manifest)
+                channel, child_channel = socket.socketpair()
+                inherited = child_channel.fileno()
+                # The standalone installer owns its descriptors and has no threads.
+                # Keep FD3 through exec; replace only the child's copy of install.lock.
+                os.fstat(3)
+                def attach_startup_channel():
+                    os.dup2(inherited, 3, inheritable=True)
+                    if inherited != 3:
+                        os.close(inherited)
+                spawn_options = {"pass_fds": tuple({3, inherited}), "preexec_fn": attach_startup_channel}
+                startup = {"start": {"schemaVersion": 1, "type": "start", "nonce": base64.urlsafe_b64encode(os.urandom(32)).decode().rstrip("="), "configSha256": hashlib.sha256(encoded).hexdigest(), "packageManifestSha256": hashlib.sha256(manifest_bytes).hexdigest(), "nodeSha256": hashlib.sha256(Path(node).read_bytes()).hexdigest(), "port": config["port"]}, "ready": None}
+            entry = "codex-workspace-host-outer.mjs" if guarded else "codex-workspace-host.mjs"
+            child = subprocess.Popen([node, str(target / entry)], env=host_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True, start_new_session=True, **spawn_options)
+            if child_channel is not None:
+                child_channel.close()
+            identity = process_identity(child.pid)
+            receipt = {"schemaVersion": 1, "archiveSha256": request["archiveSha256"], "configSha256": hashlib.sha256(encoded).hexdigest(), "process": identity}
+            if guarded:
+                receipt["guardianStartup"] = startup
+            # Persist the launch before waiting: lost ACK must not launch a duplicate.
+            atomic(receipt_path, (json.dumps(receipt) + "\n").encode())
+            if guarded:
+                channel.sendall((json.dumps(startup["start"]) + "\n").encode())
+                startup["ready"] = startup_reply(channel)
+                guarded_ready(identity, config, startup, target, initial=True)
+                atomic(receipt_path, (json.dumps(receipt) + "\n").encode())
+            # Preserve process/work and receipt if readiness fails; never spawn a duplicate.
+            confirm_ready(identity, config, startup, target)
+        finally:
+            os.close(log)
+            if child_channel is not None:
+                child_channel.close()
+            if channel is not None:
+                channel.close()
         return {"status": "started", "archiveSha256": request["archiveSha256"]}
     finally:
         os.close(lock)

@@ -205,6 +205,7 @@ export function createProjectDiscovery(config, controller) {
     return r;
   }
   function runHelper(request) {
+    check(!closed);
     check(
       createHash("sha256").update(readFileSync(config.helperPath)).digest("hex") ===
         config.helperSha256,
@@ -225,6 +226,7 @@ export function createProjectDiscovery(config, controller) {
       const chunks = [];
       const kill = () => {
         try {
+          check(!closed);
           process.kill(-child.pid, "SIGKILL");
         } catch {}
       };
@@ -315,7 +317,7 @@ export function createProjectDiscovery(config, controller) {
         request.url === "/projects/discover"
           ? await discover(value)
           : await controller?.handle(request.url, verifyTicket(value, request.url));
-      check(result);
+      check(!closed && result);
       response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       response.end(JSON.stringify(result));
     } finally {
