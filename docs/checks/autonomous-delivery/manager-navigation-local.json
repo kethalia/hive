@@ -1,0 +1,38 @@
+{
+  "scope": "Task manager navigation and exact logical session targeting; local DOM/transport fixtures and PostgreSQL. No browser/cloud/installed-runtime activation.",
+  "validation": {
+    "uiAndConnectionTests": 31,
+    "postgresqlTests": 10,
+    "typecheck": "passed",
+    "biome": "passed"
+  },
+  "behavior": [
+    "Manager reference comes from authenticated owner-scoped task relation; no native filesystem path or lease authority returned",
+    "Opening manager view subscribes to existing session; no checkout preparation, task creation or prompt submission",
+    "Both conversation and terminal require the task recorded workspace and native thread on initial grant and renewal",
+    "A different registered thread is unavailable, never silently substituted",
+    "Terminal is mounted only on request, retained across view switches and hidden Delivery pane"
+  ],
+  "remaining": ["Deployed authenticated browser and real host acceptance"],
+  "sourceSha256": {
+    "src/components/delivery/DeliveryPanel.tsx": "73b7285b81b05ecaabbb460982306214631585f8c13a7474fa595da9f2a7110b",
+    "src/components/delivery/DeliveryManagerSession.tsx": "db1811b883340e6d232ca3deb0cd962c33722b0703dce5e1f241b864cde9a13b",
+    "src/lib/delivery/read-contracts.ts": "dbfeb00e811af683d87074100bde747097ce42492ca62dfd98d63407557e3fee",
+    "src/lib/delivery/reads.ts": "81cd7062e9fa32c13799ca41dd6490334624ee6c776156d6f61622c6a53af281",
+    "src/hooks/useProjectConversation.ts": "2ea01d59041330412c3f09c16f5578aee97b6fcd8b10293aed00bd8028fbfb31",
+    "src/components/projects/ProjectTerminal.tsx": "09dab3400ade7f8af724cd644acbf596b599d22f62067f4aa4513a841cdeaa94",
+    "src/lib/codex-session/session-target.ts": "666ca8ecd3d4f6f43ce8127e781e69b3fc22000357360b61fc836950bcab6ea3",
+    "src/__tests__/components/delivery-panel.test.tsx": "4dfd866a4aea43b2c41e136f91b60420c9a529bf97d4f0d5344cba36d56c9a25",
+    "src/__tests__/components/delivery-manager-session.test.tsx": "82703c27cbea2a75c11b2940b9348935846f12ce68e3f334c6e6637d26158e2d",
+    "src/__tests__/components/project-conversation-connection.test.tsx": "63d7ab1df34793f8221b1a4e6d8c289af9212031f6f5e2c1c573ac68eb6f6172",
+    "src/__tests__/components/project-terminal-target.test.tsx": "6d91da75724aa059d71cf29b7c92c73361a42459cb7c8f1e7e9128232888ca07",
+    "src/__tests__/lib/delivery/informational-report.integration.test.ts": "b22f1c9fc774fca054fe5d5785f0c68cd683cc69830570b5de8b374c6bf5e9b7"
+  },
+  "independentReview": {
+    "reviewer": "delivery_gate_audit",
+    "result": "No remaining blocking findings",
+    "findingFixed": "Transient task list/detail refresh errors unmounted a healthy manager terminal; retain cached same-owner view across retryable failures and remove it on access denial.",
+    "independentUiTests": 25,
+    "independentPostgresqlTests": 10
+  }
+}

@@ -5,6 +5,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DeliveryPanel } from "@/components/delivery/DeliveryPanel";
 
+vi.mock("@/components/delivery/DeliveryManagerSession", () => ({
+  DeliveryManagerSession: ({ manager }: { manager: { threadId: string } }) => (
+    <div data-testid="manager-view">{manager.threadId}</div>
+  ),
+}));
+
 const taskId = "22222222-2222-4222-8222-222222222222";
 const reportId = "33333333-3333-4333-8333-333333333333";
 const stepId = "44444444-4444-4444-8444-444444444444";
@@ -104,6 +110,78 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("Delivery window", () => {
+  it("opens only the task's recorded manager on demand and retains its mounted view while hidden", async () => {
+    const manager = {
+      projectId: stepId,
+      conversationId: reportId,
+      workspaceId: taskId,
+      threadId: "recorded-manager-thread",
+    };
+    vi.mocked(fetch).mockImplementation((url) =>
+      Promise.resolve(
+        response(
+          String(url).split("?")[0].endsWith(taskId)
+            ? { ...detail, manager }
+            : { tasks: [summary], nextCursor: null },
+        ),
+      ),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    clients.push(client);
+    const component = (visible: boolean) => (
+      <QueryClientProvider client={client}>
+        <DeliveryPanel userId="owner-a" enabled taskId={taskId} visible={visible} />
+      </QueryClientProvider>
+    );
+    const view = render(component(true));
+    const button = await screen.findByRole("button", { name: "Open manager conversation" });
+    expect(screen.queryByTestId("manager-view")).not.toBeInTheDocument();
+    fireEvent.click(button);
+    const managerView = await screen.findByTestId("manager-view");
+    expect(managerView).toHaveTextContent("recorded-manager-thread");
+    const count = vi.mocked(fetch).mock.calls.length;
+    view.rerender(component(false));
+    expect(screen.getByTestId("manager-view")).toBe(managerView);
+    expect(managerView).not.toBeVisible();
+    expect(fetch).toHaveBeenCalledTimes(count);
+    view.rerender(component(true));
+    expect(screen.getByTestId("manager-view")).toBe(managerView);
+  });
+  it.each([
+    "detail",
+    "list",
+  ])("retains a healthy manager through a transient %s refresh failure, then clears it on access denial", async (failing) => {
+    const manager = {
+      projectId: stepId,
+      conversationId: reportId,
+      workspaceId: taskId,
+      threadId: "recorded-manager-thread",
+    };
+    let status = 200;
+    vi.mocked(fetch).mockImplementation((url) => {
+      const isDetail = String(url).split("?")[0].endsWith(taskId);
+      if (status !== 200 && isDetail === (failing === "detail"))
+        return Promise.resolve(response({ error: "unavailable" }, status));
+      return Promise.resolve(
+        response(isDetail ? { ...detail, manager } : { tasks: [summary], nextCursor: null }),
+      );
+    });
+    mount({ taskId });
+    fireEvent.click(await screen.findByRole("button", { name: "Open manager conversation" }));
+    const managerView = await screen.findByTestId("manager-view");
+    status = 503;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await screen.findByRole("alert");
+    expect(screen.getByTestId("manager-view")).toBe(managerView);
+    status = 200;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByTestId("manager-view")).toBe(managerView);
+    status = 403;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await screen.findByRole("alert");
+    expect(screen.queryByTestId("manager-view")).not.toBeInTheDocument();
+  });
   it("requests scheduling pause once and displays the server's still-running state", async () => {
     let paused = false;
     let resolve!: (value: Response) => void;

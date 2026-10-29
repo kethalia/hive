@@ -110,6 +110,9 @@ export async function readDeliveryTask(
     where: { ownerId_id: { ownerId, id: id.parse(taskId) } },
     select: {
       ...summarySelect,
+      managerBinding: {
+        select: { projectId: true, conversationId: true, workspaceId: true, nativeThreadId: true },
+      },
       events: {
         where: { ownerId },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -170,6 +173,14 @@ export async function readDeliveryTask(
   }
   return deliveryTaskDetailSchema.parse({
     ...summary(task),
+    manager: task.managerBinding
+      ? {
+          projectId: task.managerBinding.projectId,
+          conversationId: task.managerBinding.conversationId,
+          workspaceId: task.managerBinding.workspaceId,
+          threadId: task.managerBinding.nativeThreadId,
+        }
+      : null,
     recentEvents: task.events.map((event) => {
       const payload = event.payload;
       const reason =

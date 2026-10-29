@@ -53,6 +53,15 @@ export const deliveryReportSchema = z.object({
   ),
 });
 export const deliveryTaskDetailSchema = deliveryTaskSummarySchema.extend({
+  manager: z
+    .object({
+      projectId: id,
+      conversationId: id,
+      workspaceId: id,
+      threadId: z.string().regex(/^[A-Za-z0-9_.:-]{1,160}$/),
+    })
+    .nullable()
+    .default(null),
   recentEvents: z
     .array(
       z.object({

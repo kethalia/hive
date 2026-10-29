@@ -78,6 +78,22 @@ async function fixture(understand = true) {
   };
 }
 describe.skipIf(!url)("informational Understand reports in PostgreSQL", () => {
+  it("projects only an owner-scoped manager conversation identity for task navigation", async () => {
+    const f = await fixture();
+    const detail = await readDeliveryTask(db, f.user.id, f.taskId);
+    const conversation = await db.deliveryConversation.findFirstOrThrow({
+      where: { ownerId: f.user.id, projectId: f.project.id },
+    });
+    expect(detail?.manager).toEqual({
+      projectId: f.project.id,
+      conversationId: conversation.id,
+      workspaceId: f.host.workspaceId,
+      threadId: conversation.nativeThreadId,
+    });
+    expect(await readDeliveryTask(db, randomUUID(), f.taskId)).toBeNull();
+    for (const hidden of ["leaseId", "bindingDigest", "nativePath", "serverInstanceId", "buildId"])
+      expect(detail?.manager).not.toHaveProperty(hidden);
+  });
   it("records model-authored difficulty/issues without GitHub or evidence and preserves the exact native writer", async () => {
     const f = await fixture(),
       before = await db.deliveryAttempt.findUniqueOrThrow({ where: { id: f.attempt.attemptId } });

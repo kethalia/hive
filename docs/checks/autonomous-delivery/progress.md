@@ -21,7 +21,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
 | D02/D03 persistence | Foundation, recovery and informational reports validated locally | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation. 2e3c10e adds informational reported outcomes separate from verified acceptance, with two additive local migrations and PostgreSQL CI coverage. |
-| D05 Delivery window | Initial read-only view validated | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Manager linking, pause UI, integrated deployment remain. |
+| D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Signed transport and manager policy integration passed locally; live composition pending | 8571cd1 binds result references to the exact PR, checkout and full controller policy; 92 focused checks pass, including real PostgreSQL races. a4fa338 preserves pending retry bytes while retiring validated expired records. Live R2 retention/integrity passed; cleanup is complete. Installed source composition remains. GitHub reports no required PR checks. |
 | Test workspace | Created and healthy | User reconnected GitHub; verified valid. codex/hive-epic-test is running, agent connected and ready; two-hour autostop. Identity is preserved in test-workspace-creation.json. No primary credentials copied. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
@@ -327,3 +327,13 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   rejection, competing writes and replay after resume. Typecheck and independent review pass.
   This control neither kills processes nor clears writer/evidence/release holds. Deployed
   browser acceptance remains. [Evidence](pause-control-local.json).
+
+- **Implement / Validate / Review: exact manager navigation completed locally; moderate difficulty.**
+  Tasks expose only their owner-scoped project/workspace/conversation identity. Opening the
+  manager subscribes to that recorded native thread; both views reject a different workspace
+  or replacement thread on initial grant and renewal. Terminal opens only on request and stays
+  mounted across view/pane visibility switches. Independent review found transient task polling
+  failures unmounted a healthy terminal; corrected to retain the same view across retryable
+  failures while clearing it on access denial. Thirty-one UI/connection and ten PostgreSQL
+  checks pass, plus typecheck and independent review. Deployed browser/host acceptance remains.
+  [Evidence](manager-navigation-local.json).

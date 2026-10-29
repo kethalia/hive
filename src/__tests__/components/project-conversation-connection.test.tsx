@@ -51,6 +51,33 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("project read connection lifecycle", () => {
+  it.each([
+    { workspaceId: "other-workspace", threadId: "thread" },
+    { workspaceId: "workspace", threadId: "replacement-thread" },
+  ])("refuses a manager link that resolves to another session %j", async (binding) => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...grant, binding })));
+    const hook = renderHook(() =>
+      useProjectConversation("project", true, { workspaceId: "workspace", threadId: "thread" }),
+    );
+    await waitFor(() => expect(hook.result.current.view.phase).toBe("error"));
+    expect(hook.result.current.view.turns).toEqual([]);
+    expect(mock.open).not.toHaveBeenCalled();
+  });
+  it("pins a manager link through reconnect and grant renewal", async () => {
+    const binding = { workspaceId: "workspace", threadId: "thread" };
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...grant, binding })));
+    const hook = renderHook(() => useProjectConversation("project", true, binding));
+    await waitFor(() => expect(hook.result.current.view.phase).toBe("live"));
+    hook.rerender();
+    expect(mock.open).toHaveBeenCalledTimes(1);
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ...grant, binding: { ...binding, threadId: "replacement" } })),
+    );
+    await expect(mock.open.mock.calls[0][1].freshGrant()).rejects.toThrow();
+    act(() => hook.result.current.reconnect());
+    await waitFor(() => expect(hook.result.current.view.phase).toBe("error"));
+    expect(mock.open).toHaveBeenCalledTimes(1);
+  });
   it("does nothing before a native session exists", () => {
     renderHook(() => useProjectConversation("project", false));
     expect(fetch).not.toHaveBeenCalled();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { DeliveryPauseControl } from "@/components/delivery/DeliveryPauseControl";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,10 @@ import {
   deliveryTaskDetailSchema,
   deliveryTaskPageSchema,
 } from "@/lib/delivery/read-contracts";
+
+const DeliveryManagerSession = dynamic(() =>
+  import("./DeliveryManagerSession").then((m) => m.DeliveryManagerSession),
+);
 
 class DeliveryReadError extends Error {
   constructor(readonly status: number) {
@@ -32,6 +37,9 @@ function errorMessage(error: Error | null) {
   if (error instanceof DeliveryReadError && error.status === 404)
     return "This delivery item is unavailable.";
   return "Could not refresh delivery progress. Retry to load current information.";
+}
+function accessDenied(error: Error | null) {
+  return error instanceof DeliveryReadError && [401, 403, 404].includes(error.status);
 }
 const words = (value: string) => value.replaceAll("_", " ");
 
@@ -124,6 +132,7 @@ function TaskProgress({
   reportId?: string;
   userId: string;
 }) {
+  const [managerOpen, setManagerOpen] = useState(false);
   const reports = task.steps.flatMap((step) => step.reports);
   const shown = useRef<string | null>(null);
   useEffect(() => {
@@ -148,6 +157,21 @@ function TaskProgress({
         </p>
       )}
       <DeliveryPauseControl task={task} userId={userId} />
+      {task.manager && (
+        <div className="space-y-3">
+          <Button
+            variant="outline"
+            size="sm"
+            aria-expanded={managerOpen}
+            onClick={() => setManagerOpen((open) => !open)}
+          >
+            {managerOpen ? "Close manager view" : "Open manager conversation"}
+          </Button>
+          {managerOpen && (
+            <DeliveryManagerSession key={task.manager.conversationId} manager={task.manager} />
+          )}
+        </div>
+      )}
       {reportId && !reports.some((report) => report.id === reportId) && (
         <p role="status" className="text-sm">
           The linked report is not available in this task’s recent history.
@@ -268,14 +292,13 @@ export function DeliveryPanel({
   });
   if (!enabled)
     return <p className="p-4 text-sm">Delivery tracking is not enabled for this instance.</p>;
-  if (!visible) return null;
   const rows = [
     ...new Map(
       tasks.data?.pages.flatMap((page) => page.tasks).map((task) => [task.id, task]),
     ).values(),
   ];
   return (
-    <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
+    <div className="space-y-4 p-4" data-mobile-scroll-allow="true" hidden={!visible}>
       <p className="text-sm text-muted-foreground">
         Track work and inspect step reports. Automatic production delivery is not enabled.
       </p>
@@ -292,13 +315,14 @@ export function DeliveryPanel({
           Refresh
         </Button>
       </div>
-      {tasks.isError ? (
+      {tasks.isError && (
         <p role="alert" className="text-sm">
           {errorMessage(tasks.error)}
         </p>
-      ) : tasks.isPending ? (
+      )}
+      {tasks.isPending ? (
         <p role="status">Loading tasks…</p>
-      ) : (
+      ) : tasks.data && !accessDenied(tasks.error) ? (
         <>
           {!rows.length && (
             <p className="text-sm text-muted-foreground">
@@ -335,23 +359,21 @@ export function DeliveryPanel({
             </Button>
           )}
         </>
-      )}
-      {selected &&
-        !tasks.isError &&
-        (detail.isError ? (
-          <p role="alert">{errorMessage(detail.error)}</p>
-        ) : detail.isPending ? (
-          <p role="status">Loading task…</p>
-        ) : (
-          detail.data && (
+      ) : null}
+      {selected && !accessDenied(tasks.error) && (
+        <>
+          {detail.isError && <p role="alert">{errorMessage(detail.error)}</p>}
+          {detail.isPending && <p role="status">Loading task…</p>}
+          {detail.data && !accessDenied(detail.error) && (
             <TaskProgress
               key={`${userId}:${detail.data.id}`}
               task={detail.data}
               reportId={selectedReport}
               userId={userId}
             />
-          )
-        ))}
+          )}
+        </>
+      )}
     </div>
   );
 }
