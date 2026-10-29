@@ -107,7 +107,7 @@ def package_files(archive, digest):
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tar:
         for member in tar:
             require(member.isfile() and not member.issym() and not member.islnk() and member.size <= 1024 * 1024 and len(files) < 64)
-            require(member.name == "vendor/ws.mjs" or re.fullmatch(r"[a-z0-9-]+\.(?:mjs|py|json)", member.name))
+            require(member.name in {"vendor/ws.mjs", "codex-native-guardian"} or re.fullmatch(r"[a-z0-9-]+\.(?:mjs|py|json)", member.name))
             require(member.name not in files)
             files[member.name] = tar.extractfile(member).read()
     require("package-manifest.json" in files)
@@ -115,6 +115,13 @@ def package_files(archive, digest):
     require(manifest["schemaVersion"] == 1 and manifest["nodeMajor"] == 24 and manifest["nativeVersion"] == "0.165.0" and manifest["wsVersion"] == "8.21.3")
     require(set(files) == set(manifest["files"]) | {"package-manifest.json"})
     require(all(hashlib.sha256(files[name]).hexdigest() == expected for name, expected in manifest["files"].items()))
+    if "codex-native-guardian" in files or "guardian" in manifest:
+        guardian = manifest.get("guardian", {})
+        binary = files.get("codex-native-guardian", b"")
+        require(guardian.get("schemaVersion") == 1 and guardian.get("platform") == "linux" and guardian.get("architecture") == "x64")
+        require(guardian.get("elfSha256") == hashlib.sha256(binary).hexdigest())
+        require(all(isinstance(guardian.get(key), str) and re.fullmatch(r"[a-f0-9]{64}", guardian[key]) for key in ("sourceSha256", "recipeSha256")))
+        require(len(binary) >= 64 and binary[:6] == b"\x7fELF\x02\x01" and binary[16:20] == b"\x03\x00\x3e\x00")
     require({"codex-workspace-host.mjs", "install-codex-runtime.py", "vendor/ws.mjs"} <= files.keys())
     return files
 

@@ -1,0 +1,50 @@
+name: Build native guardian
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - templates/ai-dev-k8s/scripts/codex-native-guardian.c
+      - templates/ai-dev-k8s/scripts/codex-native-guardian.mjs
+      - scripts/build-native-guardian.mjs
+      - scripts/build-native-guardian.test.mjs
+      - scripts/verify-codex-native-guardian.test.mjs
+      - .github/workflows/build-native-guardian.yml
+  push:
+    branches: [main]
+    paths:
+      - templates/ai-dev-k8s/scripts/codex-native-guardian.c
+      - scripts/build-native-guardian.mjs
+      - .github/workflows/build-native-guardian.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-guardian-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Validate build and artifact rejection
+        run: node --test scripts/build-native-guardian.test.mjs
+      - name: Build the pinned Linux x64 artifact
+        run: node scripts/build-native-guardian.mjs "$RUNNER_TEMP/guardian-artifact"
+      - name: Test the exact artifact
+        env:
+          HIVE_GUARDIAN_TEST_BINARY: ${{ runner.temp }}/guardian-artifact/codex-native-guardian
+        run: node --test scripts/verify-codex-native-guardian.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-guardian-linux-x64-${{ github.sha }}
+          path: ${{ runner.temp }}/guardian-artifact
+          if-no-files-found: error
+          retention-days: 14

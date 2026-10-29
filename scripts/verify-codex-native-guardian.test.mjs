@@ -16,22 +16,29 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { after, test } from "node:test";
 import { openNativeGuardian } from "../templates/ai-dev-k8s/scripts/codex-native-guardian.mjs";
 
+import { validateGuardianArtifact } from "./build-native-guardian.mjs";
+
 const scratch = mkdtempSync(join(tmpdir(), "hive-guardian-test-"));
-const executable = join(scratch, "guardian");
-execFileSync("/usr/bin/cc", [
-  "-std=c11",
-  "-O2",
-  "-Wall",
-  "-Wextra",
-  "-Werror",
-  "templates/ai-dev-k8s/scripts/codex-native-guardian.c",
-  "-o",
-  executable,
-]);
+const suppliedBinary = process.env.HIVE_GUARDIAN_TEST_BINARY;
+const executable = suppliedBinary ? realpathSync(suppliedBinary) : join(scratch, "guardian");
+if (suppliedBinary) {
+  assert.equal(executable, join(realpathSync(dirname(executable)), "codex-native-guardian"));
+  validateGuardianArtifact(resolve("."), dirname(executable));
+} else
+  execFileSync("/usr/bin/cc", [
+    "-std=c11",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c",
+    "-o",
+    executable,
+  ]);
 const hash = (p) => createHash("sha256").update(readFileSync(p)).digest("hex");
 const python = realpathSync("/usr/bin/python3");
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
