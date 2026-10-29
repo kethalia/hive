@@ -1,6 +1,7 @@
-"""Fixture-only source publication foundation; deliberately no CLI/runtime wiring.
+"""Internal source publication plumbing and explicitly separate fixture wrapper.
 
-Private paths/fixture_mode are trusted test composition, not model arguments.
+No CLI/default activation. Private composition is never model JSON. Production
+composition requires delivery-source-runtime.py and independent host authority.
 0600/HMAC alone do not isolate this signer from same-UID native execution.
 """
 from contextlib import contextmanager
@@ -98,9 +99,12 @@ def atomic(path, raw):
     fsync_directory(path.parent)
 
 
-class SourceBrokerFixture:
-    def __init__(self, root, workspace, scope, *, fixture_only=False, allowed_prefixes=("src", "tests", "docs"), clock=time.time):
-        require(fixture_only is True, "publication_unactivated")
+class _SourceBrokerCore:
+    def __init__(self, root, workspace, scope, *, allowed_prefixes=("src", "tests", "docs"), clock=time.time,
+                 author_name="Hive fixture", author_email="fixture@example.invalid",
+                 max_files=MAX_FILES, max_file_bytes=MAX_FILE, max_bytes=MAX_BYTES):
+        self.author_name, self.author_email = author_name, author_email
+        self.max_files, self.max_file_bytes, self.max_bytes = max_files, max_file_bytes, max_bytes
         fields = {"ownerId", "taskId", "managerBindingId", "attemptId", "repositoryId", "providerAccountId", "fullName",
                   "baseBranch", "parentSha", "sourceVersion", "serverInstanceId", "leaseId", "leaseGeneration", "checkoutIncarnation"}
         require(isinstance(scope, dict) and set(scope) == fields, "scope_invalid")
@@ -121,8 +125,9 @@ class SourceBrokerFixture:
         self.allowed_prefixes = allowed_prefixes
         info = self.workspace.lstat()
         self.workspace_identity = {"device": info.st_dev, "inode": info.st_ino}
-        self.policy_digest = sha(canonical({"schemaVersion": 1, "prefixes": allowed_prefixes, "maxFiles": MAX_FILES,
-                                            "maxFile": MAX_FILE, "maxBytes": MAX_BYTES, "workspaceIdentity": self.workspace_identity}))
+        self.policy_digest = sha(canonical({"schemaVersion": 1, "prefixes": allowed_prefixes, "maxFiles": self.max_files,
+                                            "maxFile": self.max_file_bytes, "maxBytes": self.max_bytes, "workspaceIdentity": self.workspace_identity,
+                                            "authorName": self.author_name, "authorEmail": self.author_email}))
         self.journals, self.objects = private_directory(self.root / "operations"), private_directory(self.root / "sealed")
         private_directory(self.root / "home")
         key = self.root / "key"
@@ -184,13 +189,16 @@ class SourceBrokerFixture:
             path = self.git_dir / name
             require(not path.exists() or (path.is_dir() and path.resolve() == path), "git_storage_changed")
 
-    def _execute(self, args, raw=None, identity=None):
+    def _execute(self, args, raw=None, identity=None, object_directory=None):
         env = {"PATH": "/usr/bin:/bin", "HOME": str(self.root / "home"), "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
                "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull, "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1",
                "GIT_ATTR_NOSYSTEM": "1", "GIT_TRACE": "0", "GIT_TRACE_CURL": "0"}
+        if object_directory is not None:
+            env["GIT_OBJECT_DIRECTORY"] = str(object_directory)
+            env["GIT_ALTERNATE_OBJECT_DIRECTORIES"] = ""
         if identity:
             for role in ("AUTHOR", "COMMITTER"):
-                env.update({f"GIT_{role}_NAME": "Hive fixture", f"GIT_{role}_EMAIL": "fixture@example.invalid", f"GIT_{role}_DATE": identity})
+                env.update({f"GIT_{role}_NAME": self.author_name, f"GIT_{role}_EMAIL": self.author_email, f"GIT_{role}_DATE": identity})
         command = [GIT, "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "init.templateDir=", "-c", "protocol.allow=never",
                    "-c", "credential.helper=", "-c", "core.attributesFile=/dev/null", "-c", "gc.auto=0", "-c", "maintenance.auto=false",
                    "-c", "commit.gpgSign=false", *args]
@@ -258,10 +266,10 @@ class SourceBrokerFixture:
             file_fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
             try:
                 before = os.fstat(file_fd)
-                require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and before.st_size <= MAX_FILE, "source_file_type_or_size")
+                require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and before.st_size <= self.max_file_bytes, "source_file_type_or_size")
                 require(before.st_size <= remaining, "snapshot_total_limit")
                 raw = bytearray()
-                maximum = min(MAX_FILE, remaining)
+                maximum = min(self.max_file_bytes, remaining)
                 while len(raw) <= maximum:
                     part = os.read(file_fd, min(65536, maximum + 1 - len(raw)))
                     if not part:
@@ -306,23 +314,11 @@ class SourceBrokerFixture:
                     mode, object_sha = value; kind = "blob"
                 entries.append({"path": name, "mode": mode, "type": kind, "sha": object_sha})
             raw = b"".join(f"{v['mode']} {v['type']} {v['sha']}\t{v['path']}\0".encode() for v in entries)
-            tree_sha = self._git(["mktree", "-z"], raw).decode().strip()
+            tree_sha = self._git(["mktree", "--missing", "-z"], raw).decode().strip()
             trees.append({"sha": tree_sha, "entries": entries})
             require(len(trees) <= 64, "tree_limit")
             return tree_sha
         return build(root), trees
-
-    def seed_fixture_parent(self, files):
-        """Test composition only: production parent import is deliberately absent."""
-        with self.lock():
-            require(isinstance(files, dict) and len(files) <= MAX_FILES and sum(len(raw) for raw in files.values()) <= MAX_BYTES, "fixture_parent_limit")
-            entries = {}
-            for path, raw in files.items():
-                self.checked_path(path)
-                require(isinstance(raw, bytes) and len(raw) <= MAX_FILE, "fixture_parent_invalid")
-                entries[path] = ("100644", self._git(["hash-object", "--no-filters", "-w", "--stdin"], raw).decode().strip())
-            tree, _ = self.tree(entries)
-            return self._git(["commit-tree", tree], b"test: fixture parent\n", "2026-10-29T00:00:00+00:00").decode().strip()
 
     def operation_path(self, operation_id):
         require(str(uuid.UUID(operation_id)) == operation_id, "operation_invalid")
@@ -342,15 +338,15 @@ class SourceBrokerFixture:
                 and type(entry.get("requestsUsed")) is int and 0 <= entry["requestsUsed"] <= MAX_REQUESTS, "journal_scope_or_shape_invalid")
         if entry["phase"] != "intent":
             files = entry.get("manifest")
-            require(isinstance(files, list) and len(files) <= MAX_FILES and all(isinstance(v, dict) for v in files), "journal_manifest_invalid")
+            require(isinstance(files, list) and len(files) <= self.max_files and all(isinstance(v, dict) for v in files), "journal_manifest_invalid")
             for item in files:
                 require(set(item) == {"path", "contentDigest", "size", "mode", "blobSha"}
                         and isinstance(item["contentDigest"], str) and re.fullmatch(r"[a-f0-9]{64}", item["contentDigest"])
-                        and type(item["size"]) is int and 0 <= item["size"] <= MAX_FILE and item["mode"] in {"100644", "100755"}
+                        and type(item["size"]) is int and 0 <= item["size"] <= self.max_file_bytes and item["mode"] in {"100644", "100755"}
                         and oid(item["blobSha"]), "journal_manifest_invalid")
                 self.checked_path(item["path"])
             require([v["path"] for v in files] == sorted(entry["request"]["paths"])
-                    and sum(v["size"] for v in files) <= MAX_BYTES
+                    and sum(v["size"] for v in files) <= self.max_bytes
                     and entry.get("manifestDigest") == sha(canonical({"files": files, "deletions": sorted(entry["request"]["deletions"])})), "journal_manifest_invalid")
         if entry["phase"] not in {"intent", "sealed"}:
             commit, trees = entry.get("commit"), entry.get("trees")
@@ -359,7 +355,7 @@ class SourceBrokerFixture:
                     and commit.get("message") == entry["request"]["message"].rstrip("\n") + "\n"
                     and entry.get("branch") == f"codex/delivery/{self.scope['taskId']}/{operation_id}"
                     and isinstance(trees, list) and 0 < len(trees) <= 64, "journal_commit_invalid")
-            actor = {"name": "Hive fixture", "email": "fixture@example.invalid", "date": entry.get("createdAt")}
+            actor = {"name": self.author_name, "email": self.author_email, "date": entry.get("createdAt")}
             require(commit.get("author") == actor and commit.get("committer") == actor, "journal_commit_invalid")
             for tree in trees:
                 require(isinstance(tree, dict) and set(tree) == {"sha", "entries"} and oid(tree["sha"])
@@ -387,9 +383,9 @@ class SourceBrokerFixture:
         request = json.loads(canonical(request))
         path = self.operation_path(request["operationId"])
         for key in ("paths", "deletions"):
-            require(isinstance(request[key], list) and len(request[key]) <= MAX_FILES and len(set(request[key])) == len(request[key]), "request_paths_invalid")
+            require(isinstance(request[key], list) and len(request[key]) <= self.max_files and len(set(request[key])) == len(request[key]), "request_paths_invalid")
             for value in request[key]: self.checked_path(value)
-        require(0 < len(request["paths"]) + len(request["deletions"]) <= MAX_FILES
+        require(0 < len(request["paths"]) + len(request["deletions"]) <= self.max_files
                 and not set(request["paths"]) & set(request["deletions"]), "request_paths_invalid")
         for key, limit in (("message", 4000), ("title", 160), ("body", 8000)):
             require(isinstance(request[key], str) and 0 < len(request[key].encode()) <= limit and "\0" not in request[key], "request_text_invalid")
@@ -411,8 +407,8 @@ class SourceBrokerFixture:
             if entry["phase"] == "intent":
                 manifest = []
                 for p in sorted(request["paths"]):
-                    manifest.append(self.seal_file(p, MAX_BYTES - sum(v["size"] for v in manifest)))
-                require(sum(v["size"] for v in manifest) <= MAX_BYTES, "snapshot_total_limit")
+                    manifest.append(self.seal_file(p, self.max_bytes - sum(v["size"] for v in manifest)))
+                require(sum(v["size"] for v in manifest) <= self.max_bytes, "snapshot_total_limit")
                 entry.update(manifest=manifest, manifestDigest=sha(canonical({"files": manifest, "deletions": sorted(request["deletions"])})), phase="sealed")
                 self.save(entry)
             raw = self._git(["ls-tree", "-r", "-z", "--full-tree", self.scope["parentSha"]])
@@ -435,14 +431,14 @@ class SourceBrokerFixture:
             tree, trees = self.tree(files)
             message = request["message"].rstrip("\n") + "\n"
             commit_sha = self._git(["commit-tree", tree, "-p", self.scope["parentSha"]], message.encode(), entry["createdAt"]).decode().strip()
-            actor = {"name": "Hive fixture", "email": "fixture@example.invalid", "date": entry["createdAt"]}
+            actor = {"name": self.author_name, "email": self.author_email, "date": entry["createdAt"]}
             entry.update(phase="prepared", trees=trees, commit={"sha": commit_sha, "tree": tree, "parents": [self.scope["parentSha"]],
                          "message": message, "author": actor, "committer": actor}, branch=f"codex/delivery/{self.scope['taskId']}/{request['operationId']}")
             self.save(entry)
             return self.receipt(entry)
 
     def publish(self, operation_id, provider):
-        require(isinstance(provider, FixedGitHubFixtureProvider) and provider.scope == self.scope, "provider_scope_invalid")
+        require(isinstance(provider, _provider._FixedGitHubProvider) and provider.scope == self.scope, "provider_scope_invalid")
         with self.lock():
             self.guard_journals()
             entry = self.load(operation_id)
@@ -478,3 +474,25 @@ class SourceBrokerFixture:
                 entry.update(phase="held", heldReason=str(error) if isinstance(error, PublicationHold) else "provider_outcome_unknown")
                 self.save(entry)
             return self.receipt(entry)
+
+
+class SourceBrokerFixture(_SourceBrokerCore):
+    def __init__(self, root, workspace, scope, *, fixture_only=False, allowed_prefixes=("src", "tests", "docs"), clock=time.time):
+        require(fixture_only is True, "publication_unactivated")
+        super().__init__(root, workspace, scope, allowed_prefixes=allowed_prefixes, clock=clock)
+
+    def publish(self, operation_id, provider):
+        require(isinstance(provider, FixedGitHubFixtureProvider), "provider_scope_invalid")
+        return super().publish(operation_id, provider)
+
+    def seed_fixture_parent(self, files):
+        """Test composition only: production parent import is deliberately absent."""
+        with self.lock():
+            require(isinstance(files, dict) and len(files) <= self.max_files and sum(len(raw) for raw in files.values()) <= MAX_BYTES, "fixture_parent_limit")
+            entries = {}
+            for path, raw in files.items():
+                self.checked_path(path)
+                require(isinstance(raw, bytes) and len(raw) <= MAX_FILE, "fixture_parent_invalid")
+                entries[path] = ("100644", self._git(["hash-object", "--no-filters", "-w", "--stdin"], raw).decode().strip())
+            tree, _ = self.tree(entries)
+            return self._git(["commit-tree", tree], b"test: fixture parent\n", "2026-10-29T00:00:00+00:00").decode().strip()

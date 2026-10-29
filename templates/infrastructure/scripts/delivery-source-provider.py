@@ -1,7 +1,7 @@
-"""Unactivated source-publication fixture adapter. No HTTP client or credentials.
+"""Fixed GitHub operations shared by protected-host and explicit fixture adapters.
 
-The injected transport is trusted test composition, never model JSON. Production
-must not wire this up before metadata/isolation/admission authority is reviewed.
+No HTTP client, credentials or default activation here. Injected transports are
+trusted composition, never model JSON. Runtime authority lives outside this core.
 """
 import base64
 import json
@@ -31,9 +31,9 @@ def mapping(value):
     return value
 
 
-class FixedGitHubFixtureProvider:
-    def __init__(self, scope, transport=None, *, fixture_only=False):
-        require(fixture_only is True and callable(transport), "publication_unactivated")
+class _FixedGitHubProvider:
+    def __init__(self, scope, transport):
+        require(callable(transport), "publication_unactivated")
         require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}", scope["fullName"])
                 and scope["fullName"].split("/")[1] not in {".", ".."}, "provider_scope_invalid")
         self.scope, self.transport = dict(scope), transport
@@ -45,7 +45,7 @@ class FixedGitHubFixtureProvider:
         try:
             result = self.transport(method, "https://api.github.com" + path, body,
                                     {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2026-03-10"})
-        except UnknownOutcome:
+        except (PublicationHold, UnknownOutcome):
             raise
         except Exception:
             raise PublicationHold("provider_unavailable") from None
@@ -135,3 +135,10 @@ class FixedGitHubFixtureProvider:
         status, readback = self.request("GET", self.prefix + "/pulls/" + str(receipt["number"]), None, charge)
         require(status == 200 and self.verify_pr(readback, branch, commit, title, body) == receipt, "provider_pr_readback_mismatch")
         return receipt
+
+
+class FixedGitHubFixtureProvider(_FixedGitHubProvider):
+    """Explicit test composition; never selected by the installed host."""
+    def __init__(self, scope, transport=None, *, fixture_only=False):
+        require(fixture_only is True and callable(transport), "publication_unactivated")
+        super().__init__(scope, transport)

@@ -416,3 +416,13 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   An unprivileged private-home namespace supplies fixture-only UID mapping for the root-owned
   Node check; no host-root privilege, account inference or cloud operation was used. The signed
   task request correctly remains blocked before Git pending independent server admission.
+
+- Protected source broker: independently reviewed inert checkpoint accepted, high difficulty.
+  Server-owned policy seals explicit raw bytes and deterministic commits; exact grant renewal
+  and metadata checks precede bounded GitHub effects. Review caught and fixed a credential
+  account-switch gap and distinguished attempt from physical checkout lease generations.
+  Parent40 Python tests, independent worker7 tests and clean-export89 template/4 package tests
+  pass. The actual private FD3 worker preserves prepared/published operations after disconnect;
+  synthetic HTTP remains explicit. Fixed JS signing/deadline composition, real guardian metadata
+  authority, broader repository scale and an installed provider pilot remain; no live writes or
+  activation. CI/images/native guardian builds are green at the preceding92f7b25 checkpoint.

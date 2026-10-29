@@ -40,6 +40,10 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
     assert.equal(manifest.wsVersion, "8.21.3");
     assert.equal(manifest.nativeVersion, "0.165.0");
     assert.ok(Object.hasOwn(manifest.files, "github-evidence.py"));
+    assert.ok(Object.hasOwn(manifest.files, "delivery-source-runtime.py"));
+    assert.ok(Object.hasOwn(manifest.files, "delivery-source-worker.py"));
+    assert.ok(Object.hasOwn(manifest.files, "delivery-source-broker.py"));
+    assert.ok(Object.hasOwn(manifest.files, "delivery-source-provider.py"));
     assert.ok(Object.hasOwn(manifest.files, "codex-native-namespace.mjs"));
     for (const [name, sha] of Object.entries(manifest.files))
       assert.equal(
