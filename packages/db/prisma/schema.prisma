@@ -274,6 +274,7 @@ model DeliveryAttempt {
   events           DeliveryEvent[]
   managerBinding   DeliveryManagerBinding? @relation("ManagerAttempt", fields: [ownerId, managerBindingId], references: [ownerId, id], onDelete: Restrict)
   activeForBindings DeliveryManagerBinding[] @relation("ActiveManagerAttempt")
+  currentForBindings DeliveryManagerBinding[] @relation("CurrentManagerAttempt")
   @@unique([ownerId, id])
   @@unique([ownerId, stepId, id])
   @@unique([ownerId, managerBindingId, id])
@@ -518,6 +519,9 @@ model DeliveryManagerBinding {
   leaseGeneration Int @map("lease_generation")
   bindingDigest String @map("binding_digest")
   activeAttemptId String? @map("active_attempt_id") @db.Uuid
+  currentAttemptId String? @map("current_attempt_id") @db.Uuid
+  cursorVersion Int @default(0) @map("cursor_version")
+  progressionProtocol Int @default(0) @map("progression_protocol")
   nativeSequence Int @default(0) @map("native_sequence")
   blockedReason String? @map("blocked_reason")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -526,6 +530,7 @@ model DeliveryManagerBinding {
   preparationIntent ProjectTaskIntent @relation(fields: [ownerId, projectId, preparationIntentId], references: [ownerId, projectId, id], onDelete: Restrict)
   conversation DeliveryConversation @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id], onDelete: Restrict)
   activeAttempt DeliveryAttempt? @relation("ActiveManagerAttempt", fields: [ownerId, id, activeAttemptId], references: [ownerId, managerBindingId, id], onDelete: Restrict)
+  currentAttempt DeliveryAttempt? @relation("CurrentManagerAttempt", fields: [ownerId, id, currentAttemptId], references: [ownerId, managerBindingId, id], onDelete: Restrict, map: "delivery_manager_current_attempt_fkey")
   attempts DeliveryAttempt[] @relation("ManagerAttempt")
   tasks DeliveryTask[]
   @@unique([ownerId, id])

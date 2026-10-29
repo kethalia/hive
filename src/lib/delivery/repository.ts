@@ -22,7 +22,7 @@ import {
   stepControlSchema,
   taskDefinitionSchema,
 } from "./contracts";
-import { nativeSourceInputSchema } from "./native-contracts";
+import { NATIVE_OBSERVER_PRODUCER, nativeSourceInputSchema } from "./native-contracts";
 import {
   assertAcyclicSteps,
   assertCompletionEvidence,
@@ -152,6 +152,16 @@ export class DeliveryRepository {
     private readonly afterAttemptClaimed?: (
       tx: Transaction,
       attempt: { id: string; managerBindingId: string | null },
+    ) => Promise<void>,
+    // Controller-only same-writer exception. Never set from a manager boolean.
+    private readonly authorizeClaimWriters?: (
+      tx: Transaction,
+      attempts: readonly {
+        id: string;
+        managerBindingId: string | null;
+        sourceSha: string;
+        outcome: string;
+      }[],
     ) => Promise<void>,
   ) {
     if (
@@ -448,11 +458,22 @@ export class DeliveryRepository {
       include: { steps: { include: { attempts: true, reports: { include: { evidence: true } } } } },
     });
   }
-  async claimStep(owner: string, value: unknown) {
+  async claimStep(
+    owner: string,
+    value: unknown,
+    trustedNativeReceipt?: () =>
+      | Pick<
+          NonNullable<z.infer<typeof leaseRequestSchema>["nativeClaim"]>,
+          "cursorVersion" | "sequence" | "continuation"
+        >
+      | undefined,
+  ) {
     const ownerId = ownerSchema.parse(owner);
     const input = leaseRequestSchema.parse(value);
-    const requestDigest = digest("attempt_started", input);
     return this.transaction(async (tx) => {
+      if (input.nativeClaim && trustedNativeReceipt)
+        input.nativeClaim = { ...input.nativeClaim, ...trustedNativeReceipt() };
+      const requestDigest = digest("attempt_started", input);
       const task = await lockTask(tx, ownerId, input.taskId);
       const previous = await replay(tx, ownerId, input.eventId, requestDigest);
       if (previous?.attemptId) {
@@ -485,8 +506,12 @@ export class DeliveryRepository {
         );
       if (step.dependencies.some((edge) => !dependencySatisfied(edge.dependsOn)))
         throw new DeliveryConflict("dependencies_pending");
-      if ((await this.pendingWriters(tx, ownerId, task.id)).length)
-        throw new DeliveryConflict("native_reconciliation_required");
+      const writers = await this.pendingWriters(tx, ownerId, task.id);
+      if (writers.length) {
+        if (!this.authorizeClaimWriters)
+          throw new DeliveryConflict("native_reconciliation_required");
+        await this.authorizeClaimWriters(tx, writers);
+      }
       if (step.attemptCount >= step.attemptBudget)
         throw new DeliveryConflict("attempt_budget_exhausted");
       const timestamp = await now(tx);
@@ -904,10 +929,18 @@ export class DeliveryRepository {
           sequence: input.sequence,
           runtimeVersion: previous.aggregateVersion,
           activeAttemptHeld: true,
+          ...(input.source.kind === "root_boundary"
+            ? { boundaryEventId: input.eventId, cursorVersion: input.source.cursorVersion }
+            : {}),
         };
       }
-      if (manager.activeAttemptId !== attempt.id)
+      const currentAttemptId =
+        manager.progressionProtocol === 1 ? manager.currentAttemptId : manager.activeAttemptId;
+      if (currentAttemptId !== attempt.id) {
+        if (manager.progressionProtocol === 1)
+          return block("native_attempt_not_current", input.eventId, false);
         throw new DeliveryConflict("native_attempt_not_held");
+      }
       if (input.sequence !== manager.nativeSequence + 1)
         throw new DeliveryConflict("native_sequence_gap");
       if (Date.parse(input.source.observedAt) > timestamp.getTime())
@@ -925,6 +958,102 @@ export class DeliveryRepository {
         claimed?.parentTurnId !== input.source.parentTurnId
       )
         return block("native_parent_turn_mismatch", input.eventId, true);
+      if (input.source.kind === "root_boundary") {
+        if (
+          producer !== NATIVE_OBSERVER_PRODUCER ||
+          manager.progressionProtocol !== 1 ||
+          manager.blockedReason ||
+          manager.cursorVersion !== input.source.cursorVersion ||
+          input.source.nextParentTurnId === input.source.parentTurnId ||
+          !["reported", "succeeded"].includes(attempt.outcome) ||
+          step.state !== attempt.outcome ||
+          attempt.sourceSha !== manager.sourceSha ||
+          task.sourceSha !== manager.sourceSha ||
+          task.pauseRequested ||
+          task.schedulingPaused ||
+          attempt.leaseExpiresAt <= timestamp ||
+          timestamp.getTime() - Date.parse(input.source.observedAt) >
+            (this.policy.maxRuntimeObservationAgeMs ?? 60_000)
+        )
+          throw new DeliveryConflict("native_boundary_not_ready");
+        if (attempt.runtimeBindingDigest) {
+          const terminal = await tx.deliveryEvent.findFirst({
+            where: {
+              ownerId,
+              attemptId: attempt.id,
+              type: { in: ["native_attempt_observed", "native_source_conflict"] },
+            },
+            orderBy: { aggregateVersion: "desc" },
+          });
+          const observation = terminal?.payload as {
+            nativeSourceKind?: unknown;
+            turnStatus?: unknown;
+          } | null;
+          if (
+            observation?.nativeSourceKind !== "turn_completed" ||
+            observation.turnStatus !== "completed"
+          )
+            throw new DeliveryConflict("native_boundary_child_unfinished");
+        } else if (attempt.outcome !== "reported" || !isInformationalStep(step)) {
+          throw new DeliveryConflict("native_boundary_execution_unverified");
+        }
+        if (
+          await tx.deliveryEvent.findFirst({
+            where: {
+              ownerId,
+              type: "attempt_started",
+              attempt: { managerBindingId: manager.id },
+              payload: {
+                path: ["nativeClaim", "parentTurnId"],
+                equals: input.source.nextParentTurnId,
+              },
+            },
+          })
+        )
+          throw new DeliveryConflict("native_boundary_turn_reused");
+        const aggregateKey = `manager-boundary/${manager.id}/${manager.cursorVersion}`;
+        if (
+          await tx.deliveryEvent.findUnique({
+            where: {
+              ownerId_aggregateKey_aggregateVersion: { ownerId, aggregateKey, aggregateVersion: 1 },
+            },
+          })
+        )
+          throw new DeliveryConflict("native_boundary_already_observed");
+        await tx.deliveryEvent.create({
+          data: {
+            id: input.eventId,
+            ownerId,
+            taskId: task.id,
+            stepId: step.id,
+            attemptId: attempt.id,
+            aggregateKey,
+            aggregateVersion: 1,
+            type: "native_root_boundary",
+            requestDigest,
+            policyVersion: this.policy.version,
+            payload: {
+              producer,
+              managerBindingId: manager.id,
+              sequence: input.sequence,
+              source: input.source,
+            },
+          },
+        });
+        await tx.deliveryManagerBinding.update({
+          where: { id: manager.id },
+          data: { nativeSequence: input.sequence },
+        });
+        return {
+          accepted: true,
+          blocked: false,
+          replayed: false,
+          sequence: input.sequence,
+          boundaryEventId: input.eventId,
+          cursorVersion: manager.cursorVersion,
+          activeAttemptHeld: true,
+        };
+      }
       const runtimeVersion = attempt.runtimeVersion + 1;
       let payload: Prisma.InputJsonObject;
       let eventType = "native_command_observed",

@@ -4,6 +4,16 @@ export const sourceShaSchema = z.string().regex(/^[a-f0-9]{40}$/);
 const identifier = z.string().uuid();
 const label = z.string().min(1).max(160);
 const criterion = z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/);
+export const continuationSchema = z
+  .object({
+    boundaryEventId: identifier,
+    priorAttemptId: identifier,
+    cursorVersion: z.number().int().positive().max(2147483646),
+    parentTurnId: z.string().regex(/^[A-Za-z0-9_.:-]{1,160}$/),
+    nextParentTurnId: z.string().regex(/^[A-Za-z0-9_.:-]{1,160}$/),
+    sequence: z.number().int().positive().max(2147483647),
+  })
+  .strict();
 export const evidenceKindSchema = z.enum([
   "analysis",
   "change",
@@ -99,7 +109,14 @@ export const leaseRequestSchema = z
     requestedEffort: label.nullable().default(null),
     effectiveEffort: label.nullable().default(null),
     nativeClaim: z
-      .object({ managerThreadId: label, parentTurnId: label, callId: label })
+      .object({
+        managerThreadId: label,
+        parentTurnId: label,
+        callId: label,
+        cursorVersion: z.number().int().positive().optional(),
+        sequence: z.number().int().nonnegative().optional(),
+        continuation: continuationSchema.optional(),
+      })
       .strict()
       .optional(),
   })

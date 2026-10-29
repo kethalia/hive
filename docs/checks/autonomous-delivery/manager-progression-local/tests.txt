@@ -1,0 +1,35 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/progression.integration.test.ts (12 tests) 2368ms
+   ✓ protocol-one server progression (synthetic signed host, not native ordering proof) > advances analysis then two delegated attempts at one source while preserving the physical writer and immutable receipts  386ms
+ ✓ src/__tests__/lib/delivery/manager-policy.integration.test.ts (12 tests) 2353ms
+   ✓ manager completion with independently sourced controller policy > accepts only the configured source chain, replays one report, and never frees the native writer  343ms
+   ✓ manager completion with independently sourced controller policy > registration revocation or source changes after policy selection cannot commit a report  355ms
+ ✓ src/__tests__/lib/delivery/informational-report.integration.test.ts (9 tests) 1283ms
+ ↓ src/__tests__/lib/delivery/native-runtime.integration.test.ts (1 test | 1 skipped)
+ ✓ src/__tests__/lib/delivery/native-source.integration.test.ts (10 tests) 1059ms
+ ✓ src/__tests__/lib/delivery/github-transport.integration.test.ts (9 tests) 878ms
+ ✓ src/__tests__/lib/delivery/manager.integration.test.ts (9 tests) 822ms
+ ✓ src/__tests__/lib/delivery/recovery.integration.test.ts (12 tests) 859ms
+ ✓ src/__tests__/lib/delivery/repository.integration.test.ts (18 tests) 723ms
+ ✓ src/__tests__/lib/delivery/github-persistence.integration.test.ts (12 tests) 546ms
+ ✓ src/__tests__/lib/delivery/outbox.integration.test.ts (7 tests) 315ms
+ ✓ src/__tests__/lib/delivery/database-errors.test.ts (4 tests) 112ms
+ ✓ src/__tests__/lib/delivery/github-evidence.test.ts (24 tests) 31ms
+ ✓ src/__tests__/lib/delivery/dispatch.test.ts (5 tests) 18ms
+ ✓ src/__tests__/lib/delivery/github-policy.test.ts (6 tests) 16ms
+ ✓ src/__tests__/lib/delivery/github-source-route.test.ts (6 tests) 15ms
+ ✓ src/__tests__/lib/delivery/github-artifacts.test.ts (6 tests) 15ms
+ ✓ src/__tests__/lib/delivery/eligibility.test.ts (25 tests) 11ms
+ ✓ src/__tests__/lib/delivery/native-route.test.ts (4 tests) 10ms
+ ✓ src/__tests__/lib/delivery/manager-route.test.ts (4 tests) 11ms
+ ✓ src/__tests__/lib/delivery/read-route.test.ts (10 tests) 10ms
+ ✓ src/__tests__/lib/delivery/jobs-worker.test.ts (5 tests) 6ms
+ ✓ src/__tests__/lib/delivery/state.test.ts (13 tests) 6ms
+ ↓ src/__tests__/lib/delivery/github-r2.integration.test.ts (1 test | 1 skipped)
+
+ Test Files  22 passed | 2 skipped (24)
+      Tests  222 passed | 2 skipped (224)
+   Start at  21:30:02
+   Duration  15.99s (transform 526ms, setup 0ms, collect 1.63s, tests 11.47s, environment 3ms, prepare 944ms)

@@ -1,0 +1,91 @@
+{
+  "recordedAt": "2026-10-29T21:32:32.438359+00:00",
+  "baseCommit": "61b0173657605d2fd33dc04001c2a3a705741e58",
+  "scope": "Server-only protocol-one foundation; synthetic signed-host and fixture evidence, not native ordering or real CI proof. No cloud calls/migration, host scripts, package artifacts, scheduler or production activation.",
+  "validation": {
+    "deliverySuite": {
+      "filesPassed": 22,
+      "filesSkipped": 2,
+      "testsPassed": 222,
+      "testsSkipped": 2,
+      "command": "HIVE_DELIVERY_TEST_DATABASE_URL=<isolated-final-loopback-fixture> pnpm exec vitest run src/__tests__/lib/delivery --no-file-parallelism",
+      "log": "tests.txt",
+      "skips": [
+        "Opt-in actual native runtime integration (separate existing actual-runtime proof retained)",
+        "Opt-in local R2 integration (separate existing proof retained)"
+      ]
+    },
+    "finalAdditionalReplayRegression": {
+      "testsPassed": 12,
+      "log": "progression-tests.txt",
+      "scope": "Adds assertion that original root boundary replay preserves cursor1/sequence1 after binding advances to cursor3/sequence4"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": "typecheck.txt"
+    },
+    "biome": {
+      "passed": true,
+      "files": 8,
+      "log": "biome.txt"
+    },
+    "migrations": {
+      "fresh": 22,
+      "upgradeFrom": 21,
+      "upgradeTo": 22,
+      "allPriorTableDigestsPreserved": true,
+      "legacyHeldAnchorsPreserved": 1,
+      "evidence": "migrations.json"
+    },
+    "schemaDrift": {
+      "newDrift": false,
+      "remainingPriorRepresentations": [
+        "codex_host_slots_active_registration_fkey custom FK",
+        "project_task_intents_project_fkey name"
+      ],
+      "log": "schema-diff.sql"
+    }
+  },
+  "finalFixture": {
+    "directory": "/tmp/hive-progression-pg-hnmi9to5",
+    "port": 43811,
+    "database": "hive_delivery_test",
+    "runningForParentValidation": true
+  },
+  "excludedEarlierDraft": "Earlier local shared test DB applied a pre-final draft of this new uncommitted migration. Its history was not rewritten. Final proof uses a separate new cluster and an unchanged21-migration fixture dump.",
+  "authority": {
+    "productionConfigOptIn": false,
+    "managerNativeDefaultsOff": true,
+    "modelCheckpointAuthority": false,
+    "writerAnchorRetired": false,
+    "quiescenceClaimed": false
+  },
+  "remainingGates": [
+    "Trusted exclusive native input admission and journaled continuation starts; actual native accepts concurrent starts into same active turn",
+    "Attempt-indexed host spool and exact replay recovery; delayed root history must be reread after known children terminate",
+    "Isolated signer and trusted root boundary observation in composed installed runtime",
+    "Writer cohort drain/handoff/cleanup, bounded failure/retry cursor transitions, immutable source-advance and independently sourced release eligibility"
+  ],
+  "sourceSha256": {
+    "packages/db/prisma/schema.prisma": "c586754b74bdfb6e93acc939bd4caa261f0143f4f73e378e2aa6dbfdcbff808c",
+    "packages/db/prisma/migrations/20261029110000_delivery_manager_progression/migration.sql": "4fcff3d44749f4af283860f299a930da227cb20fcb8b57be9109f6d52d1086df",
+    "src/lib/delivery/contracts.ts": "5aa595a208751e9ecf4da626a7634719cc8e3884d8f30587b7bd37578ab31864",
+    "src/lib/delivery/manager-binding.server.ts": "0eb6751c2ca4cf39a4cc43789c77cd1875649d496096bbfe03c2075a8d0e4284",
+    "src/lib/delivery/manager-contracts.ts": "cb95a17ed85457191bd14d9437a148bd408c6f18397009966d8f9947a305423b",
+    "src/lib/delivery/manager.server.ts": "bf871c27081f0d860a251d719db788c6524590915561862bba9968dbdd020613",
+    "src/lib/delivery/native-contracts.ts": "ef5e92107ed6dd4d348ba713c0b5b667648fd13a06b8b225280eeac1db8ed3ad",
+    "src/lib/delivery/repository.ts": "0032d6c12d9cbc8d79747e2b3108fe2a7d7986d6b3012a4651a4eefb3230804b",
+    "src/lib/delivery/progression.server.ts": "e53a242c7bab60a90cbb8c49bcddd9092c094e9c8f56318e78027ef20fb89c54",
+    "src/__tests__/lib/delivery/progression.integration.test.ts": "ae087aee8cb5f7daf1cf92a28f526aa0075c3c2d40a25f0a0a7e562ae2aec9e7",
+    "docs/checks/autonomous-delivery/manager-progression-server.md": "bb8cd65b14ad99aae9856b47e28e34fa9f507bf95cd53023b6bdb88302383f1f"
+  },
+  "artifactSha256": {
+    "migrations.json": "84306c911a128da9fcd9ac07cfb6b9b7c2249c1dbc0bee7ec27b9d5e8c806605",
+    "tests.txt": "d181b6edc1bed21fad73a897f12316172892869a24b7d62e8b3fa3a0c2e11c66",
+    "typecheck.txt": "fc52cf26cbc19500c50a065d5fce046e588f330ab13837032e1766b13582dd30",
+    "progression-tests.txt": "f9e52b47d5931da032ab9f3bd41cbcad4d9353c49694fb20c0ce76d3b4733b7d",
+    "migrations.txt": "ee77bc67f88b6aee3be22ab1b8c94d766837aa51c2f4e48113ec9bb56a933e8d",
+    "biome.txt": "8ce806c6aa9cb0365ba956633d680e6c84a4d4a08a78f0815c4cd60bb176949d",
+    "schema-diff.sql": "acda559e910c75a1887e4a05f9a557dbb275d3a7e5d7a86f463b4074e5bd5afc"
+  }
+}

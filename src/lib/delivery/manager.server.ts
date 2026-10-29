@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
@@ -9,6 +10,7 @@ import {
   managerCheckoutIdentity,
 } from "./manager-binding.server";
 import { managerEnvelopeSchema, managerProofPayload } from "./manager-contracts";
+import { authorizeProgressionClaim } from "./progression.server";
 import { DeliveryRepository, type EvidencePolicy } from "./repository";
 import { DeliveryConflict } from "./state";
 
@@ -22,6 +24,8 @@ export interface ManagerDependencies {
     scope: ManagerPolicyScope,
   ): Promise<ResolvedManagerEvidencePolicy | null> | ResolvedManagerEvidencePolicy | null;
   allowedModelEfforts?: readonly { model: string; effort: string }[];
+  // Test/explicit controller composition only. Routes/config do not opt in.
+  progressionProtocol?: 1;
 }
 export interface ManagerPolicyScope {
   ownerId: string;
@@ -172,6 +176,9 @@ export class DeliveryManagerService {
     }
     const selectedPolicyDigest = resolutionDigest(selectedPolicy);
     let nativeSequence = 0;
+    let progression: Awaited<ReturnType<typeof authorizeProgressionClaim>> | null = null;
+    const progressionReceipt = () =>
+      progression ? { cursorVersion: progression.cursorVersion, progressionProtocol: 1 } : {};
     const repository = new DeliveryRepository(
       this.db,
       selectedPolicy?.policy ?? this.dependencies.evidencePolicy,
@@ -179,6 +186,7 @@ export class DeliveryManagerService {
         const scope = await lockManagerCheckout(tx, input, registered, {
           create: input.command.operation === "create_task",
           allowBlocked: input.command.operation === "fail_attempt",
+          progressionProtocol: this.dependencies.progressionProtocol,
         });
         nativeSequence = scope.binding.nativeSequence;
         if (scope.binding.id !== expected.id) throw new RegistrationRejected();
@@ -222,7 +230,12 @@ export class DeliveryManagerService {
             },
           });
           if (other) throw new DeliveryConflict("checkout_writer_reconciliation_required");
-          if (scope.binding.activeAttemptId) {
+          if (scope.binding.progressionProtocol === 1) {
+            progression = await authorizeProgressionClaim(tx, ownerId, scope.binding, input);
+            nativeSequence = progression.sequence;
+          } else if (input.continuation) {
+            throw new DeliveryConflict("progression_disabled");
+          } else if (scope.binding.activeAttemptId) {
             const prior = await tx.deliveryEvent.findUnique({
               where: { ownerId_id: { ownerId, id: input.eventId } },
             });
@@ -244,6 +257,16 @@ export class DeliveryManagerService {
             !attempt.leaseHolder.startsWith(`manager/${scope.binding.id}/`)
           )
             throw new RegistrationRejected();
+          if (
+            scope.binding.progressionProtocol === 1 &&
+            scope.binding.currentAttemptId !== attempt.id
+          ) {
+            const replay = await tx.deliveryEvent.findUnique({
+              where: { ownerId_id: { ownerId, id: input.eventId } },
+            });
+            if (replay?.attemptId !== attempt.id)
+              throw new DeliveryConflict("native_attempt_not_current");
+          }
           if (input.command.operation === "complete_step") {
             const binding = attempt.runtimeBinding as Record<string, unknown> | null;
             if (
@@ -281,11 +304,73 @@ export class DeliveryManagerService {
       async (tx, attempt) => {
         if (attempt.managerBindingId !== expected.id)
           throw new DeliveryConflict("manager_binding_conflict");
+        if (progression) {
+          if (
+            input.command.operation !== "claim_step" ||
+            (progression.continuing && !input.continuation)
+          )
+            throw new DeliveryConflict("invalid_continuation");
+          const continuation = input.continuation;
+          const changed = await tx.deliveryManagerBinding.updateMany({
+            where: {
+              ownerId,
+              id: expected.id,
+              progressionProtocol: 1,
+              blockedReason: null,
+              cursorVersion: progression.cursorVersion - 1,
+              ...(progression.continuing
+                ? { currentAttemptId: continuation?.priorAttemptId }
+                : { activeAttemptId: null, currentAttemptId: null }),
+            },
+            data: {
+              currentAttemptId: attempt.id,
+              cursorVersion: progression.cursorVersion,
+              ...(!progression.continuing ? { activeAttemptId: attempt.id } : {}),
+            },
+          });
+          if (changed.count !== 1) throw new DeliveryConflict("checkout_writer_busy");
+          if (progression.continuing && continuation)
+            await tx.deliveryEvent.create({
+              data: {
+                id: randomUUID(),
+                ownerId,
+                taskId: input.command.payload.taskId,
+                attemptId: attempt.id,
+                stepId: input.command.payload.stepId,
+                aggregateKey: `boundary-consumed/${continuation.boundaryEventId}`,
+                aggregateVersion: 1,
+                type: "native_boundary_consumed",
+                policyVersion: "manager-progression-v1",
+                requestDigest: githubSourceDigest({
+                  claimEventId: input.eventId,
+                  continuation: input.continuation,
+                }),
+                payload: {
+                  boundaryEventId: continuation.boundaryEventId,
+                  claimEventId: input.eventId,
+                  cursorVersion: progression.cursorVersion,
+                },
+              },
+            });
+          return;
+        }
         const changed = await tx.deliveryManagerBinding.updateMany({
           where: { ownerId, id: expected.id, activeAttemptId: null, blockedReason: null },
           data: { activeAttemptId: attempt.id },
         });
         if (changed.count !== 1) throw new DeliveryConflict("checkout_writer_busy");
+      },
+      async (_tx, attempts) => {
+        if (
+          !progression?.continuing ||
+          attempts.some(
+            (attempt) =>
+              attempt.managerBindingId !== expected.id ||
+              attempt.sourceSha !== input.checkoutBinding.revision ||
+              !["reported", "succeeded"].includes(attempt.outcome),
+          )
+        )
+          throw new DeliveryConflict("native_reconciliation_required");
       },
     );
     const common = { schemaVersion: 1, eventId: input.eventId };
@@ -310,21 +395,33 @@ export class DeliveryManagerService {
         )
           throw new DeliveryConflict("native_model_policy_denied");
         return {
-          ...(await repository.claimStep(ownerId, {
-            ...input.command.payload,
-            ...common,
-            leaseHolder: `manager/${expected.id}/${input.nativeCallId}`.slice(0, 160),
-            effectiveModel: null,
-            effectiveEffort: null,
-            nativeClaim: {
-              managerThreadId: input.managerThreadId,
-              parentTurnId: input.nativeTurnId,
-              callId: input.nativeCallId,
+          ...(await repository.claimStep(
+            ownerId,
+            {
+              ...input.command.payload,
+              ...common,
+              leaseHolder: `manager/${expected.id}/${input.nativeCallId}`.slice(0, 160),
+              effectiveModel: null,
+              effectiveEffort: null,
+              nativeClaim: {
+                managerThreadId: input.managerThreadId,
+                parentTurnId: input.nativeTurnId,
+                callId: input.nativeCallId,
+              },
             },
-          })),
+            () =>
+              progression
+                ? {
+                    cursorVersion: progression.cursorVersion,
+                    sequence: progression.sequence,
+                    ...(input.continuation ? { continuation: input.continuation } : {}),
+                  }
+                : undefined,
+          )),
           managerBindingId: expected.id,
           checkoutBindingDigest: expected.bindingDigest,
           nativeSequence,
+          ...progressionReceipt(),
         };
       }
       case "complete_step":
