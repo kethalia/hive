@@ -242,3 +242,19 @@ missing history, changed host binding, other-thread isolation, revert races,
 pagination overlap/loops, revocation clearing, unsupported items, and malformed events. Repository
 TypeScript checking passed. These use protocol fixtures and complement the real
 runtime probe; they do not replace native/browser integration acceptance.
+
+
+## Authenticated transport follow-up
+
+Committed `e483581` adds the workspace-local, read-only WebSocket bridge, server-side
+Ed25519 ticket signer, and browser transport. The native app-server stays on loopback;
+short-lived tickets bind the owner, workspace build, server instance, thread and Hive
+origin. Renewal keeps one connection; replay state survives process restart. The primary
+independently ran all 15 bridge tests, including the real CLI/tmux integration and SIGKILL
+recovery, plus 34 browser transport/signer/adapter tests on 2026-10-29.
+
+This implements the bounded transport but does not enable it on a workspace. Trusted
+host registration, build-change/revocation observation, per-thread supervision, UI
+attachment, and scoped ticket issuance from the authenticated project API remain open.
+A pure signing function is not sufficient authorization for those API calls. The
+Conversation component exists, but full browser and model-inference acceptance is pending.

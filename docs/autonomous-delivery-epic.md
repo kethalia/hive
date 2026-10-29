@@ -1,6 +1,6 @@
 # Epic: observable autonomous delivery
 
-Status: design updated 2026-10-29; implementation not started. Owner: Hive delivery manager.
+Status: implementation started 2026-10-29; preview and production gates remain open. Owner: Hive delivery manager.
 Design contract: [Autonomous delivery](autonomous-delivery.md).
 Accepted foundation and release sequence below supersedes the original queue ordering.
 
@@ -18,7 +18,8 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 
 ## Work queue
 
-All implementation tasks below are pending. Each task follows Understand → Implement → Review →
+Capability audits and foundation implementation are underway; remaining tasks are pending.
+Current step reports and blockers: [execution ledger](checks/autonomous-delivery/progress.md). Each task follows Understand → Implement → Review →
 Validate, adding Release/Observe when it changes deployed behavior. Record attempts, issues,
 difficulty with rationale, evidence, and next action on every completed step. Implement small
 reviewable slices on the integration branch; keep the final main-targeting PR as a draft until
@@ -114,7 +115,7 @@ where evidence cannot resolve a choice or the choice changes product behavior/au
 ## Revised foundation roadmap (accepted 2026-10-29)
 
 The original D01–D13 tasks remain delivery-system scope. Add these foundation tasks before the
-relevant dependents; preserve IDs so evidence and progress links remain stable. All are pending.
+relevant dependents; preserve IDs so evidence and progress links remain stable. See the execution ledger for current status.
 
 | ID | Task | Depends on | Done when |
 | --- | --- | --- | --- |
