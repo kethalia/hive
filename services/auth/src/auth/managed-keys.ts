@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TOKEN_LIFETIME_SECONDS } from "@hive/auth";
-import { fetchCoderApi } from "./coder-fetch.js";
-import { CODER_API_TIMEOUT_MS } from "./constants.js";
+import { fetchCoderApi } from "./coder-fetch";
+import { CODER_API_TIMEOUT_MS } from "./constants";
 
 export interface ManagedCoderKey {
   id: string;

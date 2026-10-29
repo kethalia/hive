@@ -7,8 +7,8 @@ import {
   tryDecrypt,
 } from "@hive/auth";
 import { getDb, type PrismaClient } from "@hive/db";
-import { discardRolledBackKey, isConclusiveCredentialRollback } from "./credential-store.js";
-import { createManagedCoderKey, deleteManagedCoderKey } from "./managed-keys.js";
+import { discardRolledBackKey, isConclusiveCredentialRollback } from "./credential-store";
+import { createManagedCoderKey, deleteManagedCoderKey } from "./managed-keys";
 
 export interface RotationOptions {
   db?: PrismaClient;
