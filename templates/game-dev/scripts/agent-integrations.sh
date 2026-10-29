@@ -8,6 +8,15 @@ if [ "${HIVE_WORKSPACE_PROFILE:-}" != "software" ]; then exit 0; fi
 if [ -n "${HIVE_AGENT_TOOLS_SOURCE_B64:-}" ]; then
   printf '%s' '{"operation":"configure-coder"}' | python3 -c \
     "$(printf '%s' "$HIVE_AGENT_TOOLS_SOURCE_B64" | base64 -d)"
+  printf '%s' '{"operation":"configure-neon"}' | python3 -c \
+    "$(printf '%s' "$HIVE_AGENT_TOOLS_SOURCE_B64" | base64 -d)"
+fi
+
+# Install vendor-published skill data only; no OAuth, provisioning, or downloaded code.
+if [ -n "${HIVE_NEON_SKILL_SOURCE_B64:-}" ]; then
+  timeout --signal=TERM --kill-after=5s 60s python3 -c \
+    "$(printf '%s' "$HIVE_NEON_SKILL_SOURCE_B64" | base64 -d)" || \
+    printf '%s\n' '[warn] Neon skill installation deferred.'
 fi
 
 if ! command -v typescript-language-server >/dev/null 2>&1; then

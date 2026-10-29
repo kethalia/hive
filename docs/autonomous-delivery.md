@@ -355,3 +355,13 @@ References checked during design discussion:
 - [Cloudflare Neon integration](https://developers.cloudflare.com/workers/databases/third-party-integrations/neon/)
 - [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
 - [Supabase architecture](https://supabase.com/docs/guides/getting-started/architecture)
+
+### Object storage decision refinement (2026-10-29)
+
+Neon now offers S3-compatible object storage that branches with database branches.
+That can be useful for applications needing matching preview database/file snapshots.
+It is not required for Hive's selected database use. Retain R2 for screenshots,
+traces, attachments, and delivery evidence whose retention should survive temporary
+Neon branch cleanup. Do not introduce a second object store without that concrete
+branching requirement. See [Neon Object Storage](https://neon.com/blog/building-neon-object-storage)
+and [Cloudflare R2](https://developers.cloudflare.com/r2/).

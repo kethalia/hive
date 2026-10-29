@@ -1,5 +1,9 @@
 #!/bin/bash
 set -e
+# Serialize startup installs with daily maintenance of the same managed tools and skills.
+mkdir -p "$HOME/.local/state/hive/agent-updates"
+exec 9>"$HOME/.local/state/hive/agent-updates/update.lock"
+flock -w 900 9 || exit 0
 
 BOLD='\033[0;1m'
 GREEN='\033[0;32m'

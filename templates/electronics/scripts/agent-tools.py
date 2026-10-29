@@ -388,6 +388,29 @@ def configure_coder():
     return {"message": "Coder inspection tools configured. Restart agents and check /mcp."}
 
 
+
+def configure_neon():
+    if os.environ.get("HIVE_WORKSPACE_PROFILE") != "software":
+        raise ValueError("Neon setup belongs in the software workspace")
+    with locked():
+        codex_path = config_dir("codex") / "config.toml"
+        existing = codex_path.read_text() if codex_path.exists() else ""
+        codex = tomllib.loads(existing)
+        claude_path = claude_user_config()
+        claude = read_json(claude_path)
+        servers = claude.setdefault("mcpServers", {})
+        if not isinstance(servers, dict) or not isinstance(codex.get("mcp_servers", {}), dict):
+            raise ValueError("Invalid MCP configuration")
+        if "neon" not in codex.get("mcp_servers", {}):
+            updated = existing.rstrip() + '\n\n[mcp_servers.neon]\nurl = "https://mcp.neon.tech/mcp"\n'
+            tomllib.loads(updated)
+            atomic_write(codex_path, updated)
+        if "neon" not in servers:
+            servers["neon"] = {"type": "http", "url": "https://mcp.neon.tech/mcp"}
+            atomic_write(claude_path, json.dumps(claude, indent=2) + "\n")
+    return {"message": "Neon MCP configured. Authenticate with codex mcp login neon --no-browser."}
+
+
 def resume(key):
     with locked():
         record = read_json(root() / "sessions.json").get(key)
@@ -446,6 +469,8 @@ def main():
             result = install(request["source"])
         elif operation == "configure-coder":
             result = configure_coder()
+        elif operation == "configure-neon":
+            result = configure_neon()
         elif operation == "disable":
             result = disable_tracking()
         elif operation == "resume":
