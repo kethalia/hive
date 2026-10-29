@@ -82,7 +82,7 @@ export async function authenticateCheckoutHost(
 }
 export async function lockManagerCheckout(
   tx: Tx,
-  input: CheckoutHostEnvelope,
+  input: Omit<CheckoutHostEnvelope, "proof">,
   authenticated: { ownerId: string; hostPublicKeyPem: string },
   options: { create?: boolean; allowBlocked?: boolean; progressionProtocol?: 1 } = {},
 ) {

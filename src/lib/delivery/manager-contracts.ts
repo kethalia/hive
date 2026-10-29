@@ -5,6 +5,7 @@ import {
   continuationSchema,
   informationalReportSchema,
   leaseRequestSchema,
+  sourceContextSchema,
   taskDefinitionSchema,
 } from "./contracts";
 
@@ -77,6 +78,7 @@ export const managerEnvelopeSchema = z
     nativeCallId: nativeId,
     // Installed host field, signed outside model-controlled command/payload.
     continuation: continuationSchema.optional(),
+    sourceContext: sourceContextSchema.optional(),
     issuedAt: z.number().int().nonnegative(),
     expiresAt: z.number().int().positive(),
     command,

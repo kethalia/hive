@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 export const sourceShaSchema = z.string().regex(/^[a-f0-9]{40}$/);
+export const sourceContextSchema = z
+  .object({
+    revisionId: z.string().uuid(),
+    version: z.number().int().positive(),
+    headSha: sourceShaSchema,
+  })
+  .strict();
+export type SourceContext = z.infer<typeof sourceContextSchema>;
 const identifier = z.string().uuid();
 const label = z.string().min(1).max(160);
 const criterion = z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/);
@@ -116,6 +124,7 @@ export const leaseRequestSchema = z
         cursorVersion: z.number().int().positive().optional(),
         sequence: z.number().int().nonnegative().optional(),
         continuation: continuationSchema.optional(),
+        sourceContext: sourceContextSchema.optional(),
       })
       .strict()
       .optional(),

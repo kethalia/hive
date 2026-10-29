@@ -1,6 +1,7 @@
 import type { Prisma } from "@hive/db";
 import type { ManagerEnvelope } from "./manager-contracts";
 import { NATIVE_OBSERVER_PRODUCER } from "./native-contracts";
+import { resolveAttemptSource } from "./source-resolver.server";
 import { DeliveryConflict } from "./state";
 
 type Binding = Prisma.DeliveryManagerBindingGetPayload<Record<string, never>>;
@@ -100,7 +101,6 @@ export async function authorizeProgressionClaim(
     age > 60_000 ||
     !old ||
     old.managerBindingId !== binding.id ||
-    old.sourceSha !== binding.sourceSha ||
     !["reported", "succeeded"].includes(old.outcome) ||
     old.step.state !== old.outcome ||
     old.step.taskId !== input.command.payload.taskId ||
@@ -108,6 +108,7 @@ export async function authorizeProgressionClaim(
     anchor?.step.taskId !== input.command.payload.taskId
   )
     throw new DeliveryConflict("continuation_boundary_mismatch");
+  await resolveAttemptSource(tx, ownerId, input.command.payload.taskId, old.id);
   if (
     await tx.deliveryEvent.findUnique({
       where: {

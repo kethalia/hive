@@ -23,6 +23,7 @@ import {
   taskDefinitionSchema,
 } from "./contracts";
 import { NATIVE_OBSERVER_PRODUCER, nativeSourceInputSchema } from "./native-contracts";
+import { resolveAttemptSource, resolveTaskSource } from "./source-resolver.server";
 import {
   assertAcyclicSteps,
   assertCompletionEvidence,
@@ -464,7 +465,7 @@ export class DeliveryRepository {
     trustedNativeReceipt?: () =>
       | Pick<
           NonNullable<z.infer<typeof leaseRequestSchema>["nativeClaim"]>,
-          "cursorVersion" | "sequence" | "continuation"
+          "cursorVersion" | "sequence" | "continuation" | "sourceContext"
         >
       | undefined,
   ) {
@@ -475,6 +476,7 @@ export class DeliveryRepository {
         input.nativeClaim = { ...input.nativeClaim, ...trustedNativeReceipt() };
       const requestDigest = digest("attempt_started", input);
       const task = await lockTask(tx, ownerId, input.taskId);
+      await resolveTaskSource(tx, ownerId, task.id);
       const previous = await replay(tx, ownerId, input.eventId, requestDigest);
       if (previous?.attemptId) {
         const attempt = await tx.deliveryAttempt.findUniqueOrThrow({
@@ -595,6 +597,7 @@ export class DeliveryRepository {
       });
       if (!step) throw new DeliveryConflict("step_not_found");
       const task = await lockTask(tx, ownerId, step.taskId);
+      await resolveTaskSource(tx, ownerId, task.id);
       const timestamp = await now(tx);
       if (
         task.sourceSha !== input.sourceSha ||
@@ -652,7 +655,8 @@ export class DeliveryRepository {
         attempt.leaseExpiresAt <= timestamp
       )
         throw new DeliveryConflict("stale_attempt");
-      if (task.sourceSha !== input.sourceSha || attempt.sourceSha !== input.sourceSha)
+      const acceptedSource = await resolveAttemptSource(tx, ownerId, task.id, attempt.id);
+      if (acceptedSource.acceptedSha !== input.sourceSha)
         throw new DeliveryConflict("source_revision_changed");
       const evidence = await tx.deliveryEvidence.findMany({
         where: { ownerId, stepId: step.id, id: { in: input.evidenceIds } },
@@ -758,7 +762,8 @@ export class DeliveryRepository {
         attempt.leaseExpiresAt <= timestamp
       )
         throw new DeliveryConflict("stale_attempt");
-      if (task.sourceSha !== input.sourceSha || attempt.sourceSha !== input.sourceSha)
+      const acceptedSource = await resolveAttemptSource(tx, ownerId, task.id, attempt.id);
+      if (acceptedSource.acceptedSha !== input.sourceSha)
         throw new DeliveryConflict("source_revision_changed");
       const version = step.version + 1;
       await tx.deliveryStep.update({
@@ -941,6 +946,9 @@ export class DeliveryRepository {
           return block("native_attempt_not_current", input.eventId, false);
         throw new DeliveryConflict("native_attempt_not_held");
       }
+      if (attempt.outputRevisionId && input.source.kind !== "root_boundary")
+        return block("native_input_after_publication", input.eventId, false);
+      await resolveAttemptSource(tx, ownerId, task.id, attempt.id);
       if (input.sequence !== manager.nativeSequence + 1)
         throw new DeliveryConflict("native_sequence_gap");
       if (Date.parse(input.source.observedAt) > timestamp.getTime())
@@ -959,6 +967,7 @@ export class DeliveryRepository {
       )
         return block("native_parent_turn_mismatch", input.eventId, true);
       if (input.source.kind === "root_boundary") {
+        await resolveAttemptSource(tx, ownerId, task.id, attempt.id);
         if (
           producer !== NATIVE_OBSERVER_PRODUCER ||
           manager.progressionProtocol !== 1 ||
@@ -967,8 +976,6 @@ export class DeliveryRepository {
           input.source.nextParentTurnId === input.source.parentTurnId ||
           !["reported", "succeeded"].includes(attempt.outcome) ||
           step.state !== attempt.outcome ||
-          attempt.sourceSha !== manager.sourceSha ||
-          task.sourceSha !== manager.sourceSha ||
           task.pauseRequested ||
           task.schedulingPaused ||
           attempt.leaseExpiresAt <= timestamp ||
@@ -1552,7 +1559,8 @@ export class DeliveryRepository {
         attempt.leaseExpiresAt <= timestamp
       )
         throw new DeliveryConflict("stale_attempt");
-      if (task.sourceSha !== input.sourceSha || attempt.sourceSha !== input.sourceSha)
+      const acceptedSource = await resolveAttemptSource(tx, ownerId, task.id, attempt.id);
+      if (acceptedSource.acceptedSha !== input.sourceSha)
         throw new DeliveryConflict("source_revision_changed");
       const evidence = await tx.deliveryEvidence.findMany({
         where: { ownerId, stepId: step.id, id: { in: input.evidenceIds } },

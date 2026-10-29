@@ -192,6 +192,8 @@ model DeliveryTask {
   managerBindingId String? @map("manager_binding_id") @db.Uuid
   outcome          String
   sourceSha        String @map("source_sha")
+  sourceRevisionId String? @map("source_revision_id") @db.Uuid
+  sourceVersion    Int @default(0) @map("source_version")
   branch           String
   version          Int @default(0)
   pauseRequested   Boolean @default(false) @map("pause_requested")
@@ -205,7 +207,10 @@ model DeliveryTask {
   managerBinding   DeliveryManagerBinding? @relation(fields: [ownerId, projectId, managerBindingId], references: [ownerId, projectId, id], onDelete: Restrict)
   steps            DeliveryStep[]
   events           DeliveryEvent[]
+  sourceRevisions DeliverySourceRevision[] @relation("TaskSourceRevisions")
+  currentSourceRevision DeliverySourceRevision? @relation("CurrentTaskSourceRevision", fields: [ownerId, id, sourceRevisionId], references: [ownerId, taskId, id], onDelete: Restrict)
   @@unique([ownerId, id])
+  @@unique([ownerId, id, managerBindingId])
   @@map("delivery_tasks")
 }
 
@@ -230,6 +235,7 @@ model DeliveryStep {
   evidence              DeliveryEvidence[]
   reports               DeliveryStepReport[]
   events                DeliveryEvent[]
+  sourceRevisions       DeliverySourceRevision[]
   dependencies          DeliveryStepDependency[] @relation("StepDependencies")
   dependents            DeliveryStepDependency[] @relation("StepDependents")
   @@unique([ownerId, id])
@@ -258,6 +264,7 @@ model DeliveryAttempt {
   leaseHolder      String @map("lease_holder")
   leaseExpiresAt   DateTime @map("lease_expires_at") @db.Timestamptz
   sourceSha        String @map("source_sha")
+  outputRevisionId String? @map("output_revision_id") @db.Uuid
   requestedModel   String? @map("requested_model")
   effectiveModel   String? @map("effective_model")
   requestedEffort  String? @map("requested_effort")
@@ -275,6 +282,8 @@ model DeliveryAttempt {
   managerBinding   DeliveryManagerBinding? @relation("ManagerAttempt", fields: [ownerId, managerBindingId], references: [ownerId, id], onDelete: Restrict)
   activeForBindings DeliveryManagerBinding[] @relation("ActiveManagerAttempt")
   currentForBindings DeliveryManagerBinding[] @relation("CurrentManagerAttempt")
+  producedRevision DeliverySourceRevision? @relation("ProducedSourceRevision")
+  outputRevision DeliverySourceRevision? @relation("AttemptOutputRevision", fields: [ownerId, stepId, id, outputRevisionId], references: [ownerId, stepId, producingAttemptId, id], onDelete: Restrict)
   @@unique([ownerId, id])
   @@unique([ownerId, stepId, id])
   @@unique([ownerId, managerBindingId, id])
@@ -533,9 +542,52 @@ model DeliveryManagerBinding {
   currentAttempt DeliveryAttempt? @relation("CurrentManagerAttempt", fields: [ownerId, id, currentAttemptId], references: [ownerId, managerBindingId, id], onDelete: Restrict, map: "delivery_manager_current_attempt_fkey")
   attempts DeliveryAttempt[] @relation("ManagerAttempt")
   tasks DeliveryTask[]
+  sourceRevisions DeliverySourceRevision[]
   @@unique([ownerId, id])
   @@unique([ownerId, projectId, id])
   @@unique([ownerId, bindingDigest])
   @@index([ownerId, preparationIntentId])
   @@map("delivery_manager_bindings")
+}
+
+model DeliverySourceRevision {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  managerBindingId String @map("manager_binding_id") @db.Uuid
+  stepId String @map("step_id") @db.Uuid
+  producingAttemptId String @map("producing_attempt_id") @db.Uuid
+  previousRevisionId String? @map("previous_revision_id") @db.Uuid
+  version Int
+  inputSha String @map("input_sha")
+  headSha String @map("head_sha")
+  treeSha String @map("tree_sha")
+  manifestDigest String @map("manifest_digest")
+  operationId String @map("operation_id") @db.Uuid
+  requestDigest String @map("request_digest")
+  producer String
+  proofDigest String @map("proof_digest")
+  repositoryId String @map("repository_id")
+  providerAccountId String @map("provider_account_id")
+  fullName String @map("full_name")
+  branch String
+  baseBranch String @map("base_branch")
+  pullRequestId String @map("pull_request_id")
+  pullNumber Int @map("pull_number")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  task DeliveryTask @relation("TaskSourceRevisions", fields: [ownerId, taskId, managerBindingId], references: [ownerId, id, managerBindingId], onDelete: Restrict)
+  step DeliveryStep @relation(fields: [ownerId, taskId, stepId], references: [ownerId, taskId, id], onDelete: Restrict)
+  binding DeliveryManagerBinding @relation(fields: [ownerId, managerBindingId], references: [ownerId, id], onDelete: Restrict)
+  producingAttempt DeliveryAttempt @relation("ProducedSourceRevision", fields: [ownerId, stepId, producingAttemptId], references: [ownerId, stepId, id], onDelete: Restrict)
+  previousRevision DeliverySourceRevision? @relation("SourceRevisionChain", fields: [ownerId, taskId, previousRevisionId], references: [ownerId, taskId, id], onDelete: Restrict)
+  nextRevisions DeliverySourceRevision[] @relation("SourceRevisionChain")
+  currentForTasks DeliveryTask[] @relation("CurrentTaskSourceRevision")
+  outputForAttempts DeliveryAttempt[] @relation("AttemptOutputRevision")
+  @@unique([ownerId, id])
+  @@unique([ownerId, taskId, id])
+  @@unique([ownerId, stepId, producingAttemptId], map: "delivery_source_revision_attempt_key")
+  @@unique([ownerId, stepId, producingAttemptId, id], map: "delivery_source_revision_output_key")
+  @@unique([ownerId, managerBindingId, operationId])
+  @@unique([ownerId, taskId, version])
+  @@map("delivery_source_revisions")
 }

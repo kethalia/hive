@@ -7,7 +7,7 @@ const id = z.string().uuid();
 const reportSelect = {
   id: true,
   event: { select: { type: true } },
-  attempt: { select: { sourceSha: true } },
+  attempt: { select: { sourceSha: true, outputRevision: { select: { headSha: true } } } },
   summary: true,
   difficulty: true,
   difficultyReason: true,
@@ -213,7 +213,7 @@ export async function readDeliveryTask(
       reports: step.reports.map(({ event, attempt, ...report }) => ({
         ...report,
         informational: event.type === "step_reported",
-        sourceSha: attempt.sourceSha,
+        sourceSha: attempt.outputRevision?.headSha ?? attempt.sourceSha,
         createdAt: report.createdAt.toISOString(),
         evidence: report.evidence.map(({ evidence }) => ({
           ...evidence,

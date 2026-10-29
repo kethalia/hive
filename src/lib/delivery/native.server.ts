@@ -7,6 +7,7 @@ import {
   nativeProofPayload,
 } from "./native-contracts";
 import { DeliveryRepository } from "./repository";
+import { resolveTaskSource } from "./source-resolver.server";
 import { DeliveryConflict } from "./state";
 
 /** Separate native observer capability. Manager tool arguments cannot select this
@@ -43,6 +44,7 @@ export class DeliveryNativeSourceService {
         const scope = await lockManagerCheckout(tx, input, registered, { allowBlocked: true });
         if (scope.binding.id !== input.managerBindingId)
           throw new DeliveryConflict("native_source_binding_mismatch");
+        await resolveTaskSource(tx, registered.ownerId, input.taskId, input.sourceContext, true);
       },
     );
     return repository.recordNativeSource(registered.ownerId, NATIVE_OBSERVER_PRODUCER, {
