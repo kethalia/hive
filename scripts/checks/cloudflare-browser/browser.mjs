@@ -1,6 +1,7 @@
 // Browser Testing only. Credentials arrive through stdin and remain memory-only.
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { formDiagnostics, installPageDiagnostics, requestCategory } from "./diagnostics.mjs";
 import { cleanupSession, createBudget, ORIGIN, permitted } from "./policy.mjs";
 
 assert.equal(process.env.HIVE_WORKSPACE_PROFILE, "browser");
@@ -19,7 +20,7 @@ assert.ok(
     auth.password.length <= 2048 &&
     /^[a-f0-9]{64}$/i.test(auth.previewBearer),
 );
-const budget = createBudget();
+const budget = createBudget(Date.now, { priorForwarded: 21, durationMs: 150000 });
 const result = {
   schemaVersion: 1,
   origin: ORIGIN,
@@ -33,6 +34,7 @@ const result = {
   coderKeyRetainedForRotation: true,
   cleanupAttempted: false,
   cleanupSucceeded: false,
+  diagnostics: { requests: {}, pageErrorCount: 0, form: {} },
 };
 let browser,
   context,
@@ -40,6 +42,10 @@ let browser,
   step = "launch",
   fatal = false,
   firstPage;
+function countDiagnostic(category, outcome) {
+  const key = `${category}:${outcome}`;
+  result.diagnostics.requests[key] = Math.min(1000, (result.diagnostics.requests[key] ?? 0) + 1);
+}
 function check(condition) {
   if (!condition) throw new Error("check_failed");
 }
@@ -72,6 +78,7 @@ try {
   context.setDefaultTimeout(12000);
   context.setDefaultNavigationTimeout(20000);
   await context.routeWebSocket("**/*", (ws) => ws.close());
+  await context.addInitScript(installPageDiagnostics);
   await context.addInitScript(() => {
     window.open = () => null;
   });
@@ -85,7 +92,12 @@ try {
       method = req.method();
     if (req.isNavigationRequest() && req.frame().page() !== firstPage)
       return route.abort("blockedbyclient");
-    if (!budget.reserve(url, method)) return route.abort("blockedbyclient");
+    const category = requestCategory(url, req.resourceType());
+    if (!budget.reserve(url, method)) {
+      countDiagnostic(category, "scopeOrBudgetBlocked");
+      return route.abort("blockedbyclient");
+    }
+    countDiagnostic(category, "forwarded");
     if (method === "POST" && new URL(url).pathname === "/api/auth/login") {
       let body;
       try {
@@ -108,6 +120,7 @@ try {
         timeout: Math.max(1, Math.min(10000, budget.remaining())),
       });
       const headers = response.headers();
+      countDiagnostic(category, `response${Math.floor(response.status() / 100)}xx`);
       if (headers["content-disposition"]?.toLowerCase().includes("attachment"))
         return route.abort();
       if (
@@ -119,6 +132,7 @@ try {
         return route.abort();
       await route.fulfill({ response });
     } catch {
+      countDiagnostic(category, "fetchFailed");
       await route.abort().catch(() => {});
     }
   });
@@ -134,6 +148,9 @@ try {
   auth.previewBearer = "";
   result.checks.previewBootstrap = true;
   const page = await context.newPage();
+  page.on("pageerror", () => {
+    result.diagnostics.pageErrorCount = Math.min(255, result.diagnostics.pageErrorCount + 1);
+  });
   page.on("download", (d) => void d.cancel());
   step = "loginForm";
   await page.goto(`${ORIGIN}/login`, { waitUntil: "domcontentloaded" });
@@ -141,14 +158,41 @@ try {
   check((await page.locator("input").count()) === 2);
   check((await page.locator('input[type="url"]').count()) === 0);
   result.checks.fixedHostForm = true;
+  result.diagnostics.form.beforeHydration = await page.evaluate(formDiagnostics);
+  step = "hydration";
+  await page.waitForFunction(
+    () => {
+      const form = document.querySelector("form");
+      return (
+        !!form &&
+        Object.keys(form)
+          .filter((key) => key.startsWith("__reactProps$"))
+          .some((key) => typeof form[key]?.onSubmit === "function")
+      );
+    },
+    null,
+    { timeout: 8000 },
+  );
+  result.diagnostics.form.afterHydration = await page.evaluate(formDiagnostics);
   await page.locator("#email").fill(auth.email);
   await page.locator("#password").fill(auth.password);
-  step = "login";
-  const loginResponse = page.waitForResponse(
-    (r) => r.url() === `${ORIGIN}/api/auth/login` && r.request().method() === "POST",
+  step = "formValidity";
+  result.diagnostics.form.beforeClick = await page.evaluate(formDiagnostics);
+  check(
+    result.diagnostics.form.beforeClick.emailValid &&
+      result.diagnostics.form.beforeClick.passwordValid &&
+      result.diagnostics.form.beforeClick.emailControlledMatches &&
+      result.diagnostics.form.beforeClick.passwordControlledMatches,
   );
+  step = "login";
+  const loginResponse = page
+    .waitForResponse(
+      (r) => r.url() === `${ORIGIN}/api/auth/login` && r.request().method() === "POST",
+    )
+    .catch(() => null);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  check((await loginResponse).status() === 200);
+  result.diagnostics.clickCompleted = true;
+  check((await loginResponse)?.status() === 200);
   await page.waitForURL(`${ORIGIN}/workspaces`);
   await page.locator("[data-dashboard-main]").waitFor();
   result.checks.normalUiLogin = true;
@@ -208,6 +252,9 @@ try {
   result.failureStep = step;
   result.deadlineReached = fatal;
 } finally {
+  if (firstPage && !firstPage.isClosed()) {
+    result.diagnostics.form.final = await firstPage.evaluate(formDiagnostics).catch(() => null);
+  }
   if (!result.passed && budget.snapshot().loginPosts === 1 && context) {
     Object.assign(result, await cleanupSession(budget, context.request));
   }

@@ -19,7 +19,7 @@ v=json.load(sys.stdin);p=pathlib.Path('/tmp/hive-cloudflare-browser-ld5o18ur')
 s=p.lstat();assert p.resolve()==p and s.st_uid==os.getuid() and s.st_mode&0o077==0
 assert os.environ.get('HIVE_WORKSPACE_PROFILE')=='browser'
 assert json.loads((p/'node_modules/playwright/package.json').read_text())['version']=='1.61.1'
-assert set(v['files'])=={'browser.mjs','policy.mjs','policy.test.mjs','driver-lifecycle.mjs'}
+assert set(v['files'])=={'browser.mjs','policy.mjs','policy.test.mjs','driver-lifecycle.mjs','diagnostics.mjs'}
 for name,data in v['files'].items():
  f=p/name
  if f.exists():assert not f.is_symlink() and f.stat().st_uid==os.getuid()
@@ -56,7 +56,7 @@ def main():
     for field, key in [('owner_id', 'ownerId'), ('template_id', 'templateId'), ('created_at', 'createdAt'), ('name', 'name')]:
         assert workspace[field] == record[key]
     assert workspace['latest_build']['status'] == 'running'
-    files = {name: (SOURCE/name).read_text() for name in ['browser.mjs', 'policy.mjs', 'policy.test.mjs', 'driver-lifecycle.mjs']}
+    files = {name: (SOURCE/name).read_text() for name in ['browser.mjs', 'policy.mjs', 'policy.test.mjs', 'driver-lifecycle.mjs', 'diagnostics.mjs']}
     payload = {'mode': args.mode, 'files': files}
     if args.mode == 'run':
         assert args.auth_file

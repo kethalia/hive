@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "preparedAt": "2026-10-29T21:06:27.619948+00:00",
+  "workspaceId": "6bc1ff4f-c190-4d8f-becd-b7b3e01e9535",
+  "chrome": "155.0.8059.79",
+  "playwright": "1.61.1",
+  "sourceSha256": {
+    "hydration-fixture.mjs": "a49217827affc0a24d98b36c24eef5edb4095ca9e1079c8c54f428b38e5ab8ba",
+    "diagnostics.mjs": "5169ced7226eeac578e543dd9ba891af648072dbb39ebfa3ee785bcf617c6ba1",
+    "browser.mjs": "42f18b795b7ac803504cc8468683f667bd54dea2fa6ba7ece8e2569323c6b923",
+    "package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b",
+    "package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
+    "README.md": "fb6a0179f4d912f92bd4ad0dc56daa592ead346e86b358c1a8eb01b78d473dfd",
+    "policy.test.mjs": "c68f6c9c518070f50e4a9454f9a5161d4acfbd545b4eb182c0c2bfc8b5c3d8e1",
+    "build-hydration-fixture.mjs": "cee2849f08e0ae9320b65943b6340dba61a0cfd6e9f5b84513f709b2d1c37c05",
+    "driver-lifecycle.mjs": "8b9f96fab8004baec8249a04dad18834420c3aaf574bcc0158d36d99e035603f",
+    "policy.mjs": "97379f4fcd76ebc1adab3475f3a81f057b93518978b1bc317485ffd6c877b686",
+    "remote.py": "3901b99505db69cb640fe9366aca8c7ca2a686998f17f4cfb06d0711da2d5690"
+  },
+  "previewRequestsDuringPreparation": 0,
+  "firstLiveResultPreserved": true,
+  "priorForwarded": 21,
+  "remainingMaximumIncludingCleanup": 179,
+  "durationMs": 150000,
+  "remoteDriverTimeoutSeconds": 190,
+  "maximumLoginPosts": 1,
+  "reservedCleanupRequests": 1,
+  "policyTestsPassed": 8,
+  "remoteSyntaxAndBlankChromePassed": true,
+  "hydrationFixture": "hydration-fixture.json",
+  "firstLiveFailureCauseProven": false,
+  "liveFollowupAuthorizedToRunByAgent": false
+}

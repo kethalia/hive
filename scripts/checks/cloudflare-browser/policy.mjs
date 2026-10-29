@@ -36,16 +36,25 @@ export function permitted(url, method) {
       /^\/(?:icon|apple-icon)(?:\.[a-z0-9]+)?$/.test(value.pathname))
   );
 }
-export function createBudget(now = Date.now) {
+export function createBudget(now = Date.now, { priorForwarded = 0, durationMs = DURATION } = {}) {
+  if (
+    !Number.isSafeInteger(priorForwarded) ||
+    priorForwarded < 0 ||
+    priorForwarded >= LIMIT ||
+    !Number.isSafeInteger(durationMs) ||
+    durationMs <= 0 ||
+    durationMs > DURATION
+  )
+    throw new Error("invalid_budget");
   const start = now();
-  let count = 0,
+  let count = priorForwarded,
     loginPosts = 0,
     cleanupUsed = false;
   const blocked = {};
   function reserve(url, method, cleanup) {
     const login = url === `${ORIGIN}/api/auth/login` && method === "POST";
     const reason =
-      now() - start >= DURATION
+      now() - start >= durationMs
         ? "deadline"
         : !permitted(url, method) ||
             (cleanup && (url !== `${ORIGIN}/api/auth/logout` || method !== "POST"))
@@ -71,7 +80,10 @@ export function createBudget(now = Date.now) {
     reserveCleanup: (url, method) => reserve(url, method, true),
     snapshot() {
       return {
-        forwarded: count,
+        forwarded: count - priorForwarded,
+        cumulativeForwarded: count,
+        priorForwarded,
+        durationMs,
         limit: LIMIT,
         loginPosts,
         cleanupReserved: !cleanupUsed,
@@ -80,7 +92,7 @@ export function createBudget(now = Date.now) {
       };
     },
     remaining() {
-      return Math.max(0, DURATION - (now() - start));
+      return Math.max(0, durationMs - (now() - start));
     },
   };
 }
