@@ -13,6 +13,7 @@ import {
   deliveryManagerToolSpec,
   deliveryProofPayload,
 } from "../templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs";
+import { nativeSourceProofPayload } from "../templates/ai-dev-k8s/scripts/delivery-native-spool.mjs";
 
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), "hive-manager-adapter-"));
@@ -239,6 +240,468 @@ test("ambiguous response may replay only the same event; redirects and excessive
   await assert.rejects(adapter.handleToolCall(f.request), /response_limit/);
   assert.equal(new Set(events).size, 1);
 });
+
+function progressingAdapter(t, overrides = {}) {
+  const f = fixture(t),
+    posts = [],
+    starts = [],
+    bindingId = randomUUID();
+  let sequence = 0,
+    claims = 0;
+  const native = {
+    childThreadId: randomUUID(),
+    childTurnId: randomUUID(),
+    spawnCallId: "delegation-two",
+  };
+  const options = {
+    ...f.options,
+    nativeEnabled: true,
+    progressionProtocol: 1,
+    currentServerInstanceId: () => f.registration.serverInstanceId,
+    registerChild: () => {},
+    readNativeHistory: async () => ({
+      data: [{ id: native.childTurnId, status: "completed", itemsView: "full", items: [] }],
+      nextCursor: null,
+    }),
+    drainNativeRouting: async () => ({ pendingObservers: 0, activeHandlers: 0 }),
+    continueRoot: async (request) => {
+      starts.push(request);
+      return {
+        requestId: request.requestId,
+        parentTurnId: request.parentTurnId,
+        nextParentTurnId: `continuation-${request.cursorVersion}`,
+        priorAttemptId: request.priorAttemptId,
+        cursorVersion: request.cursorVersion,
+        serverInstanceId: f.registration.serverInstanceId,
+        historyDigest: "b".repeat(64),
+      };
+    },
+    revalidateBoundary: async () => ({ observedAt: new Date().toISOString() }),
+    fetchImpl: async (url, init) => {
+      const value = JSON.parse(init.body);
+      posts.push({ path: new URL(url).pathname, value });
+      const payload = url.endsWith("/native")
+        ? nativeSourceProofPayload(value)
+        : deliveryProofPayload(value);
+      assert.equal(
+        verify(null, Buffer.from(payload), f.key.publicKey, Buffer.from(value.proof, "base64url")),
+        true,
+      );
+      if (url.endsWith("/native")) {
+        assert.equal(value.sequence, sequence + 1);
+        sequence = value.sequence;
+        return Response.json({
+          accepted: true,
+          blocked: false,
+          sequence,
+          ...(value.source.kind === "root_boundary"
+            ? { boundaryEventId: value.eventId, cursorVersion: value.source.cursorVersion }
+            : {}),
+        });
+      }
+      if (value.command.operation === "claim_step")
+        return Response.json({
+          attemptId: randomUUID(),
+          leaseGeneration: 1,
+          managerBindingId: bindingId,
+          checkoutBindingDigest: "a".repeat(64),
+          nativeSequence: sequence,
+          progressionProtocol: 1,
+          cursorVersion: ++claims,
+          replayed: false,
+          outcome: "running",
+          canRun: false,
+          needsRuntimeBinding: true,
+          needsReconciliation: false,
+        });
+      return Response.json({
+        eventId: value.eventId,
+        reportId: randomUUID(),
+        version: 1,
+        replayed: false,
+      });
+    },
+    ...overrides,
+  };
+  const adapter = createDeliveryManagerAdapter(options);
+  t.after(() => adapter.close());
+  const call = (turnId, callId, operation, payload) =>
+    adapter.handleToolCall({ ...f.request, turnId, callId, arguments: { operation, payload } });
+  const claim = async (turnId, callId, taskId, stepId) =>
+    JSON.parse((await call(turnId, callId, "claim_step", { taskId, stepId })).contentItems[0].text);
+  return { ...f, adapter, options, posts, starts, native, call, claim };
+}
+
+test("protocol one advances via signed host-only boundary without resetting its native sequence or physical anchor", async (t) => {
+  const f = progressingAdapter(t),
+    taskId = randomUUID(),
+    stepId = randomUUID();
+  const first = await f.claim(f.request.turnId, "first-claim", taskId, stepId);
+  assert.equal(first.canRun, false);
+  assert.equal(first.needsRuntimeBinding, true);
+  await f.call(f.request.turnId, "first-report", "report_step", {
+    taskId,
+    stepId,
+    attemptId: first.attemptId,
+  });
+  assert.equal(f.starts.length, 0);
+  f.adapter.observe({
+    method: "turn/completed",
+    params: { threadId: f.request.threadId, turn: { id: f.request.turnId, status: "completed" } },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.starts.length, 1);
+  const second = await f.claim("continuation-1", "second-claim", taskId, randomUUID());
+  assert.equal(second.cursorVersion, 2);
+  assert.equal(second.nativeSequence, 1);
+  assert.notEqual(second.attemptId, first.attemptId);
+  const boundary = f.posts.find((post) => post.value.source?.kind === "root_boundary").value;
+  const nextClaim = f.posts.filter((post) => post.value.command?.operation === "claim_step")[1]
+    .value;
+  assert.equal(boundary.attemptId, first.attemptId);
+  assert.equal(boundary.source.parentTurnId, f.request.turnId);
+  assert.equal(boundary.source.nextParentTurnId, "continuation-1");
+  assert.deepEqual(nextClaim.continuation, {
+    boundaryEventId: boundary.eventId,
+    priorAttemptId: first.attemptId,
+    cursorVersion: 1,
+    parentTurnId: f.request.turnId,
+    nextParentTurnId: "continuation-1",
+    sequence: 1,
+  });
+  assert.equal(Object.hasOwn(nextClaim.command, "continuation"), false);
+  assert.equal(f.adapter.inspectNative().held, 1);
+  assert.equal(f.adapter.inspectNative().attempts, 2);
+});
+
+test("completion drains child observations before HTTP and retries lost ACK with immutable call/event/content identity", async (t) => {
+  const f = progressingAdapter(t),
+    taskId = randomUUID(),
+    stepId = randomUUID();
+  const claim = await f.claim(f.request.turnId, "first-claim", taskId, stepId);
+  const child = f.native;
+  f.adapter.observe({
+    method: "rawResponseItem/completed",
+    params: {
+      threadId: f.request.threadId,
+      turnId: f.request.turnId,
+      item: {
+        type: "function_call",
+        namespace: "collaboration",
+        name: "spawn_agent",
+        call_id: child.spawnCallId,
+        arguments: JSON.stringify({ model: "gpt-6.1-sol", reasoning_effort: "low" }),
+      },
+    },
+  });
+  f.adapter.observe({
+    method: "item/completed",
+    params: {
+      threadId: f.request.threadId,
+      turnId: f.request.turnId,
+      item: {
+        type: "subAgentActivity",
+        kind: "started",
+        id: child.spawnCallId,
+        agentThreadId: child.childThreadId,
+        model: "gpt-6.1-sol",
+        reasoningEffort: "low",
+      },
+    },
+  });
+  // Rebuild around the same private journals with a transport that loses exactly
+  // the completion ACK. Native source deliveries still acknowledge in order.
+  await f.adapter.close();
+  const attempts = [],
+    transport = f.options.fetchImpl;
+  let lost = false;
+  const adapter = createDeliveryManagerAdapter({
+    ...f.options,
+    fetchImpl: async (url, init) => {
+      const value = JSON.parse(init.body);
+      if (value.command?.operation === "complete_step") {
+        attempts.push(value);
+        assert.equal(
+          f.posts.filter((post) => post.value.source?.kind === "turn_completed").length,
+          1,
+        );
+        if (!lost) {
+          lost = true;
+          throw new Error("lost_completion_ack");
+        }
+      }
+      return transport(url, init);
+    },
+  });
+  t.after(() => adapter.close());
+  const result = await adapter.handleToolCall({
+    ...f.request,
+    callId: "complete-child",
+    arguments: {
+      operation: "complete_step",
+      payload: { taskId, stepId, attemptId: claim.attemptId },
+    },
+  });
+  assert.equal(result.success, true);
+  assert.equal(attempts.length, 2);
+  const immutable = ({ issuedAt, expiresAt, proof, ...value }) => value;
+  assert.deepEqual(immutable(attempts[0]), immutable(attempts[1]));
+  assert.equal(attempts[0].nativeCallId, "complete-child");
+});
+
+test("unknown continuation outcome retains a durable hold", async (t) => {
+  const f = progressingAdapter(t, {
+    continueRoot: async () => {
+      throw new Error("ambiguous_native_start");
+    },
+  });
+  const taskId = randomUUID(),
+    stepId = randomUUID(),
+    first = await f.claim(f.request.turnId, "first-claim", taskId, stepId);
+  await f.call(f.request.turnId, "report", "report_step", {
+    taskId,
+    stepId,
+    attemptId: first.attemptId,
+  });
+  f.adapter.observe({
+    method: "turn/completed",
+    params: { threadId: f.request.threadId, turn: { id: f.request.turnId, status: "completed" } },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.adapter.inspectNative().blocked, 1);
+  await assert.rejects(
+    f.call("unproven-next-turn", "claim", "claim_step", { taskId, stepId: randomUUID() }),
+    /reconciliation/,
+  );
+});
+
+function observeFixtureChild(f) {
+  const child = f.native;
+  f.adapter.observe({
+    method: "rawResponseItem/completed",
+    params: {
+      threadId: f.request.threadId,
+      turnId: f.request.turnId,
+      item: {
+        type: "function_call",
+        namespace: "collaboration",
+        name: "spawn_agent",
+        call_id: child.spawnCallId,
+        arguments: JSON.stringify({ model: "gpt-6.1-sol", reasoning_effort: "low" }),
+      },
+    },
+  });
+  f.adapter.observe({
+    method: "item/completed",
+    params: {
+      threadId: f.request.threadId,
+      turnId: f.request.turnId,
+      item: {
+        type: "subAgentActivity",
+        kind: "started",
+        id: child.spawnCallId,
+        agentThreadId: child.childThreadId,
+        model: "gpt-6.1-sol",
+        reasoningEffort: "low",
+      },
+    },
+  });
+}
+
+test("controller policy rejection is never an automatic completion retry", async (t) => {
+  const f = progressingAdapter(t),
+    taskId = randomUUID(),
+    stepId = randomUUID();
+  const claim = await f.claim(f.request.turnId, "claim", taskId, stepId);
+  observeFixtureChild(f);
+  await f.adapter.close();
+  let completionRequests = 0;
+  const adapter = createDeliveryManagerAdapter({
+    ...f.options,
+    fetchImpl: async (url, init) => {
+      if (JSON.parse(init.body).command?.operation === "complete_step") {
+        completionRequests++;
+        return Response.json({ error: "source_or_policy_rejected" }, { status: 409 });
+      }
+      return f.options.fetchImpl(url, init);
+    },
+  });
+  t.after(() => adapter.close());
+  await assert.rejects(
+    adapter.handleToolCall({
+      ...f.request,
+      callId: "complete",
+      arguments: {
+        operation: "complete_step",
+        payload: { taskId, stepId, attemptId: claim.attemptId },
+      },
+    }),
+    /request_rejected/,
+  );
+  assert.equal(completionRequests, 1);
+});
+
+test("concurrent different manager calls hold the root even if the first reservation response arrives late", async (t) => {
+  const f = progressingAdapter(t);
+  await f.adapter.close();
+  let release, requestStarted;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise((resolve) => {
+    requestStarted = resolve;
+  });
+  const adapter = createDeliveryManagerAdapter({
+    ...f.options,
+    fetchImpl: async (url, init) => {
+      if (JSON.parse(init.body).command?.operation === "claim_step") {
+        requestStarted();
+        await gate;
+      }
+      return f.options.fetchImpl(url, init);
+    },
+  });
+  t.after(() => adapter.close());
+  const payload = { taskId: randomUUID(), stepId: randomUUID() };
+  const first = adapter.handleToolCall({
+    ...f.request,
+    callId: "claim-a",
+    arguments: { operation: "claim_step", payload },
+  });
+  await started;
+  await assert.rejects(
+    adapter.handleToolCall({
+      ...f.request,
+      callId: "claim-b",
+      arguments: { operation: "claim_step", payload },
+    }),
+    /concurrent_delivery_calls/,
+  );
+  release();
+  await assert.rejects(first, /reconciliation|authority_changed/);
+  assert.equal(adapter.inspectNative().blocked, 1);
+  assert.equal(f.posts.length, 1);
+});
+
+for (const change of ["expiry", "registration", "context"])
+  test(`automatic continuation rejects stale ${change} before requesting another native turn`, async (t) => {
+    const f = progressingAdapter(t),
+      taskId = randomUUID(),
+      stepId = randomUUID();
+    const first = await f.claim(f.request.turnId, "claim", taskId, stepId);
+    await f.call(f.request.turnId, "report", "report_step", {
+      taskId,
+      stepId,
+      attemptId: first.attemptId,
+    });
+    if (change === "expiry") f.registration.expiresAt = Date.now() - 1;
+    else if (change === "registration") f.registration.id = randomUUID();
+    else f.registration.threads[0].projectId = randomUUID();
+    f.adapter.observe({
+      method: "turn/completed",
+      params: { threadId: f.request.threadId, turn: { id: f.request.turnId, status: "completed" } },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.starts.length, 0);
+    assert.equal(f.adapter.inspectNative().blocked, 1);
+  });
+
+for (const change of ["expiry", "registration", "context", "lifetime"])
+  test(`a delayed positive claim ACK across ${change} is journaled as uncertain, never returned as authority`, async (t) => {
+    const f = progressingAdapter(t);
+    await f.adapter.close();
+    let release, entered;
+    const gate = new Promise((resolve) => {
+        release = resolve;
+      }),
+      started = new Promise((resolve) => {
+        entered = resolve;
+      });
+    const original = {
+      registrationId: f.registration.id,
+      serverInstanceId: f.registration.serverInstanceId,
+    };
+    const adapter = createDeliveryManagerAdapter({
+      ...f.options,
+      fetchImpl: async (url, init) => {
+        entered();
+        await gate;
+        return f.options.fetchImpl(url, init);
+      },
+    });
+    t.after(() => adapter.close());
+    const request = adapter.handleToolCall({
+      ...f.request,
+      callId: "gated-claim",
+      arguments: {
+        operation: "claim_step",
+        payload: { taskId: randomUUID(), stepId: randomUUID() },
+      },
+    });
+    await started;
+    if (change === "expiry") f.registration.expiresAt = Date.now() - 1;
+    else if (change === "registration") f.registration.id = randomUUID();
+    else if (change === "lifetime") f.registration.serverInstanceId = randomUUID();
+    else f.registration.threads[0].projectId = randomUUID();
+    release();
+    await assert.rejects(request, /authority_changed/);
+    assert.equal(adapter.inspectNative().blocked, 1);
+    assert.equal(adapter.inspectNative().uncertainAcknowledgements, 1);
+    assert.equal(adapter.inspectNative().held, 0); // Server reservation is not pretended undone; local authority was never accepted.
+    const saved = JSON.parse(
+      readFileSync(join(f.options.stateDirectory, "native/source.json"), "utf8"),
+    ).state;
+    const uncertain = Object.values(saved.uncertainAcknowledgements)[0];
+    assert.equal(uncertain.registrationId, original.registrationId);
+    assert.equal(uncertain.serverInstanceId, original.serverInstanceId);
+    assert.equal(f.posts.length, 1);
+  });
+
+for (const operation of ["report_step", "complete_step"])
+  test(`delayed positive ${operation} ACK after expiry stays historical and cannot schedule continuation`, async (t) => {
+    const f = progressingAdapter(t),
+      taskId = randomUUID(),
+      stepId = randomUUID();
+    const claim = await f.claim(f.request.turnId, "claim", taskId, stepId);
+    if (operation === "complete_step") observeFixtureChild(f);
+    await f.adapter.close();
+    let release, entered;
+    const gate = new Promise((resolve) => {
+        release = resolve;
+      }),
+      started = new Promise((resolve) => {
+        entered = resolve;
+      });
+    const adapter = createDeliveryManagerAdapter({
+      ...f.options,
+      fetchImpl: async (url, init) => {
+        const response = await f.options.fetchImpl(url, init);
+        if (JSON.parse(init.body).command?.operation === operation) {
+          entered();
+          await gate;
+        }
+        return response;
+      },
+    });
+    t.after(() => adapter.close());
+    const result = adapter.handleToolCall({
+      ...f.request,
+      callId: "delayed-result",
+      arguments: { operation, payload: { taskId, stepId, attemptId: claim.attemptId } },
+    });
+    await started;
+    f.registration.expiresAt = Date.now() - 1;
+    release();
+    await assert.rejects(result, /authority_changed/);
+    adapter.observe({
+      method: "turn/completed",
+      params: { threadId: f.request.threadId, turn: { id: f.request.turnId, status: "completed" } },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(adapter.inspectNative().uncertainAcknowledgements, 1);
+    assert.equal(adapter.inspectNative().blocked, 1);
+    assert.equal(f.starts.length, 0);
+  });
 
 test("installed native 0.165 emits a real dynamic tool call and consumes its result using only a local Responses fixture", {
   skip: process.env.HIVE_TEST_NATIVE_CODEX !== "1",

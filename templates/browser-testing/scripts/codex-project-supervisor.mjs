@@ -605,6 +605,16 @@ export class ProjectSupervisor {
         typeof this.runtime.setManagerAdapter === "function",
       "invalid_manager_adapter",
     );
+    if (adapter.progressionProtocol === 1) {
+      check(
+        typeof adapter.assertProgressionAuthority === "function",
+        "manager_progression_authority_callback_required",
+      );
+      check(
+        !Object.values(this.state.projects).some((entry) => entry.attached),
+        "manager_cli_attachment_conflict",
+      );
+    }
     this.managerAdapter = adapter;
     this.runtime.setManagerAdapter({
       handleToolCall: async (params) => {
@@ -625,7 +635,19 @@ export class ProjectSupervisor {
             );
             if (project && this.registrationBinding(project.projectId).threadId === threadId)
               return adapter.observe(notification);
-            if (!["turn/started", "turn/completed", "item/completed"].includes(notification.method))
+            if (
+              !(
+                adapter.progressionProtocol === 1
+                  ? [
+                      "turn/started",
+                      "turn/completed",
+                      "item/started",
+                      "item/completed",
+                      "rawResponseItem/completed",
+                    ]
+                  : ["turn/started", "turn/completed", "item/completed"]
+              ).includes(notification.method)
+            )
               return;
             const parent = this.config.projects.find((p) => {
               const entry = this.state.projects[p.projectId];
@@ -636,6 +658,382 @@ export class ProjectSupervisor {
           }
         : undefined,
     });
+  }
+  // Installed protocol-one callbacks only. These are deliberately absent from
+  // command(), the gateway and the browser/native read RPC allowlists.
+  deliveryProgressionProject(request) {
+    check(
+      this.managerAdapter?.progressionProtocol === 1 &&
+        !this.closed &&
+        this.state.status === "ready" &&
+        this.runtime.alive(),
+      "manager_progression_unavailable",
+    );
+    const project = this.config.projects.find(
+      (value) => this.state.projects[value.projectId]?.threadId === request.managerThreadId,
+    );
+    check(project, "manager_thread_unregistered");
+    const entry = this.state.projects[project.projectId];
+    check(
+      !entry.attached &&
+        !entry.executionRevoked &&
+        entry.serverInstanceId === this.state.serverInstanceId &&
+        entry.phase === "persisted",
+      "manager_input_admission_unavailable",
+    );
+    this.registrationBinding(project.projectId);
+    const lease = this.lease(project),
+      context = request.checkoutBinding;
+    check(
+      context?.projectId === project.projectId &&
+        context.preparationIntentId === project.taskId &&
+        context.repositoryId === project.repositoryId &&
+        context.leaseId === project.leaseId &&
+        context.leaseGeneration === project.leaseGeneration &&
+        context.revision === lease.revision &&
+        /^[a-f0-9]{40}$/.test(context.revision),
+      "manager_progression_checkout_changed",
+    );
+    check(
+      [request.parentTurnId, request.priorAttemptId, request.requestId].every(id) &&
+        Number.isInteger(request.cursorVersion) &&
+        request.cursorVersion > 0 &&
+        Array.isArray(request.spawns) &&
+        request.spawns.length <= 1 &&
+        Array.isArray(request.cohort) &&
+        request.cohort.length <= 20,
+      "invalid_manager_progression_request",
+    );
+    this.managerAdapter.assertProgressionAuthority(request);
+    return { project, entry };
+  }
+  async readDeliveryBoundary(request, { nextParentTurnId, excludeCall } = {}) {
+    const { entry } = this.deliveryProgressionProject(request);
+    check(
+      typeof this.runtime.inspectManagerRouting === "function" &&
+        typeof this.runtime.drainManagerRouting === "function",
+      "manager_router_accounting_required",
+    );
+    const deadline = Date.now() + 10000;
+    const read = async (method, params) => {
+      check(Date.now() < deadline && this.runtime.alive(), "manager_boundary_deadline");
+      return this.runtime.call(method, params);
+    };
+    const history = async (threadId) => {
+      const result = [],
+        cursors = new Set();
+      let cursor;
+      for (let page = 0; page < 8; page++) {
+        const value = await read("thread/turns/list", {
+          threadId,
+          limit: 20,
+          sortDirection: "asc",
+          itemsView: "full",
+          ...(cursor ? { cursor } : {}),
+        });
+        check(
+          Array.isArray(value?.data) &&
+            value.data.length <= 20 &&
+            Buffer.byteLength(JSON.stringify(value)) <= 2 * 1024 * 1024,
+          "manager_history_incomplete",
+        );
+        for (const turn of value.data) {
+          check(
+            id(turn.id) &&
+              turn.itemsView === "full" &&
+              Array.isArray(turn.items) &&
+              turn.items.length <= 512 &&
+              !turn.truncated,
+            "manager_history_incomplete",
+          );
+          const items = [],
+            itemCursors = new Set();
+          let itemCursor;
+          for (let itemPage = 0; itemPage < 8; itemPage++) {
+            const part = await read("thread/items/list", {
+              threadId,
+              turnId: turn.id,
+              limit: 100,
+              sortDirection: "asc",
+              ...(itemCursor ? { cursor: itemCursor } : {}),
+            });
+            check(
+              Array.isArray(part?.data) &&
+                part.data.length <= 100 &&
+                Buffer.byteLength(JSON.stringify(part)) <= 2 * 1024 * 1024,
+              "manager_history_incomplete",
+            );
+            items.push(...part.data.map((value) => value.item));
+            check(
+              items.length <= 512 &&
+                part.data.every(
+                  (value) => value.turnId === turn.id && value.item && id(value.item.id),
+                ),
+              "manager_history_incomplete",
+            );
+            itemCursor = part.nextCursor;
+            if (!itemCursor) break;
+            check(
+              typeof itemCursor === "string" && !itemCursors.has(itemCursor) && itemPage < 7,
+              "manager_history_incomplete",
+            );
+            itemCursors.add(itemCursor);
+          }
+          check(
+            new Set(items.map((item) => item.id)).size === items.length &&
+              JSON.stringify(items.map((item) => item.id)) ===
+                JSON.stringify(turn.items.map((item) => item.id)) &&
+              JSON.stringify(items) === JSON.stringify(turn.items),
+            "manager_history_incomplete",
+          );
+          result.push(turn);
+          check(result.length <= 20, "manager_history_limit");
+        }
+        cursor = value.nextCursor;
+        if (!cursor) return result;
+        check(typeof cursor === "string" && !cursors.has(cursor), "manager_history_incomplete");
+        cursors.add(cursor);
+      }
+      throw new Error("manager_history_incomplete");
+    };
+    for (let round = 0; round < 3; round++) {
+      await this.runtime.drainManagerRouting({ excludeCall, timeoutMs: 5000 });
+      const sequence = this.runtime.inspectManagerRouting({ excludeCall }).receiveSequence;
+      const root = await history(request.managerThreadId);
+      const previous = root.find((turn) => turn.id === request.parentTurnId);
+      check(
+        previous?.status === "completed" &&
+          root.every((turn) => turn.id === nextParentTurnId || turn.status === "completed"),
+        "manager_root_not_completed",
+      );
+      const priorRequestId =
+        entry.firstPrompt?.turnId === request.parentTurnId
+          ? entry.firstPrompt.requestId
+          : Object.entries(entry.deliveryContinuations ?? {}).find(
+              ([, value]) => value.receipt?.nextParentTurnId === request.parentTurnId,
+            )?.[0];
+      const priorInputs = previous.items.filter((item) => item.type === "userMessage");
+      check(
+        priorRequestId && priorInputs.length === 1 && priorInputs[0].clientId === priorRequestId,
+        "manager_parallel_input_detected",
+      );
+      check(
+        root.at(-1)?.id === (nextParentTurnId ?? request.parentTurnId),
+        "manager_unexpected_root_turn",
+      );
+      if (nextParentTurnId) {
+        const current = root.at(-1);
+        const inputs = current.items.filter((item) => item.type === "userMessage");
+        check(
+          inputs.length === 1 && inputs[0].clientId === request.requestId,
+          "manager_parallel_input_detected",
+        );
+        check(
+          current.status === "inProgress" &&
+            root.at(-2)?.id === request.parentTurnId &&
+            current.items.every(
+              (item) =>
+                ["userMessage", "reasoning", "agentMessage"].includes(item.type) ||
+                (item.type === "dynamicToolCall" &&
+                  item.tool === "hive_delivery" &&
+                  item.arguments?.operation === "claim_step" &&
+                  item.id === excludeCall?.callId),
+            ),
+          "manager_work_before_claim_receipt",
+        );
+      }
+      const spawns = previous.items.filter(
+        (item) => item.type === "subAgentActivity" && item.kind === "started",
+      );
+      check(
+        spawns.length === request.spawns.length &&
+          !previous.items.some(
+            (item) =>
+              ![
+                "userMessage",
+                "agentMessage",
+                "reasoning",
+                "dynamicToolCall",
+                "subAgentActivity",
+              ].includes(item.type),
+          ),
+        "manager_spawn_history_incomplete",
+      );
+      for (const spawn of spawns) {
+        const expected = request.spawns.find(
+          (value) => value.spawnCallId === spawn.id && value.childThreadId === spawn.agentThreadId,
+        );
+        const mapped = entry.children?.[spawn.agentThreadId];
+        check(
+          expected &&
+            mapped?.spawnCallId === spawn.id &&
+            mapped.serverInstanceId === this.state.serverInstanceId &&
+            spawn.model === expected.effectiveModel &&
+            spawn.reasoningEffort === expected.effectiveEffort,
+          "manager_spawn_history_incomplete",
+        );
+        const child = await history(spawn.agentThreadId);
+        check(
+          child.length === 1 &&
+            child[0].id === expected.childTurnId &&
+            child[0].status === "completed" &&
+            !child[0].items.some(
+              (item) => item.type === "subAgentActivity" || item.type === "dynamicToolCall",
+            ),
+          "manager_child_not_terminal",
+        );
+      }
+      const historicSpawns = root.flatMap((turn) =>
+        turn.items
+          .filter((item) => item.type === "subAgentActivity" && item.kind === "started")
+          .map((item) => ({ item, parentTurnId: turn.id })),
+      );
+      check(
+        historicSpawns.length === request.cohort.length &&
+          Object.keys(entry.children ?? {}).length === request.cohort.length,
+        "manager_cohort_history_incomplete",
+      );
+      for (const childBinding of request.cohort) {
+        const historic = historicSpawns.find(
+          (value) =>
+            value.parentTurnId === childBinding.parentTurnId &&
+            value.item.id === childBinding.spawnCallId &&
+            value.item.agentThreadId === childBinding.childThreadId,
+        );
+        check(
+          historic &&
+            historic.item.model === childBinding.effectiveModel &&
+            historic.item.reasoningEffort === childBinding.effectiveEffort &&
+            entry.children?.[childBinding.childThreadId]?.spawnCallId === childBinding.spawnCallId,
+          "manager_cohort_history_incomplete",
+        );
+        if (request.spawns.some((value) => value.childThreadId === childBinding.childThreadId))
+          continue;
+        const child = await history(childBinding.childThreadId);
+        check(
+          child.length === 1 &&
+            child[0].id === childBinding.childTurnId &&
+            child[0].status === "completed" &&
+            !child[0].items.some(
+              (item) => item.type === "subAgentActivity" || item.type === "dynamicToolCall",
+            ),
+          "manager_old_child_not_terminal",
+        );
+      }
+      const loaded = await read("thread/loaded/list", { limit: 64 });
+      const allowed = new Set([entry.threadId, ...Object.keys(entry.children ?? {})]);
+      check(
+        Array.isArray(loaded?.data) &&
+          loaded.data.length <= 64 &&
+          !loaded.nextCursor &&
+          new Set(loaded.data).size === loaded.data.length &&
+          loaded.data.includes(entry.threadId) &&
+          loaded.data.every((threadId) => allowed.has(threadId)),
+        "manager_unknown_native_inventory",
+      );
+      await this.runtime.drainManagerRouting({ excludeCall, timeoutMs: 5000 });
+      if (sequence !== this.runtime.inspectManagerRouting({ excludeCall }).receiveSequence)
+        continue;
+      this.deliveryProgressionProject(request); // Fresh lease/lifetime after all awaits.
+      return {
+        observedAt: new Date().toISOString(),
+        historyDigest: hash(JSON.stringify(root)),
+        receiveSequence: sequence,
+      };
+    }
+    throw new Error("manager_history_changed_during_boundary");
+  }
+  async continueDeliveryRoot(request) {
+    check(!this.busy, "supervisor_busy_or_closed");
+    this.busy = true;
+    try {
+      const { entry } = this.deliveryProgressionProject(request);
+      entry.deliveryContinuations ??= {};
+      const digest = hash(JSON.stringify(request)),
+        existing = entry.deliveryContinuations[request.requestId];
+      if (existing) {
+        check(
+          existing.digest === digest &&
+            existing.serverInstanceId === this.state.serverInstanceId &&
+            existing.phase === "started",
+          "manager_continuation_uncertain",
+        );
+        return structuredClone(existing.receipt);
+      }
+      check(
+        Object.keys(entry.deliveryContinuations).length < 128 &&
+          !Object.values(entry.deliveryContinuations).some(
+            (value) => value.cursorVersion === request.cursorVersion,
+          ),
+        "manager_continuation_conflict",
+      );
+      const boundary = await this.readDeliveryBoundary(request);
+      const pending = {
+        digest,
+        serverInstanceId: this.state.serverInstanceId,
+        cursorVersion: request.cursorVersion,
+        parentTurnId: request.parentTurnId,
+        priorAttemptId: request.priorAttemptId,
+        phase: "start-uncertain",
+        boundary,
+      };
+      entry.deliveryContinuations[request.requestId] = pending;
+      check(
+        Buffer.byteLength(JSON.stringify(this.state)) <= 1024 * 1024,
+        "manager_progression_journal_limit",
+      );
+      this.save(); // Durable before the only native start; never blind-resubmit.
+      this.deliveryProgressionProject(request); // Recheck after fsync, immediately before native admission.
+      const result = await this.runtime.call("turn/start", {
+        threadId: request.managerThreadId,
+        clientUserMessageId: request.requestId,
+        input: [
+          {
+            type: "text",
+            text: "Continue the same delivery task at the same source revision. Your first delivery operation must be hive_delivery claim_step for the next eligible step. Do not spawn agents, execute tools, report or complete work before the successful new claim receipt. Do not create another task or change source. If no eligible step remains, finish without doing more work.",
+            text_elements: [],
+          },
+        ],
+      });
+      check(
+        id(result?.turn?.id) && result.turn.id !== request.parentTurnId,
+        "manager_continuation_start_invalid",
+      );
+      pending.acknowledgedTurnId = result.turn.id;
+      this.save(); // Historical ACK survives a stale post-response authority check.
+      this.deliveryProgressionProject(request);
+      pending.phase = "started";
+      pending.receipt = {
+        requestId: request.requestId,
+        parentTurnId: request.parentTurnId,
+        nextParentTurnId: result.turn.id,
+        priorAttemptId: request.priorAttemptId,
+        cursorVersion: request.cursorVersion,
+        serverInstanceId: this.state.serverInstanceId,
+        historyDigest: boundary.historyDigest,
+      };
+      this.save();
+      return structuredClone(pending.receipt);
+    } finally {
+      this.busy = false;
+    }
+  }
+  async revalidateDeliveryBoundary(request, nextParentTurnId, excludeCall) {
+    check(!this.busy, "supervisor_busy_or_closed");
+    this.busy = true;
+    try {
+      const { entry } = this.deliveryProgressionProject(request);
+      const saved = entry.deliveryContinuations?.[request.requestId];
+      check(
+        saved?.phase === "started" &&
+          saved.digest === hash(JSON.stringify(request)) &&
+          saved.receipt.nextParentTurnId === nextParentTurnId,
+        "manager_continuation_receipt_missing",
+      );
+      return await this.readDeliveryBoundary(request, { nextParentTurnId, excludeCall });
+    } finally {
+      this.busy = false;
+    }
   }
   managerTools(projectId) {
     if (!this.managerAdapter) return [];
@@ -699,6 +1097,8 @@ export class ProjectSupervisor {
         id(request.projectId),
       "invalid_command",
     );
+    if (this.managerAdapter?.progressionProtocol === 1)
+      check(!["attach", "rejoin"].includes(request.operation), "manager_cli_attachment_forbidden");
     const fields = {
       inspect: [],
       ensureProject: ["creationIntentId"],
@@ -854,6 +1254,10 @@ export class ProjectSupervisor {
             await this.refresh(entry);
           } else if (request.operation === "refresh") await this.refresh(entry);
           else if (request.operation === "attach") {
+            check(
+              this.managerAdapter?.progressionProtocol !== 1,
+              "manager_cli_attachment_forbidden",
+            );
             this.binding(project.projectId);
             await this.runtime.attach(entry.threadId, this.checkout(project), project.projectId);
             entry.attached = true;
@@ -903,15 +1307,25 @@ export class ProjectSupervisor {
  * Only the installed hive_delivery tool can be answered. Approval/input requests
  * remain unanswered; never confuse a server request with a pending client reply. */
 export function createNativeManagerRouter(getAdapter, reply) {
-  let active = 0;
+  const handlers = new Map(),
+    observers = new Set(),
+    failures = new Set();
+  let receiveSequence = 0;
   const failed = {
     contentItems: [
       { type: "inputText", text: "Delivery controller unavailable or request rejected." },
     ],
     success: false,
   };
-  return (message) => {
+  const sameCall = (value, excluded) =>
+    excluded &&
+    value.threadId === excluded.threadId &&
+    value.turnId === excluded.turnId &&
+    value.callId === excluded.callId;
+  const route = (message) => {
     if (typeof message.method !== "string") return false;
+    // RPC history/read responses never advance this notification counter.
+    receiveSequence++;
     const adapter = getAdapter();
     if (
       [
@@ -923,28 +1337,40 @@ export function createNativeManagerRouter(getAdapter, reply) {
       ].includes(message.method)
     ) {
       try {
-        void Promise.resolve(
+        const operation = Promise.resolve(
           adapter?.observe?.({ method: message.method, params: message.params }),
-        ).catch(() => {});
-      } catch {}
+        );
+        observers.add(operation);
+        void operation
+          .catch(() => failures.add(message.params?.threadId ?? "unknown"))
+          .finally(() => observers.delete(operation));
+      } catch {
+        failures.add(message.params?.threadId ?? "unknown");
+      }
       return true;
     }
     if (message.method !== "item/tool/call" || !Object.hasOwn(message, "id")) return true;
     const params = message.params;
+    const key = `${typeof message.id}:${message.id}`;
     if (
       !adapter ||
       !params ||
       params.tool !== "hive_delivery" ||
       (params.namespace !== null && params.namespace !== undefined) ||
-      active >= 8
+      handlers.size >= 8 ||
+      handlers.has(key)
     ) {
       reply(message.id, failed);
       return true;
     }
-    active++;
+    const work = Promise.resolve().then(() => adapter.handleToolCall(params));
+    handlers.set(key, { ...params, work });
+    // The underlying handler remains tracked even if its model-facing reply
+    // times out. A timeout is not evidence that late I/O/effects have drained.
+    void work.catch(() => {}).finally(() => handlers.delete(key));
     let timer;
     void Promise.race([
-      Promise.resolve().then(() => adapter.handleToolCall(params)),
+      work,
       new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error("manager_timeout")), 15000);
       }),
@@ -964,12 +1390,48 @@ export function createNativeManagerRouter(getAdapter, reply) {
         reply(message.id, result);
       })
       .catch(() => reply(message.id, failed))
-      .finally(() => {
-        clearTimeout(timer);
-        active--;
-      });
+      .finally(() => clearTimeout(timer));
     return true;
   };
+  route.inspect = ({ excludeCall } = {}) => ({
+    receiveSequence,
+    pendingObservers: observers.size,
+    activeHandlers: [...handlers.values()].filter((value) => !sameCall(value, excludeCall)).length,
+    observerFailures: [...failures],
+  });
+  route.drain = async ({ excludeCall, timeoutMs = 5000 } = {}) => {
+    check(
+      Number.isInteger(timeoutMs) && timeoutMs > 0 && timeoutMs <= 10000,
+      "invalid_manager_drain_bound",
+    );
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      check(!failures.size, "manager_observer_failed");
+      const work = [
+        ...observers,
+        ...[...handlers.values()]
+          .filter((value) => !sameCall(value, excludeCall))
+          .map((value) => value.work),
+      ];
+      if (!work.length) return route.inspect({ excludeCall });
+      check(Date.now() < deadline, "manager_drain_timeout");
+      let timer;
+      try {
+        await Promise.race([
+          Promise.allSettled(work),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error("manager_drain_timeout")),
+              deadline - Date.now(),
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+  return route;
 }
 
 export async function launchNative({ config, home, stateDirectory, lock, fixtureProvider }) {
@@ -1150,6 +1612,8 @@ export async function launchNative({ config, home, stateDirectory, lock, fixture
         check(!managerAdapter, "manager_adapter_already_installed");
         managerAdapter = adapter;
       },
+      inspectManagerRouting: (options) => managerRouter.inspect(options),
+      drainManagerRouting: (options) => managerRouter.drain(options),
       call,
       createReadSocket: () => {
         check(
