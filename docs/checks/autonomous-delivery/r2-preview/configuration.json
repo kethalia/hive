@@ -1,0 +1,67 @@
+[
+  {
+    "suffix": "",
+    "status": 200,
+    "result": {
+      "name": "hive-delivery-proof-20261029-a4b19072",
+      "creation_date": "2026-10-29T20:09:33.480Z",
+      "location": "EEUR",
+      "storage_class": "Standard",
+      "jurisdiction": "default"
+    }
+  },
+  {
+    "suffix": "/lock",
+    "status": 200,
+    "result": {
+      "rules": [
+        {
+          "id": "hive-proof-67bf44fc",
+          "enabled": true,
+          "prefix": "delivery/",
+          "condition": {
+            "type": "Date",
+            "date": "2026-10-29T20:39:12.998Z"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "suffix": "/lifecycle",
+    "status": 200,
+    "result": {
+      "rules": [
+        {
+          "id": "hive-proof-expiry-67bf44fc",
+          "enabled": true,
+          "conditions": {
+            "prefix": "delivery/"
+          },
+          "deleteObjectsTransition": {
+            "condition": {
+              "type": "Age",
+              "maxAge": 604800
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "suffix": "/domains/managed",
+    "status": 200,
+    "result": {
+      "enabled": false,
+      "bucketId": "faee7216adf047caaea9c40806bd3d21",
+      "domain": "pub-faee7216adf047caaea9c40806bd3d21.r2.dev"
+    }
+  },
+  {
+    "suffix": "/domains/custom",
+    "status": 200,
+    "result": {
+      "domains": []
+    }
+  }
+]

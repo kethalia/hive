@@ -1,8 +1,12 @@
-# Proposed bounded R2 preview proof — not authorized or executed
+# Bounded R2 preview proof
 
-2026-10-29. No cloud writes have been made. This plan needs explicit owner approval
-for possible incremental cost before creation, binding, configuration or upload.
-It does not enable manager execution, jobs, source ingestion or production release.
+2026-10-29. The owner approved using R2 for the test and subsequently allowed up to
+one GB if testing needs it. This specific probe retains its smaller ten-MiB operating
+budget and stores only 117 bytes. Its private bucket and lock are created; initial
+integrity and retention checks pass. Cleanup completed at 20:40:42 UTC: the recorded expired rule, sole object and empty
+bucket were removed, and a fresh account inventory confirmed absence. See [primary creation record](r2-preview/creation.json) and
+[live results](r2-preview/result.json). No manager execution, scheduled jobs,
+source ingestion or production release was activated by this proof.
 
 ## Exact resource and scope
 
@@ -88,4 +92,19 @@ proof**, with pre/post usage checks. It is not a hard cap on the total shared
 account invoice. Avoid a billing-period boundary; delayed cleanup, another period
 or changed pricing needs a renewed estimate and owner review before extending
 the experiment. A $0.01 guarantee is unsupported by the available billing data.
-Until approval, retain the completed local proof and make no cloud writes.
+The owner approved this bounded experiment; the broader production cutover still requires their separate approval.
+
+## Final live outcome
+
+The proof retained 117 bytes and cleanup left zero task storage. Thirty operations
+were reserved (11 conservatively Class A, 19 Class B), plus one prior list read.
+The final account inventory returned the original five other buckets; none were
+modified. [Cleanup evidence](r2-preview/cleanup.json) and the
+[durable operation ledger](r2-preview/operation-ledger.json) preserve the attempts.
+
+Deletion still returned the lock error after the recorded Date expiry. Fresh
+metadata confirmed the same expired rule and object; the primary removed only
+that recorded rule, as authorized in this plan. Object deletion, empty inventory,
+bucket deletion and final absence then passed. This proves retained-byte integrity,
+locked mutation rejection and explicit cleanup; automatic expiration behavior is
+not claimed. No repeated storage upload or larger fixture was necessary.
