@@ -170,6 +170,11 @@ function TaskProgress({ task, reportId }: { task: DeliveryTaskDetail; reportId?:
               <li key={event.id} className="rounded-md border p-3 text-sm">
                 <p className="font-medium">{event.label}</p>
                 {event.reason && <p className="break-words">{event.reason}</p>}
+                {event.notificationStatus === "failed" && (
+                  <p className="text-muted-foreground">
+                    Push delivery failed. This update remains available here.
+                  </p>
+                )}
                 <time className="text-xs text-muted-foreground" dateTime={event.createdAt}>
                   {new Date(event.createdAt).toLocaleString()}
                 </time>

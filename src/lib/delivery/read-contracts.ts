@@ -54,6 +54,10 @@ export const deliveryTaskDetailSchema = deliveryTaskSummarySchema.extend({
         reason: z.string().nullable(),
         stepId: id.nullable(),
         reportId: id.nullable(),
+        notificationStatus: z
+          .enum(["pending", "processing", "delivered", "failed"])
+          .nullable()
+          .default(null),
         createdAt: timestamp,
       }),
     )
