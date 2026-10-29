@@ -17,12 +17,12 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | Released baseline | Complete | PR #401 merged main into epic through GitHub; pulled 4d8b821. Formatting-only conflict resolved. |
 | F01 fixed Coder host | Implemented; preview acceptance pending | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
 | F02 Cloudflare/Neon | Clean app/auth runtime proof passed; guarded preview pending | Actual OpenNext app and auth service binding passed against restricted Neon runtime role at 4c0eedf. Provenance-safe auth rotation committed 6ae325d; exact latest preview build and baseline compatibility remain. |
-| F03 project discovery | Signed gateway transport implemented; project enrollment pending | b0e278c ports discovery to verified Coder app transport, independently binds owner/build/app and uses agent-scoped GitHub access. No SSH fallback in Workers. Project enrollment and task-start integration remain. |
-| F04 same native session | Native proof and durable registration passed; UI integration pending | b0e278c persists host lifetime and thread bindings, reauthorizes capabilities and recovers exact lost heartbeat acknowledgements. Real account-backed inference and deployed Conversation/Terminal mounting remain. |
+| F03 project discovery | Signed discovery and project enrollment implemented; preview pending | b0e278c ports discovery to verified Coder app transport, independently binds owner/build/app and uses agent-scoped GitHub access. No SSH fallback in Workers. 7635164 adds stable enrollment and durable first-task preparation; account-backed preview remains. |
+| F04 same native session | Native proof, registration and mounted UI implemented; browser acceptance pending | b0e278c persists host lifetime and thread bindings, reauthorizes capabilities and recovers exact lost heartbeat acknowledgements. 7635164 mounts both views to the registered native thread; real account-backed inference and deployed browser acceptance remain. |
 | F05/F06 checkout lifecycle | Local supervisor and cleanup fences passed; installed composition pending | 35087ed fences cleanup against checkout reincarnation/inode reuse; test workspace native proof passes. Production cleanup authority remains disabled. |
 | D02/D03 persistence | Foundation and recovery validated | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation; real PostgreSQL CI includes manager and registration regressions. |
 | D05 Delivery window | Initial read-only view validated | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Manager linking, pause UI, integrated deployment remain. |
-| D07/D08 eligibility | Pure observation gate implemented | 25 focused tests pass, including delayed old runs, producer binding and current revision. Live authoritative adapters remain. Main currently has no required successful checks. |
+| D07/D08 eligibility | Authoritative GitHub adapter implemented; signed source integration pending | 25 focused tests pass, including delayed old runs, producer binding and current revision. 7635164 adds actual GitHub collection, immutable artifact interface, full-policy digest, source ordering and stale pass invalidation; signed source transport and R2 integration remain. Main currently has no required successful checks. |
 | Test workspace | Created and healthy | User reconnected GitHub; verified valid. codex/hive-epic-test is running, agent connected and ready; two-hour autostop. Identity is preserved in test-workspace-creation.json. No primary credentials copied. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
@@ -125,3 +125,15 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
    adapters. Keep production execution disabled pending owner cutover approval.
 5. Run account-backed native and Browser Testing acceptance, migration/rollback rehearsal, failure
    recovery, full CI and independent review. Only then mark PR #402 ready for the owner to merge.
+
+- Project preparation and shared-session views: committed at 7635164, high difficulty. 69 focused
+  project/UI/scheduling checks, host/package tests and typecheck pass. Accepted prompts are encrypted,
+  durable claims survive browser loss, and running tasks recover host registration without prompt
+  resubmission. A thirty-minute no-progress deadline bounds preparation. Explicit safe blocked retry,
+  long-task lease renewal and real browser/account acceptance remain under implementation.
+- GitHub evidence: 44 focused checks pass, including twelve actual PostgreSQL cases. Independent
+  review caught reused policy labels retaining old passes; the full canonical policy digest now
+  participates in evidence authority and invalidation. Snapshot replay cannot accept missing evidence.
+- Preview schema: all eighteen committed migrations through preparation progress applied to the
+  isolated Neon application database and local upgrade fixture. Runtime CRUD permission was granted
+  only for the new project_task_intents table. Production data and schema remain unchanged.
