@@ -184,9 +184,10 @@ No workspace/template rollout or production mutation is authorized merely by rec
 ## Immediate next task
 
 The initial F02/F04 probes and real-account manager/child pilot have passed their bounded gates.
-Continue D04 with the reviewed server progression contract: prove several logical steps through
-the installed native manager while retaining one checkout writer. Keep replayed claim
-acknowledgements non-runnable until trusted recovery is established.
+The bounded local D04 host/controller composition now advances several logical steps through
+actual native Codex and PostgreSQL while retaining one checkout writer. Complete its installed
+test-workspace acceptance, source advancement, interactive coexistence and larger-epic/recovery
+gates. Keep replayed claim acknowledgements non-runnable until trusted recovery is established.
 
 In parallel, implement the [guardian ownership design](checks/autonomous-delivery/native-guardian-design.md)
 for safe whole-runtime drain and the [source publication design](checks/autonomous-delivery/source-advance-design.md)
@@ -195,8 +196,8 @@ authority boundaries: step completion does not prove process shutdown, and publi
 prove CI, review or release eligibility. Compose and validate them before enabling cleanup or
 unattended publication in the test workspace.
 
-Complete D05 scheduling controls and manager navigation, then repeat authenticated browser
-acceptance with the integrated candidate. F07 baseline compatibility, durable background work,
+D05 scheduling controls and manager navigation pass local review and checks; repeat authenticated
+browser acceptance with the integrated candidate. F07 baseline compatibility, durable background work,
 F08 migration/cutover rehearsals and the remaining D-task gates still follow. The execution
 ledger records completed slices and remaining validation; this sequence does not mark those
 broader milestones complete.
