@@ -43,10 +43,13 @@ const modules = [
   "codex-project-terminal.mjs",
   "delivery-manager-adapter.mjs",
   "delivery-native-spool.mjs",
+  "delivery-github-collector.mjs",
+  "delivery-github-journal.mjs",
 ];
 const assets = [
   "managed-projects.py",
   "github-projects.py",
+  "github-evidence.py",
   "codex-project-terminal.py",
   "codex-project-lease.py",
   "install-codex-runtime.py",

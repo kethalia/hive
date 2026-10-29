@@ -1,0 +1,12 @@
+RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/github-transport.integration.test.ts (9 tests) 855ms
+ ✓ src/__tests__/lib/delivery/github-persistence.integration.test.ts (12 tests) 443ms
+ ✓ src/__tests__/lib/delivery/github-evidence.test.ts (24 tests) 27ms
+ ✓ src/__tests__/lib/delivery/github-source-route.test.ts (6 tests) 15ms
+ ✓ src/__tests__/lib/delivery/github-artifacts.test.ts (6 tests) 14ms
+
+ Test Files  5 passed (5)
+      Tests  57 passed (57)
+   Start at  19:58:18
+   Duration  2.51s (transform 307ms, setup 0ms, collect 564ms, tests 1.35s, environment 1ms, prepare 189ms)
