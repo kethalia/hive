@@ -70,7 +70,11 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
   skip: process.env.HIVE_TEST_NATIVE_CODEX !== "1",
   timeout: 30000,
 }, async (t) => {
-  const home = mkdtempSync(join(tmpdir(), "hive-native-wrapper-"));
+  assert.ok(
+    !realpathSync(process.cwd()).startsWith("/tmp/"),
+    "Run the actual real-home probe from a task checkout outside /tmp; native skips alias creation under /tmp.",
+  );
+  const home = mkdtempSync(join(process.cwd(), ".nh-"));
   const managed = join(home, "projects/.hive-managed");
   mkdirSync(managed, { recursive: true, mode: 0o700 });
   const checkout = join(managed, "github/123/checkout");
@@ -83,11 +87,16 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
   const served = new Set();
   let rootThreadId;
   const server = createServer((req, res) => {
+    if (req.method !== "POST") {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end("{}");
+      return;
+    }
     let raw = "";
     req.on("data", (chunk) => {
       raw += chunk;
     });
-    req.on("end", () => {
+    req.on("end", async () => {
       requests.push(JSON.parse(raw));
       let item = {
         id: `message_${requests.length}`,
@@ -116,6 +125,7 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
           join(sibling, "other-project"),
           join(checkout, "token-alias"),
           join(home, ".local/share/hive/codex-native/codex/config.toml"),
+          join(home, ".local/share/hive/codex-native/codex/auth.json"),
           "/etc/codex/requirements.toml",
           `/proc/${native.processIdentity.pid}/root${secret}`,
           `/proc/${native.processIdentity.pid}/environ`,
@@ -156,6 +166,7 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
                 status: "completed",
               };
       }
+      if (requests.length === 1) await new Promise((resolve) => setTimeout(resolve, 2000));
       res.writeHead(200, { "Content-Type": "text/event-stream" });
       for (const event of [
         {
@@ -183,6 +194,10 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
     });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const nativeHome = join(home, ".local/share/hive/codex-native/codex");
+  mkdirSync(nativeHome, { recursive: true, mode: 0o700 });
+  const syntheticAuth = Buffer.from("{}\n");
+  writeFileSync(join(nativeHome, "auth.json"), syntheticAuth, { mode: 0o600 });
   let native, supervisor, authorityFd;
   t.after(async () => {
     await supervisor?.close();
@@ -251,6 +266,8 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
     creationIntentId: "intent",
   });
   rootThreadId = created.threadId;
+  let firstPromptError = null,
+    lastRefreshError = null;
   await supervisor
     .command({
       operation: "firstPrompt",
@@ -258,20 +275,63 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
       requestId: randomUUID(),
       text: "Actual local mock fixture only",
     })
-    .catch(() => {});
-  for (let n = 0; n < 60; n++) {
-    await supervisor.command({ operation: "refresh", projectId }).catch(() => {});
-    if (supervisor.snapshot(projectId).phase === "persisted") break;
+    .catch((error) => {
+      firstPromptError = error.message;
+    });
+  // A persisted user item does not mean the provider's answer has completed.
+  // Wait on the actual turn event, then reconcile history within a bounded deadline.
+  const firstTurnDeadline = Date.now() + 10000;
+  let completedFirstTurn;
+  while (Date.now() < firstTurnDeadline) {
+    completedFirstTurn = observations.find(
+      (value) => value.method === "turn/completed" && value.params.threadId === created.threadId,
+    );
+    if (completedFirstTurn) {
+      assert.equal(
+        completedFirstTurn.params.turn.status,
+        "completed",
+        JSON.stringify(completedFirstTurn),
+      );
+      await supervisor.command({ operation: "refresh", projectId }).catch((error) => {
+        lastRefreshError = error.message;
+      });
+      if (supervisor.snapshot(projectId).phase === "persisted") break;
+    }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
+  assert.ok(
+    completedFirstTurn,
+    JSON.stringify({
+      firstPromptError,
+      lastRefreshError,
+      status: supervisor.state.status,
+      alive: native.alive(),
+      requestCount: requests.length,
+    }),
+  );
+  assert.equal(
+    supervisor.snapshot(projectId).phase,
+    "persisted",
+    JSON.stringify({
+      firstPromptError,
+      lastRefreshError,
+      status: supervisor.state.status,
+      alive: native.alive(),
+    }),
+  );
   assert.equal(supervisor.binding(projectId).threadId, created.threadId);
   await supervisor.command({ operation: "attach", projectId });
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  const pane = execFileSync(
-    "/usr/bin/tmux",
-    ["-S", join(supervisor.stateDirectory, "tmux.sock"), "capture-pane", "-p"],
-    { encoding: "utf8" },
-  );
+  let pane = "";
+  const paintDeadline = Date.now() + 5000;
+  while (Date.now() < paintDeadline) {
+    pane = execFileSync(
+      "/usr/bin/tmux",
+      ["-S", join(supervisor.stateDirectory, "tmux.sock"), "capture-pane", "-p"],
+      { encoding: "utf8" },
+    );
+    if (pane.includes("NAMESPACE_LOCAL_REPLY")) break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
   assert.match(pane, /NAMESPACE_LOCAL_REPLY/);
   assert.deepEqual((await native.call("thread/loaded/list", {})).data, [created.threadId]);
   assert.equal(requests.length, 1, "remote CLI must attach without starting inference");
@@ -422,6 +482,7 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
     4,
     "resumed command retains all denial checks",
   );
+  assert.deepEqual(readFileSync(join(nativeHome, "auth.json")), syntheticAuth);
   assert.ok(
     readFileSync(join(home, ".local/share/hive/codex-native/codex/config.toml"), "utf8").includes(
       "hive_local_fixture",

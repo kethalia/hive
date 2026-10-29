@@ -1,0 +1,52 @@
+✔ isolated execution is an explicit configuration mode (1.145793ms)
+✖ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (6468.3786ms)
+✔ actual wrapper, monitor and host crashes terminate pinned native and release inherited lock (3810.981208ms)
+✔ one durable creation intent, actual first input once, persisted same-thread attach (33.658426ms)
+✔ ambiguous create survives restart and never creates a second thread (23.454563ms)
+✔ one workspace lifetime authorizes only each independently registered project's exact thread (39.32736ms)
+✔ lease expiry denies execution while durable read binding remains available (25.236267ms)
+✔ checkout absence retains durable reads while input and attach stay denied (26.36193ms)
+✔ failed helper provenance cannot authorize execution even with an otherwise current lease (17.470959ms)
+✔ ambiguous first prompt is durable, replay cannot repeat inference (20.092299ms)
+✔ native lifetime loss revokes all bindings and restart requires explicit same-thread rejoin (33.848185ms)
+✔ OS lock rejects another supervisor and private registry forgery cannot reopen (14.716112ms)
+✔ unpersisted rejoin failure is explicit and never substitutes a new thread (30.372205ms)
+✔ unknown caller fields, project substitutions, lease changes and path escapes are denied (14.778918ms)
+✔ unsupported profile/version and mismatched native thread metadata fail closed (21.128566ms)
+✔ SIGKILL releases process lock but preserves uncertain creation intent (89.253478ms)
+✔ installed native 0.165 rejects remote CLI attachment of an empty loaded thread (2795.631652ms)
+✔ actual native first text persists through local mock provider then same-thread CLI attaches (4461.61271ms)
+✔ SIGKILL supervisor terminates its actual native child and permits a fresh lifetime (876.719649ms)
+✔ registered empty thread supports first-turn manager enrollment but no premature history attach (19.374352ms)
+✔ native tool router separates request IDs and never answers approvals or arbitrary tools (10.933125ms)
+✔ registration cannot adopt an empty thread after a failed new-lifetime rejoin (36.909158ms)
+✔ installed manager observer receives exact notification methods, never approval requests (0.269191ms)
+✔ renewal failure durably fences execution, interrupts exact turn and preserves reads and other project (56.121712ms)
+✔ uncertain turn interruption stays durably revoked for review (32.229728ms)
+✔ revocation retains review hold for unknown-active native inventory (35.871836ms)
+✔ revocation retains review hold for truncated native inventory (30.305068ms)
+✔ revocation retains review hold for missing-root native inventory (30.748689ms)
+✔ pre-execution proof requires exact creation intent, loaded empty history and no first prompt (24.47151ms)
+✔ pre-execution proof cannot reinterpret uncertain creation (19.059842ms)
+✔ installed child mapping gates notifications and history by exact parent/spawn/lifetime (23.785642ms)
+✔ late mapped child after revocation is interrupted and failures retain review hold (36.777035ms)
+✔ supervisor holds process lock and native lifetime until installed observer close drains (27.778418ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 32
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10618.572525
+
+✖ failing tests:
+
+test at scripts/verify-codex-native-namespace.test.mjs:69:1
+✖ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (6468.3786ms)
+  Error: session_not_available
+      at check (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:30:17)
+      at ProjectSupervisor.binding (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:661:5)
+      at TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-native-namespace.test.mjs:277:27)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
