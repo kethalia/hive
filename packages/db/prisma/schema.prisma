@@ -139,6 +139,7 @@ model DeliveryProject {
   owner                User @relation(fields: [ownerId], references: [id])
   conversations        DeliveryConversation[]
   registeredThreads    CodexRegisteredThread[]
+  taskIntents          ProjectTaskIntent[]
   epics                DeliveryEpic[]
   tasks                DeliveryTask[]
   @@unique([ownerId, id])
@@ -454,4 +455,36 @@ model CodexRegisteredThread {
   @@unique([registrationId, nativeThreadId])
   @@index([ownerId, projectId])
   @@map("codex_registered_threads")
+}
+
+
+// Durable preparation survives browser/request loss. Prompt payload is encrypted;
+// each external action uses a stable task/request identity and a fenced DB lease.
+model ProjectTaskIntent {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  requestDigest String @map("request_digest")
+  repositoryId String @map("repository_id")
+  providerAccountId String @map("provider_account_id")
+  sourceSha String @map("source_sha")
+  phase String @default("queued")
+  ciphertext Bytes?
+  iv Bytes?
+  authTag Bytes? @map("auth_tag")
+  status Json?
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  failureCount Int @default(0) @map("failure_count")
+  progressAt DateTime @default(now()) @map("progress_at") @db.Timestamptz
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, requestId])
+  @@index([phase, nextAttemptAt])
+  @@map("project_task_intents")
 }

@@ -37,16 +37,26 @@ export function useRuntimeConfig(): RuntimeConfig {
   const projectDiscoveryEnabled = providedConfig
     ? providedConfig.projectDiscoveryEnabled
     : getClientRuntimeConfig().projectDiscoveryEnabled;
+  const projectTasksEnabled = providedConfig
+    ? providedConfig.projectTasksEnabled
+    : getClientRuntimeConfig().projectTasksEnabled;
   const deliveryEnabled = providedConfig
     ? providedConfig.deliveryEnabled
     : getClientRuntimeConfig().deliveryEnabled;
   return useMemo(
     () => ({
       terminalWsUrl,
+      ...(projectTasksEnabled ? { projectTasksEnabled } : {}),
       ...(deliveryEnabled ? { deliveryEnabled } : {}),
       ...(codexVoiceEnabled ? { codexVoiceEnabled } : {}),
       ...(projectDiscoveryEnabled ? { projectDiscoveryEnabled } : {}),
     }),
-    [terminalWsUrl, codexVoiceEnabled, projectDiscoveryEnabled, deliveryEnabled],
+    [
+      terminalWsUrl,
+      codexVoiceEnabled,
+      projectDiscoveryEnabled,
+      projectTasksEnabled,
+      deliveryEnabled,
+    ],
   );
 }

@@ -171,7 +171,9 @@ def next_page(link, page, per_page):
 
 
 def github_json(token, path):
-    if path != "/user" and not path.startswith("/user/repos?"):
+    allowed_repository = re.fullmatch(r"/repositories/[1-9][0-9]{0,19}", path)
+    allowed_commit = re.fullmatch(r"/repos/[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}/commits/(?:[A-Za-z0-9._~-]|%[0-9A-F]{2}){1,765}", path)
+    if path != "/user" and not path.startswith("/user/repos?") and not allowed_repository and not allowed_commit:
         raise DiscoveryError("invalid_request")
     request = urllib.request.Request(f"{API_ORIGIN}{path}", headers={
         "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
@@ -233,13 +235,37 @@ def discover(value):
             "repositories": projects, "page": page, "perPage": per_page, "nextPage": following}
 
 
+def resolve_repository(value):
+    if (not isinstance(value, dict) or set(value) != {"schemaVersion", "operation", "repositoryId", "expectedAccountId"}
+            or type(value.get("schemaVersion")) is not int or value["schemaVersion"] != 1
+            or value.get("operation") != "resolve"
+            or any(not isinstance(value.get(field), str) or not re.fullmatch(r"[1-9][0-9]{0,19}", value[field])
+                   for field in ("repositoryId", "expectedAccountId"))):
+        raise DiscoveryError("invalid_request")
+    token = external_token()
+    identity, _ = github_json(token, "/user")
+    if not isinstance(identity, dict) or type(identity.get("id")) is not int or str(identity["id"]) != value["expectedAccountId"]:
+        raise DiscoveryError("github_auth_required")
+    raw, _ = github_json(token, f"/repositories/{value['repositoryId']}")
+    metadata = repository(raw)
+    if (metadata["providerRepositoryId"] != value["repositoryId"] or metadata["permissions"]["pull"] is not True
+            or raw.get("clone_url") != metadata["htmlUrl"] + ".git"):
+        raise DiscoveryError("github_permission_denied")
+    branch = urllib.parse.quote(metadata["defaultBranch"], safe="")
+    commit, _ = github_json(token, f"/repos/{metadata['owner']}/{metadata['name']}/commits/{branch}")
+    if not isinstance(commit, dict) or not isinstance(commit.get("sha"), str) or not re.fullmatch(r"[a-f0-9]{40}", commit["sha"]):
+        raise DiscoveryError("github_invalid_response")
+    return {"schemaVersion": 1, "providerAccountId": str(identity["id"]), "repository": metadata,
+            "defaultRevision": commit["sha"]}
+
+
 def main():
     try:
         raw = sys.stdin.buffer.read(REQUEST_LIMIT + 1)
         if len(raw) > REQUEST_LIMIT:
             raise DiscoveryError("request_too_large")
         value = json.loads(raw)
-        result = discover(value)
+        result = resolve_repository(value) if isinstance(value, dict) and value.get("operation") == "resolve" else discover(value)
         status = 0
     except DiscoveryError as error:
         result, status = {"schemaVersion": 1, "error": str(error)}, 1

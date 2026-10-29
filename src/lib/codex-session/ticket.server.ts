@@ -30,10 +30,11 @@ function exactOrigin(value: string) {
  * server/project/thread. Neither a browser-supplied binding nor this type proves
  * authority. Keep the private key only in server secret configuration.
  */
-export function issueCodexSessionGrant(
+function issueGrant(
   config: SigningConfig,
   authorizedBinding: SessionBinding,
-  ttlSeconds = 60,
+  ttlSeconds: number,
+  scope: "session:read" | "session:terminal",
 ): SessionGrant {
   if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 60)
     throw new Error("Session ticket TTL must be 1–60 seconds.");
@@ -75,7 +76,7 @@ export function issueCodexSessionGrant(
       serverInstanceId: binding.serverInstanceId,
       threadId: binding.threadId,
       origin: config.hiveOrigin,
-      scope: "session:read",
+      scope,
       iat: issuedAt,
       exp: expiresAt,
       jti: randomUUID(),
@@ -83,10 +84,25 @@ export function issueCodexSessionGrant(
   ).toString("base64url");
   const ticket = `${header}.${body}.${sign(null, Buffer.from(`${header}.${body}`), key).toString("base64url")}`;
   return {
-    url: `${config.appOrigin}/session`,
+    url: `${config.appOrigin}/${scope === "session:read" ? "session" : "terminal"}`,
     binding,
     protocolVersion: "0.165.0",
     expiresAt,
     ticket,
   };
+}
+
+export function issueCodexSessionGrant(
+  config: SigningConfig,
+  binding: SessionBinding,
+  ttlSeconds = 60,
+): SessionGrant {
+  return issueGrant(config, binding, ttlSeconds, "session:read");
+}
+export function issueCodexTerminalGrant(
+  config: SigningConfig,
+  binding: SessionBinding,
+  ttlSeconds = 60,
+): SessionGrant {
+  return issueGrant(config, binding, ttlSeconds, "session:terminal");
 }

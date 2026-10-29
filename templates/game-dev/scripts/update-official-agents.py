@@ -5,6 +5,8 @@ import hashlib
 import io
 import json
 import os
+import pwd
+import stat
 from pathlib import Path, PurePosixPath
 import re
 import shutil
@@ -143,7 +145,45 @@ def update_skill(home, state, managed, source, name, revision, baseline, receipt
     return 'updated'
 
 
+# Reviewed immutable coordinator pin, not a user-supplied manifest or environment
+# override. The nightly updater never writes this separate vendor tree.
+COORDINATOR_SHA256 = 'c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5'
+COORDINATOR_RELATIVE = '.local/share/hive/codex-runtime/0.165.0-linux-x64-c06a67fd8ac76508/vendor/x86_64-unknown-linux-musl/bin/codex'
+
+
+def pinned_coordinator(process, cache):
+    try:
+        home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+        executable = home / COORDINATOR_RELATIVE
+        root = home / '.local/share/hive/codex-runtime'
+        if os.readlink(process / 'exe') != str(executable) or executable.resolve() != executable:
+            return False
+        if root.stat().st_mode & 0o077:
+            return False
+        for parent in (executable, *executable.parents):
+            if parent == home:
+                break
+            info = parent.lstat()
+            if info.st_uid != os.getuid() or info.st_mode & 0o022 or stat.S_ISLNK(info.st_mode):
+                return False
+        current, running = executable.stat(), (process / 'exe').stat()
+        if not stat.S_ISREG(current.st_mode) or (current.st_dev, current.st_ino) != (running.st_dev, running.st_ino):
+            return False
+        identity = (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns, current.st_ctime_ns)
+        if identity not in cache:
+            fd = os.open(executable, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(fd, 'rb') as handle:
+                opened = os.fstat(handle.fileno())
+                if (opened.st_dev, opened.st_ino) != identity[:2]:
+                    return False
+                cache[identity] = hashlib.file_digest(handle, 'sha256').hexdigest() == COORDINATOR_SHA256
+        return cache[identity]
+    except (OSError, ValueError):
+        return False  # Deleted, replaced, inaccessible or ambiguous runtimes still block.
+
+
 def agents_running():
+    coordinator_cache = {}
     for process in Path('/proc').iterdir():
         if not process.name.isdigit():
             continue
@@ -152,6 +192,8 @@ def agents_running():
             # Includes native clients and app-server; don't replace active installations.
             if args and (Path(os.fsdecode(args[0])).name in ('codex', 'claude') or
                          any(b'@openai/codex/' in arg for arg in args[:2])):
+                if pinned_coordinator(process, coordinator_cache):
+                    continue
                 return True
         except (FileNotFoundError, PermissionError, ProcessLookupError):
             pass

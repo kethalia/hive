@@ -7,11 +7,22 @@ import { projectErrorCodeSchema, projectPageSchema, projectRequestSchema } from 
 import { ProjectDiscoveryError } from "./errors";
 
 if (typeof window !== "undefined") throw new Error("Project host discovery is server-only");
-export async function discoverHostProjects(
-  user: { id: string; coderUserId: string },
-  value: unknown,
+export type ProjectPrincipal = { id: string; coderUserId: string };
+const endpoints = {
+  "/projects/discover": "projects:discover",
+  "/projects/resolve": "projects:resolve",
+  "/projects/open": "projects:open",
+  "/projects/tasks/start": "projects:task:start",
+  "/projects/tasks/status": "projects:task:read",
+} as const;
+/** Internal controller only. The endpoint and scope pair is fixed here; browser
+ * inputs are parsed by each operation before reaching this signer. */
+export async function signedHostProjectRequest(
+  user: ProjectPrincipal,
+  workspaceId: string,
+  path: keyof typeof endpoints,
+  request: Record<string, unknown>,
 ) {
-  const request = projectRequestSchema.parse(value);
   try {
     const config = registeredSessionConfig();
     const client = await getCoderClientForUser(user.id);
@@ -19,7 +30,7 @@ export async function discoverHostProjects(
       config,
       async () => client,
       { hiveUserId: user.id, coderUserId: user.coderUserId },
-      request.workspaceId,
+      workspaceId,
     );
     const key = createPrivateKey(config.privateKeyPem);
     if (key.asymmetricKeyType !== "ed25519") throw new Error("Unsupported issuer key");
@@ -27,23 +38,23 @@ export async function discoverHostProjects(
     const claims = {
       iss: config.hiveOrigin,
       aud: binding.appOrigin,
-      scope: "projects:discover",
+      scope: endpoints[path],
       jti: randomUUID(),
       iat,
       exp: iat + 45,
       binding,
-      request: { schemaVersion: 1, page: request.page, perPage: request.perPage },
+      request,
     };
     const encoded = [{ alg: "EdDSA", typ: "JWT", kid: config.keyId }, claims]
       .map((part) => Buffer.from(JSON.stringify(part)).toString("base64url"))
       .join(".");
     const ticket = `${encoded}.${sign(null, Buffer.from(encoded), key).toString("base64url")}`;
     const reply = await postToVerifiedWorkspaceApp(client, binding, {
-      path: "/projects/discover",
+      path,
       body: JSON.stringify({ ticket }),
       expiresAt: claims.exp,
     });
-    const current = await client.getWorkspace(request.workspaceId);
+    const current = await client.getWorkspace(workspaceId);
     if (
       current.id !== binding.workspaceId ||
       current.owner_id !== user.coderUserId ||
@@ -61,12 +72,22 @@ export async function discoverHostProjects(
       const code = projectErrorCodeSchema.safeParse(reply.error);
       if (code.success) throw new ProjectDiscoveryError(code.data);
     }
-    const page = projectPageSchema.safeParse(reply);
-    if (!page.success || page.data.page !== request.page || page.data.perPage !== request.perPage)
-      throw new ProjectDiscoveryError("github_invalid_response");
-    return page.data;
+    return reply;
   } catch (error) {
     if (error instanceof ProjectDiscoveryError) throw error;
     throw new ProjectDiscoveryError("discovery_unavailable");
   }
+}
+
+export async function discoverHostProjects(user: ProjectPrincipal, value: unknown) {
+  const request = projectRequestSchema.parse(value);
+  const reply = await signedHostProjectRequest(user, request.workspaceId, "/projects/discover", {
+    schemaVersion: 1,
+    page: request.page,
+    perPage: request.perPage,
+  });
+  const page = projectPageSchema.safeParse(reply);
+  if (!page.success || page.data.page !== request.page || page.data.perPage !== request.perPage)
+    throw new ProjectDiscoveryError("github_invalid_response");
+  return page.data;
 }

@@ -47,19 +47,24 @@ async function boundedJson(response: Response, limit: number) {
     await reader.cancel().catch(() => {});
   }
 }
-/** Uses only Coder's app-scoped cookie. No general cookie jar, automatic redirect,
- * caller URL, Authorization header, or owner token reaches the workspace app.
- * Inject fetch only for fixtures/platform transport; production uses native fetch.
- */
-export async function postToVerifiedWorkspaceApp(
-  coder: Pick<CoderClient, "getApplicationAuthRedirect" | "getApplicationsHost" | "getBaseUrl">,
-  binding: Pick<RegistrationBinding, "coderOrigin" | "appOrigin">,
-  request: {
-    path: "/registration/bootstrap" | "/projects/discover";
-    body: string;
-    expiresAt: number;
-  },
-  fetchApp: typeof fetch = fetch,
+type AppAuthCoder = Pick<
+  CoderClient,
+  "getApplicationAuthRedirect" | "getApplicationsHost" | "getBaseUrl"
+>;
+type AppBinding = Pick<RegistrationBinding, "coderOrigin" | "appOrigin">;
+export type HostProjectPath =
+  | "/registration/bootstrap"
+  | "/projects/discover"
+  | "/projects/resolve"
+  | "/projects/open"
+  | "/projects/tasks/start"
+  | "/projects/tasks/status";
+async function exchangeAppCookie(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  fixedPath: HostProjectPath | "/session" | "/terminal",
+  expiresAt: number,
+  fetchApp: typeof fetch,
 ) {
   const b = binding,
     origin = new URL(b.appOrigin);
@@ -68,13 +73,10 @@ export async function postToVerifiedWorkspaceApp(
     origin.origin !== b.appOrigin ||
     origin.username ||
     origin.password ||
-    coder.getBaseUrl() !== b.coderOrigin ||
-    request.body.length > 20000
+    coder.getBaseUrl() !== b.coderOrigin
   )
     reject();
-  if (!["/registration/bootstrap", "/projects/discover"].includes(request.path)) reject();
-  const fixedPath = request.path;
-  const remaining = request.expiresAt * 1000 - Date.now();
+  const remaining = expiresAt * 1000 - Date.now();
   if (remaining < 1000) reject();
   const deadline = Date.now() + Math.min(10000, remaining);
   const signal = () => {
@@ -122,25 +124,83 @@ export async function postToVerifiedWorkspaceApp(
       !new RegExp(`^${cookieName}=[A-Za-z0-9_-]{1,512}$`).test(parts[0])
     )
       reject();
-    // Domain may cover other workspace apps. Deliberately ignore jar semantics:
-    // this one cookie is sent only to the exact independently verified app origin.
-    const response = await fetchApp(target, {
-      method: "POST",
-      redirect: "manual",
-      credentials: "omit",
-      signal: signal(),
-      headers: { "Content-Type": "application/json", Cookie: parts[0] },
-      body: request.body,
-    });
-    try {
-      boundedHeaders(response);
-      if (response.status !== 200) reject();
-      return await boundedJson(response, fixedPath === "/projects/discover" ? 524288 : 4096);
-    } finally {
-      await response.body?.cancel().catch(() => {});
-    }
+    return { cookie: parts[0], url: target, deadline };
   } finally {
     await exchange.body?.cancel().catch(() => {});
+  }
+}
+
+/** Internal relay only. This secret cookie must never be returned to browsers,
+ * logs, URLs or generic fetchers. Caller independently verifies owner/project and
+ * active registration; endpoint is fixed to that registered app's /session. */
+export async function exchangeVerifiedWorkspaceAppSessionCookie(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  expiresAt: number,
+  fetchApp: typeof fetch = fetch,
+) {
+  const value = await exchangeAppCookie(coder, binding, "/session", expiresAt, fetchApp);
+  return { cookie: value.cookie, url: value.url };
+}
+/** Terminal relay only: fixed endpoint and request-local scoped cookie. */
+export async function exchangeVerifiedWorkspaceAppTerminalCookie(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  expiresAt: number,
+  fetchApp: typeof fetch = fetch,
+) {
+  const value = await exchangeAppCookie(coder, binding, "/terminal", expiresAt, fetchApp);
+  return { cookie: value.cookie, url: value.url };
+}
+/** Uses only Coder's app-scoped cookie, never owner headers or a general jar. */
+export async function postToVerifiedWorkspaceApp(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  request: { path: HostProjectPath; body: string; expiresAt: number },
+  fetchApp: typeof fetch = fetch,
+) {
+  if (
+    ![
+      "/registration/bootstrap",
+      "/projects/discover",
+      "/projects/resolve",
+      "/projects/open",
+      "/projects/tasks/start",
+      "/projects/tasks/status",
+    ].includes(request.path) ||
+    Buffer.byteLength(request.body, "utf8") >
+      (request.path === "/projects/tasks/start" ? 65536 : 20000)
+  )
+    reject();
+  const { cookie, url, deadline } = await exchangeAppCookie(
+    coder,
+    binding,
+    request.path,
+    request.expiresAt,
+    fetchApp,
+  );
+  if (Date.now() >= deadline) reject();
+  const response = await fetchApp(url, {
+    method: "POST",
+    redirect: "manual",
+    credentials: "omit",
+    signal: AbortSignal.timeout(deadline - Date.now()),
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: request.body,
+  });
+  try {
+    boundedHeaders(response);
+    if (response.status !== 200) reject();
+    return await boundedJson(
+      response,
+      request.path === "/projects/discover"
+        ? 524288
+        : request.path === "/registration/bootstrap"
+          ? 4096
+          : 16384,
+    );
+  } finally {
+    await response.body?.cancel().catch(() => {});
   }
 }
 export async function deliverRegistrationGrant(

@@ -21,8 +21,8 @@ import { TerminalSessionFrame } from "./TerminalSessionFrame";
 const DeliveryPanel = dynamic(() =>
   import("@/components/delivery/DeliveryPanel").then((m) => m.DeliveryPanel),
 );
-const ProjectBrowser = dynamic(() =>
-  import("@/components/projects/ProjectBrowser").then((m) => m.ProjectBrowser),
+const ProjectWorkspacePanel = dynamic(() =>
+  import("@/components/projects/ProjectWorkspacePanel").then((m) => m.ProjectWorkspacePanel),
 );
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
@@ -96,7 +96,7 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
-  const { projectDiscoveryEnabled, deliveryEnabled } = useRuntimeConfig();
+  const { projectDiscoveryEnabled, projectTasksEnabled, deliveryEnabled } = useRuntimeConfig();
   const workspace =
     workspaces.find((w) => w.id === pane.workspaceId) ??
     workspaces.find((w) => w.latest_build.status === "running") ??
@@ -172,10 +172,11 @@ export function HiveWorkspacePane({
             </div>
             {workspace?.latest_build.status === "running" ? (
               pane.tool === "projects" ? (
-                <ProjectBrowser
+                <ProjectWorkspacePanel
                   key={workspace.id}
                   workspaceId={workspace.id}
                   enabled={Boolean(projectDiscoveryEnabled)}
+                  tasksEnabled={Boolean(projectTasksEnabled)}
                   visible={visible}
                 />
               ) : (

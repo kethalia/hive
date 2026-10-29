@@ -25,6 +25,17 @@ const grantSchema = z
   .strict();
 export type SessionGrant = z.infer<typeof grantSchema>;
 type CloseReason = "revoked" | "disconnected";
+/** Preserves authorization denial even when the socket closes before the adapter
+ * exists, so a reconnect cannot retain a formerly authorized transcript. */
+export class SessionTransportError extends Error {
+  constructor(
+    readonly reason: CloseReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = "SessionTransportError";
+  }
+}
 export interface SessionSocket {
   readonly readyState: number;
   readonly bufferedAmount: number;
@@ -59,7 +70,14 @@ function validateGrant(raw: unknown): SessionGrant {
   const url = new URL(grant.url);
   if (
     url.protocol !== "https:" ||
-    url.pathname !== "/session" ||
+    !(
+      url.pathname === "/session" ||
+      (/^\/api\/projects\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/session$/.test(
+        url.pathname,
+      ) &&
+        typeof globalThis.location !== "undefined" &&
+        url.origin === globalThis.location.origin)
+    ) ||
     url.search ||
     url.hash ||
     url.username ||
@@ -84,7 +102,12 @@ export function openCodexSessionTransport(
   initial: SessionGrant,
   options: Options,
 ): Promise<AuthorizedSessionTransport> {
-  const grant = validateGrant(initial);
+  let grant: SessionGrant;
+  try {
+    grant = validateGrant(initial);
+  } catch {
+    throw new SessionTransportError("revoked", "Session grant is invalid.");
+  }
   const endpoint = new URL(grant.url);
   endpoint.protocol = "wss:";
   const socket = (options.createSocket ?? ((url) => new WebSocket(url)))(endpoint.href);
@@ -125,7 +148,7 @@ export function openCodexSessionTransport(
       for (const [type, listener] of listeners) socket.removeEventListener(type, listener);
       for (const request of requests.values()) {
         clearTimeout(request.timer);
-        request.reject(new Error(message));
+        request.reject(new SessionTransportError(reason, message));
       }
       requests.clear();
       backlog.length = 0;
@@ -134,7 +157,7 @@ export function openCodexSessionTransport(
         reason === "revoked" ? 1008 : 1000,
         reason === "revoked" ? "Session authorization unavailable" : "Session disconnected",
       );
-      if (!authenticated) reject(new Error(message));
+      if (!authenticated) reject(new SessionTransportError(reason, message));
       for (const listener of closes) listener(reason);
     }
     function send(message: unknown) {

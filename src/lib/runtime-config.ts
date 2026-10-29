@@ -2,6 +2,7 @@ export interface RuntimeConfig {
   terminalWsUrl: string;
   codexVoiceEnabled?: true;
   projectDiscoveryEnabled?: true;
+  projectTasksEnabled?: true;
   deliveryEnabled?: true;
 }
 
@@ -21,6 +22,9 @@ declare global {
 export function getServerRuntimeConfig(): RuntimeConfig {
   return {
     terminalWsUrl: process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "",
+    ...(process.env.HIVE_PROJECT_TASKS_ENABLED === "true"
+      ? { projectTasksEnabled: true as const }
+      : {}),
     ...(process.env.HIVE_DELIVERY_ENABLED === "true" ? { deliveryEnabled: true as const } : {}),
     ...(process.env.HIVE_PROJECT_DISCOVERY_ENABLED === "true"
       ? { projectDiscoveryEnabled: true as const }
@@ -55,6 +59,9 @@ export function parseRuntimeConfig(value: string | null | undefined): RuntimeCon
     ) {
       return {
         terminalWsUrl: parsed.terminalWsUrl,
+        ...("projectTasksEnabled" in parsed && parsed.projectTasksEnabled === true
+          ? { projectTasksEnabled: true as const }
+          : {}),
         ...("deliveryEnabled" in parsed && parsed.deliveryEnabled === true
           ? { deliveryEnabled: true as const }
           : {}),
@@ -104,6 +111,7 @@ export function getClientRuntimeConfig(): RuntimeConfig {
 
   return {
     terminalWsUrl: resolveTerminalWsUrl(runtimeConfig.terminalWsUrl, browserLocation),
+    ...(runtimeConfig.projectTasksEnabled ? { projectTasksEnabled: true as const } : {}),
     ...(runtimeConfig.deliveryEnabled ? { deliveryEnabled: true as const } : {}),
     ...(runtimeConfig.projectDiscoveryEnabled ? { projectDiscoveryEnabled: true as const } : {}),
     ...(runtimeConfig.codexVoiceEnabled ? { codexVoiceEnabled: true as const } : {}),

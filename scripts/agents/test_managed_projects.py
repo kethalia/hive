@@ -470,6 +470,23 @@ class ManagedProjectsTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.ManagedError, "invalid_repository_id"):
             self.manager.inspect("../../source")
 
+    def test_missing_inspect_is_readonly_and_does_not_adopt_existing_directory(self):
+        value = self.manager.inspect("987")
+        self.assertEqual(value["status"], "not_created")
+        self.assertFalse((self.manager.root / "github/987").exists())
+        (self.manager.root / "github/987").mkdir(parents=True)
+        with self.assertRaisesRegex(MODULE.ManagedError, "unmanaged_project_exists"):
+            self.manager.inspect("987")
+
+    def test_expected_account_is_verified_with_same_agent_token_before_clone_lookup(self):
+        from types import SimpleNamespace
+        helper = SimpleNamespace(external_token=lambda: "fixture-private-token", github_json=mock.Mock(return_value=({"id": 789}, {})))
+        spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda _: None))
+        with mock.patch.object(MODULE.importlib.util, "spec_from_file_location", return_value=spec), mock.patch.object(MODULE.importlib.util, "module_from_spec", return_value=helper):
+            with self.assertRaisesRegex(MODULE.ManagedError, "repository_account_changed"):
+                MODULE.GitHubResolver("456").resolve("123")
+        helper.github_json.assert_called_once_with("fixture-private-token", "/user")
+
 
 if __name__ == "__main__":
     unittest.main()

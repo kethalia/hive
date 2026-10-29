@@ -48,3 +48,13 @@ test("managed checkouts preserve work and enforce signed lifecycle boundaries", 
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
+
+for (const [label, script] of [
+  ["pinned native Codex runtime installation", "test_codex_runtime_install.py"],
+  ["authoritative GitHub evidence collection", "test_github_evidence.py"],
+]) {
+  test(label, () => {
+    const result = spawnSync("python3", ["-B", `scripts/agents/${script}`], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  });
+}

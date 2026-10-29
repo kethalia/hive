@@ -16,7 +16,7 @@ interface ProjectBrowserProps {
   workspaceId: string;
   enabled?: boolean;
   visible?: boolean;
-  onSelectProject?: (project: RepositoryProject) => void;
+  onSelectProject?: (project: RepositoryProject, providerAccountId: string) => void;
 }
 interface Snapshot {
   workspaceId: string;
@@ -197,7 +197,9 @@ export function ProjectBrowser({
                 <Button
                   variant="link"
                   className="h-auto p-0"
-                  onClick={() => onSelectProject(repository)}
+                  onClick={() => {
+                    if (account.current) onSelectProject(repository, account.current);
+                  }}
                 >
                   {repository.fullName}
                 </Button>
