@@ -101,3 +101,65 @@ References: [Codex hooks](https://learn.chatgpt.com/docs/hooks),
 [Claude hooks](https://code.claude.com/docs/en/hooks),
 [Coder MCP](https://coder.com/docs/ai-coder/mcp-server),
 [Claude code intelligence](https://code.claude.com/docs/en/plugins/code-intelligence).
+
+## Neon integration
+
+The software template seeds the official `https://mcp.neon.tech/mcp` endpoint in
+Codex and Claude user configuration only when the `neon` entry is absent. Existing
+entries, including disabled or customized endpoints, are preserved. Setup never
+starts OAuth, creates API keys, or provisions a database. Restart the agent after
+updating the workspace, then authenticate in the workspace terminal:
+
+```sh
+codex mcp login neon --no-browser
+```
+
+Open the printed authorization URL in your own browser. After sign-in, paste the
+callback URL into that terminal's hidden input, even if its localhost page cannot
+load. Do not paste credentials or callback URLs into chat. Authentication is
+per-user and separate from the Neon app/plugin connection in the desktop app.
+Verify access with a read-only project listing before performing database work.
+
+The template also installs the vendor's `neon-postgres` skill from
+[neondatabase/agent-skills](https://github.com/neondatabase/agent-skills), bootstrapped
+at revision `9df568a3f88a361ea33db00453ff754d07b3b3e1`. Installation downloads bounded
+skill data, validates archive paths, and preserves existing skill destinations.
+It exposes managed skill data to the shared agents directory and Codex/Claude skill
+roots, respecting custom configuration directories. A failed download leaves setup
+retryable and does not block terminal login. This is a workspace template capability;
+existing workspaces receive it after a template publication and update/start.
+
+Neon's catalog plugin is an optional desktop connection; it cannot be silently
+installed or authenticated into the user's desktop account by a Coder template.
+The template provides the official skill and remote MCP integration for native CLIs.
+
+## Scheduled official updates
+
+The workspace template schedules official agent maintenance daily at 06:15 UTC
+(08:15 in Bucharest during winter; 09:15 during summer). This uses Coder's agent
+cron support, not an OS cron daemon. It runs only while the workspace is running;
+a stopped workspace does not wake solely for maintenance. Existing startup setup
+remains available when the workspace next starts.
+
+The update allowlist covers Codex, Claude Code, the six existing OpenAI-curated /
+Vercel skills, and the official Neon PostgreSQL skill in the software profile.
+Updates do not authenticate accounts, provision resources, restart sessions, or
+upgrade repository dependencies. Pinned TypeScript tooling and user-selected
+plugins remain governed by template/native plugin updates, not this job.
+
+The installer and scheduled maintenance serialize shared changes. Skill updates
+stage vendor content and preserve user modifications and unmanaged destinations.
+Tool upgrades are deferred while an agent is running. Inspect the maintenance
+script output and `~/.local/state/hive/agent-updates/last-run.json` for update,
+deferred, preserved, or failure results. A check does not guarantee that every
+component was upgraded: offline sources, active agents, and user edits are
+explicit reasons to defer. New versions take effect in later agent sessions.
+
+Template publication/update is still required to activate this schedule in an
+existing workspace. Updating source files in the repository alone does not
+publish a template or change the running workspace's schedule.
+
+Unchanged Codex versions are skipped and failed staging directories are removed.
+Previous distinct successful managed versions are retained for recovery; this job
+does not automatically delete historical tool versions. Review their disk usage
+under the private agent-update state directory as part of workspace maintenance.
