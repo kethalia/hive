@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-10-29T18:45:04.047Z",
-  "testedRevision": "0148589876fb6eb09e47008549e2962560225fe6",
+  "observedAt": "2026-10-29T19:04:48.939Z",
+  "testedRevision": "3ad51083d3843d607917dcdd10b33eef23447031",
   "testedSourceCommitted": false,
   "sourceStable": true,
   "sourceDigests": {
-    "deploy/cloudflare/app/project-relay.ts": "069869e4c87f8f3fbffe1869b34bca381b177f0e1465191c2c6136c20f050fb4",
+    "deploy/cloudflare/app/project-relay.ts": "4976d73141fd5847cc03f7b3ce0f448c8c8c0d5aeb81e3d6c4e8ee7dd4d3570d",
     "deploy/cloudflare/app/local-relay-fixture.ts": "ffcb4c32c5dc8cfedb213c4a38cca8e7102fb289ff6cacb1a49ef8ceb7d6a9f7",
     "deploy/cloudflare/app/local-relay-provider.ts": "3e93de2ada6bc6aac103d9c88a8a4580efb3110fb659341f2b2c6d85fc9d51a3",
     "deploy/cloudflare/app/run-local-relay-proof.mjs": "cd149ea672b1c4413ef6018fb8f8a8613b3e9e9c245e093217eb685bcd115523"

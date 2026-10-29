@@ -98,6 +98,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.runOnlyPendingTimers();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("scoped project WebSocket relay", () => {
@@ -191,6 +192,26 @@ describe("scoped project WebSocket relay", () => {
     await short.open(request(), Date.now() + 2000);
     vi.advanceTimersByTime(2000);
     expect(short.upstream.close).toHaveBeenCalledWith(1008, "Project authorization expired");
+  });
+  it("cancels the fetch handshake timeout after101 so it cannot abort an accepted socket", async () => {
+    // AbortSignal.timeout uses the native clock in Node; model Workers' timer
+    // semantics so a surviving fetch deadline would race the socket close.
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((milliseconds) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), milliseconds);
+      return controller.signal;
+    });
+    const f = fixture();
+    let signal: AbortSignal | undefined;
+    f.deps.upgrade.mockImplementation(async (_url, init) => {
+      signal = init.signal;
+      signal?.addEventListener("abort", () => f.upstream.emit("close", { code: 1000 }));
+      return { status: 101, webSocket: f.upstream };
+    });
+    expect((await f.open(request(), now + 2000)).response.status).toBe(101);
+    vi.advanceTimersByTime(2000);
+    expect(signal?.aborted).toBe(false);
+    expect(f.server.close).toHaveBeenCalledWith(1008, "Project authorization expired");
   });
   it("propagates close/error with sanitized reason and releases the connection once", async () => {
     const f = fixture();

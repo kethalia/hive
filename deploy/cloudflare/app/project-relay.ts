@@ -168,13 +168,23 @@ export async function openProjectRelay(
       freshTarget.expiresAt * 1000,
     );
     if (deadline - now() < 1000 || request.signal.aborted) return failure(403);
-    const response = await deps.upgrade(exchanged.url, {
-      method: "GET",
-      redirect: "manual",
-      credentials: "omit",
-      signal: AbortSignal.timeout(Math.min(10000, deadline - now())),
-      headers: { Upgrade: "websocket", Cookie: exchanged.cookie, Origin: configuredOrigin },
-    });
+    const handshake = new AbortController();
+    const handshakeTimer = setTimeout(() => handshake.abort(), Math.min(10000, deadline - now()));
+    let response: UpgradeResponse;
+    try {
+      response = await deps.upgrade(exchanged.url, {
+        method: "GET",
+        redirect: "manual",
+        credentials: "omit",
+        signal: handshake.signal,
+        headers: { Upgrade: "websocket", Cookie: exchanged.cookie, Origin: configuredOrigin },
+      });
+    } finally {
+      // A fetch signal remains associated with an upgraded socket in Workers.
+      // The deadline bounds the handshake only; socket authorization owns its
+      // separate sanitized close timer after a successful101 response.
+      clearTimeout(handshakeTimer);
+    }
     if (response.status !== 101 || !response.webSocket) {
       await response.body?.cancel().catch(() => {});
       return failure(502);
