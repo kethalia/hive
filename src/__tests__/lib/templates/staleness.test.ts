@@ -87,6 +87,15 @@ describe("hashLocalTemplate", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
+  it("uses the verified build manifest on Workers without reading runtime template files", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    try {
+      expect(await hashLocalTemplate("ai-dev-k8s")).toMatch(/^[a-f0-9]{64}$/);
+      await expect(hashLocalTemplate("../unknown")).rejects.toThrow("Unknown template artifact");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it("returns stable hash across two calls with same files", async () => {
     await mkdir(join(tempDir, "templates", "test-tpl"), { recursive: true });
     await writeFile(join(tempDir, "templates", "test-tpl", "main.tf"), "resource {}");
@@ -137,6 +146,15 @@ describe("hashLocalTemplate", () => {
 // ── hashRemoteTar ────────────────────────────────────────────────
 
 describe("hashRemoteTar", () => {
+  it("uses the verified build manifest on Workers without reading runtime template files", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    try {
+      expect(await hashLocalTemplate("ai-dev-k8s")).toMatch(/^[a-f0-9]{64}$/);
+      await expect(hashLocalTemplate("../unknown")).rejects.toThrow("Unknown template artifact");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it("returns stable hash across two calls with same buffer", async () => {
     const buf = await createTarBuffer({
       "main.tf": "resource {}",
