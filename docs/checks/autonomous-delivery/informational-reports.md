@@ -61,8 +61,11 @@ reporting; it cannot establish code-quality or production acceptance.
 Remaining execution integration is explicit: per-step `activeAttemptId` has no
 trusted clearing path, even after a separately verified quiescence observation.
 Task-lifetime checkout writer ownership must be distinguished from logical step
-attempts. Pending result submission followed by deterministic controller acceptance
-after observed native completion is also missing; a tool call cannot assume its
-currently running bound turn has already completed. The next design must support
-safe same-manager progression while retaining trusted drain before handoff or
-cleanup. This slice deliberately weakens none of those gates.
+attempts. The execution binding identifies the delegated child turn: a root manager
+can complete that finished child while its own turn is still running. There is no
+general self-turn deadlock in the delegated path. Trusted child observations must
+arrive before result acceptance; the first progression pilot should use bounded
+observer flush/readback and the existing transactional completion check. A new
+pending-result queue is deferred unless recovery evidence demonstrates a need.
+The next design must support safe same-manager progression while retaining trusted
+drain before handoff or cleanup. This slice deliberately weakens none of those gates.
