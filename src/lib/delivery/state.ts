@@ -9,13 +9,34 @@ export class DeliveryConflict extends Error {
 const transitions: Record<DeliveryStepState, readonly DeliveryStepState[]> = {
   pending: ["ready", "canceled"],
   ready: ["running", "blocked", "canceled"],
-  running: ["waiting_external", "blocked", "succeeded", "failed", "canceled"],
+  running: ["waiting_external", "blocked", "succeeded", "reported", "failed", "canceled"],
   waiting_external: ["running", "blocked", "failed", "canceled"],
   blocked: ["ready", "canceled"],
   failed: ["ready", "canceled"],
   succeeded: ["pending"],
+  reported: ["pending"],
   canceled: [],
 };
+export function isInformationalStep(step: {
+  kind: string;
+  acceptancePhase: string;
+  requiredEvidenceKinds: readonly string[];
+}) {
+  return (
+    step.kind === "understand" &&
+    step.acceptancePhase === "implementation_preview" &&
+    step.requiredEvidenceKinds.length === 1 &&
+    step.requiredEvidenceKinds[0] === "analysis"
+  );
+}
+export function dependencySatisfied(step: {
+  state: string;
+  kind: string;
+  acceptancePhase: string;
+  requiredEvidenceKinds: readonly string[];
+}) {
+  return step.state === "succeeded" || (step.state === "reported" && isInformationalStep(step));
+}
 export function assertStepTransition(from: DeliveryStepState, to: DeliveryStepState) {
   if (!transitions[from].includes(to)) throw new DeliveryConflict("invalid_transition");
 }

@@ -104,6 +104,49 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("Delivery window", () => {
+  it("separates informational analysis from evidence acceptance and shows unverified difficulty/issues", async () => {
+    const counts = { ...summary.counts, succeeded: 0, reported: 1 };
+    const analysis = {
+      ...detail,
+      counts,
+      steps: [
+        {
+          ...detail.steps[0],
+          kind: "understand",
+          state: "reported",
+          reports: [
+            {
+              ...detail.steps[0].reports[0],
+              informational: true,
+              sourceSha: "a".repeat(40),
+              summary: "Understanding report recorded",
+              evidence: [],
+            },
+          ],
+        },
+      ],
+    };
+    vi.mocked(fetch).mockImplementation((url) =>
+      Promise.resolve(
+        response(
+          String(url).split("?")[0].endsWith(taskId)
+            ? analysis
+            : { tasks: [{ ...summary, counts }], nextCursor: null },
+        ),
+      ),
+    );
+    mount({ taskId, reportId });
+    expect(await screen.findByText("Understanding report recorded")).toBeInTheDocument();
+    expect(
+      screen.getByText("Informational report · not independently verified"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/0 accepted with evidence · 1 informational · 1 step/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Difficulty: moderate/)).toBeInTheDocument();
+    expect(screen.getByText("Stale snapshot")).toBeInTheDocument();
+    expect(screen.queryByText(/check · passed/)).not.toBeInTheDocument();
+  });
   it("shows notices and renders their reasons as text", async () => {
     mount({ taskId });
     const activity = await screen.findByRole("region", { name: "Recent task activity" });

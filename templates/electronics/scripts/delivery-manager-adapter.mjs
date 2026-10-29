@@ -36,13 +36,13 @@ export const deliveryManagerToolSpec = {
   type: "function",
   name: "hive_delivery",
   description:
-    "Record a delivery task, reserve a fenced step, or submit a structured report referencing existing trusted evidence. This tool grants no evidence-producer, release, deployment or native execution authority.",
+    "Record a delivery task, reserve a fenced step, submit an informational understand report, or complete a step referencing existing trusted evidence. Informational reports create no verification evidence. This tool grants no evidence-producer, release, deployment or native execution authority.",
   inputSchema: {
     type: "object",
     properties: {
       operation: {
         type: "string",
-        enum: ["create_task", "claim_step", "complete_step", "fail_attempt"],
+        enum: ["create_task", "claim_step", "complete_step", "report_step", "fail_attempt"],
       },
       payload: { type: "object" },
     },
@@ -302,7 +302,7 @@ export function createDeliveryManagerAdapter(options) {
           typeof command === "object" &&
           !Array.isArray(command) &&
           Object.keys(command).sort().join(",") === "operation,payload" &&
-          ["create_task", "claim_step", "complete_step", "fail_attempt"].includes(
+          ["create_task", "claim_step", "complete_step", "report_step", "fail_attempt"].includes(
             command.operation,
           ),
         "invalid_delivery_command",

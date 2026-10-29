@@ -9,6 +9,7 @@ import {
   conversationBindingSchema,
   evidenceInputSchema,
   expiredAttemptReconciliationSchema,
+  informationalReportSchema,
   leaseRequestSchema,
   nativeDelegationSchema,
   nativeRuntimeBindingSchema,
@@ -26,7 +27,9 @@ import {
   assertAcyclicSteps,
   assertCompletionEvidence,
   DeliveryConflict,
+  dependencySatisfied,
   dependentClosure,
+  isInformationalStep,
 } from "./state";
 
 type Transaction = Prisma.TransactionClient;
@@ -480,7 +483,7 @@ export class DeliveryRepository {
         throw new DeliveryConflict(
           step.state === "running" ? "reconciliation_required" : "step_not_ready",
         );
-      if (step.dependencies.some((edge) => edge.dependsOn.state !== "succeeded"))
+      if (step.dependencies.some((edge) => !dependencySatisfied(edge.dependsOn)))
         throw new DeliveryConflict("dependencies_pending");
       if ((await this.pendingWriters(tx, ownerId, task.id)).length)
         throw new DeliveryConflict("native_reconciliation_required");
@@ -687,6 +690,93 @@ export class DeliveryRepository {
       await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
       await this.refreshPause(tx, ownerId, task.id);
       return { eventId: input.eventId, reportId: report.id, version, replayed: false };
+    });
+  }
+
+  /** Accept model-authored analysis as workflow reporting, not independent
+   * verification. Existing runtime identities/writer holds remain untouched. */
+  async reportStep(owner: string, value: unknown) {
+    const ownerId = ownerSchema.parse(owner),
+      input = informationalReportSchema.parse(value);
+    const requestDigest = digest("step_reported", input);
+    return this.transaction(async (tx) => {
+      const task = await lockTask(tx, ownerId, input.taskId);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous) {
+        const report = await tx.deliveryStepReport.findUniqueOrThrow({
+          where: { ownerId_eventId: { ownerId, eventId: previous.id } },
+        });
+        return {
+          eventId: previous.id,
+          reportId: report.id,
+          version: previous.aggregateVersion,
+          replayed: true,
+          informational: true,
+        };
+      }
+      const step = await tx.deliveryStep.findUnique({
+        where: { ownerId_taskId_id: { ownerId, taskId: task.id, id: input.stepId } },
+      });
+      if (!step) throw new DeliveryConflict("step_not_found");
+      if (!isInformationalStep(step)) throw new DeliveryConflict("informational_step_only");
+      if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
+      const attempt = await tx.deliveryAttempt.findUnique({
+        where: { ownerId_stepId_id: { ownerId, stepId: step.id, id: input.attemptId } },
+      });
+      const timestamp = await now(tx);
+      if (
+        !attempt ||
+        step.state !== "running" ||
+        attempt.outcome !== "running" ||
+        attempt.leaseGeneration !== input.leaseGeneration ||
+        step.leaseGeneration !== input.leaseGeneration ||
+        attempt.leaseExpiresAt <= timestamp
+      )
+        throw new DeliveryConflict("stale_attempt");
+      if (task.sourceSha !== input.sourceSha || attempt.sourceSha !== input.sourceSha)
+        throw new DeliveryConflict("source_revision_changed");
+      const version = step.version + 1;
+      await tx.deliveryStep.update({
+        where: { ownerId_id: { ownerId, id: step.id } },
+        data: { state: "reported", version },
+      });
+      await tx.deliveryAttempt.update({
+        where: { ownerId_id: { ownerId, id: attempt.id } },
+        data: { outcome: "reported", finishedAt: timestamp },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          aggregateKey: `step/${step.id}`,
+          aggregateVersion: version,
+          type: "step_reported",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: { acceptance: "informational", independentVerification: false },
+        },
+      });
+      const report = await tx.deliveryStepReport.create({
+        data: {
+          ownerId,
+          stepId: step.id,
+          attemptId: attempt.id,
+          eventId: input.eventId,
+          ...input.report,
+        },
+      });
+      await tx.deliveryOutbox.create({ data: { ownerId, eventId: input.eventId } });
+      await this.refreshPause(tx, ownerId, task.id);
+      return {
+        eventId: input.eventId,
+        reportId: report.id,
+        version,
+        replayed: false,
+        informational: true,
+      };
     });
   }
   async setPaused(owner: string, value: unknown) {
@@ -1415,7 +1505,7 @@ export class DeliveryRepository {
       });
       if (!step) throw new DeliveryConflict("step_not_found");
       if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
-      if (["succeeded", "canceled"].includes(step.state))
+      if (["succeeded", "reported", "canceled"].includes(step.state))
         throw new DeliveryConflict("invalid_transition");
       const version = step.version + 1;
       await tx.deliveryStep.update({
@@ -1478,7 +1568,7 @@ export class DeliveryRepository {
       await tx.deliveryStep.update({
         where: { ownerId_id: { ownerId, id: step.id } },
         data: {
-          state: step.dependencies.every((edge) => edge.dependsOn.state === "succeeded")
+          state: step.dependencies.every((edge) => dependencySatisfied(edge.dependsOn))
             ? "ready"
             : "pending",
           waitingReason: null,
@@ -1534,7 +1624,7 @@ export class DeliveryRepository {
         (edge) =>
           !pendingIds.has(edge.dependsOnStepId) &&
           steps.some(
-            (candidate) => candidate.id === edge.dependsOnStepId && candidate.state === "succeeded",
+            (candidate) => candidate.id === edge.dependsOnStepId && dependencySatisfied(candidate),
           ),
       );
       const state =
@@ -1590,7 +1680,8 @@ export class DeliveryRepository {
       });
       if (!step) throw new DeliveryConflict("step_not_found");
       if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
-      if (step.state !== "succeeded") throw new DeliveryConflict("invalid_transition");
+      if (!["succeeded", "reported"].includes(step.state))
+        throw new DeliveryConflict("invalid_transition");
       const edges = await tx.deliveryStepDependency.findMany({
         where: { ownerId, taskId: task.id },
       });

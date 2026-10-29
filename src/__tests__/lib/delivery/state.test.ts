@@ -4,6 +4,7 @@ import {
   assertAcyclicSteps,
   assertCompletionEvidence,
   assertStepTransition,
+  dependencySatisfied,
 } from "@/lib/delivery/state";
 
 describe("delivery state contracts", () => {
@@ -32,6 +33,24 @@ describe("delivery state contracts", () => {
     expect(() => assertStepTransition("succeeded", "running")).toThrow("invalid_transition");
     expect(() => assertStepTransition("pending", "succeeded")).toThrow("invalid_transition");
     expect(() => assertStepTransition("succeeded", "pending")).not.toThrow();
+  });
+  it("reported analysis is a guarded dependency outcome, not a verified success transition", () => {
+    const analysis = {
+      state: "reported",
+      kind: "understand",
+      acceptancePhase: "implementation_preview",
+      requiredEvidenceKinds: ["analysis"],
+    };
+    expect(dependencySatisfied(analysis)).toBe(true);
+    expect(dependencySatisfied({ ...analysis, kind: "review" })).toBe(false);
+    expect(dependencySatisfied({ ...analysis, acceptancePhase: "activation_production" })).toBe(
+      false,
+    );
+    expect(dependencySatisfied({ ...analysis, requiredEvidenceKinds: ["analysis", "check"] })).toBe(
+      false,
+    );
+    expect(() => assertStepTransition("reported", "succeeded")).toThrow("invalid_transition");
+    expect(() => assertStepTransition("reported", "pending")).not.toThrow();
   });
   const claim = () => ({
     ownerId: "owner",

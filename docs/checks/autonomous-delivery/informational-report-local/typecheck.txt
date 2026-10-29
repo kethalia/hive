@@ -1,0 +1,2 @@
+> hive-web@2.31.0 typecheck /home/coder/projects/kethalia/hive
+> tsc --noEmit

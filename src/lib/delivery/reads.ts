@@ -6,6 +6,8 @@ import { deliveryTaskDetailSchema, deliveryTaskPageSchema } from "./read-contrac
 const id = z.string().uuid();
 const reportSelect = {
   id: true,
+  event: { select: { type: true } },
+  attempt: { select: { sourceSha: true } },
   summary: true,
   difficulty: true,
   difficultyReason: true,
@@ -59,6 +61,7 @@ function summary(row: SummaryRow) {
     counts: {
       total: row.steps.length,
       succeeded: row.steps.filter((step) => step.state === "succeeded").length,
+      reported: row.steps.filter((step) => step.state === "reported").length,
       attention: row.steps.filter((step) => ["blocked", "failed"].includes(step.state)).length,
     },
   };
@@ -196,8 +199,10 @@ export async function readDeliveryTask(
             finishedAt: step.attempts[0].finishedAt?.toISOString() ?? null,
           }
         : null,
-      reports: step.reports.map((report) => ({
+      reports: step.reports.map(({ event, attempt, ...report }) => ({
         ...report,
+        informational: event.type === "step_reported",
+        sourceSha: attempt.sourceSha,
         createdAt: report.createdAt.toISOString(),
         evidence: report.evidence.map(({ evidence }) => ({
           ...evidence,
