@@ -203,3 +203,42 @@ inference and exceed the no-inference probe scope.
    `browser-testing`, preserving evidence in the primary. Only then accept F04's
    two-view requirement. Keep the broader D01 model/child and unattended-control
    gates open until their specific tests pass.
+
+## Adapter slice implemented after the probe
+
+`src/lib/codex-session/protocol.ts` validates a deliberately small display subset
+of the installed generated protocol. `adapter.ts` now provides a read/subscription
+adapter with exact owner/workspace/build/server/thread binding, listeners installed
+before resume, bounded paginated hydration, stable-ID replacement, connection
+generation fencing, and explicit empty-draft/unavailable/error states. Its RPC
+interface cannot call `thread/start` or `turn/start`. It does not install a host
+daemon, modify the existing workspace transport, or launch another executor.
+
+Live text/command deltas are provisional. Buffered deltas are not blindly appended
+to snapshots that may already contain them; the view exposes `needsRefresh` until
+authoritative refresh reconciles it. Reverts clear the projection, invalidate
+in-flight snapshots, and automatically schedule coalesced, generation-fenced
+reconciliation with bounded retries. Unknown item kinds appear as placeholders; hidden reasoning
+and unknown tool arguments are not retained. Full approval/question presentation,
+input mutations, older-history lazy loading, and the web UI remain later slices.
+The adapter deliberately fails visibly beyond its supported history/buffer limits.
+
+The injected `AuthorizedSessionTransport` is a contract, **not implemented
+authentication**. Its eventual server-side factory must follow the ownership checks
+in `src/lib/agents/workspace.ts`: use `getCoderClientForUser`, verify
+`workspace.owner_id` against the authenticated Coder user, require a running build
+and connected agent, and derive the target server-side. Also authorize the stored
+thread/project association and pin the server lifetime identity; client-supplied
+thread IDs or a matching TypeScript binding object do not establish access.
+Retain credentials on the server, close streams on revocation/build change, enforce
+RPC method/payload limits, and fail requests within bounded time. The existing
+one-shot SSH operation is an authorization precedent, not a streaming transport
+already suitable for Cloudflare. No raw Coder token or arbitrary app-server URL
+belongs in a browser request.
+
+Validation: 15 focused Vitest checks cover snapshot/event overlap, duplicate
+completion, reconnect without creation, stale-connection responses, draft versus
+missing history, changed host binding, other-thread isolation, revert races,
+pagination overlap/loops, revocation clearing, unsupported items, and malformed events. Repository
+TypeScript checking passed. These use protocol fixtures and complement the real
+runtime probe; they do not replace native/browser integration acceptance.

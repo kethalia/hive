@@ -27,7 +27,7 @@ const page = (data: unknown[] = [turn()], nextCursor: string | null = null) => (
 class FakeTransport implements AuthorizedSessionTransport {
   binding = { ...binding };
   listeners = new Set<(event: unknown) => void>();
-  closers = new Set<() => void>();
+  closers = new Set<(reason?: "revoked" | "disconnected") => void>();
   read: (params: unknown) => Promise<unknown> = async () => page();
   resume: () => Promise<unknown> = async () => ({ thread: { id: binding.threadId } });
   request = vi.fn(async (method: string, params: unknown) => {
@@ -44,7 +44,7 @@ class FakeTransport implements AuthorizedSessionTransport {
       this.listeners.delete(listener);
     };
   }
-  onClose(listener: () => void) {
+  onClose(listener: (reason?: "revoked" | "disconnected") => void) {
     this.closers.add(listener);
     return () => {
       this.closers.delete(listener);
@@ -54,8 +54,8 @@ class FakeTransport implements AuthorizedSessionTransport {
     for (const listener of this.listeners)
       listener({ method, params: { threadId: binding.threadId, ...params } });
   }
-  drop() {
-    for (const listener of [...this.closers]) listener();
+  drop(reason?: "revoked" | "disconnected") {
+    for (const listener of [...this.closers]) listener(reason);
   }
 }
 
@@ -151,6 +151,18 @@ describe("native Codex session adapter", () => {
     delayed.resolve(page([turn("stale connection")]));
     await connecting;
     expect(adapter.snapshot.turns[0].items[0].text).toBe("new connection");
+  });
+
+  it("clears visible history on authorization revocation while preserving it on network loss", async () => {
+    const adapter = new CodexSessionAdapter(binding, vi.fn());
+    const first = new FakeTransport();
+    await adapter.connect(first);
+    first.drop("disconnected");
+    expect(adapter.snapshot.turns).toHaveLength(1);
+    const second = new FakeTransport();
+    await adapter.connect(second);
+    second.drop("revoked");
+    expect(adapter.snapshot.turns).toEqual([]);
   });
 
   it("distinguishes known empty bootstrap from missing persisted history", async () => {
