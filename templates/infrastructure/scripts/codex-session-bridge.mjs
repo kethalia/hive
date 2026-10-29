@@ -124,9 +124,10 @@ export function validateConfig(raw, registeredHost = false) {
   });
 }
 
-function createTicketVerifier(config, authorizeBinding) {
+export function createTicketVerifier(config, authorizeBinding, scope = "session:read") {
+  check(["session:read", "session:terminal"].includes(scope));
   const digest = createHash("sha256")
-    .update(JSON.stringify(BINDING_KEYS.map((key) => config.binding[key])))
+    .update(JSON.stringify([scope, ...BINDING_KEYS.map((key) => config.binding[key])]))
     .digest("hex");
   const path = join(config.stateDirectory, `codex-session-replay-${digest}.json`);
   // Keep this inode: deleting lock files can create two independently locked inodes.
@@ -222,7 +223,7 @@ function createTicketVerifier(config, authorizeBinding) {
       claims.iss === config.hiveOrigin &&
         claims.aud === config.appOrigin &&
         claims.origin === config.hiveOrigin &&
-        claims.scope === "session:read",
+        claims.scope === scope,
       "Ticket scope or origin mismatch",
     );
     check(
@@ -438,6 +439,13 @@ export async function startBridge(rawConfig, registeredHost) {
     );
   const config = validateConfig(rawConfig, Boolean(registeredHost));
   const verifier = createTicketVerifier(config, registeredHost?.authorizeBinding);
+  let terminal;
+  try {
+    terminal = registeredHost?.createTerminal?.(config);
+  } catch (error) {
+    verifier.close();
+    throw error;
+  }
   const server = createServer((request, response) => {
     response.setHeader("Cache-Control", "no-store");
     if (
@@ -453,7 +461,13 @@ export async function startBridge(rawConfig, registeredHost) {
     }
     if (
       request.method === "POST" &&
-      request.url === "/projects/discover" &&
+      [
+        "/projects/discover",
+        "/projects/resolve",
+        "/projects/open",
+        "/projects/tasks/start",
+        "/projects/tasks/status",
+      ].includes(request.url) &&
       registeredHost?.handleProjects
     ) {
       void registeredHost.handleProjects(request, response).catch(() => {
@@ -474,6 +488,8 @@ export async function startBridge(rawConfig, registeredHost) {
     for (const client of websocket.clients) client.close(1008, "Native lifetime revoked");
   });
   server.on("upgrade", (request, socket, head) => {
+    if (request.url === "/terminal" && terminal)
+      return terminal.handleUpgrade(request, socket, head);
     if (
       request.url !== "/session" ||
       request.headers.origin !== config.hiveOrigin ||
@@ -677,12 +693,14 @@ export async function startBridge(rawConfig, registeredHost) {
   } catch (error) {
     unsubscribe?.();
     verifier.close();
+    await terminal?.close();
     throw error;
   }
   return {
     port: server.address().port,
     close: async () => {
       unsubscribe?.();
+      await terminal?.close();
       for (const client of websocket.clients) client.terminate();
       await new Promise((resolve) => websocket.close(resolve));
       await new Promise((resolve) => server.close(resolve));

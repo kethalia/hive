@@ -240,6 +240,23 @@ export class ProjectSupervisor {
     for (const entry of Object.values(this.state.projects)) entry.attached = false;
     this.save();
   }
+  // Installed controller only; not exposed through command() or the native bridge.
+  enrollPreparedProject(project) {
+    check(!this.closed && !this.busy && this.state.status === "ready", "supervisor_busy_or_closed");
+    const existing = this.config.projects.find((p) => p.projectId === project.projectId);
+    if (existing) {
+      check(JSON.stringify(existing) === JSON.stringify(project), "project_binding_conflict");
+      // Existing durable enrollment also supports history-only recovery after
+      // checkout cleanup. Every execution command independently verifies lease.
+      return;
+    }
+    const next = validateSupervisorConfig({
+      ...this.config,
+      projects: [...this.config.projects, project],
+    });
+    this.lease(project);
+    this.config.projects = next.projects;
+  }
   project(projectId) {
     const project = this.config.projects.find((p) => p.projectId === projectId);
     check(project, "project_not_registered");
@@ -527,7 +544,8 @@ export class ProjectSupervisor {
               id(request.requestId) &&
                 typeof request.text === "string" &&
                 request.text.trim().length > 0 &&
-                Buffer.byteLength(request.text) <= 32768,
+                Buffer.byteLength(request.text) <= 32768 &&
+                !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(request.text),
               "invalid_first_prompt",
             );
             const digest = hash(request.text);
@@ -858,7 +876,7 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
         const name = `project-${hash(projectId).slice(0, 24)}`;
         const cliEnv = { ...env, HIVE_NATIVE_CODEX_TOKEN: token };
         try {
-          execFileSync("tmux", ["-S", socket, "has-session", "-t", name], {
+          execFileSync("tmux", ["-S", socket, "has-session", "-t", `=${name}`], {
             env: cliEnv,
             stdio: "ignore",
             timeout: 2000,

@@ -43,6 +43,23 @@ class ProjectsTests(unittest.TestCase):
             result = discovery.discover(request or {"schemaVersion": 1})
         return result, opener.open.call_args
 
+    def test_resolve_stable_id_account_and_default_revision_without_pagination(self):
+        opener = unittest.mock.Mock()
+        opener.open.side_effect = [Response({"id":123}), Response(repo(clone_url="https://github.com/kethalia/hive.git")), Response({"sha":"a"*40})]
+        with patch.object(discovery,"external_token",return_value="private-test-token"), patch.object(discovery.urllib.request,"build_opener",return_value=opener):
+            result=discovery.resolve_repository({"schemaVersion":1,"operation":"resolve","repositoryId":"42","expectedAccountId":"123"})
+        self.assertEqual(result["repository"]["providerRepositoryId"],"42")
+        self.assertEqual(result["defaultRevision"],"a"*40)
+        self.assertEqual([call.args[0].full_url for call in opener.open.call_args_list],["https://api.github.com/user","https://api.github.com/repositories/42","https://api.github.com/repos/kethalia/hive/commits/main"])
+        self.assertNotIn("private-test-token",json.dumps(result))
+
+    def test_resolve_rejects_account_switch_stable_id_change_and_clone_url_substitution(self):
+        request={"schemaVersion":1,"operation":"resolve","repositoryId":"42","expectedAccountId":"123"}
+        for identity, record in [({"id":999},repo()),({"id":123},repo(identifier=43)),({"id":123},repo(clone_url="https://attacker.invalid/repo.git"))]:
+            opener=unittest.mock.Mock();opener.open.side_effect=[Response(identity),Response(record)]
+            with patch.object(discovery,"external_token",return_value="private-test-token"), patch.object(discovery.urllib.request,"build_opener",return_value=opener):
+                with self.assertRaises(discovery.DiscoveryError):discovery.resolve_repository(request)
+
     def test_fixed_authenticated_endpoint_and_allowlisted_metadata_only(self):
         result, call = self.discover([repo(temp_clone_token="private-test-token", html_url="https://attacker.invalid", description="secret prose")])
         request = call.args[0]

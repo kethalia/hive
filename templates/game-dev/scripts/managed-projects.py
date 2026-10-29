@@ -58,6 +58,9 @@ class VerifiedRepository:
 
 class GitHubResolver:
     """Reuse the installed discovery helper's agent-only external-auth boundary."""
+    def __init__(self, expected_account_id=None):
+        self.expected_account_id = expected_account_id
+
     def resolve(self, repository_id):
         path = Path(__file__).with_name("github-projects.py")
         spec = importlib.util.spec_from_file_location("hive_github_projects", path)
@@ -65,6 +68,9 @@ class GitHubResolver:
         spec.loader.exec_module(helper)
         try:
             token = helper.external_token()
+            if self.expected_account_id is not None:
+                identity, _ = helper.github_json(token, "/user")
+                require(str(identity.get("id")) == self.expected_account_id, "repository_account_changed")
             request = urllib.request.Request(
                 f"https://api.github.com/repositories/{repository_id}",
                 headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
@@ -455,6 +461,11 @@ class ManagedProjects:
 
     def inspect(self, repository_id):
         with self.lock():
+            project, receipt = self.paths(repository_id)
+            if not receipt.exists():
+                require(not project.exists(), "unmanaged_project_exists")
+                return {"provider": "github", "repositoryId": repository_id, "status": "not_created",
+                        "checkoutVerified": False, "lease": None, "revision": None}
             project, _, record = self.load(repository_id)
             # Read-only provenance check, deliberately without clean(): unfinished
             # edits are valid active-task state, but a replaced checkout is not.
@@ -560,7 +571,7 @@ def dispatch(manager, value):
     common = {"schemaVersion", "operation", "provider", "repositoryId"}
     operation = value.get("operation") if isinstance(value, dict) else None
     fields = {
-        "prepare": {"taskId", "revision", "leaseId", "generation", "ttlSeconds"},
+        "prepare": {"taskId", "revision", "leaseId", "generation", "ttlSeconds", "expectedAccountId"},
         "inspect": set(), "releaseLease": {"taskId", "leaseId", "generation", "revision"},
         "requestCleanup": {"taskId"},
     }
@@ -569,6 +580,11 @@ def dispatch(manager, value):
             and value.get("provider") == "github", "invalid_request")
     repository_id = value.get("repositoryId")
     if operation == "prepare":
+        if "expectedAccountId" in value:
+            account = value["expectedAccountId"]
+            require(isinstance(account, str) and re.fullmatch(r"[1-9][0-9]{0,19}", account), "invalid_account")
+            require(isinstance(manager.resolver, GitHubResolver), "account_verifier_required")
+            manager.resolver.expected_account_id = account
         return manager.prepare(repository_id, value.get("taskId"), value.get("revision"), value.get("leaseId"), value.get("generation"), value.get("ttlSeconds", 900))
     if operation == "inspect":
         return manager.inspect(repository_id)

@@ -5,6 +5,7 @@ const calls = vi.hoisted(() => ({
   close: vi.fn(),
   dispatch: vi.fn(),
   send: vi.fn(),
+  reconcile: vi.fn(),
   db: {},
 }));
 vi.mock("@hive/db", () => ({ getDb: () => calls.db }));
@@ -14,6 +15,10 @@ vi.mock("@hive/db/cloudflare", () => ({
 vi.mock("@/lib/delivery/dispatch", () => ({
   dispatchNotificationBatch: (...args: unknown[]) => calls.dispatch(...args),
   sendDeliveryPush: (...args: unknown[]) => calls.send(...args),
+}));
+
+vi.mock("@/lib/projects/task.server", () => ({
+  reconcileProjectTasks: (...args: unknown[]) => calls.reconcile(...args),
 }));
 
 import worker, { dispatchScheduled } from "../../../../deploy/cloudflare/jobs/worker";
@@ -51,6 +56,30 @@ describe("scheduled delivery Worker lifetime", () => {
       { title: "Fixture" },
       "mailto:fixture@example.invalid",
     );
+    expect(calls.close).toHaveBeenCalledOnce();
+  });
+  it("reconciles accepted project work without a browser or push activation", async () => {
+    calls.reconcile.mockImplementation(async () => {
+      expect(calls.close).not.toHaveBeenCalled();
+      return { enabled: true, processed: 1, retry: 0, stale: 0 };
+    });
+    expect(await dispatchScheduled({ HIVE_PROJECT_TASKS_ENABLED: "true" })).toMatchObject({
+      enabled: true,
+      projectTasks: { processed: 1 },
+    });
+    expect(calls.dispatch).not.toHaveBeenCalled();
+    expect(calls.close).toHaveBeenCalledOnce();
+  });
+  it("does not strand preparation when notification dispatch fails", async () => {
+    calls.dispatch.mockRejectedValue(new Error("provider failure"));
+    calls.reconcile.mockResolvedValue({ enabled: true, processed: 1 });
+    await expect(
+      dispatchScheduled({
+        HIVE_PROJECT_TASKS_ENABLED: "true",
+        HIVE_DELIVERY_DISPATCH_ENABLED: "true",
+      }),
+    ).rejects.toThrow();
+    expect(calls.reconcile).toHaveBeenCalledOnce();
     expect(calls.close).toHaveBeenCalledOnce();
   });
   it("closes failed invocations without exposing database/provider error details", async () => {

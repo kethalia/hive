@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
-import { issueCodexSessionGrant } from "@/lib/codex-session/ticket.server";
+import { issueCodexSessionGrant, issueCodexTerminalGrant } from "@/lib/codex-session/ticket.server";
 import { startBridge } from "../../../../templates/ai-dev-k8s/scripts/codex-session-bridge.mjs";
 
 const keys = generateKeyPairSync("ed25519");
@@ -146,4 +146,13 @@ describe("server-only Codex capability signer", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+});
+
+it("terminal signing uses a separate fixed write scope and endpoint", () => {
+  const value = issueCodexTerminalGrant(config, binding);
+  expect(value.url).toBe(`${config.appOrigin}/terminal`);
+  const claims = JSON.parse(Buffer.from(value.ticket.split(".")[1], "base64url").toString());
+  expect(claims.scope).toBe("session:terminal");
+  expect(claims.threadId).toBe(binding.threadId);
+  expect(claims.exp - claims.iat).toBe(60);
 });

@@ -1,0 +1,485 @@
+// Installed local composition. HTTP callers reach this only after a signed,
+// independently bound project capability is verified by codex-project-discovery.
+import { execFileSync } from "node:child_process";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  closeSync,
+  constants,
+  existsSync,
+  fstatSync,
+  fsyncSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
+const check = (v, code = "project_request_rejected") => {
+  if (!v) throw new Error(code);
+};
+const uuid = (v) =>
+  typeof v === "string" &&
+  /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(v);
+const number = (v) => typeof v === "string" && /^[1-9][0-9]{0,19}$/.test(v);
+const exact = (v, keys) =>
+  v &&
+  typeof v === "object" &&
+  !Array.isArray(v) &&
+  Object.keys(v).length === keys.length &&
+  Object.keys(v).every((k) => keys.includes(k));
+const digest = (v) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
+export const projectScopes = Object.freeze({
+  "/projects/discover": "projects:discover",
+  "/projects/resolve": "projects:resolve",
+  "/projects/open": "projects:open",
+  "/projects/tasks/start": "projects:task:start",
+  "/projects/tasks/status": "projects:task:read",
+});
+export function validateProjectOperation(path, r) {
+  const common = ["schemaVersion"];
+  if (path === "/projects/discover")
+    check(
+      exact(r, [...common, "page", "perPage"]) &&
+        r.schemaVersion === 1 &&
+        Number.isInteger(r.page) &&
+        r.page >= 1 &&
+        r.page <= 10000 &&
+        Number.isInteger(r.perPage) &&
+        r.perPage >= 1 &&
+        r.perPage <= 100,
+    );
+  else if (path === "/projects/resolve")
+    check(
+      exact(r, [...common, "repositoryId", "expectedAccountId"]) &&
+        r.schemaVersion === 1 &&
+        number(r.repositoryId) &&
+        number(r.expectedAccountId),
+    );
+  else if (path === "/projects/open")
+    check(
+      exact(r, [...common, "repositoryId", "expectedAccountId", "projectId", "requestId"]) &&
+        r.schemaVersion === 1 &&
+        number(r.repositoryId) &&
+        number(r.expectedAccountId) &&
+        uuid(r.projectId) &&
+        uuid(r.requestId),
+    );
+  else if (path === "/projects/tasks/status")
+    check(
+      exact(r, [...common, "projectId", "taskId", "requestId"]) &&
+        r.schemaVersion === 1 &&
+        [r.projectId, r.taskId, r.requestId].every(uuid),
+    );
+  else if (path === "/projects/tasks/start")
+    check(
+      exact(r, [
+        ...common,
+        "repositoryId",
+        "expectedAccountId",
+        "projectId",
+        "taskId",
+        "requestId",
+        "revision",
+        "model",
+        "effort",
+        "text",
+      ]) &&
+        r.schemaVersion === 1 &&
+        number(r.repositoryId) &&
+        number(r.expectedAccountId) &&
+        [r.projectId, r.taskId, r.requestId].every(uuid) &&
+        /^[a-f0-9]{40}$/.test(r.revision) &&
+        typeof r.model === "string" &&
+        /^[a-z0-9][a-z0-9._-]{0,99}$/.test(r.model) &&
+        ["low", "medium", "high", "xhigh", "max", "ultra"].includes(r.effort) &&
+        typeof r.text === "string" &&
+        r.text.trim() &&
+        Buffer.byteLength(r.text) <= 32768 &&
+        !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(r.text),
+    );
+  else check(false);
+  return r;
+}
+function privatePath(p, dir = false) {
+  check(realpathSync(p) === p, "private_state_required");
+  const s = lstatSync(p);
+  check(
+    s.uid === process.getuid() && !(s.mode & 0o077) && (dir ? s.isDirectory() : s.isFile()),
+    "private_state_required",
+  );
+}
+function writeAtomic(path, state) {
+  const tmp = `${path}.${randomUUID()}.tmp`;
+  const fd = openSync(
+    tmp,
+    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    writeFileSync(fd, JSON.stringify(state));
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(tmp, path);
+}
+/** Dependencies are installed functions, never HTTP parameters. openRuntime must
+ * return the ONE supervisor plus its registration authority for this host. */
+export function createProjectController(config, deps) {
+  check(exact(config, ["stateDirectory", "ownerId", "workspaceId", "model", "effort"]));
+  check(
+    uuid(config.ownerId) &&
+      uuid(config.workspaceId) &&
+      typeof config.model === "string" &&
+      ["low", "medium", "high", "xhigh", "max", "ultra"].includes(config.effort),
+  );
+  privatePath(config.stateDirectory, true);
+  const lock = openSync(
+    join(config.stateDirectory, "controller.lock"),
+    constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW,
+    0o600,
+  );
+  let closed = false,
+    queue = Promise.resolve(),
+    runtime = null;
+  const pending = new Set();
+  const statePath = join(config.stateDirectory, "projects.json"),
+    keyPath = join(config.stateDirectory, "projects.key");
+  let state, key;
+  try {
+    const st = fstatSync(lock);
+    check(st.isFile() && st.uid === process.getuid() && !(st.mode & 0o077));
+    execFileSync("/usr/bin/flock", ["--exclusive", "--nonblock", "3"], {
+      stdio: ["ignore", "ignore", "ignore", lock],
+      env: { PATH: "/usr/bin:/bin" },
+      timeout: 2000,
+    });
+    if (!existsSync(keyPath)) {
+      check(!existsSync(statePath), "journal_key_missing");
+      const fd = openSync(
+        keyPath,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+        0o600,
+      );
+      try {
+        writeFileSync(fd, randomBytes(32));
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    }
+    privatePath(keyPath);
+    key = readFileSync(keyPath);
+    check(key.length === 32);
+    state = {
+      schemaVersion: 1,
+      ownerId: config.ownerId,
+      workspaceId: config.workspaceId,
+      projects: {},
+    };
+    if (existsSync(statePath)) {
+      privatePath(statePath);
+      check(lstatSync(statePath).size <= 4 * 1024 * 1024);
+      const saved = JSON.parse(readFileSync(statePath));
+      const expected = createHmac("sha256", key).update(JSON.stringify(saved.state)).digest("hex");
+      check(
+        typeof saved.signature === "string" &&
+          saved.signature.length === expected.length &&
+          timingSafeEqual(Buffer.from(saved.signature), Buffer.from(expected)),
+        "journal_signature_invalid",
+      );
+      state = saved.state;
+      check(
+        state.schemaVersion === 1 &&
+          state.ownerId === config.ownerId &&
+          state.workspaceId === config.workspaceId &&
+          Object.keys(state.projects).length <= 32,
+        "journal_identity_changed",
+      );
+    }
+  } catch (error) {
+    closeSync(lock);
+    throw error;
+  }
+  function save() {
+    writeAtomic(statePath, {
+      state,
+      signature: createHmac("sha256", key).update(JSON.stringify(state)).digest("hex"),
+    });
+    const fd = openSync(config.stateDirectory, constants.O_RDONLY | constants.O_DIRECTORY);
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+  }
+  function project(id) {
+    const p = state.projects[id];
+    check(p, "project_not_enrolled");
+    return p;
+  }
+  function status(p) {
+    const t = p.task;
+    return {
+      schemaVersion: 1,
+      projectId: p.projectId,
+      taskId: t.taskId,
+      phase: t.phase,
+      nativeThreadId: t.nativeThreadId ?? null,
+      terminalSessionName: t.terminalSessionName ?? null,
+      reason: t.reason ?? null,
+    };
+  }
+  async function resolve(r) {
+    const result = await deps.resolveRepository({
+      schemaVersion: 1,
+      operation: "resolve",
+      repositoryId: r.repositoryId,
+      expectedAccountId: r.expectedAccountId,
+    });
+    if (result?.error)
+      throw new Error(
+        result.error === "github_auth_required"
+          ? "github_auth_required"
+          : "repository_identity_changed",
+      );
+    check(
+      result?.schemaVersion === 1 &&
+        result.providerAccountId === r.expectedAccountId &&
+        result.repository?.providerRepositoryId === r.repositoryId &&
+        /^[a-f0-9]{40}$/.test(result.defaultRevision),
+      "repository_identity_changed",
+    );
+    return result;
+  }
+  function blocked(t, error) {
+    const known = new Set([
+      "github_auth_required",
+      "repository_identity_changed",
+      "checkout_busy",
+      "checkout_unavailable",
+      "revision_unavailable",
+      "model_unavailable",
+      "native_unavailable",
+      "registration_unavailable",
+      "prompt_submission_uncertain",
+      "task_identity_conflict",
+    ]);
+    t.phase = "blocked";
+    t.reason = known.has(error?.message) ? error.message : "native_unavailable";
+    save();
+  }
+  async function advance(p) {
+    const t = p.task;
+    if (closed || !t || t.phase === "blocked") return;
+    try {
+      if (!t.prepared) {
+        const resolved = await resolve(t.request);
+        check(
+          resolved.repository.permissions?.push === true && !resolved.repository.archived,
+          "repository_identity_changed",
+        );
+        const inspected = await deps.inspectCheckout(p.repositoryId);
+        let ready;
+        if (
+          inspected?.status === "ready" &&
+          inspected.lease?.taskId === t.taskId &&
+          inspected.revision === t.request.revision &&
+          inspected.checkoutVerified === true &&
+          inspected.lease.expiresAt > Date.now() / 1000
+        )
+          ready = inspected;
+        else {
+          check(!inspected?.lease || inspected.lease.taskId === t.taskId, "checkout_busy");
+          ready = await deps.prepareCheckout({
+            ...t.request,
+            ...(inspected?.lease
+              ? { leaseId: inspected.lease.id, generation: inspected.lease.generation }
+              : {}),
+          });
+        }
+        check(
+          ready?.status === "ready" &&
+            ready.lease?.taskId === t.taskId &&
+            ready.lease.expiresAt > Date.now() / 1000,
+          "checkout_unavailable",
+        );
+        t.prepared = {
+          projectId: p.projectId,
+          repositoryId: p.repositoryId,
+          taskId: t.taskId,
+          leaseId: ready.lease.id,
+          leaseGeneration: ready.lease.generation,
+          model: t.request.model,
+          effort: t.request.effort,
+        };
+        save();
+      }
+      if (!runtime)
+        runtime = await deps.openRuntime(
+          Object.values(state.projects).flatMap((q) => (q.task?.prepared ? [q.task.prepared] : [])),
+        );
+      const supervisor = runtime.supervisor;
+      supervisor.enrollPreparedProject(t.prepared);
+      let snap = supervisor.snapshot(p.projectId);
+      if (snap.phase === "not-created")
+        snap = await supervisor.command({
+          operation: "ensureProject",
+          projectId: p.projectId,
+          creationIntentId: t.taskId,
+        });
+      if (snap.phase === "rejoinRequired")
+        snap = await supervisor.command({ operation: "rejoin", projectId: p.projectId });
+      check(snap.threadId, "native_unavailable");
+      t.nativeThreadId = snap.threadId;
+      const active = runtime.registration.currentRegistration();
+      if (
+        !active ||
+        active.serverInstanceId !== snap.serverInstanceId ||
+        !active.threads.some((x) => x.projectId === p.projectId && x.threadId === snap.threadId)
+      ) {
+        t.phase = "awaitingRegistration";
+        save();
+        return;
+      }
+      if (snap.phase === "firstPromptUncertain") {
+        throw new Error("prompt_submission_uncertain");
+      }
+      if (snap.phase === "awaitingFirstTurn") {
+        t.phase = "awaitingFirstPrompt";
+        save();
+        snap = await supervisor.command({
+          operation: "firstPrompt",
+          projectId: p.projectId,
+          requestId: t.request.requestId,
+          text: t.request.text,
+        });
+      }
+      if (snap.phase === "awaitingPersistence")
+        snap = await supervisor.command({ operation: "refresh", projectId: p.projectId });
+      if (snap.phase === "persisted") {
+        snap = await supervisor.command({ operation: "attach", projectId: p.projectId });
+        t.phase = "running";
+        t.terminalSessionName = snap.attached
+          ? `project-${createHash("sha256").update(p.projectId).digest("hex").slice(0, 24)}`
+          : null;
+      } else t.phase = "awaitingFirstPrompt";
+      save();
+    } catch (error) {
+      blocked(t, error);
+    }
+  }
+  function schedule(p) {
+    if (closed || pending.has(p.projectId) || p.task?.phase === "blocked") return;
+    pending.add(p.projectId);
+    queue = queue.then(() => advance(p)).finally(() => pending.delete(p.projectId));
+  }
+  return {
+    async handle(path, r) {
+      check(!closed);
+      validateProjectOperation(path, r);
+      if (path === "/projects/resolve") return resolve(r);
+      if (path === "/projects/open") {
+        const verified = await resolve(r);
+        let p = state.projects[r.projectId];
+        if (p)
+          check(
+            p.repositoryId === r.repositoryId && p.expectedAccountId === r.expectedAccountId,
+            "repository_identity_changed",
+          );
+        else {
+          check(
+            Object.keys(state.projects).length < 32 &&
+              !Object.values(state.projects).some((q) => q.repositoryId === r.repositoryId),
+            "project_limit_or_identity_conflict",
+          );
+          p = {
+            projectId: r.projectId,
+            repositoryId: r.repositoryId,
+            expectedAccountId: r.expectedAccountId,
+            createdAt: Date.now(),
+            task: null,
+          };
+          state.projects[r.projectId] = p;
+          save();
+        }
+        if (p.task) schedule(p);
+        return {
+          ...verified,
+          projectId: p.projectId,
+          phase: p.task?.phase ?? "awaitingTask",
+          currentTaskId: p.task?.taskId ?? null,
+          nativeThreadId: p.task?.nativeThreadId ?? null,
+          terminalSessionName: p.task?.terminalSessionName ?? null,
+        };
+      }
+      const p = project(r.projectId);
+      if (path === "/projects/tasks/start") {
+        check(
+          p.repositoryId === r.repositoryId && p.expectedAccountId === r.expectedAccountId,
+          "repository_identity_changed",
+        );
+        check(r.model === config.model && r.effort === config.effort, "model_unavailable");
+        if (p.task)
+          check(
+            p.task.taskId === r.taskId && p.task.digest === digest(r),
+            "task_identity_conflict",
+          );
+        else {
+          p.task = {
+            taskId: r.taskId,
+            digest: digest(r),
+            request: structuredClone(r),
+            phase: "preparing",
+            createdAt: Date.now(),
+            nativeThreadId: null,
+            terminalSessionName: null,
+            reason: null,
+          };
+          save();
+        }
+      } else check(p.task?.taskId === r.taskId, "task_identity_conflict");
+      schedule(p);
+      return status(p);
+    },
+    currentProjectContext(threadId) {
+      check(runtime, "native_unavailable");
+      const p = Object.values(state.projects).find(
+        (value) => value.task?.nativeThreadId === threadId,
+      );
+      check(p?.task?.prepared, "task_identity_conflict");
+      const binding = runtime.supervisor.registrationBinding(p.projectId);
+      const registration = runtime.registration.currentRegistration();
+      check(
+        binding.threadId === threadId &&
+          registration?.serverInstanceId === binding.serverInstanceId &&
+          registration.threads.some((t) => t.projectId === p.projectId && t.threadId === threadId),
+        "registration_unavailable",
+      );
+      runtime.supervisor.lease(p.task.prepared);
+      return {
+        projectId: p.projectId,
+        preparationIntentId: p.task.taskId,
+        repositoryId: p.repositoryId,
+        revision: p.task.request.revision,
+        leaseId: p.task.prepared.leaseId,
+        leaseGeneration: p.task.prepared.leaseGeneration,
+      };
+    },
+    resumePending() {
+      for (const p of Object.values(state.projects))
+        if (p.task && (!runtime || p.task.phase !== "running")) schedule(p);
+    },
+    async drain() {
+      await queue;
+    },
+    async close() {
+      if (closed) return;
+      closed = true;
+      await queue;
+      closeSync(lock);
+    },
+  };
+}

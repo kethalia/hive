@@ -32,7 +32,7 @@ import {
   startDiscoveryGateway,
 } from "../templates/ai-dev-k8s/scripts/codex-project-discovery.mjs";
 
-function fixture() {
+function fixture(controller) {
   const root = mkdtempSync(join(tmpdir(), "hive-discovery-")),
     helperPath = join(root, "helper.py"),
     issuer = generateKeyPairSync("ed25519");
@@ -57,7 +57,7 @@ function fixture() {
     helperPath,
     helperSha256: createHash("sha256").update(code).digest("hex"),
   };
-  const host = createProjectDiscovery(config);
+  const host = createProjectDiscovery(config, controller);
   const ticket = (patch = {}) => {
     const now = Math.floor(Date.now() / 1000),
       claims = {
@@ -167,6 +167,63 @@ test("loopback HTTP route admits signed discovery and rejects forged app headers
       ).status,
       403,
     );
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("signed project operations are exact-path scoped and accept bounded escaped first-task text", async () => {
+  const calls = [];
+  const f = fixture({
+    async handle(path, request) {
+      calls.push({ path, request });
+      return { accepted: true };
+    },
+  });
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const path = "/projects/tasks/start",
+      request = {
+        schemaVersion: 1,
+        projectId: randomUUID(),
+        repositoryId: "123",
+        expectedAccountId: "456",
+        taskId: randomUUID(),
+        requestId: randomUUID(),
+        revision: "a".repeat(40),
+        model: "gpt-6.1-sol",
+        effort: "low",
+        text: "x" + "\n".repeat(32767),
+      };
+    const headers = { Host: "app.example.com", "Content-Type": "application/json" },
+      base = `http://127.0.0.1:${gateway.port}`;
+    const r = await http(base + path, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ticket: f.ticket({ scope: "projects:task:start", request }) }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].request.text, request.text);
+    for (const patch of [
+      { scope: "projects:discover" },
+      { request: { ...request, text: "\u0000" } },
+      { request: { ...request, command: "bad" } },
+    ]) {
+      const denied = await http(base + path, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          ticket: f.ticket({ scope: "projects:task:start", request, ...patch }),
+        }),
+      });
+      assert.equal(denied.status, 403);
+    }
+    assert.equal(calls.length, 1);
   } finally {
     await gateway.close();
     f.close();

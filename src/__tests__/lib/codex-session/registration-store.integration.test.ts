@@ -41,7 +41,7 @@ afterAll(async () => {
   }
   await db.$disconnect();
 });
-async function fixture() {
+async function fixture(sessionTransport: "direct" | "relay" = "direct") {
   const user = await db.user.create({
     data: {
       coderUrl: "https://coder.example.com",
@@ -105,6 +105,7 @@ async function fixture() {
     appSlug: "codex-session",
     gatewayPort: 13341,
     cookieDomains: [],
+    sessionTransport,
   };
   const store = new PrismaRegistrationStore(db),
     principal = { hiveUserId: user.id, coderUserId: user.coderUserId };
@@ -419,3 +420,31 @@ describe.skipIf(!url)("durable Codex registration", () => {
     ).rejects.toThrow();
   });
 });
+
+it.skipIf(!url)(
+  "authorizes exact registered relay targets and retains native ticket audience",
+  async () => {
+    const f = await fixture("relay"),
+      issued = await f.issue(),
+      request = f.request(issued.grant);
+    await f.service.redeem(request);
+    const target = await f.service.authorizeRelayTarget(f.principal, f.project.id);
+    const grant = await f.service.readGrant(f.principal, f.project.id);
+    expect(grant.url).toBe(`https://hive.example.com/api/projects/${f.project.id}/session`);
+    expect(target.binding).toEqual(grant.binding);
+    const terminal = await f.service.terminalGrant(f.principal, f.project.id);
+    expect(terminal.url).toBe(`https://hive.example.com/api/projects/${f.project.id}/terminal`);
+    expect(terminal.binding).toEqual(target.binding);
+    expect(
+      JSON.parse(Buffer.from(terminal.ticket.split(".")[1], "base64url").toString()).scope,
+    ).toBe("session:terminal");
+    expect(JSON.parse(Buffer.from(grant.ticket.split(".")[1], "base64url").toString()).aud).toBe(
+      target.appOrigin,
+    );
+    await expect(
+      f.service.authorizeRelayTarget({ ...f.principal, hiveUserId: randomUUID() }, f.project.id),
+    ).rejects.toThrow();
+    f.workspace.latest_build.id = randomUUID();
+    await expect(f.service.authorizeRelayTarget(f.principal, f.project.id)).rejects.toThrow();
+  },
+);

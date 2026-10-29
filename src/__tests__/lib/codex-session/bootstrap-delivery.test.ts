@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { deliverRegistrationGrant } from "@/lib/codex-session/bootstrap-delivery.server";
+import {
+  deliverRegistrationGrant,
+  exchangeVerifiedWorkspaceAppSessionCookie,
+  exchangeVerifiedWorkspaceAppTerminalCookie,
+  postToVerifiedWorkspaceApp,
+} from "@/lib/codex-session/bootstrap-delivery.server";
 
 const origin = "https://app--main--workspace--owner.apps.example.com",
   path = "/registration/bootstrap";
@@ -110,4 +115,75 @@ describe("private Coder app bootstrap delivery", () => {
       expect(f.fetcher).toHaveBeenCalledTimes(2);
     }
   });
+});
+
+it("exchanges only the fixed read-session path without forwarding owner credentials", async () => {
+  const f = fixture();
+  f.coder.getApplicationAuthRedirect.mockResolvedValue(
+    `${origin}/session?coder_application_connect_api_key_35e783=encrypted`,
+  );
+  f.fetcher.mockReset().mockResolvedValue(
+    new Response(null, {
+      status: 303,
+      headers: {
+        Location: "/session",
+        "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+      },
+    }),
+  );
+  await expect(
+    exchangeVerifiedWorkspaceAppSessionCookie(
+      f.coder,
+      f.issued.binding,
+      f.issued.expiresAt,
+      f.fetcher,
+    ),
+  ).resolves.toEqual({ cookie: `${name}=scoped_secret`, url: `${origin}/session` });
+  expect(f.coder.getApplicationAuthRedirect).toHaveBeenCalledWith(`${origin}/session`);
+  expect(f.fetcher).toHaveBeenCalledTimes(1);
+  expect(f.fetcher.mock.calls[0][1]).toMatchObject({
+    method: "GET",
+    redirect: "manual",
+    credentials: "omit",
+    headers: { Accept: "application/json" },
+  });
+});
+it("bounds task-start bytes before cookie exchange, including multibyte input", async () => {
+  const f = fixture();
+  await expect(
+    postToVerifiedWorkspaceApp(
+      f.coder,
+      f.issued.binding,
+      { path: "/projects/tasks/start", body: "界".repeat(32769), expiresAt: f.issued.expiresAt },
+      f.fetcher,
+    ),
+  ).rejects.toThrow();
+  expect(f.coder.getApplicationAuthRedirect).not.toHaveBeenCalled();
+  expect(f.fetcher).not.toHaveBeenCalled();
+});
+
+it("terminal cookie exchange is independently fixed to /terminal", async () => {
+  const f = fixture();
+  f.coder.getApplicationAuthRedirect.mockResolvedValue(
+    `${origin}/terminal?coder_application_connect_api_key_35e783=encrypted`,
+  );
+  f.fetcher.mockReset().mockResolvedValue(
+    new Response(null, {
+      status: 303,
+      headers: {
+        Location: "/terminal",
+        "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+      },
+    }),
+  );
+  await expect(
+    exchangeVerifiedWorkspaceAppTerminalCookie(
+      f.coder,
+      f.issued.binding,
+      f.issued.expiresAt,
+      f.fetcher,
+    ),
+  ).resolves.toEqual({ cookie: `${name}=scoped_secret`, url: `${origin}/terminal` });
+  expect(f.coder.getApplicationAuthRedirect).toHaveBeenCalledWith(`${origin}/terminal`);
+  expect(f.fetcher).toHaveBeenCalledTimes(1);
 });

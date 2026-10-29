@@ -2,6 +2,7 @@ import { createPublicKey, verify } from "node:crypto";
 import type { PrismaClient } from "@hive/db";
 import { z } from "zod";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import type { SessionBinding } from "./adapter";
 import {
   type RegistrationBinding,
   type RegistrationPrincipal,
@@ -12,7 +13,7 @@ import {
   PrismaRegistrationStore,
   RegistrationRejected,
 } from "./registration-store.server";
-import { issueCodexSessionGrant } from "./ticket.server";
+import { issueCodexSessionGrant, issueCodexTerminalGrant } from "./ticket.server";
 
 const heartbeatSchema = z
   .object({
@@ -34,6 +35,7 @@ export type RegisteredSessionConfig = {
   appSlug: string;
   gatewayPort: number;
   cookieDomains: string[];
+  sessionTransport?: "direct" | "relay";
 };
 const activeProjectIdsSchema = z
   .array(z.string().uuid())
@@ -71,6 +73,9 @@ export function registeredSessionConfig(): RegisteredSessionConfig {
     appSlug: required("HIVE_CODEX_APP_SLUG"),
     gatewayPort: Number(required("HIVE_CODEX_GATEWAY_PORT")),
     cookieDomains: process.env.COOKIE_DOMAIN ? [process.env.COOKIE_DOMAIN] : [],
+    sessionTransport: z
+      .enum(["direct", "relay"])
+      .parse(process.env.HIVE_CODEX_SESSION_TRANSPORT ?? "direct"),
   };
 }
 export function createRegisteredSessionService(db: PrismaClient, config: RegisteredSessionConfig) {
@@ -129,7 +134,18 @@ export class RegisteredSessionService {
     const binding = await this.authority.reauthorize(r.binding as unknown as RegistrationBinding);
     return this.store.renew({ ...v, ownerId: r.ownerId, binding });
   }
-  async readGrant(principal: RegistrationPrincipal, projectId: string) {
+  private async authorizedProject<T>(
+    principal: RegistrationPrincipal,
+    projectId: string,
+    finish: (authority: {
+      coderOrigin: string;
+      appOrigin: string;
+      registrationId: string;
+      expiresAt: number;
+      ttl: number;
+      binding: SessionBinding;
+    }) => T,
+  ): Promise<T> {
     z.string().uuid().parse(projectId);
     const rows = await this.db.codexRegisteredThread.findMany({
       where: {
@@ -176,17 +192,48 @@ export class RegisteredSessionService {
         Math.floor((r.expiresAt.getTime() - Math.max(now.getTime(), Date.now())) / 1000),
       );
       if (ttl < 1) throw new RegistrationRejected();
-      return issueCodexSessionGrant(
-        { ...this.config, appOrigin: r.appOrigin },
-        {
+      return finish({
+        coderOrigin: slot.coderOrigin,
+        appOrigin: r.appOrigin,
+        registrationId: r.id,
+        expiresAt: Math.floor(r.expiresAt.getTime() / 1000),
+        ttl,
+        binding: {
           ownerId: slot.coderOwnerId,
           workspaceId: slot.workspaceId,
           buildId: r.buildId,
           serverInstanceId: r.serverInstanceId,
           threadId: thread.nativeThreadId,
         },
-        ttl,
+      });
+    });
+  }
+  async authorizeRelayTarget(principal: RegistrationPrincipal, projectId: string) {
+    if (this.config.sessionTransport !== "relay") throw new RegistrationRejected();
+    return this.authorizedProject(principal, projectId, ({ ttl: _ttl, ...target }) => target);
+  }
+  async terminalGrant(principal: RegistrationPrincipal, projectId: string) {
+    return this.authorizedProject(principal, projectId, (authority) => {
+      const grant = issueCodexTerminalGrant(
+        { ...this.config, appOrigin: authority.appOrigin },
+        authority.binding,
+        authority.ttl,
       );
+      if (this.config.sessionTransport === "relay")
+        grant.url = `${this.config.hiveOrigin}/api/projects/${projectId}/terminal`;
+      return grant;
+    });
+  }
+  async readGrant(principal: RegistrationPrincipal, projectId: string) {
+    return this.authorizedProject(principal, projectId, (authority) => {
+      const grant = issueCodexSessionGrant(
+        { ...this.config, appOrigin: authority.appOrigin },
+        authority.binding,
+        authority.ttl,
+      );
+      if (this.config.sessionTransport === "relay")
+        grant.url = `${this.config.hiveOrigin}/api/projects/${projectId}/session`;
+      return grant;
     });
   }
 }

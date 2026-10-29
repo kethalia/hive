@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   openCodexSessionTransport,
+  SessionTransportError,
   type SessionGrant,
   type SessionSocket,
 } from "@/lib/codex-session/browser-transport";
@@ -52,6 +53,7 @@ beforeEach(() => {
 afterEach(() => {
   for (const socket of sockets.splice(0)) socket.dropped(1000);
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 function setup(
   initial = grant(),
@@ -214,4 +216,53 @@ describe("browser Codex session transport", () => {
     await expect(transport.request("turn/start" as never, {})).rejects.toThrow("not allowed");
     expect(socket.sent).toHaveLength(1);
   });
+});
+
+it("accepts a UUID relay path only on the browser's exact HTTPS origin", async () => {
+  vi.stubGlobal("location", new URL("https://hive.example.com/projects"));
+  const path = "/api/projects/11111111-1111-4111-8111-111111111111/session";
+  const f = setup(grant({ url: "https://hive.example.com" + path }));
+  f.socket.message({ type: "authenticated", protocolVersion: "0.165.0", binding });
+  await f.promise;
+  expect(f.createSocket).toHaveBeenCalledWith("wss://hive.example.com" + path);
+  for (const url of [
+    "https://other.example.com" + path,
+    "https://hive.example.com" + path + "?ticket=x",
+    "https://hive.example.com/api/projects/arbitrary/session",
+  ]) {
+    const createSocket = vi.fn();
+    expect(() =>
+      openCodexSessionTransport(grant({ url }), { freshGrant: vi.fn(), createSocket }),
+    ).toThrow();
+    expect(createSocket).not.toHaveBeenCalled();
+  }
+});
+
+it("preserves revocation versus network loss during the initial handshake", async () => {
+  for (const [code, reason] of [
+    [1008, "revoked"],
+    [1006, "disconnected"],
+  ] as const) {
+    const f = setup();
+    const rejection = expect(f.promise).rejects.toMatchObject({
+      name: "SessionTransportError",
+      reason,
+    });
+    f.socket.dropped(code);
+    await rejection;
+  }
+  expect(() =>
+    openCodexSessionTransport(grant({ url: "https://evil.example/other" }), {
+      freshGrant: vi.fn(),
+    }),
+  ).toThrow(SessionTransportError);
+});
+it("reports malformed handshake policy as revoked before any adapter exists", async () => {
+  const f = setup();
+  const rejection = expect(f.promise).rejects.toMatchObject({
+    name: "SessionTransportError",
+    reason: "revoked",
+  });
+  f.socket.message({ type: "authenticated", protocolVersion: "0.164.0", binding });
+  await rejection;
 });

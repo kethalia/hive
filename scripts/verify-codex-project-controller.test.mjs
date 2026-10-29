@@ -1,0 +1,267 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import {
+  createProjectController,
+  validateProjectOperation,
+} from "../templates/ai-dev-k8s/scripts/codex-project-controller.mjs";
+function fixture(t) {
+  const dir = mkdtempSync(join(tmpdir(), "hive-controller-"));
+  const projectId = randomUUID(),
+    taskId = randomUUID(),
+    requestId = randomUUID();
+  const config = {
+    stateDirectory: dir,
+    ownerId: randomUUID(),
+    workspaceId: randomUUID(),
+    model: "gpt-6.1-sol",
+    effort: "low",
+  };
+  const open = {
+    schemaVersion: 1,
+    projectId,
+    repositoryId: "123",
+    expectedAccountId: "456",
+    requestId,
+  };
+  const start = {
+    ...open,
+    taskId,
+    revision: "a".repeat(40),
+    model: config.model,
+    effort: config.effort,
+    text: "Actual user task fixture",
+  };
+  const status = { schemaVersion: 1, projectId, taskId, requestId: randomUUID() };
+  let prepared = null,
+    registered = false,
+    phase = "not-created",
+    threadId = null,
+    attached = false;
+  const calls = [];
+  const supervisor = {
+    registrationBinding() {
+      return { threadId, serverInstanceId: "server" };
+    },
+    lease() {
+      assert.ok(prepared?.lease.expiresAt > Date.now() / 1000);
+    },
+    snapshot() {
+      return { phase, threadId, serverInstanceId: "server", attached };
+    },
+    enrollPreparedProject(p) {
+      calls.push("enroll");
+      assert.equal(p.taskId, taskId);
+    },
+    async command(r) {
+      calls.push(r.operation);
+      if (r.operation === "ensureProject" && !threadId) {
+        threadId = randomUUID();
+        phase = "awaitingFirstTurn";
+      }
+      if (r.operation === "firstPrompt") {
+        assert.equal(r.text, start.text);
+        phase = "persisted";
+      }
+      if (r.operation === "attach") attached = true;
+      return { phase, threadId, serverInstanceId: "server", attached };
+    },
+  };
+  const deps = {
+    async resolveRepository(r) {
+      assert.equal(r.expectedAccountId, "456");
+      return {
+        schemaVersion: 1,
+        providerAccountId: "456",
+        repository: { providerRepositoryId: "123", permissions: { push: true }, archived: false },
+        defaultRevision: "a".repeat(40),
+      };
+    },
+    async inspectCheckout() {
+      calls.push("inspect");
+      return prepared;
+    },
+    async prepareCheckout() {
+      calls.push("prepare");
+      prepared = {
+        status: "ready",
+        checkoutVerified: true,
+        revision: start.revision,
+        lease: { taskId, id: randomUUID(), generation: 1, expiresAt: Date.now() / 1000 + 900 },
+      };
+      return prepared;
+    },
+    async openRuntime() {
+      calls.push("runtime");
+      return {
+        supervisor,
+        registration: {
+          currentRegistration: () =>
+            registered ? { serverInstanceId: "server", threads: [{ projectId, threadId }] } : null,
+        },
+      };
+    },
+  };
+  let controller = createProjectController(config, deps);
+  t.after(async () => {
+    await controller.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+  return {
+    config,
+    deps,
+    open,
+    start,
+    status,
+    calls,
+    get controller() {
+      return controller;
+    },
+    register() {
+      registered = true;
+    },
+    setPrepared(v) {
+      prepared = v;
+    },
+    setPhase(v) {
+      phase = v;
+    },
+    async restart() {
+      await controller.close();
+      controller = createProjectController(config, deps);
+    },
+  };
+}
+test("enrollment is durable without clone/native; queued start waits registration then submits actual prompt once", async (t) => {
+  const f = fixture(t);
+  const enrolled = await f.controller.handle("/projects/open", f.open);
+  assert.equal(enrolled.currentTaskId, null);
+  assert.equal(enrolled.phase, "awaitingTask");
+  assert.deepEqual(f.calls, []);
+  const started = await f.controller.handle("/projects/tasks/start", f.start);
+  assert.equal(started.phase, "preparing");
+  await f.controller.drain();
+  let state = await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  assert.equal(state.phase, "awaitingRegistration");
+  assert.equal(f.calls.filter((x) => x === "runtime").length, 1);
+  assert.equal(f.calls.includes("firstPrompt"), false);
+  f.register();
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  state = await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  assert.equal(state.phase, "running");
+  assert.match(state.terminalSessionName, /^project-[a-f0-9]{24}$/);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  assert.equal(f.calls.filter((x) => x === "firstPrompt").length, 1);
+  assert.equal(f.calls.filter((x) => x === "prepare").length, 1);
+  const reopened = await f.controller.handle("/projects/open", f.open);
+  assert.equal(reopened.currentTaskId, f.start.taskId);
+  await assert.rejects(
+    f.controller.handle("/projects/tasks/start", { ...f.start, text: "Different prompt" }),
+    /task_identity_conflict/,
+  );
+});
+test("restart recovers exact durable intent and never repeats checkout preparation or first prompt", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  await f.restart();
+  f.register();
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  assert.equal(f.calls.filter((x) => x === "prepare").length, 1);
+  assert.equal(f.calls.filter((x) => x === "firstPrompt").length, 1);
+  await f.restart();
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  assert.equal(f.calls.filter((x) => x === "firstPrompt").length, 1);
+});
+test("ambiguous first prompt blocks replay without another inference", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  f.register();
+  f.setPhase("firstPromptUncertain");
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  const state = await f.controller.handle("/projects/tasks/status", f.status);
+  assert.equal(state.phase, "blocked");
+  assert.equal(state.reason, "prompt_submission_uncertain");
+  assert.equal(f.calls.includes("firstPrompt"), false);
+});
+test("owned interrupted checkout preparation reuses verified lease without cleaning dirty edits", async (t) => {
+  const f = fixture(t);
+  f.setPrepared({
+    status: "ready",
+    checkoutVerified: true,
+    revision: f.start.revision,
+    lease: {
+      taskId: f.start.taskId,
+      id: randomUUID(),
+      generation: 2,
+      expiresAt: Date.now() / 1000 + 900,
+    },
+  });
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  assert.equal(f.calls.includes("prepare"), false);
+});
+test("private journal rejects competing writer, forgery, identity changes and unknown authority", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  assert.throws(() => createProjectController(f.config, f.deps));
+  await assert.rejects(
+    f.controller.handle("/projects/tasks/start", { ...f.start, model: "unconfigured" }),
+    /model_unavailable/,
+  );
+  await assert.rejects(f.controller.handle("/projects/open", { ...f.open, repositoryId: "999" }));
+  await f.controller.close();
+  const p = join(f.config.stateDirectory, "projects.json"),
+    saved = JSON.parse(readFileSync(p));
+  saved.state.ownerId = randomUUID();
+  writeFileSync(p, JSON.stringify(saved));
+  assert.throws(() => createProjectController(f.config, f.deps), /journal_signature_invalid/);
+});
+test("request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts", (t) => {
+  const f = fixture(t);
+  for (const patch of [
+    { path: "/tmp" },
+    { text: "\u0000" },
+    { text: "界".repeat(10923) },
+    { taskId: "../escape" },
+  ])
+    assert.throws(() =>
+      validateProjectOperation("/projects/tasks/start", { ...f.start, ...patch }),
+    );
+  assert.throws(() => validateProjectOperation("/shell", f.start));
+});
+
+test("manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  const state = await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  assert.throws(
+    () => f.controller.currentProjectContext(state.nativeThreadId),
+    /registration_unavailable/,
+  );
+  f.register();
+  const context = f.controller.currentProjectContext(state.nativeThreadId);
+  assert.equal(context.preparationIntentId, f.start.taskId);
+  assert.equal(context.revision, f.start.revision);
+  assert.equal(context.projectId, f.open.projectId);
+  assert.throws(() => f.controller.currentProjectContext("other"), /task_identity_conflict/);
+  f.setPrepared({ ...context, lease: { expiresAt: 0 } });
+  assert.throws(() => f.controller.currentProjectContext(state.nativeThreadId));
+});

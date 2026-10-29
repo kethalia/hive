@@ -1,5 +1,6 @@
 // No CLI or listener startup. Called only by a trusted host integration.
 import { startBridge } from "./codex-session-bridge.mjs";
+import { createProjectTerminal } from "./codex-project-terminal.mjs";
 
 /** Registry authorization is independent of ticket claims. This function does not
  * register the host with Hive or establish provisioner authority; deployment stays
@@ -32,6 +33,31 @@ export function startProjectGateway(config, supervisor, controllerRegistration, 
           throw new Error("controller_registration_unavailable");
         return supervisor.authorizeBinding(candidate);
       },
+      createTerminal: controllerRegistration
+        ? (verifiedConfig) =>
+            createProjectTerminal(verifiedConfig, {
+              authorize(candidate) {
+                const registration = controllerRegistration.currentRegistration();
+                if (!registration || registration.serverInstanceId !== candidate.serverInstanceId)
+                  throw new Error("controller_registration_unavailable");
+                const thread = registration.threads.find((t) => t.threadId === candidate.threadId);
+                if (!thread) throw new Error("terminal_thread_unregistered");
+                supervisor.authorizeBinding(candidate);
+                supervisor.lease(supervisor.project(thread.projectId));
+                if (!supervisor.snapshot(thread.projectId).attached)
+                  throw new Error("terminal_not_attached");
+                return { projectId: thread.projectId };
+              },
+              onRevoked(callback) {
+                const native = supervisor.onRevoked(callback),
+                  registered = controllerRegistration.onRevoked(callback);
+                return () => {
+                  native();
+                  registered();
+                };
+              },
+            })
+        : undefined,
       handleBootstrap: controllerRegistration?.handleBootstrap,
       handleProjects: discovery?.handleProjects,
       createNativeSocket: () => supervisor.runtime.createReadSocket(),

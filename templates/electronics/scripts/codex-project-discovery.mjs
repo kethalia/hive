@@ -16,6 +16,7 @@ import {
 } from "node:fs";
 import { createServer } from "node:http";
 import { isAbsolute, join } from "node:path";
+import { projectScopes, validateProjectOperation } from "./codex-project-controller.mjs";
 
 const check = (v) => {
   if (!v) throw new Error("discovery_rejected");
@@ -64,7 +65,7 @@ function privatePath(path, directory = false) {
 }
 /** All config is provisioned independently; HTTP cannot choose identities, roots,
  * executables, URLs or credentials. Keep this under the installed wrapper's lock. */
-export function createProjectDiscovery(config) {
+export function createProjectDiscovery(config, controller) {
   check(
     exact(config, [
       "binding",
@@ -155,9 +156,11 @@ export function createProjectDiscovery(config) {
       closeSync(dir);
     }
   }
-  function verifyTicket(value) {
+  function verifyTicket(value, path = "/projects/discover") {
     check(
-      exact(value, ["ticket"]) && typeof value.ticket === "string" && value.ticket.length <= 16384,
+      exact(value, ["ticket"]) &&
+        typeof value.ticket === "string" &&
+        value.ticket.length <= (path === "/projects/tasks/start" ? 98304 : 16384),
     );
     const parts = value.ticket.split(".");
     check(parts.length === 3 && parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)));
@@ -180,7 +183,8 @@ export function createProjectDiscovery(config) {
       exact(c, ["iss", "aud", "scope", "jti", "iat", "exp", "binding", "request"]) &&
         c.iss === config.hiveOrigin &&
         c.aud === config.binding.appOrigin &&
-        c.scope === "projects:discover" &&
+        Object.hasOwn(projectScopes, path) &&
+        c.scope === projectScopes[path] &&
         id(c.jti) &&
         Number.isSafeInteger(c.iat) &&
         c.iat <= now &&
@@ -193,16 +197,7 @@ export function createProjectDiscovery(config) {
       exact(c.binding, bindingKeys) && bindingKeys.every((k) => c.binding[k] === config.binding[k]),
     );
     const r = c.request;
-    check(
-      exact(r, ["schemaVersion", "page", "perPage"]) &&
-        r.schemaVersion === 1 &&
-        Number.isInteger(r.page) &&
-        r.page >= 1 &&
-        r.page <= 10000 &&
-        Number.isInteger(r.perPage) &&
-        r.perPage >= 1 &&
-        r.perPage <= 100,
-    );
+    validateProjectOperation(path, r);
     nonces = new Map([...nonces].filter(([, expiry]) => expiry > now));
     check(nonces.size < 4096 && !nonces.has(c.jti));
     nonces.set(c.jti, c.exp);
@@ -255,14 +250,22 @@ export function createProjectDiscovery(config) {
         try {
           const result = JSON.parse(Buffer.concat(chunks).toString());
           if (status === 0) {
-            check(
-              result.schemaVersion === 1 &&
-                result.provider === "github" &&
-                Array.isArray(result.repositories) &&
-                result.repositories.length <= request.perPage &&
-                result.page === request.page &&
-                result.perPage === request.perPage,
-            );
+            if (request.operation === "resolve") {
+              check(
+                result.schemaVersion === 1 &&
+                  result.providerAccountId === request.expectedAccountId &&
+                  result.repository?.providerRepositoryId === request.repositoryId &&
+                  /^[a-f0-9]{40}$/.test(result.defaultRevision),
+              );
+            } else
+              check(
+                result.schemaVersion === 1 &&
+                  result.provider === "github" &&
+                  Array.isArray(result.repositories) &&
+                  result.repositories.length <= request.perPage &&
+                  result.page === request.page &&
+                  result.perPage === request.perPage,
+              );
             resolve(result);
           } else if (result?.schemaVersion === 1 && helperErrors.has(result.error))
             resolve({ schemaVersion: 1, error: result.error });
@@ -289,24 +292,30 @@ export function createProjectDiscovery(config) {
   async function handleProjects(request, response) {
     check(
       request.method === "POST" &&
-        request.url === "/projects/discover" &&
+        Object.hasOwn(projectScopes, request.url) &&
         request.headers.host === new URL(config.binding.appOrigin).host &&
         request.headers["content-type"]?.split(";")[0] === "application/json" &&
         !request.headers["content-encoding"],
     );
+    const limit = request.url === "/projects/tasks/start" ? 98304 : 20000;
     const length = request.headers["content-length"];
-    check(!length || (/^\d+$/.test(length) && Number(length) <= 20000));
+    check(!length || (/^\d+$/.test(length) && Number(length) <= limit));
     const timer = setTimeout(() => request.destroy(), 5000),
       chunks = [];
     let bytes = 0;
     try {
       for await (const chunk of request) {
         bytes += chunk.length;
-        check(bytes <= 20000);
+        check(bytes <= limit);
         chunks.push(chunk);
       }
       clearTimeout(timer);
-      const result = await discover(JSON.parse(Buffer.concat(chunks).toString()));
+      const value = JSON.parse(Buffer.concat(chunks).toString());
+      const result =
+        request.url === "/projects/discover"
+          ? await discover(value)
+          : await controller?.handle(request.url, verifyTicket(value, request.url));
+      check(result);
       response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       response.end(JSON.stringify(result));
     } finally {
@@ -315,6 +324,25 @@ export function createProjectDiscovery(config) {
   }
   return {
     discover,
+    async resolveRepository(request) {
+      check(
+        !closed &&
+          !busy &&
+          exact(request, ["schemaVersion", "operation", "repositoryId", "expectedAccountId"]) &&
+          request.operation === "resolve",
+      );
+      validateProjectOperation("/projects/resolve", {
+        schemaVersion: request.schemaVersion,
+        repositoryId: request.repositoryId,
+        expectedAccountId: request.expectedAccountId,
+      });
+      busy = true;
+      try {
+        return await runHelper(request);
+      } finally {
+        busy = false;
+      }
+    },
     handleProjects,
     close() {
       if (!closed) {
@@ -341,7 +369,7 @@ export async function startDiscoveryGateway({ port, appOrigin }, discovery) {
       response.end();
       return;
     }
-    if (request.method === "POST" && request.url === "/projects/discover") {
+    if (request.method === "POST" && Object.hasOwn(projectScopes, request.url)) {
       void discovery.handleProjects(request, response).catch(() => {
         if (!response.headersSent) response.writeHead(403);
         response.end();
