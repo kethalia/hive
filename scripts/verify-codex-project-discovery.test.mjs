@@ -229,3 +229,44 @@ test("signed project operations are exact-path scoped and accept bounded escaped
     f.close();
   }
 });
+
+test("retry gateway requires separate exact scope and cannot carry replacement input", async () => {
+  const calls = [],
+    f = fixture({
+      async handle(path, request) {
+        calls.push({ path, request });
+        return { phase: "blocked" };
+      },
+    });
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const path = "/projects/tasks/retry",
+      request = {
+        schemaVersion: 1,
+        projectId: randomUUID(),
+        taskId: randomUUID(),
+        requestId: randomUUID(),
+      };
+    for (const [patch, expected] of [
+      [{}, 200],
+      [{ scope: "projects:task:start" }, 403],
+      [{ request: { ...request, text: "replacement" } }, 403],
+    ]) {
+      const result = await http(`http://127.0.0.1:${gateway.port}${path}`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticket: f.ticket({ scope: "projects:task:retry", request, ...patch }),
+        }),
+      });
+      assert.equal(result.status, expected);
+    }
+    assert.deepEqual(calls, [{ path, request }]);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});

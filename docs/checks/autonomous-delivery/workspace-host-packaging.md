@@ -246,3 +246,37 @@ The parent reran these against the staged source, excluding concurrent D04 edits
 The complete opt-in installed-native supervisor suite passes, including real local
 mock first prompt, CLI attach, interruption and history-only restart. No skip was
 used in that native run.
+
+### Explicit pre-execution retry checkpoint
+
+`POST /projects/tasks/retry` requires a separately signed `projects:task:retry`
+capability. Its request contains exactly schema version, project ID, task ID and
+retry request ID. It cannot replace text, source SHA, model or lease identity.
+The controller serializes retry decisions and journals at most 32 accepted retry
+receipts per task. A repeated receipt returns current status without another
+attempt, including after restart or a lost acknowledgement. An already-running
+intent returns status without invoking the runtime. The original first-prompt
+request ID and signed intent remain unchanged.
+
+Recovery is limited to the fixed pre-execution reason allowlist, explicit durable
+no-prompt/no-creation-attempt flags and managed `not_created`/no-lease state, or
+an exact ready/live checkout with independently inspected source, lease and
+incarnation plus supervisor proof of a known empty thread. Interrupted clone
+stages, changed/expired leases, revoked execution, legacy missing flags and
+uncertain creation/input remain held. Creation and first-input attempt flags are
+saved before their non-idempotent native calls.
+
+Installed native 0.165 cannot currently satisfy the empty-history proof for a
+new loaded thread without a rollout: `thread/turns/list` and
+`thread/read {includeTurns:true}` both reject. A metadata-only read returning an
+empty `turns` field is deliberately not treated as history evidence. In this
+case retry returns the existing readable blocked status and does not schedule
+work. The ready/live positive branch is covered by explicit empty-history test
+fixtures, not claimed as a real-runtime capability. Normal pending registration
+continues under its original intent separately from explicit blocked-task retry.
+
+Validation: controller/discovery suites cover retry scope, immutable input,
+concurrent duplicates, lost acknowledgement/restart, replay after a second
+failure, changed lease/incarnation, uncertain history, legacy flags and revoked
+execution. The opt-in installed-native supervisor test records the unsupported
+empty-history proof without account-backed inference.

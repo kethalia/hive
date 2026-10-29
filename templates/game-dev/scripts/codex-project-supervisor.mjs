@@ -400,6 +400,54 @@ export class ProjectSupervisor {
   }
   // Registration can precede the first actual prompt. Browser history and CLI
   // attachment continue to require binding()'s persisted state below.
+  async provePreExecution(projectId, creationIntentId) {
+    check(
+      !this.closed && !this.busy && this.state.status === "ready" && this.runtime.alive(),
+      "retry_not_available",
+    );
+    const project = this.project(projectId);
+    this.busy = true;
+    try {
+      this.lease(project);
+      const entry = this.state.projects[projectId];
+      if (!entry) return { threadId: null };
+      check(
+        entry.creationIntentId === creationIntentId &&
+          entry.repositoryId === project.repositoryId &&
+          entry.serverInstanceId === this.state.serverInstanceId &&
+          entry.phase === "awaitingFirstTurn" &&
+          !entry.firstPrompt &&
+          !entry.executionRevoked &&
+          id(entry.threadId),
+        "retry_not_available",
+      );
+      const loaded = await this.runtime.call("thread/loaded/list", { limit: 64 });
+      check(
+        Array.isArray(loaded?.data) &&
+          loaded.data.length <= 64 &&
+          !loaded.nextCursor &&
+          loaded.data.includes(entry.threadId),
+        "retry_not_available",
+      );
+      const turns = await this.runtime
+        .call("thread/turns/list", {
+          threadId: entry.threadId,
+          limit: 1,
+          sortDirection: "desc",
+          itemsView: "full",
+        })
+        .catch(() => {
+          throw new Error("retry_history_unavailable");
+        });
+      check(
+        Array.isArray(turns?.data) && turns.data.length === 0 && !turns.nextCursor,
+        "retry_not_available",
+      );
+      return { threadId: entry.threadId };
+    } finally {
+      this.busy = false;
+    }
+  }
   registrationBinding(projectId) {
     const project = this.project(projectId),
       entry = this.state.projects[projectId];

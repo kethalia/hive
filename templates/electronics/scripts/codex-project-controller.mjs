@@ -37,6 +37,7 @@ export const projectScopes = Object.freeze({
   "/projects/open": "projects:open",
   "/projects/tasks/start": "projects:task:start",
   "/projects/tasks/status": "projects:task:read",
+  "/projects/tasks/retry": "projects:task:retry",
 });
 export function validateProjectOperation(path, r) {
   const common = ["schemaVersion"];
@@ -67,7 +68,7 @@ export function validateProjectOperation(path, r) {
         uuid(r.projectId) &&
         uuid(r.requestId),
     );
-  else if (path === "/projects/tasks/status")
+  else if (["/projects/tasks/status", "/projects/tasks/retry"].includes(path))
     check(
       exact(r, [...common, "projectId", "taskId", "requestId"]) &&
         r.schemaVersion === 1 &&
@@ -334,6 +335,8 @@ export function createProjectController(config, deps) {
       let snap = supervisor.snapshot(p.projectId);
       if (snap.phase === "not-created") {
         check(!t.executionRevoked, "native_unavailable");
+        t.nativeCreationAttempted = true;
+        save();
         snap = await supervisor.command({
           operation: "ensureProject",
           projectId: p.projectId,
@@ -371,6 +374,7 @@ export function createProjectController(config, deps) {
       }
       if (snap.phase === "awaitingFirstTurn") {
         t.phase = "awaitingFirstPrompt";
+        t.firstPromptSubmissionAttempted = true;
         save();
         snap = await supervisor.command({
           operation: "firstPrompt",
@@ -408,6 +412,91 @@ export function createProjectController(config, deps) {
       return;
     pending.add(p.projectId);
     queue = queue.then(() => advance(p)).finally(() => pending.delete(p.projectId));
+  }
+  function retry(p, request) {
+    // Serialize proof, durable acceptance and scheduling with every transition.
+    const operation = queue.then(async () => {
+      check(!closed, "native_unavailable");
+      const t = p.task;
+      check(
+        t && t.taskId === request.taskId && t.digest === digest(t.request),
+        "task_identity_conflict",
+      );
+      check(!t.executionRevoked, "retry_not_available");
+      if (t.phase === "running" || t.retries?.some((r) => r.requestId === request.requestId))
+        return status(p);
+      check(
+        t.phase === "blocked" &&
+          [
+            "github_auth_required",
+            "checkout_busy",
+            "checkout_unavailable",
+            "revision_unavailable",
+            "native_unavailable",
+            "registration_unavailable",
+          ].includes(t.reason),
+        "retry_not_available",
+      );
+      check(
+        t.firstPromptSubmissionAttempted === false &&
+          typeof t.nativeCreationAttempted === "boolean",
+        "retry_not_available",
+      );
+      const inspected = await deps.inspectCheckout(p.repositoryId);
+      if (!t.prepared) {
+        check(
+          !t.nativeCreationAttempted &&
+            !t.nativeThreadId &&
+            inspected?.status === "not_created" &&
+            inspected.lease === null,
+          "retry_not_available",
+        );
+      } else {
+        check(
+          runtime &&
+            inspected?.status === "ready" &&
+            inspected.checkoutVerified === true &&
+            inspected.revision === t.request.revision &&
+            inspected.checkoutIncarnation === t.checkoutIncarnation &&
+            inspected.lease?.taskId === t.taskId &&
+            inspected.lease.id === t.prepared.leaseId &&
+            inspected.lease.generation === t.prepared.leaseGeneration &&
+            inspected.lease.expiresAt > Date.now() / 1000,
+          "retry_not_available",
+        );
+        let proof;
+        try {
+          proof = await runtime.supervisor.provePreExecution(p.projectId, t.taskId);
+        } catch (error) {
+          // Native 0.165 cannot read rollout history for some empty loaded
+          // threads. Missing history is not evidence that no input occurred.
+          if (error?.message === "retry_history_unavailable") return status(p);
+          throw error;
+        }
+        check(
+          proof.threadId === (t.nativeThreadId ?? null) &&
+            (proof.threadId || t.nativeCreationAttempted === false),
+          "retry_not_available",
+        );
+      }
+      check((t.retries?.length ?? 0) < 32, "retry_limit");
+      t.retries ??= [];
+      t.retries.push({
+        requestId: request.requestId,
+        acceptedAt: Date.now(),
+        intentDigest: t.digest,
+      });
+      t.phase = "preparing";
+      t.reason = null;
+      save(); // A lost reply can replay this receipt, never the first prompt.
+      schedule(p);
+      return status(p);
+    });
+    queue = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
   }
   return {
     async handle(path, r) {
@@ -470,10 +559,14 @@ export function createProjectController(config, deps) {
             nativeThreadId: null,
             terminalSessionName: null,
             reason: null,
+            nativeCreationAttempted: false,
+            firstPromptSubmissionAttempted: false,
+            retries: [],
           };
           save();
         }
       } else check(p.task?.taskId === r.taskId, "task_identity_conflict");
+      if (path === "/projects/tasks/retry") return retry(p, r);
       schedule(p);
       return status(p);
     },
