@@ -1,6 +1,7 @@
 export interface RuntimeConfig {
   terminalWsUrl: string;
   codexVoiceEnabled?: true;
+  projectDiscoveryEnabled?: true;
 }
 
 export const RUNTIME_CONFIG_ELEMENT_ID = "hive-runtime-config";
@@ -19,6 +20,9 @@ declare global {
 export function getServerRuntimeConfig(): RuntimeConfig {
   return {
     terminalWsUrl: process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "",
+    ...(process.env.HIVE_PROJECT_DISCOVERY_ENABLED === "true"
+      ? { projectDiscoveryEnabled: true as const }
+      : {}),
     ...(process.env.HIVE_CODEX_VOICE_ENABLED === "true"
       ? { codexVoiceEnabled: true as const }
       : {}),
@@ -49,6 +53,9 @@ export function parseRuntimeConfig(value: string | null | undefined): RuntimeCon
     ) {
       return {
         terminalWsUrl: parsed.terminalWsUrl,
+        ...("projectDiscoveryEnabled" in parsed && parsed.projectDiscoveryEnabled === true
+          ? { projectDiscoveryEnabled: true as const }
+          : {}),
         ...("codexVoiceEnabled" in parsed && parsed.codexVoiceEnabled === true
           ? { codexVoiceEnabled: true as const }
           : {}),
@@ -92,6 +99,7 @@ export function getClientRuntimeConfig(): RuntimeConfig {
 
   return {
     terminalWsUrl: resolveTerminalWsUrl(runtimeConfig.terminalWsUrl, browserLocation),
+    ...(runtimeConfig.projectDiscoveryEnabled ? { projectDiscoveryEnabled: true as const } : {}),
     ...(runtimeConfig.codexVoiceEnabled ? { codexVoiceEnabled: true as const } : {}),
   };
 }

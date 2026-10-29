@@ -27,6 +27,7 @@ const nextConfig: NextConfig = {
       "./scripts/notifications/install.py",
       "./scripts/notifications/agent-hook.py",
       "./templates/ai-dev-k8s/scripts/agent-tools.py",
+      "./templates/ai-dev-k8s/scripts/github-projects.py",
     ],
   },
   async redirects() {

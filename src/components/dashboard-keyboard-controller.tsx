@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import {
   CommandPalette,
   type CommandPaletteAction,
@@ -34,6 +35,7 @@ const DIAGNOSTICS_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
 
 export function DashboardKeyboardController() {
   const router = useRouter();
+  const { projectDiscoveryEnabled } = useRuntimeConfig();
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -145,6 +147,13 @@ export function DashboardKeyboardController() {
       ...(
         [
           [
+            "projects",
+            "Projects",
+            "Browse repositories from your connected GitHub account",
+            undefined,
+            ["repositories", "github"],
+          ],
+          [
             "agents",
             "Agents",
             "Find and resume agent conversations",
@@ -187,17 +196,19 @@ export function DashboardKeyboardController() {
             ["events", "terminal events"],
           ],
         ] as const
-      ).map(([tool, label, description, keys, aliases]) => ({
-        id: `dashboard:open-${tool}`,
-        label,
-        description,
-        aliases,
-        group: tool === "logs" ? "Logs" : "Hive",
-        value: `${label} ${description}`,
-        shortcut: keys ? formatShortcut(keys) : undefined,
-        icon: "search" as const,
-        onSelect: () => openTool({ tool }),
-      })),
+      )
+        .filter(([tool]) => tool !== "projects" || projectDiscoveryEnabled)
+        .map(([tool, label, description, keys, aliases]) => ({
+          id: `dashboard:open-${tool}`,
+          label,
+          description,
+          aliases,
+          group: tool === "logs" ? "Logs" : "Hive",
+          value: `${label} ${description}`,
+          shortcut: keys ? formatShortcut(keys) : undefined,
+          icon: "search" as const,
+          onSelect: () => openTool({ tool }),
+        })),
       {
         id: "dashboard:launch-workspace",
         label: "Launch Coder workspace",
@@ -215,7 +226,7 @@ export function DashboardKeyboardController() {
         onSelect: toggleFullscreen,
       },
     ],
-    [source?.actions, openTool, fullscreen, toggleFullscreen],
+    [source?.actions, openTool, fullscreen, toggleFullscreen, projectDiscoveryEnabled],
   );
   const launcher = useMemo(() => {
     const groups = new Map<string, CommandPaletteAction[]>();

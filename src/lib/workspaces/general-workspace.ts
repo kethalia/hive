@@ -25,6 +25,7 @@ import {
 export const GENERAL_WORKSPACE_OPEN_EVENT = "hive:workspace-open";
 export const HIVE_WINDOW_OPEN_EVENT = "hive:window-open";
 export const hiveToolSchema = z.enum([
+  "projects",
   "agents",
   "diagnostics",
   "settings",
@@ -34,6 +35,7 @@ export const hiveToolSchema = z.enum([
 ]);
 export type HiveTool = z.infer<typeof hiveToolSchema>;
 export const hiveToolLabels: Record<HiveTool, string> = {
+  projects: "Projects",
   templates: "Templates",
   logs: "Logs",
   agents: "Agents",
