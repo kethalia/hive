@@ -448,6 +448,15 @@ test("installed native 0.165 rejects remote CLI attachment of an empty loaded th
   t.after(() => s.close());
   const empty = await s.command(ensure);
   assert.equal(empty.phase, "awaitingFirstTurn");
+  // Metadata-only turns=[] is not history proof; full hydration is unavailable.
+  await assert.rejects(
+    native.call("thread/read", { threadId: empty.threadId, includeTurns: true }),
+    /native_request_rejected/,
+  );
+  await assert.rejects(
+    s.provePreExecution("project", ensure.creationIntentId),
+    /retry_history_unavailable/,
+  );
   await assert.rejects(
     native.call("thread/resume", { threadId: empty.threadId, excludeTurns: true }),
     /native_request_rejected/,
@@ -1081,3 +1090,57 @@ for (const inventory of ["unknown-active", "truncated", "missing-root"]) {
     );
   });
 }
+
+test("pre-execution proof requires exact creation intent, loaded empty history and no first prompt", async (t) => {
+  const f = fixture(t),
+    s = await openSupervisor(config(), f.options);
+  t.after(() => s.close());
+  assert.deepEqual(await s.provePreExecution("project", ensure.creationIntentId), {
+    threadId: null,
+  });
+  await s.command(ensure);
+  let history = [];
+  let loaded = true;
+  const call = f.runtime.call;
+  f.runtime.call = async (method, params) => {
+    if (method === "thread/loaded/list")
+      return { data: loaded ? ["thread-one"] : [], nextCursor: null };
+    if (method === "thread/turns/list") return { data: history, nextCursor: null };
+    return call(method, params);
+  };
+  await assert.rejects(s.provePreExecution("project", "other"), /retry_not_available/);
+  assert.deepEqual(await s.provePreExecution("project", ensure.creationIntentId), {
+    threadId: "thread-one",
+  });
+  history = [{ id: "turn-external", status: "completed" }];
+  await assert.rejects(
+    s.provePreExecution("project", ensure.creationIntentId),
+    /retry_not_available/,
+  );
+  history = [];
+  loaded = false;
+  await assert.rejects(
+    s.provePreExecution("project", ensure.creationIntentId),
+    /retry_not_available/,
+  );
+  loaded = true;
+  await s.command(prompt).catch(() => {});
+  await assert.rejects(
+    s.provePreExecution("project", ensure.creationIntentId),
+    /retry_not_available/,
+  );
+});
+
+test("pre-execution proof cannot reinterpret uncertain creation", async (t) => {
+  const f = fixture(t),
+    s = await openSupervisor(config(), f.options);
+  t.after(() => s.close());
+  f.runtime.call = async () => {
+    throw new Error("lost_reply");
+  };
+  await assert.rejects(s.command(ensure));
+  await assert.rejects(
+    s.provePreExecution("project", ensure.creationIntentId),
+    /retry_not_available/,
+  );
+});

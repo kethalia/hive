@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,11 +38,17 @@ function fixture(t) {
   const status = { schemaVersion: 1, projectId, taskId, requestId: randomUUID() };
   let prepared = null,
     registered = false,
+    registrationError = false,
     phase = "not-created",
     threadId = null,
     attached = false;
   const calls = [];
   const supervisor = {
+    async provePreExecution() {
+      calls.push("provePreExecution");
+      assert.equal(phase, "awaitingFirstTurn");
+      return { threadId };
+    },
     registrationBinding() {
       return { threadId, serverInstanceId: "server" };
     },
@@ -68,6 +74,7 @@ function fixture(t) {
       }
       if (r.operation === "firstPrompt") {
         assert.equal(r.text, start.text);
+        assert.equal(r.requestId, start.requestId);
         phase = "persisted";
       }
       if (r.operation === "attach") attached = true;
@@ -86,7 +93,7 @@ function fixture(t) {
     },
     async inspectCheckout() {
       calls.push("inspect");
-      return prepared;
+      return prepared ?? { status: "not_created", lease: null };
     },
     async prepareCheckout() {
       calls.push("prepare");
@@ -105,8 +112,12 @@ function fixture(t) {
       return {
         supervisor,
         registration: {
-          currentRegistration: () =>
-            registered ? { serverInstanceId: "server", threads: [{ projectId, threadId }] } : null,
+          currentRegistration: () => {
+            if (registrationError) throw new Error("registration_unavailable");
+            return registered
+              ? { serverInstanceId: "server", threads: [{ projectId, threadId }] }
+              : null;
+          },
         },
       };
     },
@@ -131,6 +142,9 @@ function fixture(t) {
     },
     unregister() {
       registered = false;
+    },
+    failRegistration(value) {
+      registrationError = value;
     },
     setPrepared(v) {
       prepared = v;
@@ -401,3 +415,191 @@ for (const phase of ["awaitingRegistration", "blocked"]) {
     assert.equal(f.calls.filter((x) => x === "revokeExecution").length, 1);
   });
 }
+
+test("pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  const resolve = f.deps.resolveRepository;
+  f.deps.resolveRepository = async () => {
+    throw new Error("github_auth_required");
+  };
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  assert.equal(
+    (await f.controller.handle("/projects/tasks/status", f.status)).reason,
+    "github_auth_required",
+  );
+  await f.restart();
+  f.deps.resolveRepository = resolve;
+  const retry = { ...f.status, requestId: randomUUID() };
+  await Promise.all([
+    f.controller.handle("/projects/tasks/retry", retry),
+    f.controller.handle("/projects/tasks/retry", retry),
+  ]);
+  await f.controller.drain();
+  assert.equal(f.calls.filter((x) => x === "prepare").length, 1);
+  assert.equal(f.calls.filter((x) => x === "ensureProject").length, 1);
+  f.register();
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  assert.equal(f.calls.filter((x) => x === "firstPrompt").length, 1);
+  const before = [...f.calls];
+  assert.equal(
+    (await f.controller.handle("/projects/tasks/retry", { ...retry, requestId: randomUUID() }))
+      .phase,
+    "running",
+  );
+  assert.deepEqual(f.calls, before, "running recovery is a read-only acknowledgement");
+  await f.restart();
+  assert.equal((await f.controller.handle("/projects/tasks/retry", retry)).phase, "running");
+  assert.deepEqual(f.calls, before, "lost ACK replay after restart cannot launch a runtime");
+  const saved = JSON.parse(readFileSync(join(f.config.stateDirectory, "projects.json"))).state
+    .projects[f.open.projectId].task;
+  assert.deepEqual(saved.request, f.start);
+  assert.equal(saved.retries.length, 1);
+  assert.equal(saved.retries[0].requestId, retry.requestId);
+});
+
+test("retry receipt cannot automatically retry a second failure", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  f.deps.resolveRepository = async () => {
+    throw new Error("github_auth_required");
+  };
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  const retry = { ...f.status, requestId: randomUUID() };
+  await f.controller.handle("/projects/tasks/retry", retry);
+  await f.controller.drain();
+  const before = [...f.calls];
+  await f.restart();
+  assert.equal((await f.controller.handle("/projects/tasks/retry", retry)).phase, "blocked");
+  await f.controller.drain();
+  assert.deepEqual(f.calls, before);
+});
+
+test("ready live empty native thread retries registration failure without recreating checkout or thread", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  f.failRegistration(true);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  assert.equal(
+    (await f.controller.handle("/projects/tasks/status", f.status)).reason,
+    "registration_unavailable",
+  );
+  f.failRegistration(false);
+  f.register();
+  await f.controller.handle("/projects/tasks/retry", { ...f.status, requestId: randomUUID() });
+  await f.controller.drain();
+  assert.equal(f.calls.filter((x) => x === "provePreExecution").length, 1);
+  assert.equal(f.calls.filter((x) => x === "prepare").length, 1);
+  assert.equal(f.calls.filter((x) => x === "ensureProject").length, 1);
+  assert.equal(f.calls.filter((x) => x === "firstPrompt").length, 1);
+});
+
+for (const changed of ["interrupted", "incarnation", "expired", "history"]) {
+  test(`retry refuses ${changed} checkout/native proof`, async (t) => {
+    const f = fixture(t);
+    await f.controller.handle("/projects/open", f.open);
+    f.failRegistration(true);
+    await f.controller.handle("/projects/tasks/start", f.start);
+    await f.controller.drain();
+    const inspected = await f.deps.inspectCheckout();
+    if (changed === "interrupted") f.setPrepared({ ...inspected, status: "interrupted" });
+    if (changed === "incarnation")
+      f.setPrepared({ ...inspected, checkoutIncarnation: "replacement" });
+    if (changed === "expired")
+      f.setPrepared({ ...inspected, lease: { ...inspected.lease, expiresAt: 0 } });
+    if (changed === "history") f.setPhase("persisted");
+    f.failRegistration(false);
+    await assert.rejects(
+      f.controller.handle("/projects/tasks/retry", { ...f.status, requestId: randomUUID() }),
+    );
+    assert.equal(f.calls.includes("firstPrompt"), false);
+  });
+}
+
+test("retry cannot reopen uncertain first prompt or accept caller execution fields", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  f.register();
+  f.setPhase("firstPromptUncertain");
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  await assert.rejects(
+    f.controller.handle("/projects/tasks/retry", f.status),
+    /retry_not_available/,
+  );
+  for (const patch of [
+    { text: "replacement" },
+    { revision: "b".repeat(40) },
+    { leaseId: randomUUID() },
+    { model: "other" },
+  ])
+    assert.throws(() =>
+      validateProjectOperation("/projects/tasks/retry", { ...f.status, ...patch }),
+    );
+});
+
+for (const mutation of ["legacy", "creationAttempted", "promptAttempted", "revoked"]) {
+  test(`retry rejects ${mutation} durable intent authority`, async (t) => {
+    const f = fixture(t);
+    await f.controller.handle("/projects/open", f.open);
+    f.deps.resolveRepository = async () => {
+      throw new Error("github_auth_required");
+    };
+    await f.controller.handle("/projects/tasks/start", f.start);
+    await f.controller.drain();
+    await f.controller.close();
+    const path = join(f.config.stateDirectory, "projects.json");
+    const saved = JSON.parse(readFileSync(path));
+    const task = saved.state.projects[f.open.projectId].task;
+    if (mutation === "legacy") delete task.nativeCreationAttempted;
+    if (mutation === "creationAttempted") task.nativeCreationAttempted = true;
+    if (mutation === "promptAttempted") task.firstPromptSubmissionAttempted = true;
+    if (mutation === "revoked") task.executionRevoked = { reason: "lease_renewal_failed" };
+    // Explicit trusted fixture journal, never a production bypass.
+    saved.signature = createHmac(
+      "sha256",
+      readFileSync(join(f.config.stateDirectory, "projects.key")),
+    )
+      .update(JSON.stringify(saved.state))
+      .digest("hex");
+    writeFileSync(path, JSON.stringify(saved));
+    await f.restart();
+    await assert.rejects(
+      f.controller.handle("/projects/tasks/retry", { ...f.status, requestId: randomUUID() }),
+      /retry_not_available/,
+    );
+    assert.equal(f.calls.includes("ensureProject"), false);
+  });
+}
+
+test("unavailable empty native history returns the existing blocked status without scheduling", async (t) => {
+  const f = fixture(t);
+  const openRuntime = f.deps.openRuntime;
+  f.deps.openRuntime = async (...args) => {
+    const runtime = await openRuntime(...args);
+    runtime.supervisor.provePreExecution = async () => {
+      throw new Error("retry_history_unavailable");
+    };
+    return runtime;
+  };
+  await f.controller.handle("/projects/open", f.open);
+  f.failRegistration(true);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  f.failRegistration(false);
+  const before = [...f.calls];
+  const result = await f.controller.handle("/projects/tasks/retry", {
+    ...f.status,
+    requestId: randomUUID(),
+  });
+  await f.controller.drain();
+  assert.equal(result.phase, "blocked");
+  assert.equal(result.reason, "registration_unavailable");
+  assert.deepEqual(f.calls, before.concat("inspect"));
+});
