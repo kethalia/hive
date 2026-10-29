@@ -21,6 +21,7 @@ import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
+import { NATIVE_PROFILE, prepareNativeNamespace } from "./codex-native-namespace.mjs";
 import { processIdentity } from "./codex-process-identity.mjs";
 
 export const VERSION = "0.165.0";
@@ -72,12 +73,17 @@ export function validateSupervisorConfig(raw) {
       "codexExecutable",
       "codexSha256",
       "projects",
+      "executionMode",
     ]) &&
       raw.schemaVersion === 1 &&
       raw.profile === "software",
     "unsupported_configuration",
   );
   for (const key of ["ownerId", "workspaceId", "buildId"]) check(id(raw[key]), "invalid_identity");
+  check(
+    raw.executionMode === undefined || ["direct", "isolated"].includes(raw.executionMode),
+    "unsupported_execution_mode",
+  );
   check(
     typeof raw.codexExecutable === "string" &&
       resolve(raw.codexExecutable) === raw.codexExecutable &&
@@ -197,6 +203,7 @@ export async function openSupervisor(raw, dependencies = {}) {
     state.status = "starting";
     state.hostProcess = processIdentity(process.pid);
     state.nativeProcess = null;
+    state.executionIdentity = null;
     for (const entry of Object.values(state.projects)) entry.attached = false;
     save();
     const supervisor = new ProjectSupervisor(config, home, stateDirectory, state, save, lock);
@@ -212,6 +219,10 @@ export async function openSupervisor(raw, dependencies = {}) {
     check(runtime.version === VERSION && runtime.alive(), "unsupported_native_runtime");
     state.status = "ready";
     state.nativeProcess = runtime.processIdentity ?? null;
+    state.executionIdentity = runtime.executionIdentity ?? {
+      mode: "direct",
+      native: state.nativeProcess,
+    };
     save();
     return supervisor;
   } catch (error) {
@@ -737,6 +748,9 @@ export class ProjectSupervisor {
           allowProviderModelFallback: false,
           config: { model_reasoning_effort: project.effort },
           historyMode: "paginated",
+          ...(this.config.executionMode === "isolated"
+            ? { permissions: NATIVE_PROFILE, approvalPolicy: "never" }
+            : {}),
           ...(this.managerAdapter
             ? { dynamicTools: this.managerTools(project.projectId), experimentalRawEvents: true }
             : {}),
@@ -748,6 +762,12 @@ export class ProjectSupervisor {
             started.reasoningEffort === project.effort,
           "native_thread_binding_mismatch",
         );
+        if (this.config.executionMode === "isolated")
+          check(
+            started.activePermissionProfile?.id === NATIVE_PROFILE &&
+              started.approvalPolicy === "never",
+            "native_permission_binding_mismatch",
+          );
         check(
           !Object.values(this.state.projects).some(
             (other) => other !== entry && other.threadId === started.thread.id,
@@ -769,6 +789,9 @@ export class ProjectSupervisor {
             resumed = await this.runtime.call("thread/resume", {
               threadId: entry.threadId,
               excludeTurns: true,
+              ...(this.config.executionMode === "isolated"
+                ? { permissions: NATIVE_PROFILE, approvalPolicy: "never" }
+                : {}),
             });
           } catch {
             entry.phase = "historyRejoinUnsupported";
@@ -781,6 +804,12 @@ export class ProjectSupervisor {
                 join(this.home, "projects/.hive-managed/github", project.repositoryId, "checkout"),
             "native_thread_binding_mismatch",
           );
+          if (this.config.executionMode === "isolated")
+            check(
+              resumed.activePermissionProfile?.id === NATIVE_PROFILE &&
+                resumed.approvalPolicy === "never",
+              "native_permission_binding_mismatch",
+            );
           entry.serverInstanceId = this.state.serverInstanceId;
           await this.refresh(entry);
         } else {
@@ -943,7 +972,7 @@ export function createNativeManagerRouter(getAdapter, reply) {
   };
 }
 
-export async function launchNative({ config, home, stateDirectory, lock }) {
+export async function launchNative({ config, home, stateDirectory, lock, fixtureProvider }) {
   const executable = readFileSync(config.codexExecutable);
   check(
     realpathSync(config.codexExecutable) === config.codexExecutable &&
@@ -951,7 +980,7 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
       hash(executable) === config.codexSha256,
     "native_executable_changed",
   );
-  const env = Object.fromEntries(
+  let env = Object.fromEntries(
     ["PATH", "USER", "LANG", "SHELL"].filter((k) => process.env[k]).map((k) => [k, process.env[k]]),
   );
   Object.assign(env, { HOME: home, CODEX_HOME: join(home, ".codex"), TERM: "xterm-256color" });
@@ -974,27 +1003,37 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
   const token = randomBytes(32).toString("hex");
   const tokenPath = join(stateDirectory, "native-token");
   atomic(tokenPath, token, true);
+  const namespace =
+    config.executionMode === "isolated"
+      ? prepareNativeNamespace({
+          home,
+          stateDirectory,
+          codexExecutable: config.codexExecutable,
+          fixtureProvider,
+        })
+      : null;
+  if (namespace) env = namespace.env;
+  const nativeArgs = [
+    "app-server",
+    "--listen",
+    endpoint,
+    "--ws-auth",
+    "capability-token",
+    "--ws-token-file",
+    tokenPath,
+  ];
+  const nativeCommand = namespace
+    ? namespace.command(nativeArgs, { holdLock: true })
+    : [config.codexExecutable, ...nativeArgs];
   // Linux parent-death signal survives exec; inherited flock fd prevents a second
   // supervisor until this exact child exits, including abrupt supervisor death.
   const guardian =
     "import ctypes,os,signal,sys\np=int(sys.argv[1])\nr=ctypes.CDLL(None).prctl(1,signal.SIGTERM,0,0,0)\nif r!=0 or os.getppid()!=p: sys.exit(1)\nos.execv(sys.argv[2],sys.argv[2:])";
-  const child = spawn(
-    "/usr/bin/python3",
-    [
-      "-c",
-      guardian,
-      String(process.pid),
-      config.codexExecutable,
-      "app-server",
-      "--listen",
-      endpoint,
-      "--ws-auth",
-      "capability-token",
-      "--ws-token-file",
-      tokenPath,
-    ],
-    { cwd: home, env, stdio: ["ignore", "ignore", "ignore", lock] },
-  );
+  const child = spawn("/usr/bin/python3", ["-c", guardian, String(process.pid), ...nativeCommand], {
+    cwd: home,
+    env,
+    stdio: ["ignore", "ignore", "ignore", lock],
+  });
   let ws;
   let closing = false;
   let callback = () => {};
@@ -1099,9 +1138,14 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
       "unsupported_native_runtime",
     );
     ws.send(JSON.stringify({ method: "initialized" }));
+    if (namespace) await namespace.verify(call, namespace.verificationCwd);
+    const executionIdentity = namespace
+      ? namespace.attest(child.pid)
+      : { mode: "direct", native: processIdentity(child.pid) };
     return {
       version: VERSION,
-      processIdentity: processIdentity(child.pid),
+      processIdentity: executionIdentity.native,
+      executionIdentity,
       setManagerAdapter: (adapter) => {
         check(!managerAdapter, "manager_adapter_already_installed");
         managerAdapter = adapter;
@@ -1154,6 +1198,17 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
           });
           return;
         } catch {}
+        const cliArgs = [
+          "resume",
+          "--remote",
+          endpoint,
+          "--remote-auth-token-env",
+          "HIVE_NATIVE_CODEX_TOKEN",
+          threadId,
+        ];
+        const cliCommand = namespace
+          ? namespace.command(cliArgs, { cwd })
+          : [config.codexExecutable, ...cliArgs];
         execFileSync(
           "tmux",
           [
@@ -1167,13 +1222,7 @@ export async function launchNative({ config, home, stateDirectory, lock }) {
             name,
             "-c",
             cwd,
-            config.codexExecutable,
-            "resume",
-            "--remote",
-            endpoint,
-            "--remote-auth-token-env",
-            "HIVE_NATIVE_CODEX_TOKEN",
-            threadId,
+            ...cliCommand,
           ],
           { env: cliEnv, stdio: "ignore", timeout: 5000 },
         );

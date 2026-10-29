@@ -36,3 +36,15 @@ export function processIdentity(pid) {
     inode: String(info.ino),
   };
 }
+
+export function processParentPid(pid) {
+  const identity = processIdentity(pid);
+  const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+  const fields = stat
+    .slice(stat.lastIndexOf(") ") + 2)
+    .trim()
+    .split(/\s+/);
+  if (fields[19] !== identity.startTime || !/^\d+$/.test(fields[1] ?? ""))
+    throw new Error("process_identity_changed");
+  return Number(fields[1]);
+}

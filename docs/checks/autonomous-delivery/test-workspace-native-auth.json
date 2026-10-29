@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T19:58:28.019556+00:00",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "nativeVersion": "0.165.0",
+  "nativeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "codexHome": "/home/coder/.local/share/hive/codex-native/codex",
+  "authentication": "user-completed fresh device authorization",
+  "processExit": 0,
+  "successMessageObserved": true,
+  "primaryCredentialsCopied": false,
+  "inferenceValidated": false,
+  "productionChanged": false
+}

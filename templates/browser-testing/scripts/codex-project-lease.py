@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Private installed host child. No arbitrary lease fields or paths are inputs."""
+import hashlib
 import importlib.util
 import json
 import os
@@ -54,8 +55,35 @@ class InstalledControllerAuthority:
                 and supervisor.get("hostProcess") == controller["hostProcess"], "controller_process_changed")
         native = supervisor.get("nativeProcess")
         require(isinstance(native, dict) and native == process_identity(native.get("pid")), "native_process_changed")
-        raw = Path(f"/proc/{native['pid']}/stat").read_text()
-        require(int(raw[raw.rindex(") ") + 2:].split()[1]) == self.parent_pid, "native_parent_changed")
+        execution = supervisor.get("executionIdentity") or {"mode": "direct", "native": native}
+        require(isinstance(execution, dict) and execution.get("native") == native, "native_process_changed")
+        def parent(pid):
+            raw = Path(f"/proc/{pid}/stat").read_text()
+            return int(raw[raw.rindex(") ") + 2:].split()[1])
+        wrappers = []
+        if execution.get("mode") == "direct":
+            require(set(execution) == {"mode", "native"} and parent(native["pid"]) == self.parent_pid, "native_parent_changed")
+        elif execution.get("mode") == "isolated":
+            require(set(execution) == {"mode", "wrapper", "monitor", "native", "policySha256"}, "native_parent_changed")
+            wrapper, monitor = execution["wrapper"], execution["monitor"]
+            require(isinstance(wrapper, dict) and isinstance(monitor, dict)
+                    and wrapper == process_identity(wrapper.get("pid"))
+                    and monitor == process_identity(monitor.get("pid")), "native_wrapper_changed")
+            require(len({self.parent_pid, wrapper["pid"], monitor["pid"], native["pid"]}) == 4
+                    and parent(wrapper["pid"]) == self.parent_pid
+                    and parent(monitor["pid"]) == wrapper["pid"]
+                    and parent(native["pid"]) == monitor["pid"], "native_parent_changed")
+            native_pin = "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5"
+            wrapper_pin = "755c8d6a9b893905a4aabab058bd6c02c453e5e8653adb84fc08e570607f3f36"
+            for identity, pin in [(wrapper, wrapper_pin), (monitor, wrapper_pin), (native, native_pin)]:
+                require(hashlib.sha256(Path(f"/proc/{identity['pid']}/exe").read_bytes()).hexdigest() == pin, "native_executable_changed")
+            policy = self.home / ".local/state/hive/codex-project-supervisor/native-policy/requirements.toml"
+            require(policy.resolve() == policy and policy.is_file() and policy.stat().st_uid == os.getuid()
+                    and not policy.stat().st_mode & 0o077
+                    and hashlib.sha256(policy.read_bytes()).hexdigest() == execution["policySha256"], "native_policy_changed")
+            wrappers = [wrapper, monitor]
+        else:
+            require(False, "native_execution_mode_changed")
         require(supervisor["status"] == "ready" and supervisor["ownerId"] == controller["ownerId"]
                 and supervisor["workspaceId"] == controller["workspaceId"], "native_lifetime_changed")
         project = controller["projects"][project_id]
@@ -75,7 +103,8 @@ class InstalledControllerAuthority:
         # Inspection is bounded, but process exit/replacement during it still
         # invalidates renewal before the managed receipt is updated.
         require(process_identity(self.parent_pid) == controller["hostProcess"]
-                and process_identity(native["pid"]) == native, "native_process_changed")
+                and process_identity(native["pid"]) == native
+                and all(process_identity(value["pid"]) == value for value in wrappers), "native_process_changed")
 
 
 def main():
