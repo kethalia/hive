@@ -1,0 +1,61 @@
+{
+  "observedAt": "2026-10-29T16:40:02.073Z",
+  "browser": "155.0.8059.79",
+  "profile": "browser",
+  "kind": "synthetic-component-browser",
+  "results": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "result": "passed",
+      "checks": [
+        "report deep link",
+        "evidence mode",
+        "keyboard summary",
+        "no horizontal overflow",
+        "40-to-45 history",
+        "command escaping",
+        "terminal intent",
+        "revocation clears content"
+      ],
+      "pageErrors": []
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "result": "passed",
+      "checks": [
+        "report deep link",
+        "evidence mode",
+        "keyboard summary",
+        "no horizontal overflow",
+        "40-to-45 history",
+        "command escaping",
+        "terminal intent",
+        "revocation clears content"
+      ],
+      "pageErrors": []
+    }
+  ],
+  "source": {
+    "kind": "synthetic-component-harness",
+    "sourceRevision": "e483581d1befe3c3f8efad560a626945dc1b2425",
+    "sourceDirty": true,
+    "files": {
+      "src/components/delivery/DeliveryPanel.tsx": "6d59672a9e1914439dbc77999388d97d2f13f1f2f199ac7abf89f70503948682",
+      "src/components/projects/ConversationView.tsx": "16bf59317607567a93525d7a934f8f5b054e76d98ea250f47ed96d6b6a52c2a2",
+      "src/lib/delivery/read-contracts.ts": "0dc622293463a47b1d63f09307aad7af484dc771b181eaeb99d72f6006a695d1",
+      "src/app/globals.css": "b795ab865f61e70fb174cb57c1ece3dc16ba42a7472b6e408d72e936e2d0e70a",
+      "scripts/checks/delivery-ui/main.tsx": "c68223daf86015539cd44ba4d56bb8ee63b2d3d7b63caafcdc648faee2c0b896"
+    },
+    "nativeSessionVerified": false,
+    "authenticationVerified": false
+  },
+  "nativeSessionVerified": false,
+  "authenticationVerified": false,
+  "productionVerified": false
+}
