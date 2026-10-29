@@ -12,6 +12,14 @@ pnpm build:cloudflare
 pnpm preview:cloudflare --port 8792
 ```
 
+This preview is private by default. A missing/invalid runtime `PREVIEW_BEARER` returns 503;
+requests require its separate `Authorization: Bearer …` header and otherwise receive 401 before
+OpenNext or database access. Query parameters never authorize preview access. The credential is
+stripped before framework/upstream handling. `assets.run_worker_first` covers static assets, and
+authorized responses use private/no-store caching. An unconfigured manual local server therefore
+remains closed. The bounded `auth/run-local-integration.mjs --app` helper privately generates and
+supplies the header for synthetic app tests; it never places credentials in URLs or logs.
+
 Versions are pinned: OpenNext 1.20.14, Wrangler 4.155.0 and Prisma/adapter 6.19.3; the existing
 Next 16.4.1 application is preserved. `build`, `start`, and `postbuild` retain their Node behavior.
 The adapter invokes `next build --webpack`; no dependency or compatibility-version bypass is used.
@@ -87,6 +95,43 @@ Next: real Hive login/session/credential behavior on a Worker auth implementatio
 transaction/task reads against the isolated app DB, authenticated middleware tests, host bridge,
 terminal transport, durable jobs, cache/ISR choices and browser evidence. No production cutover
 or complete F02 acceptance follows from this build alone.
+
+## Prepared deployment, with no cloud write
+
+After committing source, building in the retained clean validation checkout, and running the
+guarded `--app` proof at that revision:
+
+```sh
+node deploy/cloudflare/app/prepare-deployment.mjs
+```
+
+Preparation requires the exact ready artifact and successful committed app proof, including its
+private HTML/static-asset checks. It also requires a read-only account/name/quota audit no older
+than 30 minutes in `cloudflare-app-preflight.json`. The sampled usage check is evidence of apparent
+included-allowance headroom, not an invoice or future billing guarantee. Refresh it before a
+deployment decision if stale. No additional charges or paid products are authorized.
+
+The script creates a fresh private directory containing separate app/auth secret files and
+configs; it reads only the isolated runtime database URL and creates distinct preview, internal
+service, encryption and cookie secrets. Owner database URLs and Coder passwords/tokens are never
+bound. A private manifest ties source, tested artifact, account, configs and a maximum of 30
+scripted requests together. It rejects routes, cron, public URLs and additional product bindings;
+both Workers cap request CPU at 100 ms, with stored observability logs disabled.
+
+Wrangler 4.155.0 is already authenticated to the reviewed account with Worker write scopes.
+The connected API handles read-only account/version checks, but exposes no local artifact upload
+handle: module APIs require multipart bytes or inline base64, and the upload-session API concerns
+static assets. The concrete full-bundle path is the existing authenticated Wrangler CLI, first
+uploading the private auth service and then the app with its separate private secrets file.
+Wrangler handles module/WASM/static-asset uploads. The app's measured 21.16 MiB and auth's 3.58 MiB
+fit the current 64 MiB uncompressed Worker limit; startup/runtime validation still follows upload.
+
+Do not run uploads or enable URLs until the primary confirms the exact prepared revision, config,
+fresh headroom and bounded test plan. No route/DNS change, cron activation, add-on, new login or
+production cutover is part of preparation. Any eventual temporary public app URL must retain the
+bearer gate for every asset/request; auth remains service-only. Preserve deployment/version IDs,
+sanitized results and disable public URLs after the authorized bounded probes. Browser automation
+requires origin-scoped authorization handling in Browser Testing and remains a separate gate.
 
 ## Primary vendor references
 

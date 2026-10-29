@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T17:50:15Z",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "plan": "paid-user-confirmed",
+  "source": "connected Cloudflare API account/scripts + GraphQL account-wide overview datasets; local Wrangler whoami",
+  "targets": [
+    {
+      "name": "hive-app-compatibility-preview",
+      "exists": false
+    },
+    {
+      "name": "hive-auth-compatibility-preview",
+      "exists": false
+    }
+  ],
+  "workerCount": 9,
+  "wrangler": {
+    "version": "4.155.0",
+    "authenticated": true,
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "requiredScopesPresent": ["account:read", "workers:write", "workers_scripts:write"],
+    "unrelatedMissingScopes": ["k2.read", "k2.write"],
+    "credentialsReadOrExportedByAgent": false
+  },
+  "window": {
+    "startInclusive": "2026-09-28T00:00:00Z",
+    "endExclusive": "2026-10-29T17:50:00Z"
+  },
+  "usage": {
+    "requests": 276880,
+    "rawCpuTimeUs": 20307657950,
+    "standardCpuTimeUs": 2283884446,
+    "conservativeCpuMilliseconds": 20307657.95
+  },
+  "publishedIncludedAllowance": {
+    "requestsPerMonth": 10000000,
+    "cpuMillisecondsPerMonth": 30000000,
+    "source": "https://developers.cloudflare.com/workers/platform/pricing/"
+  },
+  "interpretation": "Adaptive/sampled analytics, not invoice usage or a future billing guarantee. The larger CPU sum conservatively bounds observed usage over a window covering the possible current monthly cycle. Billing read scope is unavailable; no additional costs authorized.",
+  "exactInvoiceUsageVerified": false,
+  "futureHeadroomReserved": false,
+  "approvedProbeRequestMaximum": 30,
+  "maximumCpuMillisecondsPerWorkerInvocation": 100,
+  "additionalCostsAuthorized": false,
+  "newPaidProductsAllowed": false,
+  "cloudWrites": 0,
+  "sizeLimit": {
+    "uncompressedMiB": 64,
+    "compressedLimit": false,
+    "source": "https://developers.cloudflare.com/changelog/post/2026-09-04-increased-worker-size-limit/"
+  }
+}
