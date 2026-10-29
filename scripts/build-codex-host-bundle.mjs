@@ -41,6 +41,7 @@ const modules = [
   "codex-host-registration.mjs",
   "codex-project-terminal.mjs",
   "delivery-manager-adapter.mjs",
+  "delivery-native-spool.mjs",
 ];
 const assets = [
   "managed-projects.py",

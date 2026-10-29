@@ -273,6 +273,12 @@ export async function startWorkspaceHost(raw) {
                 hostPrivateKeyPem: supervisor.state.controllerPrivateKeyPem,
                 currentRegistration: () => registration.currentRegistration(),
                 currentProjectContext: (threadId) => controller.currentProjectContext(threadId),
+                // Producer isolation has not passed its activation gate.
+                nativeEnabled: false,
+                currentServerInstanceId: () => supervisor.state.serverInstanceId,
+                registerChild: (managerThreadId, childThreadId, spawnCallId) =>
+                  supervisor.registerChild(managerThreadId, childThreadId, spawnCallId),
+                readNativeHistory: (request) => supervisor.readNativeHistory(request),
               }),
             );
           await gateway.close();

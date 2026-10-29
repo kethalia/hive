@@ -51,6 +51,8 @@ class HostInstallerTests(unittest.TestCase):
             prior.mkdir()
             (prior / "journal").write_text("retain")
             installed = installer.install_package(root, self.content, self.digest)
+            subprocess.run(["python3", str(installed / "codex-project-lease.py")], input=b"{}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.assertFalse((installed / "__pycache__").exists())
             self.assertEqual(installer.install_package(root, self.content, self.digest), installed)
             self.assertEqual((prior / "journal").read_text(), "retain")
             self.assertEqual(installed.stat().st_mode & 0o777, 0o700)

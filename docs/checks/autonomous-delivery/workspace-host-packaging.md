@@ -280,3 +280,34 @@ concurrent duplicates, lost acknowledgement/restart, replay after a second
 failure, changed lease/incarnation, uncertain history, legacy flags and revoked
 execution. The opt-in installed-native supervisor test records the unsupported
 empty-history proof without account-backed inference.
+
+### Installed native-child routing checkpoint
+
+The supervisor exposes installed-only `registerChild(managerThreadId,
+childThreadId, spawnCallId)` and `readNativeHistory({managerThreadId,
+childThreadId,spawnCallId})` callbacks. Neither is a browser RPC or HTTP operation.
+The mapping is signed in the existing supervisor journal, bounded to 64 children
+per project, and pinned to the exact parent and native server lifetime. Conflicting
+spawn/child ownership is rejected. Prior-lifetime mappings are not silently
+adopted. The trusted observer must derive these identities from actual native
+spawn observations; the callback does not itself authenticate model assertions.
+
+Only mapped child `turn/started`, `turn/completed` and `item/completed`
+notifications reach the installed observer. Child raw-response/started-item
+content and unknown children are not forwarded. Known-child history requires no
+execution lease, reads one page of at most 20 turns, bounds response bytes and
+preserves `nextCursor` so the observer can retain a partial-history hold.
+
+Execution revocation attempts exact active-turn interruption for the root and
+all currently mapped children. A late native-proven child mapping after
+revocation queues another interruption pass. Uncertain interruption, unknown
+active threads, incomplete inventory or an exhausted inspection deadline retain
+review status; other projects and their mapped children remain untouched.
+Supervisor shutdown awaits the installed observer's bounded close operation
+before releasing the native process and OS lock.
+
+The wrapper supplies these callbacks and the current server instance identity,
+but explicitly keeps native evidence ingestion disabled. The stronger producer
+isolation gate remains pending. Focused tests cover routing, conflicting IDs,
+read-after-lease-loss, partial/stale history, child interruption, delayed mapping,
+other-project isolation and awaited shutdown.

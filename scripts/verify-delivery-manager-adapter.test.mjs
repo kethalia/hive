@@ -30,6 +30,14 @@ function fixture(t) {
     stateDirectory: join(directory, "journal"),
     hostPrivateKeyPem: key.privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
     currentRegistration: () => registration,
+    currentProjectContext: () => ({
+      projectId: registration.threads[0].projectId,
+      preparationIntentId: "11111111-1111-4111-8111-111111111111",
+      repositoryId: "123",
+      revision: "a".repeat(40),
+      leaseId: "22222222-2222-4222-8222-222222222222",
+      leaseGeneration: 1,
+    }),
   };
   const request = {
     threadId: registration.threads[0].threadId,

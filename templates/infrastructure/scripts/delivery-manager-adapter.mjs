@@ -15,6 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
+import { createDeliveryNativeSpool, nativeSourceProofPayload } from "./delivery-native-spool.mjs";
 
 const check = (value, reason) => {
   if (!value) throw new Error(reason);
@@ -51,7 +52,7 @@ export const deliveryManagerToolSpec = {
 };
 export function deliveryProofPayload(value) {
   const { proof: _proof, ...unsigned } = value;
-  return `hive-delivery-host-v1\nPOST\n/api/delivery/host\n${JSON.stringify(canonical(unsigned))}`;
+  return `hive-delivery-host-v2\nPOST\n/api/delivery/host\n${JSON.stringify(canonical(unsigned))}`;
 }
 /** Reduce only native spawn/settings metadata. Prompt text and arbitrary raw
  * response bodies are discarded. Missing pairs remain unresolved, never guessed. */
@@ -211,6 +212,8 @@ export function createDeliveryManagerAdapter(options) {
     stateDirectory,
     hostPrivateKeyPem,
     currentRegistration,
+    currentProjectContext,
+    nativeEnabled = false,
     fetchImpl = fetch,
   } = options;
   if (!enabled)
@@ -230,6 +233,32 @@ export function createDeliveryManagerAdapter(options) {
   );
   const key = createPrivateKey(hostPrivateKeyPem);
   check(key.asymmetricKeyType === "ed25519", "invalid_delivery_key");
+  check(typeof currentProjectContext === "function", "trusted_checkout_context_required");
+  const nativeSpool = nativeEnabled
+    ? createDeliveryNativeSpool({
+        stateDirectory: join(stateDirectory, "native"),
+        hostPrivateKeyPem,
+        currentRegistration,
+        currentServerInstanceId: options.currentServerInstanceId,
+        registerChild: options.registerChild,
+        readNativeHistory: options.readNativeHistory,
+        onHold: options.onObserverHold,
+        deliver: async (value) => {
+          const proof = sign(null, Buffer.from(nativeSourceProofPayload(value)), key).toString(
+            "base64url",
+          );
+          const response = await fetchImpl(`${hiveOrigin}/api/delivery/native`, {
+            method: "POST",
+            redirect: "manual",
+            credentials: "omit",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...value, proof }),
+            signal: AbortSignal.timeout(10000),
+          });
+          return readResponse(response);
+        },
+      })
+    : null;
   const active = new Set();
   const nativeObserver = createNativeDelegationObserver((threadId) => {
     const registration = currentRegistration();
@@ -241,6 +270,7 @@ export function createDeliveryManagerAdapter(options) {
   return {
     tools: () => [structuredClone(deliveryManagerToolSpec)],
     observe(notification) {
+      nativeSpool?.observe(notification);
       const observation = nativeObserver(notification);
       // A distinct trusted observer callback may persist metadata; native tool
       // arguments cannot call it or select a producer. No evidence is created.
@@ -277,10 +307,43 @@ export function createDeliveryManagerAdapter(options) {
           ),
         "invalid_delivery_command",
       );
+      nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
+      const checkoutBinding = structuredClone(currentProjectContext(params.threadId));
+      const fields = [
+        "projectId",
+        "preparationIntentId",
+        "repositoryId",
+        "revision",
+        "leaseId",
+        "leaseGeneration",
+      ];
+      const uuid = (value) =>
+        typeof value === "string" &&
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
+      check(
+        checkoutBinding &&
+          typeof checkoutBinding === "object" &&
+          Object.keys(checkoutBinding).length === fields.length &&
+          Object.keys(checkoutBinding).every((field) => fields.includes(field)) &&
+          [
+            checkoutBinding.projectId,
+            checkoutBinding.preparationIntentId,
+            checkoutBinding.leaseId,
+          ].every(uuid) &&
+          /^[1-9][0-9]{0,19}$/.test(checkoutBinding.repositoryId) &&
+          /^[a-f0-9]{40}$/.test(checkoutBinding.revision) &&
+          Number.isSafeInteger(checkoutBinding.leaseGeneration) &&
+          checkoutBinding.leaseGeneration > 0 &&
+          registered.threads.some(
+            (value) =>
+              value.threadId === params.threadId && value.projectId === checkoutBinding.projectId,
+          ),
+        "delivery_checkout_context_invalid",
+      );
       const encoded = JSON.stringify(canonical(command));
       check(Buffer.byteLength(encoded) <= 48 * 1024, "delivery_command_limit");
       const identity = JSON.stringify([
-        registered.id,
+        registered.serverInstanceId,
         params.threadId,
         params.turnId,
         params.callId,
@@ -288,10 +351,14 @@ export function createDeliveryManagerAdapter(options) {
       check(!active.has(identity), "delivery_call_busy");
       active.add(identity);
       try {
-        const eventId = journal(stateDirectory, identity, hash(encoded));
+        const eventId = journal(
+          stateDirectory,
+          identity,
+          hash(JSON.stringify(canonical({ command, checkoutBinding }))),
+        );
         const now = Date.now();
         const value = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           registrationId: registered.id,
           serverInstanceId: registered.serverInstanceId,
           eventId,
@@ -301,6 +368,7 @@ export function createDeliveryManagerAdapter(options) {
           issuedAt: now,
           expiresAt: Math.min(now + 30_000, registered.expiresAt),
           command,
+          checkoutBinding,
         };
         const proof = sign(null, Buffer.from(deliveryProofPayload(value)), key).toString(
           "base64url",
@@ -314,6 +382,7 @@ export function createDeliveryManagerAdapter(options) {
           signal: AbortSignal.timeout(10_000),
         });
         const result = await readResponse(response);
+        nativeSpool?.recordClaim(params, command, result, checkoutBinding);
         return {
           contentItems: [{ type: "inputText", text: JSON.stringify(result) }],
           success: true,
@@ -321,6 +390,18 @@ export function createDeliveryManagerAdapter(options) {
       } finally {
         active.delete(identity);
       }
+    },
+    async resume() {
+      await nativeSpool?.resume();
+    },
+    async flushNative() {
+      await nativeSpool?.flush();
+    },
+    async close() {
+      await nativeSpool?.close();
+    },
+    inspectNative() {
+      return nativeSpool?.inspect() ?? null;
     },
   };
 }

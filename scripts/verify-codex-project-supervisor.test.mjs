@@ -987,12 +987,14 @@ test("renewal failure durably fences execution, interrupts exact turn and preser
     if (method === "thread/turns/list") return { data: [{ id: "turn-one", status: "inProgress" }] };
     if (method === "turn/interrupt") return {};
     if (method === "thread/loaded/list")
-      return { data: ["thread-one", "thread-other"], nextCursor: null };
+      return { data: ["thread-one", "child-one", "thread-other", "child-other"], nextCursor: null };
     if (method === "thread/read")
       return {
         thread: {
           id: params.threadId,
-          status: { type: params.threadId === "thread-one" ? "idle" : "active" },
+          status: {
+            type: ["thread-one", "child-one"].includes(params.threadId) ? "idle" : "active",
+          },
         },
       };
     throw new Error("unexpected_rpc");
@@ -1009,11 +1011,16 @@ test("renewal failure durably fences execution, interrupts exact turn and preser
     creationIntentId: "other-intent",
   });
   await s.command({ ...prompt, projectId: "other" });
+  s.registerChild("thread-one", "child-one", "spawn-one");
+  s.registerChild("thread-other", "child-other", "spawn-other");
   await s.revokeExecution("project");
   assert.equal(s.state.projects.project.executionRevoked.reviewRequired, false);
   assert.deepEqual(
     f.calls.filter((c) => c.method === "turn/interrupt").map((c) => c.params),
-    [{ threadId: "thread-one", turnId: "turn-one" }],
+    [
+      { threadId: "thread-one", turnId: "turn-one" },
+      { threadId: "child-one", turnId: "turn-one" },
+    ],
   );
   assert.deepEqual(
     f.calls.filter((c) => c.method === "detach").map((c) => c.projectId),
@@ -1143,4 +1150,150 @@ test("pre-execution proof cannot reinterpret uncertain creation", async (t) => {
     s.provePreExecution("project", ensure.creationIntentId),
     /retry_not_available/,
   );
+});
+
+test("installed child mapping gates notifications and history by exact parent/spawn/lifetime", async (t) => {
+  const f = fixture(t),
+    observed = [];
+  let installed;
+  f.runtime.setManagerAdapter = (value) => {
+    installed = value;
+  };
+  const s = await openSupervisor(config(), f.options);
+  t.after(() => s.close());
+  await s.command(ensure);
+  s.setManagerAdapter({
+    tools: () => [],
+    handleToolCall: async () => ({ success: true, contentItems: [] }),
+    observe: (value) => observed.push(value),
+  });
+  const route = createNativeManagerRouter(
+    () => installed,
+    () => {},
+  );
+  for (const method of ["turn/started", "turn/completed", "item/completed"])
+    route({ method, params: { threadId: "child-one" } });
+  assert.equal(observed.length, 0);
+  s.registerChild("thread-one", "child-one", "spawn-one");
+  s.registerChild("thread-one", "child-one", "spawn-one");
+  assert.throws(
+    () => s.registerChild("thread-one", "child-one", "different"),
+    /native_child_conflict/,
+  );
+  assert.throws(
+    () => s.registerChild("thread-one", "another", "spawn-one"),
+    /native_child_conflict/,
+  );
+  assert.throws(() => s.registerChild("unknown", "child-two", "spawn-two"));
+  for (const method of [
+    "turn/started",
+    "turn/completed",
+    "item/completed",
+    "item/started",
+    "rawResponseItem/completed",
+  ])
+    route({ method, params: { threadId: "child-one" } });
+  assert.deepEqual(
+    observed.map((x) => x.method),
+    ["turn/started", "turn/completed", "item/completed"],
+  );
+  route({ method: "item/completed", params: { threadId: "unknown" } });
+  assert.equal(observed.length, 3);
+  f.runtime.inspectLease = () => {
+    throw new Error("checkout_removed");
+  };
+  f.runtime.call = async (method, params) => {
+    assert.equal(method, "thread/turns/list");
+    assert.equal(params.threadId, "child-one");
+    assert.equal(params.limit, 20);
+    return { data: [{ id: "child-turn", status: "completed" }], nextCursor: "partial" };
+  };
+  const request = {
+    managerThreadId: "thread-one",
+    childThreadId: "child-one",
+    spawnCallId: "spawn-one",
+  };
+  assert.equal(
+    (await s.readNativeHistory(request)).nextCursor,
+    "partial",
+    "partial history stays explicitly partial without execution lease",
+  );
+  await assert.rejects(
+    s.readNativeHistory({ ...request, spawnCallId: "other" }),
+    /native_child_unregistered/,
+  );
+  await assert.rejects(
+    s.readNativeHistory({ ...request, cursor: "unbounded" }),
+    /invalid_native_child/,
+  );
+  s.state.projects.project.children["child-one"].serverInstanceId = "prior-lifetime";
+  await assert.rejects(s.readNativeHistory(request), /native_child_unregistered/);
+  route({ method: "item/completed", params: { threadId: "child-one" } });
+  assert.equal(observed.length, 3);
+});
+
+test("late mapped child after revocation is interrupted and failures retain review hold", async (t) => {
+  const f = fixture(t),
+    s = await openSupervisor(config(), f.options);
+  t.after(() => s.close());
+  await s.command(ensure);
+  const interrupted = [];
+  f.runtime.call = async (method, params) => {
+    if (method === "thread/turns/list")
+      return {
+        data: [
+          {
+            id: "active-turn",
+            status: params.threadId === "thread-one" ? "completed" : "inProgress",
+          },
+        ],
+      };
+    if (method === "turn/interrupt") {
+      interrupted.push(params.threadId);
+      throw new Error("interrupt_uncertain");
+    }
+    if (method === "thread/loaded/list")
+      return { data: ["thread-one", "late-child"], nextCursor: null };
+    if (method === "thread/read")
+      return {
+        thread: {
+          id: params.threadId,
+          status: { type: params.threadId === "thread-one" ? "idle" : "active" },
+        },
+      };
+    throw new Error("unexpected_rpc");
+  };
+  assert.equal((await s.revokeExecution("project")).reviewRequired, true);
+  s.registerChild("thread-one", "late-child", "late-spawn");
+  await Promise.all([...s.executionRevocations.values()]);
+  assert.deepEqual(interrupted, ["late-child"]);
+  assert.equal(s.state.projects.project.executionRevoked.reviewRequired, true);
+  assert.throws(() => s.lease(config().projects[0]), /project_execution_revoked/);
+});
+
+test("supervisor holds process lock and native lifetime until installed observer close drains", async (t) => {
+  const f = fixture(t);
+  f.runtime.setManagerAdapter = () => {};
+  const s = await openSupervisor(config(), f.options);
+  let release,
+    closing = false;
+  const wait = new Promise((resolve) => {
+    release = resolve;
+  });
+  s.setManagerAdapter({
+    tools: () => [],
+    handleToolCall: async () => ({ success: false, contentItems: [] }),
+    async close() {
+      closing = true;
+      await wait;
+    },
+  });
+  const closed = s.close();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(closing, true);
+  assert.equal(f.runtime.alive(), true);
+  await assert.rejects(openSupervisor(config(), f.options), /already_running/);
+  release();
+  await closed;
+  assert.equal(f.runtime.alive(), false);
 });

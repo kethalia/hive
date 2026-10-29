@@ -3,6 +3,12 @@
 2026-10-29. Bounded implementation following recovery commit `7a0b3da`.
 Production execution, release and deployment remain disabled.
 
+The subsequent [checkout binding and native observation checkpoint](native-observation.md)
+adds envelope version 2, persisted preparation/source/lease bindings and the
+default-off signed native source spool. Its evidence and remaining isolation,
+external acceptance and quiescence gates supersede the integration status at the
+end of this initial transport design.
+
 ## First vertical slice
 
 The registered software host offers narrow native dynamic tools for creating one

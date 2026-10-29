@@ -27,6 +27,9 @@ import time
 import urllib.request
 import uuid
 
+# Keep the installed package unchanged when loading sibling authentication helpers.
+sys.dont_write_bytecode = True
+
 
 class ManagedError(Exception):
     pass

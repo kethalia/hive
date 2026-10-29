@@ -24,6 +24,15 @@ export async function POST(request: Request) {
     const sessions = sessionService();
     const manager = new DeliveryManagerService(getDb(), {
       reauthorize: (binding) => sessions.authority.reauthorize(binding),
+      allowedModelEfforts:
+        process.env.HIVE_CODEX_MANAGER_MODEL && process.env.HIVE_CODEX_MANAGER_EFFORT
+          ? [
+              {
+                model: process.env.HIVE_CODEX_MANAGER_MODEL,
+                effort: process.env.HIVE_CODEX_MANAGER_EFFORT,
+              },
+            ]
+          : [],
     });
     return Response.json(await manager.execute(value), {
       headers: { "Cache-Control": "private, no-store" },

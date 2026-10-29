@@ -1,10 +1,11 @@
-import { createPublicKey, verify } from "node:crypto";
 import type { PrismaClient } from "@hive/db";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
+import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import {
-  lockActiveRegistration,
-  RegistrationRejected,
-} from "@/lib/codex-session/registration-store.server";
+  authenticateCheckoutHost,
+  lockManagerCheckout,
+  managerCheckoutIdentity,
+} from "./manager-binding.server";
 import { managerEnvelopeSchema, managerProofPayload } from "./manager-contracts";
 import { DeliveryRepository, type EvidencePolicy } from "./repository";
 import { DeliveryConflict } from "./state";
@@ -15,6 +16,7 @@ export interface ManagerDependencies {
   reauthorize(binding: RegistrationBinding): Promise<RegistrationBinding>;
   // Controller-owned adapter policy, never read from the host envelope.
   evidencePolicy?: EvidencePolicy;
+  allowedModelEfforts?: readonly { model: string; effort: string }[];
 }
 /** No producer trust can be supplied by a manager request. Until external adapters
  * are configured, the empty allowlist intentionally prevents successful reports. */
@@ -27,71 +29,77 @@ export class DeliveryManagerService {
   async execute(value: unknown) {
     const input = managerEnvelopeSchema.parse(value);
     const wire = value as Record<string, unknown>;
-    const timestamp = Date.now();
-    if (
-      input.expiresAt <= input.issuedAt ||
-      input.expiresAt - input.issuedAt > 60_000 ||
-      input.issuedAt > timestamp ||
-      input.expiresAt <= timestamp
-    )
-      throw new RegistrationRejected();
-    const registered = await this.db.codexHostRegistration.findUnique({
-      where: { id: input.registrationId },
-    });
-    if (!registered || registered.serverInstanceId !== input.serverInstanceId)
-      throw new RegistrationRejected();
-    const key = createPublicKey(registered.hostPublicKeyPem);
-    if (
-      key.asymmetricKeyType !== "ed25519" ||
-      !verify(
-        null,
-        Buffer.from(managerProofPayload(wire)),
-        key,
-        Buffer.from(input.proof, "base64url"),
-      )
-    )
-      throw new RegistrationRejected();
-    await this.dependencies.reauthorize(registered.binding as unknown as RegistrationBinding);
+    const registered = await authenticateCheckoutHost(
+      this.db,
+      this.dependencies.reauthorize,
+      input,
+      managerProofPayload(wire),
+    );
     const ownerId = registered.ownerId;
+    const thread = await this.db.codexRegisteredThread.findFirst({
+      where: {
+        ownerId,
+        registrationId: registered.id,
+        nativeThreadId: input.managerThreadId,
+        projectId: input.checkoutBinding.projectId,
+      },
+    });
+    if (!thread) throw new RegistrationRejected();
+    const conversation = await this.db.deliveryConversation.findUniqueOrThrow({
+      where: { ownerId_id: { ownerId, id: thread.conversationId } },
+    });
+    const expected = managerCheckoutIdentity(
+      {
+        ownerId,
+        conversationId: conversation.id,
+        workspaceId: conversation.workspaceId,
+        buildId: registered.buildId,
+        serverInstanceId: registered.serverInstanceId,
+        nativeThreadId: input.managerThreadId,
+      },
+      input.checkoutBinding,
+    );
+    let nativeSequence = 0;
     const repository = new DeliveryRepository(
       this.db,
       this.dependencies.evidencePolicy,
       async (tx) => {
-        const { registration, slot, now } = await lockActiveRegistration(tx, {
-          ownerId,
-          registrationId: registered.id,
+        const scope = await lockManagerCheckout(tx, input, registered, {
+          create: input.command.operation === "create_task",
+          allowBlocked: input.command.operation === "fail_attempt",
         });
-        if (
-          registration.serverInstanceId !== input.serverInstanceId ||
-          registration.hostPublicKeyPem !== registered.hostPublicKeyPem ||
-          input.issuedAt > now.getTime() ||
-          input.expiresAt <= now.getTime()
-        )
-          throw new RegistrationRejected();
-        const thread = registration.threads.find((t) => t.nativeThreadId === input.managerThreadId);
-        if (!thread) throw new RegistrationRejected();
-        const conversation = await tx.deliveryConversation.findUnique({
-          where: { ownerId_id: { ownerId, id: thread.conversationId } },
-        });
-        if (
-          !conversation ||
-          conversation.projectId !== thread.projectId ||
-          conversation.nativeThreadId !== thread.nativeThreadId ||
-          conversation.workspaceId !== slot.workspaceId ||
-          conversation.buildId !== registration.buildId ||
-          conversation.serverInstanceId !== registration.serverInstanceId
-        )
-          throw new RegistrationRejected();
+        nativeSequence = scope.binding.nativeSequence;
+        if (scope.binding.id !== expected.id) throw new RegistrationRejected();
         if (input.command.operation !== "create_task") {
           const task = await tx.deliveryTask.findUnique({
             where: { ownerId_id: { ownerId, id: input.command.payload.taskId } },
           });
           if (
             !task ||
-            task.projectId !== thread.projectId ||
-            task.conversationId !== thread.conversationId
+            task.projectId !== scope.thread.projectId ||
+            task.conversationId !== scope.thread.conversationId ||
+            task.managerBindingId !== scope.binding.id ||
+            task.sourceSha !== scope.binding.sourceSha
           )
             throw new RegistrationRejected();
+        }
+        if (input.command.operation === "claim_step") {
+          const other = await tx.deliveryManagerBinding.findFirst({
+            where: {
+              ownerId,
+              preparationIntentId: scope.intent.id,
+              activeAttemptId: { not: null },
+              id: { not: scope.binding.id },
+            },
+          });
+          if (other) throw new DeliveryConflict("checkout_writer_reconciliation_required");
+          if (scope.binding.activeAttemptId) {
+            const prior = await tx.deliveryEvent.findUnique({
+              where: { ownerId_id: { ownerId, id: input.eventId } },
+            });
+            if (prior?.attemptId !== scope.binding.activeAttemptId)
+              throw new DeliveryConflict("checkout_writer_busy");
+          }
         }
         if (
           input.command.operation === "complete_step" ||
@@ -100,7 +108,11 @@ export class DeliveryManagerService {
           const attempt = await tx.deliveryAttempt.findUnique({
             where: { ownerId_id: { ownerId, id: input.command.payload.attemptId } },
           });
-          if (!attempt?.leaseHolder.startsWith(`host/${registered.id}/`))
+          if (
+            !attempt ||
+            attempt.managerBindingId !== scope.binding.id ||
+            !attempt.leaseHolder.startsWith(`manager/${scope.binding.id}/`)
+          )
             throw new RegistrationRejected();
           if (input.command.operation === "complete_step") {
             const binding = attempt.runtimeBinding as Record<string, unknown> | null;
@@ -108,9 +120,9 @@ export class DeliveryManagerService {
               !binding ||
               binding.managerThreadId !== input.managerThreadId ||
               binding.serverInstanceId !== input.serverInstanceId ||
-              binding.workspaceId !== slot.workspaceId ||
-              binding.buildId !== registration.buildId ||
-              binding.coderOwnerId !== slot.coderOwnerId
+              binding.workspaceId !== scope.slot.workspaceId ||
+              binding.buildId !== scope.registration.buildId ||
+              binding.coderOwnerId !== scope.slot.coderOwnerId
             )
               throw new RegistrationRejected();
             if (
@@ -120,16 +132,32 @@ export class DeliveryManagerService {
               attempt.effectiveEffort !== attempt.requestedEffort
             )
               throw new DeliveryConflict("native_settings_unverified");
+            const native = await tx.deliveryEvent.findFirst({
+              where: { ownerId, attemptId: attempt.id, type: "native_attempt_observed" },
+              orderBy: { aggregateVersion: "desc" },
+            });
+            const observation = native?.payload as {
+              nativeSourceKind?: unknown;
+              turnStatus?: unknown;
+            } | null;
+            if (
+              observation?.nativeSourceKind !== "turn_completed" ||
+              observation.turnStatus !== "completed"
+            )
+              throw new DeliveryConflict("native_execution_unverified");
           }
         }
       },
+      async (tx, attempt) => {
+        if (attempt.managerBindingId !== expected.id)
+          throw new DeliveryConflict("manager_binding_conflict");
+        const changed = await tx.deliveryManagerBinding.updateMany({
+          where: { ownerId, id: expected.id, activeAttemptId: null, blockedReason: null },
+          data: { activeAttemptId: attempt.id },
+        });
+        if (changed.count !== 1) throw new DeliveryConflict("checkout_writer_busy");
+      },
     );
-    // Derive project/conversation before createTask parses its strict contract;
-    // the transaction repeats and locks these checks before any write.
-    const thread = await this.db.codexRegisteredThread.findFirst({
-      where: { ownerId, registrationId: registered.id, nativeThreadId: input.managerThreadId },
-    });
-    if (!thread) throw new RegistrationRejected();
     const common = { schemaVersion: 1, eventId: input.eventId };
     switch (input.command.operation) {
       case "create_task":
@@ -138,15 +166,37 @@ export class DeliveryManagerService {
           ...common,
           projectId: thread.projectId,
           conversationId: thread.conversationId,
+          managerBindingId: expected.id,
+          sourceSha: input.checkoutBinding.revision,
         });
-      case "claim_step":
-        return repository.claimStep(ownerId, {
-          ...input.command.payload,
-          ...common,
-          leaseHolder: `host/${registered.id}/${input.nativeCallId}`.slice(0, 160),
-          effectiveModel: null,
-          effectiveEffort: null,
-        });
+      case "claim_step": {
+        const claimPayload = input.command.payload;
+        if (
+          !this.dependencies.allowedModelEfforts?.some(
+            (value) =>
+              value.model === claimPayload.requestedModel &&
+              value.effort === claimPayload.requestedEffort,
+          )
+        )
+          throw new DeliveryConflict("native_model_policy_denied");
+        return {
+          ...(await repository.claimStep(ownerId, {
+            ...input.command.payload,
+            ...common,
+            leaseHolder: `manager/${expected.id}/${input.nativeCallId}`.slice(0, 160),
+            effectiveModel: null,
+            effectiveEffort: null,
+            nativeClaim: {
+              managerThreadId: input.managerThreadId,
+              parentTurnId: input.nativeTurnId,
+              callId: input.nativeCallId,
+            },
+          })),
+          managerBindingId: expected.id,
+          checkoutBindingDigest: expected.bindingDigest,
+          nativeSequence,
+        };
+      }
       case "complete_step":
       case "fail_attempt": {
         const payload = input.command.payload;

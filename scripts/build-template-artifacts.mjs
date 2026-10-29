@@ -22,7 +22,7 @@ export async function templateArtifact(directory) {
   async function collect(prefix = "") {
     const entries = await readdir(join(directory, prefix), { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.name === ".terraform" && entry.isDirectory()) continue;
+      if ([".terraform", "__pycache__"].includes(entry.name) && entry.isDirectory()) continue;
       const path = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isSymbolicLink() || (!entry.isFile() && !entry.isDirectory()))
         throw new Error("Template contains a non-regular input");
