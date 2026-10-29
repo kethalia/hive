@@ -1,0 +1,56 @@
+{
+  "sourceRevision": "76351640599505cdbe4c1d01eebf31b44b6cf22f",
+  "observedAt": "2026-10-29T18:37:04.591448+00:00",
+  "observations": [
+    {
+      "target": "upgrade",
+      "database": "hive_delivery_upgrade_test",
+      "migrations": [
+        "0_init",
+        "20260602000000_add_navigation_favorites",
+        "20260603000000_add_terminal_controls_beyond_mobile",
+        "20260714000000_add_navigation_favorite_position",
+        "20260814000000_remove_legacy_tasks",
+        "20261016000000_add_agent_notifications",
+        "20261016010000_stage_notification_credentials",
+        "20261029000000_add_delivery_foundation",
+        "20261029010000_delivery_audit_integrity",
+        "20261029020000_delivery_report_event_binding",
+        "20261029030000_delivery_runtime_recovery",
+        "20261029040000_coder_token_key_provenance",
+        "20261029050000_codex_host_registration",
+        "20261029060000_codex_heartbeat_ack",
+        "20261029070000_project_task_intents",
+        "20261029071000_project_intent_payload_guards",
+        "20261029072000_project_intent_source_context",
+        "20261029073000_project_preparation_progress"
+      ]
+    },
+    {
+      "target": "preview",
+      "database": "hive_app_preview",
+      "migrations": [
+        "0_init",
+        "20260602000000_add_navigation_favorites",
+        "20260603000000_add_terminal_controls_beyond_mobile",
+        "20260714000000_add_navigation_favorite_position",
+        "20260814000000_remove_legacy_tasks",
+        "20261016000000_add_agent_notifications",
+        "20261016010000_stage_notification_credentials",
+        "20261029000000_add_delivery_foundation",
+        "20261029010000_delivery_audit_integrity",
+        "20261029020000_delivery_report_event_binding",
+        "20261029030000_delivery_runtime_recovery",
+        "20261029040000_coder_token_key_provenance",
+        "20261029050000_codex_host_registration",
+        "20261029060000_codex_heartbeat_ack",
+        "20261029070000_project_task_intents",
+        "20261029071000_project_intent_payload_guards",
+        "20261029072000_project_intent_source_context",
+        "20261029073000_project_preparation_progress"
+      ]
+    }
+  ],
+  "runtimeCrudTablesAdded": ["project_task_intents"],
+  "productionChanged": false
+}
