@@ -38,30 +38,66 @@ export function permitted(url, method) {
 }
 export function createBudget(now = Date.now) {
   const start = now();
-  let count = 0;
+  let count = 0,
+    loginPosts = 0,
+    cleanupUsed = false;
   const blocked = {};
+  function reserve(url, method, cleanup) {
+    const login = url === `${ORIGIN}/api/auth/login` && method === "POST";
+    const reason =
+      now() - start >= DURATION
+        ? "deadline"
+        : !permitted(url, method) ||
+            (cleanup && (url !== `${ORIGIN}/api/auth/logout` || method !== "POST"))
+          ? "scope"
+          : login && loginPosts >= 1
+            ? "login_limit"
+            : cleanup && cleanupUsed
+              ? "cleanup_used"
+              : count >= (cleanup ? LIMIT : LIMIT - 1)
+                ? "budget"
+                : null;
+    if (reason) {
+      blocked[reason] = (blocked[reason] ?? 0) + 1;
+      return false;
+    }
+    count++;
+    if (login) loginPosts++;
+    if (cleanup) cleanupUsed = true;
+    return true;
+  }
   return {
-    reserve(url, method) {
-      const reason =
-        now() - start >= DURATION
-          ? "deadline"
-          : !permitted(url, method)
-            ? "scope"
-            : count >= LIMIT
-              ? "budget"
-              : null;
-      if (reason) {
-        blocked[reason] = (blocked[reason] ?? 0) + 1;
-        return false;
-      }
-      count++;
-      return true;
-    },
+    reserve: (url, method) => reserve(url, method, false),
+    reserveCleanup: (url, method) => reserve(url, method, true),
     snapshot() {
-      return { forwarded: count, limit: LIMIT, elapsedMs: now() - start, blocked: { ...blocked } };
+      return {
+        forwarded: count,
+        limit: LIMIT,
+        loginPosts,
+        cleanupReserved: !cleanupUsed,
+        elapsedMs: now() - start,
+        blocked: { ...blocked },
+      };
     },
     remaining() {
       return Math.max(0, DURATION - (now() - start));
     },
   };
+}
+/** Caller retains its request context/cookies until this bounded attempt finishes. */
+export async function cleanupSession(budget, request) {
+  const result = { cleanupAttempted: true, cleanupSucceeded: false };
+  const url = `${ORIGIN}/api/auth/logout`;
+  if (!budget.reserveCleanup(url, "POST")) return result;
+  try {
+    const response = await request.post(url, {
+      headers: { Origin: ORIGIN },
+      maxRedirects: 0,
+      maxRetries: 0,
+      timeout: Math.max(1, Math.min(5000, budget.remaining())),
+    });
+    result.cleanupSucceeded = response.status() === 200;
+    await response.dispose();
+  } catch {}
+  return result;
 }

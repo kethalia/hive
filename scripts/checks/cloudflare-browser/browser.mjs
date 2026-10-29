@@ -1,7 +1,7 @@
 // Browser Testing only. Credentials arrive through stdin and remain memory-only.
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { createBudget, ORIGIN, permitted } from "./policy.mjs";
+import { cleanupSession, createBudget, ORIGIN, permitted } from "./policy.mjs";
 
 assert.equal(process.env.HIVE_WORKSPACE_PROFILE, "browser");
 let input = "";
@@ -31,6 +31,8 @@ const result = {
   terminalOpened: false,
   projectTasksStarted: false,
   coderKeyRetainedForRotation: true,
+  cleanupAttempted: false,
+  cleanupSucceeded: false,
 };
 let browser,
   context,
@@ -206,6 +208,9 @@ try {
   result.failureStep = step;
   result.deadlineReached = fatal;
 } finally {
+  if (!result.passed && budget.snapshot().loginPosts === 1 && context) {
+    Object.assign(result, await cleanupSession(budget, context.request));
+  }
   clearTimeout(timer);
   auth.password = "";
   auth.email = "";

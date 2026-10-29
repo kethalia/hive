@@ -94,3 +94,14 @@ The Python190second subprocess timeout kills the same Node driver; normal
 180second deadline and ordinary completion first close context/browser explicitly.
 This is a bounded test of this installed browser lifecycle, not a general
 writer-quiescence claim. No other session, process group or workspace was touched.
+
+Only one login POST may reserve a network slot, including retries or concurrent
+browser submissions. Ordinary requests stop at199; the final slot is available
+only to one fixed failure-cleanup POST `/api/auth/logout`. On any failure after
+the login attempt, cleanup runs before the request context/cookies are closed,
+with no redirects or retries and a maximum five-second timeout within the same
+180second deadline. The result records only `cleanupAttempted` and
+`cleanupSucceeded`. If the deadline already expired, no cleanup request is sent;
+the attempted cleanup reports false success and requires parent follow-up.
+Six policy tests cover the single login fence, reserved final slot, pre-network
+accounting, fixed cleanup scope and deadline refusal.

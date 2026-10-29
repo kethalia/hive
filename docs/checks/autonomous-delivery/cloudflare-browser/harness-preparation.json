@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "preparedAt": "2026-10-29T20:52:48.571036+00:00",
+  "preparedAt": "2026-10-29T20:57:53.059326+00:00",
   "workspaceId": "6bc1ff4f-c190-4d8f-becd-b7b3e01e9535",
   "profile": "browser",
   "chrome": "155.0.8059.79",
@@ -10,15 +10,15 @@
   "dependencyInstallScripts": false,
   "previewRequests": 0,
   "browserBlankLaunchPassed": true,
-  "budgetPolicyTestsPassed": 3,
+  "budgetPolicyTestsPassed": 6,
   "sourceSha256": {
-    "browser.mjs": "cbf2cf5c3510f8b73ae3d633623daf45817ffea20f4628b5d7e548489e5505b8",
+    "browser.mjs": "091bca174b8116857c36961c0464462ac671aa09262dfc8053705a889663aa03",
     "package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b",
     "package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
-    "README.md": "6a6f17ed036b8c6c8b0404f50dd361cda02d883b144fa36724d542a567eb24a2",
-    "policy.test.mjs": "a7718fed9aff075efec159b3ffbea0fb9423ad352453ce9f25e9a4089627df6c",
+    "README.md": "42a85b93770c4f6ef4aee12cd4e2092392077fb60b9798e1fed239783151012e",
+    "policy.test.mjs": "47b027ac285c5e3250beb92612ab4a97fd6edb57de940c7be63f130af4348a0c",
     "driver-lifecycle.mjs": "8b9f96fab8004baec8249a04dad18834420c3aaf574bcc0158d36d99e035603f",
-    "policy.mjs": "0e2363f6bdaeee584b189d432a2cfa9f08370295fc75c6b100e7877bb99c0ad8",
+    "policy.mjs": "f0f9fb6cd75aaef717789586cb4628aa012ab8a9ce5c805fa391ea251d11d386",
     "remote.py": "f1d4998ab91fff7a7f8d351d4f1a8f6d744e4d632b4cd5152111eab9b870e1b5"
   },
   "liveAuthenticationVerified": false,
@@ -32,5 +32,7 @@
   ],
   "normalUiLogoutVerified": false,
   "plannedLogoutMode": "same-origin browser API then old-cookie rejection",
-  "driverFailureProof": "driver-lifecycle.json"
+  "driverFailureProof": "driver-lifecycle.json",
+  "maximumLoginPosts": 1,
+  "failureCleanupReservedRequests": 1
 }
