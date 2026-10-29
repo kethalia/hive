@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ACCOUNT_ID, APP_NAME, AUTH_NAME } from "./deployment-plan.mjs";
+import { ACCOUNT_ID, APP_NAME, AUTH_NAME, MAX_REQUESTS } from "./deployment-plan.mjs";
 
 export function assertPreparedArtifact(record, current) {
   assert.equal(record.accountId, ACCOUNT_ID);
@@ -11,6 +11,11 @@ export function assertPreparedArtifact(record, current) {
   assert.equal(record.artifactSetSHA256, current.artifactSetSHA256, "Prepared artifact changed");
   assert.equal(record.publicUrlsEnabled, false);
   assert.equal(record.additionalCostsAuthorized, false);
+  assert.ok(
+    Number.isInteger(record.maxScriptedRequests) &&
+      record.maxScriptedRequests > 0 &&
+      record.maxScriptedRequests <= MAX_REQUESTS,
+  );
   for (const kind of ["app", "auth"]) {
     assert.equal(
       record.configs[kind].configSHA256,

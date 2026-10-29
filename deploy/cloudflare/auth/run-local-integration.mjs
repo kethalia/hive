@@ -39,6 +39,8 @@ const sourcePaths = [
   "src/lib/auth/service-client.ts",
   "deploy/cloudflare/app/worker.ts",
   "deploy/cloudflare/app/host-callback.ts",
+  "src/lib/codex-session/host-callback-transport.ts",
+  "src/proxy.ts",
   "src/lib/codex-session/route.server.ts",
   "src/lib/codex-session/registered-session.server.ts",
   "src/lib/codex-session/registration.server.ts",

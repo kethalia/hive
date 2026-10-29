@@ -25,6 +25,7 @@ function fixture() {
     artifactSetSHA256: "artifact",
     publicUrlsEnabled: false,
     additionalCostsAuthorized: false,
+    maxScriptedRequests: 30,
     configs,
   };
   const current = {

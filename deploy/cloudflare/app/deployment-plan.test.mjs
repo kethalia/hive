@@ -4,6 +4,7 @@ import {
   ACCOUNT_ID,
   APP_NAME,
   AUTH_NAME,
+  DEFAULT_REQUESTS,
   MAX_REQUESTS,
   validatePreflight,
   validatePreviewConfiguration,
@@ -49,6 +50,18 @@ test("preparation requires fresh account/name/headroom evidence", () => {
     edit(p);
     assert.throws(() => validatePreflight(p, now));
   }
+});
+test("request budgets are explicit, bounded200, and reserve CPU for three Worker invocations", () => {
+  for (const maximum of [undefined, 0, 1.5, MAX_REQUESTS + 1]) {
+    const p = preflight();
+    p.approvedProbeRequestMaximum = maximum;
+    assert.throws(() => validatePreflight(p, now));
+  }
+  const p = preflight();
+  p.usage.conservativeCpuMilliseconds = 30000000 - 150000;
+  assert.throws(() => validatePreflight(p, now));
+  p.approvedProbeRequestMaximum = DEFAULT_REQUESTS;
+  validatePreflight(p, now);
 });
 function configs() {
   const common = {
