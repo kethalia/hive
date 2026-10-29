@@ -4,6 +4,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { gunzipSync } from "node:zlib";
 import { hostArchive } from "./build-codex-host-archive.mjs";
 
 test("Coder shell startup loads a large host package from a mounted file, outside argv", async () => {
@@ -12,7 +13,7 @@ test("Coder shell startup loads a large host package from a mounted file, outsid
     const template = "templates/ai-dev-k8s";
     const script = await readFile(`${template}/scripts/install-codex-host.sh.tftpl`, "utf8");
     assert.ok(Buffer.byteLength(script) < 4096);
-    const archive = await readFile(`${template}/assets/codex-host.tar`);
+    const archive = gunzipSync(await readFile(`${template}/assets/codex-host.tar.gz`));
     const request = JSON.stringify({ archive: archive.toString("base64") });
     assert.ok(Buffer.byteLength(request) > 131072, "exercise Linux's per-argument limit");
     await writeFile(join(temporary, "request.json"), request);

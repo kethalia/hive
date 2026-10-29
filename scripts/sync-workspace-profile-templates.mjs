@@ -40,7 +40,7 @@ const sharedRelativePaths = [
   ".terraform.lock.hcl",
   "main.tf",
   "hive-host.tf",
-  "assets/codex-host.tar",
+  "assets/codex-host.tar.sha256",
   "assets/codex-host.tar.gz",
   "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
@@ -49,6 +49,7 @@ const drift = [];
 let removedScripts = 0;
 
 for (const targetRoot of targetRoots) {
+  if (!checkOnly) await rm(join(targetRoot, "assets/codex-host.tar"), { force: true });
   const targetScripts = await collectFiles(join(targetRoot, "scripts"));
   const obsoleteScripts = targetScripts
     .map((file) => relative(targetRoot, file))

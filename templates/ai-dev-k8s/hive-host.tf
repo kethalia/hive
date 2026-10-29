@@ -105,7 +105,7 @@ locals {
       schemaVersion   = 1
       archive         = filebase64("${path.module}/assets/codex-host.tar.gz")
       archiveEncoding = "gzip"
-      archiveSha256   = filesha256("${path.module}/assets/codex-host.tar")
+      archiveSha256   = trimspace(file("${path.module}/assets/codex-host.tar.sha256"))
       config = {
         schemaVersion          = 1
         enabled                = true
