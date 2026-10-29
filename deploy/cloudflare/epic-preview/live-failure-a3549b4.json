@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-10-29T16:16:13.995Z",
+  "scriptedRequests": 3,
+  "results": [
+    {
+      "path": "/api/capabilities",
+      "method": "GET",
+      "authenticated": false,
+      "status": 401,
+      "elapsedMs": 143,
+      "body": {
+        "error": "PREVIEW_AUTH_REQUIRED"
+      }
+    },
+    {
+      "path": "/api/capabilities",
+      "method": "GET",
+      "authenticated": true,
+      "status": 200,
+      "elapsedMs": 32,
+      "body": {
+        "schemaVersion": 1,
+        "sourceRevision": "a3549b4fd489a8dd76fd0f7390d3ab087f77175d",
+        "runId": "3f5081ab-5fd4-4362-8c82-8bcee8bb749f",
+        "neonBranchId": "br-ancient-violet-b7pcun87",
+        "scope": "isolated-api-probe",
+        "configuredCoderOrigin": "https://coder.kethalia.com",
+        "supportedProbes": [
+          "coder-read-only-identity",
+          "neon-http-transaction",
+          "prisma-interactive-transaction"
+        ],
+        "unverified": [
+          "hive-auth",
+          "framework-build",
+          "prisma",
+          "interactive-transactions",
+          "workspace-operations",
+          "terminal",
+          "shared-native-thread",
+          "background-jobs"
+        ]
+      }
+    },
+    {
+      "path": "/api/probe/coder",
+      "method": "GET",
+      "authenticated": true,
+      "status": 502,
+      "elapsedMs": 36,
+      "body": {
+        "error": "CODER_IDENTITY_UNAVAILABLE"
+      }
+    }
+  ],
+  "passed": false
+}

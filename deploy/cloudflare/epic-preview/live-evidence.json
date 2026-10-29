@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T16:21:56.116Z",
+  "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+  "runId": "388514fa-0c06-45df-ab15-3b7ba573bbe6",
+  "sourceSetDigest": "372a6080cd089ceb5bdba4c8b757b1d91f5c52f173b264e15aa79d7e8cf64ca1",
+  "configDigest": "ab6da1d4cbd0c5a6a1d56575ea505040a534a92fa41463144b91aaaa06fd9419",
+  "workerName": "hive-delivery-capability-preview",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "origin": "https://hive-delivery-capability-preview.b00ste.workers.dev",
+  "scriptedRequests": 7,
+  "maximumAuthorizedRequests": 20,
+  "results": [
+    {
+      "path": "/api/capabilities",
+      "method": "GET",
+      "authenticated": false,
+      "status": 401,
+      "elapsedMs": 187,
+      "body": {
+        "error": "PREVIEW_AUTH_REQUIRED"
+      }
+    },
+    {
+      "path": "/api/capabilities",
+      "method": "GET",
+      "authenticated": true,
+      "status": 200,
+      "elapsedMs": 48,
+      "body": {
+        "schemaVersion": 1,
+        "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+        "runId": "388514fa-0c06-45df-ab15-3b7ba573bbe6",
+        "neonBranchId": "br-ancient-violet-b7pcun87",
+        "scope": "isolated-api-probe",
+        "configuredCoderOrigin": "https://coder.kethalia.com",
+        "supportedProbes": [
+          "coder-read-only-identity",
+          "neon-http-transaction",
+          "prisma-interactive-transaction"
+        ],
+        "unverified": [
+          "hive-auth",
+          "framework-build",
+          "prisma",
+          "interactive-transactions",
+          "workspace-operations",
+          "terminal",
+          "shared-native-thread",
+          "background-jobs"
+        ]
+      }
+    },
+    {
+      "path": "/api/probe/coder",
+      "method": "GET",
+      "authenticated": true,
+      "status": 200,
+      "elapsedMs": 163,
+      "body": {
+        "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+        "coder": {
+          "authenticated": true,
+          "userId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401"
+        }
+      }
+    },
+    {
+      "path": "/api/probe/prisma",
+      "method": "POST",
+      "authenticated": true,
+      "status": 200,
+      "elapsedMs": 2577,
+      "body": {
+        "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+        "runId": "388514fa-0c06-45df-ab15-3b7ba573bbe6",
+        "prisma": {
+          "prismaVersion": "6.19.3",
+          "generatorRuntime": "workerd",
+          "engine": "client",
+          "transport": "neon-websocket",
+          "transactionKind": "interactive-callback",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": true,
+          "retainedRowsForRun": 1,
+          "uuidAndJsonRoundTrip": true,
+          "timestampRoundTrip": true,
+          "runtimeRoleRestricted": true,
+          "fullHiveSchemaVerified": false,
+          "frameworkVerified": false
+        }
+      }
+    },
+    {
+      "path": "/api/probe/prisma",
+      "method": "POST",
+      "authenticated": true,
+      "status": 200,
+      "elapsedMs": 2322,
+      "body": {
+        "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+        "runId": "388514fa-0c06-45df-ab15-3b7ba573bbe6",
+        "prisma": {
+          "prismaVersion": "6.19.3",
+          "generatorRuntime": "workerd",
+          "engine": "client",
+          "transport": "neon-websocket",
+          "transactionKind": "interactive-callback",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": false,
+          "retainedRowsForRun": 1,
+          "uuidAndJsonRoundTrip": true,
+          "timestampRoundTrip": true,
+          "runtimeRoleRestricted": true,
+          "fullHiveSchemaVerified": false,
+          "frameworkVerified": false
+        }
+      }
+    },
+    {
+      "path": "/api/probe/neon",
+      "method": "POST",
+      "authenticated": true,
+      "status": 200,
+      "elapsedMs": 869,
+      "body": {
+        "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+        "runId": "388514fa-0c06-45df-ab15-3b7ba573bbe6",
+        "neon": {
+          "transport": "neon-http",
+          "transactionKind": "noninteractive-batch",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": false,
+          "retainedRowsForRun": 1,
+          "prismaVerified": false,
+          "interactiveTransactionsVerified": false
+        }
+      }
+    },
+    {
+      "path": "/api/probe/neon",
+      "method": "POST",
+      "authenticated": true,
+      "status": 200,
+      "elapsedMs": 551,
+      "body": {
+        "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+        "runId": "388514fa-0c06-45df-ab15-3b7ba573bbe6",
+        "neon": {
+          "transport": "neon-http",
+          "transactionKind": "noninteractive-batch",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": false,
+          "retainedRowsForRun": 1,
+          "prismaVerified": false,
+          "interactiveTransactionsVerified": false
+        }
+      }
+    }
+  ],
+  "f02Complete": false,
+  "limitations": [
+    "fixture schema only",
+    "framework and Hive authentication unverified",
+    "workspace/terminal/shared native thread unverified"
+  ]
+}
