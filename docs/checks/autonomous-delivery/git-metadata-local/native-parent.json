@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "scope": "Local mock only; no account inference or production authority",
+  "metadataPolicyDigest": "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b",
+  "threadId": "01a189fd-6012-79f2-9be6-7d8b7c493e4b",
+  "childThreadIds": [
+    "01a189fd-6a23-7db2-84e6-a9d26def0305"
+  ],
+  "requests": 10,
+  "rootDenials": 11,
+  "childDenials": 11,
+  "resumeDenials": 11,
+  "cliAttached": true,
+  "hostAtomicRefVisible": true,
+  "hostileCwdDenied": true,
+  "hostileCwdDenial": "sandbox_setup_read_only_parent",
+  "fixedInventory": true,
+  "executionIdentity": {
+    "mode": "isolated",
+    "wrapper": {
+      "pid": 611724,
+      "startTime": "971634194",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+      "device": "2128",
+      "inode": "4196057"
+    },
+    "monitor": {
+      "pid": 611725,
+      "startTime": "971634197",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+      "device": "2128",
+      "inode": "4196057"
+    },
+    "native": {
+      "pid": 611726,
+      "startTime": "971634198",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+      "device": "2128",
+      "inode": "4196065"
+    },
+    "policySha256": "96957d9343f0921ddfeabe568df91a7cd2f08938d1b773a0204be2e6c4cbca56"
+  },
+  "metadataPins": {
+    "pins": [
+      {
+        "projectId": "46b648c0-784d-4a87-a77f-08f904085174",
+        "checkoutPath": "/home/coder/projects/kethalia/hive/.git-ro-QBSPv6/projects/.hive-managed/github/123/checkout",
+        "metadataPath": "/home/coder/projects/kethalia/hive/.git-ro-QBSPv6/projects/.hive-managed/github/123/checkout/.git",
+        "checkout": {
+          "device": "2128",
+          "inode": "794070"
+        },
+        "metadata": {
+          "device": "2128",
+          "inode": "794071"
+        }
+      }
+    ],
+    "scan": {
+      "entries": 41,
+      "bytes": 26981
+    },
+    "metadataPolicyDigest": "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b"
+  },
+  "nativeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": "33550f4d7ac4e3c5532429d7a71d57c8cec285bec3c3423a7803b79d5695b8d7",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "57310557a01a82e1c6a5a2a34a2faeb4fa3bd9bee0055c1c5f0ff9ae2ff2a6a9",
+    "templates/ai-dev-k8s/scripts/managed-projects.py": "0fcd8c2f07df72d1a284a7bcf7cd3dbe38ee48359a8312f7e3b9ee369a53ac3b",
+    "scripts/agents/test_managed_projects.py": "d02636161a7477a451a1c36d1615eddc78c0ec93d0ef0e39b925223352a15f2a",
+    "scripts/verify-codex-git-metadata.test.mjs": "3d67a3d0120e7fdcee6de7e5f7441dd2bb6e77791ed0a459cc2ccd99bbaac10a"
+  },
+  "sourceStable": true
+}

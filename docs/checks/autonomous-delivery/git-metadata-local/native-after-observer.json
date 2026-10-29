@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "status": "failed",
+  "requests": 10,
+  "nativeCreated": true,
+  "registryPhase": "ready",
+  "observedMethods": ["turn/started", "item/started", "item/completed", "turn/completed"]
+}
