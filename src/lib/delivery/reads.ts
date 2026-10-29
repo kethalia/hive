@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@hive/db";
 import { z } from "zod";
+import { deliveryEventLabel } from "./event-labels";
 import { deliveryTaskDetailSchema, deliveryTaskPageSchema } from "./read-contracts";
 
 const id = z.string().uuid();
@@ -106,6 +107,19 @@ export async function readDeliveryTask(
     where: { ownerId_id: { ownerId, id: id.parse(taskId) } },
     select: {
       ...summarySelect,
+      events: {
+        where: { ownerId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 25,
+        select: {
+          id: true,
+          type: true,
+          payload: true,
+          createdAt: true,
+          stepId: true,
+          report: { select: { id: true } },
+        },
+      },
       steps: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: 32,
@@ -113,6 +127,7 @@ export async function readDeliveryTask(
           id: true,
           kind: true,
           state: true,
+          waitingReason: true,
           acceptancePhase: true,
           attemptCount: true,
           attemptBudget: true,
@@ -151,6 +166,24 @@ export async function readDeliveryTask(
   }
   return deliveryTaskDetailSchema.parse({
     ...summary(task),
+    recentEvents: task.events.map((event) => {
+      const payload = event.payload;
+      const reason =
+        payload &&
+        typeof payload === "object" &&
+        !Array.isArray(payload) &&
+        typeof payload.reason === "string"
+          ? payload.reason.slice(0, 1000)
+          : null;
+      return {
+        id: event.id,
+        label: deliveryEventLabel(event.type),
+        reason,
+        stepId: event.stepId,
+        reportId: event.report?.id ?? null,
+        createdAt: event.createdAt.toISOString(),
+      };
+    }),
     steps: task.steps.map((step) => ({
       ...step,
       dependencies: step.dependencies.map((edge) => edge.dependsOnStepId),

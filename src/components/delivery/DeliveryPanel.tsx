@@ -145,6 +145,7 @@ function TaskProgress({ task, reportId }: { task: DeliveryTaskDetail; reportId?:
                 : "Implementation and preview"}{" "}
               · Attempt {step.attemptCount} of {step.attemptBudget}
             </p>
+            {step.waitingReason && <p className="break-words text-sm">{step.waitingReason}</p>}
             {step.latestAttempt && (
               <p className="break-words text-xs text-muted-foreground">
                 {step.latestAttempt.effectiveModel ?? "Model not recorded"} ·{" "}
@@ -161,6 +162,30 @@ function TaskProgress({ task, reportId }: { task: DeliveryTaskDetail; reportId?:
           </li>
         ))}
       </ol>
+      {task.recentEvents.length > 0 && (
+        <section aria-label="Recent task activity" className="space-y-2">
+          <h3 className="font-medium">Recent activity</h3>
+          <ol className="space-y-2">
+            {task.recentEvents.map((event) => (
+              <li key={event.id} className="rounded-md border p-3 text-sm">
+                <p className="font-medium">{event.label}</p>
+                {event.reason && <p className="break-words">{event.reason}</p>}
+                <time className="text-xs text-muted-foreground" dateTime={event.createdAt}>
+                  {new Date(event.createdAt).toLocaleString()}
+                </time>
+                {event.reportId && (
+                  <a
+                    className="ml-2 underline"
+                    href={`/workspaces?panel=delivery&task=${task.id}&report=${event.reportId}`}
+                  >
+                    Open report
+                  </a>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
     </section>
   );
 }
