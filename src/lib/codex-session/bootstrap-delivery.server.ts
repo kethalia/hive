@@ -58,7 +58,8 @@ export type HostProjectPath =
   | "/projects/resolve"
   | "/projects/open"
   | "/projects/tasks/start"
-  | "/projects/tasks/status";
+  | "/projects/tasks/status"
+  | "/projects/tasks/retry";
 async function exchangeAppCookie(
   coder: AppAuthCoder,
   binding: AppBinding,
@@ -167,9 +168,10 @@ export async function postToVerifiedWorkspaceApp(
       "/projects/open",
       "/projects/tasks/start",
       "/projects/tasks/status",
+      "/projects/tasks/retry",
     ].includes(request.path) ||
     Buffer.byteLength(request.body, "utf8") >
-      (request.path === "/projects/tasks/start" ? 65536 : 20000)
+      (request.path === "/projects/tasks/start" ? 98304 : 20000)
   )
     reject();
   const { cookie, url, deadline } = await exchangeAppCookie(

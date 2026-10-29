@@ -166,6 +166,7 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
   const [pollGeneration, setPollGeneration] = useState(0);
   const textId = useId();
   const intent = useRef<{ text: string; requestId: string } | null>(null);
+  const retryRequestId = useRef<string | null>(null);
   const lifetime = useRef(new AbortController());
   useEffect(() => {
     const controller = new AbortController();
@@ -216,7 +217,7 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
       } catch {
         if (!disposed)
           setError(
-            "Could not refresh the task. Its workspace continues running; refresh its status to reconnect.",
+            "Could not refresh the task. Its accepted request is retained; refresh its status to reconnect.",
           );
       }
     };
@@ -227,6 +228,42 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
       clearTimeout(timer);
     };
   }, [project.projectId, project.workspaceId, taskId, preparing, pollGeneration]);
+  const retry = async () => {
+    if (busy || !task || task.phase !== "blocked") return;
+    retryRequestId.current ??= crypto.randomUUID();
+    setBusy(true);
+    setError(null);
+    try {
+      const result = projectTaskStatusSchema.parse(
+        await post(
+          `/api/projects/${project.projectId}/tasks/retry`,
+          {
+            workspaceId: project.workspaceId,
+            taskId: task.taskId,
+            requestId: retryRequestId.current,
+          },
+          lifetime.current.signal,
+        ),
+      );
+      if (result.projectId !== project.projectId || result.taskId !== task.taskId)
+        throw new Error("Project identity changed.");
+      if (!lifetime.current.signal.aborted) {
+        setTask(result);
+        retryRequestId.current = null;
+        if (result.phase === "blocked")
+          setError(
+            "The workspace could not safely resume this task. Inspect its existing work before trying again.",
+          );
+      }
+    } catch {
+      if (!lifetime.current.signal.aborted)
+        setError(
+          "Could not confirm recovery. Retrying uses the same request and keeps the original task.",
+        );
+    } finally {
+      if (!lifetime.current.signal.aborted) setBusy(false);
+    }
+  };
   const start = async () => {
     if (busy || !text.trim()) return;
     if (new TextEncoder().encode(text.trim()).length > 32768) {
@@ -330,12 +367,28 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
         </form>
       ) : null}
       {task?.phase === "blocked" ? (
-        <p role="alert" className="text-sm">
-          {task.reason
-            ? preparationReasonMessages[task.reason]
-            : "The task needs attention. Refresh its status or inspect the workspace."}{" "}
-          Existing work is retained.
-        </p>
+        <div className="space-y-2 text-sm">
+          <p role="alert">
+            {task.reason
+              ? preparationReasonMessages[task.reason]
+              : "The task needs attention. Refresh its status or inspect the workspace."}{" "}
+            Existing work is retained.
+          </p>
+          {task.reason &&
+          [
+            "github_auth_required",
+            "checkout_busy",
+            "checkout_unavailable",
+            "revision_unavailable",
+            "native_unavailable",
+            "registration_unavailable",
+            "preparation_timeout",
+          ].includes(task.reason) ? (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void retry()}>
+              {busy ? "Checking recovery…" : "Retry preparation"}
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       {nativeThreadId ? (
         <>

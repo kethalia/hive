@@ -145,6 +145,38 @@ describe("project task workspace", () => {
     );
     expect(screen.queryByRole("button", { name: "Start task" })).not.toBeInTheDocument();
   });
+  it("retries a recoverable preparation with the same recovery identity after a lost acknowledgement", async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation()!;
+    let retries = 0;
+    vi.mocked(fetch).mockImplementation(async (...args) => {
+      const path = String(args[0]);
+      if (path === "/api/projects/open")
+        return response({ ...opened, phase: "blocked", currentTaskId: taskId });
+      if (path.endsWith("/tasks/status"))
+        return response({
+          ...prepared,
+          phase: "blocked",
+          reason: "native_unavailable",
+          nativeThreadId: null,
+          terminalSessionName: null,
+        });
+      if (path.endsWith("/tasks/retry") && ++retries === 1) throw new TypeError("lost reply");
+      return defaultFetch(...args);
+    });
+    await select();
+    fireEvent.click(await screen.findByRole("button", { name: "Retry preparation" }));
+    await screen.findByText(/Could not confirm recovery/);
+    fireEvent.click(screen.getByRole("button", { name: "Retry preparation" }));
+    await waitFor(() => expect(retries).toBe(2));
+    const calls = vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => String(url).endsWith("/tasks/retry"));
+    const first = JSON.parse(String(calls[0][1]?.body)),
+      second = JSON.parse(String(calls[1][1]?.body));
+    expect(first).toEqual(second);
+    expect(Object.keys(first).sort()).toEqual(["requestId", "taskId", "workspaceId"]);
+    expect(first.taskId).toBe(taskId);
+  });
   it("waits for registered persisted history before opening the read connection", async () => {
     const defaultFetch = vi.mocked(fetch).getMockImplementation()!;
     let observations = 0;

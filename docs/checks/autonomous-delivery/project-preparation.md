@@ -47,7 +47,7 @@ SameSite=Lax. The relay and actual browser acceptance remain separate gates from
 
 ## Evidence and remaining gates
 
-- Seven actual local PostgreSQL tests cover concurrent enqueue, encrypted payload, owner/workspace
+- Eight actual local PostgreSQL tests cover concurrent enqueue, encrypted payload, owner/workspace
   isolation, competing claims, stale acknowledgement, process/browser-loss recovery, bounded failure
   and crashed-lease exhaustion, ciphertext substitution and partial encrypted-column rejection.
 - Controller checks cover source/access changes, server-owned runtime settings, bounded prompt
@@ -60,5 +60,9 @@ SameSite=Lax. The relay and actual browser acceptance remain separate gates from
   context mapping, observed subagent execution, authoritative evidence and release adapters must
   be completed before enabling managed autonomous delivery. Prompt instructions alone do not
   establish this mapping or prove that tests/reviews passed.
-- Blocked preparation retains its session/work and stops automatic retries. User recovery controls,
-  unattended preparation-failure notices and a long-task lease-renewal proof are outstanding gates.
+- Blocked preparation retains its work and stops automatic retries. Explicit owner recovery uses a
+  separate stable retry request, sends no new prompt/source/model and accepts only a host-verified
+  safe retry or already-running state. A database compare-and-set prevents stale replies from
+  clearing a newer hold. The UI explains fixed reason codes and withholds retry for uncertain prompt
+  submission. Installed host retry acceptance, unattended failure notices and long-task lease renewal
+  remain integration gates until their real workspace proofs pass.
