@@ -1,0 +1,423 @@
+{
+  "schemaVersion": 1,
+  "at": "2026-10-29T19:35:32.909Z",
+  "runtimeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "credentialSource": "none-local-mock-only",
+  "managedPolicy": true,
+  "commands": [
+    {
+      "name": "selected-profile",
+      "exitCode": 0,
+      "results": [
+        {
+          "case": "inside",
+          "outcome": "allowed"
+        },
+        {
+          "case": "insideWrite",
+          "outcome": "allowed"
+        },
+        {
+          "case": "authorityWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "configWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "authority",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "symlink",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentFd",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentEnviron",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeConfig",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "managedPolicy",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "network",
+          "outcome": "denied",
+          "errno": 1
+        },
+        {
+          "case": "nativeRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeEnviron",
+          "outcome": "denied",
+          "errno": 13
+        }
+      ],
+      "error": ""
+    },
+    {
+      "name": "unrestricted-override",
+      "rejected": true,
+      "error": "invalid permission profile: Configured value for `permission_profile` is disallowed by requirements; falling back from `:danger-full-access` to required value `hive-isolated`."
+    },
+    {
+      "name": "legacy-override",
+      "rejected": true,
+      "error": "invalid sandbox policy: invalid value for `sandbox_mode`: `DangerFullAccess` is not in the allowed set [ReadOnly, WorkspaceWrite] (set by /etc/codex/requirements.toml)"
+    }
+  ],
+  "overrides": [
+    {
+      "name": "named-override",
+      "rejected": false,
+      "activeProfile": "hive-isolated",
+      "sandbox": "workspaceWrite"
+    },
+    {
+      "name": "legacy-override",
+      "rejected": false,
+      "activeProfile": "hive-isolated",
+      "sandbox": "workspaceWrite"
+    },
+    {
+      "name": "profile-redefinition",
+      "rejected": true,
+      "error": "failed to load configuration: requirements.toml permissions profile `hive-isolated` conflicts with a config-defined profile of the same name"
+    }
+  ],
+  "modelTurns": [
+    {
+      "name": "ISOLATION_ROOT_COMMAND",
+      "id": "01a18929-1664-7941-9b8e-d59cd14f65a3",
+      "status": "completed"
+    },
+    {
+      "name": "ISOLATION_RESUME_COMMAND",
+      "id": "01a18929-1703-7cd0-b6f0-838f8ec21fdf",
+      "status": "completed"
+    },
+    {
+      "name": "ISOLATION_SPAWN_CHILD",
+      "id": "01a18929-1783-7e71-9fda-c9d2d0b47b55",
+      "status": "completed"
+    },
+    {
+      "name": "ISOLATION_ESCALATION",
+      "id": "01a18929-181c-77c2-92a2-c6baa7a49949",
+      "status": "completed"
+    },
+    {
+      "name": "ISOLATION_BACKGROUND",
+      "id": "01a18929-1837-7902-98fc-db322f40fbef",
+      "status": "completed"
+    }
+  ],
+  "passed": true,
+  "profileOnlyControl": false,
+  "productionActivated": false,
+  "productionReady": false,
+  "processChain": {
+    "wrapperPid": 275467,
+    "nativePid": 275468,
+    "wrapperIdentity": {
+      "pid": 275467,
+      "startTime": "970242954",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+      "device": "2128",
+      "inode": "4196057"
+    },
+    "nativeIdentity": {
+      "pid": 275468,
+      "startTime": "970242955",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+      "device": "2128",
+      "inode": "4196065"
+    },
+    "wrapperParent": 275376,
+    "nativeParent": 275467
+  },
+  "resumeOverrideProfile": "hive-isolated",
+  "turnOverrideRejected": true,
+  "background": {
+    "turnCompletedInMs": 330,
+    "heartbeatBefore": "2",
+    "heartbeatAfter": "2",
+    "writingAfterCompletion": false,
+    "processesObserved": 0,
+    "inspectionIncomplete": false,
+    "exactObservedProcessesExited": false,
+    "quiescenceAuthority": false
+  },
+  "commandEvents": [
+    {
+      "isRoot": true,
+      "turnId": "01a18929-1664-7941-9b8e-d59cd14f65a3",
+      "status": "completed",
+      "exitCode": 0,
+      "results": [
+        {
+          "case": "inside",
+          "outcome": "allowed"
+        },
+        {
+          "case": "insideWrite",
+          "outcome": "allowed"
+        },
+        {
+          "case": "authorityWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "configWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "authority",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "symlink",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentFd",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentEnviron",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeConfig",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "managedPolicy",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "network",
+          "outcome": "denied",
+          "errno": 1
+        },
+        {
+          "case": "nativeRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeEnviron",
+          "outcome": "denied",
+          "errno": 13
+        }
+      ]
+    },
+    {
+      "isRoot": true,
+      "turnId": "01a18929-1703-7cd0-b6f0-838f8ec21fdf",
+      "status": "completed",
+      "exitCode": 0,
+      "results": [
+        {
+          "case": "inside",
+          "outcome": "allowed"
+        },
+        {
+          "case": "insideWrite",
+          "outcome": "allowed"
+        },
+        {
+          "case": "authorityWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "configWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "authority",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "symlink",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentFd",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentEnviron",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeConfig",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "managedPolicy",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "network",
+          "outcome": "denied",
+          "errno": 1
+        },
+        {
+          "case": "nativeRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeEnviron",
+          "outcome": "denied",
+          "errno": 13
+        }
+      ]
+    },
+    {
+      "isRoot": false,
+      "turnId": "01a18929-1808-7e13-a258-ee2c9da9fc58",
+      "status": "completed",
+      "exitCode": 0,
+      "results": [
+        {
+          "case": "inside",
+          "outcome": "allowed"
+        },
+        {
+          "case": "insideWrite",
+          "outcome": "allowed"
+        },
+        {
+          "case": "authorityWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "configWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "authority",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "symlink",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentFd",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentEnviron",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeConfig",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "managedPolicy",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "network",
+          "outcome": "denied",
+          "errno": 1
+        },
+        {
+          "case": "nativeRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeEnviron",
+          "outcome": "denied",
+          "errno": 13
+        }
+      ]
+    },
+    {
+      "isRoot": true,
+      "turnId": "01a18929-1837-7902-98fc-db322f40fbef",
+      "status": "completed",
+      "exitCode": 0,
+      "results": {
+        "backgroundStarted": true
+      }
+    }
+  ],
+  "escalationRejected": true,
+  "childStarted": true,
+  "providerRequests": 12,
+  "untrustedMcpBlocked": true,
+  "externalFixtureUnchanged": true,
+  "workspaceWriteVerified": true
+}
