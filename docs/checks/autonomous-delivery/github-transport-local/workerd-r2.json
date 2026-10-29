@@ -1,0 +1,30 @@
+{
+  "observedAt": "2026-10-29T20:00:37.241Z",
+  "sourceRevision": "e79447eb47c57102727770f9bd0c50b1eafefadc",
+  "sourceStable": true,
+  "sourceSha256": {
+    "src/lib/delivery/github-artifacts.server.ts": "12fb25eaf47a7215bc847ef3ad47e0d9c86d9689acaf4899ad26f2469b8549ea",
+    "src/lib/delivery/github-transport.server.ts": "75443ad9ca0f275d82da60d717f4f3b0fd7ad58d4f66747ed3221844569f2ac2",
+    "src/lib/delivery/github-transport-contracts.ts": "0e2e66eca72e109110eeafc48d1497e683e8de15be6e61c75397fbde3b909045",
+    "src/lib/delivery/github-evidence.server.ts": "9202fb3ce4a2ce6be1e958a18ccc8d92163d3ef55932251d986aa4cb2649adb9",
+    "src/lib/delivery/github-persistence.server.ts": "5a78cb4d6210ab9d88a7d5386d5cbfe5eae5286115746b63dacec7a1f1088c2c",
+    "src/lib/delivery/github-contracts.ts": "7ac0236ce7cf0e051dcba41c5c04706df58f2ecc467cc88fae2dcd7fd65da666",
+    "templates/ai-dev-k8s/scripts/delivery-github-collector.mjs": "aa1b31437685acf43fbfe48abe82b7b49b27adb156e54c4d9f37ea918c893d55",
+    "templates/ai-dev-k8s/scripts/delivery-github-journal.mjs": "2ab2a497afff19973b8a67242b83d4107d0a99bbb9a1d0daef9b4c92cb20eb32",
+    "src/__tests__/lib/delivery/github-r2.integration.test.ts": "66215a38631d442a8e1a09ba7bb52b4c35b4808da2126dcae7b5120e0fd4f765",
+    "deploy/cloudflare/evidence/local-r2-fixture.ts": "14ef86c691bd80f68b46acf2f76c30fbe31426656841098c3d0a59578c861df6",
+    "deploy/cloudflare/evidence/run-local-r2-proof.mjs": "26fe88266e994115222df1bb44669a778388d217bb9cb982c5daa7e942887f8d"
+  },
+  "checks": [
+    "unauthenticated loopback denied",
+    "real local R2 conditional create+SHA256+streamed readback",
+    "eight concurrent exact replays retain one object",
+    "workerd restart preserves object",
+    "same-key corrupted bytes rejected and preserved"
+  ],
+  "remoteWrites": false,
+  "liveR2Proof": false,
+  "installedBundleProof": false,
+  "postgresIntegration": "passed: canonical signed collector + real PG publication + actual local workerd R2 binding",
+  "scope": "Actual local workerd R2 emulator only; no Cloudflare bucket or billing change; retention lock/IAM requires separate deployment review."
+}

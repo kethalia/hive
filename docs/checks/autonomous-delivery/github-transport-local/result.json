@@ -1,0 +1,80 @@
+{
+  "observedAt": "2026-10-29T20:04:57.304032+00:00",
+  "gitHeadAtValidation": "e79447eb47c57102727770f9bd0c50b1eafefadc",
+  "tests": {
+    "focused": 57,
+    "focusedFiles": 5,
+    "collector": 10,
+    "fixedGitHubHelper": 8,
+    "composedPostgresWorkerd": 1,
+    "total": 76
+  },
+  "typecheck": "passed",
+  "scopedBiome": "passed",
+  "sourceSha256": {
+    "src/lib/delivery/github-artifacts.server.ts": "12fb25eaf47a7215bc847ef3ad47e0d9c86d9689acaf4899ad26f2469b8549ea",
+    "src/lib/delivery/github-source-route.server.ts": "17bc4a164927274f24ffae4740458538614bae7141b4516b20352135dbb80041",
+    "src/lib/delivery/github-transport-contracts.ts": "0e2e66eca72e109110eeafc48d1497e683e8de15be6e61c75397fbde3b909045",
+    "src/lib/delivery/github-transport.server.ts": "75443ad9ca0f275d82da60d717f4f3b0fd7ad58d4f66747ed3221844569f2ac2",
+    "src/app/api/delivery/github-source/route.ts": "a5b7989fb3e4a42f8fa54ae20f7cee9e875e85fbdbe108e3ad9336fb836ebe5c",
+    "src/app/api/delivery/github-source/challenge/route.ts": "a9b27d14fa2fc4b21757251e346b1b911454036fcc7b33622f0ffc7f25844bd5",
+    "templates/ai-dev-k8s/scripts/delivery-github-collector.mjs": "aa1b31437685acf43fbfe48abe82b7b49b27adb156e54c4d9f37ea918c893d55",
+    "templates/ai-dev-k8s/scripts/delivery-github-journal.mjs": "2ab2a497afff19973b8a67242b83d4107d0a99bbb9a1d0daef9b4c92cb20eb32",
+    "scripts/verify-delivery-github-collector.test.mjs": "500c3b7e07ebae92ff6b639b655e335fccd360501e629620b3d13dff90f37517",
+    "src/__tests__/lib/delivery/github-artifacts.test.ts": "0a9f7c7c337f9911c553c8c161cddbefac2153e3befd8b7a69d144e0dca53862",
+    "src/__tests__/lib/delivery/github-source-route.test.ts": "b7f86549addfa5357025b3ec142fdda2a0188bc6637724ceabb55bae30dc5301",
+    "src/__tests__/lib/delivery/github-transport.integration.test.ts": "3db7f9fb39e7528aa20eae9bbd637db218e97518977565fa0c568ce96f096909",
+    "src/__tests__/lib/delivery/github-r2.integration.test.ts": "66215a38631d442a8e1a09ba7bb52b4c35b4808da2126dcae7b5120e0fd4f765",
+    "deploy/cloudflare/evidence/local-r2-fixture.ts": "14ef86c691bd80f68b46acf2f76c30fbe31426656841098c3d0a59578c861df6",
+    "deploy/cloudflare/evidence/run-local-r2-proof.mjs": "26fe88266e994115222df1bb44669a778388d217bb9cb982c5daa7e942887f8d"
+  },
+  "composedProof": {
+    "canonicalSourceModules": true,
+    "installedBundle": false,
+    "actualLocalPostgres": true,
+    "actualLocalWorkerdR2": true,
+    "syntheticGitHubAndCoderAuthority": true,
+    "lostAcknowledgementThenFreshCollectorExactDiskReplay": true,
+    "helperCallsPerChallenge": 1,
+    "oneNonceAndEvidencePublication": true,
+    "noCachedSuccess": true
+  },
+  "accountReadOnly": {
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "observedAt": "2026-10-29T19:34:24.015Z",
+    "bucketCount": 5,
+    "hiveBucketPresent": false,
+    "latestTotalPayloadBytes": 27623050782,
+    "latestTotalObjects": 23367,
+    "octoberRequests": {
+      "PutObject": 11600,
+      "GetObject": 61846,
+      "HeadObject": 8,
+      "HeadBucket": 2467,
+      "ListBuckets": 2,
+      "PutBucket": 1
+    },
+    "billingSubscriptionRead": "OAuth HTTP403; billing entitlement and monthly average unknown",
+    "snapshotNotBillableGbMonths": true,
+    "cloudMutations": false
+  },
+  "production": {
+    "sourceRouteDefaultOff": true,
+    "hostCollectorUnwiredAndDefaultOff": true,
+    "appBindingConfigChanged": false,
+    "managerExecutionEnabledBySlice": false,
+    "releaseMode": "disabled",
+    "jobsEnabledBySlice": false
+  },
+  "remainingGates": [
+    "Native/signer isolation and verified actual host composition",
+    "Separate immutable package import/helper presence proof owned by parent",
+    "Journal cap32 holds collection; safe expired-request retirement under unique hostlock still required for continuous polling",
+    "Shared controller-owned manager evidence policy resolver and current policy revalidation",
+    "Owner approval for possible R2 cost; live private bucket retention and integrity proof",
+    "Actual account/source collection through verified installed helper, no copied owner credentials",
+    "Trusted background/external quiescence, explicit source rebinding and held writer retirement",
+    "Production acceptance and owner approval"
+  ],
+  "scope": "Local synthetic GitHub/Coder authority; actual PostgreSQL17 and local workerd R2. No live R2 bucket, account inference, cloud write, plan change or production mutation. R2 operation deadlines do not cancel underlying writes; ambiguous/revocation-raced uploads may persist orphaned objects without evidence."
+}

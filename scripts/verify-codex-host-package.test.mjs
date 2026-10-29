@@ -16,6 +16,7 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
     const manifest = JSON.parse(readFileSync(join(out, "package-manifest.json")));
     assert.equal(manifest.wsVersion, "8.21.3");
     assert.equal(manifest.nativeVersion, "0.165.0");
+    assert.ok(Object.hasOwn(manifest.files, "github-evidence.py"));
     assert.ok(Object.hasOwn(manifest.files, "codex-native-namespace.mjs"));
     for (const [name, sha] of Object.entries(manifest.files))
       assert.equal(
@@ -35,6 +36,19 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
       { encoding: "utf8" },
     );
     assert.equal(output, "function");
+    const collector = join(out, "delivery-github-collector.mjs");
+    assert.equal(
+      execFileSync(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          `const m=await import(${JSON.stringify(collector)});process.stdout.write(typeof m.createDeliveryGitHubCollector)`,
+        ],
+        { encoding: "utf8" },
+      ),
+      "function",
+    );
     assert.equal(readdirSync(dir).length, 1);
   } finally {
     rmSync(dir, { recursive: true, force: true });

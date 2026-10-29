@@ -1,0 +1,18 @@
+✔ collector defaults off without loading credentials or invoking a helper (1.085994ms)
+✔ actual fixed Python helper fails closed without workspace agent authority (70.372726ms)
+✔ only a signed fixed-origin challenge can invoke the fixed helper and publish its snapshot (32.94906ms)
+✔ caller producer/status/target/policy/URL injection is rejected before any request (1.469258ms)
+✔ wrong source head/nonce/registration/expired challenge never invokes helper (14.058434ms)
+✔ lease source or native lifetime changes during collection prevent publication (11.655354ms)
+✔ cross-origin redirect, excess response and excess snapshot are never signed onward (7.945958ms)
+✔ stalled injected response and stalled cancellation cannot outlive the collector deadline (1.702909ms)
+✔ lost acknowledgement recovers exact snapshot bytes after restart and reauthorizes instead of returning a cache (7.002675ms)
+✔ journal tampering and another native lifetime cannot reuse a private request (11.837687ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 210.940595
