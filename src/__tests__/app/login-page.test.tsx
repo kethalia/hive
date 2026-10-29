@@ -34,9 +34,7 @@ describe("LoginPage", () => {
   it("opens the workspace home after successful authentication", async () => {
     render(<LoginForm />);
 
-    fireEvent.change(screen.getByLabelText("Coder URL"), {
-      target: { value: "https://coder.kethalia.com" },
-    });
+    expect(screen.queryByLabelText("Coder URL")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "operator@example.com" },
     });
@@ -48,6 +46,12 @@ describe("LoginPage", () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith("/workspaces");
       expect(mockRefresh).toHaveBeenCalledOnce();
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({
+          body: JSON.stringify({ email: "operator@example.com", password: "secret" }),
+        }),
+      );
     });
   });
 });

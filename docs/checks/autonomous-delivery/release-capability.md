@@ -259,3 +259,56 @@ evaluation (D07), independently authorized policy enforcement (D08), and real
 preview release/recovery pilots. The two existing preflight identity defects
 must be corrected before using that check as eligibility evidence. None of these
 gaps prevents implementing disabled, reviewable slices now.
+
+
+## F01 implementation evidence (2026-10-29)
+
+After this audit snapshot, main was incorporated through GitHub PR 401; the
+integration branch advanced to `4d8b8219ebc3dd2ddef7aa21c6e665c29215a322`.
+PR 402 is the draft bootstrap PR. The audit-start observations above are preserved
+as historical evidence; they are not a claim that the branch remains behind main.
+
+F01 now has a local implementation slice: one shared server-origin validator,
+email/password-only web and service login contracts, removed URL input, rejected
+browser overrides, response-origin checks, wrong-host existing-session rejection,
+and pre-decryption checks for workspace token use and rotation. Login API requests
+reject redirects. Existing user/session records are retained. Compose and the env
+example require the same `CODER_URL`; this deployment's example is
+`https://coder.kethalia.com`, with no hardcoded library fallback. The runbook
+records coordinated deployment and existing-session behavior.
+
+Validation performed against the local source, with synthetic credentials and
+mocked external services:
+
+- Shared auth package: 6 files, 50 tests passed.
+- Auth service: 12 files, 144 tests passed.
+- Web auth, login form, user client, rotation and push integration: 14 files,
+  139 tests passed.
+- `pnpm --filter @hive/auth typecheck`, `pnpm --filter hive-auth typecheck`, and
+  `pnpm typecheck` passed.
+- Scoped Biome checks and `git diff --check` passed.
+
+These are local implementation checks. Real Coder login, existing production
+session behavior, expired/revoked credentials against Coder, and browser preview
+remain integration/activation criteria. No live configuration, session, credential,
+workspace rollout, or production deployment was changed. F01 is not marked fully
+accepted from mocked tests alone.
+
+
+F01 review follow-up also hardened generic web Coder API and terminal Coder API
+fetches against redirects, retaining explicit manual handling for the workspace
+app auth redirect. A real loopback HTTP test verified the synthetic Coder token
+header never reached a redirect destination. The terminal authentication boundary
+now rejects origins returned by auth that differ from the configured deployment,
+then returns the configured canonical origin; HTTP, PTY, audio and keepalive
+consumers use that authenticated result. The installed `ws` implementation was
+inspected: redirect following defaults to false and these WebSocket call sites do
+not enable it.
+
+Additional validation: three web Coder client/redirect test files passed 44 tests
+(including overlap with the auth selection above); the entire terminal-proxy suite
+passed 239 tests in 11 files. Terminal-proxy and root typechecks passed; six added
+source/test files passed scoped Biome checks. The revised observation eligibility
+contract was independently reviewed and its 23 tests passed after adding producer,
+remote update, run sequence, and attempt identity ordering. No release authority
+is attached to that pure evaluator.

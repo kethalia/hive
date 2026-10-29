@@ -48,6 +48,7 @@ describe("auth route cookies", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    vi.stubEnv("CODER_URL", "https://coder.example.com");
     vi.stubEnv("COOKIE_SECRET", "test-secret");
     vi.stubEnv("COOKIE_DOMAIN", ".hive.local.kethalia.com");
     mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 4, resetMs: 60000 });
@@ -62,6 +63,7 @@ describe("auth route cookies", () => {
     mockServiceClient.login.mockResolvedValue({
       sessionId: "sess-123",
       applicationsHost: "*.apps.example.com",
+      user: { coderUrl: "https://coder.example.com" },
     });
 
     const response = await loginPOST(
@@ -72,7 +74,6 @@ describe("auth route cookies", () => {
           "x-forwarded-for": "1.2.3.4",
         },
         body: JSON.stringify({
-          coderUrl: "https://coder.example.com",
           email: "test@example.com",
           password: "pass123",
         }),
@@ -83,7 +84,6 @@ describe("auth route cookies", () => {
     expect(await response.json()).toEqual({ success: true });
     expect(mockCheckRateLimit).toHaveBeenCalledWith("1.2.3.4");
     expect(mockServiceClient.login).toHaveBeenCalledWith({
-      coderUrl: "https://coder.example.com",
       email: "test@example.com",
       password: "pass123",
     });
@@ -112,6 +112,7 @@ describe("auth route cookies", () => {
     mockServiceClient.login.mockResolvedValue({
       sessionId: "sess-preview",
       applicationsHost: "*.apps.example.com",
+      user: { coderUrl: "https://coder.example.com" },
     });
 
     const response = await loginPOST(
@@ -122,7 +123,6 @@ describe("auth route cookies", () => {
           "x-forwarded-for": "1.2.3.4",
         },
         body: JSON.stringify({
-          coderUrl: "https://coder.example.com",
           email: "test@example.com",
           password: "pass123",
         }),
@@ -147,7 +147,6 @@ describe("auth route cookies", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          coderUrl: "https://coder.example.com",
           email: "not-an-email",
           password: "pass123",
         }),
@@ -159,6 +158,36 @@ describe("auth route cookies", () => {
     expect(getSetCookies(response)).toEqual([]);
   });
 
+  it("rejects a browser origin override before forwarding credentials", async () => {
+    const response = await loginPOST(
+      new Request("https://hive.example.com/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          coderUrl: "https://attacker.invalid",
+          email: "test@example.com",
+          password: "pass",
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(mockServiceClient.login).not.toHaveBeenCalled();
+  });
+
+  it("does not set a session when auth and web deployment origins disagree", async () => {
+    mockServiceClient.login.mockResolvedValue({
+      sessionId: "wrong",
+      user: { coderUrl: "https://other.example.com" },
+    });
+    const response = await loginPOST(
+      new Request("https://hive.example.com/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: "test@example.com", password: "pass" }),
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(getSetCookies(response)).toEqual([]);
+  });
+
   it("login rejects rate-limited requests without calling auth service", async () => {
     mockCheckRateLimit.mockReturnValue({ allowed: false, remaining: 0, resetMs: 60000 });
 
@@ -167,7 +196,6 @@ describe("auth route cookies", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          coderUrl: "https://coder.example.com",
           email: "test@example.com",
           password: "pass123",
         }),
@@ -187,7 +215,6 @@ describe("auth route cookies", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          coderUrl: "https://coder.example.com",
           email: "test@example.com",
           password: "wrong",
         }),

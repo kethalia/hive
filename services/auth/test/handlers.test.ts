@@ -109,7 +109,6 @@ describe("HTTP handlers", () => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({
-          coderUrl: "https://coder.test",
           email: "alice@test.com",
           password: "pass",
         }),
@@ -138,7 +137,7 @@ describe("HTTP handlers", () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
-        body: JSON.stringify({ coderUrl: "https://coder.test", password: "pass" }),
+        body: JSON.stringify({ password: "pass" }),
       });
 
       expect(res.status).toBe(400);
@@ -150,7 +149,7 @@ describe("HTTP handlers", () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
-        body: JSON.stringify({ coderUrl: "https://coder.test", email: "a@b.com" }),
+        body: JSON.stringify({ email: "a@b.com" }),
       });
 
       expect(res.status).toBe(400);
@@ -158,16 +157,19 @@ describe("HTTP handlers", () => {
       expect(body.error).toContain("password");
     });
 
-    it("returns 400 when coderUrl is missing", async () => {
+    it("returns 400 when a client supplies a Coder origin", async () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
-        body: JSON.stringify({ email: "a@b.com", password: "pass" }),
+        body: JSON.stringify({
+          coderUrl: "https://attacker.invalid",
+          email: "a@b.com",
+          password: "pass",
+        }),
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
-      expect(body.error).toContain("coderUrl");
+      expect(performLogin).not.toHaveBeenCalled();
     });
 
     it("returns 401 on invalid credentials", async () => {
@@ -177,7 +179,6 @@ describe("HTTP handlers", () => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({
-          coderUrl: "https://coder.test",
           email: "a@b.com",
           password: "wrong",
         }),
@@ -194,7 +195,7 @@ describe("HTTP handlers", () => {
       const res = await fetch(`${baseUrl}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
-        body: JSON.stringify({ coderUrl: "https://bad.coder", email: "a@b.com", password: "pass" }),
+        body: JSON.stringify({ email: "a@b.com", password: "pass" }),
       });
 
       expect(res.status).toBe(502);
@@ -213,7 +214,6 @@ describe("HTTP handlers", () => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({
-          coderUrl: "https://coder.test",
           email: "a@b.com",
           password: "pass",
         }),
@@ -232,7 +232,6 @@ describe("HTTP handlers", () => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${"a".repeat(64)}` },
         body: JSON.stringify({
-          coderUrl: "https://coder.test",
           email: "a@b.com",
           password: "pass",
         }),

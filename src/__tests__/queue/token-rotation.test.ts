@@ -64,6 +64,7 @@ describe("processTokenRotation", () => {
   };
 
   beforeEach(() => {
+    vi.stubEnv("CODER_URL", "https://coder.example.com");
     vi.mocked(getDb).mockReturnValue(mockDb as never);
     process.env.ENCRYPTION_KEY = "a".repeat(64);
     mockDb.coderToken.findMany.mockResolvedValue([]);
@@ -79,6 +80,7 @@ describe("processTokenRotation", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     delete process.env.ENCRYPTION_KEY;
   });
@@ -93,6 +95,19 @@ describe("processTokenRotation", () => {
     await processTokenRotation(makeJob());
 
     expect(CoderClient.createApiKey).not.toHaveBeenCalled();
+  });
+
+  it("skips wrong-origin credentials before decrypting or rotating", async () => {
+    const token = makeToken();
+    token.user.coderUrl = "https://old.example.com";
+    token.expiresAt = new Date(Date.now() + 60_000);
+    mockDb.coderToken.findMany.mockResolvedValue([token]);
+    vi.mocked(tryDecrypt).mockClear();
+    vi.mocked(CoderClient.createApiKey).mockClear();
+    await processTokenRotation(makeJob());
+    expect(tryDecrypt).not.toHaveBeenCalled();
+    expect(CoderClient.createApiKey).not.toHaveBeenCalled();
+    expect(mockDb.$executeRaw).not.toHaveBeenCalled();
   });
 
   it("rotates token at threshold — creates new key, updates DB", async () => {

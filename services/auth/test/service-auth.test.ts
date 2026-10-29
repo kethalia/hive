@@ -104,7 +104,6 @@ describe("auth service caller authentication", () => {
   it("accepts all shared client operations through the production authentication guard", async () => {
     const client = new AuthServiceClient(baseUrl);
     await client.login({
-      coderUrl: "https://coder.test",
       email: "user@test",
       password: "password",
     });

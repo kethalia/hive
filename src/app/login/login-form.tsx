@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 
 export function LoginForm() {
   const router = useRouter();
-  const [coderUrl, setCoderUrl] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +22,7 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coderUrl, email, password }),
+        body: JSON.stringify({ email, password }),
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
@@ -47,23 +46,6 @@ export function LoginForm() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <div className="space-y-2">
-        <label htmlFor="coderUrl" className="text-sm font-medium">
-          Coder URL
-        </label>
-        <Input
-          id="coderUrl"
-          type="url"
-          placeholder="https://coder.example.com"
-          value={coderUrl}
-          onChange={(event) => {
-            setCoderUrl(event.target.value);
-          }}
-          required
-          autoComplete="url"
-          disabled={isPending}
-        />
-      </div>
       <div className="space-y-2">
         <label htmlFor="email" className="text-sm font-medium">
           Email

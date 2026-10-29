@@ -56,4 +56,23 @@ describe("auth-service fetchCoderApi", () => {
     expect(response.body).toBeNull();
     expect(mockAgentClose).toHaveBeenCalledOnce();
   });
+
+  it("disables credential redirects for the default transport", async () => {
+    vi.stubEnv("CODER_CA_CERT", "");
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", mockFetch);
+    try {
+      const { fetchCoderApi } = await import("../src/auth/coder-fetch.js");
+      await fetchCoderApi("https://coder.example.com/api/v2/users/login", {
+        method: "POST",
+        redirect: "follow",
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ redirect: "error" }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

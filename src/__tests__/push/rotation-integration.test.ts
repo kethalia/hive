@@ -74,6 +74,7 @@ describe("token rotation push notification integration", () => {
   };
 
   beforeEach(() => {
+    vi.stubEnv("CODER_URL", "https://coder.example.com");
     vi.clearAllMocks();
     vi.mocked(getDb).mockReturnValue(mockDb as never);
     process.env.ENCRYPTION_KEY = "a".repeat(64);
@@ -95,6 +96,7 @@ describe("token rotation push notification integration", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     delete process.env.ENCRYPTION_KEY;
   });
