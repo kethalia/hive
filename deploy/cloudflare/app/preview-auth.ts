@@ -84,11 +84,11 @@ export function authorizePreview(
 }
 
 /** Same-origin bearer-authenticated bootstrap; no redirect, query or body credential. */
-export function bootstrapPreview(
+export async function bootstrapPreview(
   request: Request,
   secret: unknown,
   options: CookieOptions,
-): Response | null {
+): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname !== "/__hive-preview/access") return null;
   const respond = (status: number) => new Response(null, { status, headers: privateHeaders });
@@ -104,7 +104,45 @@ export function bootstrapPreview(
     return respond(403);
   const unauthorized = authorizePreview(request, secret); // Cookie alone cannot renew authority.
   if (unauthorized) return unauthorized;
-  if (url.search || request.body) return respond(400);
+  if (url.search) return respond(400);
+  // Workers can supply a non-null stream even for an empty network POST.
+  // Read only bounded empty chunks; reject immediately on any body bytes.
+  if (request.body) {
+    const reader = request.body.getReader();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let empty = false;
+    try {
+      empty = await Promise.race([
+        (async () => {
+          for (let count = 0; count < 8; count++) {
+            const { done, value } = await reader.read();
+            if (done) return true;
+            if (value.byteLength) return false;
+          }
+          return false;
+        })(),
+        new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), 1000);
+        }),
+      ]);
+    } catch {
+      empty = false;
+    } finally {
+      clearTimeout(timer);
+      let cancellationTimer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          reader.cancel().catch(() => {}),
+          new Promise<void>((resolve) => {
+            cancellationTimer = setTimeout(resolve, 100);
+          }),
+        ]);
+      } finally {
+        clearTimeout(cancellationTimer);
+      }
+    }
+    if (!empty) return respond(400);
+  }
   const iat = Math.floor((options.now ?? Date.now()) / 1000),
     exp = iat + COOKIE_SECONDS;
   const payload = `v1.${iat}.${exp}.${randomBytes(16).toString("base64url")}`;

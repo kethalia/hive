@@ -27,7 +27,7 @@ export default {
       cookieSecret: env.PREVIEW_COOKIE_SECRET,
       origin: env.HIVE_PREVIEW_ORIGIN,
     };
-    const bootstrap = bootstrapPreview(request, env.PREVIEW_BEARER, cookieOptions);
+    const bootstrap = await bootstrapPreview(request, env.PREVIEW_BEARER, cookieOptions);
     if (bootstrap) return bootstrap;
     const unauthorized = authorizePreview(request, env.PREVIEW_BEARER, cookieOptions);
     if (unauthorized) return unauthorized;
