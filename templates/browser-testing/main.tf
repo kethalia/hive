@@ -81,6 +81,7 @@ resource "coder_agent" "main" {
     EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
     HIVE_PROJECTS_ROOT          = "/home/coder"
     HIVE_WORKSPACE_PROFILE      = local.profile.id
+    HIVE_MANAGED_PROJECTS       = tostring(local.hive_host_enabled)
     HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
     HIVE_DESKTOP_ENABLED        = tostring(local.profile.capabilities.desktop)
     HIVE_BROWSER_ENABLED        = tostring(local.profile.capabilities.browser)

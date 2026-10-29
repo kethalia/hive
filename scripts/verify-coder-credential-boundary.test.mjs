@@ -38,6 +38,34 @@ test("GitHub access tokens never enter rendered Coder startup metadata", () => {
   }
 });
 
+test("managed project startup skips bulk cloning and preserves the user's manifest and clones", (t) => {
+  const home = mkdtempSync(join(tmpdir(), "hive-managed-bootstrap-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  writeFileSync(join(home, "repositories.txt"), "user/retained|user/retained\n");
+  mkdirSync(join(home, "projects/retained/.git"), { recursive: true });
+  writeFileSync(
+    join(home, "clone-repositories.sh"),
+    '#!/bin/sh\nprintf called > "$HOME/bootstrap-called"\n',
+    { mode: 0o700 },
+  );
+  const script = readFileSync(`${canonical}/scripts/tools-ci.sh`, "utf8");
+  const boundary = script.slice(script.indexOf('if [ "$HIVE_MANAGED_PROJECTS"'));
+  assert.ok(boundary.startsWith("if "));
+  for (const managed of ["true", "false"]) {
+    const result = spawnSync("sh", ["-c", boundary], {
+      env: { PATH: "/usr/bin:/bin", HOME: home, HIVE_MANAGED_PROJECTS: managed },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(join(home, "bootstrap-called")), managed === "false");
+    assert.equal(
+      readFileSync(join(home, "repositories.txt"), "utf8"),
+      "user/retained|user/retained\n",
+    );
+    assert.ok(existsSync(join(home, "projects/retained/.git")));
+  }
+});
+
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "hive-coder-credentials-"));
   const home = join(root, "home");
