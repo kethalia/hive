@@ -2,6 +2,7 @@ import { getDb } from "@hive/db";
 import { ZodError } from "zod";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { boundedSessionJson, sessionService } from "@/lib/codex-session/route.server";
+import { resolveControllerGitHubManagerPolicy } from "@/lib/delivery/github-policy.server";
 import { DeliveryManagerService } from "@/lib/delivery/manager.server";
 import { DeliveryConflict } from "@/lib/delivery/state";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
     const sessions = sessionService();
     const manager = new DeliveryManagerService(getDb(), {
       reauthorize: (binding) => sessions.authority.reauthorize(binding),
+      resolveEvidencePolicy: resolveControllerGitHubManagerPolicy,
       allowedModelEfforts:
         process.env.HIVE_CODEX_MANAGER_MODEL && process.env.HIVE_CODEX_MANAGER_EFFORT
           ? [

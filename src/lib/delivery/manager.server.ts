@@ -1,6 +1,8 @@
-import type { PrismaClient } from "@hive/db";
+import { Prisma, type PrismaClient } from "@hive/db";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
+import { githubSourceDigest } from "./github-evidence.server";
+import { isGitHubSerializationConflict } from "./github-persistence.server";
 import {
   authenticateCheckoutHost,
   lockManagerCheckout,
@@ -16,7 +18,80 @@ export interface ManagerDependencies {
   reauthorize(binding: RegistrationBinding): Promise<RegistrationBinding>;
   // Controller-owned adapter policy, never read from the host envelope.
   evidencePolicy?: EvidencePolicy;
+  resolveEvidencePolicy?(
+    scope: ManagerPolicyScope,
+  ): Promise<ResolvedManagerEvidencePolicy | null> | ResolvedManagerEvidencePolicy | null;
   allowedModelEfforts?: readonly { model: string; effort: string }[];
+}
+export interface ManagerPolicyScope {
+  ownerId: string;
+  projectId: string;
+  taskId: string;
+  stepId: string;
+  repositoryId: string;
+  providerAccountId: string;
+  fullName: string;
+  sourceSha: string;
+  branch: string;
+  managerBindingId: string;
+  checkoutBindingDigest: string;
+  stepKind: string;
+  criterionIds: string[];
+  requiredEvidenceKinds: string[];
+  acceptancePhase: string;
+}
+export interface ResolvedManagerEvidencePolicy {
+  policy: EvidencePolicy;
+  authorityDigest: string;
+  authorizeReferences(
+    tx: Prisma.TransactionClient,
+    ids: string[],
+    requireCoverage: boolean,
+  ): Promise<void>;
+}
+const resolutionDigest = (value: ResolvedManagerEvidencePolicy | null) =>
+  value
+    ? githubSourceDigest({ authorityDigest: value.authorityDigest, policy: value.policy })
+    : null;
+async function loadPolicyScope(
+  tx: Prisma.TransactionClient,
+  ownerId: string,
+  taskId: string,
+  stepId: string,
+  host: Awaited<ReturnType<typeof lockManagerCheckout>>,
+): Promise<ManagerPolicyScope> {
+  const task = await tx.deliveryTask.findUnique({
+    where: { ownerId_id: { ownerId, id: taskId } },
+    include: { project: true, steps: { where: { id: stepId } } },
+  });
+  const step = task?.steps[0];
+  if (
+    !task ||
+    !step ||
+    task.projectId !== host.thread.projectId ||
+    task.conversationId !== host.thread.conversationId ||
+    task.managerBindingId !== host.binding.id ||
+    task.sourceSha !== host.binding.sourceSha ||
+    task.project.provider !== "github"
+  )
+    throw new RegistrationRejected();
+  return {
+    ownerId,
+    projectId: task.projectId,
+    taskId: task.id,
+    stepId: step.id,
+    repositoryId: task.project.providerRepositoryId,
+    providerAccountId: task.project.providerAccountId,
+    fullName: task.project.fullName,
+    sourceSha: task.sourceSha,
+    branch: task.branch,
+    managerBindingId: host.binding.id,
+    checkoutBindingDigest: host.binding.bindingDigest,
+    stepKind: step.kind,
+    criterionIds: step.criterionIds,
+    requiredEvidenceKinds: step.requiredEvidenceKinds,
+    acceptancePhase: step.acceptancePhase,
+  };
 }
 /** No producer trust can be supplied by a manager request. Until external adapters
  * are configured, the empty allowlist intentionally prevents successful reports. */
@@ -59,10 +134,47 @@ export class DeliveryManagerService {
       },
       input.checkoutBinding,
     );
+    const resultCommand =
+      input.command.operation === "complete_step" ||
+      (input.command.operation === "fail_attempt" && input.command.payload.evidenceIds.length > 0)
+        ? input.command
+        : null;
+    let selectedPolicy: ResolvedManagerEvidencePolicy | null = null;
+    const resolvePolicy = this.dependencies.resolveEvidencePolicy;
+    if (resultCommand && resolvePolicy) {
+      for (let retry = 0; ; retry++) {
+        try {
+          selectedPolicy = await this.db.$transaction(
+            async (tx) => {
+              const host = await lockManagerCheckout(tx, input, registered, {
+                allowBlocked: input.command.operation === "fail_attempt",
+              });
+              const scope = await loadPolicyScope(
+                tx,
+                ownerId,
+                resultCommand.payload.taskId,
+                resultCommand.payload.stepId,
+                host,
+              );
+              return resolvePolicy(scope);
+            },
+            {
+              isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+              maxWait: 10000,
+              timeout: 10000,
+            },
+          );
+          break;
+        } catch (error) {
+          if (retry >= 2 || !isGitHubSerializationConflict(error)) throw error;
+        }
+      }
+    }
+    const selectedPolicyDigest = resolutionDigest(selectedPolicy);
     let nativeSequence = 0;
     const repository = new DeliveryRepository(
       this.db,
-      this.dependencies.evidencePolicy,
+      selectedPolicy?.policy ?? this.dependencies.evidencePolicy,
       async (tx) => {
         const scope = await lockManagerCheckout(tx, input, registered, {
           create: input.command.operation === "create_task",
@@ -82,6 +194,23 @@ export class DeliveryManagerService {
             task.sourceSha !== scope.binding.sourceSha
           )
             throw new RegistrationRejected();
+        }
+        if (resultCommand && resolvePolicy) {
+          const currentScope = await loadPolicyScope(
+            tx,
+            ownerId,
+            resultCommand.payload.taskId,
+            resultCommand.payload.stepId,
+            scope,
+          );
+          const currentPolicy = await resolvePolicy(currentScope);
+          if (resolutionDigest(currentPolicy) !== selectedPolicyDigest)
+            throw new DeliveryConflict("manager_policy_changed");
+          await currentPolicy?.authorizeReferences(
+            tx,
+            resultCommand.payload.evidenceIds,
+            resultCommand.operation === "complete_step",
+          );
         }
         if (input.command.operation === "claim_step") {
           const other = await tx.deliveryManagerBinding.findFirst({

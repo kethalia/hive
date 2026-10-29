@@ -12,8 +12,10 @@ pass/fail status, policy, PR number, GitHub URL or object key through this route
 The server derives owner, repository/account and current head from persisted
 project/task/intent bindings. Its initial bounded configuration is
 `HIVE_DELIVERY_GITHUB_TARGETS_JSON`, a server-owned map of exact task UUID to
-`{pullNumber, policy}`. Missing configuration fails closed. Automatic trusted PR
-discovery and shared manager policy resolution remain later integration work.
+`{pullNumber, policy}`. Missing configuration fails closed. The subsequent
+[shared manager policy checkpoint](manager-policy.md) resolves this same map after
+authenticated persisted scope and revalidates it during result publication.
+Automatic trusted PR discovery remains later integration work.
 
 An append-only challenge binds action, nonce, exact target, full canonical policy
 digest, registration, checkout binding and expiry (at most sixty seconds). Issuing
@@ -63,10 +65,13 @@ never returns a cached success. Lifetime/task/lease/source context changes and
 tampering reject replay. Fetch and stream reads have an independent deadline even
 for injected transports; stalled cancellation does not hold the caller forever.
 
-The journal currently holds at most 32 request files of at most 1152 KiB each.
-It deliberately does not evict records. Reaching the bound blocks collection.
-Safe expired-record retirement under the unique installed-host lock is an explicit
-remaining integration gate; continuous polling must stay disabled. The journal
+The journal holds at most 32 request files of at most 1152 KiB each. Under the
+unique installed-host lock it can retire validated challenge retry files only
+after expiry plus sixty seconds. It verifies all MACs and private regular
+single-link file identities before unlinking, then fsyncs the directory. Legacy,
+corrupt, unknown and nonregular files are retained and block unsafe retirement;
+live lost-acknowledgement bytes remain unchanged. Continuous polling stays disabled.
+The journal
 must live in the installed controller's protected private state directory, not in
 the model-writable checkout. No same-UID security claim follows from file mode.
 
@@ -88,8 +93,7 @@ and credential directory are removed after the test. These checks do not establi
 live R2 retention, billing, real account inference or production readiness.
 
 Required activation work includes reviewed native/signer isolation, actual bundled
-host composition, trusted shared manager policy resolution, bounded journal
-retirement, live account/source and immutable storage proof, and acceptance of
+host composition, live account/source and immutable storage proof, and acceptance of
 production behavior by the owner. Background/external quiescence stays unknown and
 writer holds remain. The [preview storage plan](r2-preview-plan.md) is review-only;
 the current account cannot establish zero incremental cost.
