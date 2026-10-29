@@ -1,7 +1,7 @@
 import type { EncryptedData } from "@hive/auth";
 import type { PrismaClient } from "@hive/db";
-import { deleteManagedCoderKey, type ManagedCoderKey } from "./managed-keys.js";
-import { createSession } from "./session.js";
+import { deleteManagedCoderKey, type ManagedCoderKey } from "./managed-keys";
+import { createSession } from "./session";
 
 export class CredentialCASConflict extends Error {
   constructor() {
