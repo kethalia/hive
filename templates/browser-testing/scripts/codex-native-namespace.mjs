@@ -67,6 +67,16 @@ export function prepareNativeNamespace({ home, stateDirectory, codexExecutable, 
         digest(readFileSync(path)) === pin,
     );
   }
+  const rgDirectory = join(vendor, "codex-path"),
+    rgExecutable = join(rgDirectory, "rg"),
+    rgStat = lstatSync(rgDirectory);
+  check(
+    realpathSync(rgDirectory) === rgDirectory &&
+      rgStat.isDirectory() &&
+      rgStat.uid === process.getuid() &&
+      !(rgStat.mode & 0o022) &&
+      JSON.stringify(readdirSync(rgDirectory)) === JSON.stringify(["rg"]),
+  );
   const root = privateDirectory(join(home, ".local/share/hive/codex-native"));
   const nativeHome = privateDirectory(join(root, "home")),
     codexHome = privateDirectory(join(root, "codex"));
@@ -82,7 +92,7 @@ export function prepareNativeNamespace({ home, stateDirectory, codexExecutable, 
     "/proc",
     "/etc/codex",
   ];
-  const requirements = `allowed_approval_policies=["never"]\nallowed_sandbox_modes=["read-only","workspace-write"]\nallowed_web_search_modes=["disabled"]\ndefault_permissions="${NATIVE_PROFILE}"\nmcp_servers={}\n[allowed_permission_profiles]\n${NATIVE_PROFILE}=true\n[permissions.filesystem]\ndeny_read=${JSON.stringify(denied)}\n[permissions.${NATIVE_PROFILE}.filesystem]\n":minimal"="read"\n${JSON.stringify(codexExecutable)}="read"\n[permissions.${NATIVE_PROFILE}.filesystem.":workspace_roots"]\n"."="write"\n[permissions.${NATIVE_PROFILE}.network]\nenabled=false\n[features]\napps=false\nplugins=false\nhooks=false\n`;
+  const requirements = `allowed_approval_policies=["never"]\nallowed_sandbox_modes=["read-only","workspace-write"]\nallowed_web_search_modes=["disabled"]\ndefault_permissions="${NATIVE_PROFILE}"\nmcp_servers={}\n[allowed_permission_profiles]\n${NATIVE_PROFILE}=true\n[permissions.filesystem]\ndeny_read=${JSON.stringify(denied)}\n[permissions.${NATIVE_PROFILE}.filesystem]\n":minimal"="read"\n${JSON.stringify(codexExecutable)}="read"\n${JSON.stringify(rgExecutable)}="read"\n[permissions.${NATIVE_PROFILE}.filesystem.":workspace_roots"]\n"."="write"\n[permissions.${NATIVE_PROFILE}.network]\nenabled=false\n[features]\napps=false\nplugins=false\nhooks=false\n`;
   writePrivate(policyPath, requirements);
   let config =
     'approval_policy="never"\nweb_search="disabled"\ncheck_for_update_on_startup=false\n[features]\napps=false\nplugins=false\nhooks=false\nmemories=false\n';
@@ -184,7 +194,7 @@ export function prepareNativeNamespace({ home, stateDirectory, codexExecutable, 
     "/dev",
   ];
   const env = {
-    PATH: "/usr/bin:/bin",
+    PATH: `${rgDirectory}:/usr/bin:/bin`,
     HOME: nativeHome,
     CODEX_HOME: codexHome,
     LANG: "C.UTF-8",

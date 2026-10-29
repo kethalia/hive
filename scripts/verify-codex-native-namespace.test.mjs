@@ -14,7 +14,7 @@ import {
 } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { NATIVE_PROFILE } from "../templates/ai-dev-k8s/scripts/codex-native-namespace.mjs";
 import {
@@ -253,6 +253,35 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
   });
   assert.equal(denied.exitCode, 0);
   assert.equal(denied.stdout.trim(), "DENIED");
+  const rgPath = join(dirname(dirname(executable)), "codex-path/rg");
+  const rgDigest = createHash("sha256").update(readFileSync(rgPath)).digest("hex");
+  writeFileSync(join(checkout, "search-fixture.txt"), "PINNED_SEARCH_CONTROL\n");
+  const search = await native.call("command/exec", {
+    command: [
+      "/bin/sh",
+      "-c",
+      "rg --fixed-strings --line-number PINNED_SEARCH_CONTROL search-fixture.txt",
+    ],
+    cwd: checkout,
+    permissionProfile: NATIVE_PROFILE,
+  });
+  assert.equal(search.exitCode, 0);
+  assert.equal(search.stdout.trim(), "1:PINNED_SEARCH_CONTROL");
+  const immutableRg = await native.call("command/exec", {
+    command: [
+      "/usr/bin/python3",
+      "-I",
+      "-c",
+      "import sys,errno\ntry: open(sys.argv[1],'ab').close()\nexcept OSError as error:\n assert error.errno in [errno.EACCES,errno.EPERM,errno.EROFS]\n print('RG_WRITE_DENIED')\nelse: raise SystemExit(2)",
+      rgPath,
+    ],
+    cwd: checkout,
+    permissionProfile: NATIVE_PROFILE,
+  });
+  assert.equal(immutableRg.exitCode, 0);
+  assert.equal(immutableRg.stdout.trim(), "RG_WRITE_DENIED");
+  assert.equal(createHash("sha256").update(readFileSync(rgPath)).digest("hex"), rgDigest);
+
   await assert.rejects(
     native.call("command/exec", {
       command: ["/usr/bin/true"],
