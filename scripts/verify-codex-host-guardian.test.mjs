@@ -15,6 +15,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { duplexPair } from "node:stream";
 import { test } from "node:test";
+import {
+  guardianStartChallenge,
+  readGuardianStart,
+} from "../templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs";
 import { guardianWire } from "../templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs";
 import { openGuardedHost } from "../templates/ai-dev-k8s/scripts/codex-host-guardian.mjs";
 import { processParentPid } from "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs";
@@ -29,7 +33,10 @@ async function until(predicate) {
   }
   throw new Error("fixture_deadline");
 }
-function fixture(t, { tmux = false, rejectBarrier = false } = {}) {
+function fixture(
+  t,
+  { tmux = false, rejectBarrier = false, startup = false, mismatch = false, readyDelay = 0 } = {},
+) {
   const directory = mkdtempSync(join(tmpdir(), "hive-host-guardian-")),
     packageDirectory = join(directory, "package");
   const build = buildNativeGuardian(resolve("."), packageDirectory);
@@ -51,7 +58,7 @@ function fixture(t, { tmux = false, rejectBarrier = false } = {}) {
   const script = `import {connectGuardianWorker} from './codex-guardian-worker.mjs';
 import {spawn,execFileSync} from 'node:child_process';
 import {writeFileSync,existsSync} from 'node:fs';
-const guard=await connectGuardianWorker({onLost:()=>{},onCloseAdmission:async value=>{let rejected=false;try{guard.assertAdmission(token)}catch{rejected=true};writeFileSync(${JSON.stringify(barrier)},JSON.stringify({...value,executionRejected:rejected}));${rejectBarrier ? "throw new Error('fixture_barrier_failure');" : ""}}});
+const guard=await connectGuardianWorker({${startup ? `startup:{configSha256:'${(mismatch ? "d" : "c").repeat(64)}',port:32123},` : ""}onLost:()=>{},onCloseAdmission:async value=>{let rejected=false;try{guard.assertAdmission(token)}catch{rejected=true};writeFileSync(${JSON.stringify(barrier)},JSON.stringify({...value,executionRejected:rejected}));${rejectBarrier ? "throw new Error('fixture_barrier_failure');" : ""}}});
 let token=await guard.admit(${JSON.stringify(project)});token=await guard.executionFence(token);guard.assertAdmission(token);
 ${
   tmux
@@ -63,6 +70,7 @@ spawn('/usr/bin/python3',['-I','-c',${JSON.stringify(ptyScript)}],{env:{PATH:'/u
     : "const tmux={pid:null};"
 }
 writeFileSync(${JSON.stringify(marker)},JSON.stringify({pid:process.pid,tmuxPid:tmux.pid,token}));
+${startup ? `await new Promise(r=>setTimeout(r,${readyDelay}));await guard.ready({configSha256:'${"c".repeat(64)}',port:32123});` : ""}
 setInterval(()=>{},1000);`;
   writeFileSync(join(packageDirectory, "fixture-worker.mjs"), script, { mode: 0o600 });
   execFileSync(process.execPath, ["--check", join(packageDirectory, "fixture-worker.mjs")], {
@@ -98,6 +106,16 @@ setInterval(()=>{},1000);`;
       return value.projects.map((entry) => ({ ...entry, decisionId: randomUUID() }));
     },
   };
+  if (startup)
+    options.startup = {
+      schemaVersion: 1,
+      type: "start",
+      nonce: Buffer.alloc(32, 1).toString("base64url"),
+      configSha256: "c".repeat(64),
+      port: 32123,
+      nodeSha256: options.nodeSha256,
+      packageManifestSha256: options.packageManifestSha256,
+    };
   let host;
   t.after(async () => {
     if (host && host.state.phase !== "closed") {
@@ -160,6 +178,92 @@ test("outer worker barrier refuses active project then drains actual tmux descen
   assert.equal(journal.state.phase, "closed");
   assert.equal(journal.state.receipts.length, 1);
   assert.equal(journal.state.receipts[0].lifetimeId, receipt.lifetimeId);
+});
+
+test("startup attestation waits for worker readiness and pins nonce, config, package and exact kernel chain", async (t) => {
+  const f = fixture(t, { startup: true, readyDelay: 150 });
+  let resolved = false;
+  const opening = f.open().then((host) => {
+    resolved = true;
+    return host;
+  });
+  await until(() => existsSync(f.marker));
+  assert.equal(resolved, false);
+  const host = await opening,
+    ready = host.startupAttestation();
+  for (const key of ["nonce", "configSha256", "nodeSha256", "packageManifestSha256", "port"])
+    assert.equal(ready[key], f.options.startup[key]);
+  assert.equal(ready.type, "ready");
+  assert.equal(ready.workerIdentity.pid, host.state.workerPid);
+  assert.equal(ready.workerIdentity.parentPid, ready.guardianIdentity.pid);
+  assert.equal(ready.guardianIdentity.parentPid, process.pid);
+  assert.equal(ready.outerIdentity.pid, process.pid);
+  assert.equal(
+    ready.guardianSha256,
+    hash(join(f.options.packageDirectory, "codex-native-guardian")),
+  );
+  assert.deepEqual(ready.projects, [f.project]);
+  const saved = JSON.parse(readFileSync(join(f.options.stateDirectory, "lifetime.json")));
+  assert.equal(saved.state.events.filter((event) => event.name === "startupReady").length, 1);
+  await host.abort();
+  assert.throws(() => host.startupAttestation(), /host_guardian_rejected/);
+});
+
+test("startup challenge mismatch cannot attest or leave a worker running", async (t) => {
+  const f = fixture(t, { startup: true, mismatch: true });
+  await assert.rejects(f.open());
+  assert.equal(existsSync(f.marker), false);
+  const saved = JSON.parse(readFileSync(join(f.options.stateDirectory, "lifetime.json")));
+  assert.equal(
+    saved.state.events.some((event) => event.name === "startupReady"),
+    false,
+  );
+  assert.equal(saved.state.receipts.length, 0);
+});
+
+test("private installer startup framing rejects duplicates, extra keys, oversized input and timeout", async () => {
+  const challenge = {
+    schemaVersion: 1,
+    type: "start",
+    nonce: Buffer.alloc(32, 1).toString("base64url"),
+    configSha256: "a".repeat(64),
+    nodeSha256: "b".repeat(64),
+    packageManifestSha256: "c".repeat(64),
+    port: 32123,
+  };
+  assert.throws(
+    () => guardianStartChallenge({ ...challenge, argv: [] }),
+    /guardian_startup_rejected/,
+  );
+  for (const kind of ["duplicate", "oversized", "timeout"]) {
+    const [server, client] = duplexPair();
+    const start = readGuardianStart({ stream: server, timeoutMs: 30 });
+    if (kind === "duplicate")
+      client.write(`${JSON.stringify(challenge)}\n${JSON.stringify(challenge)}\n`);
+    if (kind === "oversized") client.write("x".repeat(32769));
+    await assert.rejects(start, /guardian_startup_channel_lost/);
+    client.destroy();
+  }
+  const [server, client] = duplexPair();
+  const start = readGuardianStart({ stream: server });
+  client.write(`${JSON.stringify(challenge)}\n`);
+  const channel = await start;
+  await assert.rejects(
+    channel.ready({
+      ...challenge,
+      type: "ready",
+      nonce: Buffer.alloc(32, 2).toString("base64url"),
+    }),
+    /guardian_startup_rejected/,
+  );
+  let received = "";
+  client.on("data", (data) => {
+    received += data;
+  });
+  await channel.ready({ ...challenge, type: "ready" });
+  assert.equal(JSON.parse(received).nonce, challenge.nonce);
+  await assert.rejects(channel.ready({ ...challenge, type: "ready" }), /guardian_startup_rejected/);
+  client.destroy();
 });
 
 test("uncertain old lifetime cannot be adopted or restarted from an empty new guardian", async (t) => {

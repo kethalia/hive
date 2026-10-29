@@ -8,7 +8,8 @@ import {
   createProjectController,
   validateProjectOperation,
 } from "../templates/ai-dev-k8s/scripts/codex-project-controller.mjs";
-function fixture(t) {
+
+function fixture(t, configure) {
   const dir = mkdtempSync(join(tmpdir(), "hive-controller-"));
   const projectId = randomUUID(),
     taskId = randomUUID(),
@@ -122,6 +123,7 @@ function fixture(t) {
       };
     },
   };
+  configure?.({ deps, config, calls, projectId, taskId, dir });
   let controller = createProjectController(config, deps);
   t.after(async () => {
     await controller.close();
@@ -602,4 +604,262 @@ test("unavailable empty native history returns the existing blocked status witho
   assert.equal(result.phase, "blocked");
   assert.equal(result.reason, "registration_unavailable");
   assert.deepEqual(f.calls, before.concat("inspect"));
+});
+
+function guardianFixture(t, configure) {
+  let phase = "open",
+    generation = 1;
+  const lifetimeId = randomUUID(),
+    bindingDigest = "b".repeat(64),
+    projects = new Map();
+  const ownershipDigest = () => String(generation).padStart(64, "0");
+  let context;
+  const guard = {
+    get state() {
+      return { phase, lifetimeId, bindingDigest, generation, ownershipDigest: ownershipDigest() };
+    },
+    async admit(project) {
+      const saved = JSON.parse(readFileSync(join(context.dir, "projects.json"))).state;
+      assert.ok(saved.projects[project.projectId].task.guardianPreparation);
+      assert.equal(saved.projects[project.projectId].task.guardianPrepared, undefined);
+      if (projects.size === 0) {
+        assert.equal(context.calls.includes("prepare"), false);
+        assert.equal(context.calls.includes("inspect"), false);
+      }
+      assert.ok(
+        !projects.has(project.projectId) ||
+          projects.get(project.projectId) === project.bindingDigest,
+      );
+      projects.set(project.projectId, project.bindingDigest);
+      generation++;
+      return {
+        projectId: project.projectId,
+        projectBindingDigest: project.bindingDigest,
+        ...guard.state,
+      };
+    },
+    async executionFence(token) {
+      assert.equal(phase, "open");
+      assert.equal(token.projectBindingDigest, projects.get(token.projectId));
+      return { ...token, ...guard.state };
+    },
+    assertAdmission(token) {
+      assert.equal(phase, "open");
+      assert.equal(token.generation, generation);
+      assert.equal(token.lifetimeId, lifetimeId);
+      assert.equal(token.projectBindingDigest, projects.get(token.projectId));
+    },
+  };
+  const f = fixture(t, (c) => {
+    context = c;
+    c.deps.guardian = guard;
+    c.deps.guardianBuildId = randomUUID();
+    configure?.(c, guard);
+  });
+  return {
+    ...f,
+    guard,
+    barrier() {
+      phase = "closed";
+      return {
+        ...guard.state,
+        barrierId: randomUUID(),
+        projects: [...projects].map(([projectId, bindingDigest]) => ({ projectId, bindingDigest })),
+      };
+    },
+    lose() {
+      phase = "indeterminate";
+      f.controller.loseAdmission();
+    },
+    saved: () => JSON.parse(readFileSync(join(context.dir, "projects.json"))).state,
+  };
+}
+
+test("guardian admission is durable before preparation and final binding is a separate immutable record", async (t) => {
+  const f = guardianFixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  const task = f.saved().projects[f.open.projectId].task;
+  assert.equal(task.guardianPreparation.stage, "preparation");
+  assert.equal(task.guardianPreparation.baseSha, f.start.revision);
+  assert.equal(task.guardianPreparation.leaseId, undefined);
+  assert.equal(task.guardianPrepared.leaseId, task.prepared.leaseId);
+  assert.equal(task.guardianPrepared.checkoutIncarnation, task.checkoutIncarnation);
+  assert.ok(f.calls.indexOf("prepare") < f.calls.indexOf("runtime"));
+  const earlier = JSON.stringify(task.guardianPreparation);
+  await f.controller.executionFence(f.open.projectId);
+  f.controller.assertExecution(f.open.projectId);
+  assert.equal(
+    JSON.stringify(f.saved().projects[f.open.projectId].task.guardianPreparation),
+    earlier,
+  );
+  const barrier = f.barrier();
+  assert.equal(f.controller.closeAdmission(barrier).closed, true);
+  assert.deepEqual(f.saved().guardianBarrier, barrier);
+  assert.throws(
+    () => f.controller.assertExecution(f.open.projectId),
+    /controller_admission_closed/,
+  );
+  await assert.rejects(
+    f.controller.handle("/projects/tasks/status", f.status),
+    /controller_admission_closed/,
+  );
+});
+
+test("closing while preparation is in flight retains uncertainty and cannot enroll or start native execution", async (t) => {
+  let release, entered;
+  const started = new Promise((done) => {
+    entered = done;
+  });
+  const pause = new Promise((done) => {
+    release = done;
+  });
+  const f = guardianFixture(t, ({ deps }) => {
+    const prepare = deps.prepareCheckout;
+    deps.prepareCheckout = async () => {
+      entered();
+      await pause;
+      return prepare();
+    };
+  });
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await started;
+  const barrier = f.barrier();
+  assert.throws(
+    () => f.controller.closeAdmission(barrier),
+    /guardian_barrier_preparation_uncertain/,
+  );
+  release();
+  await f.controller.drain();
+  assert.equal(f.calls.includes("runtime"), false);
+  assert.equal(f.calls.includes("ensureProject"), false);
+  assert.deepEqual(f.saved().guardianBarrier, barrier);
+  assert.equal(f.saved().projects[f.open.projectId].task.guardianPrepared, undefined);
+});
+
+test("lost guardian channel persists a closed admission fence and prevents helper dispatch", async (t) => {
+  const f = guardianFixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  f.lose();
+  await assert.rejects(
+    f.controller.handle("/projects/tasks/start", f.start),
+    /controller_admission_closed/,
+  );
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.saved().guardianBarrier.reason, "guardian_channel_lost");
+});
+
+test("a new admitted project refreshes existing generation tokens before shared helper work", async (t) => {
+  let f,
+    preparations = 0;
+  f = guardianFixture(t, ({ deps }) => {
+    deps.resolveRepository = async (r) => ({
+      schemaVersion: 1,
+      providerAccountId: r.expectedAccountId,
+      repository: {
+        providerRepositoryId: r.repositoryId,
+        permissions: { push: true },
+        archived: false,
+      },
+      defaultRevision: "a".repeat(40),
+    });
+    deps.inspectCheckout = async () => ({ status: "not_created", lease: null });
+    deps.prepareCheckout = async (r) => {
+      f.controller.assertRuntimeExecution();
+      preparations++;
+      return {
+        status: "ready",
+        checkoutIncarnation: randomUUID(),
+        lease: {
+          taskId: r.taskId,
+          id: randomUUID(),
+          generation: 1,
+          expiresAt: Date.now() / 1000 + 900,
+        },
+      };
+    };
+    deps.openRuntime = async () => {
+      throw new Error("fixture_no_native");
+    };
+  });
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  const other = {
+    ...f.open,
+    projectId: randomUUID(),
+    repositoryId: "789",
+    requestId: randomUUID(),
+  };
+  await f.controller.handle("/projects/open", other);
+  await f.controller.handle("/projects/tasks/start", {
+    ...f.start,
+    ...other,
+    taskId: randomUUID(),
+  });
+  await f.controller.drain();
+  assert.equal(preparations, 2);
+  f.controller.assertRuntimeExecution();
+});
+
+test("closure during repository resolution cannot dispatch checkout inspection or preparation", async (t) => {
+  let entered,
+    release,
+    resolves = 0;
+  const waiting = new Promise((done) => {
+    entered = done;
+  });
+  const gate = new Promise((done) => {
+    release = done;
+  });
+  const f = guardianFixture(t, ({ deps }) => {
+    const original = deps.resolveRepository;
+    deps.resolveRepository = async (r) => {
+      if (++resolves === 2) {
+        entered();
+        await gate;
+      }
+      return original(r);
+    };
+  });
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await waiting;
+  f.lose();
+  release();
+  await f.controller.drain();
+  assert.equal(f.calls.includes("inspect"), false);
+  assert.equal(f.calls.includes("prepare"), false);
+  assert.equal(f.calls.includes("runtime"), false);
+});
+
+test("late lease renewal after the close barrier cannot rewrite the closed controller snapshot", async (t) => {
+  let entered, release;
+  const waiting = new Promise((done) => {
+    entered = done;
+  });
+  const gate = new Promise((done) => {
+    release = done;
+  });
+  const f = guardianFixture(t, ({ deps }) => {
+    deps.renewLease = async () => {
+      entered();
+      await gate;
+      return null;
+    };
+  });
+  f.register();
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  f.controller.renewLeases();
+  await waiting;
+  f.controller.closeAdmission(f.barrier());
+  const closed = JSON.stringify(f.saved());
+  release();
+  await f.controller.drain();
+  assert.equal(JSON.stringify(f.saved()), closed);
+  assert.equal(f.calls.includes("revokeExecution"), false);
 });

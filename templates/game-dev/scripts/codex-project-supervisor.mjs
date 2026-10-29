@@ -128,6 +128,13 @@ export function validateSupervisorConfig(raw) {
 // supplies these values; external registration must independently authenticate them.
 export async function openSupervisor(raw, dependencies = {}) {
   const config = validateSupervisorConfig(raw);
+  const executionAuthority = dependencies.executionAuthority;
+  if (executionAuthority)
+    check(
+      typeof executionAuthority.assert === "function" &&
+        typeof executionAuthority.fence === "function",
+      "execution_authority_required",
+    );
   const home = dependencies.home ?? userInfo().homedir;
   check(realpathSync(home) === home, "invalid_home");
   const stateDirectory = join(home, ".local/state/hive/codex-project-supervisor");
@@ -207,12 +214,26 @@ export async function openSupervisor(raw, dependencies = {}) {
     for (const entry of Object.values(state.projects)) entry.attached = false;
     save();
     const supervisor = new ProjectSupervisor(config, home, stateDirectory, state, save, lock);
+    supervisor.executionAuthority = executionAuthority;
+    await executionAuthority?.fence();
+    executionAuthority?.assert();
     runtime = await (dependencies.runtimeFactory ?? launchNative)({
       config,
       home,
       stateDirectory,
       lock,
+      executionAuthority,
     });
+    executionAuthority?.assert();
+    if (executionAuthority) {
+      const nativeCall = runtime.call.bind(runtime);
+      runtime.call = async (...args) => {
+        executionAuthority.assert();
+        const result = await nativeCall(...args);
+        executionAuthority.assert();
+        return result;
+      };
+    }
     supervisor.runtime = runtime;
     if (dependencies.managerAdapter) supervisor.setManagerAdapter(dependencies.managerAdapter);
     runtime.onClose(() => supervisor.revoke());
@@ -258,6 +279,7 @@ export class ProjectSupervisor {
   }
   // Installed controller only; not exposed through command() or the native bridge.
   enrollPreparedProject(project) {
+    this.executionAuthority?.assert();
     check(!this.closed && !this.busy && this.state.status === "ready", "supervisor_busy_or_closed");
     const existing = this.config.projects.find((p) => p.projectId === project.projectId);
     if (existing) {
@@ -618,6 +640,8 @@ export class ProjectSupervisor {
     this.managerAdapter = adapter;
     this.runtime.setManagerAdapter({
       handleToolCall: async (params) => {
+        await this.executionAuthority?.fence();
+        this.executionAuthority?.assert();
         const project = this.config.projects.find(
           (p) => this.state.projects[p.projectId]?.threadId === params.threadId,
         );
@@ -625,7 +649,9 @@ export class ProjectSupervisor {
           project && this.registrationBinding(project.projectId).threadId === params.threadId,
           "manager_thread_unregistered",
         );
-        return adapter.handleToolCall(params);
+        const result = await adapter.handleToolCall(params);
+        this.executionAuthority?.assert();
+        return result;
       },
       observe: adapter.observe
         ? (notification) => {
@@ -662,6 +688,7 @@ export class ProjectSupervisor {
   // Installed protocol-one callbacks only. These are deliberately absent from
   // command(), the gateway and the browser/native read RPC allowlists.
   deliveryProgressionProject(request) {
+    this.executionAuthority?.assert();
     check(
       this.managerAdapter?.progressionProtocol === 1 &&
         !this.closed &&
@@ -1055,6 +1082,7 @@ export class ProjectSupervisor {
     return structuredClone(tools);
   }
   binding(projectId) {
+    this.executionAuthority?.assert();
     const entry = this.state.projects[projectId];
     check(
       this.state.status === "ready" &&
@@ -1091,6 +1119,8 @@ export class ProjectSupervisor {
     throw new Error("session_binding_denied");
   }
   async command(request) {
+    await this.executionAuthority?.fence();
+    this.executionAuthority?.assert();
     check(!this.closed && !this.busy, "supervisor_busy_or_closed");
     check(
       exact(request, ["operation", "projectId", "creationIntentId", "requestId", "text"]) &&
@@ -1265,6 +1295,7 @@ export class ProjectSupervisor {
           }
         }
       }
+      this.executionAuthority?.assert();
       return this.snapshot(project.projectId);
     } finally {
       this.busy = false;
@@ -1299,6 +1330,16 @@ export class ProjectSupervisor {
       } finally {
         closeSync(this.lock);
       }
+    }
+  }
+  async closeAdmission(barrier) {
+    const attached = Object.entries(this.state.projects).filter(([, entry]) => entry.attached);
+    this.state.guardianBarrier = structuredClone(barrier);
+    this.revoke(); // Synchronous input/read-ticket/PTY revocation before awaits.
+    this.save();
+    for (const [projectId] of attached) {
+      check(typeof this.runtime.detach === "function", "cli_input_close_unavailable");
+      await this.runtime.detach(projectId); // Fixed owned-session cleanup, never new admission.
     }
   }
 }
@@ -1434,7 +1475,16 @@ export function createNativeManagerRouter(getAdapter, reply) {
   return route;
 }
 
-export async function launchNative({ config, home, stateDirectory, lock, fixtureProvider }) {
+export async function launchNative({
+  config,
+  home,
+  stateDirectory,
+  lock,
+  fixtureProvider,
+  executionAuthority,
+}) {
+  await executionAuthority?.fence();
+  executionAuthority?.assert();
   const executable = readFileSync(config.codexExecutable);
   check(
     realpathSync(config.codexExecutable) === config.codexExecutable &&
@@ -1462,6 +1512,7 @@ export async function launchNative({ config, home, stateDirectory, lock, fixture
   });
   const endpoint = `ws://127.0.0.1:${reservation.address().port}`;
   await new Promise((r) => reservation.close(r));
+  executionAuthority?.assert();
   const token = randomBytes(32).toString("hex");
   const tokenPath = join(stateDirectory, "native-token");
   atomic(tokenPath, token, true);
@@ -1503,6 +1554,11 @@ export async function launchNative({ config, home, stateDirectory, lock, fixture
   const managerRouter = createNativeManagerRouter(
     () => managerAdapter,
     (id, result) => {
+      try {
+        executionAuthority?.assert();
+      } catch {
+        return;
+      }
       if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ id, result }));
     },
   );
@@ -1576,8 +1632,10 @@ export async function launchNative({ config, home, stateDirectory, lock, fixture
         revoke();
       }
     });
-    const call = (method, params) =>
-      new Promise((resolveCall, reject) => {
+    const call = async (method, params) => {
+      await executionAuthority?.fence();
+      executionAuthority?.assert();
+      const result = await new Promise((resolveCall, reject) => {
         if (closing || ws.readyState !== WebSocket.OPEN || pending.size >= 8) {
           reject(new Error("native_unavailable"));
           return;
@@ -1590,6 +1648,9 @@ export async function launchNative({ config, home, stateDirectory, lock, fixture
         pending.set(requestId, { resolve: resolveCall, reject, timer });
         ws.send(JSON.stringify({ id: requestId, method, params }));
       });
+      executionAuthority?.assert();
+      return result;
+    };
     const initialized = await call("initialize", {
       clientInfo: { name: "hive_project_supervisor", version: "1" },
       capabilities: { experimentalApi: true },
@@ -1604,6 +1665,7 @@ export async function launchNative({ config, home, stateDirectory, lock, fixture
     const executionIdentity = namespace
       ? namespace.attest(child.pid)
       : { mode: "direct", native: processIdentity(child.pid) };
+    executionAuthority?.assert();
     return {
       version: VERSION,
       processIdentity: executionIdentity.native,
@@ -1616,6 +1678,7 @@ export async function launchNative({ config, home, stateDirectory, lock, fixture
       drainManagerRouting: (options) => managerRouter.drain(options),
       call,
       createReadSocket: () => {
+        executionAuthority?.assert();
         check(
           !closing &&
             child.exitCode === null &&
@@ -1651,6 +1714,8 @@ export async function launchNative({ config, home, stateDirectory, lock, fixture
         });
       },
       async attach(threadId, cwd, projectId) {
+        await executionAuthority?.fence();
+        executionAuthority?.assert();
         const socket = join(stateDirectory, "tmux.sock");
         const name = `project-${hash(projectId).slice(0, 24)}`;
         const cliEnv = { ...env, HIVE_NATIVE_CODEX_TOKEN: token };

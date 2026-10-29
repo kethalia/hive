@@ -48,14 +48,18 @@ export function validateHostConfig(value) {
   ];
   check(
     value &&
-      [keys.length, keys.length + 1].includes(Object.keys(value).length) &&
-      Object.keys(value).every((k) => keys.includes(k) || k === "nativeIsolationEnabled") &&
+      [keys.length, keys.length + 1, keys.length + 2].includes(Object.keys(value).length) &&
+      Object.keys(value).every(
+        (k) => keys.includes(k) || ["nativeIsolationEnabled", "guardianEnabled"].includes(k),
+      ) &&
       value.schemaVersion === 1 &&
       value.enabled === true &&
       value.profile === "software" &&
       typeof value.managerEnabled === "boolean" &&
       (value.nativeIsolationEnabled === undefined ||
         typeof value.nativeIsolationEnabled === "boolean") &&
+      (value.guardianEnabled === undefined || typeof value.guardianEnabled === "boolean") &&
+      (!value.guardianEnabled || value.nativeIsolationEnabled === true) &&
       (!value.managerEnabled || value.nativeIsolationEnabled === true),
   );
   check(
@@ -117,9 +121,16 @@ function installedFiles(directory) {
   }
   return manifest.files;
 }
-function managedRunner(helperPath, helperHash, timeoutMs = 120000, agentAuth = true) {
+function managedRunner(
+  helperPath,
+  helperHash,
+  timeoutMs = 120000,
+  agentAuth = true,
+  assertExecution = () => {},
+) {
   return (request) =>
     new Promise((resolve, reject) => {
+      assertExecution();
       check(hash(readFileSync(helperPath)) === helperHash);
       const env = Object.fromEntries(
         [
@@ -162,6 +173,7 @@ function managedRunner(helperPath, helperHash, timeoutMs = 120000, agentAuth = t
         done = true;
         clearTimeout(timer);
         try {
+          assertExecution();
           const value = JSON.parse(Buffer.concat(chunks));
           if (value.ok === true) resolve(value.data);
           else if (
@@ -186,7 +198,7 @@ function managedRunner(helperPath, helperHash, timeoutMs = 120000, agentAuth = t
       child.stdin.end(JSON.stringify(request));
     });
 }
-export async function startWorkspaceHost(raw) {
+export async function startWorkspaceHost(raw, { guardian } = {}) {
   check(
     process.env.HIVE_WORKSPACE_PROFILE === "software" &&
       Number(process.versions.node.split(".")[0]) >= 24,
@@ -194,6 +206,7 @@ export async function startWorkspaceHost(raw) {
   const config = validateHostConfig(raw),
     home = userInfo().homedir,
     directory = dirname(fileURLToPath(import.meta.url));
+  check(Boolean(config.guardianEnabled) === Boolean(guardian));
   const pins = installedFiles(directory),
     executable = verifyRuntime(home);
   const controllerDirectory = privateDirectory(
@@ -203,21 +216,32 @@ export async function startWorkspaceHost(raw) {
     join(home, ".local/state/hive/codex-project-discovery"),
   );
   const bridgeDirectory = privateDirectory(join(home, ".local/state/hive/codex-session-bridge"));
+  const executionAuthority = guardian
+    ? {
+        assert: () => controller.assertRuntimeExecution(),
+        fence: () => controller.fenceRuntimeExecution(),
+      }
+    : undefined;
   const managed = managedRunner(
     join(directory, "managed-projects.py"),
     pins["managed-projects.py"],
+    120000,
+    true,
+    () => executionAuthority?.assert(),
   );
   const renew = managedRunner(
     join(directory, "codex-project-lease.py"),
     pins["codex-project-lease.py"],
     5000,
     false,
+    () => executionAuthority?.assert(),
   );
   let gateway,
     discovery,
     supervisor,
     registration,
-    closed = false;
+    closed = false,
+    admissionClosed = false;
   const controller = createProjectController(
     {
       stateDirectory: controllerDirectory,
@@ -227,6 +251,7 @@ export async function startWorkspaceHost(raw) {
       effort: config.effort,
     },
     {
+      ...(guardian ? { guardian, guardianBuildId: config.binding.buildId } : {}),
       resolveRepository: (request) => discovery.resolveRepository(request),
       renewLease: (projectId) => renew({ schemaVersion: 1, projectId }),
       inspectCheckout: (repositoryId) =>
@@ -244,20 +269,26 @@ export async function startWorkspaceHost(raw) {
           ...(r.leaseId ? { leaseId: r.leaseId, generation: r.generation } : {}),
         }),
       async openRuntime(projects) {
-        check(!closed && !supervisor);
+        check(!closed && !admissionClosed && !supervisor);
+        await executionAuthority?.fence();
+        executionAuthority?.assert();
         let swapped = false;
         try {
-          supervisor = await openSupervisor({
-            schemaVersion: 1,
-            profile: "software",
-            ownerId: config.binding.ownerId,
-            workspaceId: config.binding.workspaceId,
-            buildId: config.binding.buildId,
-            codexExecutable: executable,
-            codexSha256: pin,
-            projects,
-            executionMode: config.nativeIsolationEnabled ? "isolated" : "direct",
-          });
+          supervisor = await openSupervisor(
+            {
+              schemaVersion: 1,
+              profile: "software",
+              ownerId: config.binding.ownerId,
+              workspaceId: config.binding.workspaceId,
+              buildId: config.binding.buildId,
+              codexExecutable: executable,
+              codexSha256: pin,
+              projects,
+              executionMode: config.nativeIsolationEnabled ? "isolated" : "direct",
+            },
+            { executionAuthority },
+          );
+          executionAuthority?.assert();
           registration = createHostRegistration(supervisor, {
             hiveOrigin: config.hiveOrigin,
             coderOrigin: config.binding.coderOrigin,
@@ -287,6 +318,7 @@ export async function startWorkspaceHost(raw) {
               }),
             );
           await gateway.close();
+          executionAuthority?.assert();
           swapped = true;
           gateway = await startProjectGateway(
             {
@@ -303,13 +335,14 @@ export async function startWorkspaceHost(raw) {
             registration,
             discovery,
           );
+          executionAuthority?.assert();
           return { supervisor, registration };
         } catch (error) {
           registration?.close();
           await supervisor?.close();
           registration = null;
           supervisor = null;
-          if (swapped && !closed)
+          if (swapped && !closed && !admissionClosed)
             gateway = await startDiscoveryGateway(
               { port: config.port, appOrigin: config.binding.appOrigin },
               discovery,
@@ -348,6 +381,36 @@ export async function startWorkspaceHost(raw) {
   tick.unref();
   controller.resumePending();
   return {
+    async closeAdmission(barrier) {
+      check(guardian && !admissionClosed);
+      admissionClosed = true;
+      clearInterval(tick);
+      clearInterval(renewal);
+      let receipt;
+      try {
+        receipt = controller.closeAdmission(barrier);
+      } finally {
+        registration?.close();
+        discovery.close();
+        // Revoke browser/PTY input synchronously, then close fixed owned CLI
+        // sessions before acknowledging. Native descendants are still held;
+        // only the outer guardian may certify their eventual tree exit.
+        await supervisor?.closeAdmission(barrier);
+        await gateway.close();
+      }
+      return receipt;
+    },
+    loseAdmission() {
+      if (!guardian || admissionClosed) return;
+      admissionClosed = true;
+      clearInterval(tick);
+      clearInterval(renewal);
+      controller.loseAdmission();
+      registration?.close();
+      discovery.close();
+      supervisor?.revoke();
+      void gateway.close().catch(() => {});
+    },
     async close() {
       if (closed) return;
       closed = true;
@@ -361,13 +424,19 @@ export async function startWorkspaceHost(raw) {
     },
   };
 }
+export function readInstalledHostStartup() {
+  const path = join(userInfo().homedir, ".config/hive/codex-host.json");
+  privatePath(path);
+  check(lstatSync(path).size <= 16384);
+  const bytes = readFileSync(path);
+  check(bytes.length <= 16384);
+  return { config: JSON.parse(bytes), configSha256: hash(bytes) };
+}
+export const readInstalledHostConfig = () => readInstalledHostStartup().config;
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     check(process.argv.length === 2);
-    const path = join(userInfo().homedir, ".config/hive/codex-host.json");
-    privatePath(path);
-    check(lstatSync(path).size <= 16384);
-    const host = await startWorkspaceHost(JSON.parse(readFileSync(path)));
+    const host = await startWorkspaceHost(readInstalledHostConfig());
     for (const signal of ["SIGTERM", "SIGINT"])
       process.once(signal, () => void host.close().then(() => process.exit(0)));
     process.stdout.write("Pinned project host ready on configured loopback app port.\n");

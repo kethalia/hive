@@ -270,3 +270,49 @@ test("retry gateway requires separate exact scope and cannot carry replacement i
     f.close();
   }
 });
+
+test("a pending catalog result after closure cannot return an accepted project operation", async () => {
+  let release, entered;
+  const waiting = new Promise((done) => {
+    entered = done;
+  });
+  const gate = new Promise((done) => {
+    release = done;
+  });
+  const f = fixture({
+    async handle() {
+      entered();
+      await gate;
+      return { accepted: true };
+    },
+  });
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const pending = http(`http://127.0.0.1:${gateway.port}/projects/open`, {
+      method: "POST",
+      headers: { Host: "app.example.com", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ticket: f.ticket({
+          scope: "projects:open",
+          request: {
+            schemaVersion: 1,
+            repositoryId: "123",
+            expectedAccountId: "456",
+            projectId: randomUUID(),
+            requestId: randomUUID(),
+          },
+        }),
+      }),
+    });
+    await waiting;
+    f.host.close();
+    release();
+    assert.equal((await pending).status, 403);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});

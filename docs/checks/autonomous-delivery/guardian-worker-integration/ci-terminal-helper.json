@@ -77,5 +77,15 @@
     "terminalHelper": "passed",
     "newFailures": "Three outer-worker tests reject CI toolcache Node executable ownership/mode before spawning. Corrected test setup copies exact Node bytes into a private0500 executable; production policy unchanged.",
     "parentOuterTestsPassed": 5
+  },
+  "fullCiConfirmation": {
+    "revision": "c63506ebdc1c4abef3fb511821064629ec37cfbe",
+    "ciRunId": 40969074192,
+    "ci": "success",
+    "imageRunId": 40969074618,
+    "images": "success",
+    "guardianRunId": 40969073898,
+    "guardian": "success",
+    "scope": "Includes both test fixture corrections and schema23 source-revision slice; next host startup checkpoint is separately validated locally."
   }
 }

@@ -6,6 +6,18 @@ const check = (value) => {
 };
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const digest = /^[a-f0-9]{64}$/;
+export function guardianStartup(value) {
+  check(
+    value &&
+      Object.keys(value).sort().join() === "configSha256,port" &&
+      typeof value.configSha256 === "string" &&
+      digest.test(value.configSha256) &&
+      Number.isInteger(value.port) &&
+      value.port >= 1024 &&
+      value.port <= 65535,
+  );
+  return { configSha256: value.configSha256, port: value.port };
+}
 export function guardianBinding(value) {
   check(
     value &&
@@ -145,8 +157,10 @@ export function guardianWire(stream, handlers, onLost) {
   };
 }
 
-export async function connectGuardianWorker({ fd = 3, onCloseAdmission, onLost }) {
+export async function connectGuardianWorker({ fd = 3, startup, onCloseAdmission, onLost }) {
   check(fd === 3 && typeof onCloseAdmission === "function" && typeof onLost === "function");
+  const expectedStartup = startup === undefined ? undefined : guardianStartup(startup);
+  let ready = false;
   let phase = "starting",
     binding,
     wire;
@@ -189,7 +203,12 @@ export async function connectGuardianWorker({ fd = 3, onCloseAdmission, onLost }
     lost,
   );
   try {
-    binding = guardianBinding(await wire.request("hello", { pid: process.pid }));
+    binding = guardianBinding(
+      await wire.request("hello", {
+        pid: process.pid,
+        ...(expectedStartup ? { startup: expectedStartup } : {}),
+      }),
+    );
     phase = "open";
   } catch (error) {
     wire.close();
@@ -212,6 +231,23 @@ export async function connectGuardianWorker({ fd = 3, onCloseAdmission, onLost }
     );
   };
   return {
+    async ready(value) {
+      check(phase === "open" && expectedStartup && !ready);
+      const actual = guardianStartup(value);
+      check(
+        actual.configSha256 === expectedStartup.configSha256 &&
+          actual.port === expectedStartup.port,
+      );
+      const answer = await wire.request("ready", actual);
+      check(
+        phase === "open" &&
+          answer?.ready === true &&
+          Object.keys(answer).sort().join() === "configSha256,port,ready" &&
+          answer.configSha256 === actual.configSha256 &&
+          answer.port === actual.port,
+      );
+      ready = true;
+    },
     get state() {
       return structuredClone({ phase, ...binding, projects: [...projects.values()] });
     },

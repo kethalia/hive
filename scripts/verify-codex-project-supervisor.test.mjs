@@ -1590,3 +1590,126 @@ test("supervisor holds process lock and native lifetime until installed observer
   await closed;
   assert.equal(f.runtime.alive(), false);
 });
+
+test("guardian closure while a native response is pending keeps the durable creation intent uncertain", async (t) => {
+  const f = fixture(t);
+  let open = true,
+    release,
+    entered;
+  const started = new Promise((done) => {
+    entered = done;
+  });
+  const gate = new Promise((done) => {
+    release = done;
+  });
+  const original = f.runtime.call;
+  f.runtime.call = async (method, params) => {
+    if (method === "thread/start") {
+      entered();
+      await gate;
+    }
+    return original(method, params);
+  };
+  const authority = {
+    assert() {
+      assert.equal(open, true, "guardian_closed");
+    },
+    async fence() {
+      assert.equal(open, true, "guardian_closed");
+    },
+  };
+  const s = await openSupervisor(config(), { ...f.options, executionAuthority: authority });
+  t.after(() => s.close());
+  const pending = s.command(ensure);
+  await started;
+  open = false;
+  release();
+  await assert.rejects(pending, /guardian_closed/);
+  assert.equal(s.snapshot("project").phase, "creation-uncertain");
+  assert.equal(s.snapshot("project").threadId, null);
+  await assert.rejects(s.command(ensure), /guardian_closed/);
+  assert.equal(f.calls.filter((c) => c.method === "thread/start").length, 1);
+});
+
+test("guardian close barrier revokes input before awaiting fixed owned CLI cleanup", async (t) => {
+  const f = fixture(t);
+  const s = await openSupervisor(config(), f.options);
+  t.after(() => s.close());
+  await s.command(ensure);
+  await s.command(prompt);
+  await s.command({ operation: "attach", projectId: "project" });
+  let revoked = false,
+    release;
+  s.onRevoked(() => {
+    revoked = true;
+  });
+  const gate = new Promise((done) => {
+    release = done;
+  });
+  f.runtime.detach = async (projectId) => {
+    assert.equal(projectId, "project");
+    assert.equal(revoked, true);
+    await gate;
+  };
+  const barrier = { barrierId: randomUUID() };
+  const closing = s.closeAdmission(barrier);
+  assert.equal(revoked, true);
+  assert.equal(s.state.status, "revoked");
+  assert.deepEqual(s.state.guardianBarrier, barrier);
+  assert.throws(() => s.binding("project"), /session_not_available/);
+  release();
+  await closing;
+  assert.equal(
+    f.runtime.alive(),
+    true,
+    "native exit belongs to guardian receipt, not inner barrier",
+  );
+});
+
+test("positive manager receipt arriving after guardian closure cannot be returned to the native model", async (t) => {
+  const f = fixture(t);
+  let installed,
+    open = true,
+    release,
+    entered;
+  const waiting = new Promise((done) => {
+    entered = done;
+  });
+  const gate = new Promise((done) => {
+    release = done;
+  });
+  f.runtime.setManagerAdapter = (adapter) => {
+    installed = adapter;
+  };
+  const executionAuthority = {
+    assert() {
+      assert.equal(open, true, "guardian_closed");
+    },
+    async fence() {
+      assert.equal(open, true, "guardian_closed");
+    },
+  };
+  const s = await openSupervisor(config(), { ...f.options, executionAuthority });
+  t.after(() => s.close());
+  s.setManagerAdapter({
+    tools: () => [],
+    handleToolCall: async () => {
+      entered();
+      await gate;
+      return {
+        success: true,
+        contentItems: [{ type: "inputText", text: "fixture reservation receipt" }],
+      };
+    },
+  });
+  await s.command(ensure);
+  const result = installed.handleToolCall({
+    threadId: "thread-one",
+    turnId: "turn-one",
+    callId: "call-one",
+  });
+  await waiting;
+  open = false;
+  release();
+  await assert.rejects(result, /guardian_closed/);
+});

@@ -16,8 +16,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { guardianProject, guardianWire } from "./codex-guardian-worker.mjs";
+import { guardianKernelIdentity, guardianStartChallenge } from "./codex-guardian-startup.mjs";
+import { guardianProject, guardianStartup, guardianWire } from "./codex-guardian-worker.mjs";
 import { openNativeGuardian } from "./codex-native-guardian.mjs";
+import { processIdentity, processParentPid } from "./codex-process-identity.mjs";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const check = (value) => {
@@ -195,12 +197,21 @@ export async function openGuardedHost(options) {
     options.packageManifestSha256,
     options.workerName,
   );
+  const startup =
+    options.startup === undefined ? undefined : guardianStartChallenge(options.startup);
+  if (startup)
+    check(
+      startup.packageManifestSha256 === options.packageManifestSha256 &&
+        startup.nodeSha256 === options.nodeSha256,
+    );
   const journal = openJournal(options.stateDirectory, options.bindingDigest);
   let guardian,
     wire,
     phase = "starting",
     workerPid,
     hello = false,
+    startupReady = false,
+    workerIdentity,
     closedBarrier,
     acceptedReceipt;
   let serial = Promise.resolve();
@@ -225,6 +236,28 @@ export async function openGuardedHost(options) {
       bindingDigest: state.bindingDigest,
       ownershipDigest: state.ownershipDigest,
       generation: state.generation,
+    };
+  };
+  const startupAttestation = () => {
+    check(startup && startupReady && phase === "open" && guardian.state.phase === "open");
+    const outer = processIdentity(process.pid),
+      worker = processIdentity(workerPid);
+    check(
+      JSON.stringify(worker) === JSON.stringify(workerIdentity) &&
+        sha(readFileSync(outer.executable)) === options.nodeSha256 &&
+        sha(readFileSync(worker.executable)) === options.nodeSha256,
+    );
+    return {
+      ...startup,
+      type: "ready",
+      phase: "open",
+      ...runtimeBinding(),
+      workerSha256: files.workerSha256,
+      guardianSha256: files.sha256,
+      projects: guardian.state.projects,
+      outerIdentity: guardianKernelIdentity(outer, processParentPid(process.pid)),
+      guardianIdentity: guardianKernelIdentity(guardian.state.guardianIdentity, process.pid),
+      workerIdentity: guardianKernelIdentity(worker, guardian.state.guardianIdentity.pid),
     };
   };
   try {
@@ -315,15 +348,33 @@ export async function openGuardedHost(options) {
           check(
             !hello &&
               phase === "starting" &&
-              Object.keys(value ?? {}).join() === "pid" &&
+              Object.keys(value ?? {})
+                .sort()
+                .join() === (startup ? "pid,startup" : "pid") &&
               value.pid === workerPid,
           );
+          if (startup) {
+            const actual = guardianStartup(value.startup);
+            check(actual.configSha256 === startup.configSha256 && actual.port === startup.port);
+          }
           hello = true;
           phase = "open";
           journal.record("open", { ...runtimeBinding(), workerPid });
-          markReady?.();
+          if (!startup) markReady?.();
           return runtimeBinding();
         },
+        ready: (value) =>
+          enqueue(async () => {
+            check(startup && hello && phase === "open" && !startupReady);
+            const actual = guardianStartup(value);
+            check(actual.configSha256 === startup.configSha256 && actual.port === startup.port);
+            workerIdentity = processIdentity(workerPid);
+            check(processParentPid(workerPid) === guardian.state.guardianIdentity.pid);
+            startupReady = true;
+            journal.record("startupReady", startupAttestation());
+            markReady?.();
+            return { ready: true, ...actual };
+          }),
         admit: (value) =>
           enqueue(async () => {
             check(phase === "open" && hello);
@@ -367,7 +418,7 @@ export async function openGuardedHost(options) {
     const root = await guardian.launch("host-worker");
     workerPid = root.pid;
     markLaunch();
-    if (!hello)
+    if (!(startup ? startupReady : hello))
       await new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error("guardian_worker_start_timeout")), 5000);
         markReady = () => {
@@ -380,6 +431,7 @@ export async function openGuardedHost(options) {
       get state() {
         return structuredClone({ phase, guardian: guardian.state, workerPid });
       },
+      startupAttestation,
       drain: () =>
         enqueue(async () => {
           check(phase === "open");

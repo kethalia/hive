@@ -17,6 +17,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { processIdentity } from "./codex-process-identity.mjs";
+
 const check = (v, code = "project_request_rejected") => {
   if (!v) throw new Error(code);
 };
@@ -138,6 +139,16 @@ export function createProjectController(config, deps) {
       typeof config.model === "string" &&
       ["low", "medium", "high", "xhigh", "max", "ultra"].includes(config.effort),
   );
+  const guardian = deps.guardian;
+  if (guardian)
+    check(
+      uuid(deps.guardianBuildId) &&
+        ["admit", "executionFence", "assertAdmission"].every(
+          (name) => typeof guardian[name] === "function",
+        ) &&
+        guardian.state?.phase === "open",
+      "guardian_dependency_rejected",
+    );
   privatePath(config.stateDirectory, true);
   const lock = openSync(
     join(config.stateDirectory, "controller.lock"),
@@ -147,6 +158,7 @@ export function createProjectController(config, deps) {
   let closed = false,
     queue = Promise.resolve(),
     runtime = null;
+  const admissions = new Map();
   const pending = new Set();
   const historyRecovered = new Set();
   const statePath = join(config.stateDirectory, "projects.json"),
@@ -219,8 +231,125 @@ export function createProjectController(config, deps) {
       closeSync(fd);
     }
   }
+  if (guardian) {
+    // A new guardian must not retroactively certify an earlier worker's tasks.
+    try {
+      check(
+        !state.guardianBarrier &&
+          (!state.guardianLifetimeId || state.guardianLifetimeId === guardian.state.lifetimeId) &&
+          !Object.values(state.projects).some(
+            (p) =>
+              p.task &&
+              !p.task.guardianPreparation &&
+              (p.task.prepared || p.task.nativeCreationAttempted),
+          ),
+        "guardian_restart_reconciliation_required",
+      );
+    } catch (error) {
+      closeSync(lock);
+      throw error;
+    }
+    state.guardianLifetimeId = guardian.state.lifetimeId;
+  }
   state.hostProcess = processIdentity(process.pid);
   save();
+  function assertOpen() {
+    check(!closed && !state.guardianBarrier, "controller_admission_closed");
+    if (guardian) check(guardian.state.phase === "open", "controller_admission_closed");
+  }
+  function assertAdmission(projectId) {
+    assertOpen();
+    if (guardian) {
+      const token = admissions.get(projectId);
+      check(token, "guardian_project_not_admitted");
+      guardian.assertAdmission(token);
+    }
+  }
+  async function admitPreparation(p) {
+    assertOpen();
+    if (!guardian) return;
+    const t = p.task;
+    check(t && t.digest === digest(t.request), "task_identity_conflict");
+    const preparation = {
+      schemaVersion: 1,
+      stage: "preparation",
+      ownerId: config.ownerId,
+      workspaceId: config.workspaceId,
+      buildId: deps.guardianBuildId,
+      projectId: p.projectId,
+      repositoryId: p.repositoryId,
+      providerAccountId: p.expectedAccountId,
+      taskId: t.taskId,
+      requestId: t.request.requestId,
+      baseSha: t.request.revision,
+      requestDigest: t.digest,
+    };
+    check(
+      !t.guardianPreparation || digest(t.guardianPreparation) === digest(preparation),
+      "guardian_preparation_identity_changed",
+    );
+    if (!t.guardianPreparation) {
+      t.guardianPreparation = preparation;
+      save(); // Before admission and every Git/helper spawn, not after checkout preparation.
+    }
+    if (!admissions.has(p.projectId)) {
+      const token = await guardian.admit({
+        projectId: p.projectId,
+        bindingDigest: digest(preparation),
+      });
+      assertOpen();
+      guardian.assertAdmission(token);
+      admissions.set(p.projectId, token);
+      t.guardianAdmission = structuredClone(token); // Historical ACK, never restart authority.
+      save();
+    }
+  }
+  async function fence(p, prepared = false) {
+    assertOpen();
+    if (!guardian) return;
+    await admitPreparation(p);
+    if (prepared) check(p.task.guardianPrepared, "guardian_prepared_binding_missing");
+    const token = await guardian.executionFence(admissions.get(p.projectId));
+    assertOpen();
+    guardian.assertAdmission(token);
+    admissions.set(p.projectId, token);
+    // Appending another project changes the shared ownership generation. Refresh
+    // existing opaque tokens before any shared worker/helper assertion; an old
+    // token is never silently treated as current authority.
+    for (const [projectId, other] of admissions) {
+      if (other.generation === guardian.state.generation) continue;
+      const refreshed = await guardian.executionFence(other);
+      assertOpen();
+      guardian.assertAdmission(refreshed);
+      admissions.set(projectId, refreshed);
+    }
+  }
+  function bindPrepared(p) {
+    if (!guardian) return;
+    assertAdmission(p.projectId);
+    const t = p.task;
+    const binding = {
+      schemaVersion: 1,
+      preparationDigest: digest(t.guardianPreparation),
+      projectId: p.projectId,
+      repositoryId: p.repositoryId,
+      taskId: t.taskId,
+      revision: t.request.revision,
+      leaseId: t.prepared.leaseId,
+      leaseGeneration: t.prepared.leaseGeneration,
+      checkoutIncarnation: t.checkoutIncarnation,
+    };
+    check(
+      typeof binding.checkoutIncarnation === "string" &&
+        binding.checkoutIncarnation.length > 0 &&
+        (!t.guardianPrepared || digest(t.guardianPrepared) === digest(binding)),
+      "guardian_prepared_identity_changed",
+    );
+    if (!t.guardianPrepared) {
+      t.guardianPrepared = binding;
+      save(); // Separate immutable actual binding; never rewrites the earlier admission digest.
+    }
+  }
   function project(id) {
     const p = state.projects[id];
     check(p, "project_not_enrolled");
@@ -239,12 +368,14 @@ export function createProjectController(config, deps) {
     };
   }
   async function resolve(r) {
+    assertOpen();
     const result = await deps.resolveRepository({
       schemaVersion: 1,
       operation: "resolve",
       repositoryId: r.repositoryId,
       expectedAccountId: r.expectedAccountId,
     });
+    assertOpen();
     if (result?.error)
       throw new Error(
         result.error === "github_auth_required"
@@ -261,6 +392,7 @@ export function createProjectController(config, deps) {
     return result;
   }
   function blocked(t, error) {
+    if (state.guardianBarrier) return; // Preserve the exact durable closed-barrier snapshot.
     const known = new Set([
       "github_auth_required",
       "repository_identity_changed",
@@ -282,13 +414,19 @@ export function createProjectController(config, deps) {
     if (closed || !t || (t.phase === "blocked" && !(t.executionRevoked && t.prepared))) return;
     if (t.executionRevoked) historyRecovered.add(p.projectId);
     try {
+      await fence(p);
+      assertAdmission(p.projectId);
       if (!t.prepared) {
         const resolved = await resolve(t.request);
+        await fence(p);
+        assertAdmission(p.projectId);
         check(
           resolved.repository.permissions?.push === true && !resolved.repository.archived,
           "repository_identity_changed",
         );
         const inspected = await deps.inspectCheckout(p.repositoryId);
+        await fence(p);
+        assertAdmission(p.projectId);
         let ready;
         if (
           inspected?.status === "ready" &&
@@ -306,6 +444,8 @@ export function createProjectController(config, deps) {
               ? { leaseId: inspected.lease.id, generation: inspected.lease.generation }
               : {}),
           });
+          await fence(p);
+          assertAdmission(p.projectId);
         }
         check(
           ready?.status === "ready" &&
@@ -326,10 +466,15 @@ export function createProjectController(config, deps) {
         };
         save();
       }
+      bindPrepared(p);
+      await fence(p, true);
+      assertAdmission(p.projectId);
       if (!runtime)
         runtime = await deps.openRuntime(
           Object.values(state.projects).flatMap((q) => (q.task?.prepared ? [q.task.prepared] : [])),
         );
+      await fence(p, true);
+      assertAdmission(p.projectId);
       const supervisor = runtime.supervisor;
       supervisor.enrollPreparedProject(t.prepared);
       let snap = supervisor.snapshot(p.projectId);
@@ -342,9 +487,13 @@ export function createProjectController(config, deps) {
           projectId: p.projectId,
           creationIntentId: t.taskId,
         });
+        await fence(p, true);
+        assertAdmission(p.projectId);
       }
       if (snap.phase === "rejoinRequired")
         snap = await supervisor.command({ operation: "rejoin", projectId: p.projectId });
+      await fence(p, true);
+      assertAdmission(p.projectId);
       check(
         snap.threadId && (!t.nativeThreadId || t.nativeThreadId === snap.threadId),
         "native_unavailable",
@@ -382,11 +531,17 @@ export function createProjectController(config, deps) {
           requestId: t.request.requestId,
           text: t.request.text,
         });
+        await fence(p, true);
+        assertAdmission(p.projectId);
       }
       if (snap.phase === "awaitingPersistence")
         snap = await supervisor.command({ operation: "refresh", projectId: p.projectId });
+      await fence(p, true);
+      assertAdmission(p.projectId);
       if (snap.phase === "persisted") {
         snap = await supervisor.command({ operation: "attach", projectId: p.projectId });
+        await fence(p, true);
+        assertAdmission(p.projectId);
         t.phase = "running";
         t.terminalSessionName = snap.attached
           ? `project-${createHash("sha256").update(p.projectId).digest("hex").slice(0, 24)}`
@@ -400,6 +555,7 @@ export function createProjectController(config, deps) {
   function schedule(p) {
     if (
       closed ||
+      state.guardianBarrier ||
       pending.has(p.projectId) ||
       (p.task?.phase === "blocked" &&
         !(
@@ -416,13 +572,15 @@ export function createProjectController(config, deps) {
   function retry(p, request) {
     // Serialize proof, durable acceptance and scheduling with every transition.
     const operation = queue.then(async () => {
-      check(!closed, "native_unavailable");
+      assertOpen();
       const t = p.task;
       check(
         t && t.taskId === request.taskId && t.digest === digest(t.request),
         "task_identity_conflict",
       );
       check(!t.executionRevoked, "retry_not_available");
+      await fence(p, Boolean(t.prepared));
+      assertAdmission(p.projectId);
       if (t.phase === "running" || t.retries?.some((r) => r.requestId === request.requestId))
         return status(p);
       check(
@@ -443,6 +601,8 @@ export function createProjectController(config, deps) {
         "retry_not_available",
       );
       const inspected = await deps.inspectCheckout(p.repositoryId);
+      await fence(p, Boolean(t.prepared));
+      assertAdmission(p.projectId);
       if (!t.prepared) {
         check(
           !t.nativeCreationAttempted &&
@@ -467,6 +627,8 @@ export function createProjectController(config, deps) {
         let proof;
         try {
           proof = await runtime.supervisor.provePreExecution(p.projectId, t.taskId);
+          await fence(p, true);
+          assertAdmission(p.projectId);
         } catch (error) {
           // Native 0.165 cannot read rollout history for some empty loaded
           // threads. Missing history is not evidence that no input occurred.
@@ -500,7 +662,7 @@ export function createProjectController(config, deps) {
   }
   return {
     async handle(path, r) {
-      check(!closed);
+      assertOpen();
       validateProjectOperation(path, r);
       if (path === "/projects/resolve") return resolve(r);
       if (path === "/projects/open") {
@@ -571,7 +733,7 @@ export function createProjectController(config, deps) {
       return status(p);
     },
     renewLeases() {
-      if (closed || !runtime) return;
+      if (closed || state.guardianBarrier || !runtime) return;
       for (const p of Object.values(state.projects)) {
         if (
           !p.task?.prepared ||
@@ -587,6 +749,8 @@ export function createProjectController(config, deps) {
             const t = p.task;
             if (t.executionRevoked) return;
             try {
+              await fence(p, true);
+              assertAdmission(p.projectId);
               // Phase transitions never exempt a live native task from expiry.
               // Inspection also fails closed on changed checkout provenance.
               const lease = runtime.supervisor.lease(t.prepared);
@@ -608,6 +772,8 @@ export function createProjectController(config, deps) {
               if (lease.lease.expiresAt * 1000 - Date.now() > 15 * 60 * 1000) return;
               check(typeof t.checkoutIncarnation === "string", "checkout_unavailable");
               const next = await deps.renewLease(p.projectId);
+              await fence(p, true);
+              assertAdmission(p.projectId);
               check(
                 next?.checkoutIncarnation === t.checkoutIncarnation &&
                   next.revision === t.request.revision &&
@@ -622,6 +788,7 @@ export function createProjectController(config, deps) {
               t.renewalSequence = next.renewalSequence;
               save();
             } catch {
+              if (state.guardianBarrier) return;
               t.executionRevoked = { reason: "lease_renewal_failed", at: Date.now() };
               t.phase = "blocked";
               t.reason = "checkout_unavailable";
@@ -634,11 +801,16 @@ export function createProjectController(config, deps) {
       }
     },
     currentProjectContext(threadId) {
+      assertOpen();
       check(runtime, "native_unavailable");
       const p = Object.values(state.projects).find(
         (value) => value.task?.nativeThreadId === threadId,
       );
       check(p?.task?.prepared, "task_identity_conflict");
+      if (guardian) {
+        check(p.task.guardianPrepared, "guardian_prepared_binding_missing");
+        assertAdmission(p.projectId);
+      }
       const binding = runtime.supervisor.registrationBinding(p.projectId);
       const registration = runtime.registration.currentRegistration();
       check(
@@ -658,11 +830,75 @@ export function createProjectController(config, deps) {
       };
     },
     resumePending() {
+      if (closed || state.guardianBarrier) return;
       for (const p of Object.values(state.projects))
         if (p.task && (!runtime || p.task.phase !== "running")) schedule(p);
     },
     async drain() {
       await queue;
+    },
+    assertExecution(projectId) {
+      const p = project(projectId);
+      if (guardian) check(p.task?.guardianPrepared, "guardian_prepared_binding_missing");
+      assertAdmission(projectId);
+    },
+    executionFence: (projectId) => fence(project(projectId), true),
+    assertRuntimeExecution() {
+      assertOpen();
+      if (guardian)
+        for (const p of Object.values(state.projects))
+          if (p.task?.guardianPreparation) assertAdmission(p.projectId);
+    },
+    async fenceRuntimeExecution() {
+      assertOpen();
+      if (guardian)
+        for (const p of Object.values(state.projects))
+          if (p.task?.guardianPreparation) {
+            await fence(p, Boolean(p.task.prepared));
+            assertAdmission(p.projectId);
+          }
+    },
+    closeAdmission(barrier) {
+      check(guardian && !state.guardianBarrier, "guardian_barrier_rejected");
+      // This is deliberately synchronous: never await an outer RPC from inside
+      // its close barrier. The FD client has already closed local admission.
+      state.guardianBarrier = structuredClone(barrier);
+      save();
+      const current = guardian.state;
+      const enrolled = Object.values(state.projects).filter((p) => p.task?.guardianPreparation);
+      check(
+        current.phase === "closed" &&
+          barrier?.lifetimeId === current.lifetimeId &&
+          barrier.bindingDigest === current.bindingDigest &&
+          Number.isSafeInteger(barrier.generation) &&
+          barrier.generation >= current.generation &&
+          /^[a-f0-9]{64}$/.test(barrier.ownershipDigest) &&
+          uuid(barrier.barrierId) &&
+          Array.isArray(barrier.projects) &&
+          barrier.projects.length === enrolled.length &&
+          new Set(barrier.projects.map((p) => p.projectId)).size === enrolled.length &&
+          enrolled.every(
+            (p) =>
+              p.task.guardianAdmission &&
+              p.task.guardianPrepared &&
+              barrier.projects.some(
+                (candidate) =>
+                  candidate.projectId === p.projectId &&
+                  candidate.bindingDigest === digest(p.task.guardianPreparation),
+              ),
+          ),
+        "guardian_barrier_preparation_uncertain",
+      );
+      return { closed: true, barrierId: barrier.barrierId, journalDigest: digest(state) };
+    },
+    loseAdmission() {
+      if (!guardian || state.guardianBarrier) return;
+      state.guardianBarrier = {
+        reason: "guardian_channel_lost",
+        lifetimeId: state.guardianLifetimeId,
+        at: Date.now(),
+      };
+      save();
     },
     async close() {
       if (closed) return;
