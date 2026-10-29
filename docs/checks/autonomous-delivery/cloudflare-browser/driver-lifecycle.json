@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "kind": "actual-chrome-driver-SIGKILL",
+  "previewRequests": 0,
+  "localMockOnly": true,
+  "trackedChromeProcesses": 8,
+  "chromeRootExited": true,
+  "allTrackedChromeExited": true,
+  "elapsedAfterDriverKillMs": 100,
+  "fallbackGroupKill": false
+}
