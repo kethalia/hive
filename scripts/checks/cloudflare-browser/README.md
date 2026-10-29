@@ -105,3 +105,38 @@ with no redirects or retries and a maximum five-second timeout within the same
 the attempted cleanup reports false success and requires parent follow-up.
 Six policy tests cover the single login fence, reserved final slot, pre-network
 accounting, fixed cleanup scope and deadline refusal.
+
+## First failure and reduced-budget diagnostic candidate
+
+The first live result is preserved unchanged in `live-result.json`:21forwarded
+requests, zero login POSTs,7scope-blocked requests and13.8seconds elapsed. Its
+aggregate counters cannot identify blocked resources or establish the cause.
+The current candidate precharges those21requests and allows at most179more
+(including the cleanup-only slot), within150seconds. It still permits only one
+login POST; no automatic live retry is authorized by preparation.
+
+`diagnostics.mjs` exports only fixed resource/endpoint/status categories, bounded
+page-error and CSP-directive counts, and form booleans/counters. It never exports
+URLs, queries, messages, headers, body text, values or validation messages. The
+harness waits at most eight seconds for the current React form's onSubmit handler,
+then checks HTML validity and controlled-value agreement before clicking. React's
+internal property marker is a version-specific diagnostic/readiness signal,
+validated with the current bundled React fixture, not an authorization boundary.
+
+The synthetic real-Chrome fixture proved that an actionable SSR form can have
+readyState=complete while its handler is absent: immediate fill/click produced
+zero POSTs; waiting for hydration then filling produced exactly one. This is a
+possible mechanism, **not proof of the original live failure's cause**. Its
+sanitized evidence is `hydration-fixture.json`. To reproduce, build the local
+React artifact in the primary, transfer it as `fixture-app.js` beside
+`hydration-fixture.mjs` and `diagnostics.mjs` in the recorded Browser scratch,
+then execute the fixture there. It serves only a synthetic loopback page:
+
+```sh
+node scripts/checks/cloudflare-browser/build-hydration-fixture.mjs /tmp/hive-hydration-fixture-app.js
+# Browser Testing, approved private scratch only:
+node hydration-fixture.mjs
+```
+
+No preview request is made by the fixture or `remote.py prepare`. Candidate
+activation and a single reduced-budget follow-up remain parent-controlled.

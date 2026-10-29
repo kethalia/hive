@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { requestCategory } from "./diagnostics.mjs";
 import { cleanupSession, createBudget, ORIGIN, permitted } from "./policy.mjs";
 
 test("budget charges bootstrap/assets/login before network, hard stops at200", () => {
@@ -86,4 +87,33 @@ test("cleanup failure is safe and cannot spend network beyond deadline", async (
   });
   assert.deepEqual(result, { cleanupAttempted: true, cleanupSucceeded: false });
   assert.equal(budget.snapshot().forwarded, 0);
+});
+
+test("reviewed follow-up reserves only179remaining including cleanup and150seconds", () => {
+  let now = 0;
+  const budget = createBudget(() => now, { priorForwarded: 21, durationMs: 150000 });
+  for (let i = 0; i < 178; i++) assert.equal(budget.reserve(`${ORIGIN}/login`, "GET"), true);
+  assert.equal(budget.reserve(`${ORIGIN}/login`, "GET"), false);
+  assert.equal(budget.reserveCleanup(`${ORIGIN}/api/auth/logout`, "POST"), true);
+  assert.equal(budget.snapshot().forwarded, 179);
+  assert.equal(budget.snapshot().cumulativeForwarded, 200);
+  now = 150000;
+  assert.equal(budget.reserve(`${ORIGIN}/login`, "GET"), false);
+  assert.throws(() => createBudget(() => 0, { priorForwarded: -1 }));
+  assert.throws(() => createBudget(() => 0, { durationMs: 180001 }));
+});
+
+test("diagnostic categories never contain request paths, query values or credentials", () => {
+  assert.equal(
+    requestCategory(`${ORIGIN}/_next/static/private-name.js?token=SENSITIVE`, "script"),
+    "staticScript",
+  );
+  assert.equal(
+    requestCategory("https://foreign.test/password?secret=SENSITIVE", "fetch"),
+    "foreign",
+  );
+  assert.equal(
+    requestCategory(`${ORIGIN}/unlisted/SENSITIVE?password=SENSITIVE`, "fetch"),
+    "other",
+  );
 });
