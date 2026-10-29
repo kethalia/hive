@@ -287,6 +287,26 @@ class AgentToolsTests(unittest.TestCase):
                 self.assertEqual(result["warnings"], ["Some Claude MCP configuration could not be read."])
                 self.assertNotIn("secret", json.dumps(result))
 
+    def test_neon_setup_preserves_existing_entries_and_is_idempotent(self):
+        config = self.home / ".codex/config.toml"
+        config.parent.mkdir(parents=True)
+        config.write_text('[mcp_servers.neon]\nurl = "https://custom.example/mcp"\nenabled = false\n')
+        original = config.read_text()
+        tools.configure_neon()
+        tools.configure_neon()
+        self.assertEqual(config.read_text(), original)
+        claude = tools.read_json(tools.claude_user_config())
+        self.assertEqual(claude["mcpServers"]["neon"]["url"], "https://mcp.neon.tech/mcp")
+
+    def test_neon_setup_does_not_authenticate_or_spawn_tools(self):
+        with patch.object(tools, "run", side_effect=AssertionError("No subprocess permitted")):
+            tools.configure_neon()
+        config = tools.tomllib.loads((self.home / ".codex/config.toml").read_text())
+        self.assertEqual(config["mcp_servers"]["neon"], {"url": "https://mcp.neon.tech/mcp"})
+        with patch.dict(os.environ, {"HIVE_WORKSPACE_PROFILE": "browser"}):
+            with self.assertRaises(ValueError):
+                tools.configure_neon()
+
     def test_specialists_cannot_configure_coder(self):
         with patch.dict(os.environ, {"HIVE_WORKSPACE_PROFILE": "browser"}), patch.object(tools, "run") as run:
             with self.assertRaises(ValueError):

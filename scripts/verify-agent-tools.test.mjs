@@ -8,6 +8,20 @@ test("agent metadata, configuration preservation, and recovery boundaries", () =
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
+test("official Neon skill installation preserves user skills and rejects unsafe archives", () => {
+  const result = spawnSync("python3", ["-B", "scripts/agents/test_neon_skill.py"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test("official updates preserve user edits and failed tool installations", () => {
+  const result = spawnSync("python3", ["-B", "scripts/agents/test_official_updates.py"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
 test("optional agent integrations stay in software and do not block login", () => {
   const template = readFileSync("templates/ai-dev-k8s/main.tf", "utf8");
   const block = template.match(

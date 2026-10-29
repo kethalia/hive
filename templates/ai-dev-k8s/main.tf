@@ -198,6 +198,18 @@ resource "coder_script" "workspace_cache_maintenance" {
   script             = "set -e\npython3 - <<'HIVE_CACHE_PY'\n${file("${path.module}/scripts/prune-turbo-cache.py")}\nHIVE_CACHE_PY\n${file("${path.module}/scripts/workspace-cache-maintenance.sh")}"
 }
 
+# Vendor-only maintenance; does not restart agents, change authentication, or touch plugin choices.
+resource "coder_script" "official_agent_maintenance" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Daily official agent updates"
+  icon               = "/icon/terminal.svg"
+  cron               = "CRON_TZ=UTC 0 15 6 * * *"
+  run_on_start       = false
+  start_blocks_login = false
+  timeout            = 900
+  script             = "timeout 850s python3 - <<'HIVE_AGENT_UPDATE_PY'\n${file("${path.module}/scripts/update-official-agents.py")}\nHIVE_AGENT_UPDATE_PY\n"
+}
+
 # Task completion is explicit. Existing/unmanaged or active worktrees are never age-pruned.
 resource "coder_script" "completed_worktree_maintenance" {
   count              = local.profile.id == "software" ? 1 : 0
@@ -270,6 +282,7 @@ resource "coder_script" "agent_integrations" {
   start_blocks_login = false
   script = join("\n", [
     "export HIVE_AGENT_TOOLS_SOURCE_B64='${base64encode(file("${path.module}/scripts/agent-tools.py"))}'",
+    "export HIVE_NEON_SKILL_SOURCE_B64='${base64encode(file("${path.module}/scripts/install-neon-skill.py"))}'",
     file("${path.module}/scripts/agent-integrations.sh"),
   ])
 }
