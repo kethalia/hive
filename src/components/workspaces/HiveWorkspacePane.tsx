@@ -13,8 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getSettingsWindowAction } from "@/lib/actions/settings-window";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { fetchSettingsWindow } from "@/lib/settings/window-client";
 import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
@@ -43,12 +43,9 @@ const TemplatesWindow = dynamic(() => import("./TemplatesWindow").then((m) => m.
 function SettingsWindow({ userId }: { userId: string }) {
   const query = useQuery({
     queryKey: ["settings-window", userId],
-    queryFn: async () => {
-      const result = await getSettingsWindowAction();
-      if (!result?.data) throw new Error(result?.serverError ?? "Could not load settings.");
-      return result.data;
-    },
+    queryFn: ({ signal }) => fetchSettingsWindow(signal),
     staleTime: 30_000,
+    retry: false,
   });
   if (query.isPending)
     return (
@@ -56,7 +53,7 @@ function SettingsWindow({ userId }: { userId: string }) {
         Loading settings…
       </p>
     );
-  if (!query.data)
+  if (query.isError || !query.data)
     return (
       <div className="space-y-3 p-4">
         <p role="alert">Settings are unavailable.</p>

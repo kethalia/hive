@@ -38,6 +38,9 @@ export function proxy(request: NextRequest) {
     isHostCallbackTransport(request, process.env.HIVE_CODEX_GATEWAY_ENABLED) ||
     // Discovery authenticates in its route and must return JSON 401, not login HTML.
     pathname.startsWith("/api/discovery/") ||
+    // This exact read endpoint authenticates its session in the route and
+    // returns typed JSON failures rather than a login-page redirect.
+    (request.method === "GET" && pathname === "/api/settings/window") ||
     pathname === "/api/notifications/events" ||
     pathname === "/" ||
     PUBLIC_PATHS.some((path) => pathname.startsWith(path))
