@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "archive": "94a6c97e26238cfb6904cdfca699863e22e472014dd296d6cef6fc3eeae0f2d8",
+  "manifestFilesVerified": 21,
+  "buildId": "ebafefde-23d7-46cb-948f-865a7c0fb464",
+  "agentId": "1a63fbfa-5574-42e6-9885-7f848315ae2a",
+  "health": 200,
+  "nativeIsolationEnabled": true,
+  "managerEnabled": false,
+  "dedicatedAuthPresent": true
+}
