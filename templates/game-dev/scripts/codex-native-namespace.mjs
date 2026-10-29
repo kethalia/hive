@@ -9,6 +9,7 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -102,6 +103,23 @@ export function prepareNativeNamespace({ home, stateDirectory, codexExecutable, 
     config = `model_provider="hive_local_fixture"\n${config}\n[model_providers.hive_local_fixture]\nname="Local fixture only"\nbase_url=${JSON.stringify(url.href)}\nwire_api="responses"\nrequires_openai_auth=false\n`;
   }
   writePrivate(configPath, config);
+  // Real homes enable native arg0 aliases beneath CODEX_HOME. Those executable
+  // aliases would conflict with the managed credential/history deny. Keep that
+  // one destination empty and read-only; native uses the pinned vendor fallback.
+  const emptyAliases = privateDirectory(join(policyDirectory, "empty-runtime-aliases"));
+  check(readdirSync(emptyAliases).length === 0);
+  const nativeTmp = join(codexHome, "tmp"),
+    aliases = join(nativeTmp, "arg0-linux");
+  for (const path of [nativeTmp, aliases]) {
+    mkdirSync(path, { recursive: true, mode: 0o700 });
+    const stat = lstatSync(path);
+    check(
+      realpathSync(path) === path &&
+        stat.isDirectory() &&
+        stat.uid === process.getuid() &&
+        !(stat.mode & 0o022),
+    );
+  }
   const tokenPath = join(stateDirectory, "native-token");
   const bwrap = join(vendor, "codex-resources/bwrap");
   const systemFiles = [
@@ -131,6 +149,8 @@ export function prepareNativeNamespace({ home, stateDirectory, codexExecutable, 
     "usr/lib64",
     "/lib64",
     "--tmpfs",
+    "/tmp",
+    "--tmpfs",
     "/etc",
     ...systemFiles,
     "--ro-bind",
@@ -145,6 +165,9 @@ export function prepareNativeNamespace({ home, stateDirectory, codexExecutable, 
     "--ro-bind",
     configPath,
     configPath,
+    "--ro-bind",
+    emptyAliases,
+    aliases,
     "--bind",
     projects,
     projects,

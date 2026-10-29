@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "inference": false,
+  "productionChanged": false,
+  "cases": [
+    {
+      "mode": "baseline",
+      "readonlyAliases": false,
+      "commandAccepted": false,
+      "exitCode": null,
+      "denialControl": false,
+      "errorCode": -32600,
+      "managedDenyConflict": true,
+      "aliasCreationReadonlyWarning": false,
+      "aliasCreationTmpPathRefusal": false
+    },
+    {
+      "mode": "readonlyAliases",
+      "readonlyAliases": true,
+      "commandAccepted": true,
+      "exitCode": 1,
+      "denialControl": false,
+      "errorCode": null,
+      "managedDenyConflict": false,
+      "aliasCreationReadonlyWarning": true,
+      "aliasCreationTmpPathRefusal": false
+    },
+    {
+      "mode": "readonlyAliasesAndTmpfs",
+      "readonlyAliases": true,
+      "commandAccepted": true,
+      "exitCode": 0,
+      "denialControl": true,
+      "errorCode": null,
+      "managedDenyConflict": false,
+      "aliasCreationReadonlyWarning": true,
+      "aliasCreationTmpPathRefusal": false
+    }
+  ]
+}
