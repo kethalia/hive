@@ -16,6 +16,30 @@ afterEach(() => {
 });
 
 describe("proxy", () => {
+  it("routes only exact delivery reads and pause POSTs to their session handlers", () => {
+    const origin = "https://hive.example";
+    const task = "/api/delivery/tasks/22222222-2222-4222-8222-222222222222";
+    for (const [path, method] of [
+      ["/api/delivery/tasks", "GET"],
+      [task, "GET"],
+      [`${task}/pause`, "POST"],
+    ]) {
+      expect(
+        proxy(new NextRequest(`${origin}${path}`, { method })).headers.get("x-middleware-next"),
+      ).toBe("1");
+    }
+    for (const [path, method] of [
+      ["/api/delivery/tasks", "POST"],
+      [task, "POST"],
+      [`${task}/pause`, "GET"],
+      [`${task}/pause/other`, "POST"],
+      ["/api/delivery/host", "POST"],
+    ]) {
+      expect(proxy(new NextRequest(`${origin}${path}`, { method })).headers.get("location")).toBe(
+        `${origin}/login`,
+      );
+    }
+  });
   it("passes only the exact Settings GET to its route-owned JSON authentication", () => {
     const origin = "https://hive.example";
     const response = proxy(new NextRequest(`${origin}/api/settings/window`));

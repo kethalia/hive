@@ -2,6 +2,10 @@ import { z } from "zod";
 
 const id = z.string().uuid();
 const timestamp = z.string().datetime();
+export const deliveryPauseReceiptSchema = z.object({
+  version: z.number().int().nonnegative(),
+  replayed: z.boolean(),
+});
 export const deliveryTaskSummarySchema = z.object({
   id,
   outcome: z.string(),

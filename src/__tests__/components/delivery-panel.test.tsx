@@ -104,6 +104,109 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("Delivery window", () => {
+  it("requests scheduling pause once and displays the server's still-running state", async () => {
+    let paused = false;
+    let resolve!: (value: Response) => void;
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (init?.method === "POST")
+        return new Promise((r) => {
+          resolve = r;
+        });
+      return Promise.resolve(
+        response(
+          String(url).split("?")[0].endsWith(taskId)
+            ? {
+                ...detail,
+                pauseRequested: paused,
+                schedulingPaused: false,
+                version: paused ? 1 : 0,
+              }
+            : { tasks: [summary], nextCursor: null },
+        ),
+      );
+    });
+    mount({ taskId });
+    const button = await screen.findByRole("button", { name: "Pause scheduling" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(screen.getByRole("button", { name: "Updating scheduling…" })).toBeDisabled();
+    const posts = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect(JSON.parse(String(posts[0][1]?.body))).toMatchObject({
+      expectedVersion: 0,
+      paused: true,
+    });
+    paused = true;
+    resolve(response({ version: 1, replayed: false }));
+    expect(
+      await screen.findByText("Pause requested; waiting for active work to stop safely."),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Resume scheduling" })).toBeEnabled();
+    expect(screen.queryByText("Scheduling paused.")).not.toBeInTheDocument();
+  });
+  it("retries a lost acknowledgement with the exact original request after state advances", async () => {
+    let calls = 0;
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (init?.method === "POST") {
+        calls++;
+        return calls === 1
+          ? Promise.reject(new Error("lost response"))
+          : Promise.resolve(response({ version: 1, replayed: true }));
+      }
+      return Promise.resolve(
+        response(
+          String(url).split("?")[0].endsWith(taskId)
+            ? {
+                ...detail,
+                pauseRequested: calls > 0,
+                schedulingPaused: calls > 0,
+                version: calls > 0 ? 1 : 0,
+              }
+            : { tasks: [summary], nextCursor: null },
+        ),
+      );
+    });
+    mount({ taskId });
+    fireEvent.click(await screen.findByRole("button", { name: "Pause scheduling" }));
+    const retry = await screen.findByRole("button", { name: "Retry scheduling request" });
+    await waitFor(() => expect(retry).toBeEnabled());
+    fireEvent.click(retry);
+    await screen.findByRole("button", { name: "Resume scheduling" });
+    const posts = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST");
+    expect(posts).toHaveLength(2);
+    expect(posts[1][1]?.body).toBe(posts[0][1]?.body);
+    expect(JSON.parse(String(posts[1][1]?.body)).paused).toBe(true);
+  });
+  it("refreshes a conflicting request without automatically overwriting the new state", async () => {
+    let changed = false;
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (init?.method === "POST") {
+        changed = true;
+        return Promise.resolve(response({ error: "task_changed" }, 409));
+      }
+      return Promise.resolve(
+        response(
+          String(url).split("?")[0].endsWith(taskId)
+            ? {
+                ...detail,
+                pauseRequested: changed,
+                schedulingPaused: changed,
+                version: changed ? 2 : 0,
+              }
+            : { tasks: [summary], nextCursor: null },
+        ),
+      );
+    });
+    mount({ taskId });
+    fireEvent.click(await screen.findByRole("button", { name: "Pause scheduling" }));
+    expect(
+      await screen.findByText("The task changed. Review its current state before trying again."),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Scheduling paused.")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(
+      1,
+    );
+  });
   it("separates informational analysis from evidence acceptance and shows unverified difficulty/issues", async () => {
     const counts = { ...summary.counts, succeeded: 0, reported: 1 };
     const analysis = {
