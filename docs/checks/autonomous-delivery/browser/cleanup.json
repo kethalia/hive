@@ -1,0 +1,11 @@
+{
+  "workspaceId": "6d3dc416-95ff-4f5e-9a8d-a4dfccd36cb6",
+  "task": "hive-delivery-browser",
+  "observedAt": "2026-10-29T16:47:42.484001+00:00",
+  "completedUsing": "installed hive-workspace wrapper",
+  "stopRequested": true,
+  "deleteRequestedAfterStopped": true,
+  "freshWorkspaceListContainsTarget": false,
+  "note": "A final helper poll returned ValueError after deletion; fresh primary Coder list confirmed target absent. No fallback raw deletion used.",
+  "otherWorkspacesChanged": false
+}
