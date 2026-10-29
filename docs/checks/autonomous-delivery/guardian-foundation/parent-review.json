@@ -1,0 +1,19 @@
+{
+  "recordedAt": "2026-10-29T22:11:00.525888+00:00",
+  "review": "Independent parent review of pinned descriptors, inherited control channel, launch and drain state transitions, child verification, ECHILD receipt scope, and durable-callback failure behavior. No blocking finding for standalone foundation; installed identity, immutable package protection and durable multi-project controller remain required.",
+  "focusedTestsPassed": 19,
+  "nativeCompatibility": {
+    "evidence": "native-parent.json",
+    "passed": true,
+    "elapsedMs": 1541,
+    "accountInference": false
+  },
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "c4ceae212011f91782c45fa1d294545e5b85870fe6a54a29925cfefc1e21118a",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "4a0b12e39ca2c1d8eb7a244c9dae22c9b1ad99e3482df86f8163d8529dc647fa",
+    "scripts/verify-codex-native-guardian.test.mjs": "e2be23d1c6d260dde9532f79b0d4bbadfb560623ce7ed96a5930b7c3b63313c0",
+    "scripts/probe-codex-guardian-foundation.mjs": "4286f131dbedcf3f0a08808053e0015ae1b0fdeab3fcef8c946eda0cbe4a4a44"
+  },
+  "runtimeActivation": false,
+  "cleanupAuthority": false
+}
