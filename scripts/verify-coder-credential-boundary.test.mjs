@@ -21,6 +21,23 @@ const deployment = "https://coder.example.test";
 const secret = "fixture-owner-secret-must-not-be-logged";
 const encode = (value) => Buffer.from(value).toString("base64");
 
+test("GitHub access tokens never enter rendered Coder startup metadata", () => {
+  for (const name of [
+    "ai-dev-k8s",
+    "browser-testing",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ]) {
+    const root = `templates/${name}`;
+    assert.doesNotMatch(
+      readFileSync(`${root}/main.tf`, "utf8"),
+      /data\.coder_external_auth\.[a-z_]+\.access_token/,
+    );
+    assert.doesNotMatch(readFileSync(`${root}/scripts/tools-ci.sh`, "utf8"), /\$\{github_token\}/);
+  }
+});
+
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "hive-coder-credentials-"));
   const home = join(root, "home");

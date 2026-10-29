@@ -19,7 +19,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | F02 Cloudflare/Neon | Clean app/auth runtime proof passed; guarded preview pending | Actual OpenNext app and auth service binding passed against restricted Neon runtime role at 4c0eedf. Provenance-safe auth rotation committed 6ae325d; exact latest preview build and baseline compatibility remain. |
 | F03 project discovery | Signed discovery and project enrollment implemented; preview pending | b0e278c ports discovery to verified Coder app transport, independently binds owner/build/app and uses agent-scoped GitHub access. No SSH fallback in Workers. 7635164 adds stable enrollment and durable first-task preparation; account-backed preview remains. |
 | F04 same native session | Native proof, registration and mounted UI implemented; browser acceptance pending | b0e278c persists host lifetime and thread bindings, reauthorizes capabilities and recovers exact lost heartbeat acknowledgements. 7635164 mounts both views to the registered native thread; real account-backed inference and deployed browser acceptance remain. |
-| F05/F06 checkout lifecycle | Local supervisor and cleanup fences passed; installed composition pending | 35087ed fences cleanup against checkout reincarnation/inode reuse; test workspace native proof passes. Production cleanup authority remains disabled. |
+| F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
 | D02/D03 persistence | Foundation and recovery validated | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation; real PostgreSQL CI includes manager and registration regressions. |
 | D05 Delivery window | Initial read-only view validated | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Manager linking, pause UI, integrated deployment remain. |
 | D07/D08 eligibility | Authoritative GitHub adapter implemented; signed source integration pending | 25 focused tests pass, including delayed old runs, producer binding and current revision. 7635164 adds actual GitHub collection, immutable artifact interface, full-policy digest, source ordering and stale pass invalidation; signed source transport and R2 integration remain. Main currently has no required successful checks. |
@@ -137,3 +137,16 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 - Preview schema: all eighteen committed migrations through preparation progress applied to the
   isolated Neon application database and local upgrade fixture. Runtime CRUD permission was granted
   only for the new project_task_intents table. Production data and schema remain unchanged.
+
+- Template-installed host: implemented at 4d5f703, high difficulty. All 83 template checks
+  and three package checks passed on staged sources; Infrastructure Terraform validation passed.
+  Inactive Coder version hive-epic-5698da6 (267d9346-310b-4364-b4b8-733b6bcd602b) imported
+  successfully; the active template remains 1b6dbdb0-69d0-4213-9d53-b8a4f33e8c30.
+- Safe preparation retry: implemented at 5698da6. Durable retry receipts preserve the original
+  prompt identity. Actual Codex 0.165 cannot expose complete history for some empty loaded threads;
+  these remain blocked rather than treating unavailable history as proof of no execution.
+- Credential metadata correction: an overly broad workspace metadata tool result exposed an
+  existing interpolated GitHub token in this session. No token value is saved in this repository.
+  Removed provider-token interpolation from all new template startup scripts; the existing
+  runtime external-auth helper still authenticates repository bootstrap. Rotation of the exposed
+  Coder/GitHub authorization was requested. Existing active templates were not changed.

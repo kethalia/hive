@@ -258,7 +258,6 @@ resource "coder_script" "tools_ci" {
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
     git_config_retry_script        = file("${path.module}/scripts/git-config-retry.sh")
-    github_token                   = data.coder_external_auth.github.access_token
     github_cli_script_b64          = base64encode(file("${path.module}/scripts/github-cli.sh"))
     github_credential_script_b64   = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64  = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
