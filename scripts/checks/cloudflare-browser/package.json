@@ -1,0 +1,8 @@
+{
+  "name": "hive-private-browser-proof",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright": "1.61.1"
+  }
+}

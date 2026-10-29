@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "preparedAt": "2026-10-29T20:52:48.571036+00:00",
+  "workspaceId": "6bc1ff4f-c190-4d8f-becd-b7b3e01e9535",
+  "profile": "browser",
+  "chrome": "155.0.8059.79",
+  "playwright": "1.61.1",
+  "scratch": "/tmp/hive-cloudflare-browser-ld5o18ur",
+  "browserInstalled": false,
+  "dependencyInstallScripts": false,
+  "previewRequests": 0,
+  "browserBlankLaunchPassed": true,
+  "budgetPolicyTestsPassed": 3,
+  "sourceSha256": {
+    "browser.mjs": "cbf2cf5c3510f8b73ae3d633623daf45817ffea20f4628b5d7e548489e5505b8",
+    "package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b",
+    "package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
+    "README.md": "6a6f17ed036b8c6c8b0404f50dd361cda02d883b144fa36724d542a567eb24a2",
+    "policy.test.mjs": "a7718fed9aff075efec159b3ffbea0fb9423ad352453ce9f25e9a4089627df6c",
+    "driver-lifecycle.mjs": "8b9f96fab8004baec8249a04dad18834420c3aaf574bcc0158d36d99e035603f",
+    "policy.mjs": "0e2363f6bdaeee584b189d432a2cfa9f08370295fc75c6b100e7877bb99c0ad8",
+    "remote.py": "f1d4998ab91fff7a7f8d351d4f1a8f6d744e4d632b4cd5152111eab9b870e1b5"
+  },
+  "liveAuthenticationVerified": false,
+  "lifecycleOwner": "primary parent",
+  "cookieSecurityAssertions": [
+    "Secure",
+    "HttpOnly",
+    "host-only exact domain",
+    "Path=/",
+    "SameSite=Lax"
+  ],
+  "normalUiLogoutVerified": false,
+  "plannedLogoutMode": "same-origin browser API then old-cookie rejection",
+  "driverFailureProof": "driver-lifecycle.json"
+}
