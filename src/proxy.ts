@@ -12,6 +12,8 @@ import {
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/robots.txt"];
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
+const deliveryTaskPath =
+  /^\/api\/delivery\/tasks\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function withContentSecurityPolicy(
   response: NextResponse,
@@ -41,6 +43,13 @@ export function proxy(request: NextRequest) {
     // This exact read endpoint authenticates its session in the route and
     // returns typed JSON failures rather than a login-page redirect.
     (request.method === "GET" && pathname === "/api/settings/window") ||
+    // These owner-scoped routes authenticate their session themselves, including
+    // expired-cookie requests, and return JSON instead of redirecting a mutation.
+    (request.method === "GET" &&
+      (pathname === "/api/delivery/tasks" || deliveryTaskPath.test(pathname))) ||
+    (request.method === "POST" &&
+      pathname.endsWith("/pause") &&
+      deliveryTaskPath.test(pathname.slice(0, -6))) ||
     pathname === "/api/notifications/events" ||
     pathname === "/" ||
     PUBLIC_PATHS.some((path) => pathname.startsWith(path))

@@ -318,3 +318,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   [source publication plan](source-advance-design.md) separates immutable attempt input
   revisions from broker-verified output commits. Both need implementation and composed
   runtime acceptance; neither document changes installed permissions or remote resources.
+
+- **Implement / Validate / Review: owner scheduling controls completed locally; moderate difficulty.**
+  The Delivery window can request pause or resume through an authenticated, same-origin JSON
+  endpoint. It distinguishes requested pause from confirmed stopped scheduling, preserves the
+  exact request after a lost response, and reloads current state after historical acknowledgements.
+  Fifty-three API/DOM/proxy tests and nineteen PostgreSQL tests pass, including cross-owner
+  rejection, competing writes and replay after resume. Typecheck and independent review pass.
+  This control neither kills processes nor clears writer/evidence/release holds. Deployed
+  browser acceptance remains. [Evidence](pause-control-local.json).

@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { DeliveryPauseControl } from "@/components/delivery/DeliveryPauseControl";
 import { Button } from "@/components/ui/button";
 import {
   type DeliveryReport,
@@ -16,7 +17,12 @@ class DeliveryReadError extends Error {
   }
 }
 async function read(url: string, signal: AbortSignal) {
-  const response = await fetch(url, { credentials: "same-origin", cache: "no-store", signal });
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    cache: "no-store",
+    redirect: "error",
+    signal,
+  });
   if (!response.ok) throw new DeliveryReadError(response.status);
   return response.json();
 }
@@ -109,7 +115,15 @@ function orderedSteps(steps: DeliveryTaskDetail["steps"]) {
   }
   return result;
 }
-function TaskProgress({ task, reportId }: { task: DeliveryTaskDetail; reportId?: string }) {
+function TaskProgress({
+  task,
+  reportId,
+  userId,
+}: {
+  task: DeliveryTaskDetail;
+  reportId?: string;
+  userId: string;
+}) {
   const reports = task.steps.flatMap((step) => step.reports);
   const shown = useRef<string | null>(null);
   useEffect(() => {
@@ -130,9 +144,10 @@ function TaskProgress({ task, reportId }: { task: DeliveryTaskDetail; reportId?:
         <p role="status" className="rounded-md border p-3 text-sm">
           {task.schedulingPaused
             ? "Scheduling paused."
-            : "Pause requested; current work is finishing."}
+            : "Pause requested; waiting for active work to stop safely."}
         </p>
       )}
+      <DeliveryPauseControl task={task} userId={userId} />
       {reportId && !reports.some((report) => report.id === reportId) && (
         <p role="status" className="text-sm">
           The linked report is not available in this task’s recent history.
@@ -329,7 +344,12 @@ export function DeliveryPanel({
           <p role="status">Loading task…</p>
         ) : (
           detail.data && (
-            <TaskProgress key={detail.data.id} task={detail.data} reportId={selectedReport} />
+            <TaskProgress
+              key={`${userId}:${detail.data.id}`}
+              task={detail.data}
+              reportId={selectedReport}
+              userId={userId}
+            />
           )
         ))}
     </div>

@@ -1,0 +1,42 @@
+{
+  "scope": "Owner scheduling control; local API/DOM/PostgreSQL validation. No cloud activation or process stop.",
+  "validation": {
+    "apiUiMiddlewareTests": 53,
+    "postgresqlTests": 19,
+    "typecheck": "passed after correcting test header union type",
+    "biome": "passed"
+  },
+  "behavior": [
+    "Authenticated Hive owner and same-origin JSON POST only",
+    "Optimistic task version and immutable request event ID",
+    "Exact retry after lost response; current state fetched instead of trusting historical replay state",
+    "Pause blocks new logical claims without asserting active process quiescence",
+    "Resume changes scheduling only and preserves existing writer/evidence/release gates"
+  ],
+  "remaining": [
+    "Deployed authenticated browser acceptance"
+  ],
+  "sourceSha256": {
+    "src/app/api/delivery/tasks/[taskId]/pause/route.ts": "6c9d6d8fcf66e1f73ef7337566d4f9f62f2113472c2635b31d9df7fe7bf45b85",
+    "src/components/delivery/DeliveryPauseControl.tsx": "ce3ecdae8469f1ff837fea7fe2aa5534a902fa812182028ed65b8a5f609ac561",
+    "src/components/delivery/DeliveryPanel.tsx": "a4365287efb3c8ebed56dae9bf35078bfe6d4d45a5af5607870e2e24aca2ae56",
+    "src/lib/delivery/read-contracts.ts": "01b97093b7f911d771e51520393bc30c05491ffb4213c2bd3de97747adcfc06c",
+    "src/proxy.ts": "95595e2914014eeeb096913095bfd41353a74acaff59ba9ef30cee19af58a979",
+    "src/__tests__/lib/delivery/pause-route.test.ts": "8b1498f50b26762e54ff4d95893d42cf17d926a54ccfa0ff81f5b5df324919b9",
+    "src/__tests__/components/delivery-panel.test.tsx": "50f140ed6784d4e675b3ed37d99e68a0e47c296830547c577d2ebf0fea40149e",
+    "src/__tests__/middleware.test.ts": "5abec075d2f9e6d8c2c24254e0925824b50ab28f983759502acca4514304b1ed",
+    "src/__tests__/lib/delivery/repository.integration.test.ts": "05254a19afee268096d172f65015de10daab3c42fdfde447c23c1f913968b2e3"
+  },
+  "independentReview": {
+    "reviewer": "session_capability",
+    "result": "No blocking findings",
+    "sourceHashesVerified": 9,
+    "scope": [
+      "owner/session and origin enforcement",
+      "bounded strict JSON and exact middleware routes",
+      "single in-flight request and exact lost-ACK retry",
+      "historical acknowledgement followed by current state read",
+      "no writer, evidence or release gate bypass"
+    ]
+  }
+}

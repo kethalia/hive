@@ -516,6 +516,54 @@ describe.skipIf(!url)("delivery PostgreSQL persistence", () => {
     await expect(lease(fixture)).rejects.toMatchObject({ code: "release_disabled" });
   });
 
+  it("preserves pause replay identity after resume and rejects competing owner or version changes", async () => {
+    const fixture = await task();
+    const pause = {
+      schemaVersion: 1,
+      eventId: randomUUID(),
+      taskId: fixture.taskId,
+      expectedVersion: 0,
+      paused: true,
+    };
+    await expect(repository.setPaused(otherOwnerId, pause)).rejects.toMatchObject({
+      code: "task_not_found",
+    });
+    const results = await Promise.allSettled([
+      repository.setPaused(ownerId, pause),
+      repository.setPaused(ownerId, { ...pause, eventId: randomUUID() }),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    const taskAfterRace = await repository.getTask(ownerId, fixture.taskId);
+    expect(taskAfterRace).toMatchObject({
+      version: 1,
+      pauseRequested: true,
+      schedulingPaused: true,
+    });
+    const acceptedEvent = await db.deliveryEvent.findFirstOrThrow({
+      where: { ownerId, taskId: fixture.taskId, type: "pause_requested" },
+    });
+    const accepted = { ...pause, eventId: acceptedEvent.id };
+    await repository.setPaused(ownerId, {
+      ...pause,
+      eventId: randomUUID(),
+      expectedVersion: 1,
+      paused: false,
+    });
+    await expect(repository.setPaused(ownerId, accepted)).resolves.toEqual({
+      version: 1,
+      replayed: true,
+    });
+    expect(await repository.getTask(ownerId, fixture.taskId)).toMatchObject({
+      version: 2,
+      pauseRequested: false,
+      schedulingPaused: false,
+    });
+    await expect(
+      repository.setPaused(ownerId, { ...accepted, paused: false }),
+    ).rejects.toMatchObject({ code: "event_replay_conflict" });
+  });
+
   it("projects owner-only reports without source object keys, lease handles or event digests", async () => {
     const fixture = await task();
     const input = await completion(fixture, await lease(fixture));
