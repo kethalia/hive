@@ -1,0 +1,552 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T19:28:36.728Z",
+  "sourceRevision": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "scriptIdentities": [
+    {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "modifiedOn": "2026-10-29T19:15:21.513438Z",
+      "usageModel": "standard",
+      "routes": null,
+      "logpush": false
+    },
+    {
+      "name": "hive-auth-compatibility-preview",
+      "tag": "731fb2f125fb472e8682ea6ed4d1f53d",
+      "createdOn": "2026-10-29T19:13:42.822748Z",
+      "modifiedOn": "2026-10-29T19:13:45.721494Z",
+      "usageModel": "standard",
+      "routes": null,
+      "logpush": false
+    }
+  ],
+  "workers": {
+    "auth": {
+      "name": "hive-auth-compatibility-preview",
+      "deploymentId": "cf315309-8602-402a-9e6c-4ed45ee708fd",
+      "versionId": "cf6cd1be-4060-4fcb-99fa-be73d39cd6f2",
+      "deployedAt": "2026-10-29T19:13:42.822748Z",
+      "subdomainBeforeProbes": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "cpuMilliseconds": 100,
+      "bindings": [
+        {
+          "type": "secret_text",
+          "name": "AUTH_SERVICE_SECRET"
+        },
+        {
+          "type": "plain_text",
+          "name": "CODER_URL"
+        },
+        {
+          "type": "secret_text",
+          "name": "DATABASE_URL"
+        },
+        {
+          "type": "secret_text",
+          "name": "ENCRYPTION_KEY"
+        },
+        {
+          "type": "plain_text",
+          "name": "HIVE_RUNTIME_TARGET"
+        },
+        {
+          "type": "plain_text",
+          "name": "SOURCE_REVISION"
+        }
+      ],
+      "remoteContentDigests": [
+        {
+          "name": "./b5eac128f9b2a7b2146c1e479f7284d9f4137e45-query_compiler_bg.wasm",
+          "bytes": 1950269,
+          "sha256": "8ad65dab5c22d8ce70db4bcb6c8c0a5069feb9841d9154cfb59f2003c2bd0236"
+        },
+        {
+          "name": "worker.js",
+          "bytes": 1753718,
+          "sha256": "e0cb111f8f3df8afc3aa9c69d21d0d247416c38a605f2d5db205d2411b311d07"
+        },
+        {
+          "name": "worker.js.map",
+          "bytes": 3641623,
+          "sha256": "f629d7efa894d1cc73cbd7cfe83bff406913abc7bb92df6efef7ab88a8659c11"
+        }
+      ],
+      "sourceMapComparison": {
+        "name": "worker.js.map",
+        "bytes": 3641623,
+        "sha256": "f629d7efa894d1cc73cbd7cfe83bff406913abc7bb92df6efef7ab88a8659c11",
+        "keys": [
+          "version",
+          "file",
+          "sourcesRoot",
+          "sources",
+          "sourcesContent",
+          "names",
+          "mappings"
+        ],
+        "file": "worker.js",
+        "sources": 402,
+        "names": 3007,
+        "componentSHA256": {
+          "sources": "a5b197d338986c29851435823cf3cea43de9a5ce93c588968c56a066d49dcb7e",
+          "sourcesContent": "ee31e1d9b9a09ef7fc0e8a4726ea024acbc347245853f7c9125cb5d7afa4892d",
+          "names": "5ae9f03ad4574a7dc09b408d7f73e28cde3016f45a4842ae77f8d6fd1a61eca4",
+          "mappings": "cae24dd61671d26f892479dd8886ad0684d6ebf94335182ad2197e580776ad21"
+        },
+        "sourcesSample": [
+          "../../../home/coder/projects/kethalia/.worktrees/hive/hive-epic-cloudflare-validation/node_modules/.pnpm/postgres-array@3.0.4/node_modules/postgres-array/index.js",
+          "../../../home/coder/projects/kethalia/.worktrees/hive/hive-epic-cloudflare-validation/packages/db/src/generated/prisma-workerd/internal/query_compiler_bg.js",
+          ".wrangler/tmp/deploy-N5H1BQ/node-built-in-modules:node:assert"
+        ],
+        "canonicalSHA256": "891acb83566baf4a20456dd213350dd67f662139a5a01264bbe3500634067ae0"
+      },
+      "sourceMapContentsNamesMappingsMatchPrepared": true,
+      "sourcePathLabelsExplainBundleSizeDifference": true,
+      "embeddedRuntimeCredentialsDetected": false,
+      "localBundleDigests": {
+        "b5eac128f9b2a7b2146c1e479f7284d9f4137e45-query_compiler_bg.wasm": {
+          "bytes": 1950269,
+          "sha256": "8ad65dab5c22d8ce70db4bcb6c8c0a5069feb9841d9154cfb59f2003c2bd0236"
+        },
+        "worker.js": {
+          "bytes": 1753718,
+          "sha256": "e0cb111f8f3df8afc3aa9c69d21d0d247416c38a605f2d5db205d2411b311d07"
+        },
+        "worker.js.map": {
+          "bytes": 3595795,
+          "sha256": "f31055c1894dff43df01254d313d57489019cce2b779cd98bbd25fd40979a61d"
+        }
+      },
+      "exactDeployedJavaScriptAndWasmMatchLocal": true,
+      "startupMilliseconds": 57,
+      "actualUpload": {
+        "uncompressedKiB": 3617.17,
+        "gzipKiB": 1107.95
+      }
+    },
+    "app": {
+      "name": "hive-app-compatibility-preview",
+      "deploymentId": "beb77274-466b-4dfd-b3d1-5a701c3d3778",
+      "versionId": "c9401e7b-a3f0-43c0-8f18-5b170d4ee5a9",
+      "deployedAt": "2026-10-29T19:15:15.567988Z",
+      "subdomainBeforeProbes": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "cpuMilliseconds": 100,
+      "bindings": [
+        {
+          "type": "assets",
+          "name": "ASSETS"
+        },
+        {
+          "type": "service",
+          "name": "AUTH_SERVICE",
+          "service": "hive-auth-compatibility-preview"
+        },
+        {
+          "type": "secret_text",
+          "name": "AUTH_SERVICE_SECRET"
+        },
+        {
+          "type": "plain_text",
+          "name": "CODER_URL"
+        },
+        {
+          "type": "secret_text",
+          "name": "COOKIE_SECRET"
+        },
+        {
+          "type": "secret_text",
+          "name": "DATABASE_URL"
+        },
+        {
+          "type": "secret_text",
+          "name": "ENCRYPTION_KEY"
+        },
+        {
+          "type": "plain_text",
+          "name": "HIVE_DELIVERY_ENABLED"
+        },
+        {
+          "type": "plain_text",
+          "name": "HIVE_DISABLE_BACKGROUND_WORKERS"
+        },
+        {
+          "type": "plain_text",
+          "name": "HIVE_PREVIEW_ORIGIN"
+        },
+        {
+          "type": "plain_text",
+          "name": "HIVE_RUNTIME_TARGET"
+        },
+        {
+          "type": "secret_text",
+          "name": "PREVIEW_BEARER"
+        },
+        {
+          "type": "secret_text",
+          "name": "PREVIEW_COOKIE_SECRET"
+        },
+        {
+          "type": "plain_text",
+          "name": "SOURCE_REVISION"
+        }
+      ],
+      "remoteContentDigests": [
+        {
+          "name": "./b5eac128f9b2a7b2146c1e479f7284d9f4137e45-query_compiler_bg.wasm",
+          "bytes": 1950269,
+          "sha256": "8ad65dab5c22d8ce70db4bcb6c8c0a5069feb9841d9154cfb59f2003c2bd0236"
+        },
+        {
+          "name": "worker.js",
+          "bytes": 21526058,
+          "sha256": "8c5c77e3ff9822f9e2ef3249970ac1494df433605a5457d06d8d700232c09fbb"
+        },
+        {
+          "name": "worker.js.map",
+          "bytes": 32366971,
+          "sha256": "5cb741ccb3d2c222ee3a92e928fe346f2db007c47a5fb210b1619bc56122b0ea"
+        }
+      ],
+      "sourceMapComparison": {
+        "name": "worker.js.map",
+        "bytes": 32366971,
+        "sha256": "5cb741ccb3d2c222ee3a92e928fe346f2db007c47a5fb210b1619bc56122b0ea",
+        "keys": [
+          "version",
+          "file",
+          "sourcesRoot",
+          "sources",
+          "sourcesContent",
+          "names",
+          "mappings"
+        ],
+        "file": "worker.js",
+        "sources": 454,
+        "names": 4956,
+        "componentSHA256": {
+          "sources": "86867feddbfee284ac873ae4c1564c09bc9906f81fe77ca0ba51af81128b8738",
+          "sourcesContent": "5758dbdabf388570a561021dad48cd95073c4d7b6d4a83cbbe37cd3c640e9618",
+          "names": "a21ca25dc3cac65fa9de73f8e09665fe24ef070aaf5979065454f4a9e1050442",
+          "mappings": "f5acc0c9131fed85aebbd35b2b1d6682f588285cfe991f8aaa941ab564213404"
+        },
+        "sourcesSample": [
+          "../../../home/coder/projects/kethalia/.worktrees/hive/hive-epic-cloudflare-validation/node_modules/.pnpm/postgres-array@3.0.4/node_modules/postgres-array/index.js",
+          "../../../home/coder/projects/kethalia/.worktrees/hive/hive-epic-cloudflare-validation/packages/db/src/generated/prisma-workerd/internal/query_compiler_bg.js",
+          "../../../home/coder/projects/kethalia/.worktrees/hive/hive-epic-cloudflare-validation/.open-next/middleware/open-next.config.mjs"
+        ],
+        "canonicalSHA256": "5e69c7ec43dde36c897d46e49830543724a9304df78819abe422d67c137e3d33"
+      },
+      "sourceMapContentsNamesMappingsMatchPrepared": true,
+      "sourcePathLabelsExplainBundleSizeDifference": true,
+      "embeddedRuntimeCredentialsDetected": false,
+      "localBundleDigests": {
+        "b5eac128f9b2a7b2146c1e479f7284d9f4137e45-query_compiler_bg.wasm": {
+          "bytes": 1950269,
+          "sha256": "8ad65dab5c22d8ce70db4bcb6c8c0a5069feb9841d9154cfb59f2003c2bd0236"
+        },
+        "worker.js": {
+          "bytes": 21526058,
+          "sha256": "8c5c77e3ff9822f9e2ef3249970ac1494df433605a5457d06d8d700232c09fbb"
+        },
+        "worker.js.map": {
+          "bytes": 31796958,
+          "sha256": "8c372addd6fc82f40286bda808cae0a5d4cee9e28984b8baa2bb701d297c95a3"
+        }
+      },
+      "exactDeployedJavaScriptAndWasmMatchLocal": true,
+      "startupMilliseconds": 78,
+      "actualUpload": {
+        "uncompressedKiB": 22926.1,
+        "gzipKiB": 5256.61
+      }
+    }
+  },
+  "probe": {
+    "started": true,
+    "maxOuterRequests": 30,
+    "totalOuterRequests": 15,
+    "remainingOuterRequests": 15,
+    "attempts": [
+      {
+        "schemaVersion": 1,
+        "observedAt": "2026-10-29T19:21:14.613Z",
+        "sourceRevision": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f",
+        "origin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+        "maxOuterRequests": 30,
+        "outerRequests": 1,
+        "realCoderLogin": false,
+        "databaseDml": false,
+        "checks": [
+          {
+            "name": "unauthorizedHtml",
+            "status": 404,
+            "expectedStatus": 401
+          }
+        ],
+        "ok": false,
+        "failure": {
+          "stage": "unauthorizedHtml",
+          "message": "Bounded preview probe rejected; no credentials or response body recorded"
+        },
+        "finishedAt": "2026-10-29T19:21:14.686Z"
+      },
+      {
+        "schemaVersion": 1,
+        "observedAt": "2026-10-29T19:22:42.589Z",
+        "sourceRevision": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f",
+        "origin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+        "maxOuterRequests": 29,
+        "outerRequests": 2,
+        "realCoderLogin": false,
+        "databaseDml": false,
+        "checks": [
+          {
+            "name": "unauthorizedHtml",
+            "status": 401,
+            "expectedStatus": 401
+          },
+          {
+            "name": "unauthorizedAsset",
+            "status": 404,
+            "expectedStatus": 401
+          }
+        ],
+        "ok": false,
+        "failure": {
+          "stage": "unauthorizedAsset",
+          "message": "Bounded preview probe rejected; no credentials or response body recorded"
+        },
+        "finishedAt": "2026-10-29T19:22:43.280Z"
+      },
+      {
+        "schemaVersion": 1,
+        "observedAt": "2026-10-29T19:26:56.967Z",
+        "sourceRevision": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f",
+        "origin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+        "maxOuterRequests": 27,
+        "outerRequests": 12,
+        "realCoderLogin": false,
+        "databaseDml": false,
+        "checks": [
+          {
+            "name": "unauthorizedHtml",
+            "status": 401,
+            "expectedStatus": 401,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a52493266b18e59a-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "application/json"
+            }
+          },
+          {
+            "name": "unauthorizedAsset",
+            "status": 401,
+            "expectedStatus": 401,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a524932fed0ae3d9-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "application/json"
+            }
+          },
+          {
+            "name": "invalidBearer",
+            "status": 401,
+            "expectedStatus": 401,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a52493301d1fe59a-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "application/json"
+            }
+          },
+          {
+            "name": "authorizedHtml",
+            "status": 200,
+            "expectedStatus": 200,
+            "privateNoStore": true,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a52493302d4be3d9-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "text/html; charset=utf-8"
+            }
+          },
+          {
+            "name": "authorizedAsset",
+            "status": 200,
+            "expectedStatus": 200,
+            "privateNoStore": true,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a5249335facee59a-OTP",
+              "cf-cache-status": "MISS",
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "image/svg+xml"
+            }
+          },
+          {
+            "name": "foreignOriginBootstrap",
+            "status": 403,
+            "expectedStatus": 403,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a52493376f4226cf-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": null
+            }
+          },
+          {
+            "name": "previewCookieBootstrap",
+            "status": 204,
+            "expectedStatus": 204,
+            "secureHttpOnlyStrict": true,
+            "hostOnly": true,
+            "boundedTtl": true,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a5249337ac0fb0fa-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": null
+            }
+          },
+          {
+            "name": "cookieAuthorizedAsset",
+            "status": 200,
+            "expectedStatus": 200,
+            "privateNoStore": true,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a5249337e82a26cf-OTP",
+              "cf-cache-status": "HIT",
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "image/svg+xml"
+            }
+          },
+          {
+            "name": "cookieAuthorizedHtml",
+            "status": 200,
+            "expectedStatus": 200,
+            "privateNoStore": true,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a52493381cc8b0fa-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "text/html; charset=utf-8"
+            }
+          },
+          {
+            "name": "missingHiveSessionRejected",
+            "status": 401,
+            "expectedStatus": 401,
+            "privateNoStore": true,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a524933a3ee3c9f0-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "application/json"
+            }
+          },
+          {
+            "name": "hostCapabilityExplicitlyUnavailable",
+            "status": 503,
+            "expectedStatus": 503,
+            "privateNoStore": true,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a52493414f40e3ef-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": "application/json"
+            }
+          },
+          {
+            "name": "queryBootstrapRejected",
+            "status": 400,
+            "expectedStatus": 400,
+            "responseMetadata": {
+              "server": "cloudflare",
+              "cf-ray": "a52493417862b694-OTP",
+              "cf-cache-status": null,
+              "age": null,
+              "cache-control": "private, no-store",
+              "content-type": null
+            }
+          }
+        ],
+        "ok": true,
+        "finishedAt": "2026-10-29T19:27:01.759Z"
+      }
+    ],
+    "finalPassed": true,
+    "firstFailuresPreserved": true,
+    "propagationInterpretation": "404s on newly enabled URL/asset disappeared after30second enable wait; final unauthorized assets and HTML401 and authorized200. No source/config change between attempts."
+  },
+  "realCoderLogin": false,
+  "neonDml": false,
+  "productionChanges": false,
+  "additionalPaidProducts": false,
+  "prepared": {
+    "runId": "63df38a9-e496-4b67-baa6-6142e4d53fb6",
+    "configDigests": {
+      "app": "1f7df6eaa9f0883b4a0bf3a29e5341e8c017ae316f89b855a70df88b1a7c649c",
+      "auth": "6f7a435a4125a2b193c8781ecad2967003d959a5f5575e3fde3141b1aa12773b"
+    },
+    "readinessSHA256": "f9d4421c09edb027804aaf4486c0c8c9b1642c5106f5e9bb1469c652918cac2d",
+    "artifactSetSHA256": "7a789d734a94035ddababe88fcb9969e987ad0b155a63249672f519c91412e50",
+    "previewIdentityId": "0d4d2304-ed4e-4224-939d-e363c5833811"
+  },
+  "finalPublicState": {
+    "verifiedAt": "2026-10-29T19:28:36.728Z",
+    "app": {
+      "enabled": false,
+      "previews_enabled": false
+    },
+    "auth": {
+      "enabled": false,
+      "previews_enabled": false
+    },
+    "disabledInFinallyAfterEveryAttempt": true
+  },
+  "bundleComparison": {
+    "baselineToPreparedDifference": "Only config-relative source comments and CommonJS/ESM diagnostic module keys; all remaining JavaScript bytes equal after path-label normalization",
+    "sourceMapDifference": "Wrangler upload rewrites file/root/sourcepaths and formatting; sourcesContent,names,mappings hashes match local; raw remote maps recorded separately",
+    "openNextArtifactSetIsNotUploadedBundleDigest": true
+  },
+  "limitations": [
+    "No real Coder login,keymint,rotation or revocation",
+    "No isolated Neon DML in live probes; missing-session rejection alone is not authenticated task-read acceptance",
+    "Gateway and terminal flags remain disabled; no live host callbacks or WebSocket proof",
+    "Relay remains bounded60seconds pending sustained authorization",
+    "No browser validation of deployed artifact"
+  ]
+}

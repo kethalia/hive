@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-10-29T19:01:41.661Z",
+  "observedAt": "2026-10-29T19:09:06.689Z",
   "scope": "actual full-schema Prisma6 + auth Worker/domain and task read functions in local workerd, isolated Neon synthetic fixtures only",
-  "testedRevision": "3ad51083d3843d607917dcdd10b33eef23447031",
+  "testedRevision": "b80a3e1ead02ee7c5158aa6154bd973dac10ba2f",
   "testedSourceCommitted": true,
   "sourceStable": true,
-  "runId": "8abb17a6-0d98-48bf-bb21-3d231d14fa28",
+  "runId": "fe5cb8e1-e982-4210-b4da-d0eaab160fd4",
   "httpStatus": 200,
   "result": {
     "ok": true,
@@ -66,7 +66,7 @@
     "packages/db/src/workerd.ts": "14a1cd94f36a92922ce651f7c632914689a30667899aa83fc43a5a42f0763be1",
     "packages/db/src/request-scope.ts": "bf61a6ae3b04b33f7eaf29261cde262b5d12723bd10fa43280fecb5dca80b43a",
     "packages/db/src/generated/prisma-workerd/client.ts": "5b2fb5892b982b2b92661a70c8d06cddbfcf60ed9662e29eee5b44c2b673e7e4",
-    "packages/db/src/generated/prisma-workerd/internal/class.ts": "cfdc04c5a1abc6151d84f32e06100091e6be07dbc6bc9d3d5e0a1fae7aca5f33",
+    "packages/db/src/generated/prisma-workerd/internal/class.ts": "27e1698919d6b7759b26c1f8c958ab3de3e6c75f47ed0ad03886964da0d5fa6b",
     "packages/db/package.json": "549f879af85ca17963ee9598b76dd315cba79eaf219311334d3b6f68aa980d8f",
     "next.config.ts": "a94614d630f5f8487c82b828fb135faf46e664fbd984647315e0bf0f2c2f1bea",
     "src/lib/auth/service-client.ts": "90979b852c228baaef5288a202afd64ad15a9781e1a43b19f9523858c38d4edc",
@@ -77,5 +77,5 @@
   "serviceBindingTransportVerified": true,
   "credentialRotationControllerVerified": false,
   "cloudDeployed": false,
-  "appBuildReadySHA256": "b9449a36cca2c7b64f6a68f0fcaf58fb18d1383d0b9901e6c4fa523d531ce5f3"
+  "appBuildReadySHA256": "f9d4421c09edb027804aaf4486c0c8c9b1642c5106f5e9bb1469c652918cac2d"
 }
