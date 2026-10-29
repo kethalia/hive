@@ -11,6 +11,7 @@ export {
   createCloneTerminalProof,
   verifyCloneTerminalProof,
 } from "./clone-terminal-proof";
+export { getConfiguredCoderUrl, isConfiguredCoderUrl } from "./coder-origin";
 export {
   ENCRYPTION_ALGORITHM,
   HEX_64_RE,

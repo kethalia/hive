@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPrisma = vi.hoisted(() => ({
   session: {
@@ -23,9 +23,12 @@ vi.mock("node:crypto", async () => {
 
 import { createSession, deleteSession, getSessionById } from "./session.js";
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("session management", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("CODER_URL", "https://coder.example.com");
   });
 
   describe("createSession", () => {
@@ -112,6 +115,17 @@ describe("session management", () => {
       expect(result!.user.id).toBe("user-1");
       expect(result!.user.username).toBe("testuser");
       expect(result!.session.sessionId).toBe("valid-session");
+    });
+
+    it("retains but rejects existing wrong-host sessions", async () => {
+      mockPrisma.session.findUnique.mockResolvedValue({
+        id: "db-id",
+        sessionId: "old",
+        expiresAt: new Date(Date.now() + 86400000),
+        user: { id: "user-1", coderUrl: "https://old.example.com" },
+      });
+      expect(await getSessionById("old")).toBeNull();
+      expect(mockPrisma.session.delete).not.toHaveBeenCalled();
     });
 
     it("returns null for empty sessionId", async () => {

@@ -1,4 +1,10 @@
-import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
+import {
+  encrypt,
+  getConfiguredCoderUrl,
+  isConfiguredCoderUrl,
+  TOKEN_LIFETIME_SECONDS,
+  tryDecrypt,
+} from "@hive/auth";
 import { getDb } from "@hive/db";
 import { type ConnectionOptions, type Job, Queue, Worker } from "bullmq";
 import { CoderClient } from "@/lib/coder/client";
@@ -43,6 +49,10 @@ export async function processTokenRotation(_job: Job<TokenRotationJobData>): Pro
   const thresholdFraction = TOKEN_ROTATION_THRESHOLD;
 
   for (const token of tokens) {
+    if (!isConfiguredCoderUrl(token.user.coderUrl)) {
+      console.log("[token-rotation] Skipped credentials for a different Coder deployment");
+      continue;
+    }
     const userId = token.user.coderUserId;
     const effectiveExpiresAt = token.expiresAt
       ? token.expiresAt.getTime()
@@ -94,7 +104,7 @@ export async function processTokenRotation(_job: Job<TokenRotationJobData>): Pro
     }
 
     const currentSessionToken = decryptResult.plaintext;
-    const coderUrl = token.user.coderUrl;
+    const coderUrl = getConfiguredCoderUrl();
 
     const newKey = await CoderClient.createApiKey(
       coderUrl,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPrisma = vi.hoisted(() => ({
   user: {
@@ -39,12 +39,15 @@ vi.mock("./coder-api.js", () => ({
 
 import { performLogin } from "./login.js";
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("performLogin", () => {
   const TEST_ENCRYPTION_KEY = "a".repeat(64);
 
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+    vi.stubEnv("CODER_URL", "https://coder.example.com");
 
     mockEncrypt.mockReturnValue({
       ciphertext: Buffer.from("encrypted"),
@@ -79,11 +82,7 @@ describe("performLogin", () => {
     });
     mockCreateApiKey.mockResolvedValue("api-key-xyz");
 
-    const result = await performLogin(
-      "https://coder.example.com",
-      "test@example.com",
-      "password123",
-    );
+    const result = await performLogin("test@example.com", "password123");
 
     expect(result.sessionId).toBe("new-session-id");
     expect(result.user.username).toBe("testuser");
@@ -103,11 +102,7 @@ describe("performLogin", () => {
     });
     mockCreateApiKey.mockResolvedValue(null);
 
-    const result = await performLogin(
-      "https://coder.example.com",
-      "test@example.com",
-      "password123",
-    );
+    const result = await performLogin("test@example.com", "password123");
 
     expect(result.sessionId).toBe("new-session-id");
     expect(mockCreateApiKey).toHaveBeenCalledTimes(3);
@@ -120,10 +115,19 @@ describe("performLogin", () => {
       reason: "DNS resolution failed",
     });
 
-    await expect(performLogin("https://invalid.example.com", "a@b.com", "pass")).rejects.toThrow(
+    await expect(performLogin("a@b.com", "pass")).rejects.toThrow(
       "Invalid Coder instance: DNS resolution failed",
     );
 
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing server origin before sending credentials", async () => {
+    vi.stubEnv("CODER_URL", "");
+    await expect(performLogin("test@example.com", "pass")).rejects.toThrow(
+      "CODER_URL is not configured",
+    );
+    expect(mockValidateInstance).not.toHaveBeenCalled();
     expect(mockLogin).not.toHaveBeenCalled();
   });
 
@@ -131,9 +135,7 @@ describe("performLogin", () => {
     mockValidateInstance.mockResolvedValue({ valid: true, version: "2.8.0" });
     mockLogin.mockRejectedValue(new Error("invalid credentials"));
 
-    await expect(performLogin("https://coder.example.com", "a@b.com", "wrong")).rejects.toThrow(
-      "invalid credentials",
-    );
+    await expect(performLogin("a@b.com", "wrong")).rejects.toThrow("invalid credentials");
 
     expect(mockCreateApiKey).not.toHaveBeenCalled();
   });
@@ -149,7 +151,7 @@ describe("performLogin", () => {
     });
     mockCreateApiKey.mockResolvedValue("api-key-xyz");
 
-    await expect(performLogin("https://coder.example.com", "a@b.com", "pass")).rejects.toThrow(
+    await expect(performLogin("a@b.com", "pass")).rejects.toThrow(
       "ENCRYPTION_KEY environment variable is not set",
     );
   });
@@ -163,11 +165,7 @@ describe("performLogin", () => {
     });
     mockCreateApiKey.mockResolvedValueOnce(null).mockResolvedValueOnce("api-key-retry");
 
-    const result = await performLogin(
-      "https://coder.example.com",
-      "test@example.com",
-      "password123",
-    );
+    const result = await performLogin("test@example.com", "password123");
 
     expect(result.sessionId).toBe("new-session-id");
     expect(mockCreateApiKey).toHaveBeenCalledTimes(2);
@@ -183,7 +181,8 @@ describe("performLogin", () => {
     });
     mockCreateApiKey.mockResolvedValue("key");
 
-    await performLogin("https://coder.example.com/", "test@example.com", "pass");
+    vi.stubEnv("CODER_URL", "https://coder.example.com/");
+    await performLogin("test@example.com", "pass");
 
     const upsertCall = mockPrisma.user.upsert.mock.calls[0][0];
     expect(upsertCall.where.coderUrl_coderUserId.coderUrl).toBe("https://coder.example.com");

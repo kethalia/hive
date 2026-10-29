@@ -1,4 +1,4 @@
-import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
+import { getConfiguredCoderUrl, isConfiguredCoderUrl, SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { NextResponse } from "next/server";
 import { getClientIp, loginSchema } from "@/lib/auth/login";
 import { loginRateLimiter } from "@/lib/auth/rate-limit";
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid login input" }, { status: 400 });
   }
 
-  const { coderUrl, email, password } = parsed.data;
+  const { email, password } = parsed.data;
   const ip = getClientIp(request.headers);
   const rateCheck = loginRateLimiter.check(ip);
   if (!rateCheck.allowed) {
@@ -35,7 +35,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await getAuthServiceClient().login({ coderUrl, email, password });
+    const coderUrl = getConfiguredCoderUrl();
+    const result = await getAuthServiceClient().login({ email, password });
+    if (!isConfiguredCoderUrl(result.user.coderUrl)) {
+      throw new Error("Authentication service Coder origin does not match this deployment");
+    }
     const response = NextResponse.json({ success: true as const });
     const coderFrameUrls = coderFrameConfiguredUrls(coderUrl, result.applicationsHost).join("~");
     response.cookies.set(CODER_HOST_COOKIE, coderFrameUrls, {

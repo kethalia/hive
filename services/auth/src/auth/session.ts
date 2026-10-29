@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SessionData } from "@hive/auth";
-import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
+import { isConfiguredCoderUrl, SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { getDb } from "@hive/db";
 
 export type { SessionData };
@@ -34,6 +34,11 @@ export async function getSessionById(sessionId: string): Promise<SessionData | n
   if (session.expiresAt < new Date()) {
     console.log(`[auth-service] Session expired for user=${session.userId}, cleaning up`);
     await getDb().session.delete({ where: { sessionId } });
+    return null;
+  }
+
+  if (!isConfiguredCoderUrl(session.user.coderUrl)) {
+    console.log("[auth-service] Session belongs to a different Coder deployment");
     return null;
   }
 

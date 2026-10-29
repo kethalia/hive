@@ -8,7 +8,7 @@ export async function fetchCoderApi(
   init: RequestInit = {},
 ): Promise<Response> {
   const configuredCa = process.env.CODER_CA_CERT?.trim();
-  if (!configuredCa) return fetch(input, init);
+  if (!configuredCa) return fetch(input, { ...init, redirect: "error" });
 
   const dispatcher = new Agent({ connect: { ca: [...rootCertificates, configuredCa] } });
   try {
@@ -16,7 +16,7 @@ export async function fetchCoderApi(
       method: init.method,
       headers: Object.fromEntries(new Headers(init.headers).entries()),
       body: typeof init.body === "string" ? init.body : undefined,
-      redirect: init.redirect,
+      redirect: "error",
       signal: init.signal ?? undefined,
       dispatcher,
     });
