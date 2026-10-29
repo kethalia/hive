@@ -14,6 +14,11 @@ export function validatePreflight(preflight, now = Date.now()) {
     "Refresh read-only account/quota evidence before preparation",
   );
   assert.equal(preflight.plan, "paid-user-confirmed");
+  assert.ok(
+    typeof preflight.workersSubdomain === "string" &&
+      /^[a-z0-9][a-z0-9-]{0,62}$/.test(preflight.workersSubdomain),
+    "Verify account Workers subdomain",
+  );
   assert.equal(preflight.additionalCostsAuthorized, false);
   assert.equal(preflight.newPaidProductsAllowed, false);
   for (const name of [APP_NAME, AUTH_NAME])

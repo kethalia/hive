@@ -15,6 +15,7 @@ const preflight = () => ({
   accountId: ACCOUNT_ID,
   observedAt: new Date(now).toISOString(),
   plan: "paid-user-confirmed",
+  workersSubdomain: "b00ste",
   additionalCostsAuthorized: false,
   newPaidProductsAllowed: false,
   targets: [

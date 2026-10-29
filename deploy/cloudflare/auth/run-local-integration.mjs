@@ -78,7 +78,11 @@ if (appMode) {
     const next = JSON.parse(await readFile(`deploy/cloudflare/${service}/wrangler.jsonc`, "utf8"));
     delete next.$schema;
     next.main = resolve(`deploy/cloudflare/${service}/worker.ts`);
-    next.vars = { ...next.vars, HIVE_DELIVERY_ENABLED: "true" };
+    next.vars = {
+      ...next.vars,
+      HIVE_DELIVERY_ENABLED: "true",
+      HIVE_PREVIEW_ORIGIN: "http://127.0.0.1:8793",
+    };
     if (next.assets) next.assets.directory = resolve(".open-next/assets");
     const path = join(privateDirectory, `${service}.json`);
     await writeFile(path, JSON.stringify(next), { mode: 0o600 });
@@ -94,6 +98,7 @@ await writeFile(
     COOKIE_SECRET: randomBytes(32).toString("hex"),
     PROOF_BEARER: bearer,
     PREVIEW_BEARER: previewBearer,
+    PREVIEW_COOKIE_SECRET: randomBytes(32).toString("hex"),
     RUN_UUID: runId,
   })
     .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
@@ -179,6 +184,17 @@ try {
         throw new Error("Actual app preview asset privacy failed");
       await authorizedAsset.arrayBuffer();
       appChecks.privateStaticAssetsGuardAndNoStore = true;
+      const bootstrapped = await request("/__hive-preview/access", {
+        method: "POST",
+        headers: { Origin: "http://127.0.0.1:8793", Authorization: `Bearer ${previewBearer}` },
+      });
+      const previewCookie = bootstrapped.headers.get("set-cookie")?.split(";")[0];
+      if (bootstrapped.status !== 204 || !previewCookie)
+        throw new Error("Actual app preview cookie bootstrap failed");
+      const cookieAsset = await request(privateAsset, { headers: { Cookie: previewCookie } });
+      if (cookieAsset.status !== 200) throw new Error("Actual app preview cookie asset failed");
+      await cookieAsset.arrayBuffer();
+      appChecks.privatePreviewCookieBootstrapAndAsset = true;
       const list = await request("/api/delivery/tasks", { headers });
       const payload = await list.json();
       if (list.status !== 200 || payload.tasks?.length !== 1 || payload.tasks[0].id !== taskId)

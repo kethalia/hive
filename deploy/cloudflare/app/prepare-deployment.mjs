@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { assertBuildReady } from "./build-integrity.mjs";
+import {
+  loadPreviewIdentity,
+  previewIdentityScope,
+  previewRuntimeBindings,
+} from "./deployment-identity.mjs";
 import {
   ACCOUNT_ID,
   APP_NAME,
@@ -34,6 +39,7 @@ try {
   assert.equal(proof.serviceBindingTransportVerified, true);
   assert.equal(proof.result.appChecks.privatePreviewGuardBeforeFramework, true);
   assert.equal(proof.result.appChecks.privateStaticAssetsGuardAndNoStore, true);
+  assert.equal(proof.result.appChecks.privatePreviewCookieBootstrapAndAsset, true);
   assert.equal(
     proof.appBuildReadySHA256,
     digest(readyBytes),
@@ -70,26 +76,20 @@ try {
     await readFile(join(credentials, "neon-app-preview-runtime-url"), "utf8")
   ).trim();
   validateRuntimeDatabase(databaseUrl);
+  const identityFile = process.env.HIVE_PREVIEW_IDENTITY_FILE;
+  assert.ok(typeof identityFile === "string" && isAbsolute(identityFile));
+  const identityRelative = relative(process.cwd(), identityFile);
+  assert.ok(
+    identityRelative.startsWith("../") || isAbsolute(identityRelative),
+    "Private preview identity must remain outside the checkout",
+  );
+  const identity = await loadPreviewIdentity(identityFile, previewIdentityScope(databaseUrl), {
+    createIfMissing: process.argv.includes("--create-preview-identity"),
+  });
   const runId = randomUUID();
   const directory = join(credentials, `app-preview-${runId}`);
   await mkdir(directory, { mode: 0o700 });
-  const internalSecret = randomBytes(32).toString("hex");
-  const bearer = randomBytes(32).toString("hex");
-  const encryptionKey = randomBytes(32).toString("hex");
-  const cookieSecret = randomBytes(32).toString("hex");
-  const bindings = {
-    app: {
-      DATABASE_URL: databaseUrl,
-      AUTH_SERVICE_SECRET: internalSecret,
-      COOKIE_SECRET: cookieSecret,
-      PREVIEW_BEARER: bearer,
-    },
-    auth: {
-      DATABASE_URL: databaseUrl,
-      AUTH_SERVICE_SECRET: internalSecret,
-      ENCRYPTION_KEY: encryptionKey,
-    },
-  };
+  const bindings = previewRuntimeBindings(identity, databaseUrl);
   const configs = {};
   for (const [kind, config] of Object.entries({ app, auth })) {
     delete config.$schema;
@@ -100,6 +100,9 @@ try {
       ...config.vars,
       SOURCE_REVISION: revision,
       ...(kind === "app" ? { HIVE_DELIVERY_ENABLED: "true" } : {}),
+      ...(kind === "app"
+        ? { HIVE_PREVIEW_ORIGIN: `https://${APP_NAME}.${preflight.workersSubdomain}.workers.dev` }
+        : {}),
     };
     const configFile = join(directory, `${kind}.jsonc`);
     const secretFile = join(directory, `${kind}-secrets.json`);
@@ -117,6 +120,8 @@ try {
     schemaVersion: 1,
     preparedAt: new Date().toISOString(),
     sourceRevision: revision,
+    previewIdentityId: identity.identityId,
+    previewIdentityScopeSHA256: digest(JSON.stringify(identity.scope)),
     runId,
     accountId: ACCOUNT_ID,
     workerNames: [APP_NAME, AUTH_NAME],
