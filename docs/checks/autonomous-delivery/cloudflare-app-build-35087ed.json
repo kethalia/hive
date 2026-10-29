@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T17:20:56.681Z",
+  "testedRevision": "35087ed963c5f0066d641c30ed3dc8726b69b049",
+  "scope": "clean committed build attempt",
+  "buildSucceeded": false,
+  "stage": "Next webpack compile",
+  "failure": "workerd Prisma query_compiler_bg.wasm?module parsed as JS under direct Next alias",
+  "previewAttempted": false,
+  "sourceEdited": false,
+  "plannedCorrection": "Externalize conditional-export @hive/db so Wrangler resolves workerd/WASM, per OpenNext vendor guide",
+  "vendorReference": "https://opennext.js.org/cloudflare/howtos/workerd",
+  "cloudResourceMutations": 0
+}
