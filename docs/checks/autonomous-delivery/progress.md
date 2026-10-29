@@ -303,3 +303,18 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   checkpoint passes Node/standalone and Cloudflare builds, root/recursive typechecks, and23
   actual local workerd/auth/isolated-Neon checks. It has not replaced the closed106721d cloud
   preview. [Evidence](settings-login-build.json).
+
+- **Implement / Validate / Review: server step progression completed; high difficulty.**
+  `9f6d422` adds an explicitly opted-in logical cursor while retaining the original physical
+  checkout writer. Signed completed-root boundaries are single-use and scoped to the current
+  task, attempt, source and lifetime. The delivery suite passes222 tests (two unrelated opt-in
+  proofs skipped); fresh22-migration and21→22 upgrade checks preserve prior data. Parent
+  independently reran33 focused PostgreSQL checks; independent review found no blocker.
+  Host integration is in progress. Historical retries remain non-runnable acknowledgements,
+  and no cleanup or production authority is enabled. [Evidence](manager-progression-server.md).
+- **Design: process ownership and source publication boundaries documented.** The
+  [guardian plan](native-guardian-design.md) includes CLI/terminal descendants and defers
+  elective drain while another admitted project is active or uncertain. The
+  [source publication plan](source-advance-design.md) separates immutable attempt input
+  revisions from broker-verified output commits. Both need implementation and composed
+  runtime acceptance; neither document changes installed permissions or remote resources.
