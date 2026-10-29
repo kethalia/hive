@@ -1,1 +1,10 @@
-{"schemaVersion": 1, "fixtureRemoved": true, "onlyEmptyOwnedDirectoriesRemoved": true, "nativeAppServersAtCleanup": [], "officialHostHealth": 200, "dedicatedAuthPreserved": true, "privatePilotEvidenceRetained": "/home/coder/.local/state/hive/native-account-pilot-d75aaf31-a0fc-4bdd-af40-b2621864ab15", "initialHealthCheckNote": "Wrong Host/path diagnostic returned403; exact installed Host and /healthz return200."}
+{
+  "schemaVersion": 1,
+  "fixtureRemoved": true,
+  "onlyEmptyOwnedDirectoriesRemoved": true,
+  "nativeAppServersAtCleanup": [],
+  "officialHostHealth": 200,
+  "dedicatedAuthPreserved": true,
+  "privatePilotEvidenceRetained": "/home/coder/.local/state/hive/native-account-pilot-d75aaf31-a0fc-4bdd-af40-b2621864ab15",
+  "initialHealthCheckNote": "Wrong Host/path diagnostic returned403; exact installed Host and /healthz return200."
+}
