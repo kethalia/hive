@@ -115,3 +115,9 @@ without a completion build checkpoint are retained. Reused, manually created,
 persistent, primary, and active task workspaces are outside automatic deletion.
 Do not bypass a refused cleanup with raw Coder deletion. Reused helpers may be
 stopped when no longer in use, but remain available for later reuse.
+
+## Planned autonomous delivery
+
+The [delivery design](autonomous-delivery.md) and [implementation epic](autonomous-delivery-epic.md)
+define the proposed Codex manager, delegated work, durable step reports, and native Delivery
+window. These capabilities are not yet implemented; existing lifecycle hooks remain observations.
