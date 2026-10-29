@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "namespaceUid": 0,
+  "networkNamespaceIsolated": true,
+  "accountInference": false,
+  "cleanupAuthorized": false,
+  "firstInstall": "started",
+  "identities": {
+    "outerIdentity": {
+      "pid": 570357,
+      "startTime": "971469048",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/usr/bin/node",
+      "device": "109",
+      "inode": "87176224",
+      "parentPid": 570316
+    },
+    "guardianIdentity": {
+      "pid": 570366,
+      "startTime": "971469079",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/share/hive/codex-host/49baaa03c15096558492aa79bcd98182fd930d572966e7bc1793121694aefaa3/codex-native-guardian",
+      "device": "109",
+      "inode": "87176248",
+      "parentPid": 570357
+    },
+    "workerIdentity": {
+      "pid": 570367,
+      "startTime": "971469081",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/usr/bin/node",
+      "device": "109",
+      "inode": "87176224",
+      "parentPid": 570366
+    }
+  },
+  "pins": {
+    "configSha256": "39e03720f8521087a576a31695683833a0603e3567e2cfd961199842b02f8704",
+    "packageManifestSha256": "b1f0bd5715b9c1f99cbdc571f532da1055b7addf7991b7cf2347d681dbeeaf62",
+    "nodeSha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+    "workerSha256": "8d6d99ecbe352f55a0db21dc757f70a85e6f49ef5ad59775b183cbde4951dc50",
+    "guardianSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd"
+  },
+  "repeatInstall": "already_running",
+  "installerParentExited": true,
+  "exactWorkerOwnsListener": true,
+  "rejected": {
+    "nonce": true,
+    "configSha256": true,
+    "packageManifestSha256": true,
+    "oldPidStartTime": true,
+    "wrongParent": true
+  },
+  "missingReadyDoesNotRestart": true,
+  "liveConfigChangeRejected": true,
+  "defaultPreparationDenied": true,
+  "noNativeRuntimeStarted": true,
+  "noAuthenticationFiles": true,
+  "status": "passed",
+  "cleanup": {
+    "allFixtureChildrenReaped": true,
+    "reaped": 1,
+    "deadlineBoundSeconds": 6
+  },
+  "primaryPathsUnchanged": true,
+  "namespaceHostUid": 1000,
+  "guardianArtifact": {
+    "schemaVersion": 1,
+    "platform": "linux",
+    "architecture": "x64",
+    "sourceSha256": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "recipeSha256": "2e9905ec726242e9b87fb6b186746f43690c58de80a4fe75aceac182e90b8f83",
+    "builderSha256": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+    "flags": [
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fPIE",
+      "-pie",
+      "-fstack-protector-strong",
+      "-D_FORTIFY_SOURCE=3",
+      "-Wl,-z,relro,-z,now",
+      "-Wl,--build-id=none"
+    ],
+    "elfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "compiler": {
+      "sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+      "version": "x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "target": "x86_64-linux-gnu"
+    },
+    "ci": {
+      "repository": "kethalia/hive",
+      "commit": "bc2bc45da5a9c6063f473f483bcba24ae5593770",
+      "runId": "40968234189",
+      "runAttempt": "1"
+    }
+  },
+  "nativePins": {
+    "bin/codex": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+    "bin/codex-code-mode-host": "522935d4392ec9674fab60b239b5495992c6a93e4deb65113a216b6f5451ccd4",
+    "codex-resources/bwrap": "755c8d6a9b893905a4aabab058bd6c02c453e5e8653adb84fc08e570607f3f36",
+    "codex-path/rg": "e62198eb19b136b88c330af83647b5a962cb99b6b1f066758568f12de1974849"
+  },
+  "nodeSha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+  "primaryHomeMounted": false
+}

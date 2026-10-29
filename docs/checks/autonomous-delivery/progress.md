@@ -407,3 +407,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   and drain are deliberately denied until independent server admission/barrier authority lands.
   CI, image builds and native-guardian artifact build are all green at c63506e, including both
   CI fixture portability corrections and the schema23 source tests.
+
+- Fixed installer end-to-end proof: accepted locally, moderate difficulty. The real Python
+  installer, packaged outer, CI-built guardian and fixed worker pass exact listener readiness
+  and idempotent recovery after the installer exits. Wrong nonce/config/package/process
+  identities and lost-ready replies cannot start another lifetime. Parent independently
+  reproduced the4.23-second pass; all fixture processes are gone and primary paths unchanged.
+  An unprivileged private-home namespace supplies fixture-only UID mapping for the root-owned
+  Node check; no host-root privilege, account inference or cloud operation was used. The signed
+  task request correctly remains blocked before Git pending independent server admission.
