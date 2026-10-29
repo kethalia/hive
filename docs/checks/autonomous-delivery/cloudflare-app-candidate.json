@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T20:58:08.874Z",
+  "sourceRevision": "106721df264ae25e860229efb43362d7d77d23b2",
+  "preparedManifestPath": "/tmp/hive-epic-coder-auth/app-preview-4ca691cd-f406-4fc7-8890-26ac5ceb1cbd/prepared-deployment.json",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "readinessSHA256": "75ca1627ed732457758dcad4dffe8f371832101b5272afb3096fc69c678380e2",
+  "sourceInputSetSHA256": "2ff0cd2bf2603da4dcbee5a0db73d288a18cbf724a3e1a6b0e2bc8b1cb97bcb3",
+  "artifactSetSHA256": "ee47f8073aafbd94fa0c5bb565675b376a05bfc4188921c3077429aff447c212",
+  "previewIdentityId": "0d4d2304-ed4e-4224-939d-e363c5833811",
+  "nativeIssuer": {
+    "keyId": "hive-preview-8af375a9-984b-497b-a56e-24a9947e0436",
+    "publicKeySHA256": "7d4c23f5009924eec357fef5e7da0bd2cf5538992df89d0ebabf1678efab534a",
+    "scope": {
+      "hiveOrigin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+      "coderOrigin": "https://coder.kethalia.com",
+      "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42"
+    }
+  },
+  "nativeGatewayCandidate": false,
+  "configDigests": {
+    "app": {
+      "name": "hive-app-compatibility-preview",
+      "configSHA256": "72573d770a3990e1348478d4a7fdba8d92ef74b6fa85eb730ffd8acb8ccfa730",
+      "secretNames": [
+        "AUTH_SERVICE_SECRET",
+        "COOKIE_SECRET",
+        "DATABASE_URL",
+        "ENCRYPTION_KEY",
+        "HIVE_CODEX_ISSUER_PRIVATE_KEY",
+        "PREVIEW_BEARER",
+        "PREVIEW_COOKIE_SECRET"
+      ]
+    },
+    "auth": {
+      "name": "hive-auth-compatibility-preview",
+      "configSHA256": "d72a7684bc2f43c93ab9f35bb81626b166b6910853c71b8b6635187f4e843808",
+      "secretNames": ["AUTH_SERVICE_SECRET", "DATABASE_URL", "ENCRYPTION_KEY"]
+    }
+  },
+  "localActualAppAuthProof": {
+    "file": "cloudflare-auth-app.json",
+    "testedRevision": "106721df264ae25e860229efb43362d7d77d23b2",
+    "sourceStable": true,
+    "testedSourceCommitted": true,
+    "ok": true,
+    "checks": {
+      "restrictedRuntimeRole": true,
+      "serializableInteractiveFullSchemaCommit": true,
+      "parameterizedRowLockAndServerClock": true,
+      "actualAuthWorkerSessionAndEncryptedCredentials": true,
+      "credentialEncryptionVersionCAS": true,
+      "actualLoginCredentialAndSessionTransaction": true,
+      "workerdKnownErrorObserved": true,
+      "actualTaskReadFunctionsAndOwnerIsolation": true,
+      "serializableInteractiveRollback": true,
+      "expiredAndRevokedSessionsRejected": true
+    },
+    "appChecks": {
+      "privatePreviewGuardBeforeFramework": true,
+      "privateStaticAssetsGuardAndNoStore": true,
+      "privatePreviewCookieBootstrapAndAsset": true,
+      "authenticatedAppListThroughServiceBinding": true,
+      "authenticatedAppDetailThroughServiceBinding": true,
+      "authenticatedMiddlewareCSPAndPrivateCache": true,
+      "foreignOrMissingTaskRejected": true,
+      "crossSiteReadRejected": true,
+      "actualAppLogoutAndRevokedCookieRejected": true,
+      "nativeCallbackIssuerConfigurationVerified": true,
+      "nativeRegistrationTransportRejectsForgedIssuer": true,
+      "nativeHeartbeatRejectsUnknownRegistration": true,
+      "nativeCallbackExceptionRemainsExactAndPrivate": true
+    }
+  },
+  "dryRuns": {
+    "auth": {
+      "ok": true,
+      "uncompressedKiB": 3624.27,
+      "gzipKiB": 1108.68
+    },
+    "app": {
+      "ok": true,
+      "uncompressedKiB": 23124.81,
+      "gzipKiB": 5286.28
+    }
+  },
+  "requestBudget": {
+    "maximumOuterRequests": 200,
+    "maximumWallSeconds": 180,
+    "maximumWorkerInvocationsPerOuterRequest": 3,
+    "maximumCpuMillisecondsPerInvocation": 100,
+    "conservativeMaximumCpuMilliseconds": 60000
+  },
+  "proposedScope": "One normal test-account browser login, private assets/dashboard layout, same-origin logout and old-cookie rejection. No official host thread or full settings/workspace parity acceptance.",
+  "flags": {
+    "gateway": false,
+    "terminal": false,
+    "manager": false,
+    "scheduledJobs": false,
+    "r2": false
+  },
+  "cloudflareWritesByPreparingAgent": false,
+  "realCoderLoginPerformed": false,
+  "previousWorkers": {
+    "identities": [
+      {
+        "name": "hive-app-compatibility-preview",
+        "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+        "createdOn": "2026-10-29T19:15:01.671691Z",
+        "modifiedOn": "2026-10-29T19:15:21.513438Z",
+        "usageModel": "standard",
+        "routes": null,
+        "logpush": false
+      },
+      {
+        "name": "hive-auth-compatibility-preview",
+        "tag": "731fb2f125fb472e8682ea6ed4d1f53d",
+        "createdOn": "2026-10-29T19:13:42.822748Z",
+        "modifiedOn": "2026-10-29T19:13:45.721494Z",
+        "usageModel": "standard",
+        "routes": null,
+        "logpush": false
+      }
+    ],
+    "deployments": {
+      "auth": {
+        "name": "hive-auth-compatibility-preview",
+        "deploymentId": "cf315309-8602-402a-9e6c-4ed45ee708fd",
+        "versionId": "cf6cd1be-4060-4fcb-99fa-be73d39cd6f2"
+      },
+      "app": {
+        "name": "hive-app-compatibility-preview",
+        "deploymentId": "beb77274-466b-4dfd-b3d1-5a701c3d3778",
+        "versionId": "c9401e7b-a3f0-43c0-8f18-5b170d4ee5a9"
+      }
+    }
+  }
+}
