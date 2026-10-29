@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "fixture_portability_correction_awaiting_ci",
+  "status": "corrected_fixture_passed_ci",
   "originalFailure": {
     "revision": "e53f561",
     "runId": "40965738403",
@@ -69,5 +69,13 @@
   "hypothesis": {
     "description": "The general CI runner uses Ubuntu 26.04 uutils; pinning realpath(sleep) and passing resolved argv[0] can lose multicall dispatch. Local Debian13 and dedicated Ubuntu24.04 use other providers. Exact failing runner applet resolution was not recorded, so this is a supported explanation, not a reproduced root cause.",
     "officialReference": "https://ubuntu.com/server/docs/reference/other-tools/sudo-rs/"
+  },
+  "confirmation": {
+    "revision": "17dbf25",
+    "runId": "40968234668",
+    "jobId": "123778257764",
+    "terminalHelper": "passed",
+    "newFailures": "Three outer-worker tests reject CI toolcache Node executable ownership/mode before spawning. Corrected test setup copies exact Node bytes into a private0500 executable; production policy unchanged.",
+    "parentOuterTestsPassed": 5
   }
 }
