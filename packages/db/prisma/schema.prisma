@@ -31,6 +31,7 @@ model User {
   notificationSources NotificationSource[]
   navigationFavorites NavigationFavorite[]
   deliveryProjects    DeliveryProject[]
+  codexHostSlots      CodexHostSlot[]
 
   @@unique([coderUrl, coderUserId])
   @@map("users")
@@ -137,6 +138,7 @@ model DeliveryProject {
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   owner                User @relation(fields: [ownerId], references: [id])
   conversations        DeliveryConversation[]
+  registeredThreads    CodexRegisteredThread[]
   epics                DeliveryEpic[]
   tasks                DeliveryTask[]
   @@unique([ownerId, id])
@@ -156,6 +158,7 @@ model DeliveryConversation {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   project       DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
   tasks         DeliveryTask[]
+  registeredThreads CodexRegisteredThread[]
   @@unique([ownerId, id])
   @@unique([ownerId, projectId, id])
   @@unique([ownerId, workspaceId, nativeThreadId])
@@ -372,4 +375,83 @@ model DeliveryOutbox {
   @@unique([ownerId, eventId, channel])
   @@index([status, nextAttemptAt])
   @@map("delivery_outbox")
+}
+
+// Registration authority only. All host rows are tenant-bound; grants store digests,
+// never signed bearer grants. A slot serializes every lifetime transition.
+model CodexHostSlot {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  coderOrigin String @map("coder_origin")
+  coderOwnerId String @map("coder_owner_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  agentId String @map("agent_id") @db.Uuid
+  generation Int @default(0)
+  activeRegistrationId String? @map("active_registration_id") @db.Uuid
+  owner User @relation(fields: [ownerId], references: [id])
+  grants CodexRegistrationGrant[]
+  registrations CodexHostRegistration[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, coderOrigin, workspaceId, agentId])
+  @@map("codex_host_slots")
+}
+
+model CodexRegistrationGrant {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  slotId String @map("slot_id") @db.Uuid
+  generation Int
+  binding Json
+  bindingDigest String @map("binding_digest")
+  tokenDigest String? @unique @map("token_digest")
+  issuedAt DateTime @default(now()) @map("issued_at") @db.Timestamptz
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id])
+  @@unique([slotId, generation])
+  @@map("codex_registration_grants")
+}
+
+model CodexHostRegistration {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  slotId String @map("slot_id") @db.Uuid
+  generation Int
+  binding Json
+  buildId String @map("build_id") @db.Uuid
+  templateId String @map("template_id") @db.Uuid
+  appId String @map("app_id") @db.Uuid
+  appOrigin String @map("app_origin")
+  serverInstanceId String @map("server_instance_id")
+  protocolVersion String @map("protocol_version")
+  hostPublicKeyPem String @map("host_public_key_pem")
+  hostKeyFingerprint String @map("host_key_fingerprint")
+  registeredAt DateTime @map("registered_at") @db.Timestamptz
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  heartbeatSequence Int @default(0) @map("heartbeat_sequence")
+  heartbeatNonce String @map("heartbeat_nonce") @db.Uuid
+  heartbeatRequestDigest String? @map("heartbeat_request_digest")
+  slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id])
+  threads CodexRegisteredThread[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, slotId, id])
+  @@unique([slotId, generation])
+  @@map("codex_host_registrations")
+}
+
+model CodexRegisteredThread {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  registrationId String @map("registration_id") @db.Uuid
+  nativeThreadId String @map("native_thread_id")
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  conversation DeliveryConversation @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id])
+  registration CodexHostRegistration @relation(fields: [ownerId, registrationId], references: [ownerId, id])
+  @@unique([registrationId, projectId])
+  @@unique([registrationId, nativeThreadId])
+  @@index([ownerId, projectId])
+  @@map("codex_registered_threads")
 }

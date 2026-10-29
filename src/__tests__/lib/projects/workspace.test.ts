@@ -63,6 +63,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("workspace GitHub project discovery", () => {
+  it("does not fall back to SSH on Cloudflare when gateway authority is unavailable", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    vi.stubEnv("HIVE_CODEX_GATEWAY_ENABLED", "false");
+    await expect(discoverWorkspaceProjects(user, input)).rejects.toMatchObject({
+      code: "discovery_unavailable",
+    });
+    expect(spawn).not.toHaveBeenCalled();
+    expect(getCoderClientForUser).not.toHaveBeenCalled();
+  });
   it("is disabled before accessing credentials or starting a helper", async () => {
     vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "false");
     await expect(discoverWorkspaceProjects(user, input)).rejects.toMatchObject({

@@ -440,6 +440,28 @@ export async function startBridge(rawConfig, registeredHost) {
   const verifier = createTicketVerifier(config, registeredHost?.authorizeBinding);
   const server = createServer((request, response) => {
     response.setHeader("Cache-Control", "no-store");
+    if (
+      request.method === "POST" &&
+      request.url === "/registration/bootstrap" &&
+      registeredHost?.handleBootstrap
+    ) {
+      void registeredHost.handleBootstrap(request, response).catch(() => {
+        if (!response.headersSent) response.writeHead(403);
+        response.end();
+      });
+      return;
+    }
+    if (
+      request.method === "POST" &&
+      request.url === "/projects/discover" &&
+      registeredHost?.handleProjects
+    ) {
+      void registeredHost.handleProjects(request, response).catch(() => {
+        if (!response.headersSent) response.writeHead(403);
+        response.end();
+      });
+      return;
+    }
     response.writeHead(request.method === "GET" && request.url === "/healthz" ? 200 : 404);
     response.end();
   });

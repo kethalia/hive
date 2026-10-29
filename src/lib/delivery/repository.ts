@@ -10,6 +10,8 @@ import {
   evidenceInputSchema,
   expiredAttemptReconciliationSchema,
   leaseRequestSchema,
+  nativeDelegationSchema,
+  nativeRuntimeBindingSchema,
   pauseRequestSchema,
   projectBindingSchema,
   runtimeBindingRequestSchema,
@@ -28,7 +30,7 @@ import {
 
 type Transaction = Prisma.TransactionClient;
 const ownerSchema = z.string().uuid();
-interface EvidencePolicy {
+export interface EvidencePolicy {
   version: string;
   trustedProducers: readonly string[];
   maxAgeMs: number;
@@ -137,6 +139,9 @@ export class DeliveryRepository {
   constructor(
     private readonly db: PrismaClient,
     policy: EvidencePolicy = { version: "disabled-v1", trustedProducers: [], maxAgeMs: 3600_000 },
+    // Server-held authorization executes in every transaction/retry. Never a
+    // callback constructed from manager JSON or a middleware-only result.
+    private readonly authorizeTransaction?: (tx: Transaction) => Promise<void>,
   ) {
     if (
       !policy.version.trim() ||
@@ -159,11 +164,17 @@ export class DeliveryRepository {
   private async transaction<T>(operation: (tx: Transaction) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.db.$transaction(operation, {
-          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-          maxWait: 10_000,
-          timeout: 10_000,
-        });
+        return await this.db.$transaction(
+          async (tx) => {
+            await this.authorizeTransaction?.(tx);
+            return operation(tx);
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+            maxWait: 10_000,
+            timeout: 10_000,
+          },
+        );
       } catch (error) {
         if (attempt < 2 && knownDatabaseError(error, "P2034")) {
           await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
@@ -335,6 +346,8 @@ export class DeliveryRepository {
   async createTask(owner: string, value: unknown) {
     const ownerId = ownerSchema.parse(owner);
     const input = taskDefinitionSchema.parse(value);
+    if (input.initialEpic && input.epicId !== input.initialEpic.id)
+      throw new DeliveryConflict("epic_binding_conflict");
     assertAcyclicSteps(
       input.steps.map((step) => step.id),
       input.dependencies,
@@ -343,6 +356,27 @@ export class DeliveryRepository {
     return this.transaction(async (tx) => {
       const previous = await replay(tx, ownerId, input.eventId, requestDigest);
       if (previous) return { taskId: previous.taskId, replayed: true };
+      if (input.initialEpic) {
+        const existingEpic = await tx.deliveryEpic.findUnique({
+          where: { ownerId_id: { ownerId, id: input.initialEpic.id } },
+        });
+        if (existingEpic) {
+          if (
+            existingEpic.projectId !== input.projectId ||
+            existingEpic.outcome !== input.initialEpic.outcome ||
+            JSON.stringify(existingEpic.criteria) !== JSON.stringify(input.initialEpic.criteria)
+          )
+            throw new DeliveryConflict("epic_binding_conflict");
+        } else {
+          await tx.deliveryEpic.create({
+            data: {
+              ...input.initialEpic,
+              ownerId,
+              projectId: input.projectId,
+            },
+          });
+        }
+      }
       const task = await tx.deliveryTask.create({
         data: {
           id: input.id,
@@ -769,6 +803,71 @@ export class DeliveryRepository {
   }
 
   /** A finished turn alone is insufficient: child processes and effects must be reconciled too. */
+  /** Installed native observer only, never structured manager report fields. */
+  async recordNativeDelegation(owner: string, producer: string, value: unknown) {
+    this.runtimeAuthority(producer);
+    const ownerId = ownerSchema.parse(owner);
+    const input = nativeDelegationSchema.parse(value);
+    const requestDigest = digest("native_delegation_observed", {
+      producer,
+      input,
+      policyVersion: this.policy.version,
+    });
+    return this.transaction(async (tx) => {
+      const { task, step, attempt } = await this.runtimeAttempt(tx, ownerId, input);
+      const previous = await replay(tx, ownerId, input.eventId, requestDigest);
+      if (previous) return { runtimeVersion: previous.aggregateVersion, replayed: true };
+      if (attempt.runtimeVersion !== input.expectedRuntimeVersion)
+        throw new DeliveryConflict("runtime_version_conflict");
+      const binding = nativeRuntimeBindingSchema.safeParse(attempt.runtimeBinding);
+      if (
+        !binding.success ||
+        attempt.runtimeBindingDigest !== input.bindingDigest ||
+        binding.data.managerThreadId !== input.managerThreadId ||
+        binding.data.nativeThreadId !== input.childThreadId ||
+        binding.data.operationId !== input.spawnCallId
+      )
+        throw new DeliveryConflict("native_delegation_binding_mismatch");
+      if (
+        (attempt.effectiveModel !== null && attempt.effectiveModel !== input.effectiveModel) ||
+        (attempt.effectiveEffort !== null && attempt.effectiveEffort !== input.effectiveEffort)
+      )
+        throw new DeliveryConflict("native_settings_conflict");
+      const settingsMatch =
+        attempt.requestedModel !== null &&
+        attempt.requestedEffort !== null &&
+        input.requestedModel === attempt.requestedModel &&
+        input.requestedEffort === attempt.requestedEffort &&
+        input.effectiveModel === attempt.requestedModel &&
+        input.effectiveEffort === attempt.requestedEffort;
+      const runtimeVersion = attempt.runtimeVersion + 1;
+      await tx.deliveryAttempt.update({
+        where: { ownerId_id: { ownerId, id: attempt.id } },
+        data: {
+          runtimeVersion,
+          effectiveModel: input.effectiveModel,
+          effectiveEffort: input.effectiveEffort,
+        },
+      });
+      await tx.deliveryEvent.create({
+        data: {
+          id: input.eventId,
+          ownerId,
+          taskId: task.id,
+          stepId: step.id,
+          attemptId: attempt.id,
+          aggregateKey: `attempt/${attempt.id}`,
+          aggregateVersion: runtimeVersion,
+          type: "native_delegation_observed",
+          requestDigest,
+          policyVersion: this.policy.version,
+          payload: { producer, ...input, settingsMatch },
+        },
+      });
+      if (!settingsMatch) await this.safetyPause(tx, ownerId, task.id, input.eventId);
+      return { runtimeVersion, replayed: false, settingsMatch };
+    });
+  }
   async observeAttemptRuntime(owner: string, producer: string, value: unknown) {
     this.runtimeAuthority(producer);
     const ownerId = ownerSchema.parse(owner);
