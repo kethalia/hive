@@ -214,23 +214,45 @@ export function createDeliveryGitHubCollector(options) {
           .digest("hex");
         let saved = journal.read(requestId);
         check(!saved || saved.contextDigest === contextDigest, "github_journal_scope_conflict");
+        const freshChallenge = !saved;
         if (!saved) {
           saved = { requestId, contextDigest, challenge: await send("challenge", { requestId }) };
-          journal.write(requestId, saved);
         }
         const challenge = saved.challenge;
+        const target = challenge?.target;
+        const providerId = (value) => typeof value === "string" && /^[1-9][0-9]{0,19}$/.test(value);
         check(
           challenge?.id === requestId &&
+            Object.keys(challenge).length === 9 &&
+            challenge.schemaVersion === 1 &&
             challenge.action === base.action &&
             challenge.registrationId === registration.id &&
+            uuid(challenge.managerBindingId) &&
             /^[a-f0-9]{64}$/.test(challenge.nonce) &&
             /^[a-f0-9]{64}$/.test(challenge.policyDigest) &&
+            Number.isSafeInteger(challenge.expiresAt) &&
             challenge.expiresAt > Date.now() &&
             challenge.expiresAt <= Date.now() + 60000 &&
-            challenge.target?.providerRepositoryId === checkoutBinding.repositoryId &&
-            challenge.target.expectedHeadSha === checkoutBinding.revision,
+            target?.schemaVersion === 1 &&
+            Object.keys(target).length === 6 &&
+            providerId(target.providerRepositoryId) &&
+            providerId(target.providerAccountId) &&
+            typeof target.fullName === "string" &&
+            /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/.test(target.fullName) &&
+            ![".", ".."].includes(target.fullName.split("/")[1]) &&
+            Number.isSafeInteger(target.pullNumber) &&
+            target.pullNumber > 0 &&
+            target.pullNumber <= 2147483647 &&
+            typeof target.expectedHeadSha === "string" &&
+            /^[a-f0-9]{40}$/.test(target.expectedHeadSha) &&
+            target.providerRepositoryId === checkoutBinding.repositoryId &&
+            target.expectedHeadSha === checkoutBinding.revision,
           "github_collector_challenge_invalid",
         );
+        if (freshChallenge) {
+          saved = { ...saved, challengeValidated: true };
+          journal.write(requestId, saved);
+        }
         const snapshot = Object.hasOwn(saved, "snapshot")
           ? structuredClone(saved.snapshot)
           : await runHelper(

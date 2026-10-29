@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, randomUUID, verify } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { afterEach } from "node:test";
@@ -9,6 +9,7 @@ import {
   createDeliveryGitHubCollector,
   githubCollectorProofPayload,
 } from "../templates/ai-dev-k8s/scripts/delivery-github-collector.mjs";
+import { createGitHubCollectionJournal } from "../templates/ai-dev-k8s/scripts/delivery-github-journal.mjs";
 
 const directories = [];
 afterEach(() => {
@@ -173,6 +174,10 @@ test("wrong source head/nonce/registration/expired challenge never invokes helpe
   for (const mutate of [
     (c) => ({ ...c, target: { ...c.target, expectedHeadSha: "f".repeat(40) } }),
     (c) => ({ ...c, nonce: "bad" }),
+    (c) => ({ ...c, target: { ...c.target, pullNumber: -1 } }),
+    (c) => ({ ...c, target: { ...c.target, fullName: "https://evil.invalid/repo" } }),
+    (c) => ({ ...c, unexpected: true }),
+    (c) => ({ ...c, expiresAt: String(c.expiresAt) }),
     (c) => ({ ...c, registrationId: randomUUID() }),
     (c) => ({ ...c, expiresAt: Date.now() - 1 }),
   ]) {
@@ -183,6 +188,7 @@ test("wrong source head/nonce/registration/expired challenge never invokes helpe
       /challenge_invalid/,
     );
     assert.equal(f.helpers.length, 0);
+    assert.equal(readdirSync(f.options.stateDirectory).length, 0);
   }
 });
 test("lease source or native lifetime changes during collection prevent publication", async () => {
@@ -287,4 +293,126 @@ test("journal tampering and another native lifetime cannot reuse a private reque
     /journal_unavailable/,
   );
   assert.equal(g.sent.length, 2);
+});
+test("full retry journal retires only authenticated challenges beyond expiry grace", () => {
+  const f = fixture();
+  const journal = createGitHubCollectionJournal(
+    f.options.stateDirectory,
+    f.options.hostPrivateKeyPem,
+  );
+  const now = Date.now();
+  const ids = Array.from({ length: 32 }, () => randomUUID());
+  for (const [index, requestId] of ids.entries())
+    journal.write(requestId, {
+      requestId,
+      contextDigest: "a".repeat(64),
+      challengeValidated: true,
+      challenge: { expiresAt: index < 30 ? now - 120000 : now + 60000 },
+      snapshot: { preserved: index },
+    });
+  const pending = ids
+    .slice(30)
+    .map((id) => readFileSync(join(f.options.stateDirectory, `${id}.json`), "utf8"));
+  const next = randomUUID();
+  journal.write(next, {
+    requestId: next,
+    contextDigest: "b".repeat(64),
+    challengeValidated: true,
+    challenge: { expiresAt: now + 60000 },
+  });
+  assert.equal(readdirSync(f.options.stateDirectory).length, 3);
+  for (const id of ids.slice(0, 30)) assert.equal(journal.read(id), null);
+  assert.deepEqual(
+    ids.slice(30).map((id) => readFileSync(join(f.options.stateDirectory, `${id}.json`), "utf8")),
+    pending,
+  );
+});
+test("full journal preserves unexpired and grace-period bytes, including lost acknowledgements", () => {
+  const f = fixture();
+  const journal = createGitHubCollectionJournal(
+    f.options.stateDirectory,
+    f.options.hostPrivateKeyPem,
+  );
+  const ids = Array.from({ length: 32 }, () => randomUUID());
+  for (const [index, requestId] of ids.entries())
+    journal.write(requestId, {
+      requestId,
+      contextDigest: "a".repeat(64),
+      challengeValidated: true,
+      challenge: { expiresAt: Date.now() + (index % 2 ? 60000 : -1000) },
+      snapshot: { original: index },
+    });
+  const next = randomUUID();
+  assert.throws(
+    () =>
+      journal.write(next, {
+        requestId: next,
+        contextDigest: "b".repeat(64),
+        challengeValidated: true,
+        challenge: { expiresAt: Date.now() + 60000 },
+      }),
+    /journal_unavailable/,
+  );
+  assert.equal(readdirSync(f.options.stateDirectory).length, 32);
+  for (const [index, requestId] of ids.entries())
+    assert.deepEqual(journal.read(requestId).snapshot, { original: index });
+});
+test("retirement retains every file when an expired candidate has an invalid MAC", () => {
+  const f = fixture();
+  const journal = createGitHubCollectionJournal(
+    f.options.stateDirectory,
+    f.options.hostPrivateKeyPem,
+  );
+  const ids = Array.from({ length: 32 }, () => randomUUID());
+  for (const requestId of ids)
+    journal.write(requestId, {
+      requestId,
+      contextDigest: "a".repeat(64),
+      challengeValidated: true,
+      challenge: { expiresAt: Date.now() - 120000 },
+    });
+  const path = join(f.options.stateDirectory, `${ids[31]}.json`);
+  const saved = JSON.parse(readFileSync(path, "utf8"));
+  saved.state.challenge.expiresAt--;
+  writeFileSync(path, JSON.stringify(saved));
+  const next = randomUUID();
+  assert.throws(
+    () => journal.write(next, { requestId: next, contextDigest: "b".repeat(64) }),
+    /journal_unavailable/,
+  );
+  assert.equal(readdirSync(f.options.stateDirectory).length, 32);
+});
+test("legacy journal entries without a validated challenge receipt require inspection", () => {
+  const f = fixture();
+  const journal = createGitHubCollectionJournal(
+    f.options.stateDirectory,
+    f.options.hostPrivateKeyPem,
+  );
+  for (let n = 0; n < 32; n++) {
+    const requestId = randomUUID();
+    journal.write(requestId, {
+      requestId,
+      contextDigest: "a".repeat(64),
+      challenge: { expiresAt: Date.now() - 120000 },
+    });
+  }
+  const requestId = randomUUID();
+  assert.throws(
+    () => journal.write(requestId, { requestId, contextDigest: "a".repeat(64) }),
+    /journal_unavailable/,
+  );
+  assert.equal(readdirSync(f.options.stateDirectory).length, 32);
+});
+test("an unexpected FIFO is rejected without waiting for a writer or removing state", () => {
+  const f = fixture();
+  const requestId = randomUUID();
+  execFileSync("mkfifo", ["-m", "600", join(f.options.stateDirectory, `${requestId}.json`)]);
+  // Subprocess deadline makes an accidental blocking open a bounded test failure.
+  const module = new URL(
+    "../templates/ai-dev-k8s/scripts/delivery-github-journal.mjs",
+    import.meta.url,
+  ).href;
+  const code = `import {createGitHubCollectionJournal} from ${JSON.stringify(module)};const j=createGitHubCollectionJournal(${JSON.stringify(f.options.stateDirectory)},${JSON.stringify(f.options.hostPrivateKeyPem)});try{j.read(${JSON.stringify(requestId)});process.exit(2)}catch(e){if(e.message!=="github_journal_unavailable")process.exit(3)}`;
+  execFileSync(process.execPath, ["--input-type=module", "-e", code], { timeout: 3000 });
+  assert.equal(readdirSync(f.options.stateDirectory).length, 1);
 });
