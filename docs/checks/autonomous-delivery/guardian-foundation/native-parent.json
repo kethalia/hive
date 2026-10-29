@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "transport": "WebSocket",
+  "realHome": true,
+  "accountInference": false,
+  "productionChanged": false,
+  "runs": [
+    {
+      "mode": "freshStart",
+      "steps": [
+        "initialize",
+        "requirements",
+        "thread/start",
+        "localMockTurn",
+        "command/exec",
+        "credential/proc/symlinkDenied"
+      ],
+      "error": null,
+      "guardianIdentity": {
+        "pid": 488452,
+        "startTime": "971167905",
+        "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+        "executable": "/home/coder/projects/kethalia/hive/.gf-m3ZMX9/subreaper",
+        "device": "2128",
+        "inode": "794018"
+      },
+      "rootPid": 488453,
+      "connectElapsedMs": 262,
+      "nativePhaseAtEnd": "open",
+      "localMockRequestsAtEnd": 1,
+      "eventCounts": {
+        "configWarning": 1,
+        "remoteControl/status/changed": 1,
+        "thread/started": 1,
+        "thread/status/changed": 2,
+        "turn/started": 1,
+        "item/started": 2,
+        "item/completed": 2,
+        "thread/tokenUsage/updated": 1,
+        "account/rateLimits/updated": 1,
+        "thread/readState/changed": 1,
+        "turn/completed": 1
+      },
+      "errorCategories": [],
+      "receipt": {
+        "schemaVersion": 1,
+        "scope": "managed_native_tree_only",
+        "cleanupAuthorized": false,
+        "receiptId": "bf195188-9df2-48c3-9a46-5717ad9b811f",
+        "lifetimeId": "0e5151c6-b36e-4181-89c4-1928f0dd0c46",
+        "bindingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "ownershipDigest": "b81cefea9d624573bdf4df381f91b3c278167921dc4d934f249ed9ba78631407",
+        "projects": [
+          {
+            "projectId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "bindingDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "launchSetDigest": "1ae4adbf9a081a181827b5ac1c817d9528c8376750a81273342a701c83653882",
+        "guardianSha256": "a2f49eb9866a67738341901d34895f994dfa03dd023e31333092beaab6390115",
+        "guardianIdentity": {
+          "pid": 488452,
+          "startTime": "971167905",
+          "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+          "executable": "/home/coder/projects/kethalia/hive/.gf-m3ZMX9/subreaper",
+          "device": "2128",
+          "inode": "794018"
+        },
+        "generation": 2,
+        "closedRequestId": 4,
+        "drainRequestId": 5,
+        "finalWaitResult": "ECHILD",
+        "waitFlags": "__WALL",
+        "reaped": 20
+      },
+      "wrapperExited": true,
+      "journalOperations": ["begin", "ready", "launchIntent", "closeIntent", "acceptReceipt"]
+    },
+    {
+      "mode": "restartResume",
+      "steps": [
+        "initialize",
+        "requirements",
+        "resume",
+        "history",
+        "command/exec",
+        "credential/proc/symlinkDenied"
+      ],
+      "error": null,
+      "guardianIdentity": {
+        "pid": 488688,
+        "startTime": "971167985",
+        "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+        "executable": "/home/coder/projects/kethalia/hive/.gf-m3ZMX9/subreaper",
+        "device": "2128",
+        "inode": "794018"
+      },
+      "rootPid": 488690,
+      "connectElapsedMs": 53,
+      "nativePhaseAtEnd": "open",
+      "localMockRequestsAtEnd": 1,
+      "eventCounts": {
+        "configWarning": 1,
+        "remoteControl/status/changed": 1,
+        "deprecationNotice": 1,
+        "thread/status/changed": 1,
+        "thread/tokenUsage/updated": 1,
+        "thread/goal/cleared": 1
+      },
+      "errorCategories": [],
+      "receipt": {
+        "schemaVersion": 1,
+        "scope": "managed_native_tree_only",
+        "cleanupAuthorized": false,
+        "receiptId": "c7c9ba9d-a31a-4061-9b80-0b89f2126eaa",
+        "lifetimeId": "b44d98fc-3d61-499d-ae54-2a84589d7974",
+        "bindingDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "ownershipDigest": "b81cefea9d624573bdf4df381f91b3c278167921dc4d934f249ed9ba78631407",
+        "projects": [
+          {
+            "projectId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "bindingDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "launchSetDigest": "aa110a83372f2497681326e5f5a987331bfd11b6c665037972255f7a78c07e1f",
+        "guardianSha256": "a2f49eb9866a67738341901d34895f994dfa03dd023e31333092beaab6390115",
+        "guardianIdentity": {
+          "pid": 488688,
+          "startTime": "971167985",
+          "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+          "executable": "/home/coder/projects/kethalia/hive/.gf-m3ZMX9/subreaper",
+          "device": "2128",
+          "inode": "794018"
+        },
+        "generation": 2,
+        "closedRequestId": 4,
+        "drainRequestId": 5,
+        "finalWaitResult": "ECHILD",
+        "waitFlags": "__WALL",
+        "reaped": 16
+      },
+      "wrapperExited": true,
+      "journalOperations": ["begin", "ready", "launchIntent", "closeIntent", "acceptReceipt"]
+    }
+  ],
+  "productionAuthority": false,
+  "nativePins": {
+    "bin/codex": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+    "bin/codex-code-mode-host": "522935d4392ec9674fab60b239b5495992c6a93e4deb65113a216b6f5451ccd4",
+    "codex-resources/bwrap": "755c8d6a9b893905a4aabab058bd6c02c453e5e8653adb84fc08e570607f3f36",
+    "codex-path/rg": "e62198eb19b136b88c330af83647b5a962cb99b6b1f066758568f12de1974849"
+  },
+  "writerHoldsRetained": true,
+  "localMockRequests": 1,
+  "elapsedMs": 1541,
+  "requestTimesMs": [1022],
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "c4ceae212011f91782c45fa1d294545e5b85870fe6a54a29925cfefc1e21118a",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "4a0b12e39ca2c1d8eb7a244c9dae22c9b1ad99e3482df86f8163d8529dc647fa",
+    "scripts/probe-codex-guardian-foundation.mjs": "4286f131dbedcf3f0a08808053e0015ae1b0fdeab3fcef8c946eda0cbe4a4a44"
+  }
+}

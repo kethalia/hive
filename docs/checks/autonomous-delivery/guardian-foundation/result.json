@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-29T22:06:30.643335+00:00",
+  "scope": "Standalone guardian foundation; shared template source copies only, no installed supervisor/runtime bundle/lease changes or production authority.",
+  "syntheticTests": {
+    "passed": 19,
+    "command": "node --test scripts/verify-codex-native-guardian.test.mjs",
+    "log": "tests.txt"
+  },
+  "nativeCompatibility": {
+    "passed": true,
+    "command": "HIVE_TEST_NATIVE_CODEX=1 node scripts/probe-codex-guardian-foundation.mjs",
+    "evidence": "native.json",
+    "elapsedMs": 2154,
+    "cannedResponses": 1,
+    "accountInference": false,
+    "preservedFirstFailure": "../guardian-foundation-native-first-failure.json",
+    "firstFailureCause": "unestablished"
+  },
+  "validation": {
+    "compilerFlags": ["-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"],
+    "biome": "three JS files passed"
+  },
+  "productionAuthority": false,
+  "writerHoldsRetained": true,
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "c4ceae212011f91782c45fa1d294545e5b85870fe6a54a29925cfefc1e21118a",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "4a0b12e39ca2c1d8eb7a244c9dae22c9b1ad99e3482df86f8163d8529dc647fa",
+    "scripts/verify-codex-native-guardian.test.mjs": "e2be23d1c6d260dde9532f79b0d4bbadfb560623ce7ed96a5930b7c3b63313c0",
+    "scripts/probe-codex-guardian-foundation.mjs": "4286f131dbedcf3f0a08808053e0015ae1b0fdeab3fcef8c946eda0cbe4a4a44",
+    "docs/checks/autonomous-delivery/guardian-foundation.md": "124e5e4e72605b2d4dc29eaafe5a2b7984b9660c0947f3e9367ab21ab0ce07f9"
+  },
+  "artifactSha256": {
+    "tests.txt": "051e78d9c600d1e85e272f3f2aceb52e731ce7b9759240dbbb2bfb48ef2b2023",
+    "native.json": "b0023788c6df2a8c7f3ffcba7da7644c142db77c70dfccf0761f79523b4d7409",
+    "native-diagnostic.json": "7069e70696b34d30b1fd062933dba1dcfc67ac8dadd8ffb6beff3cb43afb40bd"
+  }
+}
