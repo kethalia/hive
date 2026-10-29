@@ -13,6 +13,7 @@ import {
   readFileSync,
   realpathSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
@@ -59,11 +60,12 @@ export function createGitHubCollectionJournal(directory, privateKeyPem) {
   function read(requestId) {
     const target = path(requestId);
     if (!existsSync(target)) return null;
-    const fd = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const fd = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
       const stat = fstatSync(fd);
       check(
         stat.isFile() &&
+          stat.nlink === 1 &&
           stat.uid === process.getuid() &&
           (stat.mode & 0o077) === 0 &&
           stat.size <= 1152 * 1024,
@@ -80,14 +82,45 @@ export function createGitHubCollectionJournal(directory, privateKeyPem) {
       closeSync(fd);
     }
   }
+  function retireExpired() {
+    const names = readdirSync(directory);
+    check(names.length <= 32);
+    // A whole grace minute beyond server expiry preserves delayed acknowledgements.
+    // These files are only a retry spool; the server retains evidence and audit events.
+    const cutoff = Date.now() - 60000;
+    const expired = [];
+    for (const name of names) {
+      check(name.endsWith(".json"));
+      const requestId = name.slice(0, -5);
+      const state = read(requestId);
+      check(
+        state?.challengeValidated === true &&
+          Number.isSafeInteger(state.challenge?.expiresAt) &&
+          state.challenge.expiresAt > 0,
+      );
+      if (state.challenge.expiresAt <= cutoff) expired.push(path(requestId));
+    }
+    // Verify every candidate before changing any file. Corrupt/unknown state is retained.
+    for (const target of expired) unlinkSync(target);
+    if (expired.length) {
+      const parent = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+      try {
+        fsyncSync(parent);
+      } finally {
+        closeSync(parent);
+      }
+    }
+  }
   return {
     read,
     write(requestId, state) {
       check(state?.requestId === requestId);
       const target = path(requestId);
       const old = read(requestId);
-      if (!old) check(readdirSync(directory).length < 32);
-      else
+      if (!old) {
+        if (readdirSync(directory).length >= 32) retireExpired();
+        check(readdirSync(directory).length < 32);
+      } else
         check(
           old.contextDigest === state.contextDigest &&
             (!Object.hasOwn(old, "snapshot") ||
