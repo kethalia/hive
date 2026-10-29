@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { AuthServiceClient, encrypt, SECURE_SESSION_COOKIE_NAME, signCookie } from "@hive/auth";
 import { getDb } from "@hive/db";
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
+import { storeLoginCredential } from "../../../services/auth/src/auth/credential-store";
 import { createSession } from "../../../services/auth/src/auth/domain";
 import { listDeliveryTasks, readDeliveryTask } from "../../../src/lib/delivery/reads";
 import { runRequestLifetime } from "../app/request-lifetime";
@@ -213,6 +214,21 @@ export default {
           "stale-credential-cas",
         );
         checks.credentialEncryptionVersionCAS = true;
+        stage = "actual-login-credential-session-transaction";
+        const stored = await storeLoginCredential(db, ownerId, {
+          ...rotated,
+          expiresAt: new Date(Date.now() + 7 * 86400000),
+          remoteKeyId: "synthetic1",
+        });
+        requireProof(stored.previousRemoteKeyId === null, "legacy-null-key-provenance");
+        requireProof((await client.getSession(stored.sessionId))?.userId === ownerId, stage);
+        requireProof(
+          (await db.coderToken.findUnique({ where: { userId: ownerId } }))?.remoteKeyId ===
+            "synthetic1",
+          stage,
+        );
+        await client.logout(stored.sessionId);
+        checks.actualLoginCredentialAndSessionTransaction = true;
         stage = "known-error-shape";
         try {
           await db.session.create({
