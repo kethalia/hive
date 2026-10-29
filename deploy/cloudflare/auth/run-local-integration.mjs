@@ -16,6 +16,9 @@ const sourcePaths = [
   "services/auth/src/fetch-handler.ts",
   "services/auth/src/auth/domain.ts",
   "services/auth/src/auth/login.ts",
+  "services/auth/src/auth/credential-store.ts",
+  "services/auth/src/auth/managed-keys.ts",
+  "services/auth/src/auth/token-rotation.ts",
   "services/auth/src/auth/session.ts",
   "services/auth/src/auth/token-status.ts",
   "packages/auth/src/client.ts",
@@ -240,10 +243,9 @@ try {
         }
       : {}),
   };
-  await writeFile(
-    `docs/checks/autonomous-delivery/cloudflare-auth-${appMode ? "app" : "local"}.json`,
-    `${JSON.stringify(evidence, null, 2)}\n`,
-  );
+  const evidencePath = `docs/checks/autonomous-delivery/cloudflare-auth-${appMode ? "app" : "local"}.json`;
+  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+  execFileSync("pnpm", ["exec", "biome", "format", "--write", evidencePath], { stdio: "ignore" });
   console.log(JSON.stringify({ httpStatus: response.status, ...result }));
   if (!response.ok || !result.ok) process.exitCode = 1;
 } catch (error) {

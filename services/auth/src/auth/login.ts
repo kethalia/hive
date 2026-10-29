@@ -1,8 +1,14 @@
-import { encrypt, getConfiguredCoderUrl, TOKEN_LIFETIME_SECONDS } from "@hive/auth";
+import { encrypt, getConfiguredCoderUrl, HEX_64_RE } from "@hive/auth";
 import { getDb } from "@hive/db";
-import { coderLogin, createCoderApiKey, validateCoderInstance } from "./coder-api.js";
+import { coderLogin, validateCoderInstance } from "./coder-api.js";
 import { API_KEY_CREATION_RETRIES, SESSION_TOKEN_FALLBACK_EXPIRY_MS } from "./constants.js";
-import { createSession } from "./session.js";
+import { discardRolledBackKey, storeLoginCredential } from "./credential-store.js";
+import {
+  createManagedCoderKey,
+  deleteManagedCoderKey,
+  getCoderCredentialExpiry,
+  type ManagedCoderKey,
+} from "./managed-keys.js";
 import type { LoginResult } from "./types.js";
 
 export type { LoginResult };
@@ -12,7 +18,7 @@ function getTokenEncryptionKey(): string {
   if (!key) {
     throw new Error("ENCRYPTION_KEY environment variable is not set");
   }
-  if (Buffer.from(key, "hex").length !== 32) {
+  if (!HEX_64_RE.test(key)) {
     throw new Error("ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)");
   }
   return key;
@@ -20,6 +26,7 @@ function getTokenEncryptionKey(): string {
 
 export async function performLogin(email: string, password: string): Promise<LoginResult> {
   const coderUrl = getConfiguredCoderUrl();
+  const encryptionKey = getTokenEncryptionKey();
 
   const validation = await validateCoderInstance(coderUrl);
   if (!validation.valid) {
@@ -32,18 +39,17 @@ export async function performLogin(email: string, password: string): Promise<Log
   console.log(`[auth-service] Authenticated user: ${loginResult.username}`);
 
   let credential = loginResult.sessionToken;
-  let usedApiKey = false;
+  let managed: ManagedCoderKey | null = null;
 
   for (let attempt = 1; attempt <= API_KEY_CREATION_RETRIES; attempt++) {
-    const apiKey = await createCoderApiKey(
+    const apiKey = await createManagedCoderKey(
       coderUrl,
       loginResult.sessionToken,
       loginResult.userId,
-      TOKEN_LIFETIME_SECONDS,
     );
     if (apiKey) {
-      credential = apiKey;
-      usedApiKey = true;
+      credential = apiKey.token;
+      managed = apiKey;
       console.log(`[auth-service] API key created on attempt ${attempt}`);
       break;
     }
@@ -52,15 +58,15 @@ export async function performLogin(email: string, password: string): Promise<Log
     );
   }
 
-  if (!usedApiKey) {
+  if (!managed) {
     console.log("[auth-service] Falling back to session token as credential (R101)");
   }
 
-  const expiresAt = usedApiKey
-    ? new Date(Date.now() + TOKEN_LIFETIME_SECONDS * 1000)
-    : new Date(Date.now() + SESSION_TOKEN_FALLBACK_EXPIRY_MS);
+  const expiresAt =
+    managed?.expiresAt ??
+    (await getCoderCredentialExpiry(coderUrl, credential, loginResult.userId)) ??
+    new Date(Date.now() + SESSION_TOKEN_FALLBACK_EXPIRY_MS);
 
-  const encryptionKey = getTokenEncryptionKey();
   const raw = encrypt(credential, encryptionKey);
   const encrypted = {
     ciphertext: new Uint8Array(raw.ciphertext),
@@ -68,44 +74,51 @@ export async function performLogin(email: string, password: string): Promise<Log
     authTag: new Uint8Array(raw.authTag),
   };
 
-  const user = await getDb().user.upsert({
-    where: {
-      coderUrl_coderUserId: {
+  const db = getDb();
+  let user: Awaited<ReturnType<typeof db.user.upsert>>;
+  try {
+    user = await db.user.upsert({
+      where: {
+        coderUrl_coderUserId: {
+          coderUrl: coderUrl.replace(/\/+$/, ""),
+          coderUserId: loginResult.userId,
+        },
+      },
+      update: {
+        username: loginResult.username,
+        email,
+      },
+      create: {
         coderUrl: coderUrl.replace(/\/+$/, ""),
         coderUserId: loginResult.userId,
+        username: loginResult.username,
+        email,
       },
-    },
-    update: {
-      username: loginResult.username,
-      email,
-    },
-    create: {
-      coderUrl: coderUrl.replace(/\/+$/, ""),
-      coderUserId: loginResult.userId,
-      username: loginResult.username,
-      email,
-    },
-  });
-
-  await getDb().coderToken.upsert({
-    where: { userId: user.id },
-    update: {
-      ciphertext: encrypted.ciphertext,
-      iv: encrypted.iv,
-      authTag: encrypted.authTag,
+    });
+  } catch (failure) {
+    if (managed)
+      await deleteManagedCoderKey(coderUrl, managed.token, loginResult.userId, managed.id);
+    throw failure;
+  }
+  let stored: Awaited<ReturnType<typeof storeLoginCredential>>;
+  try {
+    stored = await storeLoginCredential(db, user.id, {
+      ...encrypted,
       expiresAt,
-      version: { increment: 1 },
-    },
-    create: {
-      userId: user.id,
-      ciphertext: encrypted.ciphertext,
-      iv: encrypted.iv,
-      authTag: encrypted.authTag,
-      expiresAt,
-    },
-  });
-
-  const sessionId = await createSession(user.id);
+      remoteKeyId: managed?.id ?? null,
+    });
+  } catch (failure) {
+    if (managed) await discardRolledBackKey(coderUrl, loginResult.userId, managed, failure);
+    throw failure;
+  }
+  if (managed && stored.previousRemoteKeyId && stored.previousRemoteKeyId !== managed.id)
+    await deleteManagedCoderKey(
+      coderUrl,
+      managed.token,
+      loginResult.userId,
+      stored.previousRemoteKeyId,
+    );
+  const { sessionId } = stored;
   console.log(`[auth-service] Session created for user ${user.id}`);
 
   return {

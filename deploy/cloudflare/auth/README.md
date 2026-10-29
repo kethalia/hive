@@ -49,3 +49,9 @@ node deploy/cloudflare/auth/run-local-integration.mjs --app
 These proofs do not perform a real Coder login. A coordinated test-account login, actual key
 rotation/revocation, authenticated browser evidence, host bridge and durable job transport remain
 separate acceptance gates. No production cutover or complete F02/F07 claim follows from this slice.
+
+The [portable rotation followup](../../../docs/checks/autonomous-delivery/token-rotation-capability.md)
+tracks dedicated Hive key IDs, stores actual provider expiry, and removes broad key enumeration
+and revocation. The local proof additionally exercises its actual login credential/session
+transaction with synthetic data. No real provider key operations or scheduler activation follow
+from those tests.
