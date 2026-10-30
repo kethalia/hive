@@ -8,6 +8,7 @@ export const publicationStageSchema = z.enum([
   "queued",
   "uploading",
   "creating_version",
+  "creating_template",
   "importing",
   "activating",
   "succeeded",
@@ -29,6 +30,8 @@ export const publicationReasonSchema = z.enum([
   "provider_response_limit",
   "provider_deadline",
   "version_unknown",
+  "template_creation_unknown",
+  "provisioner_tags_changed",
   "activation_unknown",
   "external_drift",
   "import_failed",
@@ -74,15 +77,16 @@ export type TemplatePublicationActor = {
 export type TemplateRemoteTarget = {
   organizationId: string;
   organizationName: string;
-  templateId: string;
+  templateId: string | null;
   name: string;
-  activeVersionId: string;
+  activeVersionId: string | null;
+  createdById?: string;
 };
 export type TemplateRemoteVersion = {
   id: string;
   name: string;
   organizationId: string;
-  templateId: string;
+  templateId: string | null;
   fileId: string;
   importJobId: string;
   creatorId: string;
@@ -91,6 +95,8 @@ export type TemplateRemoteVersion = {
   status: "pending" | "running" | "succeeded" | "failed" | "canceling" | "canceled";
   errorCode: string | null;
   logsOverflowed: boolean;
+  /** Ephemeral API observation; never stored in progress or job records. */
+  provisionerTags?: Record<string, string>;
 };
 export const publicationCodeSchema = z.enum([
   "queued",
@@ -98,6 +104,8 @@ export const publicationCodeSchema = z.enum([
   "upload_verified",
   "version_started",
   "version_verified",
+  "template_create_started",
+  "template_created",
   "import_pending",
   "import_running",
   "import_succeeded",
@@ -129,6 +137,8 @@ export const publicationLabels: Record<PublicationCode, string> = {
   upload_verified: "Uploaded artifact verified",
   version_started: "Creating template version",
   version_verified: "Template version identity verified",
+  template_create_started: "Creating template from verified initial version",
+  template_created: "Template created and initial version active",
   import_pending: "Template import queued",
   import_running: "Template import running",
   import_succeeded: "Template import succeeded",

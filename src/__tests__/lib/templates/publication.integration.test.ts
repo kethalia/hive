@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { PrismaClient } from "@hive/db";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
-import type { TemplateRemoteVersion } from "@/lib/templates/publication-contracts";
+import {
+  TemplatePublicationError,
+  type TemplateRemoteTarget,
+  type TemplateRemoteVersion,
+} from "@/lib/templates/publication-contracts";
 import type { TemplatePublicationProvider } from "@/lib/templates/publication-provider";
 import { templatePublicationRoutes } from "@/lib/templates/publication-routes";
 import { TemplatePublicationService } from "@/lib/templates/publication-service";
@@ -31,7 +35,9 @@ const artifact = {
   contentHash: "c".repeat(64),
   manifestDigest: "d".repeat(64),
 };
-async function fixture() {
+async function fixture(
+  options: { create?: boolean; legacy?: boolean; tags?: Record<string, string> } = {},
+) {
   const ownerId = randomUUID(),
     coderUserId = randomUUID(),
     sessionId = randomUUID();
@@ -57,22 +63,43 @@ async function fixture() {
     sessionExpiresAt: new Date(Date.now() + 3600000),
     tokenExpiresAt: null,
   };
-  const target = {
+  const target: TemplateRemoteTarget = {
     organizationId: randomUUID(),
     organizationName: "default",
-    templateId: randomUUID(),
+    templateId: options.create ? null : randomUUID(),
     name: artifact.name,
-    activeVersionId: String(randomUUID()),
+    activeVersionId: options.create ? null : String(randomUUID()),
   };
   const counts = { upload: 0, create: 0, activate: 0 };
   let version: TemplateRemoteVersion | null = null,
     lostCreate = false,
     lostActivation = false,
     changedArtifact = false;
+  let templateCreates = 0,
+    lostTemplate = false;
+  const inheritedTags: Record<string, string> = options.tags ?? {
+    pool: "private-provisioner-tag",
+    scope: "organization",
+    owner: "",
+  };
+  let sentTags: Record<string, string> | undefined;
   const provider: TemplatePublicationProvider = {
     actor,
     locate: async () => ({ ...target }),
     current: async () => ({ ...target }),
+    absent: async () => {
+      if (target.templateId !== null) throw new TemplatePublicationError("external_drift");
+    },
+    tags: async () => ({ ...inheritedTags }),
+    createTemplate: async (_scope, versionId) => {
+      templateCreates++;
+      target.templateId = randomUUID();
+      target.activeVersionId = versionId;
+      target.createdById = coderUserId;
+      if (version) version.templateId = target.templateId;
+      if (lostTemplate) throw new Error("synthetic lost creation ACK");
+      return { ...target };
+    },
     upload: async () => {
       counts.upload++;
       return fileId;
@@ -80,6 +107,7 @@ async function fixture() {
     verifyFile: async () => {},
     createVersion: async (_target, input) => {
       counts.create++;
+      sentTags = input.provisionerTags ? { ...input.provisionerTags } : undefined;
       version = {
         id: randomUUID(),
         name: input.name,
@@ -93,6 +121,12 @@ async function fixture() {
         status: "succeeded",
         errorCode: null,
         logsOverflowed: false,
+        provisionerTags: input.provisionerTags
+          ? {
+              ...input.provisionerTags,
+              owner: input.provisionerTags.scope === "user" ? coderUserId : "",
+            }
+          : undefined,
       };
       if (lostCreate) throw new Error("secret provider response");
       return version;
@@ -118,7 +152,9 @@ async function fixture() {
       changedArtifact ? { ...artifact, manifestDigest: "e".repeat(64) } : artifact,
     provider: async () => provider,
   });
-  const job = await service.enqueue(actor, artifact.name, randomUUID());
+  const job = options.legacy
+    ? await service.store.enqueue(actor, target, artifact, randomUUID())
+    : await service.enqueue(actor, artifact.name, randomUUID());
   const due = () =>
     db.templatePublicationJob.update({
       where: { id: job.id },
@@ -136,6 +172,12 @@ async function fixture() {
     service,
     job,
     run,
+    inheritedTags,
+    getSentTags: () => sentTags,
+    templateCreates: () => templateCreates,
+    setLostTemplate: () => {
+      lostTemplate = true;
+    },
     setLostCreate: () => {
       lostCreate = true;
     },
@@ -397,5 +439,225 @@ describe.skipIf(!url)("durable template publisher / real PostgreSQL", () => {
       (await db.templatePublicationJob.findUniqueOrThrow({ where: { id: f.job.id } })).stage,
     ).toBe("queued");
     expect(await db.templatePublicationEvent.count({ where: { jobId: f.job.id } })).toBe(1);
+  });
+  it("first creation imports an unattached version, creates once with automatic activation, and binds UUID only once", async () => {
+    const f = await fixture({ create: true });
+    for (let i = 0; i < 4; i++) await f.run();
+    const stored = await f.service.store.read(f.actor.ownerId, artifact.name, f.job.id);
+    expect(stored?.stage).toBe("succeeded");
+    expect(stored?.operationMode).toBe("create");
+    expect(stored?.expectedActiveVersionId).toBeNull();
+    expect(stored?.target.templateId).toBe(f.target.templateId);
+    expect(f.templateCreates()).toBe(1);
+    expect(f.counts).toEqual({ upload: 1, create: 1, activate: 0 });
+    expect(stored?.events.map((e) => e.code)).toContain("template_created");
+    await expect(
+      db.templatePublicationTarget.update({
+        where: { id: f.job.targetId },
+        data: { templateId: randomUUID() },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.templatePublicationTarget.update({
+        where: { id: f.job.targetId },
+        data: { templateId: null },
+      }),
+    ).rejects.toThrow();
+  });
+  it("unknown unattached version creation holds without a name lookup or a second POST", async () => {
+    const f = await fixture({ create: true });
+    await f.run();
+    f.setLostCreate();
+    f.provider.versionByName = async () => {
+      throw new Error("no scoped name lookup exists before template creation");
+    };
+    await f.run();
+    const stored = await db.templatePublicationJob.findUniqueOrThrow({ where: { id: f.job.id } });
+    expect(stored.heldReason).toBe("version_unknown");
+    expect(stored.versionId).toBeNull();
+    expect(f.counts.create).toBe(1);
+    expect(f.templateCreates()).toBe(0);
+    expect((await f.service.processOne()).claimed).toBe(false);
+  });
+  it("unknown template creation stays held even when provider created it; exact retry is only a historical receipt", async () => {
+    const f = await fixture({ create: true });
+    for (let i = 0; i < 3; i++) await f.run();
+    f.setLostTemplate();
+    await f.run();
+    expect(f.templateCreates()).toBe(1);
+    expect(f.target.templateId).not.toBeNull();
+    const stored = await f.service.store.read(f.actor.ownerId, artifact.name, f.job.id);
+    expect(stored?.heldReason).toBe("template_creation_unknown");
+    expect(stored?.target.templateId).toBeNull();
+    const locate = f.provider.locate;
+    f.provider.locate = async () => {
+      throw new Error("historical receipt must precede mode preflight");
+    };
+    expect((await f.service.enqueue(f.actor, artifact.name, f.job.requestId)).id).toBe(f.job.id);
+    f.provider.locate = locate;
+    await expect(f.service.enqueue(f.actor, artifact.name, randomUUID())).rejects.toThrow();
+    expect(f.templateCreates()).toBe(1);
+    await expect(
+      db.templatePublicationTarget.update({
+        where: { id: f.job.targetId },
+        data: { templateId: f.target.templateId },
+      }),
+    ).rejects.toThrow();
+  });
+  it("the fixed organization/name reservation rejects another actor and substituted remote creation identity", async () => {
+    const f = await fixture({ create: true }),
+      other = await fixture({ create: true });
+    await expect(
+      other.service.store.enqueue(other.actor, f.target, artifact, randomUUID()),
+    ).rejects.toMatchObject({ code: "publication_busy" });
+    const create = f.provider.createTemplate;
+    f.provider.createTemplate = async (t, id) => ({
+      ...(await create(t, id)),
+      organizationId: randomUUID(),
+    });
+    for (let i = 0; i < 4; i++) await f.run();
+    expect(
+      (await db.templatePublicationJob.findUniqueOrThrow({ where: { id: f.job.id } })).heldReason,
+    ).toBe("template_creation_unknown");
+    expect(f.templateCreates()).toBe(1);
+    await expect(
+      db.templatePublicationTarget.create({
+        data: {
+          configuredOrigin: f.actor.origin,
+          organizationId: f.target.organizationId,
+          organizationName: "default",
+          templateId: randomUUID(),
+          templateName: artifact.name,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+  it("retains inherited tags only as canonical digest and honors Coder's current-user owner override", async () => {
+    const f = await fixture({
+      tags: { pool: "private-provisioner-tag", scope: "user", owner: randomUUID() },
+    });
+    for (let i = 0; i < 4; i++) await f.run();
+    expect(f.getSentTags()).toEqual(f.inheritedTags);
+    expect(f.getVersion()?.provisionerTags?.owner).toBe(f.actor.coderUserId);
+    const stored = await f.service.store.read(f.actor.ownerId, artifact.name, f.job.id);
+    expect(stored?.stage).toBe("succeeded");
+    expect(stored?.provisionerTagsDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(
+      JSON.stringify(stored, (_k, v) => (typeof v === "bigint" ? v.toString() : v)),
+    ).not.toContain("private-provisioner-tag");
+    await expect(
+      db.templatePublicationJob.update({
+        where: { id: f.job.id },
+        data: { provisionerTagsDigest: "f".repeat(64) },
+      }),
+    ).rejects.toThrow();
+  });
+  it("changed active-version tag material cannot silently repin or create an import", async () => {
+    const f = await fixture();
+    f.inheritedTags.pool = "changed-pool";
+    await f.run();
+    await f.run();
+    expect(f.counts.create).toBe(0);
+    expect(
+      (await db.templatePublicationJob.findUniqueOrThrow({ where: { id: f.job.id } })).heldReason,
+    ).toBe("provisioner_tags_changed");
+  });
+  it("schema27 update requests retain original no-tag semantics after the additive upgrade", async () => {
+    const f = await fixture({ legacy: true });
+    f.provider.tags = async () => {
+      throw new Error("legacy request must not gain new API inputs");
+    };
+    for (let i = 0; i < 4; i++) await f.run();
+    expect(f.getSentTags()).toBeUndefined();
+    expect(
+      (await db.templatePublicationJob.findUniqueOrThrow({ where: { id: f.job.id } })).stage,
+    ).toBe("succeeded");
+  });
+  it("concurrent duplicate first-create requests after a failed import converge to one new job", async () => {
+    const f = await fixture({ create: true });
+    await f.run();
+    await f.run();
+    f.getVersion()!.status = "failed";
+    await f.run();
+    const requestId = randomUUID();
+    const [a, b] = await Promise.all([
+      f.service.enqueue(f.actor, artifact.name, requestId),
+      f.service.enqueue(f.actor, artifact.name, requestId),
+    ]);
+    expect(a.id).toBe(b.id);
+    expect(a.id).not.toBe(f.job.id);
+    expect(
+      await db.templatePublicationEvent.count({ where: { jobId: a.id, code: "queued" } }),
+    ).toBe(1);
+    expect(
+      (await db.templatePublicationTarget.findUniqueOrThrow({ where: { id: f.job.targetId } }))
+        .generation,
+    ).toBe(2);
+  });
+  it("first-create SSE keeps the already-emitted prefix stable when its template link becomes available", async () => {
+    const f = await fixture({ create: true });
+    for (let i = 0; i < 3; i++) await f.run();
+    const session = {
+      user: {
+        id: f.actor.ownerId,
+        coderUserId: f.actor.coderUserId,
+        coderUrl: f.actor.origin,
+        username: "fixture",
+        email: "fixture@example.invalid",
+      },
+      session: {
+        id: f.actor.sessionId,
+        sessionId: f.actor.sessionId,
+        expiresAt: f.actor.sessionExpiresAt,
+      },
+    };
+    const routes = templatePublicationRoutes({
+      enabled: () => true,
+      session: async () => session,
+      service: () => f.service,
+      streamMs: 5,
+      pollMs: 5,
+    });
+    const request = () => new Request("https://hive.invalid/path");
+    const data = (s: string) =>
+      s.split("\n").filter((line) => line.startsWith("data: ") && !line.startsWith("data: {"));
+    const before = data(await (await routes.stream(request(), artifact.name, f.job.id)).text());
+    expect(before.length).toBeGreaterThan(0);
+    expect(before.join("\n")).not.toContain("Detailed output:");
+    await f.run();
+    const after = data(await (await routes.stream(request(), artifact.name, f.job.id)).text());
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(after.filter((line) => line.includes("Detailed output:"))).toHaveLength(1);
+  });
+  it("mode and target constraints prevent a fabricated update claim for an unbound reserved name", async () => {
+    const f = await fixture({ create: true });
+    await expect(
+      db.templatePublicationJob.create({
+        data: {
+          id: randomUUID(),
+          ownerId: f.actor.ownerId,
+          actorSessionId: f.actor.sessionId,
+          actorCoderUserId: f.actor.coderUserId,
+          targetId: f.job.targetId,
+          targetGeneration: 2,
+          requestId: randomUUID(),
+          requestDigest: "f".repeat(64),
+          templateName: artifact.name,
+          contentHash: artifact.contentHash,
+          archiveDigest: artifact.archiveDigest,
+          archiveBytes: artifact.archiveBytes,
+          manifestDigest: artifact.manifestDigest,
+          versionName: "invalid-mode",
+          expectedActiveVersionId: randomUUID(),
+          operationMode: "update",
+        },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.templatePublicationTarget.update({
+        where: { id: f.job.targetId },
+        data: { templateId: randomUUID() },
+      }),
+    ).rejects.toThrow();
   });
 });

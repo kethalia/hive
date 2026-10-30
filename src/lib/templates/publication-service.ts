@@ -19,6 +19,7 @@ import {
   type TemplatePublicationProvider,
 } from "./publication-provider";
 import { type PublicationJob, TemplatePublicationStore } from "./publication-store";
+import { canonicalProvisionerTags, provisionerTagsDigest } from "./publication-tags";
 
 export type TemplatePublicationDependencies = {
   enabled?: boolean;
@@ -113,10 +114,68 @@ export class TemplatePublicationService {
     )
       throw new TemplatePublicationError("invalid_request");
     const signal = this.signal(),
-      provider = await this.provider(who, signal),
-      remote = await provider.locate(name);
+      artifact = this.artifact(name);
+    await this.actor(who, signal);
+    if (requestId) {
+      const replay = await this.store.replay(who, artifact, requestId);
+      if (replay) return replay;
+    }
+    const provider = await this.provider(who, signal),
+      remote = await publicationAwait(provider.locate(name), signal);
     if (remote.name !== name) throw new TemplatePublicationError("provider_identity_mismatch");
-    return this.store.enqueue(who, remote, this.artifact(name), requestId);
+    const tags = remote.templateId
+      ? await publicationAwait(
+          provider.tags(remote, z.string().uuid().parse(remote.activeVersionId)),
+          signal,
+        )
+      : null;
+    return this.store.enqueue(
+      who,
+      remote,
+      artifact,
+      requestId,
+      tags ? provisionerTagsDigest(tags) : null,
+    );
+  }
+  private async tags(
+    job: PublicationJob,
+    provider: TemplatePublicationProvider,
+    remote: TemplateRemoteTarget,
+    signal: AbortSignal,
+  ) {
+    if (!job.provisionerTagsDigest) return undefined; // Frozen schema-27 request semantics.
+    if (job.operationMode !== "update" || !job.expectedActiveVersionId)
+      throw new TemplatePublicationError("provider_identity_mismatch");
+    const tags = canonicalProvisionerTags(
+      await publicationAwait(provider.tags(remote, job.expectedActiveVersionId), signal),
+    );
+    if (provisionerTagsDigest(tags) !== job.provisionerTagsDigest)
+      throw new TemplatePublicationError("provisioner_tags_changed");
+    return tags;
+  }
+  private tagReadback(
+    job: PublicationJob,
+    version: TemplateRemoteVersion,
+    inherited: Record<string, string> | undefined,
+  ) {
+    if (!inherited) return;
+    const observed = canonicalProvisionerTags(version.provisionerTags);
+    for (const [key, value] of Object.entries(inherited))
+      if (value && key !== "scope" && key !== "owner" && observed[key] !== value)
+        throw new TemplatePublicationError("provider_identity_mismatch");
+    // Match pinned Coder MutateTags: reserved owner never comes from the old
+    // publisher or a browser; scope user binds the current verified Coder user.
+    const scope = inherited.scope
+      ? inherited.scope === "user"
+        ? "user"
+        : "organization"
+      : observed.scope;
+    if (
+      !["user", "organization"].includes(scope) ||
+      observed.scope !== scope ||
+      observed.owner !== (scope === "user" ? job.actorCoderUserId : "")
+    )
+      throw new TemplatePublicationError("provider_identity_mismatch");
   }
   private version(job: PublicationJob, remote: TemplateRemoteVersion) {
     if (
@@ -147,9 +206,18 @@ export class TemplatePublicationService {
       this.assertArtifact(job);
       if (job.stage === "activating" && job.effectState !== "clear")
         throw new TemplatePublicationError("activation_unknown");
+      if (job.stage === "creating_template" && job.effectState !== "clear")
+        throw new TemplatePublicationError("template_creation_unknown");
+      if (
+        job.operationMode === "create" &&
+        job.stage === "creating_version" &&
+        job.effectState !== "clear"
+      )
+        throw new TemplatePublicationError("version_unknown");
       const provider = await this.provider(identity(job), signal),
         remote = target(job);
-      sameTarget(await provider.current(remote), remote);
+      if (job.operationMode === "create") await publicationAwait(provider.absent(remote), signal);
+      else sameTarget(await publicationAwait(provider.current(remote), signal), remote);
       const fresh = async () => {
         await this.actor(identity(job), signal);
         await this.store.inspect(claim);
@@ -170,6 +238,7 @@ export class TemplatePublicationService {
         await fresh();
         await this.store.uploaded(claim, z.string().uuid().parse(file));
       } else if (job.stage === "creating_version") {
+        const inherited = await this.tags(job, provider, remote, signal);
         let version: TemplateRemoteVersion | null;
         if (job.effectState !== "clear") {
           version = await publicationAwait(provider.versionByName(remote, job.versionName), signal);
@@ -182,12 +251,17 @@ export class TemplatePublicationService {
               name: job.versionName,
               message: marker(job),
               fileId: z.string().uuid().parse(job.fileId),
+              ...(inherited ? { provisionerTags: inherited } : {}),
             }),
             signal,
           );
         }
         this.version(job, version);
-        await provider.verifyFile(version.fileId, this.assertArtifact(job));
+        this.tagReadback(job, version, inherited);
+        await publicationAwait(
+          provider.verifyFile(version.fileId, this.assertArtifact(job)),
+          signal,
+        );
         await fresh();
         await this.store.versioned(claim, version);
       } else if (job.stage === "importing") {
@@ -220,6 +294,38 @@ export class TemplatePublicationService {
           Date.now() - job.createdAt.getTime() > PUBLICATION_LIMITS.importMs
         )
           throw new TemplatePublicationError("import_timeout");
+      } else if (job.stage === "creating_template") {
+        const version = await publicationAwait(
+          provider.versionById(remote, z.string().uuid().parse(job.versionId)),
+          signal,
+        );
+        this.version(job, version);
+        if (version.status !== "succeeded") throw new TemplatePublicationError("import_failed");
+        await publicationAwait(provider.absent(remote), signal);
+        job = await this.store.begin(claim, "creating_template");
+        await fresh();
+        await publicationAwait(provider.absent(remote), signal);
+        const created = await publicationAwait(provider.createTemplate(remote, version.id), signal);
+        if (
+          !created.templateId ||
+          created.createdById !== job.actorCoderUserId ||
+          created.activeVersionId !== version.id ||
+          created.organizationId !== remote.organizationId ||
+          created.organizationName !== remote.organizationName ||
+          created.name !== remote.name
+        )
+          throw new TemplatePublicationError("provider_identity_mismatch");
+        const current = await publicationAwait(provider.current(created), signal);
+        sameTarget(current, created);
+        if (current.createdById !== job.actorCoderUserId || current.activeVersionId !== version.id)
+          throw new TemplatePublicationError("provider_identity_mismatch");
+        const attached = await publicationAwait(provider.versionById(current, version.id), signal);
+        this.version(
+          { ...job, target: { ...job.target, templateId: current.templateId } },
+          attached,
+        );
+        await fresh();
+        await this.store.created(claim, current);
       } else if (job.stage === "activating") {
         const version = await publicationAwait(
           provider.versionById(remote, z.string().uuid().parse(job.versionId)),
@@ -251,6 +357,14 @@ export class TemplatePublicationService {
         error instanceof TemplatePublicationError ? error.code : "provider_unavailable";
       const job = await this.db.templatePublicationJob.findUnique({ where: { id: claim.id } });
       if (job?.stage === "activating" && job.effectState !== "clear") reason = "activation_unknown";
+      if (job?.stage === "creating_template" && job.effectState !== "clear")
+        reason = "template_creation_unknown";
+      if (
+        job?.operationMode === "create" &&
+        job.stage === "creating_version" &&
+        job.effectState !== "clear"
+      )
+        reason = "version_unknown";
       try {
         if (["provider_unavailable", "provider_deadline"].includes(reason))
           await this.store.defer(claim, reason);

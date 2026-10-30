@@ -9,7 +9,13 @@ import { WebSocketServer } from "ws";
 import { templateArtifact } from "../../../scripts/build-template-artifacts.mjs";
 
 const directory = await mkdtemp(join(tmpdir(), "hive-publication-workerd-"));
-const fixture = JSON.parse(await readFile("/tmp/hive-template-fixture.json", "utf8"));
+const creationMode = process.argv.includes("--creation");
+const fixture = JSON.parse(
+  await readFile(
+    creationMode ? "/tmp/hive-template-creation-fixture.json" : "/tmp/hive-template-fixture.json",
+    "utf8",
+  ),
+);
 const parsed = new URL(fixture.url);
 if (
   parsed.hostname !== "127.0.0.1" ||
@@ -126,6 +132,7 @@ const vars = {
   HIVE_RUNTIME_TARGET: "cloudflare",
   CODER_URL: "https://coder.publication-proof.invalid",
   HIVE_TEMPLATE_PUBLICATION_ENABLED: "false",
+  CREATION_PROOF: String(creationMode),
   WS_PORT: String(wsPort),
   OWNER_ID: owner,
   CODER_USER_ID: coder,
@@ -167,6 +174,12 @@ await writeFile(
   { mode: 0o600 },
 );
 const sourcePaths = [
+  ...(creationMode
+    ? [
+        "packages/db/prisma/migrations/20261029170000_template_publication_creation/migration.sql",
+        "src/lib/templates/publication-tags.ts",
+      ]
+    : []),
   "packages/db/prisma/schema.prisma",
   "packages/db/prisma/migrations/20261029160000_template_publication/migration.sql",
   "src/lib/templates/publication-actor.ts",
@@ -263,7 +276,9 @@ try {
   });
   if (!response.ok || !result.passed)
     throw new Error(`Local publication proof failed at ${result.stage ?? "unknown"}`);
-  const output = "docs/checks/autonomous-delivery/template-publication-local";
+  const output = creationMode
+    ? "docs/checks/autonomous-delivery/template-publication-creation-local"
+    : "docs/checks/autonomous-delivery/template-publication-local";
   await mkdir(output, { recursive: true });
   const evidence = {
     observedAt: new Date().toISOString(),

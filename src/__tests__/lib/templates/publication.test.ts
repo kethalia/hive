@@ -10,6 +10,7 @@ import { publicationBody, publicationFetch } from "@/lib/templates/publication-i
 import { CoderTemplatePublicationProvider } from "@/lib/templates/publication-provider";
 import { templatePublicationRoutes } from "@/lib/templates/publication-routes";
 import type { TemplatePublicationService } from "@/lib/templates/publication-service";
+import { canonicalProvisionerTags, provisionerTagsDigest } from "@/lib/templates/publication-tags";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -29,6 +30,152 @@ function actor() {
   };
 }
 describe("template publisher bounded provider", () => {
+  it("first-create scope omits template UUID and metadata/variables choices; server-created identity is verified", async () => {
+    vi.stubEnv("CODER_URL", origin);
+    const a = actor(),
+      org = randomUUID(),
+      versionId = randomUUID(),
+      templateId = randomUUID(),
+      fileId = randomUUID(),
+      requests: { url: string; body: Record<string, unknown> | null }[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      requests.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null });
+      if (url.endsWith("/users/me")) return Response.json({ id: a.coderUserId });
+      if (url.endsWith("/organizations/default"))
+        return Response.json({ id: org, name: "default" });
+      if (url.endsWith("/templates/ai-dev-k8s")) return new Response(null, { status: 404 });
+      if (url.endsWith("/authcheck")) return Response.json({ publish: true });
+      if (url.endsWith("/templateversions"))
+        return Response.json({
+          id: versionId,
+          name: "fixed-initial",
+          message: "fixed-marker",
+          organization_id: org,
+          created_by: { id: a.coderUserId },
+          archived: false,
+          job: {
+            id: randomUUID(),
+            organization_id: org,
+            initiator_id: a.coderUserId,
+            file_id: fileId,
+            type: "template_version_import",
+            status: "succeeded",
+            tags: { scope: "organization", owner: "" },
+          },
+        });
+      return Response.json({
+        id: templateId,
+        name: "ai-dev-k8s",
+        organization_id: org,
+        organization_name: "default",
+        active_version_id: versionId,
+        created_by_id: a.coderUserId,
+        deleted: false,
+      });
+    });
+    const provider = await CoderTemplatePublicationProvider.create(a, fetcher),
+      missing = await provider.locate("ai-dev-k8s");
+    expect(missing.templateId).toBeNull();
+    expect(requests.find((v) => v.url.endsWith("/authcheck"))?.body).toEqual({
+      checks: {
+        publish: { action: "create", object: { resource_type: "template", organization_id: org } },
+      },
+    });
+    expect(
+      (
+        await provider.createVersion(missing, {
+          name: "fixed-initial",
+          message: "fixed-marker",
+          fileId,
+        })
+      ).templateId,
+    ).toBeNull();
+    expect(requests.at(-1)?.body).toEqual({
+      name: "fixed-initial",
+      message: "fixed-marker",
+      storage_method: "file",
+      file_id: fileId,
+      provisioner: "terraform",
+      user_variable_values: [],
+    });
+    expect((await provider.createTemplate(missing, versionId)).templateId).toBe(templateId);
+    expect(requests.at(-1)?.body).toEqual({ name: "ai-dev-k8s", template_version_id: versionId });
+  });
+  it("active-version tags are scoped to exact prior template/version, and variables stay an empty server-reuse input", async () => {
+    vi.stubEnv("CODER_URL", origin);
+    const a = actor(),
+      org = randomUUID(),
+      templateId = randomUUID(),
+      prior = randomUUID(),
+      fileId = randomUUID(),
+      tags = { pool: "trusted-label", scope: "user", owner: randomUUID() },
+      target = {
+        organizationId: org,
+        organizationName: "default",
+        name: "ai-dev-k8s",
+        templateId,
+        activeVersionId: prior,
+      };
+    let input: Record<string, unknown> | undefined;
+    const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).endsWith("/users/me")) return Response.json({ id: a.coderUserId });
+      if (!init?.body)
+        return Response.json({
+          id: prior,
+          template_id: templateId,
+          organization_id: org,
+          job: { organization_id: org, tags },
+        });
+      input = JSON.parse(String(init.body));
+      return Response.json({
+        id: randomUUID(),
+        name: "fixed",
+        message: "marker",
+        template_id: templateId,
+        organization_id: org,
+        created_by: { id: a.coderUserId },
+        archived: false,
+        job: {
+          id: randomUUID(),
+          organization_id: org,
+          initiator_id: a.coderUserId,
+          file_id: fileId,
+          type: "template_version_import",
+          status: "running",
+          tags: { ...tags, owner: a.coderUserId },
+        },
+      });
+    });
+    const provider = await CoderTemplatePublicationProvider.create(a, fetcher);
+    expect(await provider.tags(target, prior)).toEqual(tags);
+    await provider.createVersion(target, {
+      name: "fixed",
+      message: "marker",
+      fileId,
+      provisionerTags: tags,
+    });
+    expect(input).toMatchObject({
+      template_id: templateId,
+      provisioner_tags: tags,
+      user_variable_values: [],
+    });
+    await expect(
+      provider.tags({ ...target, templateId: randomUUID() }, prior),
+    ).rejects.toMatchObject({ code: "provider_identity_mismatch" });
+  });
+  it("tag canonicalization is bounded and stable without persisting raw tag values", () => {
+    expect(provisionerTagsDigest({ z: "value", a: "other" })).toBe(
+      provisionerTagsDigest({ a: "other", z: "value" }),
+    );
+    expect(() => canonicalProvisionerTags({ x: "control\nvalue" })).toThrow();
+    expect(() =>
+      canonicalProvisionerTags(
+        Object.fromEntries(Array.from({ length: 65 }, (_, i) => [String(i), "v"])),
+      ),
+    ).toThrow();
+    expect(() => canonicalProvisionerTags({ x: 4 })).toThrow();
+  });
   it("rejects credential-bearing redirects without following and uses exact configured origin", async () => {
     vi.stubEnv("CODER_URL", origin);
     const a = actor(),

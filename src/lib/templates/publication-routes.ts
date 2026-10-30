@@ -120,7 +120,8 @@ export function templatePublicationRoutes(dependencies: PublicationRouteDependen
                   if (!code.success) return;
                   send(`data: ${publicationLabels[code.data]}\n\n`);
                   if (
-                    code.data === "version_verified" &&
+                    ((code.data === "version_verified" && job.operationMode !== "create") ||
+                      code.data === "template_created") &&
                     job.versionId &&
                     job.target.configuredOrigin === getConfiguredCoderUrl() &&
                     [job.target.organizationName, job.templateName, job.versionName].every((v) =>

@@ -124,6 +124,7 @@ export class TemplatePublicationStore {
     target: TemplateRemoteTarget,
     artifact: TemplateArtifactIdentity,
     requestId?: string,
+    provisionerTagsDigest: string | null = null,
   ) {
     const id = randomUUID(),
       requested = requestId ?? randomUUID(),
@@ -136,6 +137,8 @@ export class TemplatePublicationStore {
       organizationId: target.organizationId,
       origin,
       artifact,
+      ...(target.templateId === null ? { operationMode: "create" } : {}),
+      ...(provisionerTagsDigest ? { provisionerTagsDigest } : {}),
     });
     await this.db.templatePublicationTarget.createMany({
       data: {
@@ -151,10 +154,10 @@ export class TemplatePublicationStore {
     return this.transaction(async (tx) => {
       const existing = await tx.templatePublicationTarget.findUniqueOrThrow({
         where: {
-          configuredOrigin_organizationId_templateId: {
+          configuredOrigin_organizationId_templateName: {
             configuredOrigin: origin,
             organizationId: target.organizationId,
-            templateId: target.templateId,
+            templateName: target.name,
           },
         },
       });
@@ -172,6 +175,11 @@ export class TemplatePublicationStore {
         return replay;
       }
       if (scope.organizationName !== target.organizationName || scope.templateName !== target.name)
+        fail("provider_identity_mismatch");
+      if (
+        scope.templateId !== target.templateId ||
+        (target.templateId === null) !== (target.activeVersionId === null)
+      )
         fail("provider_identity_mismatch");
       if (scope.currentJobId) {
         const running = await tx.templatePublicationJob.findUniqueOrThrow({
@@ -206,6 +214,8 @@ export class TemplatePublicationStore {
           manifestDigest: artifact.manifestDigest,
           versionName: `hive-${id}`,
           expectedActiveVersionId: target.activeVersionId,
+          operationMode: target.templateId === null ? "create" : "update",
+          provisionerTagsDigest,
         },
         skipDuplicates: true,
       });
@@ -231,11 +241,33 @@ export class TemplatePublicationStore {
       return job;
     });
   }
+  /** Historical exact receipt only: no mode preflight, claim or execution permission. */
+  replay(actor: ActorIdentity, artifact: TemplateArtifactIdentity, requestId: string) {
+    return this.transaction(async (tx) => {
+      await this.actor(tx, actor, getConfiguredCoderUrl());
+      const job = await tx.templatePublicationJob.findUnique({
+        where: { ownerId_requestId: { ownerId: actor.ownerId, requestId } },
+        include: { target: true },
+      });
+      if (!job) return null;
+      if (
+        job.actorSessionId !== actor.sessionId ||
+        job.actorCoderUserId !== actor.coderUserId ||
+        job.templateName !== artifact.name ||
+        job.target.configuredOrigin !== getConfiguredCoderUrl() ||
+        (["contentHash", "archiveDigest", "archiveBytes", "manifestDigest"] as const).some(
+          (key) => job[key] !== artifact[key],
+        )
+      )
+        throw new TemplatePublicationError("request_conflict");
+      return job;
+    });
+  }
   async claim(): Promise<PublicationClaim | null> {
     return this.transaction(async (tx) => {
       const rows = await tx.$queryRaw<{ id: string }[]>`
         SELECT j.id FROM template_publication_targets t JOIN template_publication_jobs j ON j.id=t.current_job_id AND j.target_id=t.id
-        WHERE t.held_reason IS NULL AND j.stage IN ('queued','uploading','creating_version','importing','activating')
+        WHERE t.held_reason IS NULL AND j.stage IN ('queued','uploading','creating_version','importing','activating','creating_template')
           AND j.next_attempt_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<=clock_timestamp())
         ORDER BY j.next_attempt_at,j.id FOR UPDATE OF t SKIP LOCKED LIMIT 1`;
       if (!rows.length) return null;
@@ -297,7 +329,10 @@ export class TemplatePublicationStore {
   inspect(claim: PublicationClaim) {
     return this.transaction((tx) => this.locked(tx, claim));
   }
-  async begin(claim: PublicationClaim, stage: "uploading" | "creating_version" | "activating") {
+  async begin(
+    claim: PublicationClaim,
+    stage: "uploading" | "creating_version" | "activating" | "creating_template",
+  ) {
     return this.transaction(async (tx) => {
       const job = await this.locked(tx, claim);
       if (
@@ -306,7 +341,13 @@ export class TemplatePublicationStore {
       )
         fail("lease_lost");
       if (stage !== "uploading" && job.effectState !== "clear")
-        fail(stage === "activating" ? "activation_unknown" : "version_unknown");
+        fail(
+          stage === "activating"
+            ? "activation_unknown"
+            : stage === "creating_template"
+              ? "template_creation_unknown"
+              : "version_unknown",
+        );
       await this.event(
         tx,
         job,
@@ -314,7 +355,9 @@ export class TemplatePublicationStore {
           ? "upload_started"
           : stage === "creating_version"
             ? "version_started"
-            : "activation_started",
+            : stage === "creating_template"
+              ? "template_create_started"
+              : "activation_started",
         `${stage}:started`,
       );
       return tx.templatePublicationJob.update({
@@ -392,11 +435,40 @@ export class TemplatePublicationStore {
           remoteStatus: version.status,
           remoteLogAfter: logs ? BigInt(logs.after) : job.remoteLogAfter,
           logsOverflowed: job.logsOverflowed || logs?.overflowed || version.logsOverflowed,
-          stage: version.status === "succeeded" ? "activating" : "importing",
+          stage:
+            version.status === "succeeded"
+              ? job.operationMode === "create"
+                ? "creating_template"
+                : "activating"
+              : "importing",
           nextAttemptAt: new Date((await databaseNow(tx)).getTime() + 10000),
         },
         include: { target: true },
       });
+    });
+  }
+  async created(claim: PublicationClaim, target: TemplateRemoteTarget) {
+    return this.transaction(async (tx) => {
+      const job = await this.locked(tx, claim);
+      if (
+        job.operationMode !== "create" ||
+        job.stage !== "creating_template" ||
+        job.effectState !== "started" ||
+        job.target.templateId !== null ||
+        !target.templateId ||
+        target.organizationId !== job.target.organizationId ||
+        target.organizationName !== job.target.organizationName ||
+        target.name !== job.templateName ||
+        target.activeVersionId !== job.versionId ||
+        target.createdById !== job.actorCoderUserId
+      )
+        throw new TemplatePublicationError("provider_identity_mismatch");
+      await tx.templatePublicationTarget.update({
+        where: { id: job.targetId },
+        data: { templateId: target.templateId },
+      });
+      await this.event(tx, job, "template_created", "template:created");
+      await this.finishLocked(tx, job, "succeeded");
     });
   }
   async defer(claim: PublicationClaim, reason: PublicationReason) {
