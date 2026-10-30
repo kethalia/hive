@@ -502,3 +502,14 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   inert until the independent application reservation/input barrier is integrated.
   Evidence: [application](accepted-source-application.md), [packaging](template-artifact-packaging.md).
   CI, images and native guardian are green at89531e5; this checkpoint awaits its own CI.
+
+- Installed guardian authentication and queued preparation: reviewed assembled checkpoint,
+  high difficulty. The fixed outer and worker connect owner-app identity/bootstrap to the
+  signed server service. Durable task preparation waits for approved enrollment; existing
+  open retries cannot extend or restore expired/revoked authority. Parent45 runtime plus11
+  PostgreSQL/owner-transport checks,12 service checks and12 task tests pass. The clean assembled
+  package passes198 database tests (one separate opt-in proof skipped),14 package tests,
+  52 compiled behavioral checks, the actual fixed installer proof and typecheck. Failed
+  setup cases are retained. Default flags stay off; real native producer/source composition,
+  application barriers and cleanup authorization remain gates. Evidence:
+  [controller checkpoint](guardian-controller.md), [parent assembly](guardian-controller-local/assembled-parent.json).

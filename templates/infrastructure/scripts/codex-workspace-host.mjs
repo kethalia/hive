@@ -6,6 +6,7 @@ import { lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createGuardianOwnerHandler } from "./codex-guardian-worker.mjs";
 import { createHostRegistration } from "./codex-host-registration.mjs";
 import { createProjectController } from "./codex-project-controller.mjs";
 import { createProjectDiscovery, startDiscoveryGateway } from "./codex-project-discovery.mjs";
@@ -285,8 +286,14 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
               codexSha256: pin,
               projects,
               executionMode: config.nativeIsolationEnabled ? "isolated" : "direct",
+              ...(guardian ? { metadataReadOnly: true } : {}),
             },
-            { executionAuthority },
+            {
+              executionAuthority,
+              ...(guardian
+                ? { metadataAuthority: (request) => guardian.metadataAuthority(request) }
+                : {}),
+            },
           );
           executionAuthority?.assert();
           registration = createHostRegistration(supervisor, {
@@ -365,6 +372,11 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       },
       controller,
     );
+    if (guardian)
+      discovery.handleGuardian = createGuardianOwnerHandler({
+        appOrigin: config.binding.appOrigin,
+        guardian,
+      });
     gateway = await startDiscoveryGateway(
       { port: config.port, appOrigin: config.binding.appOrigin },
       discovery,

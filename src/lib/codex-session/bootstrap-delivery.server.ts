@@ -54,6 +54,8 @@ type AppAuthCoder = Pick<
 type AppBinding = Pick<RegistrationBinding, "coderOrigin" | "appOrigin">;
 export type HostProjectPath =
   | "/registration/bootstrap"
+  | "/guardian/identity"
+  | "/guardian/bootstrap"
   | "/projects/discover"
   | "/projects/resolve"
   | "/projects/open"
@@ -163,6 +165,8 @@ export async function postToVerifiedWorkspaceApp(
   if (
     ![
       "/registration/bootstrap",
+      "/guardian/identity",
+      "/guardian/bootstrap",
       "/projects/discover",
       "/projects/resolve",
       "/projects/open",
@@ -204,6 +208,43 @@ export async function postToVerifiedWorkspaceApp(
   } finally {
     await response.body?.cancel().catch(() => {});
   }
+}
+/** Fixed owner-only guardian endpoints. No caller-selected app path or headers. */
+export async function requestGuardianIdentity(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  nonce: string,
+  fetchApp: typeof fetch = fetch,
+) {
+  if (!/^[a-f0-9]{64}$/.test(nonce)) reject();
+  return postToVerifiedWorkspaceApp(
+    coder,
+    binding,
+    {
+      path: "/guardian/identity",
+      body: JSON.stringify({ nonce }),
+      expiresAt: Math.floor(Date.now() / 1000) + 30,
+    },
+    fetchApp,
+  );
+}
+export async function deliverGuardianEnrollment(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  grant: string,
+  fetchApp: typeof fetch = fetch,
+) {
+  if (grant.length < 100 || grant.length > 16384) reject();
+  return postToVerifiedWorkspaceApp(
+    coder,
+    binding,
+    {
+      path: "/guardian/bootstrap",
+      body: JSON.stringify({ grant }),
+      expiresAt: Math.floor(Date.now() / 1000) + 30,
+    },
+    fetchApp,
+  );
 }
 export async function deliverRegistrationGrant(
   coder: Parameters<typeof postToVerifiedWorkspaceApp>[0],

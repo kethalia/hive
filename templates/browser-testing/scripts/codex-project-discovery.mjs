@@ -371,6 +371,17 @@ export async function startDiscoveryGateway({ port, appOrigin }, discovery) {
       response.end();
       return;
     }
+    if (
+      request.method === "POST" &&
+      ["/guardian/identity", "/guardian/bootstrap"].includes(request.url) &&
+      discovery.handleGuardian
+    ) {
+      void discovery.handleGuardian(request, response).catch(() => {
+        if (!response.headersSent) response.writeHead(403);
+        response.end();
+      });
+      return;
+    }
     if (request.method === "POST" && Object.hasOwn(projectScopes, request.url)) {
       void discovery.handleProjects(request, response).catch(() => {
         if (!response.headersSent) response.writeHead(403);

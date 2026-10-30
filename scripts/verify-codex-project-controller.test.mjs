@@ -103,6 +103,7 @@ function fixture(t, configure) {
         checkoutVerified: true,
         revision: start.revision,
         checkoutIncarnation: "fixture-incarnation",
+        checkoutIdentity: { device: "1", inode: "2" },
         renewalSequence: 0,
         lease: { taskId, id: randomUUID(), generation: 1, expiresAt: Date.now() / 1000 + 900 },
       };
@@ -686,6 +687,7 @@ test("guardian admission is durable before preparation and final binding is a se
   assert.equal(task.guardianPreparation.leaseId, undefined);
   assert.equal(task.guardianPrepared.leaseId, task.prepared.leaseId);
   assert.equal(task.guardianPrepared.checkoutIncarnation, task.checkoutIncarnation);
+  assert.deepEqual(task.guardianPrepared.checkoutIdentity, { device: "1", inode: "2" });
   assert.ok(f.calls.indexOf("prepare") < f.calls.indexOf("runtime"));
   const earlier = JSON.stringify(task.guardianPreparation);
   await f.controller.executionFence(f.open.projectId);
@@ -772,6 +774,7 @@ test("a new admitted project refreshes existing generation tokens before shared 
       return {
         status: "ready",
         checkoutIncarnation: randomUUID(),
+        checkoutIdentity: { device: "1", inode: "2" },
         lease: {
           taskId: r.taskId,
           id: randomUUID(),

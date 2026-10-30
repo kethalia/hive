@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T00:55:22.493Z",
+  "baseRevision": "87de625d1469864ab5e118847d37f4e2184011f4",
+  "endingBaseRevision": "87de625d1469864ab5e118847d37f4e2184011f4",
+  "testedSourcesCommitted": false,
+  "sourceDigests": {
+    "src/lib/codex-session/guardian-contracts.ts": "dd70d737646619019180949d05c00513155d0261bd7e4b3daaf660d7073cbbc4",
+    "src/lib/codex-session/guardian-config.server.ts": "54739cad4db53fadc297a9d8fa1387718f055fa302e1ca1edda4b1f2163251ed",
+    "src/lib/codex-session/guardian-store.server.ts": "946721d0501c06dd6964952220cc982d29187178b6ffe12e8c0f470e1907da94",
+    "src/lib/codex-session/guardian-transport-contracts.ts": "c4712eb7c0256df1f75c420dfe2959acd5d0e5175feac23f6b794e3a25a21bf0",
+    "src/lib/codex-session/guardian-service.server.ts": "fb64d877d8055f63a7e8ac251251a264878138193f90919e66bbb9b62c558f7d",
+    "src/lib/codex-session/guardian-factory.server.ts": "adcf6bfe23f1e2f17938fb561f3f5c3c5f14f542508711f58429839c9b35d2fb",
+    "src/lib/codex-session/guardian-route.server.ts": "3a2631b276f57f1b4e3d735b55488dd7bc7018f2024b0d8b73a7b8d04fba3676",
+    "src/app/api/codex-host/guardians/route.ts": "89cec54e9fb685cc88766dce56349d9037decdd72ea5dcf03597ddcb40f5f415",
+    "src/__tests__/lib/codex-session/guardian-service.integration.test.ts": "ea1c2f4aeab73acd28a1604e8c6e796f1e56bbb0e0e53c2de3f8a4a8b6f288d3",
+    "src/__tests__/lib/codex-session/guardian-route.test.ts": "2ab7b7ee7e586c7318d14d05235b18edde37b718a08cde991130882515990565",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "d4beeca91654185ee880fe4348148d08fb6e05c2f20ee1a9e51a98f208a48aa4",
+    "src/__tests__/lib/delivery/native-fixture.ts": "4c0685ae172ceee60a8a82a3c22ab0f726eb2d0caec6e3b6e983e435323ceff8",
+    "src/lib/codex-session/registration-store.server.ts": "a4daed37b02986afff80ae6c9257da6029b5190840e9e9bf7edb817b6d4debbd",
+    "src/lib/projects/task-intents.server.ts": "59d64a961112178c2b5e06b191b8f6a51cd29d22ce16325d44d4df063917cd0b",
+    "scripts/probe-guardian-service.mjs": "e42d6008d0fe697be086dfaaf9f457d4a46a40e867000a4cb13ac65ba6c0d117"
+  },
+  "sourceStable": true,
+  "passed": true,
+  "database": {
+    "host": "127.0.0.1",
+    "port": 39989,
+    "name": "hive_delivery_test",
+    "schema": 24
+  },
+  "tests": {
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0,
+    "groups": [
+      {
+        "name": "guardian-route.test.ts",
+        "passed": true
+      },
+      {
+        "name": "guardian-service.integration.test.ts",
+        "passed": true
+      }
+    ]
+  },
+  "checks": {
+    "realEd25519OwnerBootstrap": true,
+    "oneUseEnrollment": true,
+    "unlistedPinsAndWrongConfigDenied": true,
+    "forgedOuterKeyDeniedBeforeCoderResolution": true,
+    "sqlExpiryAndAbortRollback": true,
+    "issuerGrantExpiryRollback": true,
+    "existingOpenProvisionFreshLiveness": true,
+    "provisionDoesNotExtendOrReapproveRuntime": true,
+    "routeDefaultOffAndNoBrowserOrQueryAuthority": true,
+    "latePositiveResponseDiscarded": true
+  },
+  "limitations": [
+    "Coder owner/app identity resolution and kernel startup facts are explicit synthetic fixtures, not hardware remote attestation or live account validation.",
+    "Actual installed owner-app/FD3/client/bootstrap path, middleware/preview exception and outer producer factory remain a subsequent composed gate.",
+    "A commit may become uncertain if transport aborts after the final transaction guard; callers retain an unknown-outcome hold, never assume effects were undone."
+  ],
+  "cloudMutations": false,
+  "accountInference": false
+}

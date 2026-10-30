@@ -5,8 +5,9 @@ import { readFileSync, realpathSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { openGuardianController } from "./codex-guardian-controller.mjs";
 import { readGuardianStart } from "./codex-guardian-startup.mjs";
-import { openGuardedHost } from "./codex-host-guardian.mjs";
+import { openGuardedHost, verifyGuardianPackage } from "./codex-host-guardian.mjs";
 import { readInstalledHostStartup, validateHostConfig } from "./codex-workspace-host.mjs";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
@@ -42,9 +43,24 @@ export async function startInstalledGuardedHost() {
     };
     for (const key of ["CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE", "CODER_AGENT_URL"])
       if (process.env[key]) workerEnvironment[key] = process.env[key];
-    const unavailable = () => {
-      throw new Error("installed_guardian_authority_unavailable");
-    };
+    const files = verifyGuardianPackage(
+      packageDirectory,
+      challenge.packageManifestSha256,
+      "codex-workspace-host-worker.mjs",
+    );
+    const authority = openGuardianController({
+      config,
+      configSha256,
+      home,
+      stateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
+      packageManifestSha256: challenge.packageManifestSha256,
+      guardianElfSha256: files.sha256,
+      nodeSha256: challenge.nodeSha256,
+      startupAttestation: () => {
+        check(host);
+        return host.startupAttestation();
+      },
+    });
     host = await openGuardedHost({
       packageDirectory,
       packageManifestSha256: challenge.packageManifestSha256,
@@ -62,11 +78,12 @@ export async function startInstalledGuardedHost() {
         }),
       ),
       startup: challenge,
-      // A signed inner journal is evidence, not an independent controller grant.
-      // Installed preparation and elective drain remain unavailable until that
-      // authority is implemented and reviewed. No configuration can override it.
-      authorizeAdmission: unavailable,
-      authorizeDrain: unavailable,
+      authorizeAdmission: authority.authorizeAdmission,
+      authorizeDrain: authority.authorizeDrain,
+      controllerIdentity: authority.identity,
+      controllerBootstrap: authority.bootstrap,
+      controllerMetadata: authority.currentMetadata,
+      metadataAuthority: authority.metadataAuthority,
     });
     await channel.ready(host.startupAttestation());
     return host;

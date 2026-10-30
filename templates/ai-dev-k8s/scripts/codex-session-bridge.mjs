@@ -450,6 +450,17 @@ export async function startBridge(rawConfig, registeredHost) {
     response.setHeader("Cache-Control", "no-store");
     if (
       request.method === "POST" &&
+      ["/guardian/identity", "/guardian/bootstrap"].includes(request.url) &&
+      registeredHost?.handleGuardian
+    ) {
+      void registeredHost.handleGuardian(request, response).catch(() => {
+        if (!response.headersSent) response.writeHead(403);
+        response.end();
+      });
+      return;
+    }
+    if (
+      request.method === "POST" &&
       request.url === "/registration/bootstrap" &&
       registeredHost?.handleBootstrap
     ) {
