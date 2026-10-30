@@ -6,6 +6,8 @@ const calls = vi.hoisted(() => ({
   dispatch: vi.fn(),
   send: vi.fn(),
   reconcile: vi.fn(),
+  token: vi.fn(),
+  tokenSend: vi.fn(),
   db: {},
 }));
 vi.mock("@hive/db", () => ({ getDb: () => calls.db }));
@@ -19,6 +21,10 @@ vi.mock("@/lib/delivery/dispatch", () => ({
 
 vi.mock("@/lib/projects/task.server", () => ({
   reconcileProjectTasks: (...args: unknown[]) => calls.reconcile(...args),
+}));
+vi.mock("@/lib/auth/rotation-notices", () => ({
+  dispatchTokenWarnings: (...args: unknown[]) => calls.token(...args),
+  sendTokenWarning: (...args: unknown[]) => calls.tokenSend(...args),
 }));
 
 import worker, { dispatchScheduled } from "../../../../deploy/cloudflare/jobs/worker";
@@ -68,6 +74,29 @@ describe("scheduled delivery Worker lifetime", () => {
       projectTasks: { processed: 1 },
     });
     expect(calls.dispatch).not.toHaveBeenCalled();
+    expect(calls.close).toHaveBeenCalledOnce();
+  });
+  it("dispatches token metadata independently without asking the jobs Worker for auth secrets", async () => {
+    calls.token.mockImplementation(async (db, send) => {
+      expect(db).toBe(calls.db);
+      expect(calls.close).not.toHaveBeenCalled();
+      await send("owner", { kind: "token" });
+      return { delivered: 1 };
+    });
+    expect(
+      await dispatchScheduled({
+        HIVE_TOKEN_WARNING_DISPATCH_ENABLED: "true",
+        VAPID_SUBJECT: "mailto:fixture@example.invalid",
+      }),
+    ).toMatchObject({ tokenWarnings: { delivered: 1 } });
+    expect(calls.tokenSend).toHaveBeenCalledWith(
+      calls.db,
+      "owner",
+      { kind: "token" },
+      "mailto:fixture@example.invalid",
+    );
+    expect(calls.dispatch).not.toHaveBeenCalled();
+    expect(calls.reconcile).not.toHaveBeenCalled();
     expect(calls.close).toHaveBeenCalledOnce();
   });
   it("does not strand preparation when notification dispatch fails", async () => {

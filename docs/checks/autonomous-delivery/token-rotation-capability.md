@@ -54,6 +54,12 @@ and DB persistence can leave a newly minted key until provider expiry; cleanup o
 or uncertain candidate is deliberately conservative. Notification durability and operational
 recovery remain separate acceptance gates. This is not complete F07 activation.
 
+The later [durable scheduling checkpoint](token-rotation-scheduling.md) adds an opt-in auth
+Worker controller, persistent scan and per-generation uncertainty fences, and a typed expiry
+warning outbox. Its local PostgreSQL and workerd evidence is separate from the earlier proofs
+above. Scheduling and warning dispatch remain off, the Node scheduler remains unchanged,
+and no account-backed rotation or production cutover is implied.
+
 ## Primary vendor evidence
 
 - [Coder SDK token request and API key metadata](https://github.com/coder/coder/blob/v2.33.0/codersdk/apikey.go)

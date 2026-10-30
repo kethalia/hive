@@ -26,3 +26,10 @@ are simulated, with zero external pushes. Actual scheduled dispatcher, authentic
 browser subscription and real device delivery remain acceptance checks. Other Hive
 background jobs, including credential rotation and template operations, have separate
 migration work; this file does not claim F07 complete.
+
+The optional token-warning dispatcher uses `HIVE_TOKEN_WARNING_DISPATCH_ENABLED=false`.
+It reads owner/token-version/expiry metadata, rechecks it before sending, honors token preferences,
+and uses a separate durable warning outbox. It needs the fixed `CODER_URL` and existing VAPID
+configuration, not `ENCRYPTION_KEY`. The auth Worker owns rotation and its independent default-off
+schedule. See the [rotation checkpoint](../../../docs/checks/autonomous-delivery/token-rotation-scheduling.md)
+for bounds, uncertainty holds and the required Node scheduler cutover.

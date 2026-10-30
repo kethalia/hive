@@ -10,6 +10,8 @@
   "vars": {
     "HIVE_RUNTIME_TARGET": "cloudflare",
     "HIVE_DELIVERY_DISPATCH_ENABLED": "false",
-    "HIVE_PROJECT_TASKS_ENABLED": "false"
+    "HIVE_PROJECT_TASKS_ENABLED": "false",
+    "HIVE_TOKEN_WARNING_DISPATCH_ENABLED": "false",
+    "CODER_URL": "https://coder.kethalia.com"
   }
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TOKEN_LIFETIME_SECONDS } from "@hive/auth";
+import { boundedCoderJson } from "./bounded-coder-json";
 import { fetchCoderApi } from "./coder-fetch";
 import { CODER_API_TIMEOUT_MS } from "./constants";
 
@@ -28,20 +29,25 @@ async function metadata(
   token: string,
   userId: string,
   keyId: string,
+  parentSignal?: AbortSignal,
 ): Promise<KeyMetadata | null> {
   try {
+    const signal = AbortSignal.any([
+      AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+      ...(parentSignal ? [parentSignal] : []),
+    ]);
     const response = await fetchCoderApi(
       `${baseUrl}/api/v2/users/${encodeURIComponent(userId)}/keys/${keyId}`,
       {
         headers: { "Coder-Session-Token": token },
-        signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+        signal,
       },
     );
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
       return null;
     }
-    const data = (await response.json()) as Partial<KeyMetadata>;
+    const data = (await boundedCoderJson(response, signal)) as Partial<KeyMetadata>;
     return data.id === keyId && data.user_id === userId && typeof data.expires_at === "string"
       ? (data as KeyMetadata)
       : null;
@@ -56,6 +62,7 @@ export async function createManagedCoderKey(
   credential: string,
   userId: string,
   lifetimeSeconds = TOKEN_LIFETIME_SECONDS,
+  parentSignal?: AbortSignal,
 ): Promise<ManagedCoderKey | null> {
   const lifetime = lifetimeSeconds * 1_000_000_000;
   if (!Number.isSafeInteger(lifetime) || lifetime <= 0) throw new Error("Invalid key lifetime");
@@ -63,6 +70,10 @@ export async function createManagedCoderKey(
   const name = `hive-${randomUUID()}`;
   const startedAt = Date.now();
   try {
+    const signal = AbortSignal.any([
+      AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+      ...(parentSignal ? [parentSignal] : []),
+    ]);
     // Coder CreateTokenRequest.lifetime is Go time.Duration (nanoseconds).
     // POST /keys creates a session and ignores the old lifetime_seconds body.
     const response = await fetchCoderApi(
@@ -71,21 +82,21 @@ export async function createManagedCoderKey(
         method: "POST",
         headers: { "Content-Type": "application/json", "Coder-Session-Token": credential },
         body: JSON.stringify({ token_name: name, lifetime }),
-        signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+        signal,
       },
     );
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
       return null;
     }
-    const data: unknown = await response.json();
+    const data: unknown = await boundedCoderJson(response, signal);
     const token =
       typeof data === "object" && data !== null && "key" in data && typeof data.key === "string"
         ? data.key
         : null;
     const id = token && coderKeyId(token);
     if (!token || !id) return null;
-    const key = await metadata(baseUrl, token, userId, id);
+    const key = await metadata(baseUrl, token, userId, id, parentSignal);
     if (!key || key.token_name !== name || key.login_type !== "token") return null;
     const expiresAt = new Date(key.expires_at);
     if (
@@ -119,6 +130,7 @@ export async function deleteManagedCoderKey(
   credential: string,
   userId: string,
   keyId: string,
+  parentSignal?: AbortSignal,
 ): Promise<boolean> {
   if (!/^[A-Za-z0-9]{10}$/.test(keyId)) return false;
   try {
@@ -127,7 +139,10 @@ export async function deleteManagedCoderKey(
       {
         method: "DELETE",
         headers: { "Coder-Session-Token": credential },
-        signal: AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+        signal: AbortSignal.any([
+          AbortSignal.timeout(CODER_API_TIMEOUT_MS),
+          ...(parentSignal ? [parentSignal] : []),
+        ]),
       },
     );
     await response.body?.cancel().catch(() => {});

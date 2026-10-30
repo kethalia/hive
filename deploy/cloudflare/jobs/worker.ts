@@ -1,5 +1,6 @@
 import { getDb } from "@hive/db";
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
+import { dispatchTokenWarnings, sendTokenWarning } from "../../../src/lib/auth/rotation-notices";
 import { dispatchNotificationBatch, sendDeliveryPush } from "../../../src/lib/delivery/dispatch";
 import { reconcileProjectTasks } from "../../../src/lib/projects/task.server";
 
@@ -7,18 +8,23 @@ type Environment = {
   DATABASE_URL?: string;
   HIVE_DELIVERY_DISPATCH_ENABLED?: string;
   HIVE_PROJECT_TASKS_ENABLED?: string;
+  HIVE_TOKEN_WARNING_DISPATCH_ENABLED?: string;
   VAPID_SUBJECT?: string;
   HIVE_PUBLIC_ORIGIN?: string;
 };
 
 export async function dispatchScheduled(env: Environment) {
-  if (env.HIVE_DELIVERY_DISPATCH_ENABLED !== "true" && env.HIVE_PROJECT_TASKS_ENABLED !== "true")
+  if (
+    env.HIVE_DELIVERY_DISPATCH_ENABLED !== "true" &&
+    env.HIVE_PROJECT_TASKS_ENABLED !== "true" &&
+    env.HIVE_TOKEN_WARNING_DISPATCH_ENABLED !== "true"
+  )
     return { enabled: false };
   const context = createCloudflareDatabaseRequest(env.DATABASE_URL);
   return context.run(async () => {
     try {
       const db = getDb();
-      const [noticeResult, taskResult] = await Promise.allSettled([
+      const [noticeResult, taskResult, tokenResult] = await Promise.allSettled([
         env.HIVE_DELIVERY_DISPATCH_ENABLED === "true"
           ? dispatchNotificationBatch(db, (ownerId, payload) =>
               sendDeliveryPush(
@@ -32,15 +38,30 @@ export async function dispatchScheduled(env: Environment) {
         env.HIVE_PROJECT_TASKS_ENABLED === "true"
           ? reconcileProjectTasks()
           : Promise.resolve(undefined),
+        env.HIVE_TOKEN_WARNING_DISPATCH_ENABLED === "true"
+          ? dispatchTokenWarnings(db, (ownerId, payload) =>
+              sendTokenWarning(
+                db,
+                ownerId,
+                payload,
+                env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
+              ),
+            )
+          : Promise.resolve(undefined),
       ]);
       // Independent dispatches finish before closing the shared request context;
       // a push-provider failure cannot strand accepted project preparation.
-      if (noticeResult.status === "rejected" || taskResult.status === "rejected")
+      if (
+        noticeResult.status === "rejected" ||
+        taskResult.status === "rejected" ||
+        tokenResult.status === "rejected"
+      )
         throw new Error("A durable dispatch could not complete");
       return {
         enabled: true,
         ...noticeResult.value,
         ...(taskResult.value ? { projectTasks: taskResult.value } : {}),
+        ...(tokenResult.value ? { tokenWarnings: tokenResult.value } : {}),
       };
     } finally {
       await context.close();
