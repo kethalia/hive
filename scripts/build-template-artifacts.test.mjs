@@ -172,6 +172,27 @@ test("digest mismatch and dynamic script selection cannot silently drop deployme
   await writeFile(join(path, "assets/codex-host.tar.sha256"), "0".repeat(64));
   await assert.rejects(templateArtifact(path), /digest mismatch/);
 });
+test("fixed package installer member names do not retain loose runtime trees", async (t) => {
+  const path = await fixture(t);
+  await installFixturePackage(path, {
+    "runtime.mjs": 'import "./dependency.mjs";\n',
+    "dependency.mjs": "export const result = 42;\n",
+    "explicit.py": "pass\n",
+  });
+  await writeFile(
+    join(path, "scripts/install-codex-host.py"),
+    'entry = target / "runtime.mjs"\nbootstrap_input = "scripts/explicit.py"\n',
+  );
+  const files = await unpack((await templateArtifact(path)).archive);
+  assert.equal(files.has("scripts/install-codex-host.py"), true);
+  assert.equal(files.has("scripts/runtime.mjs"), false);
+  assert.equal(files.has("scripts/dependency.mjs"), false);
+  assert.equal(files.has("scripts/explicit.py"), true);
+  await writeFile(join(path, "main.tf"), 'locals { module = file("scripts/runtime.mjs") }');
+  const referenced = await unpack((await templateArtifact(path)).archive);
+  assert.equal(referenced.has("scripts/runtime.mjs"), true);
+  assert.equal(referenced.has("scripts/dependency.mjs"), true);
+});
 test("a recompressed package with a stale internal file digest is rejected", async (t) => {
   const { readFile } = await import("node:fs/promises");
   const { createHash } = await import("node:crypto");
@@ -210,6 +231,8 @@ test("actual curated template fits deployment bound and every literal Terraform 
   assert.ok(artifact.archive.length <= 1024 * 1024);
   assert.ok(host.compressed.length <= 160000);
   assert.equal(files.has("scripts/delivery-source-state-client.mjs"), false);
+  assert.equal(files.has("scripts/codex-workspace-host.mjs"), false);
+  assert.equal(files.has("scripts/codex-delivery-runtime.mjs"), false);
   assert.equal(files.has("scripts/install-codex-host.py"), true);
   for (const name of ["main.tf", "hive-host.tf"]) {
     const source = await readFile(join(path, name), "utf8");

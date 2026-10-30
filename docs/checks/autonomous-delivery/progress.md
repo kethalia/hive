@@ -660,3 +660,22 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Evidence: [signed application](guardian-source-application-actions.md),
   [composed proof](guardian-application-installed-local/README.md),
   [parent assembly](guardian-application-local/parent-result.json).
+
+- Installed manager composition: reviewed packaged checkpoint, high difficulty. A separate
+  default-off execution flag now composes the existing manager, native observer, publisher,
+  source-state client, metadata application and scoped GitHub collector. Independent review
+  found registration revocation could arrive during a guardian FD reply; callbacks now check
+  lifetime before and after awaits and propagate cancellation to the fixed helper. Late results
+  retain the hold. The actual helper abort/reap regression passes; an eight-second shutdown
+  deadline remains an uncertain hold, never proof of physical termination.
+  Parent clean-export checks pass389 runtime tests,187 nested compiled behavioral tests,
+  98 template tests,3 deployment-policy tests, typecheck and the actual fixed installer.
+  Optional fixture cases remain skipped. Packaging initially exceeded Coder's1MiB limit by
+  retaining loose copies of verified archive members. Reviewed installer reference handling
+  removes that duplication; the software template is450048 bytes and the guardian-inclusive
+  XZ package137848 bytes, within unchanged limits. Initial export dependency/link failures
+  are retained alongside corrected passing runs. Full installed source progression, the
+  model-facing evidence status tool and the account-backed pilot remain open. No deployment
+  flag changed. CI, app images, workspace images and native guardian builds pass328283f.
+  Evidence: [installed composition](installed-delivery-factory.md),
+  [parent assembly](installed-delivery-factory-local/parent-result.json).

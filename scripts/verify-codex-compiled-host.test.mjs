@@ -105,6 +105,13 @@ test("compiled guardian preserves signed application reads and private FD3 bound
     "scripts/verify-codex-host-guardian.test.mjs",
   ]);
 });
+test("compiled delivery factory preserves opt-in authority and revocation", {
+  timeout: 100000,
+}, (t) => {
+  compiled(t, ["codex-delivery-runtime.mjs", "codex-workspace-host.mjs"])([
+    "scripts/verify-codex-delivery-runtime.test.mjs",
+  ]);
+});
 test("compiled namespace preserves actual native WS, CLI, child and resume isolation", {
   skip: process.env.HIVE_TEST_NATIVE_CODEX !== "1",
   timeout: 100000,

@@ -1,0 +1,39 @@
+✔ explicit delivery capability cannot be inferred from legacy manager-only config (1.109258ms)
+✔ factory fails before constructing effects without all installed prerequisites (0.596393ms)
+✔ actual installed adapter exposes source protocol and signs immutable physical task context (31.179456ms)
+✔ foreign manager cannot select a checkout or mint a signed call (3.720001ms)
+✔ changed native lifetime stops signed effects and trusted status (3.553742ms)
+✔ recorded child completion preserves rejected_policy authority boundary (43.973961ms)
+✔ recorded child completion preserves revoked_metadata authority boundary (39.01954ms)
+✔ in-flight native revocation aborts even an uncooperative transport and rejects late ACK (5.824337ms)
+✔ in-flight registration revocation aborts even an uncooperative transport and rejects late ACK (5.15096ms)
+✔ in-flight close revocation aborts even an uncooperative transport and rejects late ACK (4.935336ms)
+✔ application remains disabled without installed independent authority callbacks (1.671007ms)
+✔ external lifetime revocation rejects a late currentMetadata reply without releasing input (3.410072ms)
+✔ external lifetime revocation rejects a late applyReserve reply without releasing input (2.046124ms)
+✔ external lifetime revocation rejects a late applyVerify reply without releasing input (4.591334ms)
+✔ external lifetime revocation rejects a late applyCommit reply without releasing input (3.126427ms)
+✔ accepted source is synchronized in both journals before commit; only fresh applied readback releases input (3.42578ms)
+✔ commit_lost_ack retains input and physical writer hold after metadata receipt (1.419894ms)
+✔ verify_revoked retains input and physical writer hold after metadata receipt (1.683913ms)
+✔ late_native_input retains input and physical writer hold after metadata receipt (1.305655ms)
+✔ wrong_source retains input and physical writer hold after metadata receipt (1.508382ms)
+✔ fixed apply worker rejects arbitrary paths before spawning (0.19102ms)
+✔ worker deadline aborts stalled trusted callback and reaps exact child (73.021738ms)
+✔ coordinator lifetime revocation aborts and reaps its actual private FD worker (19.293977ms)
+✔ EOF and nonmonotonic worker frames cannot be treated as success (34.926502ms)
+✔ lost reserve ACK recovers after coordinator reconstruction without replacing immutable barrier or re-reserving (4.042289ms)
+✔ ambiguous reserve then not_found never infers permission to reserve again (0.673842ms)
+✔ ambiguous reserve then revoked never infers permission to reserve again (0.545126ms)
+✔ ambiguous reserve then unknown_transport never infers permission to reserve again (0.847533ms)
+✔ lost commit ACK reads original applied authority and skips a second commit after reconstruction (2.983837ms)
+✔ changed observer journal after lost reserve ACK retains original barrier and refuses helper (0.772199ms)
+﹣ actual private FD3 coordinator retry restores historical expected source after lost commit ACK (0.033754ms) # SKIP
+ℹ tests 31
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 213.936687

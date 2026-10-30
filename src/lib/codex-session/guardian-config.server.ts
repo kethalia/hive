@@ -17,6 +17,9 @@ export function expectedGuardianHostConfig(
   const effort = z
     .enum(["low", "medium", "high", "xhigh", "max", "ultra"])
     .parse(env.HIVE_CODEX_MANAGER_EFFORT);
+  const deliveryExecutionEnabled = env.HIVE_DELIVERY_EXECUTION_ENABLED === "true";
+  if (deliveryExecutionEnabled && env.HIVE_DELIVERY_MANAGER_ENABLED !== "true")
+    throw new Error("Delivery execution requires manager policy");
   const publicKey = createPublicKey(config.privateKeyPem);
   if (publicKey.asymmetricKeyType !== "ed25519") throw new Error("Guardian issuer rejected");
   const { projects: _projects, ...hostBinding } = binding;
@@ -34,6 +37,7 @@ export function expectedGuardianHostConfig(
     managerEnabled: env.HIVE_DELIVERY_MANAGER_ENABLED === "true",
     nativeIsolationEnabled: true,
     guardianEnabled: true,
+    ...(deliveryExecutionEnabled ? { deliveryExecutionEnabled: true } : {}),
   };
 }
 /** Matches the installed Python writer: sorted ASCII keys, compact JSON, LF. */

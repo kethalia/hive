@@ -101,6 +101,28 @@ describe("deployment-owned guardian approval", () => {
       { encoding: "utf8", env: { PATH: "/usr/bin:/bin", NODE_ENV: "test" } },
     );
     expect(guardianConfigBytes(expected)).toBe(python);
+    expect(expected).not.toHaveProperty("deliveryExecutionEnabled");
+    expect(
+      guardianConfigSha256(
+        expectedGuardianHostConfig(binding, config, {
+          ...env,
+          HIVE_DELIVERY_EXECUTION_ENABLED: "false",
+        }),
+      ),
+    ).toBe(guardianConfigSha256(expected));
+    const execution = expectedGuardianHostConfig(binding, config, {
+      ...env,
+      HIVE_DELIVERY_EXECUTION_ENABLED: "true",
+    });
+    expect(execution.deliveryExecutionEnabled).toBe(true);
+    expect(guardianConfigSha256(execution)).not.toBe(guardianConfigSha256(expected));
+    expect(() =>
+      expectedGuardianHostConfig(binding, config, {
+        ...env,
+        HIVE_DELIVERY_MANAGER_ENABLED: "false",
+        HIVE_DELIVERY_EXECUTION_ENABLED: "true",
+      }),
+    ).toThrow("requires manager");
     expect(expected).toMatchObject({
       guardianEnabled: true,
       nativeIsolationEnabled: true,

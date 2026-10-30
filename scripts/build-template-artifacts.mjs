@@ -118,9 +118,15 @@ async function deduplicateHostSources(files) {
       const referenced = files.some((file) => {
         if (candidates.has(file.path) || !/\.(?:tf|tftpl|sh|py|mjs)$/.test(file.path)) return false;
         const text = file.content.toString();
+        // This fixed bootstrap validates/extracts the package, then resolves its
+        // manifest members under the verified installation target. Those bare
+        // member names are not loose scripts beside the Terraform input. Explicit
+        // scripts/<name> references still retain that input, as do references from
+        // every other bootstrap. The real installer test runs without loose files.
+        const packageInstaller = file.path === "scripts/install-codex-host.py";
         return (
           text.includes(candidate) ||
-          (/\.(?:tf|tftpl|sh|py)$/.test(file.path) && text.includes(name)) ||
+          (!packageInstaller && /\.(?:tf|tftpl|sh|py)$/.test(file.path) && text.includes(name)) ||
           (file.path.startsWith("scripts/") &&
             /\.mjs$/.test(file.path) &&
             text.includes(`./${name}`))

@@ -37,6 +37,7 @@ await build({
 const source = join(root, "templates/ai-dev-k8s/scripts");
 const modules = [
   "codex-workspace-host.mjs",
+  "codex-delivery-runtime.mjs",
   "codex-workspace-host-outer.mjs",
   "codex-workspace-host-worker.mjs",
   "codex-guardian-startup.mjs",

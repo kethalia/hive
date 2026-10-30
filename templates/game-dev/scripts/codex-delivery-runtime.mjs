@@ -1,0 +1,410 @@
+// Installed opt-in composition. Fixed helpers own provider and metadata effects;
+// model arguments never choose keys, paths, producer identity or authority.
+import { lstatSync, mkdirSync, realpathSync } from "node:fs";
+import { join } from "node:path";
+import { createSourceApplication } from "./codex-source-application.mjs";
+import { createDeliveryGitHubCollector } from "./delivery-github-collector.mjs";
+import { createDeliveryManagerAdapter } from "./delivery-manager-adapter.mjs";
+import { createDeliverySourcePublisher } from "./delivery-source-publisher.mjs";
+import { createDeliverySourceStateClient } from "./delivery-source-state-client.mjs";
+
+const check = (value) => {
+  if (!value) throw new Error("delivery_runtime_unavailable");
+};
+const canonical = (value) =>
+  JSON.stringify(value, (_key, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.keys(v)
+            .sort()
+            .map((k) => [k, v[k]]),
+        )
+      : v,
+  );
+const same = (a, b) => canonical(a) === canonical(b);
+function directory(home, name) {
+  const path = join(home, ".local/state/hive", name);
+  mkdirSync(path, { recursive: true, mode: 0o700 });
+  const s = lstatSync(path);
+  check(
+    realpathSync(path) === path &&
+      s.isDirectory() &&
+      s.uid === process.getuid() &&
+      !(s.mode & 0o077),
+  );
+  return path;
+}
+
+export async function createInstalledDeliveryRuntime({
+  config,
+  home,
+  supervisor,
+  controller,
+  registration,
+  guardian,
+  gateway,
+  inspectManaged,
+  fetchImpl = fetch,
+}) {
+  check(
+    config.deliveryExecutionEnabled === true &&
+      config.managerEnabled === true &&
+      config.guardianEnabled === true &&
+      config.nativeIsolationEnabled === true,
+  );
+  check(
+    guardian &&
+      supervisor.config.metadataReadOnly === true &&
+      supervisor.config.executionMode === "isolated" &&
+      supervisor.config.projects.length === 1,
+  );
+  const project = supervisor.config.projects[0];
+  check(project && typeof inspectManaged === "function");
+  const serverInstanceId = supervisor.state.serverInstanceId;
+  const key = supervisor.state.controllerPrivateKeyPem;
+  const pendingCollections = new Map();
+  let adapter,
+    application,
+    closed = false,
+    closing,
+    collection = null,
+    timer = null;
+  let collectionStatus = { phase: "idle", reason: null };
+  const network = new AbortController();
+  let unsubscribeNative, unsubscribeRegistration;
+  check(typeof supervisor.onRevoked === "function" && typeof registration.onRevoked === "function");
+  const active = () => {
+    check(
+      !closed &&
+        !supervisor.closed &&
+        supervisor.state.status === "ready" &&
+        supervisor.runtime.alive() &&
+        supervisor.state.serverInstanceId === serverInstanceId &&
+        !supervisor.state.projects[project.projectId]?.executionRevoked,
+    );
+    controller.assertRuntimeExecution();
+  };
+  const currentRegistration = () => {
+    active();
+    return registration.currentRegistration();
+  };
+  const currentProjectContext = (thread) => {
+    active();
+    return controller.currentProjectContext(thread);
+  };
+  const context = (thread) => {
+    active();
+    const claim = adapter.currentSourceContext(thread),
+      physical = currentProjectContext(thread);
+    check(
+      claim.managerThreadId === thread &&
+        same(claim.checkoutBinding, physical) &&
+        physical.projectId === project.projectId,
+    );
+    return {
+      ownerId: config.binding.hiveUserId,
+      managerBindingId: claim.managerBindingId,
+      registration: claim.registration,
+      checkoutBinding: physical,
+      taskId: claim.taskId,
+      stepId: claim.stepId,
+      attemptId: claim.attemptId,
+      attemptLeaseGeneration: claim.attemptLeaseGeneration,
+      checkoutPath: supervisor.checkout(project),
+      ...(claim.sourceContext ? { sourceContext: claim.sourceContext } : {}),
+    };
+  };
+  const request = async (url, options = {}) => {
+    active();
+    const signal = AbortSignal.any([network.signal, ...(options.signal ? [options.signal] : [])]);
+    signal.throwIfAborted();
+    let rejectAbort;
+    const aborted = new Promise((_, reject) => {
+      rejectAbort = reject;
+    });
+    const onAbort = () => rejectAbort(new Error("delivery_runtime_revoked"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    try {
+      return await Promise.race([
+        Promise.resolve()
+          .then(() => fetchImpl(url, { ...options, signal }))
+          .then((response) => {
+            if (signal.aborted) {
+              void response.body?.cancel().catch(() => {});
+              throw new Error("delivery_runtime_revoked");
+            }
+            active();
+            return response;
+          }),
+        aborted,
+      ]);
+    } finally {
+      signal.removeEventListener("abort", onAbort);
+    }
+  };
+  const authorizeMetadata = async (c) => {
+    active();
+    check(c.checkoutBinding.projectId === project.projectId);
+    const result = await applicationGuardian.currentMetadata(project.projectId);
+    active();
+    return result;
+  };
+  // Guardian FD3 replies are not fetches. Fence them independently so a reply
+  // that outlives local registration/native authority cannot authorize metadata.
+  const applicationGuardian = Object.fromEntries(
+    ["currentMetadata", "applyReserve", "applyVerify", "applyCommit"].map((method) => [
+      method,
+      async (...args) => {
+        active();
+        let abort;
+        const stopped = new Promise((_, reject) => {
+          abort = () => reject(new Error("delivery_runtime_revoked"));
+          network.signal.addEventListener("abort", abort, { once: true });
+        });
+        try {
+          return await Promise.race([
+            Promise.resolve().then(async () => {
+              active();
+              const result = await guardian[method](...args);
+              active();
+              return result;
+            }),
+            stopped,
+          ]);
+        } finally {
+          network.signal.removeEventListener("abort", abort);
+        }
+      },
+    ]),
+  );
+  let publisher, sourceState;
+  try {
+    publisher = createDeliverySourcePublisher({
+      enabled: true,
+      hiveOrigin: config.hiveOrigin,
+      hostPrivateKeyPem: key,
+      stateDirectory: directory(home, "delivery-source-publisher"),
+      currentContext: context,
+      authorizeMetadata,
+      fetchImpl: request,
+    });
+    sourceState = createDeliverySourceStateClient({
+      enabled: true,
+      hiveOrigin: config.hiveOrigin,
+      hostPrivateKeyPem: key,
+      currentContext: context,
+      authorizeMetadata,
+      fetchImpl: request,
+    });
+    const collector = createDeliveryGitHubCollector({
+      enabled: true,
+      sourceProtocol: 1,
+      hiveOrigin: config.hiveOrigin,
+      hostPrivateKeyPem: key,
+      stateDirectory: directory(home, "delivery-github-collector"),
+      currentRegistration,
+      currentProjectContext,
+      currentAcceptedSource: (value) => adapter.currentAcceptedSource(value),
+      fetchImpl: request,
+    });
+    function stopCollection(reason) {
+      clearTimeout(timer);
+      timer = null;
+      pendingCollections.clear();
+      collectionStatus = { phase: "pending", reason };
+    }
+    async function refresh() {
+      if (closed || collection || !pendingCollections.size) return;
+      const candidate = [...pendingCollections.values()][0];
+      collection = (async () => {
+        try {
+          active();
+          const c = context(candidate.managerThreadId);
+          check(
+            c.taskId === candidate.taskId &&
+              c.stepId === candidate.stepId &&
+              c.attemptId === candidate.attemptId &&
+              c.registration.id === candidate.registrationId,
+          );
+          const accepted = await adapter.currentAcceptedSource({
+            managerThreadId: candidate.managerThreadId,
+            taskId: c.taskId,
+            stepId: c.stepId,
+            checkoutBinding: c.checkoutBinding,
+          });
+          check(same(accepted, candidate.sourceContext));
+          collectionStatus = { phase: "refreshing", reason: null };
+          // The collector's signed challenge independently resolves the current PR;
+          // neither this timer nor a model supplies provider identity or PR number.
+          const result = await collector.refresh({
+            managerThreadId: candidate.managerThreadId,
+            taskId: c.taskId,
+            stepId: c.stepId,
+          });
+          active();
+          const latest = context(candidate.managerThreadId);
+          check(latest.attemptId === c.attemptId && latest.registration.id === c.registration.id);
+          collectionStatus = { phase: "observed", reason: null, result: structuredClone(result) };
+          timer = setTimeout(() => {
+            timer = null;
+            void refresh();
+          }, 60000);
+          timer.unref();
+        } catch {
+          // Missing PR, pause, scope changes, revoked producer or uncertain network
+          // are prerequisites, never evidence. Stop automatic retries on failure.
+          if (pendingCollections.get(candidate.managerThreadId) === candidate)
+            pendingCollections.delete(candidate.managerThreadId);
+          collectionStatus = {
+            phase: "pending",
+            reason: "evidence_refresh_prerequisite_unavailable",
+          };
+        }
+      })().finally(() => {
+        collection = null;
+        // An older in-flight refresh cannot delete a newer accepted claim.
+        if (
+          !closed &&
+          pendingCollections.size &&
+          pendingCollections.get(candidate.managerThreadId) !== candidate
+        ) {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            timer = null;
+            void refresh();
+          }, 0);
+          timer.unref();
+        }
+      });
+      await collection;
+    }
+    adapter = createDeliveryManagerAdapter({
+      enabled: true,
+      nativeEnabled: true,
+      progressionProtocol: 1,
+      sourceProtocol: 1,
+      hiveOrigin: config.hiveOrigin,
+      stateDirectory: directory(home, "delivery-manager"),
+      hostPrivateKeyPem: key,
+      currentRegistration,
+      currentProjectContext,
+      currentServerInstanceId: () => supervisor.state.serverInstanceId,
+      registerChild: (root, child, call) => supervisor.registerChild(root, child, call),
+      readNativeHistory: (value) => supervisor.readNativeHistory(value),
+      drainNativeRouting: (value) => supervisor.runtime.drainManagerRouting(value),
+      continueRoot: (value) => supervisor.continueDeliveryRoot(value),
+      revalidateBoundary: (value, next, call) =>
+        supervisor.revalidateDeliveryBoundary(value, next, call),
+      currentSource: (thread) => controller.currentSource(thread),
+      publishSource: async (claim, proposed) => {
+        active();
+        const c = context(claim.managerThreadId);
+        check(
+          c.attemptId === claim.attemptId &&
+            c.managerBindingId === claim.managerBindingId &&
+            same(c.checkoutBinding, claim.checkoutBinding),
+        );
+        const result = await publisher.publish(claim.managerThreadId, proposed);
+        active();
+        check(context(claim.managerThreadId).attemptId === c.attemptId);
+        pendingCollections.set(claim.managerThreadId, {
+          managerThreadId: claim.managerThreadId,
+          taskId: c.taskId,
+          stepId: c.stepId,
+          attemptId: c.attemptId,
+          registrationId: c.registration.id,
+          sourceContext: result.sourceContext,
+        });
+        return result;
+      },
+      readAcceptedSource: (claim, query) => sourceState.readForApply(claim.managerThreadId, query),
+      applyAcceptedSource: (value, facts) => application.applyAcceptedSource(value, facts),
+      onObserverHold: ({ managerThreadId, reason }) => {
+        stopCollection("native_observer_held");
+        if (supervisor.state.projects[project.projectId]?.threadId === managerThreadId)
+          void supervisor.revokeExecution(project.projectId, reason).catch(() => {});
+      },
+      fetchImpl: request,
+    });
+    application = createSourceApplication({
+      enabled: true,
+      supervisor,
+      controller,
+      gateway,
+      guardian: applicationGuardian,
+      signal: network.signal,
+      sourceState,
+      managerAdapter: adapter,
+      inspectManaged,
+    });
+    const handle = adapter.handleToolCall.bind(adapter),
+      closeAdapter = adapter.close.bind(adapter);
+    adapter.handleToolCall = async (value) => {
+      const result = await handle(value);
+      // Only a successful trusted publisher callback can populate the candidate.
+      // Run after the adapter has durably recorded its accepted publication.
+      if (pendingCollections.has(value.threadId) && !timer && !collection) {
+        timer = setTimeout(() => {
+          timer = null;
+          void refresh();
+        }, 0);
+        timer.unref();
+      }
+      return result;
+    };
+    adapter.close = () => {
+      if (closing) return closing;
+      closed = true;
+      network.abort();
+      unsubscribeNative?.();
+      unsubscribeRegistration?.();
+      clearTimeout(timer);
+      timer = null;
+      pendingCollections.clear();
+      closing = (async () => {
+        let limit;
+        try {
+          const outcomes = await Promise.race([
+            Promise.allSettled([
+              collection,
+              sourceState.close(),
+              publisher.close(),
+              closeAdapter(),
+            ]),
+            new Promise((_, reject) => {
+              limit = setTimeout(() => reject(new Error("delivery_runtime_close_uncertain")), 8000);
+            }),
+          ]);
+          check(outcomes.every((outcome) => outcome.status === "fulfilled"));
+        } finally {
+          clearTimeout(limit);
+        }
+      })();
+      return closing;
+    };
+    const revoked = () => {
+      void adapter.close().catch(() => {});
+    };
+    unsubscribeNative = supervisor.onRevoked(revoked);
+    unsubscribeRegistration = registration.onRevoked(revoked);
+    active();
+    return {
+      adapter,
+      close: adapter.close,
+      // Trusted installed read seam only; a model-facing read_status tool requires
+      // a separately reviewed scope and is deliberately not installed here.
+      evidenceStatus() {
+        active();
+        return structuredClone(collectionStatus);
+      },
+    };
+  } catch (error) {
+    closed = true;
+    network.abort();
+    unsubscribeNative?.();
+    unsubscribeRegistration?.();
+    clearTimeout(timer);
+    await Promise.allSettled([publisher?.close(), sourceState?.close(), adapter?.close()]);
+    throw error;
+  }
+}

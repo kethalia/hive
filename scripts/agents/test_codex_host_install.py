@@ -165,6 +165,19 @@ class HostInstallerTests(unittest.TestCase):
                 start.assert_not_called()
             self.assertEqual(old_config.read_bytes(), b"retained config")
 
+    def test_delivery_execution_requires_explicit_complete_isolated_guardian_capability(self):
+        legacy = {"profile": "software", "enabled": True, "managerEnabled": False}
+        installer.validate_execution_config(legacy)
+        with self.assertRaises(RuntimeError):
+            installer.validate_execution_config({**legacy, "managerEnabled": True})
+        enabled = {**legacy, "managerEnabled": True, "guardianEnabled": True,
+                   "nativeIsolationEnabled": True, "deliveryExecutionEnabled": True}
+        installer.validate_execution_config(enabled)
+        for patch_value in ({"deliveryExecutionEnabled": "true"}, {"managerEnabled": False},
+                            {"guardianEnabled": False}, {"nativeIsolationEnabled": False}):
+            with self.assertRaises(RuntimeError):
+                installer.validate_execution_config({**enabled, **patch_value})
+
     def test_specialist_activation_is_rejected_before_start(self):
         with patch.dict(os.environ, {"HIVE_WORKSPACE_PROFILE": "browser"}), patch.object(installer.subprocess, "Popen") as start:
             with self.assertRaises(RuntimeError):
