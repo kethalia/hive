@@ -76,15 +76,10 @@ export class ProjectTaskIntents {
   async enqueue(value: TaskIntentPayload) {
     const input = taskIntentPayloadSchema.parse(value);
     const encrypted = encrypt(JSON.stringify(input), this.encryptionKey);
-    const row = await this.db.projectTaskIntent.upsert({
-      where: {
-        ownerId_projectId_requestId: {
-          ownerId: input.ownerId,
-          projectId: input.projectId,
-          requestId: input.requestId,
-        },
-      },
-      create: {
+    // PostgreSQL arbitrates duplicate inserts. Prisma may emulate this composite
+    // upsert with a read then insert, which races on the separately unique task ID.
+    await this.db.projectTaskIntent.createMany({
+      data: {
         id: input.taskId,
         ownerId: input.ownerId,
         projectId: input.projectId,
@@ -98,9 +93,19 @@ export class ProjectTaskIntents {
         iv: Uint8Array.from(encrypted.iv),
         authTag: Uint8Array.from(encrypted.authTag),
       },
-      update: {},
+      skipDuplicates: true,
+    });
+    const row = await this.db.projectTaskIntent.findUnique({
+      where: {
+        ownerId_projectId_requestId: {
+          ownerId: input.ownerId,
+          projectId: input.projectId,
+          requestId: input.requestId,
+        },
+      },
     });
     if (
+      !row ||
       row.id !== input.taskId ||
       row.workspaceId !== input.workspaceId ||
       row.requestDigest !== input.requestDigest

@@ -99,7 +99,8 @@ function status(
 describe.skipIf(!url)("durable project preparation", () => {
   it("atomically deduplicates concurrent accepted intents and encrypts their prompts", async () => {
     const f = await fixture();
-    const rows = await Promise.all([store.enqueue(f.payload), store.enqueue(f.payload)]);
+    const rows = await Promise.all(Array.from({ length: 16 }, () => store.enqueue(f.payload)));
+    expect(new Set(rows.map((row) => row.id)).size).toBe(1);
     expect(rows[0].id).toBe(rows[1].id);
     expect(await db.projectTaskIntent.count({ where: { ownerId: f.user.id } })).toBe(1);
     expect(Buffer.from(rows[0].ciphertext!).includes(Buffer.from("private task text"))).toBe(false);
@@ -113,6 +114,19 @@ describe.skipIf(!url)("durable project preparation", () => {
     await expect(
       store.get(f.user.id, f.project.id, f.payload.taskId, randomUUID()),
     ).rejects.toThrow("task_not_found");
+  });
+  it("rejects a task ID collision without adopting or changing another owner request", async () => {
+    const first = await fixture();
+    const other = await fixture();
+    const original = await store.enqueue(first.payload);
+    const collision = {
+      ...other.payload,
+      taskId: first.payload.taskId,
+      hostRequest: { ...other.payload.hostRequest, taskId: first.payload.taskId },
+    };
+    await expect(store.enqueue(collision)).rejects.toThrow("task_identity_conflict");
+    expect(await db.projectTaskIntent.findUnique({ where: { id: original.id } })).toEqual(original);
+    expect(await db.projectTaskIntent.count({ where: { ownerId: other.user.id } })).toBe(0);
   });
   it("isolates simultaneous claims and fences an expired worker acknowledgement", async () => {
     const f = await fixture();

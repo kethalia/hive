@@ -456,3 +456,9 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   guardian and23 transport checks pass; copied23→24 upgrade preserves all26 legacy tables.
   Clean-export typecheck passes. Broader PostgreSQL run183/184 exposed an existing concurrent
   task-enqueue race; evidence retained and immediate fix in progress. No remote migration.
+
+- Task submission race: fixed and independently reviewed, moderate difficulty. PostgreSQL
+  now deduplicates concurrent inserts before exact owner/request validation. Sixteen concurrent
+  requests converge; foreign-owner task-ID collisions reject without changing retained data.
+  Parent9 focused and185 clean-export database checks pass, with typecheck and separate review.
+  Previous failing evidence remains. CI/images/guardian were green at fe396ff.
