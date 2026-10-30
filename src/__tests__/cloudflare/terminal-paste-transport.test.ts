@@ -80,7 +80,7 @@ function fixture(mode = "normal") {
   ]);
   const authorize = vi.fn(async () => {});
   const run = (
-    files = [
+    files: Parameters<typeof transferTerminalPaste>[0]["files"] = [
       {
         name: "generated.bin",
         bytes: data,
