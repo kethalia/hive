@@ -44,6 +44,19 @@ test("interrupted or failed builds cannot be previewed without a readiness recor
     await assert.rejects(assertBuildReady(root), /ENOENT/);
   }));
 
+test("changing the generated action allowlist invalidates the prepared Worker", async () =>
+  fixture(async ({ root, put }) => {
+    const path = ".open-next/cloudflare/hive-portable-actions.mjs";
+    await put(path, "export default {schemaVersion:1,actions:{}};");
+    await writeBuildReady(await sourceDigests(root), root);
+    await assertBuildReady(root);
+    await put(
+      path,
+      'export default {schemaVersion:1,actions:{unreviewed:{paths:["/workspaces"]}}};',
+    );
+    await assert.rejects(assertBuildReady(root), /output changed/);
+  }));
+
 test("ready builds require empty generated environment and unchanged source/output", async () =>
   fixture(async ({ root, put }) => {
     const inputs = await sourceDigests(root);
