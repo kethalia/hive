@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "taskExport": ".pd143",
+  "accessibleProcessReferences": 0,
+  "unreadableUnrelatedLinks": 0,
+  "recordedInstallerIdentitiesNoLongerLive": [769412, 769421, 769422],
+  "nativeFixtureDirectoriesRemaining": 0,
+  "processProof": "Completed compiled runner waited for both bounded subprocesses; native crash/close tests explicitly verify owned process termination. Installer subreaper reaped its descendants. No unrelated process signalled.",
+  "removed": true
+}

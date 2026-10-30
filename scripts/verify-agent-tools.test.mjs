@@ -55,6 +55,10 @@ for (const [label, script] of [
   ["fixture-only source publication boundaries", "test_delivery_source_broker.py"],
   ["protected source broker and bounded provider transport", "test_delivery_source_runtime.py"],
   ["private source worker protocol and recovery", "test_delivery_source_worker.py"],
+  [
+    "accepted source application preserves work and authority barriers",
+    "test_managed_source_apply.py",
+  ],
   ["managed project lease renewal", "test_codex_project_lease.py"],
   ["pinned host package installation and provisioner identity", "test_codex_host_install.py"],
 ]) {

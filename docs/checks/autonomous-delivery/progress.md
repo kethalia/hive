@@ -489,3 +489,16 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   retaining the exact isolated test-database restriction. Parent6 checks pass using CI's
   hostname. The original CI result was190 passed/one skipped plus this failed suite; application,
   image and native-guardian builds passed. No production authorization rule changed.
+
+- Protected accepted-source application and packaging: reviewed local checkpoint, high difficulty.
+  Parent56 Python checks plus the1,977-file/297-directory scale case pass; dirty, staged,
+  ignored and untracked work is preserved. The separate factual state client passes11 runtime
+  and one server-protocol check. Parent clean-export validation passes24 archive/template,
+  33 application/protocol and52 compiled behavioral checks plus typecheck. Producer evidence
+  additionally exercises three actual native namespace cases and the fixed installer with
+  the reviewed guardian binary. The assembled upcoming guardian package fits151,578 gzip
+  bytes and949,760 template bytes without raising either deployment limit. Node and Workers
+  now use the same verified template archive; source and protected metadata changes remain
+  inert until the independent application reservation/input barrier is integrated.
+  Evidence: [application](accepted-source-application.md), [packaging](template-artifact-packaging.md).
+  CI, images and native guardian are green at89531e5; this checkpoint awaits its own CI.

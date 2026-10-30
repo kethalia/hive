@@ -152,6 +152,15 @@ class GitDriver:
 
 
 class ManagedProjects:
+    require_source = staticmethod(require)
+
+    def _apply_accepted_source(self, repository_id, project_id, operation_id, authority, input_barrier, objects, checkpoint=None):
+        """Internal inert composition only; never exposed through dispatch/CLI."""
+        spec = importlib.util.spec_from_file_location("hive_managed_source_apply", Path(__file__).with_name("managed-source-apply.py"))
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        return helper.apply(self, repository_id, project_id, operation_id, authority, input_barrier, objects, checkpoint)
+
     def __init__(self, home, resolver=None, git=None):
         self.home = Path(home).resolve()
         self.root = self.home / "projects/.hive-managed"
@@ -350,6 +359,8 @@ class ManagedProjects:
             remote = self.verified(repository_id)
             if receipt.exists():
                 project, receipt, record = self.load(repository_id)
+                require(not record.get("sourceUpdating"), "source_update_pending")
+                require(not record.get("acceptedSource"), "accepted_source_prepare_unavailable")
                 active = record.get("lease")
                 if active:
                     require(type(generation) is int and active["taskId"] == task_id and active["id"] == lease_id
@@ -457,12 +468,17 @@ class ManagedProjects:
 
     @staticmethod
     def summary(project, record):
-        return {"provider": "github", "repositoryId": record["repositoryId"], "projectDirectory": str(project),
+        result = {"provider": "github", "repositoryId": record["repositoryId"], "projectDirectory": str(project),
                 "checkoutDirectory": str(project / "checkout") if record.get("checkoutIdentity") else None,
                 "revision": record["revision"], "status": record["status"], "lease": record["lease"],
                 "checkoutIncarnation": record.get("checkoutIncarnation"), "renewalSequence": record.get("renewalSequence", 0),
                 "checkoutIdentity": {key: str(value) for key, value in record["checkoutIdentity"].items()} if record.get("checkoutIdentity") else None,
                 "preservedStages": [stage["name"] for stage in record["stages"] if stage["status"] != "published"]}
+        if record.get("acceptedSource") is not None:
+            result["acceptedSource"] = record["acceptedSource"]
+        if record.get("sourceUpdating") is not None:
+            result["sourceUpdating"] = {key: record["sourceUpdating"][key] for key in ("operationId", "phase")}
+        return result
 
     def inspect(self, repository_id):
         with self.lock():
@@ -474,7 +490,7 @@ class ManagedProjects:
             project, _, record = self.load(repository_id)
             # Read-only provenance check, deliberately without clean(): unfinished
             # edits are valid active-task state, but a replaced checkout is not.
-            verified = record["status"] == "ready"
+            verified = record["status"] == "ready" and not record.get("sourceUpdating")
             if verified:
                 self.checkout_valid(project / "checkout", record)
             return {**self.summary(project, record), "checkoutVerified": verified}
@@ -489,15 +505,20 @@ class ManagedProjects:
         with self.lock():
             project, receipt, record = self.load(repository_id)
             lease = record.get("lease")
-            require(record["status"] == "ready" and lease and lease["expiresAt"] > time.time(), "lease_not_active")
+            require(record["status"] == "ready" and not record.get("sourceUpdating")
+                    and lease and lease["expiresAt"] > time.time(), "lease_not_active")
             sequence = record.get("renewalSequence", 0)
             require(type(sequence) is int and 0 <= sequence < 9007199254740991, "invalid_renewal_sequence")
             expected = {"repositoryId": repository_id, "taskId": lease["taskId"], "leaseId": lease["id"],
                         "leaseGeneration": lease["generation"], "revision": record["revision"],
                         "checkoutIncarnation": record["checkoutIncarnation"]}
             require(identifier(expected["checkoutIncarnation"]), "checkout_incarnation_missing")
+            if record.get("acceptedSource") is not None:
+                expected["currentSource"] = record["acceptedSource"]
             authority.verify(project_id, expected)
             self.checkout_valid(project / "checkout", record)
+            if record.get("acceptedSource") is not None:
+                require(self.git(project / "checkout", "rev-parse", "HEAD") == record["acceptedSource"]["headSha"], "renewal_source_changed")
             # Recheck expiry after bounded authority/provenance inspection; a
             # slow validation cannot revive an authority that expired meanwhile.
             now = time.time()
@@ -515,13 +536,17 @@ class ManagedProjects:
         with self.lock():
             project, receipt, record = self.load(repository_id)
             lease = record.get("lease")
+            require(not record.get("sourceUpdating"), "source_update_pending")
             require(type(generation) is int and lease and (lease["taskId"], lease["id"], lease["generation"]) == (task_id, lease_id, generation), "stale_lease")
             if record.get("checkoutIdentity"):
                 checkout = project / "checkout"
                 self.checkout_valid(checkout, record)
                 require(self.git(checkout, "rev-parse", "HEAD") == expected_revision, "release_revision_mismatch")
                 self.no_consumers(checkout)
-            record["revision"] = expected_revision
+            if record.get("acceptedSource") is not None:
+                require(expected_revision == record["acceptedSource"]["headSha"], "release_revision_mismatch")
+            else:
+                record["revision"] = expected_revision
             record["lease"] = None
             self.write(receipt, record)
             return self.summary(project, record)
@@ -530,6 +555,7 @@ class ManagedProjects:
         require(identifier(task_id), "invalid_task")
         with self.lock():
             project, receipt, record = self.load(repository_id)
+            require(not record.get("sourceUpdating") and not record.get("acceptedSource"), "accepted_source_cleanup_unavailable")
             require(task_id == record["lastTaskId"], "cleanup_task_mismatch")
             require(len(record["cleanupRequests"]) < 100, "cleanup_request_limit")
             record["cleanupRequests"].append({"id": str(uuid.uuid4()), "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record.get("checkoutIncarnation"), "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "requestedAt": time.time()})
@@ -546,6 +572,7 @@ class ManagedProjects:
         with self.lock():
             project, receipt, record = self.load(repository_id)
             require(authority is not None, "controller_authority_unavailable")
+            require(not record.get("sourceUpdating") and not record.get("acceptedSource"), "accepted_source_cleanup_unavailable")
             require(task_id == record["lastTaskId"] and record["cleanupRequests"] and not record["lease"], "cleanup_not_quiescent")
             cleanup_request = record["cleanupRequests"][-1]
             require(cleanup_request["taskId"] == task_id and cleanup_request["revision"] == record["revision"]

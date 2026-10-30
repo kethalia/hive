@@ -98,6 +98,17 @@ class InstalledControllerAuthority:
         actual = {"repositoryId": project["repositoryId"], "taskId": task["taskId"], "leaseId": prepared["leaseId"],
                   "leaseGeneration": prepared["leaseGeneration"], "revision": task["request"]["revision"],
                   "checkoutIncarnation": task["checkoutIncarnation"]}
+        require(not task.get("sourceUpdating") and not entry.get("sourceUpdating"), "source_update_pending")
+        if "currentSource" in expected:
+            current = expected["currentSource"]
+            require(isinstance(current, dict) and set(current) == {"revisionId", "version", "headSha"}
+                    and isinstance(current["revisionId"], str) and re.fullmatch(r"[a-f0-9-]{36}", current["revisionId"])
+                    and type(current["version"]) is int and current["version"] > 0
+                    and isinstance(current["headSha"], str) and re.fullmatch(r"[a-f0-9]{40}", current["headSha"])
+                    and task.get("acceptedSource") == entry.get("acceptedSource") == current, "renewal_source_changed")
+            actual["currentSource"] = current
+        else:
+            require(not task.get("acceptedSource") and not entry.get("acceptedSource"), "renewal_source_changed")
         require(actual == expected and prepared["taskId"] == task["taskId"]
                 and prepared["repositoryId"] == entry["repositoryId"] == project["repositoryId"], "renewal_binding_changed")
         # Inspection is bounded, but process exit/replacement during it still

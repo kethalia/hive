@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T00:54:26.609598+00:00",
+  "scope": "reviewed protected apply, state client and package; excludes guardian controller, manager/source spool and collector WIP",
+  "archiveTemplateTests": 24,
+  "nodeApplicationAndProtocolTests": 33,
+  "compiledRuntimeHarness": "passed;52 behavioral tests; actual native namespace opt-in skipped in parent run (producer separate actual3 proof retained)",
+  "typecheck": "passed",
+  "hostGzipBytes": 132409,
+  "templateArtifacts": {
+    "schemaVersion": 1,
+    "templates": {
+      "ai-dev-k8s": {
+        "contentHash": "1f01fc363870f4eb18720b53701020d1618922ad16fc64584f03fa088993d008",
+        "archiveDigest": "90668734944e6390dac3c593a411c95942e27c7c6a54d9e3db9e0ef22de27a2f",
+        "archiveBytes": 896512,
+        "fileCount": 68
+      },
+      "browser-testing": {
+        "contentHash": "f7c32ddfc677b197146fd0eb0827f95d0066efe857fedde432655f38e4653164",
+        "archiveDigest": "819519612723d25348d4fa7a178f8b3130de30f03a96b43fdf13f5d2445aa061",
+        "archiveBytes": 891904,
+        "fileCount": 68
+      },
+      "game-dev": {
+        "contentHash": "ae8cd14e4a2689ec5627f5d7ef4cbc2beda3b0f9d2d6a82c4809ca2377179867",
+        "archiveDigest": "94b903ddfeb2907bcd4aade2a5e77acd5b04015973294e421bcb7e1ac979d4b4",
+        "archiveBytes": 892928,
+        "fileCount": 68
+      },
+      "electronics": {
+        "contentHash": "63bb0f551bb69ed1ed44717fc0922e6bd00f8278b6dddee7b1edbeb305153813",
+        "archiveDigest": "02d2ff4423f11932ee61616e2aa1ad4d4b65affadcd1791e96d07e5da607d1b2",
+        "archiveBytes": 892416,
+        "fileCount": 68
+      },
+      "infrastructure": {
+        "contentHash": "efa625aae01bcc4ec3185395e080bcf4f19ed06d087f96e0e66b75b4bcbf4b8c",
+        "archiveDigest": "e43f5dadfaa59f79bcccdab0bd7d0e975d3026f161dd3a90ac91c705a1c1eb85",
+        "archiveBytes": 892928,
+        "fileCount": 68
+      }
+    }
+  },
+  "parentLogs": {
+    "docs/checks/autonomous-delivery/template-artifact-local/parent-tests.txt": "97192d3b5240a67bad164e1a5d0725580bfa92b3eec058a14f624b890d1e6829",
+    "docs/checks/autonomous-delivery/template-artifact-local/parent-node.txt": "41f602e2621f78772d14e2716cfe850ec21a541bd03d558c3d8a17577fed7ce2",
+    "docs/checks/autonomous-delivery/template-artifact-local/parent-compiled.txt": "1781898e535e3c36b7396fcdb8955f40a8d54c44da4eca5d374b7ced11e1272f",
+    "docs/checks/autonomous-delivery/template-artifact-local/parent-types.txt": "60b846b88bd3bfa7075b84d79ecfae35f3eedf20ac4105f14c57cda4d8fbb1aa"
+  }
+}

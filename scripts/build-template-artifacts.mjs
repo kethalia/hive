@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
+import { transform } from "esbuild";
 import tar from "tar-stream";
 
 export const templateNames = [
@@ -14,10 +16,122 @@ export const templateNames = [
 const manifestPath = "src/lib/templates/artifact-manifest.json";
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 
+/** Only omit a loose runtime source after verifying the installed copy, including the
+ * exact build transform. Paths referenced by Terraform or bootstrap stay distributable. */
+async function deduplicateHostSources(files) {
+  const gzip = files.find((file) => file.path === "assets/codex-host.tar.gz");
+  if (!gzip) return files;
+  if (gzip.content.length > 160000) throw new Error("Host gzip exceeds metadata bounds");
+  const archive = gunzipSync(gzip.content, { maxOutputLength: 2 * 1024 * 1024 });
+  const expected = files.find((file) => file.path === "assets/codex-host.tar.sha256");
+  if (!expected || expected.content.toString().trim() !== sha256(archive))
+    throw new Error("Host archive digest mismatch");
+  const contents = new Map();
+  const extractor = tar.extract();
+  await new Promise((resolve, reject) => {
+    extractor.on("error", reject);
+    extractor.on("finish", resolve);
+    extractor.on("entry", (header, stream, next) => {
+      if (
+        header.type !== "file" ||
+        contents.has(header.name) ||
+        contents.size >= 64 ||
+        header.size > 1024 * 1024 ||
+        !/^(?:vendor\/ws\.mjs|codex-native-guardian|[a-z0-9-]+\.(?:mjs|py|json))$/.test(header.name)
+      ) {
+        extractor.destroy(new Error("Invalid host package entry"));
+        stream.resume();
+        return;
+      }
+      contents.set(header.name, null);
+      const chunks = [];
+      stream.on("error", reject);
+      stream.on("data", (chunk) => chunks.push(chunk));
+      stream.on("end", () => {
+        contents.set(header.name, Buffer.concat(chunks));
+        next();
+      });
+    });
+    extractor.end(archive);
+  });
+  const manifest = JSON.parse(contents.get("package-manifest.json")?.toString() ?? "null");
+  if (
+    manifest?.schemaVersion !== 1 ||
+    manifest.nodeMajor !== 24 ||
+    manifest.nativeVersion !== "0.165.0" ||
+    manifest.wsVersion !== "8.21.3" ||
+    !manifest.files ||
+    Object.keys(manifest.files).length !== contents.size - 1
+  )
+    throw new Error("Invalid host package manifest");
+  for (const [name, digest] of Object.entries(manifest.files)) {
+    const value = contents.get(name);
+    if (!value || sha256(value) !== digest) throw new Error("Host package file digest mismatch");
+  }
+  const candidates = new Set();
+  for (const file of files) {
+    const name = file.path.replace(/^scripts\//, "");
+    if (file.path !== `scripts/${name}` || !/\.(mjs|py)$/.test(name) || !contents.has(name))
+      continue;
+    const source = name.endsWith(".mjs")
+      ? Buffer.from(
+          (
+            await transform(
+              file.content.toString().replaceAll('from "ws"', 'from "./vendor/ws.mjs"'),
+              {
+                loader: "js",
+                format: "esm",
+                target: "node24",
+                minifyWhitespace: true,
+                minifyIdentifiers: true,
+                minifySyntax: false,
+                keepNames: true,
+              },
+            )
+          ).code,
+        )
+      : file.content;
+    if (!source.equals(contents.get(name)))
+      throw new Error(`Stale packaged runtime source: ${name}`);
+    candidates.add(file.path);
+  }
+  // All Terraform input references must remain literal so this build can prove the
+  // deployed file set. Installed package paths are a separate namespace: e.g. the
+  // Python installer reads target/<module> only after verified archive extraction.
+  for (const file of files.filter((file) => file.path.endsWith(".tf"))) {
+    const text = file.content.toString();
+    if (/\$\{path\.module\}\/scripts\/[^"\n]*\$\{|fileset\([^)]*scripts/.test(text))
+      throw new Error("Dynamic template script reference requires explicit packaging review");
+  }
+  let changed;
+  do {
+    changed = false;
+    for (const candidate of candidates) {
+      const name = candidate.slice("scripts/".length);
+      const referenced = files.some((file) => {
+        if (candidates.has(file.path) || !/\.(?:tf|tftpl|sh|py|mjs)$/.test(file.path)) return false;
+        const text = file.content.toString();
+        return (
+          text.includes(candidate) ||
+          (/\.(?:tf|tftpl|sh|py)$/.test(file.path) && text.includes(name)) ||
+          (file.path.startsWith("scripts/") &&
+            /\.mjs$/.test(file.path) &&
+            text.includes(`./${name}`))
+        );
+      });
+      if (referenced) {
+        candidates.delete(candidate);
+        changed = true;
+      }
+    }
+  } while (changed);
+  return files.filter((file) => !candidates.has(file.path));
+}
+
 /** Build-owned input only. Private configuration, symlinks and excessive artifacts fail
  * before anything is published. No runtime filesystem or shell is required. */
 export async function templateArtifact(directory) {
-  const files = [];
+  let files = [];
   let total = 0;
   async function collect(prefix = "") {
     const entries = await readdir(join(directory, prefix), { withFileTypes: true });
@@ -43,6 +157,7 @@ export async function templateArtifact(directory) {
     }
   }
   await collect();
+  files = await deduplicateHostSources(files);
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   if (!files.some((file) => file.path === "main.tf"))
     throw new Error("Template main.tf is missing");

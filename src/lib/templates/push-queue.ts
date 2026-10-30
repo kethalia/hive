@@ -8,6 +8,8 @@ import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { sendPushToUser } from "@/lib/push/send";
 import { getRedisConnection } from "@/lib/queue/connection";
 
+import { readTemplateArtifact } from "./artifact.node";
+
 const execFileAsync = promisify(execFile);
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -105,7 +107,7 @@ async function findCoderBinary(): Promise<string> {
  *
  * For each job:
  *   1. Finds the coder binary
- *   2. Spawns `coder templates push <name> --directory templates/<name> --yes`
+ *   2. Spawns `coder templates push <name> --directory - --yes` with the verified build artifact
  *   3. Tees stdout+stderr to /tmp/template-push-<jobId>.log
  *   4. Appends [exit:0] or [exit:1] sentinel on process close
  *   5. Resolves/rejects based on exit code
@@ -124,7 +126,9 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
 
       let client: Awaited<ReturnType<typeof getCoderClientForUser>>;
       let coderBin: string;
+      let archive: Buffer;
       try {
+        archive = await readTemplateArtifact(templateName);
         client = await getCoderClientForUser(userId);
         coderBin = await findCoderBinary();
       } catch (err) {
@@ -137,9 +141,10 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
       }
 
       await new Promise<void>((resolve, reject) => {
+        let inputFailed = false;
         const child = spawn(
           coderBin,
-          ["templates", "push", templateName, "--directory", `templates/${templateName}`, "--yes"],
+          ["templates", "push", templateName, "--directory", "-", "--yes"],
           {
             env: {
               ...process.env,
@@ -149,27 +154,36 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
           },
         );
 
+        child.stdin.on("error", () => {
+          if (inputFailed) return;
+          inputFailed = true;
+          child.kill();
+          reject(new Error("Template artifact input failed"));
+        });
+        child.stdin.end(archive);
         child.stdout.pipe(logStream, { end: false });
         child.stderr.pipe(logStream, { end: false });
 
         child.on("close", (code) => {
-          const sentinel = `\n[exit:${code === 0 ? 0 : 1}]\n`;
+          const succeeded = code === 0 && !inputFailed;
+          const sentinel = `\n[exit:${succeeded ? 0 : 1}]\n`;
           logStream.write(sentinel, () => {
             logStream.end();
           });
 
-          if (code === 0) {
+          if (succeeded) {
             console.log(`[template-push] Push succeeded for "${templateName}" (job ${jobId})`);
             resolve();
           } else {
             console.error(
-              `[template-push] Push failed for "${templateName}" (job ${jobId}) — exit code ${code}`,
+              `[template-push] Push failed for "${templateName}" (job ${jobId}) — ${inputFailed ? "artifact input failed" : `exit code ${code}`}`,
             );
             reject(new Error(`coder templates push exited with code ${code}`));
           }
         });
 
         child.on("error", (err) => {
+          if (inputFailed) return;
           const msg = `\n[error: ${err.message}]\n[exit:1]\n`;
           logStream.write(msg, () => {
             logStream.end();

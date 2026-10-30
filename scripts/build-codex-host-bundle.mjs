@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { validateGuardianArtifact } from "./build-native-guardian.mjs";
 
 const require = createRequire(import.meta.url),
-  { build } = require("esbuild");
+  { build, transform } = require("esbuild");
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 if (process.argv.length !== 3) throw new Error("Expected a new absolute output directory");
 const out = process.argv[2];
@@ -23,6 +23,10 @@ await build({
   stdin: { contents: 'export {default,WebSocket,WebSocketServer} from "ws";', resolveDir: root },
   outfile: join(out, "vendor/ws.mjs"),
   bundle: true,
+  minifyWhitespace: true,
+  minifyIdentifiers: true,
+  minifySyntax: false,
+  keepNames: true,
   platform: "node",
   format: "esm",
   target: "node24",
@@ -54,9 +58,11 @@ const modules = [
   "delivery-github-journal.mjs",
   "delivery-source-publisher.mjs",
   "delivery-source-publisher-journal.mjs",
+  "delivery-source-state-client.mjs",
 ];
 const assets = [
   "managed-projects.py",
+  "managed-source-apply.py",
   "github-projects.py",
   "github-evidence.py",
   "delivery-source-broker.py",
@@ -71,10 +77,26 @@ const assets = [
 const guardianArtifact = process.env.HIVE_GUARDIAN_ARTIFACT_DIR
   ? validateGuardianArtifact(root, resolve(process.env.HIVE_GUARDIAN_ARTIFACT_DIR))
   : null;
+// Identifier/whitespace compaction preserves runtime names and avoids syntax minification while
+// fitting the existing pod metadata budget. The artifact builder recomputes this
+// exact transform before omitting any loose source from the distributable tar.
 for (const name of modules)
   writeFileSync(
     join(out, name),
-    readFileSync(join(source, name), "utf8").replaceAll('from "ws"', 'from "./vendor/ws.mjs"'),
+    (
+      await transform(
+        readFileSync(join(source, name), "utf8").replaceAll('from "ws"', 'from "./vendor/ws.mjs"'),
+        {
+          loader: "js",
+          format: "esm",
+          target: "node24",
+          minifyWhitespace: true,
+          minifyIdentifiers: true,
+          minifySyntax: false,
+          keepNames: true,
+        },
+      )
+    ).code,
     { mode: 0o500, flag: "wx" },
   );
 for (const name of assets) copyFileSync(join(source, name), join(out, name), 1);

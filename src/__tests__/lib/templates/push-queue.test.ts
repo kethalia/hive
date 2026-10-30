@@ -43,6 +43,10 @@ vi.mock("@/lib/coder/user-client", () => ({
   },
 }));
 
+vi.mock("@/lib/templates/artifact.node", () => ({
+  readTemplateArtifact: vi.fn().mockResolvedValue(Buffer.from("verified-tar")),
+}));
+
 let logChunks: string[] = [];
 let mockWriteStream: Writable;
 
@@ -65,12 +69,26 @@ vi.mock("fs/promises", () => ({
   readdir: vi.fn().mockRejectedValue(new Error("not readable")),
 }));
 
-let spawnedChild: EventEmitter & { stdout: Readable; stderr: Readable };
+let spawnedChild: EventEmitter & {
+  stdout: Readable;
+  stderr: Readable;
+  stdin: Writable;
+  kill: ReturnType<typeof vi.fn>;
+};
 function createMockChild() {
   const child = new EventEmitter() as EventEmitter & {
     stdout: Readable;
     stderr: Readable;
+    stdin: Writable;
+    kill: ReturnType<typeof vi.fn>;
   };
+  child.stdin = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+  });
+  vi.spyOn(child.stdin, "end");
+  child.kill = vi.fn();
   child.stdout = new Readable({ read() {} });
   child.stderr = new Readable({ read() {} });
   return child;
@@ -179,20 +197,44 @@ describe("push-queue", () => {
         { env: Record<string, string> },
       ];
       expect(bin).toBe("/usr/bin/coder");
-      expect(args).toEqual([
-        "templates",
-        "push",
-        "ai-dev-k8s",
-        "--directory",
-        "templates/ai-dev-k8s",
-        "--yes",
-      ]);
+      expect(args).toEqual(["templates", "push", "ai-dev-k8s", "--directory", "-", "--yes"]);
 
+      expect(spawnedChild.stdin.end).toHaveBeenCalledWith(Buffer.from("verified-tar"));
       expect(opts.env.CODER_URL).toBe(MOCK_BASE_URL);
       expect(opts.env.CODER_SESSION_TOKEN).toBe(MOCK_SESSION_TOKEN);
 
       spawnedChild.emit("close", 0);
       await jobPromise;
+    });
+
+    it("does not spawn or resolve owner credentials when the artifact is invalid", async () => {
+      const { readTemplateArtifact } = await import("@/lib/templates/artifact.node");
+      const { getCoderClientForUser } = await import("@/lib/coder/user-client");
+      vi.mocked(readTemplateArtifact).mockRejectedValueOnce(
+        new Error("Template artifact digest mismatch"),
+      );
+      await expect(
+        capturedProcessor!({
+          data: { templateName: "ai-dev-k8s", jobId: "bad", userId: "user-abc" },
+        }),
+      ).rejects.toThrow("digest mismatch");
+      expect(mockSpawn).not.toHaveBeenCalled();
+      expect(getCoderClientForUser).not.toHaveBeenCalled();
+    });
+
+    it("retains failure when stdin errors but the child later reports exit zero", async () => {
+      const jobPromise = capturedProcessor!({
+        data: { templateName: "ai-dev-k8s", jobId: "pipe", userId: "user-abc" },
+      });
+      const rejected = expect(jobPromise).rejects.toThrow("Template artifact input failed");
+      await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalled());
+      spawnedChild.stdin.emit("error", new Error("private lower-level detail"));
+      expect(spawnedChild.kill).toHaveBeenCalledOnce();
+      spawnedChild.emit("close", 0);
+      await rejected;
+      expect(logChunks.join("")).toContain("[exit:1]");
+      expect(logChunks.join("")).not.toContain("[exit:0]");
+      expect(logChunks.join("")).not.toContain("private lower-level detail");
     });
 
     it("tees stdout and stderr to log file", async () => {

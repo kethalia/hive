@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "exportBaseCommit": "ad616325c8305c33c889ffc529c59c6a07779d08",
+  "finalTransform": {
+    "minifyWhitespace": true,
+    "minifyIdentifiers": true,
+    "minifySyntax": false,
+    "keepNames": true,
+    "target": "node24",
+    "format": "esm"
+  },
+  "limits": {
+    "templateTar": 1048576,
+    "hostGzip": 160000,
+    "hostExpanded": 2097152
+  },
+  "validation": {
+    "artifactArchiveProfilePackageTestsPassed": 24,
+    "nodeArtifactQueueStalenessTestsPassed": 32,
+    "compiledControllerStartupBridgeTestsPassed": 52,
+    "compiledActualNativeTestsPassed": 3,
+    "compiledFixedInstallerTestsPassed": 1,
+    "typecheck": "passed",
+    "scopedBiome": "passed",
+    "cloudRequests": 0,
+    "accountInference": false,
+    "authorityActivated": false
+  },
+  "sourceSha256": {
+    "package.json": "e857f21fb5b31539352108d4839ef133bcb1d503897a3846982bc440a2875bcd",
+    "scripts/build-codex-host-bundle.mjs": "4a6faf884e884f89155cd77a65c7dcceafeb5791969916a65fe3c2021a817367",
+    "scripts/build-template-artifacts.mjs": "24bb122446fa6d18fec495a632901fbbdd922131659187e4ebf0647efd4c2af4",
+    "scripts/build-template-artifacts.test.mjs": "2972f635d67645ab38117852d32bc1a747001eff1b09f2ae27768c345d5c2e76",
+    "scripts/verify-agent-tools.test.mjs": "d21347399ecb797d4aa9a28d7e8da1cc37d21c0828ea062906fd690d9f2574ad",
+    "scripts/verify-codex-compiled-host.test.mjs": "e01d2436522d440d24f98bc43d86cc3e619dd2ce4ebd60d51a164ea68f3b9d47",
+    "src/lib/templates/artifact.node.ts": "dd41e5a2ac68fa2d6461e008f605de40151b3d000fa6504c2759d54c73f862df",
+    "src/lib/templates/push-queue.ts": "306b7f0b2311320fbb92b03278ea1b299e4160475f7769d2ee40218f5e17cb4f",
+    "src/lib/templates/staleness.ts": "6a857b6c06133c61c365d063b3754a8bf3ce1cb5f732b6853d1cfcfb6247304d",
+    "src/__tests__/lib/templates/artifact.node.test.ts": "9db58b3250fefb85e614c6646660c13db66350afb84079fac5bfd912a969f765",
+    "src/__tests__/lib/templates/push-queue.test.ts": "5f0865cbb657bd5a5875a146d5b0576805b00103769b58814cded46e5b1c3c5f",
+    "src/__tests__/lib/templates/staleness.test.ts": "7d2b7df83c33b57fbdb1f18a080b900443f4437fbf33d32a35af2d80da7c8731",
+    "docs/checks/autonomous-delivery/template-artifact-packaging.md": "35fa7bf692b65b46d34b65c8b95cbdef48966691df2e8f972798525b769bf954"
+  },
+  "executedRuntimeSourceSha256": {
+    "templates/ai-dev-k8s/scripts/agent-tools.py": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787",
+    "templates/ai-dev-k8s/scripts/coder-credential-cleanup.py": "0cec985766bdfb2d55c6c3b7fc3d2db2e8cd5fbd5a579dad83a97522f6837bde",
+    "templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs": "f5cc40737bd7497fc18f9001ab63117b2a8a5c5175ab7a84ee4b1948e31bba04",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "e18210f036c9c6fa299012fb571144b98420ee14f50bd3dfa5237ed791a496a3",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "21c1aa91e7e9f4abbe56173f8ef39eb4066f2b051fdd020105d4aab632a62c10",
+    "templates/ai-dev-k8s/scripts/codex-host-registration.mjs": "c9cc1019bb3d0784df0f9e6be9542e3042d5ee43328ffa42747e5d4de521aef7",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "731228834e262f4bfe930c3fa8a711d3b7ae2e2fc55d93f658b76dbff5648537",
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": "33550f4d7ac4e3c5532429d7a71d57c8cec285bec3c3423a7803b79d5695b8d7",
+    "templates/ai-dev-k8s/scripts/codex-process-identity.mjs": "c93b5845f0d4b9eb0c98177ed0746f86a521332f0568403082d6aed5fd6da24c",
+    "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "8057a97732aa0c477b32601898503d7a233abbb7bdf11a9f600b0a33c9f8c6f9",
+    "templates/ai-dev-k8s/scripts/codex-project-discovery.mjs": "8062fbbc1c311b30b0d712bb8ed5b04ce4df83498276d38bc0dfac7cdc0514ee",
+    "templates/ai-dev-k8s/scripts/codex-project-gateway.mjs": "8068b48eae2eef0f8bbce6e9dd9815290f4e1dd9e1c3bf61590f715766889479",
+    "templates/ai-dev-k8s/scripts/codex-project-lease.py": "c2c2b174e6dbc8a7af3c36aa3e4d7e8332f2b247ef39038d959b590221f28bfc",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "1ec12e83d733442b55a4897e645455dbd36fa406f73011e5aec6a65ba6e6eac1",
+    "templates/ai-dev-k8s/scripts/codex-project-terminal.mjs": "aa573cd860847bb7a4a3c70b36c6055cc89853d68afc70b141dfaad1673d7942",
+    "templates/ai-dev-k8s/scripts/codex-project-terminal.py": "3c020ce1071f10bd40960cb2d5a6d1914cb3c586536c9f12efd32cc123a12860",
+    "templates/ai-dev-k8s/scripts/codex-sandbox-readiness.py": "d6a91c4fdb4aa02aa342d93d6ca52aeadd8ce12fe694866b00dfb2614d822e1b",
+    "templates/ai-dev-k8s/scripts/codex-session-bridge.mjs": "125cb2f433ca284cfff6711bfa6b0cb9e2d4a52c949210720fcc94a03c216c59",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs": "2581d414f1966d7aad8ebf17dd577ed2ef518f8023bbb6b5e811ff1a2d2fd0d6",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-worker.mjs": "8d6d99ecbe352f55a0db21dc757f70a85e6f49ef5ad59775b183cbde4951dc50",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": "9571ce94eb0fd4d723b9330b105d3c67d08073e97317a7a9209c9de5ddaadedb",
+    "templates/ai-dev-k8s/scripts/delivery-github-collector.mjs": "c953938200f74f23bcff4a64ddbbc6af72c9bc95c9e645d8ebf21314c82d34ee",
+    "templates/ai-dev-k8s/scripts/delivery-github-journal.mjs": "ed0158a8588088cd2e7f96bfaa609c14bc876a31da0297c092c94601adf61a94",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "cee257cbaa392aa1094cf49bacedc0f935bc8e33a7bc004e89d3ca83ef327ccf",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "fbd006009ca6db0fc784e94054e51ce7aab098623a9c1271ebb5ac66443da403",
+    "templates/ai-dev-k8s/scripts/delivery-source-broker.py": "a1046b274d4947924c5b10ba02b509982d629b8c332c6ac075aaf3f39638ba70",
+    "templates/ai-dev-k8s/scripts/delivery-source-provider.py": "cf737991ab5606b85e468a5872b72a4d3a0cd5dbdf8ff926189c470aff9b0b3b",
+    "templates/ai-dev-k8s/scripts/delivery-source-publisher-journal.mjs": "9b21789a483bcd2fbc8e06567ab29c36af5cbc4286b821eae0961d68e5602ab4",
+    "templates/ai-dev-k8s/scripts/delivery-source-publisher.mjs": "1500e602ff0f34bc6c7a82b0f7543b2cddc61b71e5950db06a8768751a190f00",
+    "templates/ai-dev-k8s/scripts/delivery-source-runtime.py": "fe6bd196e98030449897ce5076ccc2688d48af127c5c9f68e0525212c8c926ef",
+    "templates/ai-dev-k8s/scripts/delivery-source-state-client.mjs": "4b6124ed687d65a6dc9785d6964ed37eb466ecadbe924b9be569f34ef663dc4b",
+    "templates/ai-dev-k8s/scripts/delivery-source-worker.py": "25d707e7873f71e515fbf6820e8a9c36a19951a99b465a51c7ee9239f0a5d419",
+    "templates/ai-dev-k8s/scripts/github-evidence.py": "5e7dbcfa8286b4c955aa7b56b569c4566285911c84fa25f22d6ccf2dbbd3e136",
+    "templates/ai-dev-k8s/scripts/github-projects.py": "54f8bdf9199612e3adeec314532b2c35e333f2b93f24c298f3c32a0399afd2d1",
+    "templates/ai-dev-k8s/scripts/install-codex-host.py": "494ef683050a157b8a8ae57c48b2a10a06e550924e781a236dcfde03929e3bbe",
+    "templates/ai-dev-k8s/scripts/install-codex-runtime.py": "62bbf5266bc539f430a02db31c1f9299ea4ad31ad637a4ca6cf366be2f34de21",
+    "templates/ai-dev-k8s/scripts/install-neon-skill.py": "550dd8c5d8eee63c81a85362bc2e04aa26834f2b3a98370c2d7ebef2b9dfb404",
+    "templates/ai-dev-k8s/scripts/kasmvnc-loopback.c": "6e83588ccae2c2bc29ab711a538f44b7336eeaf22ab9f81af21a3f6da0001546",
+    "templates/ai-dev-k8s/scripts/managed-projects.py": "7e2ff9eeb57b34fcf1f29308de0d463fd5b3b7b6e26ab7968e252fba2979f6d1",
+    "templates/ai-dev-k8s/scripts/managed-source-apply.py": "7e894b75fad56b92886b1c4e47098806952deabc097ea9d7f32d895280512660",
+    "templates/ai-dev-k8s/scripts/prune-turbo-cache.py": "c1359badda538d19ef07dead380d5a0cd97d2180e26fc5054dc8b0021e1cadc7",
+    "templates/ai-dev-k8s/scripts/retire-tmux-snapshots.py": "9e788fdd0761faece41b78f7ca22475da6005fa50dcf806781837c4bcdc6ff3a",
+    "templates/ai-dev-k8s/scripts/update-official-agents.py": "b6d442c29c6ba5ae6bacedca111baaea3af3eea2e11e48b418646bc991257c1e",
+    "templates/ai-dev-k8s/scripts/workspace-lifecycle.py": "56fcd57e17d6034f8510e84757ed54aaaaa98bacad84b7983f461172b6bb8340",
+    "templates/ai-dev-k8s/scripts/worktree-lifecycle.py": "0cbc40e62496b3dbb39a2a83af45213de0c9a597a47ae768fd7a260c19fcbead"
+  },
+  "assembledSourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs": "bed0eca53e7ec9db442b22b147f9d757f89df738d5dc0cef25408f3bd30b7e78",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "26240d048b1faca6226519576f00dc8df5548467a455d885824408ed7b39546f",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "497dceb31328e2ca9ded537a91178308081051bedb0aae30eaff1a8f56d4e71e",
+    "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "1c47f073b883342c6dbe018007786f9217a5688164a248feebd657ddc5962e93",
+    "templates/ai-dev-k8s/scripts/codex-project-discovery.mjs": "ca0f0387e3e59b665b88fd4cf342a325467f416917d3d192c7dd7de6f82eed2e",
+    "templates/ai-dev-k8s/scripts/codex-project-gateway.mjs": "3bba35882b97c2af2cb33d3bb53f931119ad8b8542d675e4d30dcb00184a9883",
+    "templates/ai-dev-k8s/scripts/codex-session-bridge.mjs": "24df16ae9d8b0828087fa49797d159c113ae61d5057e90a8db9cac12dc9c36d7",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs": "d39a09e0819b2e1e5e88d5f40e977af00b080e582cf659d024757be63ab17c67",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": "eeb52fdd279bb1dd050636d6cac4f417f4e0ff160951370ee709619c02b1f276",
+    "scripts/verify-codex-guardian-controller.test.mjs": "5fa9b5126f1ce9205056b0f3c226cd665a1dee7f5f02f3e6381ad6af91dfd730",
+    "scripts/verify-codex-project-controller.test.mjs": "096f00c31662af0308f6888a16e35c80940017d33d3957f4175aaf41c826ca9a",
+    "scripts/verify-codex-guarded-controller.test.mjs": "3431915f238666eb70f6351783d3889b9c1604084c49cda168dda1765b1bf814",
+    "scripts/probe-guardian-controller.mjs": "2587eba8ef62f8b3b57715922670e4821fc5faf6e45a45811fefa155bbc0ccfc",
+    "src/lib/codex-session/bootstrap-delivery.server.ts": "e55728ac550adad2550e68c9b59ec6e99236c7efaf233a3d5424e513fcdba194",
+    "src/lib/codex-session/guardian-factory.server.ts": "adcf6bfe23f1e2f17938fb561f3f5c3c5f14f542508711f58429839c9b35d2fb",
+    "src/__tests__/lib/codex-session/bootstrap-delivery.test.ts": "248da3e7c5fc19161a5f95f67a441050b8021c57a440b018d67580706f506529",
+    "src/__tests__/lib/codex-session/guardian-installed.integration.test.ts": "b73b9c0c46b59671dd581d2111757efb2452aaba2c240353ea576268027e4310",
+    "docs/checks/autonomous-delivery/guardian-controller.md": "266e9e251cea409c01bf0ae9299317e771d38d1e7127f9f94f6ccd828b1bcd41",
+    "docs/checks/autonomous-delivery/guardian-controller-local/composition.json": "a655e204c6331a007fcbd110f5e63b79774994ebd35e63d7af8caf94b6216fb8",
+    "docs/checks/autonomous-delivery/guardian-controller-local/first-failure.json": "622405bd1a07ca941fa51025f512da9505d2cfd11cb3803a460e8cc04874bde4"
+  },
+  "measurementOnlyWipSha256": {
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "13d9b7844bd711385069a9cc53069c7b8e79e6ca89790bd9177f12d999fbd86f",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "2af7d77f019c750c697a65f76c47760c8d5f601e8333943744320b1f17cd8945",
+    "templates/ai-dev-k8s/scripts/delivery-github-collector.mjs": "b41068f70b0d69e0ca653c3e538c28ac1af805aace954d76ac585342db2fc039"
+  },
+  "assembledSizes": {
+    "schemaVersion": 1,
+    "includesGuardianController": true,
+    "includesReviewedGuardianElf": true,
+    "hostGzipBytes": 151578,
+    "hostTarSha256": "5d0d5aabb56315b230ebd12000cfa6dca6d90337083f69d4a4080b770daf1cc4",
+    "hostGzipSha256": "96595daefafceae80417ab6fe91a8cfd218794f8f506290f20f7ef4f32cafc6d",
+    "templates": {
+      "ai-dev-k8s": {
+        "contentHash": "bfd40e1d060442fef0e5f0b5b021739fd0c957f2322464c5bb28fe8d015fe938",
+        "archiveDigest": "ff8bec7e54a447bcad435608694acb8bea0c6068e86323197cf05048a2163278",
+        "archiveBytes": 949760,
+        "fileCount": 69
+      },
+      "browser-testing": {
+        "contentHash": "d8f7c5e5d6783756fabdf48710f96ec8aa69ac836b3d9004ce41635c5795721a",
+        "archiveDigest": "0e525e791e413d46d0dcbb4e2886bcfb49740a031d521833401bf2e5af4d1c67",
+        "archiveBytes": 945152,
+        "fileCount": 69
+      },
+      "game-dev": {
+        "contentHash": "40ac6ecdbe9cd13b3129efda783db343ecdd47b5afb8a8b3ec4de95e72b73da1",
+        "archiveDigest": "b4e57a74b25a452e299439262f2580426f5e94747839cc3273f4e9d9914aadc1",
+        "archiveBytes": 946176,
+        "fileCount": 69
+      },
+      "electronics": {
+        "contentHash": "1c6e160aa6515215fe5999ad30d4f668a79a3919e90a92136bf5024d1666c51e",
+        "archiveDigest": "60a238a0842e3a9f492b6968100d9db4f216ae6ae711ac9bc63d857e99d7333f",
+        "archiveBytes": 945664,
+        "fileCount": 69
+      },
+      "infrastructure": {
+        "contentHash": "878f69db9ec03247dc161e8705e6ce41dd662c93c79ef4bd226432093f9a0a47",
+        "archiveDigest": "2fcb96bdede250f608f26f9aee28f9cc23d35b09d5b5daf2641632e383133363",
+        "archiveBytes": 946176,
+        "fileCount": 69
+      }
+    }
+  },
+  "evidenceSha256": {
+    "docs/checks/autonomous-delivery/template-artifact-local/build-tests.txt": "99fdb1a42ec9f87fda1cd2aa4abe14831d3724e006da421b37cd8cd72cb0cb72",
+    "docs/checks/autonomous-delivery/template-artifact-local/combined-size.json": "122124a39bbe9ee23dc5b0dcca5c77a9b67eb5160bc6ac118194110936ef98a9",
+    "docs/checks/autonomous-delivery/template-artifact-local/compiled-final.txt": "28e74f62d6b972b4c774bb63661930d2309fe33412a4a0852ea1d74e3ebe4247",
+    "docs/checks/autonomous-delivery/template-artifact-local/compiled-installer-final.json": "14774c80df6b16ee1046824bb3d288a3df099a8797780f053beed573b48e0f84",
+    "docs/checks/autonomous-delivery/template-artifact-local/compiled-installer-final.txt": "7a1be54085b125eefc7a23ff63430558c00fae39b315f58ded26a49cd4e4e51c",
+    "docs/checks/autonomous-delivery/template-artifact-local/compiled-installer-first.json": "01c9e578901df6c7c12b53ef423731a548528174df5996487738df22163d5e9a",
+    "docs/checks/autonomous-delivery/template-artifact-local/compiled-native-first.txt": "705372ff01a64dafe80c3b643a9f1146e9e85bed14737816136c61c99d00a7e6",
+    "docs/checks/autonomous-delivery/template-artifact-local/export-cleanup.json": "c79c940bb3d2623006512d8bea3a1d1b38e9324056fc5e1b778119fdeb25fee5",
+    "docs/checks/autonomous-delivery/template-artifact-local/first-failures.json": "1ca3c9554b7e23505d546033974736d67baef16ebe182e14a8ed0a756181cc6d",
+    "docs/checks/autonomous-delivery/template-artifact-local/node-tests.txt": "7983192654df251a632f1fc5955ab29f9a8dfd3504f07742c4a8876bbc154a57",
+    "docs/checks/autonomous-delivery/template-artifact-local/typecheck.txt": "fc52cf26cbc19500c50a065d5fce046e588f330ab13837032e1766b13582dd30"
+  },
+  "parentLogNormalization": "Removed only extra trailing blank lines for git diff --check; original logs retained under /tmp."
+}
