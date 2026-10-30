@@ -41,7 +41,10 @@ export class DeliveryNativeSourceService {
         ],
       },
       async (tx) => {
-        const scope = await lockManagerCheckout(tx, input, registered, { allowBlocked: true });
+        const scope = await lockManagerCheckout(tx, input, registered, {
+          allowBlocked: true,
+          guardianPolicy: this.dependencies.guardianPolicy,
+        });
         if (scope.binding.id !== input.managerBindingId)
           throw new DeliveryConflict("native_source_binding_mismatch");
         await resolveTaskSource(tx, registered.ownerId, input.taskId, input.sourceContext, true);

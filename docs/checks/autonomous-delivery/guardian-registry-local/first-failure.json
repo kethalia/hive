@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T23:22:58Z",
+  "stage": "storage-fixture-isolation",
+  "passed": false,
+  "checks": {
+    "lifecycle": "passed",
+    "substitutionFixtureSetup": "failed",
+    "immutabilityFixtureSetup": "failed"
+  },
+  "failure": "Independent fixture instances reused a constant enrollment token digest; the global token_digest unique constraint correctly rejected the second and third fixtures.",
+  "resolution": "Generate a unique synthetic token digest for each fixture; keep the database unique constraint and preserve uniquely scoped rows.",
+  "database": "Separate loopback PostgreSQL fixture, schema24; no production or Neon writes.",
+  "accountInference": false,
+  "cloudMutations": false
+}

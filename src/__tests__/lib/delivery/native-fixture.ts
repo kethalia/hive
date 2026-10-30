@@ -1,13 +1,28 @@
-import { generateKeyPairSync, randomBytes, randomUUID, sign } from "node:crypto";
-import type { PrismaClient } from "@hive/db";
+import { generateKeyPairSync, type KeyObject, randomBytes, randomUUID, sign } from "node:crypto";
+import type { DeliveryProject, PrismaClient, User } from "@hive/db";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { PrismaRegistrationStore } from "@/lib/codex-session/registration-store.server";
 import { DeliveryManagerService } from "@/lib/delivery/manager.server";
+import type { ManagerCheckout } from "@/lib/delivery/manager-contracts";
 import { managerProofPayload } from "@/lib/delivery/manager-contracts";
 import { DeliveryNativeSourceService } from "@/lib/delivery/native.server";
 import { nativeProofPayload } from "@/lib/delivery/native-contracts";
 
-export async function nativeFixture(db: PrismaClient, managerThreadId: string = randomUUID()) {
+export interface NativeFixtureHooks {
+  beforeRegister?(scope: {
+    user: User;
+    project: DeliveryProject;
+    host: RegistrationBinding;
+    keys: { publicKey: KeyObject; privateKey: KeyObject };
+    serverInstanceId: string;
+    context: ManagerCheckout;
+  }): Promise<void>;
+}
+export async function nativeFixture(
+  db: PrismaClient,
+  managerThreadId: string = randomUUID(),
+  hooks: NativeFixtureHooks = {},
+) {
   const user = await db.user.create({
     data: {
       coderUrl: "https://fixture.invalid",
@@ -69,7 +84,6 @@ export async function nativeFixture(db: PrismaClient, managerThreadId: string = 
     registrationId = id;
     return id;
   }
-  await register();
   const context = {
     projectId: project.id,
     preparationIntentId: randomUUID(),
@@ -101,6 +115,8 @@ export async function nativeFixture(db: PrismaClient, managerThreadId: string = 
       },
     },
   });
+  await hooks.beforeRegister?.({ user, project, host, keys, serverInstanceId, context });
+  await register();
   const policy = {
     version: "native-fixture-v1",
     trustedProducers: ["fixture-ci"],

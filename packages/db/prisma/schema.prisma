@@ -143,6 +143,7 @@ model DeliveryProject {
   epics                DeliveryEpic[]
   tasks                DeliveryTask[]
   managerBindings      DeliveryManagerBinding[]
+  guardianAdmissions CodexGuardianAdmission[]
   @@unique([ownerId, id])
   @@unique([ownerId, provider, providerRepositoryId])
   @@map("delivery_projects")
@@ -410,6 +411,7 @@ model CodexHostSlot {
   owner User @relation(fields: [ownerId], references: [id])
   grants CodexRegistrationGrant[]
   registrations CodexHostRegistration[]
+  guardianRuntimes CodexGuardianRuntime[]
   @@unique([ownerId, id])
   @@unique([ownerId, coderOrigin, workspaceId, agentId])
   @@map("codex_host_slots")
@@ -453,6 +455,7 @@ model CodexHostRegistration {
   heartbeatRequestDigest String? @map("heartbeat_request_digest")
   slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id])
   threads CodexRegisteredThread[]
+  guardianAdmissions CodexGuardianAdmission[]
   @@unique([ownerId, id])
   @@unique([ownerId, slotId, id])
   @@unique([slotId, generation])
@@ -502,6 +505,7 @@ model ProjectTaskIntent {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
   managerBindings DeliveryManagerBinding[]
+  guardianAdmissions CodexGuardianAdmission[]
   @@unique([ownerId, id])
   @@unique([ownerId, projectId, id])
   @@unique([ownerId, projectId, requestId])
@@ -590,4 +594,129 @@ model DeliverySourceRevision {
   @@unique([ownerId, managerBindingId, operationId])
   @@unique([ownerId, taskId, version])
   @@map("delivery_source_revisions")
+}
+
+
+// Explicit guardian enrollment is independent of native registration: preparation
+// precedes root creation. All runtime authority is server-persisted and tenant-bound.
+model CodexGuardianRuntime {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  slotId String @map("slot_id") @db.Uuid
+  lifetimeId String @map("lifetime_id") @db.Uuid
+  bindingDigest String @map("binding_digest")
+  outerPublicKeyPem String @map("outer_public_key_pem")
+  outerKeyFingerprint String @map("outer_key_fingerprint")
+  binding Json
+  packageManifestSha256 String @map("package_manifest_sha256")
+  guardianElfSha256 String @map("guardian_elf_sha256")
+  nodeSha256 String @map("node_sha256")
+  policyDigest String @map("policy_digest")
+  metadataPolicyDigest String @map("metadata_policy_digest")
+  configSha256 String @map("config_sha256")
+  workspaceId String @map("workspace_id") @db.Uuid
+  buildId String @map("build_id") @db.Uuid
+  phase String @default("reserved")
+  generation Int @default(1)
+  producerApproved Boolean @default(false) @map("producer_approved")
+  serverInstanceId String? @map("server_instance_id")
+  hostKeyFingerprint String? @map("host_key_fingerprint")
+  nativeLaunchId String? @map("native_launch_id") @db.Uuid
+  nativeLaunchDigest String? @map("native_launch_digest")
+  nativeLaunchAt DateTime? @map("native_launch_at") @db.Timestamptz
+  authorityUntil DateTime @map("authority_until") @db.Timestamptz
+  closedBarrierId String? @map("closed_barrier_id") @db.Uuid
+  enrolledAt DateTime? @map("enrolled_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id], onDelete: Restrict)
+  grants CodexGuardianEnrollmentGrant[]
+  admissions CodexGuardianAdmission[]
+  barriers CodexGuardianBarrier[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, slotId, lifetimeId])
+  @@unique([ownerId, outerKeyFingerprint, lifetimeId])
+  @@map("codex_guardian_runtimes")
+}
+
+model CodexGuardianEnrollmentGrant {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  tokenDigest String @unique @map("token_digest")
+  bindingDigest String @map("binding_digest")
+  issuedAt DateTime @map("issued_at") @db.Timestamptz
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  consumptionDigest String? @map("consumption_digest")
+  runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict)
+  @@unique([ownerId, id])
+  @@map("codex_guardian_enrollment_grants")
+}
+
+model CodexGuardianAdmission {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  preparationIntentId String @map("preparation_intent_id") @db.Uuid
+  preparationDigest String @map("preparation_digest")
+  preparation Json
+  intentRequestDigest String @map("intent_request_digest")
+  phase String @default("preparation")
+  generation Int @default(1)
+  checkoutBinding Json? @map("checkout_binding")
+  checkoutBindingDigest String? @map("checkout_binding_digest")
+  checkoutIncarnation String? @map("checkout_incarnation") @db.Uuid
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseGeneration Int? @map("lease_generation")
+  registrationId String? @map("registration_id") @db.Uuid
+  nativeThreadId String? @map("native_thread_id")
+  producerDigest String? @map("producer_digest")
+  metadataPins Json? @map("metadata_pins")
+  metadataPinsDigest String? @map("metadata_pins_digest")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  checkoutBoundAt DateTime? @map("checkout_bound_at") @db.Timestamptz
+  nativeBoundAt DateTime? @map("native_bound_at") @db.Timestamptz
+  runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict)
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id], onDelete: Restrict)
+  intent ProjectTaskIntent @relation(fields: [ownerId, projectId, preparationIntentId], references: [ownerId, projectId, id], onDelete: Restrict)
+  registration CodexHostRegistration? @relation(fields: [ownerId, registrationId], references: [ownerId, id], onDelete: Restrict)
+  decisions CodexGuardianStopDecision[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, runtimeId, id])
+  @@unique([ownerId, runtimeId, projectId])
+  @@map("codex_guardian_admissions")
+}
+
+model CodexGuardianBarrier {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  generation Int
+  ownershipDigest String @map("ownership_digest")
+  requestDigest String @map("request_digest")
+  closedAt DateTime @map("closed_at") @db.Timestamptz
+  runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict)
+  decisions CodexGuardianStopDecision[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, runtimeId, id])
+  @@unique([ownerId, runtimeId, generation])
+  @@map("codex_guardian_barriers")
+}
+
+model CodexGuardianStopDecision {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  barrierId String @map("barrier_id") @db.Uuid
+  admissionId String @map("admission_id") @db.Uuid
+  admissionGeneration Int @map("admission_generation")
+  stateDigest String @map("state_digest")
+  state Json
+  decidedAt DateTime @map("decided_at") @db.Timestamptz
+  barrier CodexGuardianBarrier @relation(fields: [ownerId, runtimeId, barrierId], references: [ownerId, runtimeId, id], onDelete: Restrict)
+  admission CodexGuardianAdmission @relation(fields: [ownerId, runtimeId, admissionId], references: [ownerId, runtimeId, id], onDelete: Restrict)
+  @@unique([ownerId, id])
+  @@unique([ownerId, barrierId, admissionId])
+  @@map("codex_guardian_stop_decisions")
 }

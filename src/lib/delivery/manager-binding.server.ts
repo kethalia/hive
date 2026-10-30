@@ -1,5 +1,7 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
 import type { Prisma, PrismaClient } from "@hive/db";
+import type { GuardianPolicy } from "@/lib/codex-session/guardian-contracts";
+import { lockProducerAdmission } from "@/lib/codex-session/guardian-store.server";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import {
   lockActiveRegistration,
@@ -84,10 +86,52 @@ export async function lockManagerCheckout(
   tx: Tx,
   input: Omit<CheckoutHostEnvelope, "proof">,
   authenticated: { ownerId: string; hostPublicKeyPem: string },
-  options: { create?: boolean; allowBlocked?: boolean; progressionProtocol?: 1 } = {},
+  options: {
+    create?: boolean;
+    allowBlocked?: boolean;
+    progressionProtocol?: 1;
+    guardianPolicy?: GuardianPolicy;
+  } = {},
 ) {
   const { ownerId } = authenticated,
     context = input.checkoutBinding;
+  const current = await tx.codexHostRegistration.findUnique({
+    where: { ownerId_id: { ownerId, id: input.registrationId } },
+  });
+  if (!current) throw new RegistrationRejected();
+  const guarded = await tx.codexGuardianAdmission.findFirst({
+    where: { ownerId, projectId: context.projectId, registrationId: input.registrationId },
+    select: { id: true },
+  });
+  const unresolved = await tx.codexGuardianRuntime.findFirst({
+    where: { ownerId, slotId: current.slotId, phase: { not: "tree_closed" } },
+    select: { id: true },
+  });
+  if (
+    guarded ||
+    unresolved ||
+    options.guardianPolicy ||
+    process.env.HIVE_GUARDIAN_ENABLED === "true"
+  ) {
+    const binding = current.binding as unknown as RegistrationBinding;
+    await lockProducerAdmission(
+      tx,
+      {
+        hiveUserId: ownerId,
+        registrationId: current.id,
+        workspaceId: binding.workspaceId,
+        buildId: current.buildId,
+        serverInstanceId: input.serverInstanceId,
+        managerThreadId: input.managerThreadId,
+        projectId: context.projectId,
+        preparationIntentId: context.preparationIntentId,
+        repositoryId: context.repositoryId,
+        leaseId: context.leaseId,
+        leaseGeneration: context.leaseGeneration,
+      },
+      options.guardianPolicy,
+    );
+  }
   const { registration, slot, now } = await lockActiveRegistration(tx, {
     ownerId,
     registrationId: input.registrationId,

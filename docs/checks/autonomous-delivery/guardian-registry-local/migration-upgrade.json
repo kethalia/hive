@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T23:44:39.135Z",
+  "baseRevision": "5db87fff906c11aa5f4a9fa8f91b7f9af74e06e7",
+  "sourceDigests": {
+    "packages/db/prisma/migrations/20261029130000_guardian_admission/migration.sql": "c490ae633e12272d821a5b2203637711182789139627a17bf7fa2e60cc8e24b7",
+    "packages/db/prisma/schema.prisma": "742026558e679979f858dafb9af48980715123224bcfda86b0f754b18e82b151",
+    "scripts/probe-guardian-registry-migration.mjs": "1ea81af9ea7dcb48fb3789167f2458e17c2ac076bb39b80beb183869a519bf41"
+  },
+  "sourceStable": true,
+  "passed": true,
+  "database": {
+    "sourceSchema": 23,
+    "targetSchema": 24,
+    "targetPort": 39989,
+    "database": "hive_guardian_upgrade_90d0358fb0cb44daa54ee7bb060f04be",
+    "retained": true,
+    "scratchDirectory": "/tmp/hive-guardian-upgrade-YuDToI"
+  },
+  "oldRowsPreserved": true,
+  "oldHistoryPreserved": true,
+  "legacyTables": {
+    "coder_tokens": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "codex_host_registrations": {
+      "rows": 631,
+      "sha256": "6cf00c4200ae2418c1e04b4fe0896c0b132a67ba204cfefee2cabc527891de6c"
+    },
+    "codex_host_slots": {
+      "rows": 610,
+      "sha256": "94408e373ada537f171dec31aebf58d737f51842a4c2c689f882b51981d3f5c0"
+    },
+    "codex_registered_threads": {
+      "rows": 631,
+      "sha256": "3b42a38f6a14d3f3427529a116bf25ba1cebb6f0cbf406b187600e62bec76136"
+    },
+    "codex_registration_grants": {
+      "rows": 631,
+      "sha256": "87e09c1ee2f2d3ed54498b8ad472a9a7c38097667bf5594d201412fe2d380137"
+    },
+    "delivery_attempts": {
+      "rows": 720,
+      "sha256": "0f5780758ea282143f623606ef6c3aaebc15a81b3aba08daa93926870adc31a1"
+    },
+    "delivery_conversations": {
+      "rows": 659,
+      "sha256": "c1a93b9272990356d731809b7b081ca68331663c694d64cb2113559c34b5803e"
+    },
+    "delivery_epics": {
+      "rows": 3,
+      "sha256": "655b49a8b7c1a3796258d7b52be35f99522d501729fc8b8e77bdc9179aa560b1"
+    },
+    "delivery_events": {
+      "rows": 3528,
+      "sha256": "12cfa22a6bba430a086fa88d1a4795907c5fba090a916ff50445dda7f130768f"
+    },
+    "delivery_evidence": {
+      "rows": 326,
+      "sha256": "76f036f9ba50dcce458c5d408f474d6f0af43459b60637cb04cff7e2b8f81786"
+    },
+    "delivery_manager_bindings": {
+      "rows": 598,
+      "sha256": "4731e1cc6412bf4b5d29e32a50b61eec55e2f6f309ddc7493a193e4657af4d62"
+    },
+    "delivery_outbox": {
+      "rows": 463,
+      "sha256": "bff94743744e18a2be20e02853d00d9b524988e24d9bc7060f68c5cbcd648cf6"
+    },
+    "delivery_projects": {
+      "rows": 778,
+      "sha256": "4b3a288bfc39794ee548778e739ed72e5e1e73c17fb4c53e92dad245cfc42fa1"
+    },
+    "delivery_report_evidence": {
+      "rows": 120,
+      "sha256": "9811df26a5075bec7d560ed347f9284dd3bfb9572e11c10edb4a9828221f43f9"
+    },
+    "delivery_source_revisions": {
+      "rows": 139,
+      "sha256": "a6af6c6c6588057027b89c824b61ab9759fa9ff3f959f15cc86c7e32c36c77f1"
+    },
+    "delivery_step_dependencies": {
+      "rows": 584,
+      "sha256": "9baf512871fef80a9589531b0a09be860865b4174a36c86a30d0b59e0869b9b3"
+    },
+    "delivery_step_reports": {
+      "rows": 215,
+      "sha256": "07d30b97654785bc25392de85b0c08c0d57b346dcc7886cacc393cfb00d0cf5a"
+    },
+    "delivery_steps": {
+      "rows": 1403,
+      "sha256": "30bab362afedd8c84b3bdd9b780a46a2141a5ec081ec56d5bd9cc1e480d5addf"
+    },
+    "delivery_tasks": {
+      "rows": 777,
+      "sha256": "30d709006649340534c7605c3ab0b7e350fe8ad17575680b3f2351e489e77321"
+    },
+    "navigation_favorites": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "notification_sources": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "project_task_intents": {
+      "rows": 610,
+      "sha256": "1df880a648550718beeb47bf1b4b6c9a7a21f8dc7fc563374890842a5299f22b"
+    },
+    "push_subscriptions": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "sessions": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "users": {
+      "rows": 682,
+      "sha256": "ff87909a71b0506d308149d0fc105b5e5364de5fabbba6fb013511cc8c8b2491"
+    },
+    "vapid_keys": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "physicalAnchorsPreserved": true,
+  "migrations": [
+    {
+      "name": "0_init",
+      "checksum": "2b4e3de10de83ac6feee91c24525c3ce0baada380d21e3cbbfbb6b48902e400c",
+      "rolledBack": null
+    },
+    {
+      "name": "20260602000000_add_navigation_favorites",
+      "checksum": "40389bab3a00b8bb95ef3a2cedfde8c04b44d95c1c9c97f3d959c83c35c076a2",
+      "rolledBack": null
+    },
+    {
+      "name": "20260603000000_add_terminal_controls_beyond_mobile",
+      "checksum": "a10ffffbb49343d2edce2600ca67552d9c8757b0bd4334b37caa0f1f32f033a4",
+      "rolledBack": null
+    },
+    {
+      "name": "20260714000000_add_navigation_favorite_position",
+      "checksum": "b79e9106b617f501d7c17822b0f0917cd2b464396a43d71f101d0c150166c409",
+      "rolledBack": null
+    },
+    {
+      "name": "20260814000000_remove_legacy_tasks",
+      "checksum": "1cfb9af7ba4cdc59306f1a25b9e8bbd7c340dd175b955fd3d1f74a72ae10b7a7",
+      "rolledBack": null
+    },
+    {
+      "name": "20261016000000_add_agent_notifications",
+      "checksum": "323c85eefc64c75c5dfc5240e8aa93805889d86895ef274566893276e36a7d0f",
+      "rolledBack": null
+    },
+    {
+      "name": "20261016010000_stage_notification_credentials",
+      "checksum": "96cb5165cb50d64c24489cad45f1f53efd0547d73dc91fbc29c5e1548b223b5b",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029000000_add_delivery_foundation",
+      "checksum": "5afb3dcb698bdae86a0ed905b35bea9255681f9f85f89e893165e549d830dc04",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029010000_delivery_audit_integrity",
+      "checksum": "3f7bd5aa766c76446d4ba03f13950869aa9834afa6a71ca1d3e4cfb91be10f12",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029020000_delivery_report_event_binding",
+      "checksum": "b3f460809b36fd2f465d86c2510fd771d5b82830195fd5f569d0af5de2703ddb",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029030000_delivery_runtime_recovery",
+      "checksum": "22df1aff4ead962203f7297269593721094a69af6cf52b93031ea2b6ceeb2fae",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029040000_coder_token_key_provenance",
+      "checksum": "79490e708067bd2a75014c431485ec2fb9acf8a30b15657d88a9f846b24ce07b",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029050000_codex_host_registration",
+      "checksum": "4cdf9506b033b22a4f7a587d7a3666693505d048c1ad199b8b8cc01fbfc45056",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029060000_codex_heartbeat_ack",
+      "checksum": "a32ca679ad7cb1929be51abf19fd0f7ad8af0c8a1ef0ff7f7ebfca6273a0aa8d",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029070000_project_task_intents",
+      "checksum": "c00bd0778d1f73de833de0b96399a222cc5d68768a9145e3e409055b42b237b2",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029071000_project_intent_payload_guards",
+      "checksum": "d99beaaed25ab0fcbeb4cfb8d92053a21079ddf7aab76e9652ddd3816b63350f",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029072000_project_intent_source_context",
+      "checksum": "06464c8432ee644586f3006c63eda777ab862767f2bb2c2bb085c942594ead97",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029073000_project_preparation_progress",
+      "checksum": "dd841feb7df1fc095c64f4ceaec0fcfc0b36a7a4f2310fa3f5c8f147343fa97c",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029090000_delivery_manager_binding",
+      "checksum": "a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029100000_delivery_informational_report",
+      "checksum": "8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029100100_delivery_report_null_guard",
+      "checksum": "c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029110000_delivery_manager_progression",
+      "checksum": "4fcff3d44749f4af283860f299a930da227cb20fcb8b57be9109f6d52d1086df",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029120000_delivery_source_revisions",
+      "checksum": "fd8777426fd15a9417e4e3f3e6914b0b1d28e499fd01f1e7ab5fe6d8e3416bb1",
+      "rolledBack": null
+    },
+    {
+      "name": "20261029130000_guardian_admission",
+      "checksum": "c490ae633e12272d821a5b2203637711182789139627a17bf7fa2e60cc8e24b7",
+      "rolledBack": null
+    }
+  ],
+  "cloudMutations": false,
+  "accountInference": false
+}
