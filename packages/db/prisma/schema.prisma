@@ -209,6 +209,7 @@ model DeliveryTask {
   steps            DeliveryStep[]
   events           DeliveryEvent[]
   sourceRevisions DeliverySourceRevision[] @relation("TaskSourceRevisions")
+  sourceApplications DeliverySourceApplication[]
   currentSourceRevision DeliverySourceRevision? @relation("CurrentTaskSourceRevision", fields: [ownerId, id, sourceRevisionId], references: [ownerId, taskId, id], onDelete: Restrict)
   @@unique([ownerId, id])
   @@unique([ownerId, id, managerBindingId])
@@ -456,6 +457,7 @@ model CodexHostRegistration {
   slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id])
   threads CodexRegisteredThread[]
   guardianAdmissions CodexGuardianAdmission[]
+  sourceApplications DeliverySourceApplication[]
   @@unique([ownerId, id])
   @@unique([ownerId, slotId, id])
   @@unique([slotId, generation])
@@ -587,6 +589,9 @@ model DeliverySourceRevision {
   nextRevisions DeliverySourceRevision[] @relation("SourceRevisionChain")
   currentForTasks DeliveryTask[] @relation("CurrentTaskSourceRevision")
   outputForAttempts DeliveryAttempt[] @relation("AttemptOutputRevision")
+  applications DeliverySourceApplication[] @relation("ApplicationTarget")
+  applicationTaskScopes DeliverySourceApplication[] @relation("ApplicationTargetTask")
+  previouslyAppliedIn DeliverySourceApplication[] @relation("ApplicationPredecessor")
   @@unique([ownerId, id])
   @@unique([ownerId, taskId, id])
   @@unique([ownerId, stepId, producingAttemptId], map: "delivery_source_revision_attempt_key")
@@ -682,6 +687,7 @@ model CodexGuardianAdmission {
   intent ProjectTaskIntent @relation(fields: [ownerId, projectId, preparationIntentId], references: [ownerId, projectId, id], onDelete: Restrict)
   registration CodexHostRegistration? @relation(fields: [ownerId, registrationId], references: [ownerId, id], onDelete: Restrict)
   decisions CodexGuardianStopDecision[]
+  sourceApplications DeliverySourceApplication[]
   @@unique([ownerId, id])
   @@unique([ownerId, runtimeId, id])
   @@unique([ownerId, runtimeId, projectId])
@@ -719,4 +725,61 @@ model CodexGuardianStopDecision {
   @@unique([ownerId, id])
   @@unique([ownerId, barrierId, admissionId])
   @@map("codex_guardian_stop_decisions")
+}
+
+// A logical accepted source is not a physical metadata-application acknowledgement.
+// Pending survives expiry, failure and restart; only the same protected operation
+// may complete. This ledger never releases the physical writer anchor.
+model DeliverySourceApplication {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  runtimeGeneration Int @map("runtime_generation")
+  admissionId String @map("admission_id") @db.Uuid
+  admissionGeneration Int @map("admission_generation")
+  producerDigest String @map("producer_digest")
+  registrationId String @map("registration_id") @db.Uuid
+  serverInstanceId String @map("server_instance_id")
+  managerThreadId String @map("manager_thread_id")
+  managerBindingId String @map("manager_binding_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  stepId String @map("step_id") @db.Uuid
+  producingAttemptId String @map("producing_attempt_id") @db.Uuid
+  publicationOperationId String @map("publication_operation_id") @db.Uuid
+  targetRevisionId String @map("target_revision_id") @db.Uuid
+  previousAppliedRevisionId String? @map("previous_applied_revision_id") @db.Uuid
+  previousApplicationId String? @map("previous_application_id") @db.Uuid
+  applicationVersion Int @map("application_version")
+  predecessorHeadSha String @map("predecessor_head_sha")
+  targetHeadSha String @map("target_head_sha")
+  metadataPinsDigest String @map("metadata_pins_digest")
+  namespaceReceiptDigest String @map("namespace_receipt_digest")
+  cursorVersion Int @map("cursor_version")
+  nativeSequence Int @map("native_sequence")
+  idleSnapshotDigest String @map("idle_snapshot_digest")
+  idleSnapshot Json @map("idle_snapshot")
+  inputBarrierId String @map("input_barrier_id") @db.Uuid
+  inputBarrierDigest String @map("input_barrier_digest")
+  inputBarrier Json @map("input_barrier")
+  requestDigest String @map("request_digest")
+  phase String @default("pending")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  appliedAt DateTime? @map("applied_at") @db.Timestamptz
+  appliedReceiptDigest String? @map("applied_receipt_digest")
+  appliedEvidence Json? @map("applied_evidence")
+  admission CodexGuardianAdmission @relation(fields: [ownerId, runtimeId, admissionId], references: [ownerId, runtimeId, id], onDelete: Restrict)
+  registration CodexHostRegistration @relation(fields: [ownerId, registrationId], references: [ownerId, id], onDelete: Restrict)
+  task DeliveryTask @relation(fields: [ownerId, taskId, managerBindingId], references: [ownerId, id, managerBindingId], onDelete: Restrict)
+  targetRevision DeliverySourceRevision @relation("ApplicationTarget", fields: [ownerId, stepId, producingAttemptId, targetRevisionId], references: [ownerId, stepId, producingAttemptId, id], onDelete: Restrict)
+  targetTaskRevision DeliverySourceRevision @relation("ApplicationTargetTask", fields: [ownerId, taskId, targetRevisionId], references: [ownerId, taskId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_source_application_target_task_fkey")
+  previousAppliedRevision DeliverySourceRevision? @relation("ApplicationPredecessor", fields: [ownerId, previousAppliedRevisionId], references: [ownerId, id], onDelete: Restrict)
+  previousApplication DeliverySourceApplication? @relation("ApplicationChain", fields: [ownerId, admissionId, previousApplicationId], references: [ownerId, admissionId, id], onDelete: Restrict)
+  nextApplications DeliverySourceApplication[] @relation("ApplicationChain")
+  @@unique([ownerId, id])
+  @@unique([ownerId, admissionId, id])
+  @@unique([ownerId, admissionId, applicationVersion])
+  @@unique([ownerId, admissionId, targetRevisionId])
+  @@unique([ownerId, admissionId, publicationOperationId])
+  @@index([ownerId, admissionId, phase])
+  @@map("delivery_source_applications")
 }

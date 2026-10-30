@@ -1,0 +1,416 @@
+✔ Coder shell startup loads a large host package from a mounted file, outside argv (32.119191ms)
+✔ host archive has the same digest across checkouts sharing a dependency store (384.553509ms)
+✔ reproducible archive preserves executable scripts and matches file content identity (19.199294ms)
+✔ provider caches are excluded and private files or symlinks fail the build (5.640859ms)
+✔ a missing entrypoint or oversized file cannot become a published artifact (14.753564ms)
+✔ dedup verifies compiled bytes, retains Terraform/bootstrap dependencies and rejects stale sources (50.06033ms)
+✔ digest mismatch and dynamic script selection cannot silently drop deployment inputs (7.020466ms)
+✔ a recompressed package with a stale internal file digest is rejected (4.91983ms)
+✔ actual curated template fits deployment bound and every literal Terraform file remains extractable (377.488294ms)
+ℹ {"hostGzipBytes":140740,"templateTarBytes":961536,"files":69}
+✔ workspace lifecycle checks provenance independently of agent instructions (302.856665ms)
+✔ task worktree lifecycle preserves active work and user-owned bootstrap choices (2739.881495ms)
+✔ startup Git writers tolerate transient locks but fail on persistent errors (2044.990409ms)
+✔ both startup templates receive the shared Git retry helper (0.662653ms)
+✔ sandbox evidence rejects startup failures and inconclusive denial results (641.166679ms)
+✔ sandbox readiness is on demand and AppArmor selection is per dev container (0.719608ms)
+✔ Kubernetes workspace remains non-root and seeds image home into the PVC (1.719652ms)
+✔ file-loaded startup scripts do not contain Terraform dollar escaping or sudo (0.773977ms)
+✔ CI tooling installs without root and uses verified GitHub CLI artifacts (0.244759ms)
+✔ workspace bootstrap removes vault integration without deleting vault data (0.759426ms)
+✔ workspace migration removes only manifest-owned vault context (18.489978ms)
+✔ workspace startup refreshes global agent context without touching repository instructions (60.547086ms)
+✔ fresh workspace profiles register Cloudflare in a writable Codex config (394.681859ms)
+✔ Codex MCP migration preserves user configuration across repeated starts (1027.573943ms)
+✔ Codex MCP migration preserves invalid or incompatible TOML with a warning (486.14637ms)
+✔ workspace migration replaces read-only persisted MCP configs (44.265136ms)
+✔ workspace migration removes only Hive-owned browser helpers (32.5307ms)
+✔ base image rollout updates the pinned template digest through a PR (1.070184ms)
+✔ supplemental tools support the non-root workspace (0.635549ms)
+✔ File Browser creates a configured projects root before startup (14.910447ms)
+✔ workspace only provisions Claude and Codex AI agents (0.943673ms)
+✔ workspace provisions pinned official skills and the OpenAI GitHub plugin (0.526087ms)
+✔ workspace provisions official Unity and Blender applications without custom skills (0.263544ms)
+✔ workspace provisions official KiCad tooling without custom skills or MCP servers (0.603753ms)
+✔ workspace provisions checksum-pinned infrastructure clients without a desktop (0.338304ms)
+✔ Coder template uploads include every Terraform file dependency (0.621405ms)
+✔ shell setup retries incomplete Oh My Zsh installations (0.122597ms)
+✔ GitHub helpers retrieve fresh Coder credentials on demand (7.026605ms)
+✔ repository manifest only includes approved organizations (0.225415ms)
+✔ repository bootstrap is idempotent (20.756151ms)
+✔ repository bootstrap rejects failed external authentication (4.402149ms)
+✔ bundled bubblewrap setup preserves existing commands and handles missing helpers (14.693318ms)
+✔ Codex refresh runs on every startup and tolerates registry failures (9.304581ms)
+✔ Claude refresh selects latest on every startup and tolerates unavailable updates (10.66921ms)
+✔ compiled package preserves controller, startup fences and session bridge behavior (6788.105369ms)
+ℹ TAP version 13
+# Subtest: one authenticated listener may finish durable startup beyond the old four-second retry window
+ok 1 - one authenticated listener may finish durable startup beyond the old four-second retry window
+  ---
+  duration_ms: 4565.95824
+  type: 'test'
+  ...
+# Subtest: absolute deadline stops the one child and closes pending handshake
+ok 2 - absolute deadline stops the one child and closes pending handshake
+  ---
+  duration_ms: 154.962692
+  type: 'test'
+  ...
+# Subtest: revocation interrupts readiness before any native initialization
+ok 3 - revocation interrupts readiness before any native initialization
+  ---
+  duration_ms: 104.786414
+  type: 'test'
+  ...
+# Subtest: deadline bounds a stalled authority fence without accepting its late completion
+ok 4 - deadline bounds a stalled authority fence without accepting its late completion
+  ---
+  duration_ms: 103.400815
+  type: 'test'
+  ...
+# Subtest: authority is checked again after authenticated WebSocket open
+ok 5 - authority is checked again after authenticated WebSocket open
+  ---
+  duration_ms: 7.496937
+  type: 'test'
+  ...
+# Subtest: cancellation and early child exit abort readiness without relaunch
+ok 6 - cancellation and early child exit abort readiness without relaunch
+  ---
+  duration_ms: 66.846213
+  type: 'test'
+  ...
+# Subtest: wrong authentication is a terminal handshake rejection, not a retry
+ok 7 - wrong authentication is a terminal handshake rejection, not a retry
+  ---
+  duration_ms: 5.729452
+  type: 'test'
+  ...
+# Subtest: enrollment is durable without clone/native; queued start waits registration then submits actual prompt once
+ok 8 - enrollment is durable without clone/native; queued start waits registration then submits actual prompt once
+  ---
+  duration_ms: 61.165799
+  type: 'test'
+  ...
+# Subtest: restart recovers exact durable intent and never repeats checkout preparation or first prompt
+ok 9 - restart recovers exact durable intent and never repeats checkout preparation or first prompt
+  ---
+  duration_ms: 66.337556
+  type: 'test'
+  ...
+# Subtest: ambiguous first prompt blocks replay without another inference
+ok 10 - ambiguous first prompt blocks replay without another inference
+  ---
+  duration_ms: 26.791146
+  type: 'test'
+  ...
+# Subtest: owned interrupted checkout preparation reuses verified lease without cleaning dirty edits
+ok 11 - owned interrupted checkout preparation reuses verified lease without cleaning dirty edits
+  ---
+  duration_ms: 25.276878
+  type: 'test'
+  ...
+# Subtest: private journal rejects competing writer, forgery, identity changes and unknown authority
+ok 12 - private journal rejects competing writer, forgery, identity changes and unknown authority
+  ---
+  duration_ms: 13.079068
+  type: 'test'
+  ...
+# Subtest: request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts
+ok 13 - request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts
+  ---
+  duration_ms: 6.617047
+  type: 'test'
+  ...
+# Subtest: manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs
+ok 14 - manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs
+  ---
+  duration_ms: 32.540284
+  type: 'test'
+  ...
+# Subtest: safe lease renewal keeps immutable intent and failed renewal revokes only execution
+ok 15 - safe lease renewal keeps immutable intent and failed renewal revokes only execution
+  ---
+  duration_ms: 40.501842
+  type: 'test'
+  ...
+# Subtest: revoked execution can re-register existing history after restart without new prompt or attach
+ok 16 - revoked execution can re-register existing history after restart without new prompt or attach
+  ---
+  duration_ms: 32.528943
+  type: 'test'
+  ...
+# Subtest: lease expiry revokes awaitingRegistration native execution without renewing or discarding history
+ok 17 - lease expiry revokes awaitingRegistration native execution without renewing or discarding history
+  ---
+  duration_ms: 37.796897
+  type: 'test'
+  ...
+# Subtest: lease expiry revokes blocked native execution without renewing or discarding history
+ok 18 - lease expiry revokes blocked native execution without renewing or discarding history
+  ---
+  duration_ms: 34.253778
+  type: 'test'
+  ...
+# Subtest: pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt
+ok 19 - pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt
+  ---
+  duration_ms: 40.078556
+  type: 'test'
+  ...
+# Subtest: retry receipt cannot automatically retry a second failure
+ok 20 - retry receipt cannot automatically retry a second failure
+  ---
+  duration_ms: 22.763217
+  type: 'test'
+  ...
+# Subtest: ready live empty native thread retries registration failure without recreating checkout or thread
+ok 21 - ready live empty native thread retries registration failure without recreating checkout or thread
+  ---
+  duration_ms: 36.976265
+  type: 'test'
+  ...
+# Subtest: retry refuses interrupted checkout/native proof
+ok 22 - retry refuses interrupted checkout/native proof
+  ---
+  duration_ms: 26.716802
+  type: 'test'
+  ...
+# Subtest: retry refuses incarnation checkout/native proof
+ok 23 - retry refuses incarnation checkout/native proof
+  ---
+  duration_ms: 20.517284
+  type: 'test'
+  ...
+# Subtest: retry refuses expired checkout/native proof
+ok 24 - retry refuses expired checkout/native proof
+  ---
+  duration_ms: 23.67201
+  type: 'test'
+  ...
+# Subtest: retry refuses history checkout/native proof
+ok 25 - retry refuses history checkout/native proof
+  ---
+  duration_ms: 19.013726
+  type: 'test'
+  ...
+# Subtest: retry cannot reopen uncertain first prompt or accept caller execution fields
+ok 26 - retry cannot reopen uncertain first prompt or accept caller execution fields
+  ---
+  duration_ms: 21.726912
+  type: 'test'
+  ...
+# Subtest: retry rejects legacy durable intent authority
+ok 27 - retry rejects legacy durable intent authority
+  ---
+  duration_ms: 19.739453
+  type: 'test'
+  ...
+# Subtest: retry rejects creationAttempted durable intent authority
+ok 28 - retry rejects creationAttempted durable intent authority
+  ---
+  duration_ms: 17.397603
+  type: 'test'
+  ...
+# Subtest: retry rejects promptAttempted durable intent authority
+ok 29 - retry rejects promptAttempted durable intent authority
+  ---
+  duration_ms: 19.35754
+  type: 'test'
+  ...
+# Subtest: retry rejects revoked durable intent authority
+ok 30 - retry rejects revoked durable intent authority
+  ---
+  duration_ms: 19.537942
+  type: 'test'
+  ...
+# Subtest: unavailable empty native history returns the existing blocked status without scheduling
+ok 31 - unavailable empty native history returns the existing blocked status without scheduling
+  ---
+  duration_ms: 21.464694
+  type: 'test'
+  ...
+# Subtest: guardian admission is durable before preparation and final binding is a separate immutable record
+ok 32 - guardian admission is durable before preparation and final binding is a separate immutable record
+  ---
+  duration_ms: 35.017261
+  type: 'test'
+  ...
+# Subtest: closing while preparation is in flight retains uncertainty and cannot enroll or start native execution
+ok 33 - closing while preparation is in flight retains uncertainty and cannot enroll or start native execution
+  ---
+  duration_ms: 19.005876
+  type: 'test'
+  ...
+# Subtest: lost guardian channel persists a closed admission fence and prevents helper dispatch
+ok 34 - lost guardian channel persists a closed admission fence and prevents helper dispatch
+  ---
+  duration_ms: 11.289151
+  type: 'test'
+  ...
+# Subtest: a new admitted project refreshes existing generation tokens before shared helper work
+ok 35 - a new admitted project refreshes existing generation tokens before shared helper work
+  ---
+  duration_ms: 49.941002
+  type: 'test'
+  ...
+# Subtest: closure during repository resolution cannot dispatch checkout inspection or preparation
+ok 36 - closure during repository resolution cannot dispatch checkout inspection or preparation
+  ---
+  duration_ms: 18.958559
+  type: 'test'
+  ...
+# Subtest: late lease renewal after the close barrier cannot rewrite the closed controller snapshot
+ok 37 - late lease renewal after the close barrier cannot rewrite the closed controller snapshot
+  ---
+  duration_ms: 40.002934
+  type: 'test'
+  ...
+# Subtest: signed owner capability reads the exact existing native thread and streams allowed events
+ok 38 - signed owner capability reads the exact existing native thread and streams allowed events
+  ---
+  duration_ms: 58.55907
+  type: 'test'
+  ...
+# Subtest: wrong owner, host bindings, scope, origin, expiry, and algorithms are rejected before native access
+ok 39 - wrong owner, host bindings, scope, origin, expiry, and algorithms are rejected before native access
+  ---
+  duration_ms: 45.621636
+  type: 'test'
+  ...
+# Subtest: Origin, Host, URL query credentials, and forged Coder headers do not grant access
+ok 40 - Origin, Host, URL query credentials, and forged Coder headers do not grant access
+  ---
+  duration_ms: 12.810845
+  type: 'test'
+  ...
+# Subtest: ticket replay remains rejected after a bridge restart
+ok 41 - ticket replay remains rejected after a bridge restart
+  ---
+  duration_ms: 10.58719
+  type: 'test'
+  ...
+# Subtest: active sockets close at ticket expiry
+ok 42 - active sockets close at ticket expiry
+  ---
+  duration_ms: 1165.963327
+  type: 'test'
+  ...
+# Subtest: fresh renewal extends one socket and native connection, with replay rejected
+ok 43 - fresh renewal extends one socket and native connection, with replay rejected
+  ---
+  duration_ms: 3000.626024
+  type: 'test'
+  ...
+# Subtest: a changed-binding renewal cannot extend the old capability deadline
+ok 44 - a changed-binding renewal cannot extend the old capability deadline
+  ---
+  duration_ms: 2001.845523
+  type: 'test'
+  ...
+# Subtest: execution, model overrides, arbitrary threads, and server request responses are rejected
+ok 45 - execution, model overrides, arbitrary threads, and server request responses are rejected
+  ---
+  duration_ms: 23.483144
+  type: 'test'
+  ...
+# Subtest: an unloaded thread is not resumed and unsupported native versions fail closed
+ok 46 - an unloaded thread is not resumed and unsupported native versions fail closed
+  ---
+  duration_ms: 9.073132
+  type: 'test'
+  ...
+# Subtest: duplicate IDs, malformed and oversized frames are bounded
+ok 47 - duplicate IDs, malformed and oversized frames are bounded
+  ---
+  duration_ms: 10.803009
+  type: 'test'
+  ...
+# Subtest: hidden reasoning and unsupported tool payloads never reach a read client
+ok 48 - hidden reasoning and unsupported tool payloads never reach a read client
+  ---
+  duration_ms: 5.469411
+  type: 'test'
+  ...
+# Subtest: configuration rejects public native endpoints, unsupported versions, and concurrent state owners
+ok 49 - configuration rejects public native endpoints, unsupported versions, and concurrent state owners
+  ---
+  duration_ms: 6.697717
+  type: 'test'
+  ...
+# Subtest: an incompatible native server cannot leak events before its version check
+ok 50 - an incompatible native server cannot leak events before its version check
+  ---
+  duration_ms: 4.310757
+  type: 'test'
+  ...
+# Subtest: SIGKILL releases the OS lock while preserving replay rejection on automatic restart
+ok 51 - SIGKILL releases the OS lock while preserving replay rejection on automatic restart
+  ---
+  duration_ms: 81.061494
+  type: 'test'
+  ...
+# Subtest: native 0.165 CLI and capability client share one loaded thread without inference
+ok 52 - native 0.165 CLI and capability client share one loaded thread without inference # SKIP
+  ---
+  duration_ms: 0.099364
+  type: 'test'
+  ...
+1..52
+# tests 52
+# suites 0
+# pass 51
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 6601.721325
+✖ compiled delivery preserves source progression, native facts and collector signatures (1513.219275ms)
+﹣ compiled namespace preserves actual native WS, CLI, child and resume isolation (0.133742ms) # SKIP
+✔ optional guardian bundle copies the verified build artifact without compiling at install (487.840413ms)
+✔ bundles only locked ws locally and keeps modules inert on import (223.728458ms)
+✔ host config cannot request unreviewed startup fields or profiles (0.673013ms)
+✔ JS controller and installed Python authority agree on actual kernel process identity (62.226706ms)
+✔ every Coder script has a supported execution trigger (5.153123ms)
+✔ every workspace profile is a directly deployable Kubernetes Coder template (3.35222ms)
+✔ profile configuration defines exact image, resources, and runtime capabilities (2.304229ms)
+✔ canonical Terraform gates every optional workspace surface (0.964105ms)
+✔ specialist templates stay synchronized with the canonical Kubernetes scaffold (589.446659ms)
+✔ profile synchronization detects and removes obsolete shared scripts (1197.731488ms)
+✔ repository manifests remain narrow and parseable (1.323105ms)
+✔ profile guidance encodes the intended interactive and capability boundaries (0.690894ms)
+✔ every profile receives the same workspace routing and interactive handoff contract (1.525155ms)
+✔ specialist cleanup authority comes from primary creation evidence (0.702322ms)
+✔ Turborepo cache cleanup preserves project data (407.273733ms)
+ℹ tests 61
+ℹ suites 0
+ℹ pass 59
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 8365.472795
+
+✖ failing tests:
+
+test at scripts/verify-codex-compiled-host.test.mjs:74:1
+✖ compiled delivery preserves source progression, native facts and collector signatures (1513.219275ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(readFileSync(mappingLog, "utf8").includes("codex-project-supervisor.mjs"))
+  
+      at file:///tmp/hive-source-assembly-parent-cic5jzyi/scripts/verify-codex-compiled-host.test.mjs:61:12
+      at TestContext.<anonymous> (file:///tmp/hive-source-assembly-parent-cic5jzyi/scripts/verify-codex-compiled-host.test.mjs:75:14)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -2,6 +2,8 @@ import { createHash, randomUUID, sign } from "node:crypto";
 import { PrismaClient } from "@hive/db";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { GuardianSourceApplicationStore } from "@/lib/codex-session/guardian-application-store.server";
+import { guardianDigest } from "@/lib/codex-session/guardian-contracts";
 import { lockProducerAdmission } from "@/lib/codex-session/guardian-store.server";
 import { PrismaRegistrationStore } from "@/lib/codex-session/registration-store.server";
 import { githubSourceDigest } from "@/lib/delivery/github-evidence.server";
@@ -235,6 +237,79 @@ async function fixture() {
   async function second(firstPublication: Awaited<ReturnType<typeof publish>>) {
     const sourceContext = firstPublication.result.sourceContext;
     await complete(first, f.stepId, sourceContext);
+    // A synthetic closed input barrier/outer receipt is explicit fixture data.
+    // The real application store must ACK B before this test can start C.
+    const application = new GuardianSourceApplicationStore(db, { policy: f.guardian.policy });
+    const observedAt = new Date(Date.now() - 1).toISOString(),
+      applicationId = randomUUID();
+    const inputBarrier = {
+      id: randomUUID(),
+      generation: 1,
+      projectId: f.project.id,
+      observedAt,
+      closed: true,
+      rootCompleted: true,
+      controllerJournalDigest: "1".repeat(64),
+      supervisorJournalDigest: "2".repeat(64),
+      commandInventoryDigest: "3".repeat(64),
+      terminalInventoryDigest: "4".repeat(64),
+      sourceSpoolDigest: "5".repeat(64),
+      pendingCommands: 0,
+      activeCli: 0,
+      pendingInputs: 0,
+      unknownInputs: 0,
+    };
+    await application.reserve(f.guardian.scope, {
+      projectId: f.project.id,
+      applicationId,
+      publicationOperationId: firstPublication.publication.operationId,
+      expectedAppliedSourceContext: null,
+      targetSourceContext: sourceContext,
+      inputBarrier,
+      idleSnapshot: {
+        projectId: f.project.id,
+        admissionId: f.guardian.finalized.admission.id,
+        admissionGeneration: f.guardian.finalized.admission.generation,
+        managerBindingId: first.managerBindingId,
+        currentAttemptId: first.attemptId,
+        managerThreadId: f.managerThreadId,
+        parentTurnId: f.parentTurnId,
+        cursorVersion: 1,
+        nativeSequence: 2,
+        observedAt,
+        historyDigest: "6".repeat(64),
+        loadedInventoryDigest: "7".repeat(64),
+        fullHistory: true,
+        rootTurns: 1,
+        historyBytes: 100,
+        pendingHandlers: 0,
+        pendingObservers: 0,
+        unknownFacts: 0,
+        activeRoots: 0,
+      },
+    });
+    await application.commit(f.guardian.scope, applicationId, {
+      schemaVersion: 1,
+      applicationId,
+      publicationOperationId: firstPublication.publication.operationId,
+      sourceContext,
+      previousSourceContext: null,
+      inputBarrierId: inputBarrier.id,
+      inputBarrierDigest: guardianDigest(inputBarrier),
+      metadataPinsDigest: f.guardian.finalized.admission.metadataPinsDigest,
+      namespaceReceiptDigest: f.guardian.metadata.namespaceReceiptDigest,
+      managedReceiptDigest: "8".repeat(64),
+      sourceOperationDigest: "9".repeat(64),
+      controllerJournalDigest: "a".repeat(64),
+      supervisorJournalDigest: "b".repeat(64),
+      appliedHeadSha: sourceContext.headSha,
+      appliedIndexDigest: "c".repeat(64),
+      sourceUpdating: false,
+      controllerSourceContext: sourceContext,
+      supervisorSourceContext: sourceContext,
+      observedAt,
+    });
+
     const nextTurn = randomUUID(),
       boundary = f.sourceEnvelope(
         first,
@@ -324,6 +399,7 @@ async function digestRows(ownerId: string) {
     db.deliveryOutbox.findMany({ where: { ownerId }, orderBy: { id: "asc" } }),
     db.codexGuardianRuntime.findMany({ where: { ownerId }, orderBy: { id: "asc" } }),
     db.codexGuardianAdmission.findMany({ where: { ownerId }, orderBy: { id: "asc" } }),
+    db.deliverySourceApplication.findMany({ where: { ownerId }, orderBy: { id: "asc" } }),
   ]);
   return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
 }

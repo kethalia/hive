@@ -313,7 +313,11 @@ function progressingAdapter(t, overrides = {}) {
           canRun: false,
           needsRuntimeBinding: true,
           needsReconciliation: false,
+          inputSourceSha: value.sourceContext?.headSha ?? value.checkoutBinding.revision,
+          ...(value.sourceContext ? { sourceContext: value.sourceContext } : {}),
         });
+      if (value.command.operation === "create_task")
+        return Response.json({ taskId: value.command.payload.id, replayed: false });
       return Response.json({
         eventId: value.eventId,
         reportId: randomUUID(),
@@ -946,4 +950,454 @@ test("installed native 0.165 emits a real dynamic tool call and consumes its res
         n.params.item.success === true,
     ),
   );
+});
+
+function sourceAdapter(t, overrides = {}) {
+  let f,
+    local = { phase: "ready", headSha: "a".repeat(40) },
+    stored = null;
+  const applies = [];
+  const read = async (ctx, request) => {
+    assert.equal(request.operationId, stored.operationId);
+    return {
+      schemaVersion: 1,
+      requestId: randomUUID(),
+      observedAt: Date.now() - 1,
+      expiresAt: Date.now() + 29000,
+      isCurrent: true,
+      publicationAuthorized: false,
+      executionAuthorized: false,
+      scope: {
+        managerBindingId: ctx.managerBindingId,
+        taskId: ctx.taskId,
+        managerThreadId: ctx.managerThreadId,
+        registrationId: ctx.registration.id,
+        serverInstanceId: ctx.registration.serverInstanceId,
+        checkoutBinding: ctx.checkoutBinding,
+      },
+      accepted: {
+        operationId: stored.operationId,
+        producingAttemptId: ctx.attemptId,
+        stepId: ctx.stepId,
+        sourceContext: stored.sourceContext,
+        parentSha: ctx.inputSourceSha,
+        previousRevisionId: ctx.sourceContext?.revisionId ?? null,
+        treeSha: "d".repeat(40),
+        manifestDigest: "e".repeat(64),
+        proofDigest: "f".repeat(64),
+      },
+      current: { sourceContext: stored.sourceContext, headSha: stored.sourceContext.headSha },
+    };
+  };
+  f = progressingAdapter(t, {
+    sourceProtocol: 1,
+    currentSource: () => ({ ...local, checkoutBinding: f.options.currentProjectContext() }),
+    publishSource: async (ctx, proposal) => {
+      stored = {
+        operationId: proposal.operationId,
+        sourceContext: {
+          revisionId: randomUUID(),
+          version: (ctx.sourceContext?.version ?? 0) + 1,
+          headSha: ctx.sourceContext ? "c".repeat(40) : "b".repeat(40),
+        },
+      };
+      return {
+        sourceContext: stored.sourceContext,
+        inputSourceSha: ctx.inputSourceSha,
+        current: true,
+        replayed: false,
+        executionAuthorized: false,
+      };
+    },
+    readAcceptedSource: read,
+    applyAcceptedSource: async (request, accepted) => {
+      const snapshot = f.adapter.sourceApplicationSnapshot(request.managerThreadId, request);
+      assert.equal(snapshot.scope, "native_observer_journal_only");
+      assert.equal(snapshot.quiescenceAuthority, false);
+      assert.equal(snapshot.metadataApplyAuthorized, false);
+      assert.equal(snapshot.writerHeld, true);
+      assert.equal(snapshot.pendingSourceEvents, 0);
+      assert.match(snapshot.sourceJournalDigest, /^[a-f0-9]{64}$/);
+      applies.push({ request, accepted, snapshot });
+      assert.equal(request.priorAttemptId, accepted.accepted.producingAttemptId);
+      local = {
+        phase: "ready",
+        headSha: accepted.accepted.sourceContext.headSha,
+        sourceContext: accepted.accepted.sourceContext,
+      };
+    },
+    ...overrides,
+  });
+  const taskId = randomUUID(),
+    firstStep = randomUUID(),
+    secondStep = randomUUID(),
+    proposal = {
+      operationId: randomUUID(),
+      paths: ["src/a.ts"],
+      deletions: [],
+      message: "feat(source): bounded",
+      title: "feat(source): bounded",
+      body: "Local mock",
+    };
+  async function begin(final = false) {
+    await f.call(f.request.turnId, "create-task", "create_task", {
+      id: taskId,
+      steps: [{ id: firstStep }, ...(!final ? [{ id: secondStep }] : [])],
+    });
+    const claim = await f.claim(f.request.turnId, "claim-one", taskId, firstStep);
+    observeFixtureChild(f);
+    return claim;
+  }
+  const publish = () => f.call(f.request.turnId, "publish-one", "publish_source", proposal);
+  const complete = (claim) =>
+    f.call(f.request.turnId, "complete-one", "complete_step", {
+      taskId,
+      stepId: firstStep,
+      attemptId: claim.attemptId,
+      sourceSha: stored.sourceContext.headSha,
+    });
+  const terminal = () =>
+    f.adapter.observe({
+      method: "turn/completed",
+      params: { threadId: f.request.threadId, turn: { id: f.request.turnId, status: "completed" } },
+    });
+  return {
+    ...f,
+    taskId,
+    firstStep,
+    secondStep,
+    proposal,
+    applies,
+    begin,
+    publish,
+    complete,
+    terminal,
+    get local() {
+      return local;
+    },
+    get output() {
+      return stored;
+    },
+  };
+}
+test("source protocol completes acceptedB while localA then applies only at terminal before continuation and next inputB", async (t) => {
+  const f = sourceAdapter(t),
+    first = await f.begin();
+  await f.publish();
+  assert.equal(f.local.headSha, "a".repeat(40));
+  assert.equal(f.applies.length, 0);
+  await f.complete(first);
+  const complete = f.posts.find((v) => v.value.command?.operation === "complete_step").value;
+  assert.deepEqual(complete.sourceContext, f.output.sourceContext);
+  assert.equal(f.applies.length, 0);
+  assert.equal(f.starts.length, 0);
+  f.terminal();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.applies.length, 1);
+  assert.equal(f.starts.length, 1);
+  assert.equal(f.local.headSha, "b".repeat(40));
+  const second = await f.claim("continuation-1", "claim-two", f.taskId, f.secondStep);
+  assert.deepEqual(second.sourceContext, f.output.sourceContext);
+  const boundary = f.posts.find((v) => v.value.source?.kind === "root_boundary").value;
+  assert.deepEqual(boundary.sourceContext, f.output.sourceContext);
+  assert.equal(boundary.checkoutBinding.revision, "a".repeat(40));
+  assert.equal(f.adapter.inspectNative().held, 1);
+  const originalChild = structuredClone(f.native);
+  f.native.childThreadId = randomUUID();
+  f.native.childTurnId = randomUUID();
+  f.native.spawnCallId = "source-b-child";
+  // A second child is bound to accepted/applied B while physical base stays A.
+  f.adapter.observe({
+    method: "rawResponseItem/completed",
+    params: {
+      threadId: f.request.threadId,
+      turnId: "continuation-1",
+      item: {
+        type: "function_call",
+        namespace: "collaboration",
+        name: "spawn_agent",
+        call_id: f.native.spawnCallId,
+        arguments: JSON.stringify({ model: "gpt-6.1-sol", reasoning_effort: "low" }),
+      },
+    },
+  });
+  f.adapter.observe({
+    method: "item/completed",
+    params: {
+      threadId: f.request.threadId,
+      turnId: "continuation-1",
+      item: {
+        type: "subAgentActivity",
+        kind: "started",
+        id: f.native.spawnCallId,
+        agentThreadId: f.native.childThreadId,
+        model: "gpt-6.1-sol",
+        reasoningEffort: "low",
+      },
+    },
+  });
+  f.adapter.observe({
+    method: "turn/completed",
+    params: {
+      threadId: f.native.childThreadId,
+      turn: { id: f.native.childTurnId, status: "completed", items: [], itemsView: "full" },
+    },
+  });
+  await f.adapter.flushNative();
+  const childEvents = f.posts.filter(
+    (v) => v.value.attemptId === second.attemptId && v.value.source,
+  );
+  assert.ok(childEvents.length >= 2);
+  assert.ok(
+    childEvents.every(
+      (v) =>
+        JSON.stringify(v.value.sourceContext) === JSON.stringify(f.output.sourceContext) &&
+        v.value.checkoutBinding.revision === "a".repeat(40),
+    ),
+  );
+  const before = f.posts.length;
+  f.adapter.observe({
+    method: "turn/completed",
+    params: {
+      threadId: originalChild.childThreadId,
+      turn: { id: originalChild.childTurnId, status: "completed", items: [], itemsView: "full" },
+    },
+  });
+  await f.adapter.flushNative();
+  assert.equal(f.posts.length, before);
+  assert.equal(f.adapter.inspectNative().blocked, 0);
+});
+for (const kind of ["command", "spawn"])
+  test(`unexpected post-publication root ${kind} holds before apply/continuation`, async (t) => {
+    const f = sourceAdapter(t),
+      claim = await f.begin();
+    await f.publish();
+    await f.complete(claim);
+    f.adapter.observe({
+      method: "rawResponseItem/completed",
+      params: {
+        threadId: f.request.threadId,
+        turnId: f.request.turnId,
+        item: {
+          type: "function_call",
+          namespace: kind === "spawn" ? "collaboration" : "functions",
+          name: kind === "spawn" ? "spawn_agent" : "exec_command",
+          call_id: "late-root-work",
+          arguments: JSON.stringify(
+            kind === "spawn"
+              ? { model: "gpt-6.1-sol", reasoning_effort: "low" }
+              : { cmd: "echo late" },
+          ),
+        },
+      },
+    });
+    f.terminal();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.adapter.inspectNative().blocked, 1);
+    assert.equal(f.applies.length, 0);
+    assert.equal(f.starts.length, 0);
+  });
+test("failed source apply retains the original writer and prevents new root admission", async (t) => {
+  const f = sourceAdapter(t, {
+      applyAcceptedSource: async () => {
+        throw new Error("Input barrier unavailable");
+      },
+    }),
+    claim = await f.begin();
+  await f.publish();
+  await f.complete(claim);
+  f.terminal();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.starts.length, 0);
+  assert.equal(f.adapter.inspectNative().blocked, 1);
+  assert.equal(f.adapter.inspectNative().held, 1);
+});
+test("final source output applies at terminal without inventing another root turn", async (t) => {
+  const f = sourceAdapter(t),
+    claim = await f.begin(true);
+  await f.publish();
+  await f.complete(claim);
+  f.terminal();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.applies.length, 1);
+  assert.equal(f.starts.length, 0);
+  assert.equal(f.local.headSha, "b".repeat(40));
+  assert.equal(f.adapter.inspectNative().held, 1);
+});
+
+test("novel child command after publication holds while original facts retain input source", async (t) => {
+  const f = sourceAdapter(t),
+    claim = await f.begin();
+  await f.publish();
+  f.adapter.observe({
+    method: "item/completed",
+    params: {
+      threadId: f.native.childThreadId,
+      turnId: f.native.childTurnId,
+      item: {
+        id: "late-child-command",
+        type: "commandExecution",
+        status: "completed",
+        command: "echo late",
+        exitCode: 0,
+        aggregatedOutput: "unexpected",
+      },
+    },
+  });
+  assert.equal(f.adapter.inspectNative().blocked, 1);
+  await assert.rejects(f.complete(claim), /reconciliation/);
+  f.terminal();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.applies.length, 0);
+  assert.equal(f.starts.length, 0);
+  const raw = JSON.parse(
+    readFileSync(join(f.options.stateDirectory, "native/source.json"), "utf8"),
+  );
+  assert.ok(
+    raw.state.events
+      .filter((v) => v.input.attemptId === claim.attemptId)
+      .every((v) => v.input.sourceContext === undefined),
+  );
+});
+test("persisted source protocol cannot be silently downgraded and accepted output stays informational", async (t) => {
+  const f = sourceAdapter(t),
+    claim = await f.begin();
+  await f.publish();
+  const accepted = await f.adapter.currentAcceptedSource({
+    managerThreadId: f.request.threadId,
+    taskId: f.taskId,
+    stepId: f.firstStep,
+    checkoutBinding: f.options.currentProjectContext(),
+  });
+  assert.deepEqual(accepted, f.output.sourceContext);
+  assert.equal(f.local.headSha, "a".repeat(40));
+  await f.adapter.close();
+  assert.throws(
+    () => createDeliveryManagerAdapter({ ...f.options, sourceProtocol: 0 }),
+    /source_protocol_required/,
+  );
+  const saved = JSON.parse(
+    readFileSync(join(f.options.stateDirectory, "native/source.json"), "utf8"),
+  );
+  assert.equal(saved.state.attempts[claim.attemptId].inputSourceSha, "a".repeat(40));
+  assert.equal(saved.state.attempts[claim.attemptId].sourceContext, undefined);
+  assert.deepEqual(
+    saved.state.sourcePublications[claim.attemptId].sourceContext,
+    f.output.sourceContext,
+  );
+});
+
+test("a successful boolean from apply callback cannot replace verified local source agreement", async (t) => {
+  const f = sourceAdapter(t, { applyAcceptedSource: async () => true }),
+    claim = await f.begin();
+  await f.publish();
+  await f.complete(claim);
+  f.terminal();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.local.headSha, "a".repeat(40));
+  assert.equal(f.starts.length, 0);
+  assert.equal(f.adapter.inspectNative().blocked, 1);
+});
+test("accepted output cannot be completed against old input source or model-provided source context", async (t) => {
+  const f = sourceAdapter(t),
+    claim = await f.begin();
+  await assert.rejects(
+    f.call(f.request.turnId, "bad-source-proposal", "publish_source", {
+      ...f.proposal,
+      sourceContext: { headSha: "b".repeat(40) },
+    }),
+    /proposal_invalid/,
+  );
+  assert.equal(f.output, null);
+  await f.publish();
+  await assert.rejects(
+    f.call(f.request.turnId, "old-source-completion", "complete_step", {
+      taskId: f.taskId,
+      stepId: f.firstStep,
+      attemptId: claim.attemptId,
+      sourceSha: "a".repeat(40),
+    }),
+    /report_source_mismatch/,
+  );
+  assert.ok(!f.posts.some((v) => v.value.command?.operation === "complete_step"));
+  assert.equal(f.applies.length, 0);
+});
+test("stale source facts at terminal hold rather than invoke apply or root continuation", async (t) => {
+  const f = sourceAdapter(t),
+    claim = await f.begin();
+  await f.publish();
+  await f.complete(claim);
+  const original = f.options.readAcceptedSource;
+  f.options.readAcceptedSource = async (...args) => ({
+    ...(await original(...args)),
+    expiresAt: Date.now() - 1,
+  });
+  f.terminal();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.applies.length, 0);
+  assert.equal(f.starts.length, 0);
+  assert.equal(f.adapter.inspectNative().blocked, 1);
+});
+
+test("bounded supervisor-busy retry starts after source apply rather than consuming its budget", async (t) => {
+  const f = sourceAdapter(t),
+    claim = await f.begin();
+  await f.publish();
+  await f.complete(claim);
+  const now = Date.now;
+  let offset = 0,
+    starts = 0;
+  Date.now = () => now() + offset;
+  const apply = f.options.applyAcceptedSource,
+    continueRoot = f.options.continueRoot;
+  f.options.applyAcceptedSource = async (...args) => {
+    await apply(...args);
+    offset = 10000;
+  };
+  f.options.continueRoot = async (request) => {
+    if (starts++ === 0) throw new Error("supervisor_busy_or_closed");
+    return continueRoot(request);
+  };
+  try {
+    f.terminal();
+    for (let i = 0; i < 20 && !f.starts.length; i++)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(starts, 2);
+    assert.equal(f.starts.length, 1);
+    assert.equal(f.adapter.inspectNative().blocked, 0);
+  } finally {
+    Date.now = now;
+  }
+});
+
+test("source application snapshot rejects pre-terminal and substituted claim scope without authority", async (t) => {
+  const f = sourceAdapter(t),
+    claim = await f.begin();
+  await f.publish();
+  await f.complete(claim);
+  assert.throws(
+    () =>
+      f.adapter.sourceApplicationSnapshot(f.request.threadId, {
+        managerThreadId: f.request.threadId,
+        registrationId: f.registration.id,
+        serverInstanceId: f.registration.serverInstanceId,
+        checkoutBinding: f.options.currentProjectContext(),
+      }),
+    /snapshot_scope_changed/,
+  );
+  f.terminal();
+  await new Promise((resolve) => setImmediate(resolve));
+  const { request, snapshot } = f.applies[0];
+  assert.equal(snapshot.nativeSequence, 2);
+  assert.equal(snapshot.inputSourceSha, "a".repeat(40));
+  assert.deepEqual(snapshot.acceptedSourceContext, f.output.sourceContext);
+  assert.throws(
+    () =>
+      f.adapter.sourceApplicationSnapshot(f.request.threadId, {
+        ...request,
+        priorAttemptId: randomUUID(),
+      }),
+    /snapshot_scope_changed/,
+  );
+  assert.equal(f.adapter.inspectNative().held, 1);
 });

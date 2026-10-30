@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, randomUUID, verify } from "node:crypto";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { afterEach } from "node:test";
@@ -140,6 +140,21 @@ test("actual fixed Python helper fails closed without workspace agent authority"
     "agent_authority_required",
   );
 });
+test("a failed exited helper never signals its reaped numeric process group", () => {
+  const module = new URL(
+    "../templates/ai-dev-k8s/scripts/delivery-github-collector.mjs",
+    import.meta.url,
+  ).href;
+  const code = `import {collectFixedGitHubSnapshot} from ${JSON.stringify(module)};let signals=0;process.kill=()=>{signals++;};try{await collectFixedGitHubSnapshot({schemaVersion:1,providerRepositoryId:"123",providerAccountId:"456",fullName:"fixture/repo",pullNumber:1,expectedHeadSha:"${"a".repeat(40)}"},3000);process.exit(2);}catch(error){if(error.message!=="github_collection_failed"||signals)process.exit(3);process.stdout.write("no_post_exit_signal");}`;
+  assert.equal(
+    execFileSync(process.execPath, ["--input-type=module", "-e", code], {
+      encoding: "utf8",
+      timeout: 5000,
+      env: { PATH: process.env.PATH, HOME: "/tmp", NODE_ENV: "test" },
+    }),
+    "no_post_exit_signal",
+  );
+});
 test("only a signed fixed-origin challenge can invoke the fixed helper and publish its snapshot", async () => {
   const f = fixture(),
     result = await createDeliveryGitHubCollector(f.options).refresh(f.input);
@@ -165,10 +180,108 @@ test("caller producer/status/target/policy/URL injection is rejected before any 
     { target: {} },
     { policy: {} },
     { url: "https://evil.invalid" },
+    { sourceContext: { revisionId: randomUUID(), version: 1, headSha: "b".repeat(40) } },
   ])
     await assert.rejects(collector.refresh({ ...f.input, ...extra }), /invalid/);
   assert.equal(f.sent.length, 0);
   assert.equal(f.helpers.length, 0);
+});
+
+function sourceFixture() {
+  const f = fixture();
+  let source = { revisionId: randomUUID(), version: 1, headSha: "b".repeat(40) };
+  f.options.sourceProtocol = 1;
+  f.options.currentAcceptedSource = async (scope) => {
+    assert.deepEqual(scope, {
+      managerThreadId: f.input.managerThreadId,
+      taskId: f.input.taskId,
+      stepId: f.input.stepId,
+      checkoutBinding: f.context,
+    });
+    return source;
+  };
+  f.setChallengeHook((c) => ({
+    ...c,
+    target: { ...c.target, expectedHeadSha: source?.headSha ?? f.context.revision },
+  }));
+  return {
+    ...f,
+    source: () => source,
+    setSource: (value) => {
+      source = value;
+    },
+  };
+}
+test("accepted output checks bind advanced source while the physical checkout remains at its base", async () => {
+  const f = sourceFixture();
+  await createDeliveryGitHubCollector(f.options).refresh(f.input);
+  assert.equal(f.helpers[0].expectedHeadSha, "b".repeat(40));
+  for (const { value } of f.sent) {
+    assert.deepEqual(value.sourceContext, f.source());
+    assert.deepEqual(value.checkoutBinding, f.context);
+    assert.equal(value.checkoutBinding.revision, "a".repeat(40));
+  }
+});
+test("source-aware collection requires a fixed callback and rejects malformed independent facts", async () => {
+  const f = sourceFixture();
+  assert.throws(
+    () => createDeliveryGitHubCollector({ ...f.options, currentAcceptedSource: undefined }),
+    /source_callback_required/,
+  );
+  for (const source of [
+    undefined,
+    {},
+    { ...f.source(), version: 0 },
+    { ...f.source(), executionAuthorized: true },
+  ]) {
+    f.setSource(source);
+    await assert.rejects(
+      createDeliveryGitHubCollector(f.options).refresh(f.input),
+      /source_context_invalid/,
+    );
+  }
+  assert.equal(f.sent.length, 0);
+  assert.equal(f.helpers.length, 0);
+});
+test("source change during collection or its acknowledgement retains the snapshot and rejects stale success", async () => {
+  for (const phase of ["helper", "ack"]) {
+    const f = sourceFixture();
+    const change = () =>
+      f.setSource({ revisionId: randomUUID(), version: 2, headSha: "c".repeat(40) });
+    if (phase === "helper") f.setHelperHook(change);
+    else f.setSnapshotHook(change);
+    await assert.rejects(
+      createDeliveryGitHubCollector(f.options).refresh(f.input),
+      /lifetime_changed/,
+    );
+    assert.equal(f.sent.length, phase === "helper" ? 1 : 2);
+    assert.ok(
+      readFileSync(join(f.options.stateDirectory, `${f.input.requestId}.json`), "utf8").includes(
+        "snapshot",
+      ),
+    );
+  }
+});
+test("a retained source snapshot cannot be relabeled or downgraded on retry", async () => {
+  for (const change of ["version", "legacy"]) {
+    const f = sourceFixture();
+    f.setSnapshotHook(() => {
+      throw new Error("lost_ack");
+    });
+    await assert.rejects(createDeliveryGitHubCollector(f.options).refresh(f.input), /lost_ack/);
+    if (change === "version") f.setSource({ ...f.source(), revisionId: randomUUID(), version: 2 });
+    else {
+      delete f.options.sourceProtocol;
+      delete f.options.currentAcceptedSource;
+    }
+    f.sent.length = 0;
+    await assert.rejects(
+      createDeliveryGitHubCollector(f.options).refresh(f.input),
+      /journal_scope_conflict/,
+    );
+    assert.equal(f.sent.length, 0);
+    assert.equal(f.helpers.length, 1);
+  }
 });
 test("wrong source head/nonce/registration/expired challenge never invokes helper", async () => {
   for (const mutate of [

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
+import { requireAppliedSourceForAction } from "@/lib/codex-session/guardian-application-gate.server";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { sourceContextSchema, sourceShaSchema } from "./contracts";
@@ -183,6 +184,12 @@ export class DeliverySourcePublicationService {
               input.sourceContext,
               true,
             );
+            await requireAppliedSourceForAction(tx, {
+              ownerId: input.ownerId,
+              managerBindingId: scope.binding.id,
+              taskId: task.id,
+              action: "publication",
+            });
             const attempt = await tx.deliveryAttempt.findUnique({
               where: { ownerId_id: { ownerId: input.ownerId, id: input.attemptId } },
               include: { step: true },

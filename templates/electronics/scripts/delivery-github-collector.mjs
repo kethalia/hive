@@ -42,12 +42,14 @@ export function collectFixedGitHubSnapshot(target, timeoutMs) {
     const chunks = [];
     let size = 0,
       settled = false;
-    const finish = (error, result) => {
+    const finish = (error, result, terminate = false) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       if (error) {
-        if (child.pid) {
+        // A close callback has already reaped the child. Never signal its old
+        // numeric process group then; that identifier may have been reused.
+        if (terminate && child.pid && child.exitCode === null && child.signalCode === null) {
           try {
             process.kill(-child.pid, "SIGKILL");
           } catch {}
@@ -55,12 +57,15 @@ export function collectFixedGitHubSnapshot(target, timeoutMs) {
         reject(new Error("github_collection_failed"));
       } else resolve(result);
     };
-    const timer = setTimeout(() => finish(true), Math.max(1, Math.min(55000, timeoutMs)));
+    const timer = setTimeout(
+      () => finish(true, undefined, true),
+      Math.max(1, Math.min(55000, timeoutMs)),
+    );
     child.on("error", () => finish(true));
-    child.stdin.on("error", () => finish(true));
+    child.stdin.on("error", () => finish(true, undefined, true));
     child.stdout.on("data", (chunk) => {
       size += chunk.length;
-      if (size > 1024 * 1024) finish(true);
+      if (size > 1024 * 1024) finish(true, undefined, true);
       else chunks.push(chunk);
     });
     child.on("close", (code) => {
@@ -129,6 +134,15 @@ export function createDeliveryGitHubCollector(options) {
     fetchImpl = fetch,
     runHelper = collectFixedGitHubSnapshot,
   } = options;
+  check(
+    options.sourceProtocol === undefined || options.sourceProtocol === 1,
+    "github_collector_configuration_invalid",
+  );
+  const sourceAware = options.sourceProtocol === 1;
+  check(
+    !sourceAware || typeof options.currentAcceptedSource === "function",
+    "github_collector_source_callback_required",
+  );
   const origin = new URL(hiveOrigin),
     key = createPrivateKey(hostPrivateKeyPem);
   check(
@@ -155,7 +169,7 @@ export function createDeliveryGitHubCollector(options) {
       check(!busy, "github_collector_busy");
       busy = true;
       try {
-        const registration = currentRegistration(),
+        const registration = structuredClone(currentRegistration()),
           checkoutBinding = structuredClone(currentProjectContext(input.managerThreadId));
         check(
           registration?.expiresAt > Date.now() &&
@@ -165,6 +179,57 @@ export function createDeliveryGitHubCollector(options) {
             ),
           "github_collector_registration_unavailable",
         );
+        // This is an installed factual callback, never a tool parameter. The
+        // accepted output may precede local metadata application: checks/reviews
+        // attest the immutable remote commit, not a clean local worktree.
+        const sourceNow = async () => {
+          if (!sourceAware) return null;
+          const value = structuredClone(
+            await beforeDeadline(
+              () =>
+                options.currentAcceptedSource({
+                  managerThreadId: input.managerThreadId,
+                  taskId: input.taskId,
+                  stepId: input.stepId,
+                  checkoutBinding: structuredClone(checkoutBinding),
+                }),
+              Date.now() + 10000,
+            ),
+          );
+          check(
+            value === null ||
+              (value &&
+                typeof value === "object" &&
+                !Array.isArray(value) &&
+                Object.keys(value).sort().join() === "headSha,revisionId,version" &&
+                uuid(value.revisionId) &&
+                Number.isSafeInteger(value.version) &&
+                value.version > 0 &&
+                typeof value.headSha === "string" &&
+                /^[a-f0-9]{40}$/.test(value.headSha)),
+            "github_collector_source_context_invalid",
+          );
+          return value;
+        };
+        const sourceContext = await sourceNow();
+        const assertCurrent = async () => {
+          const freshSource = await sourceNow(),
+            current = currentRegistration();
+          check(
+            current?.id === registration.id &&
+              current.serverInstanceId === registration.serverInstanceId &&
+              current.expiresAt > Date.now() &&
+              current.threads.some(
+                (t) =>
+                  t.threadId === input.managerThreadId && t.projectId === checkoutBinding.projectId,
+              ) &&
+              JSON.stringify(canonical(currentProjectContext(input.managerThreadId))) ===
+                JSON.stringify(canonical(checkoutBinding)) &&
+              JSON.stringify(canonical(freshSource)) === JSON.stringify(canonical(sourceContext)),
+            "github_collector_lifetime_changed",
+          );
+        };
+        await assertCurrent();
         const base = {
           schemaVersion: 1,
           action: "collect_github_evidence",
@@ -174,8 +239,10 @@ export function createDeliveryGitHubCollector(options) {
           checkoutBinding,
           taskId: input.taskId,
           stepId: input.stepId,
+          ...(sourceContext ? { sourceContext } : {}),
         };
         const send = async (phase, payload) => {
+          await assertCurrent();
           const now = Date.now(),
             value = {
               ...base,
@@ -205,7 +272,9 @@ export function createDeliveryGitHubCollector(options) {
               }),
             deadline,
           );
-          return boundedJson(result, 65536, deadline);
+          const answer = await boundedJson(result, 65536, deadline);
+          await assertCurrent();
+          return answer;
         };
         const requestId = input.requestId ?? randomUUID();
         check(uuid(requestId), "github_collector_request_invalid");
@@ -246,13 +315,14 @@ export function createDeliveryGitHubCollector(options) {
             typeof target.expectedHeadSha === "string" &&
             /^[a-f0-9]{40}$/.test(target.expectedHeadSha) &&
             target.providerRepositoryId === checkoutBinding.repositoryId &&
-            target.expectedHeadSha === checkoutBinding.revision,
+            target.expectedHeadSha === (sourceContext?.headSha ?? checkoutBinding.revision),
           "github_collector_challenge_invalid",
         );
         if (freshChallenge) {
           saved = { ...saved, challengeValidated: true };
           journal.write(requestId, saved);
         }
+        await assertCurrent();
         const snapshot = Object.hasOwn(saved, "snapshot")
           ? structuredClone(saved.snapshot)
           : await runHelper(
@@ -267,16 +337,8 @@ export function createDeliveryGitHubCollector(options) {
           saved = { ...saved, snapshot };
           journal.write(requestId, saved);
         }
-        const current = currentRegistration();
-        check(
-          current?.id === registration.id &&
-            current.serverInstanceId === registration.serverInstanceId &&
-            current.expiresAt > Date.now() &&
-            JSON.stringify(canonical(currentProjectContext(input.managerThreadId))) ===
-              JSON.stringify(canonical(checkoutBinding)) &&
-            challenge.expiresAt > Date.now(),
-          "github_collector_lifetime_changed",
-        );
+        await assertCurrent();
+        check(challenge.expiresAt > Date.now(), "github_collector_lifetime_changed");
         return send("snapshot", {
           challengeId: challenge.id,
           nonce: challenge.nonce,

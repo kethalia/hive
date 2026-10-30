@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T01:29:51.861386+00:00",
+  "baseRevision": "16a153f04dd008d9fb1f5b711baebe42fa388046",
+  "scope": "frozen schema25 application persistence/action gates, manager source progression, source-aware GitHub collector and generated template packages; excludes ongoing installed input-barrier/service-action and rotation26 work",
+  "postgres": {
+    "schema": 25,
+    "passed": 207,
+    "skipped": 1
+  },
+  "sourceRuntime": {
+    "passed": 69,
+    "skipped": 1
+  },
+  "compiledBehavior": {
+    "passed": 120,
+    "skipped": 2
+  },
+  "packageSuite": {
+    "passed": 59,
+    "initialFailed": 1,
+    "initialFailure": "new delivery suite incorrectly inherited supervisor-specific module-mapping assertion; exact three delivery module mappings now required, two compiled suites pass"
+  },
+  "collectorServerProtocol": "passed",
+  "typecheck": "passed",
+  "actualCompiledFixedInstaller": "passed",
+  "guardianArchiveMeasurement": {
+    "gzipBytes": 154774,
+    "expandedBytes": 564736,
+    "limitGzipBytes": 160000,
+    "ciElfIncluded": true,
+    "measurementOnly": true
+  },
+  "logs": {
+    "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-package.txt": "f5e3b96488b1f88effdd393739cfc86700a418a3d2501b25674479fc605c6c4e",
+    "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-compiled.txt": "a24fa61e43fdcb46b9225012006ebf307746e6478a26acd815c6998e131f16e6",
+    "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-postgres.txt": "faf3ff42a2b3bc5dee5082eac0c8cb5407dfd351628221e5f7226f365ad18b31",
+    "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-protocol.txt": "5537e1cb7446d0f092847d47e2bc9c8ee29d8be2a23b1acae73f5241c8029677",
+    "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-types.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-installer.txt": "6593f66f64e3eb308ae0a8ee2f2463d1a0369827812cea35f90bf47f752f6795"
+  },
+  "productionActivation": false,
+  "signedApplyServiceAndInstalledInputBarrier": false
+}
