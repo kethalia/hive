@@ -212,6 +212,45 @@ it("bounds task-start bytes before cookie exchange, including multibyte input", 
   expect(f.coder.getApplicationAuthRedirect).not.toHaveBeenCalled();
   expect(f.fetcher).not.toHaveBeenCalled();
 });
+it("a cancelled task response stream rejects without waiting for an uncooperative cancel promise", async () => {
+  const f = fixture(),
+    controller = new AbortController();
+  let entered!: () => void;
+  const reading = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  f.fetcher
+    .mockReset()
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 303,
+        headers: { Location: path, "Set-Cookie": `${name}=secret; Path=/; HttpOnly; Secure` },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        new ReadableStream({
+          pull() {
+            entered();
+          },
+          cancel() {
+            return new Promise(() => {});
+          },
+        }),
+      ),
+    );
+  const pending = postToVerifiedWorkspaceApp(
+    f.coder,
+    f.issued.binding,
+    { path, body: "{}", expiresAt: f.issued.expiresAt, signal: controller.signal },
+    f.fetcher,
+  );
+  void pending.catch(() => {});
+  await reading;
+  controller.abort();
+  await expect(pending).rejects.toThrow();
+  expect(f.fetcher.mock.calls.every(([, init]) => init?.signal?.aborted)).toBe(true);
+});
 
 it("terminal cookie exchange is independently fixed to /terminal", async () => {
   const f = fixture();

@@ -254,15 +254,18 @@ export class ProjectTaskIntents {
   }
 }
 export async function reconcileTaskIntents(
-  store: ProjectTaskIntents,
+  store: Pick<ProjectTaskIntents, "claim" | "execution" | "finish" | "fail">,
   execute: (payload: TaskIntentExecution, phase: string) => Promise<ProjectTaskStatus>,
   target?: { ownerId: string; taskId: string },
   limit = 3,
+  options: { signal?: AbortSignal } = {},
 ) {
   z.number().int().min(1).max(3).parse(limit);
   const result = { processed: 0, retry: 0, stale: 0 };
   for (let index = 0; index < limit; index++) {
+    options.signal?.throwIfAborted();
     const row = await store.claim(target);
+    options.signal?.throwIfAborted();
     if (!row) break;
     if (row.phase === "blocked") {
       result.retry++;
@@ -270,12 +273,17 @@ export async function reconcileTaskIntents(
     }
     try {
       const value = await execute(store.execution(row), row.phase);
+      options.signal?.throwIfAborted();
       if (await store.finish(row, value)) result.processed++;
       else result.stale++;
     } catch {
+      // A cancelled/unknown host outcome retains this exact durable claim for
+      // later lease-fenced recovery; never acknowledge or start a second intent.
+      options.signal?.throwIfAborted();
       await store.fail(row);
       result.retry++;
     }
   }
+  options.signal?.throwIfAborted();
   return result;
 }

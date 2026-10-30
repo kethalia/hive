@@ -15,6 +15,15 @@ export function createGuardianService(
     policy = guardianDeploymentPolicy();
   const encryptionKey = process.env.ENCRYPTION_KEY;
   if (!encryptionKey) throw new RegistrationRejected();
+  const fetchApp: typeof fetch = (input, init) => {
+    options.signal?.throwIfAborted();
+    return fetch(input, {
+      ...init,
+      ...(options.signal
+        ? { signal: AbortSignal.any([options.signal, ...(init?.signal ? [init.signal] : [])]) }
+        : {}),
+    });
+  };
   const resolve = async (
     principal: { hiveUserId: string; coderUserId: string },
     workspaceId: string,
@@ -47,12 +56,24 @@ export function createGuardianService(
     signal: options.signal,
     transport: options.transport ?? {
       async identity(binding, nonce) {
-        const value = await requestGuardianIdentity(await currentCoder(binding), binding, nonce);
+        const value = await requestGuardianIdentity(
+          await currentCoder(binding),
+          binding,
+          nonce,
+          fetchApp,
+          options.signal,
+        );
         options.signal?.throwIfAborted();
         return value;
       },
       async bootstrap(binding, grant) {
-        const value = await deliverGuardianEnrollment(await currentCoder(binding), binding, grant);
+        const value = await deliverGuardianEnrollment(
+          await currentCoder(binding),
+          binding,
+          grant,
+          fetchApp,
+          options.signal,
+        );
         options.signal?.throwIfAborted();
         return value;
       },

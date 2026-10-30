@@ -29,22 +29,30 @@ function boundedHeaders(response: Response) {
   });
   if (size > 32768) reject();
 }
-async function boundedJson(response: Response, limit: number) {
+async function boundedJson(response: Response, limit: number, signal?: AbortSignal) {
   const reader = response.body?.getReader();
   if (!reader) reject();
   const chunks: Uint8Array[] = [];
   let size = 0;
+  const abort = () => {
+    void reader.cancel().catch(() => {});
+  };
+  signal?.addEventListener("abort", abort, { once: true });
   try {
-    while (true) {
+    for (let count = 0; count < 4096; count++) {
+      signal?.throwIfAborted();
       const r = await reader.read();
-      if (r.done) break;
+      signal?.throwIfAborted();
+      if (r.done) return JSON.parse(Buffer.concat(chunks).toString("utf8"));
       size += r.value.length;
       if (size > limit) reject();
       chunks.push(r.value);
     }
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    reject();
   } finally {
-    await reader.cancel().catch(() => {});
+    signal?.removeEventListener("abort", abort);
+    if (signal) void reader.cancel().catch(() => {});
+    else await reader.cancel().catch(() => {});
   }
 }
 type AppAuthCoder = Pick<
@@ -159,9 +167,19 @@ export async function exchangeVerifiedWorkspaceAppTerminalCookie(
 export async function postToVerifiedWorkspaceApp(
   coder: AppAuthCoder,
   binding: AppBinding,
-  request: { path: HostProjectPath; body: string; expiresAt: number },
+  request: { path: HostProjectPath; body: string; expiresAt: number; signal?: AbortSignal },
   fetchApp: typeof fetch = fetch,
 ) {
+  request.signal?.throwIfAborted();
+  const scopedFetch: typeof fetch = (input, init) => {
+    request.signal?.throwIfAborted();
+    return fetchApp(input, {
+      ...init,
+      ...(request.signal
+        ? { signal: AbortSignal.any([request.signal, ...(init?.signal ? [init.signal] : [])]) }
+        : {}),
+    });
+  };
   if (
     ![
       "/registration/bootstrap",
@@ -183,10 +201,11 @@ export async function postToVerifiedWorkspaceApp(
     binding,
     request.path,
     request.expiresAt,
-    fetchApp,
+    scopedFetch,
   );
+  request.signal?.throwIfAborted();
   if (Date.now() >= deadline) reject();
-  const response = await fetchApp(url, {
+  const response = await scopedFetch(url, {
     method: "POST",
     redirect: "manual",
     credentials: "omit",
@@ -197,16 +216,20 @@ export async function postToVerifiedWorkspaceApp(
   try {
     boundedHeaders(response);
     if (response.status !== 200) reject();
-    return await boundedJson(
+    const result = await boundedJson(
       response,
       request.path === "/projects/discover"
         ? 524288
         : request.path === "/registration/bootstrap"
           ? 4096
           : 16384,
+      request.signal,
     );
+    request.signal?.throwIfAborted();
+    return result;
   } finally {
-    await response.body?.cancel().catch(() => {});
+    if (request.signal) void response.body?.cancel().catch(() => {});
+    else await response.body?.cancel().catch(() => {});
   }
 }
 /** Independent read service only. Fixed path, request-local app cookie, bounded
@@ -305,6 +328,7 @@ export async function requestGuardianIdentity(
   binding: AppBinding,
   nonce: string,
   fetchApp: typeof fetch = fetch,
+  signal?: AbortSignal,
 ) {
   if (!/^[a-f0-9]{64}$/.test(nonce)) reject();
   return postToVerifiedWorkspaceApp(
@@ -314,6 +338,7 @@ export async function requestGuardianIdentity(
       path: "/guardian/identity",
       body: JSON.stringify({ nonce }),
       expiresAt: Math.floor(Date.now() / 1000) + 30,
+      ...(signal ? { signal } : {}),
     },
     fetchApp,
   );
@@ -323,6 +348,7 @@ export async function deliverGuardianEnrollment(
   binding: AppBinding,
   grant: string,
   fetchApp: typeof fetch = fetch,
+  signal?: AbortSignal,
 ) {
   if (grant.length < 100 || grant.length > 16384) reject();
   return postToVerifiedWorkspaceApp(
@@ -332,6 +358,7 @@ export async function deliverGuardianEnrollment(
       path: "/guardian/bootstrap",
       body: JSON.stringify({ grant }),
       expiresAt: Math.floor(Date.now() / 1000) + 30,
+      ...(signal ? { signal } : {}),
     },
     fetchApp,
   );
@@ -340,6 +367,7 @@ export async function deliverRegistrationGrant(
   coder: Parameters<typeof postToVerifiedWorkspaceApp>[0],
   issued: { grant: string; binding: RegistrationBinding; expiresAt: number },
   fetchApp: typeof fetch = fetch,
+  signal?: AbortSignal,
 ) {
   if (issued.grant.length > 16384) reject();
   const result = await postToVerifiedWorkspaceApp(
@@ -349,6 +377,7 @@ export async function deliverRegistrationGrant(
       path: "/registration/bootstrap",
       body: JSON.stringify({ grant: issued.grant }),
       expiresAt: issued.expiresAt,
+      ...(signal ? { signal } : {}),
     },
     fetchApp,
   );
@@ -371,8 +400,23 @@ export async function provisionRegisteredHost(
   workspaceId: string,
   agentId: string,
   projectIds: string[],
+  options: { signal?: AbortSignal } = {},
 ) {
+  options.signal?.throwIfAborted();
   const issued = await authority.issue(principal, workspaceId, agentId, projectIds);
+  options.signal?.throwIfAborted();
   await authority.reauthorize(issued.binding);
-  return deliverRegistrationGrant(coder, issued);
+  options.signal?.throwIfAborted();
+  const fetchApp: typeof fetch = (input, init) => {
+    options.signal?.throwIfAborted();
+    return fetch(input, {
+      ...init,
+      ...(options.signal
+        ? { signal: AbortSignal.any([options.signal, ...(init?.signal ? [init.signal] : [])]) }
+        : {}),
+    });
+  };
+  const result = await deliverRegistrationGrant(coder, issued, fetchApp, options.signal);
+  options.signal?.throwIfAborted();
+  return result;
 }

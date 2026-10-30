@@ -96,6 +96,28 @@ it("failed or unconfirmed enrollment prevents checkout preparation", async () =>
   await expect(reconcileProjectTasks()).rejects.toThrow("enrollment unavailable");
   expect(mock.host).not.toHaveBeenCalled();
 });
+it("propagates cancellation into guardian and the fixed host transport", async () => {
+  const controller = new AbortController();
+  await reconcileProjectTasks(undefined, 1, { signal: controller.signal });
+  expect(mock.host).toHaveBeenCalledWith(
+    { id: ownerId, coderUserId: "coder-owner" },
+    workspaceId,
+    "/projects/tasks/start",
+    mock.payload.hostRequest,
+    { signal: controller.signal },
+  );
+});
+it("discarded late enrollment cannot initiate host execution", async () => {
+  const controller = new AbortController();
+  mock.provision.mockImplementation(async () => {
+    controller.abort();
+    return { enrolled: true };
+  });
+  await expect(
+    reconcileProjectTasks(undefined, 1, { signal: controller.signal }),
+  ).rejects.toThrow();
+  expect(mock.host).not.toHaveBeenCalled();
+});
 it("owner/project mismatches reject before enrollment or host requests", async () => {
   mock.project.mockResolvedValueOnce(null);
   await expect(reconcileProjectTasks()).rejects.toThrow();

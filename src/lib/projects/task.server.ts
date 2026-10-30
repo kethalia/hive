@@ -138,15 +138,19 @@ function taskIntentStore() {
 export async function reconcileProjectTasks(
   target?: { ownerId: string; taskId: string },
   limit = 3,
+  options: { signal?: AbortSignal } = {},
 ) {
-  if (process.env.HIVE_PROJECT_TASKS_ENABLED !== "true") return { enabled: false };
+  if (process.env.HIVE_PROJECT_TASKS_ENABLED !== "true") return { enabled: false as const };
   const result = await reconcileTaskIntents(
     taskIntentStore(),
     async (payload, phase) => {
+      options.signal?.throwIfAborted();
       const owner = await getDb().user.findUnique({ where: { id: payload.ownerId } });
+      options.signal?.throwIfAborted();
       if (!owner) throw new Error("Task owner unavailable");
       const user = { id: owner.id, coderUserId: owner.coderUserId };
       const project = await ownedProject(user, payload.projectId);
+      options.signal?.throwIfAborted();
       if (
         project.providerRepositoryId !== payload.repositoryId ||
         project.providerAccountId !== payload.providerAccountId
@@ -159,10 +163,11 @@ export async function reconcileProjectTasks(
         // exchange authenticates the installed outer; a host status or browser
         // request cannot substitute for the approved package/lifetime checks.
         if (process.env.HIVE_GUARDIAN_ENABLED === "true") {
-          const enrollment = await createGuardianService().provision(
-            { hiveUserId: user.id, coderUserId: user.coderUserId },
-            payload.workspaceId,
-          );
+          const enrollment = await (options.signal
+            ? createGuardianService(options)
+            : createGuardianService()
+          ).provision({ hiveUserId: user.id, coderUserId: user.coderUserId }, payload.workspaceId);
+          options.signal?.throwIfAborted();
           if (enrollment.enrolled !== true) throw new Error("Guardian enrollment unavailable");
         }
         return status(
@@ -171,21 +176,28 @@ export async function reconcileProjectTasks(
             payload.workspaceId,
             "/projects/tasks/start",
             payload.hostRequest,
+            ...(options.signal ? [options] : []),
           ),
           payload.projectId,
           payload.taskId,
         );
       }
-      return readHostProjectTask(user, payload.projectId, {
-        workspaceId: payload.workspaceId,
-        taskId: payload.taskId,
-        requestId: payload.requestId,
-      });
+      return readHostProjectTask(
+        user,
+        payload.projectId,
+        {
+          workspaceId: payload.workspaceId,
+          taskId: payload.taskId,
+          requestId: payload.requestId,
+        },
+        options,
+      );
     },
     target,
     limit,
+    options,
   );
-  return { enabled: true, ...result };
+  return { enabled: true as const, ...result };
 }
 export async function readProjectTask(user: ProjectPrincipal, projectId: string, value: unknown) {
   const input = projectTaskReadSchema.parse(value);
@@ -235,30 +247,45 @@ export async function readHostProjectTask(
   user: ProjectPrincipal,
   projectId: string,
   value: unknown,
+  options: { signal?: AbortSignal } = {},
 ) {
+  options.signal?.throwIfAborted();
   const input = projectTaskReadSchema.parse(value);
   await ownedProject(user, projectId);
+  options.signal?.throwIfAborted();
   const read = () =>
-    signedHostProjectRequest(user, input.workspaceId, "/projects/tasks/status", {
-      schemaVersion: 1,
-      projectId,
-      taskId: input.taskId,
-      requestId: input.requestId,
-    });
+    signedHostProjectRequest(
+      user,
+      input.workspaceId,
+      "/projects/tasks/status",
+      {
+        schemaVersion: 1,
+        projectId,
+        taskId: input.taskId,
+        requestId: input.requestId,
+      },
+      ...(options.signal ? [options] : []),
+    );
   const current = status(await read(), projectId, input.taskId);
+  options.signal?.throwIfAborted();
   if (current.phase !== "awaitingRegistration") return current;
   // Registration itself freshly verifies owner/build/app. Recover only the
   // current slot's known projects, never every historic conversation in the DB.
-  const service = createRegisteredSessionService(getDb(), registeredSessionConfig());
+  const service = createRegisteredSessionService(getDb(), registeredSessionConfig(), options);
   const principal = { hiveUserId: user.id, coderUserId: user.coderUserId };
   const { resolveVerifiedWorkspaceHost } = await import("@/lib/codex-session/registration.server");
-  const coder = await getCoderClientForUser(user.id);
+  options.signal?.throwIfAborted();
+  const coder = options.signal
+    ? await getCoderClientForUser(user.id, options)
+    : await getCoderClientForUser(user.id);
+  options.signal?.throwIfAborted();
   const { binding } = await resolveVerifiedWorkspaceHost(
     registeredSessionConfig(),
     async () => coder,
     principal,
     input.workspaceId,
   );
+  options.signal?.throwIfAborted();
   const slot = await getDb().codexHostSlot.findUnique({
     where: {
       ownerId_coderOrigin_workspaceId_agentId: {
@@ -269,12 +296,14 @@ export async function readHostProjectTask(
       },
     },
   });
+  options.signal?.throwIfAborted();
   const prior = slot?.activeRegistrationId
     ? await getDb().codexHostRegistration.findUnique({
         where: { ownerId_id: { ownerId: user.id, id: slot.activeRegistrationId } },
         include: { threads: true },
       })
     : null;
+  options.signal?.throwIfAborted();
   const projectIds = [
     ...new Set([
       ...(prior && prior.buildId === binding.buildId && !prior.revokedAt
@@ -290,6 +319,8 @@ export async function readHostProjectTask(
     binding.workspaceId,
     binding.agentId,
     projectIds,
+    ...(options.signal ? [options] : []),
   );
+  options.signal?.throwIfAborted();
   return status(await read(), projectId, input.taskId);
 }
