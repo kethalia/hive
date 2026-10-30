@@ -475,3 +475,11 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   facts after the publication grant expires, without writes or new execution permission.
   Parent10 clean-export database/route checks and typecheck pass; producer6 checks include
   a real61-second wait. Host client, protected apply and installed recovery still follow.
+
+- Signed host bootstrap service: reviewed local checkpoint, high difficulty. Owner-app
+  nonce challenge and one-use enrollment bind the approved package, exact lifetime and
+  server-derived configuration. Signed frame and issuer-grant expiry are rechecked before
+  commit; observed SQL-delay/abort tests prove rollback. Parent11 checks and clean-export
+  typecheck pass. Parallel test-fixture interference was fixed without weakening assertions;
+  its original failure remains. Actual installed outer/worker composition remains next.
+  CI, image builds and native-guardian builds are green at3ec009f.
