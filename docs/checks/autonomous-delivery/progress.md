@@ -788,3 +788,11 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   the disposable and its reaper requested deletion; a fresh Coder read returns410 Gone.
   Preserved completion evidence is unchanged. No raw deletion or unrelated workspace action.
   Evidence: [cleanup verification](template-infrastructure-validation/cleanup.json).
+
+- Project reconciliation cancellation plumbing: implemented and reviewed. A caller-provided
+  abort signal now reaches Coder/guardian/host requests; database operations finish before
+  return, and unknown interrupted host outcomes retain their durable claim for recovery.
+  Parent checks pass21 focused cases. This is request-local cancellation only: actual workerd
+  inspection showed service-binding caller cancellation does not automatically propagate to
+  the app. An authenticated app-enforced deadline and response-independent database cleanup
+  are being validated before the private reconciliation route is enabled.

@@ -23,16 +23,22 @@ export async function signedHostProjectRequest(
   workspaceId: string,
   path: keyof typeof endpoints,
   request: Record<string, unknown>,
+  options: { signal?: AbortSignal } = {},
 ) {
   try {
+    options.signal?.throwIfAborted();
     const config = registeredSessionConfig();
-    const client = await getCoderClientForUser(user.id);
+    const client = options.signal
+      ? await getCoderClientForUser(user.id, options)
+      : await getCoderClientForUser(user.id);
+    options.signal?.throwIfAborted();
     const { binding } = await resolveVerifiedWorkspaceHost(
       config,
       async () => client,
       { hiveUserId: user.id, coderUserId: user.coderUserId },
       workspaceId,
     );
+    options.signal?.throwIfAborted();
     const key = createPrivateKey(config.privateKeyPem);
     if (key.asymmetricKeyType !== "ed25519") throw new Error("Unsupported issuer key");
     const iat = Math.floor(Date.now() / 1000);
@@ -54,8 +60,11 @@ export async function signedHostProjectRequest(
       path,
       body: JSON.stringify({ ticket }),
       expiresAt: claims.exp,
+      ...(options.signal ? { signal: options.signal } : {}),
     });
+    options.signal?.throwIfAborted();
     const current = await client.getWorkspace(workspaceId);
+    options.signal?.throwIfAborted();
     if (
       current.id !== binding.workspaceId ||
       current.owner_id !== user.coderUserId ||
