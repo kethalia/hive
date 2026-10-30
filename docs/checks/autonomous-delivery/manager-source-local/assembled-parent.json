@@ -32,7 +32,7 @@
     "measurementOnly": true
   },
   "logs": {
-    "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-package.txt": "f5e3b96488b1f88effdd393739cfc86700a418a3d2501b25674479fc605c6c4e",
+    "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-package.txt": "bdc1038de8bce69d7ba73432bb45031ce1b42c5d40c36dccb3a918e7fcba0cf7",
     "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-compiled.txt": "a24fa61e43fdcb46b9225012006ebf307746e6478a26acd815c6998e131f16e6",
     "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-postgres.txt": "faf3ff42a2b3bc5dee5082eac0c8cb5407dfd351628221e5f7226f365ad18b31",
     "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-protocol.txt": "5537e1cb7446d0f092847d47e2bc9c8ee29d8be2a23b1acae73f5241c8029677",
@@ -40,5 +40,6 @@
     "docs/checks/autonomous-delivery/manager-source-local/assembled-parent-installer.txt": "6593f66f64e3eb308ae0a8ee2f2463d1a0369827812cea35f90bf47f752f6795"
   },
   "productionActivation": false,
-  "signedApplyServiceAndInstalledInputBarrier": false
+  "signedApplyServiceAndInstalledInputBarrier": false,
+  "evidenceNormalization": "Trailing whitespace removed from preserved package failure log; original raw output remains /tmp/hive-source-assembly-parent-package.txt."
 }

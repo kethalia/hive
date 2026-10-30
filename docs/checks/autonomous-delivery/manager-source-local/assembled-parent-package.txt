@@ -396,9 +396,9 @@ ok 52 - native 0.165 CLI and capability client share one loaded thread without i
 test at scripts/verify-codex-compiled-host.test.mjs:74:1
 ✖ compiled delivery preserves source progression, native facts and collector signatures (1513.219275ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(readFileSync(mappingLog, "utf8").includes("codex-project-supervisor.mjs"))
-  
+
       at file:///tmp/hive-source-assembly-parent-cic5jzyi/scripts/verify-codex-compiled-host.test.mjs:61:12
       at TestContext.<anonymous> (file:///tmp/hive-source-assembly-parent-cic5jzyi/scripts/verify-codex-compiled-host.test.mjs:75:14)
       at Test.runInAsyncScope (node:async_hooks:227:14)
