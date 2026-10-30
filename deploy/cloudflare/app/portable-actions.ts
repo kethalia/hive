@@ -121,8 +121,12 @@ const discoveryPaths = new Set([
   "/api/discovery/agent",
   "/api/discovery/templates",
 ]);
-export function isPortableDiscovery(request: Request): boolean {
-  return request.method === "GET" && discoveryPaths.has(new URL(request.url).pathname);
+export function isPortableDiscovery(request: Request, agentToolsEnabled = false): boolean {
+  const path = new URL(request.url).pathname;
+  return (
+    request.method === "GET" &&
+    (discoveryPaths.has(path) || (agentToolsEnabled && path === "/api/discovery/agent-tools"))
+  );
 }
 
 export function isUnsupportedPageMutation(request: Request, manifest: PortableActions): boolean {

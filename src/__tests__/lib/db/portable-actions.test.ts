@@ -207,3 +207,12 @@ it("only HTTP-based discovery reads leave the host-only compatibility gate", () 
   for (const name of ["sessions", "repositories", "agent-tools", "workspaces/", "%77orkspaces"])
     expect(isPortableDiscovery(request(`/api/discovery/${name}`, { method: "GET" }))).toBe(false);
 });
+
+it("admits agent discovery only with the scoped agent bridge enabled", () => {
+  const incoming = request("/api/discovery/agent-tools", { method: "GET" });
+  expect(isPortableDiscovery(incoming)).toBe(false);
+  expect(isPortableDiscovery(incoming, true)).toBe(true);
+  expect(isPortableDiscovery(request("/api/discovery/agent-tools", { method: "POST" }), true)).toBe(
+    false,
+  );
+});

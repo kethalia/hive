@@ -11,6 +11,7 @@ on:
       - "templates/ai-dev-k8s/scripts/install-codex-host.py"
       - "templates/ai-dev-k8s/scripts/install-workspace-read.py"
       - "templates/ai-dev-k8s/scripts/install-voice.py"
+      - "templates/ai-dev-k8s/scripts/install-agent-bridge.py"
       - ".github/workflows/build-base-image.yml"
   pull_request:
     branches:
@@ -22,6 +23,7 @@ on:
       - "templates/ai-dev-k8s/scripts/install-codex-host.py"
       - "templates/ai-dev-k8s/scripts/install-workspace-read.py"
       - "templates/ai-dev-k8s/scripts/install-voice.py"
+      - "templates/ai-dev-k8s/scripts/install-agent-bridge.py"
       - ".github/workflows/build-base-image.yml"
   workflow_dispatch:
     inputs:

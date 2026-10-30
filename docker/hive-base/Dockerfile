@@ -19,8 +19,8 @@ FROM debian:trixie
 COPY --from=workspace-identity-build --chmod=0755 /out/hive-workspace-identity /usr/local/libexec/hive-workspace-identity
 COPY --from=workspace-identity-build --chmod=0644 /out/hive-workspace-identity.json /usr/local/libexec/hive-workspace-identity.json
 COPY --chmod=0555 hive-template-bootstrap.py /usr/local/libexec/hive-template-bootstrap
-COPY --from=template-runtime --chmod=0444 assets/codex-host.tar.xz assets/workspace-read.tar.gz assets/voice.tar.gz /usr/local/libexec/hive-template-runtime/
-COPY --from=template-runtime --chmod=0444 scripts/install-codex-host.py scripts/install-workspace-read.py scripts/install-voice.py /usr/local/libexec/hive-template-runtime/
+COPY --from=template-runtime --chmod=0444 assets/codex-host.tar.xz assets/workspace-read.tar.gz assets/voice.tar.gz assets/agent-bridge.tar.gz /usr/local/libexec/hive-template-runtime/
+COPY --from=template-runtime --chmod=0444 scripts/install-codex-host.py scripts/install-workspace-read.py scripts/install-voice.py scripts/install-agent-bridge.py /usr/local/libexec/hive-template-runtime/
 
 # COPY --chmod protects file contents; the unprivileged runtime must traverse the asset directory.
 RUN chmod 0555 /usr/local/libexec/hive-template-runtime

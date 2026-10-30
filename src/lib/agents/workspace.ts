@@ -8,6 +8,8 @@ import {
   discoveryCacheKey,
   invalidateDiscovery,
 } from "@/lib/discovery/server-cache";
+import { createPortableAgentService } from "./portable-config.server";
+import { agentOperationSchema } from "./portable-contracts";
 import { agentToolsSnapshotSchema } from "./types";
 
 const SOURCE_PATH = join(process.cwd(), "templates/ai-dev-k8s/scripts/agent-tools.py");
@@ -37,6 +39,8 @@ export async function authorizeWorkspaceAgent(
   return {
     client,
     target,
+    user,
+    workspaceId,
     cacheKey: discoveryCacheKey([
       "agent-inventory",
       client.getBaseUrl(),
@@ -93,10 +97,21 @@ export async function inspectWorkspaceAgentTools(
 }
 
 async function execute(
-  { client, target }: Awaited<ReturnType<typeof authorizeWorkspaceAgent>>,
+  { client, target, user, workspaceId }: Awaited<ReturnType<typeof authorizeWorkspaceAgent>>,
   operation: Operation,
   key?: string,
 ): Promise<unknown> {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+    const request = agentOperationSchema.parse(
+      operation === "resume" ? { operation, key } : { operation },
+    );
+    if (request.operation === "identity") throw new Error("Invalid agent operation");
+    return createPortableAgentService().execute(
+      { hiveUserId: user.id, coderUserId: user.coderUserId },
+      workspaceId,
+      request,
+    );
+  }
   const source = await readFile(SOURCE_PATH, "utf8");
   const command = `python3 -c '${source.replace(/'/g, "'\\''")}'`;
   const payload = {

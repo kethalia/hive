@@ -8,6 +8,7 @@ import {
   exchangeVerifiedWorkspaceVoiceCookie,
   postToVerifiedWorkspaceApp,
   requestGuardianIdentity,
+  requestVerifiedWorkspaceAgent,
 } from "@/lib/codex-session/bootstrap-delivery.server";
 
 const origin = "https://app--main--workspace--owner.apps.example.com",
@@ -349,4 +350,46 @@ it("voice cookie exchanges are restricted to their fixed endpoints", async () =>
     ),
   ).rejects.toThrow();
   expect(f.coder.getApplicationAuthRedirect).not.toHaveBeenCalled();
+});
+
+it("agent transport uses a fixed app endpoint and a scoped cookie", async () => {
+  const f = fixture(),
+    path = "/agent/operation";
+  f.coder.getApplicationAuthRedirect.mockResolvedValue(
+    `${origin}${path}?coder_application_connect_api_key_35e783=encrypted`,
+  );
+  f.fetcher
+    .mockReset()
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 303,
+        headers: {
+          Location: path,
+          "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+        },
+      }),
+    )
+    .mockResolvedValueOnce(Response.json({ fixture: true }));
+  const response = await requestVerifiedWorkspaceAgent(
+    f.coder,
+    f.issued.binding,
+    {
+      ticket: "private-ticket",
+      expiresAt: f.issued.expiresAt,
+      signal: new AbortController().signal,
+    },
+    f.fetcher,
+  );
+  expect(await response.json()).toEqual({ fixture: true });
+  expect(f.coder.getApplicationAuthRedirect).toHaveBeenCalledWith(`${origin}${path}`);
+  expect(f.fetcher.mock.calls[1]).toMatchObject([
+    `${origin}${path}`,
+    {
+      method: "POST",
+      redirect: "manual",
+      credentials: "omit",
+      headers: { "Content-Type": "application/json", Cookie: `${name}=scoped_secret` },
+      body: JSON.stringify({ ticket: "private-ticket" }),
+    },
+  ]);
 });

@@ -24,6 +24,7 @@ for (const [kind, archive, installer] of [
   ["host", "codex-host.tar.xz", "install-codex-host.py"],
   ["read", "workspace-read.tar.gz", "install-workspace-read.py"],
   ["voice", "voice.tar.gz", "install-voice.py"],
+  ["agent", "agent-bridge.tar.gz", "install-agent-bridge.py"],
 ]) {
   test(`${kind} bootstrap reconstructs only image-pinned bytes and rejects tampering`, async () => {
     const a = await readFile(`templates/ai-dev-k8s/assets/${archive}`),
