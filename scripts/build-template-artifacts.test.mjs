@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -34,13 +34,41 @@ test("reproducible archive preserves executable scripts and matches file content
   await extracted;
   assert.deepEqual(
     files.map((file) => file.name),
-    ["main.tf", "scripts/run.sh"],
+    ["scripts/", "main.tf", "scripts/run.sh"],
   );
-  assert.equal(files[1].mode, 0o755);
+  assert.equal(files[2].mode, 0o755);
   assert.equal(a.metadata.archiveBytes, a.archive.length);
   assert.equal(a.metadata.fileCount, 2);
   await writeFile(join(path, "main.tf"), 'terraform { required_version = ">= 1" }\n');
   assert.notEqual((await templateArtifact(path)).metadata.contentHash, a.metadata.contentHash);
+});
+test("nested assets extract without implicit parent creation, as Coder requires", async (t) => {
+  const path = await fixture(t);
+  await mkdir(join(path, "assets/nested"), { recursive: true });
+  await writeFile(join(path, "assets/nested/value.txt"), "fixture\n");
+  const { archive } = await templateArtifact(path);
+  const destination = await mkdtemp(join(tmpdir(), "hive-template-extract-"));
+  t.after(() => rm(destination, { recursive: true, force: true }));
+  const extractor = tar.extract();
+  const done = new Promise((resolve, reject) => {
+    extractor.on("error", reject);
+    extractor.on("finish", resolve);
+    extractor.on("entry", (header, stream, next) => {
+      (async () => {
+        const chunks = [];
+        for await (const chunk of stream) chunks.push(chunk);
+        if (header.type === "directory") await mkdir(join(destination, header.name));
+        else {
+          assert.equal(header.type, "file");
+          await writeFile(join(destination, header.name), Buffer.concat(chunks));
+        }
+        next();
+      })().catch(reject);
+    });
+  });
+  extractor.end(archive);
+  await done;
+  assert.equal(await readFile(join(destination, "assets/nested/value.txt"), "utf8"), "fixture\n");
 });
 test("provider caches are excluded and private files or symlinks fail the build", async (t) => {
   const path = await fixture(t);
@@ -123,7 +151,7 @@ async function unpack(archive) {
       const chunks = [];
       stream.on("data", (chunk) => chunks.push(chunk));
       stream.on("end", () => {
-        files.set(header.name, Buffer.concat(chunks));
+        if (header.type === "file") files.set(header.name, Buffer.concat(chunks));
         next();
       });
     });

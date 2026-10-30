@@ -180,6 +180,24 @@ export async function templateArtifact(directory) {
   const collected = (async () => {
     for await (const chunk of pack) chunks.push(chunk);
   })();
+  // Coder's provisioner creates regular files without synthesizing parents.
+  // Emit deterministic directory headers before any nested file, while keeping
+  // content identity and fileCount scoped to the regular source files.
+  const directories = new Set();
+  for (const file of files) {
+    const parts = file.path.split("/");
+    for (let count = 1; count < parts.length; count++)
+      directories.add(parts.slice(0, count).join("/"));
+  }
+  for (const name of [...directories].sort())
+    pack.entry({
+      name: `${name}/`,
+      type: "directory",
+      mode: 0o755,
+      uid: 0,
+      gid: 0,
+      mtime: new Date(0),
+    });
   for (const file of files) {
     contentHash.update(file.path).update(file.content);
     pack.entry(
