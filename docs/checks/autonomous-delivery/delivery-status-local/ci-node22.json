@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "ciRunId": "41001121970",
+  "ciJobId": "123885604132",
+  "failedRevision": "2294726",
+  "baseRevisionAtEvidenceWrite": "2294726c5d931d83e1c7a760c61862037ecfbeb4",
+  "reproduced": true,
+  "cause": "Test fixture awaited an unref background timer without a host listener or bounded referenced wait; Node22 exited with pending promise.",
+  "fix": "A referenced 5-second observation deadline keeps only the test wait alive and fails if refresh is not observed. It is cleared on completion. Runtime timer, production deadline, assertions, rate and pause checks are unchanged.",
+  "runtimeChanged": false,
+  "source": {
+    "path": "scripts/verify-codex-delivery-runtime.test.mjs",
+    "beforeSha256": "f881e1453525a5d17ed10356745ecb89955bfd1cc4207fd3c17c44fdc46c0909",
+    "afterSha256": "9a06e26f3ade68fe11ff89e3510f74e632dc92ea17dade33f6878f91de85990b"
+  },
+  "checks": {
+    "node22.23.4": {
+      "passed": 49,
+      "skippedExistingNative": 1,
+      "cancelled": 0
+    },
+    "node24.21.0": {
+      "passed": 49,
+      "skippedExistingNative": 1,
+      "cancelled": 0
+    },
+    "compiledNode22": {
+      "wrapperPassed": 1,
+      "nestedPassed": 13
+    },
+    "compiledNode24": {
+      "wrapperPassed": 1,
+      "nestedPassed": 13
+    },
+    "biomePassed": true
+  },
+  "logs": {
+    "ci-node22-before.txt": "97ad3e75c364031e620c0d15edf16a4cef3ca3cfe96162584f6544ef04abefaf",
+    "ci-node22-after.txt": "2be5c9c70376ec99944454161e6f5910ee60a7009b2ab777a0ac94a8f833d338",
+    "ci-node24-after.txt": "02c0ada2864c8ffe4afed2c5d293ace0da2c37bb170199a49cc4139c0e1a4a75",
+    "ci-node22-compiled.txt": "08ffdaa43d8739670d57ce84bbbcbed2e97dcc49d345aad7fb303fecba539431",
+    "ci-node24-compiled.txt": "e9f8b72a658f08dff3d2295a7a0ca9004aa6e8392dae7087136ff725be00b869"
+  },
+  "effects": {
+    "accountInference": false,
+    "cloudChanges": false,
+    "providerWrites": false
+  }
+}

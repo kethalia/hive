@@ -41,8 +41,8 @@ resource "coder_app" "hive_read" {
 
 locals {
   hive_read_bootstrap_data = local.hive_read_enabled ? {
-    "hive.kethalia.com/read-start" = file("${path.module}/scripts/start-workspace-read.py")
-    "hive.kethalia.com/read-installer" = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
+    "hive.kethalia.com/read-start"            = file("${path.module}/scripts/start-workspace-read.py")
+    "hive.kethalia.com/read-installer"        = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
     "hive.kethalia.com/read-installer-sha256" = trimspace(file("${path.module}/assets/workspace-read-installer.sha256"))
     "hive.kethalia.com/read-request" = jsonencode({
       schemaVersion  = 1

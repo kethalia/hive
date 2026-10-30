@@ -1,0 +1,13 @@
+{
+  "revision": "2294726c5d931d83e1c7a760c61862037ecfbeb4",
+  "archiveSha256": "a9e871b6dbccb741857e93288a83d2191de3424fbd2326e14b54db385b51b850",
+  "archiveBytes": 6666240,
+  "workspaceId": "191f77c9-dadd-4cb5-abdb-7f94eb893c0f",
+  "commands": [
+    "terraform fmt -check -diff -recursive",
+    "terraform init -backend=false -lockfile=readonly -input=false",
+    "terraform validate -json"
+  ],
+  "productionCredentialsProvided": false,
+  "planOrApplyAuthorized": false
+}

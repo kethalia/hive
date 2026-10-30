@@ -336,7 +336,23 @@ test("status schedules one bounded refresh per minute without waiting for collec
   // by this scheduling test; real composition covers those separately.
   f.runtime.adapter.currentAcceptedSource = async () => accepted;
   await f.call("read_status", {});
-  await began;
+  // The real host's listener owns its lifetime; the background refresh timer is
+  // deliberately unref'ed. This fixture has no listener, so keep only this
+  // bounded observation alive (Node 22 otherwise exits before the timer fires).
+  let observationDeadline;
+  try {
+    await Promise.race([
+      began,
+      new Promise((_, reject) => {
+        observationDeadline = setTimeout(
+          () => reject(new Error("fixture_refresh_not_observed")),
+          5000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(observationDeadline);
+  }
   for (let i = 0; i < 8; i++) await f.call("read_status", {});
   assert.equal(refreshes, 1);
   assert.equal(f.runtime.evidenceStatus().phase, "refreshing");
