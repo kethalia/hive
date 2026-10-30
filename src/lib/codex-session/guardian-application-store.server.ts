@@ -46,6 +46,7 @@ export class GuardianSourceApplicationStore {
     private readonly db: PrismaClient,
     private readonly options: {
       policy: GuardianPolicy;
+      expectedRuntime: { id: string; generation: number };
       signal?: AbortSignal;
       authorizationExpiresAt?: number;
     },
@@ -71,6 +72,10 @@ export class GuardianSourceApplicationStore {
         // Existing lock order is slot/registration -> runtime -> admission -> intent.
         // Application/manager/task locks always FOLLOW this shared identity lock.
         const producer = await lockProducerMetadata(tx, scope, this.options.policy);
+        requireCurrent(
+          producer.runtimeId === this.options.expectedRuntime.id &&
+            producer.runtimeGeneration === this.options.expectedRuntime.generation,
+        );
         const result = await work(tx, scope, producer);
         const runtime = await tx.codexGuardianRuntime.findUniqueOrThrow({
           where: { id: producer.runtimeId },

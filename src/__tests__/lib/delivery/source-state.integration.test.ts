@@ -239,7 +239,13 @@ async function fixture() {
     await complete(first, f.stepId, sourceContext);
     // A synthetic closed input barrier/outer receipt is explicit fixture data.
     // The real application store must ACK B before this test can start C.
-    const application = new GuardianSourceApplicationStore(db, { policy: f.guardian.policy });
+    const application = new GuardianSourceApplicationStore(db, {
+      policy: f.guardian.policy,
+      expectedRuntime: {
+        id: f.guardian.runtime.id,
+        generation: f.guardian.finalized.runtime.generation,
+      },
+    });
     const observedAt = new Date(Date.now() - 1).toISOString(),
       applicationId = randomUUID();
     const inputBarrier = {

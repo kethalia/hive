@@ -83,6 +83,9 @@ export async function startInstalledGuardedHost() {
       controllerIdentity: authority.identity,
       controllerBootstrap: authority.bootstrap,
       controllerMetadata: authority.currentMetadata,
+      controllerApplyReserve: authority.applyReserve,
+      controllerApplyVerify: authority.applyVerify,
+      controllerApplyCommit: authority.applyCommit,
       metadataAuthority: authority.metadataAuthority,
     });
     await channel.ready(host.startupAttestation());

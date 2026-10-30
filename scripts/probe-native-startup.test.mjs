@@ -17,6 +17,11 @@ test("startup diagnostic rejects source drift and never changes readiness bounds
   assert.match(transformed.source, /Math\.min\(300,/);
   assert.match(transformed.source, /Math\.min\(100,/);
   assert.match(transformed.source, /diagnostic\?\.poll\(child, attempt\+\+\)/);
+  assert.equal(
+    transformed.source.split("sourceInputAuthority?.();").length,
+    source.split("sourceInputAuthority?.();").length,
+    "diagnostics must preserve every source-input fence",
+  );
   assert.equal((await load(url.href, {}, async () => transformed)).source, transformed.source);
   await assert.rejects(
     load(url.href, {}, async () => ({

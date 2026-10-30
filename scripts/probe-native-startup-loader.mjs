@@ -80,8 +80,8 @@ export async function load(url, context, nextLoad) {
     );
   }
   replace(
-    "      await executionAuthority?.fence();\n      executionAuthority?.assert();\n      const result = await new Promise",
-    '      if (["initialize", "configRequirements/read", "command/exec"].includes(method)) diagnostic.event("request", {method});\n      await executionAuthority?.fence();\n      executionAuthority?.assert();\n      const result = await new Promise',
+    "    const call = async (method, params) => {\n      sourceInputAuthority?.();",
+    '    const call = async (method, params) => {\n      sourceInputAuthority?.();\n      if (["initialize", "configRequirements/read", "command/exec"].includes(method)) diagnostic.event("request", {method});',
   );
   replace(
     "    if (namespace) await namespace.verify(call, namespace.verificationCwd);",
