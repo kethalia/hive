@@ -28,7 +28,7 @@ out={}
 for p in [Path('/usr'),Path('/usr/local'),Path('/usr/local/libexec'),root]:
  try: s=p.lstat()
  except OSError: fail('directory_unavailable',p)
- if p.resolve()!=p or not stat.S_ISDIR(s.st_mode) or s.st_uid!=0 or s.st_mode & 0o022: fail('directory_rejected',p,s)
+ if p.resolve()!=p or not stat.S_ISDIR(s.st_mode) or s.st_uid!=0 or s.st_mode & 0o022 or s.st_mode & 0o111 != 0o111: fail('directory_rejected',p,s)
 for name in files+['hive-template-bootstrap']:
  p=(Path('/usr/local/libexec') if name=='hive-template-bootstrap' else root)/name
  try: s=p.lstat()
