@@ -627,3 +627,11 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   requires draining every old instance before enabling Cloudflare rotation. No flag changed
   in any deployed environment. The source-input/XZ checkpoint is pushed; priorf2c7a0f CI,
   image and native guardian builds are all green.
+
+- Cloudflare assembled runtime regression: completed, moderate difficulty. The committed
+  source-input/XZ build1a7fea2 passes the combined auth/task/workspace-action and nine host
+  callback transport proof against isolated Neon26. Ownership, logout/expiry, transaction
+  rollback, forged/unknown host rejection and private-route boundaries pass. An initial
+  harness invocation omitted its required `--callbacks` option and stopped before startup;
+  the corrected run passes. This is local workerd, with no deployed flag or Coder mutation.
+  Evidence: [assembled workerd](cloudflare-auth-source-input.json).
