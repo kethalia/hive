@@ -269,9 +269,79 @@ def ready(identity, config, config_sha, lifetime=None):
     return body["lifetimeId"]
 
 
+def image_asset(path, limit, executable=False):
+    """Pin an immutable root-owned image asset, returning its open descriptor."""
+    require(path.is_absolute() and path.resolve() == path)
+    for parent in path.parents:
+        info = parent.stat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        info = os.fstat(fd)
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1 and not info.st_mode & 0o022 and 0 < info.st_size <= limit and (not executable or info.st_mode & 0o111))
+        raw = os.read(fd, limit + 1)
+        require(len(raw) == info.st_size and len(raw) <= limit)
+        os.lseek(fd, 0, os.SEEK_SET)
+        return fd, raw
+    except Exception:
+        os.close(fd)
+        raise
+
+
+def normalize_agent_config(config, kind):
+    """One authenticated manifest read before hashing the effective config."""
+    require(isinstance(config, dict) and isinstance(config.get("binding"), dict))
+    binding = config["binding"]
+    expected = {"schemaVersion": 1, "kind": kind, "coderOrigin": binding["coderOrigin"], "workspaceId": binding["workspaceId"], "buildId": binding["buildId"], "appId": binding["appId"], "appOrigin": binding["appOrigin"], "provisionalAgentId": binding["agentId"]}
+    helper_fd, binary = image_asset(Path("/usr/local/libexec/hive-workspace-identity"), 64 * 1024 * 1024, True)
+    try:
+        pin_fd, pin_raw = image_asset(Path("/usr/local/libexec/hive-workspace-identity.json"), 4096)
+        os.close(pin_fd)
+        pin = json.loads(pin_raw)
+        binary_sha = hashlib.sha256(binary).hexdigest()
+        require(isinstance(pin, dict) and set(pin) == {"schemaVersion", "sdkVersion", "goVersion", "sha256"} and type(pin["schemaVersion"]) is int and pin["schemaVersion"] == 1 and pin["sdkVersion"] == "v2.38.4" and pin["goVersion"] == "go1.26.10" and pin["sha256"] == binary_sha)
+        agent_env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
+        for key in ("CODER_AGENT_URL", "CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE"):
+            if key in os.environ:
+                agent_env[key] = os.environ[key]
+        reply = subprocess.run([f"/proc/self/fd/{helper_fd}"], input=json.dumps(expected, separators=(",", ":")).encode(), env=agent_env, pass_fds=(helper_fd,), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=11, check=True)
+        require(0 < len(reply.stdout) <= 16384)
+        value = json.loads(reply.stdout)
+        fields = ["schemaVersion", "sdkVersion", "kind", "coderOrigin", "workspaceId", "buildId", "appId", "appOrigin", "provisionalAgentId", "agentId"]
+        require(isinstance(value, dict) and set(value) == set(fields) | {"manifestBindingSha256"} and all(value[key] == expected[key] for key in expected) and type(value["schemaVersion"]) is int and value["sdkVersion"] == "v2.38.4")
+        require(isinstance(value["agentId"], str) and str(uuid.UUID(value["agentId"])) == value["agentId"] and uuid.UUID(value["agentId"]).int != 0)
+        selected = {key: value[key] for key in fields}
+        require(hashlib.sha256(json.dumps(selected, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest() == value["manifestBindingSha256"])
+        normalized = json.loads(json.dumps(config))
+        normalized["binding"]["agentId"] = value["agentId"]
+        return normalized, {**value, "helperSha256": binary_sha}
+    finally:
+        os.close(helper_fd)
+
+
+def same_build_identity(previous, identity, config_path):
+    prior = previous.get("runtimeIdentity")
+    if isinstance(prior, dict) and prior.get("buildId") != identity["buildId"]:
+        return
+    if not isinstance(prior, dict):
+        raw = private_file(config_path, 32768)
+        require(hashlib.sha256(raw).hexdigest() == previous.get("configSha256"))
+        old = json.loads(raw)
+        require(isinstance(old, dict) and isinstance(old.get("binding"), dict))
+        if old["binding"].get("buildId") != identity["buildId"]:
+            return
+    # A legacy receipt cannot be silently adopted in the same build. New build
+    # startup may preserve its old history only after the normal process checks.
+    require(isinstance(prior, dict) and prior.get("manifestBindingSha256") == identity["manifestBindingSha256"] and prior.get("agentId") == identity["agentId"])
+
+
 def install(request):
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+    files, target, bootstrap_encoded = validate(request, home, os.environ.get("HIVE_WORKSPACE_PROFILE"))
+    effective, runtime_identity = normalize_agent_config(request["config"], "workspace-read")
+    request = {**request, "config": effective}
     files, target, encoded = validate(request, home, os.environ.get("HIVE_WORKSPACE_PROFILE"))
+    bootstrap_sha = sha(bootstrap_encoded)
     for parent in (home / ".local", home / ".local/share", home / ".local/share/hive", home / ".local/state", home / ".local/state/hive", home / ".config", home / ".config/hive"):
         directory(parent, False)
     packages = directory(home / ".local/share/hive/workspace-read")
@@ -306,10 +376,11 @@ def install(request):
         config_sha = sha(encoded)
         same = previous and previous.get("archiveSha256") == request["archiveSha256"] and previous.get("manifestSha256") == request["manifestSha256"] and previous.get("configSha256") == config_sha
         if previous:
+            same_build_identity(previous, runtime_identity, home / ".config/hive/workspace-read.json")
             require(previous.get("phase") == "ready" and isinstance(previous.get("process"), dict))
             state = prior_state(previous["process"])
             if state == "same":
-                require(same and private_file(home / ".config/hive/workspace-read.json", 32768) == encoded)
+                require(same and previous.get("bootstrapConfigSha256") == bootstrap_sha and private_file(home / ".config/hive/workspace-read.json", 32768) == encoded)
                 install_package(packages, target, files)
                 lifetime = ready(previous["process"], request["config"], config_sha, previous["lifetimeId"])
                 return {"schemaVersion": 1, "ready": True, "reused": True, "lifetimeId": lifetime}
@@ -322,7 +393,7 @@ def install(request):
         version = subprocess.check_output([str(node), "--version"], env={"PATH": "/usr/bin:/bin"}, timeout=2).decode().strip()
         require(re.fullmatch(r"v24\.[0-9]+\.[0-9]+", version))
         node_sha = sha(node.read_bytes())
-        record = {"schemaVersion": 1, "phase": "preparing", "launchId": str(uuid.uuid4()), "archiveSha256": request["archiveSha256"], "manifestSha256": request["manifestSha256"], "configSha256": config_sha, "nodeSha256": node_sha, "process": None, "lifetimeId": None}
+        record = {"schemaVersion": 1, "phase": "preparing", "launchId": str(uuid.uuid4()), "archiveSha256": request["archiveSha256"], "manifestSha256": request["manifestSha256"], "configSha256": config_sha, "bootstrapConfigSha256": bootstrap_sha, "runtimeIdentity": runtime_identity, "nodeSha256": node_sha, "process": None, "lifetimeId": None}
         save(record)
         atomic(home / ".config/hive/workspace-read.json", encoded)
         directory(Path(request["config"]["stateDirectory"]))

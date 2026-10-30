@@ -11,6 +11,7 @@ import {
 import { ProjectDiscoveryError } from "./errors";
 import { type ProjectPrincipal, signedHostProjectRequest } from "./host.server";
 import { resolvedRepositorySchema } from "./session-contracts";
+import { resolveProjectSourceBase } from "./source-base.server";
 import {
   projectTaskReadSchema,
   projectTaskStartSchema,
@@ -96,7 +97,8 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
     throw new ProjectDiscoveryError("github_invalid_response");
   if (resolved.repository.archived || resolved.repository.permissions.push !== true)
     throw new ProjectDiscoveryError("github_permission_denied");
-  if (resolved.defaultRevision !== input.expectedRevision)
+  const sourceBase = await resolveProjectSourceBase(user, input.workspaceId, resolved);
+  if (sourceBase.revision !== input.expectedRevision)
     throw new ProjectTaskConflict("source_changed");
   // Runtime policy is deployment-owned. Models cannot promote themselves through
   // browser fields, and absent policy disables task execution.
@@ -121,6 +123,7 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
       fullName: resolved.repository.fullName,
       defaultBranch: resolved.repository.defaultBranch,
       defaultRevision: resolved.defaultRevision,
+      resolvedBase: sourceBase,
       archived: resolved.repository.archived,
       permissions: {
         pull: resolved.repository.permissions.pull,

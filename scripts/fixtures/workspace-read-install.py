@@ -21,7 +21,7 @@ for p in (home / ".config", home / ".config/hive"):
     p.chmod(0o2755)
 control = home / ".local/state/hive/workspace-read"
 processes = []
-checks = {}
+checks = {"manifestIdentitySynthetic": True}
 installer = "/opt/hive-read-install-entry.py"
 
 
@@ -89,6 +89,12 @@ try:
     first = run()
     a = track()
     assert first["reused"] is False
+    assert a["bootstrapConfigSha256"] == hashlib.sha256((json.dumps(request["config"], sort_keys=True, separators=(",", ":")) + "\n").encode()).hexdigest()
+    assert a["runtimeIdentity"]["provisionalAgentId"] == request["config"]["binding"]["agentId"]
+    effective = json.loads((home / ".config/hive/workspace-read.json").read_bytes())
+    assert effective["binding"]["agentId"] == a["runtimeIdentity"]["agentId"] != request["config"]["binding"]["agentId"]
+    assert a["configSha256"] != a["bootstrapConfigSha256"]
+    checks["bootstrapAndEffectiveIdentityRecorded"] = True
     config = home / ".config/hive/workspace-read.json"
     before = (config.read_bytes(), config.stat().st_ino, config.stat().st_mtime_ns)
     histories = list((control / "history").iterdir())

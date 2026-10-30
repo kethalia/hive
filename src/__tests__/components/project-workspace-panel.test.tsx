@@ -85,6 +85,44 @@ async function select() {
   fireEvent.click(await screen.findByRole("button", { name: "owner/repo" }));
 }
 describe("project task workspace", () => {
+  it("submits the displayed policy branch revision instead of the default branch", async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) =>
+      String(args[0]) === "/api/projects/open"
+        ? response({ ...opened, sourceBase: { branch: "codex/epic", revision: "b".repeat(40) } })
+        : defaultFetch(...args),
+    );
+    await select();
+    await screen.findByText("Starting from codex/epic");
+    fireEvent.change(screen.getByLabelText("What do you need?"), {
+      target: { value: "Fix the bug" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start task" }));
+    await waitFor(() => {
+      const call = vi
+        .mocked(fetch)
+        .mock.calls.find(([url]) => String(url).endsWith("/tasks/start"));
+      expect(call).toBeDefined();
+      expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({
+        expectedRevision: "b".repeat(40),
+      });
+    });
+  });
+  it("keeps a project open but disables starting work when its policy branch cannot be prepared", async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) =>
+      String(args[0]) === "/api/projects/open"
+        ? response({ ...opened, sourceBaseUnavailable: true })
+        : defaultFetch(...args),
+    );
+    await select();
+    fireEvent.change(await screen.findByLabelText("What do you need?"), {
+      target: { value: "Fix the bug" },
+    });
+    expect(screen.getByRole("button", { name: "Start task" })).toBeDisabled();
+    expect(screen.getByText(/source branch needs attention/)).toBeInTheDocument();
+  });
+
   it("enrolls a selected stable identity and starts no checkout/task before a submitted request", async () => {
     await select();
     await screen.findByLabelText("What do you need?");

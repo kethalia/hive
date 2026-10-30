@@ -316,3 +316,40 @@ test("a pending catalog result after closure cannot return an accepted project o
     f.close();
   }
 });
+
+test("exact ref tickets cannot substitute resolve scope or inject branch expressions", async () => {
+  const calls = [];
+  const f = fixture({
+    handle: async (path, request) => {
+      calls.push({ path, request });
+      return { schemaVersion: 1, branch: request.branch, revision: "b".repeat(40) };
+    },
+  });
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const url = `http://127.0.0.1:${gateway.port}/projects/resolve-ref`;
+    const request = {
+      schemaVersion: 1,
+      repositoryId: "123",
+      expectedAccountId: "456",
+      branch: "codex/epic",
+    };
+    const send = (scope, value) =>
+      http(url, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: f.ticket({ scope, request: value }) }),
+      });
+    assert.equal((await send("projects:resolve-ref", request)).status, 200);
+    assert.equal((await send("projects:resolve", request)).status, 403);
+    assert.equal((await send("projects:resolve-ref", { ...request, branch: "main^" })).status, 403);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0], { path: "/projects/resolve-ref", request });
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});

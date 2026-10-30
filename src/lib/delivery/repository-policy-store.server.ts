@@ -23,6 +23,10 @@ const verifiedRepositorySchema = z
     fullName: z.string().min(3).max(140),
     defaultBranch: z.string().min(1).max(151),
     defaultRevision: z.string().regex(/^[a-f0-9]{40}$/),
+    resolvedBase: z
+      .object({ branch: z.string().min(1).max(151), revision: z.string().regex(/^[a-f0-9]{40}$/) })
+      .strict()
+      .optional(),
     archived: z.literal(false),
     permissions: z.object({ pull: z.literal(true), push: z.literal(true) }).strict(),
   })
@@ -233,10 +237,13 @@ export class RepositoryPolicyStore {
       input.providerAccountId !== selection.verified.providerAccountId
     )
       reject("repository_policy_selection_changed");
-    if (locked.policy.source.baseBranch !== selection.verified.defaultBranch)
+    const base = selection.verified.resolvedBase ?? {
+      branch: selection.verified.defaultBranch,
+      revision: selection.verified.defaultRevision,
+    };
+    if (locked.policy.source.baseBranch !== base.branch)
       reject("repository_policy_ref_resolution_pending");
-    if (input.sourceSha !== selection.verified.defaultRevision)
-      reject("repository_policy_source_changed");
+    if (input.sourceSha !== base.revision) reject("repository_policy_source_changed");
     return {
       repositoryPolicyVersionId: selection.versionId,
       repositoryPolicyDigest: selection.policyDigest,

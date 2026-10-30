@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as sourceBaseModule from "@/lib/projects/source-base.server";
 
 const mock = vi.hoisted(() => ({
   host: vi.fn(),
@@ -122,8 +123,21 @@ beforeEach(() => {
     },
   });
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 describe("project task controller", () => {
+  it("pins the independently resolved policy base and rejects a stale displayed revision before enqueue", async () => {
+    vi.spyOn(sourceBaseModule, "resolveProjectSourceBase").mockResolvedValue({
+      branch: "codex/epic",
+      revision: "b".repeat(40),
+    });
+    await expect(startProjectTask(user, projectId, input)).rejects.toThrow("source_changed");
+    expect(mock.enqueue).not.toHaveBeenCalled();
+    await startProjectTask(user, projectId, { ...input, expectedRevision: "b".repeat(40) });
+    expect(mock.enqueue.mock.calls[0][0].hostRequest.revision).toBe("b".repeat(40));
+  });
   it("owner recovery sends only the fixed existing-task identity and does not enqueue or resubmit a prompt", async () => {
     const row = {
       id: taskId,

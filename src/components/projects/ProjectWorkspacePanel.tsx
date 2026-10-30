@@ -12,8 +12,8 @@ import {
 } from "@/lib/projects/contracts";
 import { type OpenedProject, openedProjectSchema } from "@/lib/projects/session-contracts";
 import {
-  preparationReasonMessages,
   type ProjectTaskStatus,
+  preparationReasonMessages,
   projectTaskStatusSchema,
 } from "@/lib/projects/task-contracts";
 import { ConversationView } from "./ConversationView";
@@ -281,7 +281,7 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
           {
             workspaceId: project.workspaceId,
             requestId: intent.current.requestId,
-            expectedRevision: project.defaultRevision,
+            expectedRevision: project.sourceBase?.revision ?? project.defaultRevision,
             text,
           },
           lifetime.current.signal,
@@ -337,6 +337,11 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
             void start();
           }}
         >
+          <p className="text-sm text-muted-foreground">
+            {project.sourceBaseUnavailable
+              ? "Repository delivery policy or its source branch needs attention before starting a task."
+              : `Starting from ${project.sourceBase?.branch ?? project.repository.defaultBranch}`}
+          </p>
           <label htmlFor={textId} className="text-sm font-medium">
             What do you need?
           </label>
@@ -353,6 +358,7 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
             disabled={
               busy ||
               !text.trim() ||
+              project.sourceBaseUnavailable === true ||
               project.repository.archived ||
               project.repository.permissions.push !== true
             }

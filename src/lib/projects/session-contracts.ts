@@ -17,6 +17,17 @@ export const resolvedRepositorySchema = z
     defaultRevision: z.string().regex(/^[a-f0-9]{40}$/),
   })
   .strict();
+export type ResolvedRepository = z.infer<typeof resolvedRepositorySchema>;
+export const projectSourceBaseSchema = z
+  .object({
+    branch: z.string().min(1).max(151),
+    revision: z.string().regex(/^[a-f0-9]{40}$/),
+  })
+  .strict();
+export const resolvedRepositoryRefSchema = resolvedRepositorySchema
+  .omit({ defaultRevision: true })
+  .extend(projectSourceBaseSchema.shape)
+  .strict();
 export const projectPhaseSchema = z.enum([
   "awaitingTask",
   "preparing",
@@ -43,6 +54,8 @@ export const enrolledProjectSchema = resolvedRepositorySchema
 export const openedProjectSchema = enrolledProjectSchema
   .extend({
     workspaceId: z.string().uuid(),
+    sourceBase: projectSourceBaseSchema.optional(),
+    sourceBaseUnavailable: z.boolean().optional(),
   })
   .strict();
 export type OpenedProject = z.infer<typeof openedProjectSchema>;

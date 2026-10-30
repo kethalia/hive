@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T05:20:28.906560+00:00",
+  "sourceStable": true,
+  "sourceHashes": {
+    "src/lib/delivery/release-candidate-contracts.ts": "7ec294f2b3298e41445d70bff898f932d86d81c1ec3ed072b2f7334190c19f18",
+    "src/lib/delivery/release-candidate.server.ts": "05d0c80d31ef23a725f39ebe51a874459be94798886831f75f27c9e88e04f2af",
+    "src/__tests__/lib/delivery/release-candidate.integration.test.ts": "e32b54587f10230459478fee36952aa6c45fcd39da6a44176d1f5bc682da7957",
+    "docs/checks/autonomous-delivery/release-candidate.md": "e4636921b5ef4d0a582893ef9812c5e32b0f92eecba9862f92ef2921d2bb13b9",
+    "docs/checks/autonomous-delivery/release-adapter-prerequisites.md": "a34772f624757bc5900e23ac6f07c49fa4b88b53739649c9076d3e01bcfee8db",
+    "src/lib/delivery/repository-policy-contracts.ts": "73e582a448ef3489a4ba324f4f7664cf30fe7643a7b9106232fa5fe5f75cb3fe",
+    "src/lib/delivery/repository-policy-store.server.ts": "cc9d23ca3667cb09e9316b678b6834aa264dd5acb1d64568eeff5d7b1d2b3640",
+    "src/lib/delivery/repository-policy.server.ts": "141104eb46403e07cd21fd8946853011a0ff9c9bef3597217e26bb0f81a96811",
+    "src/lib/delivery/source-resolver.server.ts": "bb60c7cc8f1172608475a9ba7dbde6cff73bc09deb9e3fbc570a4ce2432bdf27",
+    "src/lib/delivery/state.ts": "9de693de68107272c5ceb78a6d8deb42657f1ba43926868a5c923ac1c1357cf1",
+    "src/lib/delivery/github-policy.server.ts": "42a94961721a6cdbfe7dc65c3a81992c2e6f447c2da038a7b8a28fa8b849df19",
+    "src/lib/delivery/github-persistence.server.ts": "84f2d0105ee2031e6e5ba4ebc233f0493f0d89b3dac8f5e8f7ce15eb526d1d9a",
+    "src/lib/delivery/manager.server.ts": "689b46df16421062607dd31f65503be33e6de9da515927e47abc5343054b951b",
+    "src/__tests__/lib/delivery/github-fixture.ts": "43ae413b4b94065f75f3ae5b141b63cdd701f2f66a26af8bdcb4d0efd433664e",
+    "src/__tests__/lib/delivery/native-fixture.ts": "446b5afd13d692da25f20ee60c92df6935cdbd4bcc8788fd33ff2076fc5b5530",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "900367229890aa74a6398f17d555a97b05ea83dd209189a70212b60917f447b3"
+  },
+  "validation": [
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "biome",
+        "check",
+        "src/lib/delivery/release-candidate-contracts.ts",
+        "src/lib/delivery/release-candidate.server.ts",
+        "src/__tests__/lib/delivery/release-candidate.integration.test.ts"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": ["pnpm", "exec", "tsc", "--noEmit", "--pretty", "false"],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/__tests__/lib/delivery/release-candidate.integration.test.ts",
+        "--no-file-parallelism"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "postgresql": {
+    "fixture": "loopback PostgreSQL17/schema30",
+    "testsPassed": 7,
+    "writes": "synthetic setup only; resolver own-row hashes asserted unchanged"
+  },
+  "limitations": [
+    "No actual remote observer factory; provider/artifact/publication dependencies are explicit local doubles",
+    "No public route or manager command; caller must authenticate owner",
+    "All merge/deployment/eligibility values remain false",
+    "No schema, cloud or provider mutation, deployment or activation"
+  ],
+  "testedSourcesCommitted": false
+}

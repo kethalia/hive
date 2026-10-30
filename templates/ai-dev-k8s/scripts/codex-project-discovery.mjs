@@ -252,12 +252,14 @@ export function createProjectDiscovery(config, controller) {
         try {
           const result = JSON.parse(Buffer.concat(chunks).toString());
           if (status === 0) {
-            if (request.operation === "resolve") {
+            if (["resolve", "resolve_ref"].includes(request.operation)) {
               check(
                 result.schemaVersion === 1 &&
                   result.providerAccountId === request.expectedAccountId &&
                   result.repository?.providerRepositoryId === request.repositoryId &&
-                  /^[a-f0-9]{40}$/.test(result.defaultRevision),
+                  (request.operation === "resolve"
+                    ? /^[a-f0-9]{40}$/.test(result.defaultRevision)
+                    : result.branch === request.branch && /^[a-f0-9]{40}$/.test(result.revision)),
               );
             } else
               check(
@@ -330,14 +332,24 @@ export function createProjectDiscovery(config, controller) {
       check(
         !closed &&
           !busy &&
-          exact(request, ["schemaVersion", "operation", "repositoryId", "expectedAccountId"]) &&
-          request.operation === "resolve",
+          exact(request, [
+            "schemaVersion",
+            "operation",
+            "repositoryId",
+            "expectedAccountId",
+            ...(request.operation === "resolve_ref" ? ["branch"] : []),
+          ]) &&
+          ["resolve", "resolve_ref"].includes(request.operation),
       );
-      validateProjectOperation("/projects/resolve", {
-        schemaVersion: request.schemaVersion,
-        repositoryId: request.repositoryId,
-        expectedAccountId: request.expectedAccountId,
-      });
+      validateProjectOperation(
+        request.operation === "resolve_ref" ? "/projects/resolve-ref" : "/projects/resolve",
+        {
+          ...(request.operation === "resolve_ref" ? { branch: request.branch } : {}),
+          schemaVersion: request.schemaVersion,
+          repositoryId: request.repositoryId,
+          expectedAccountId: request.expectedAccountId,
+        },
+      );
       busy = true;
       try {
         return await runHelper(request);

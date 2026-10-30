@@ -939,3 +939,36 @@ test("source input closure persists accepted context and enforces lease expiry w
   assert.equal(f.calls.filter((v) => v === "revokeExecution").length, 1);
   assert.equal(inspections, 0);
 });
+
+test("exact policy branch resolution is read-only and never falls back to default", async (t) => {
+  const f = fixture(t, ({ deps }) => {
+    deps.resolveRepository = async (r) => {
+      assert.equal(r.operation, "resolve_ref");
+      assert.equal(r.branch, "codex/epic");
+      return {
+        schemaVersion: 1,
+        providerAccountId: "456",
+        repository: { providerRepositoryId: "123" },
+        branch: r.branch,
+        revision: "b".repeat(40),
+      };
+    };
+  });
+  const request = {
+    schemaVersion: 1,
+    repositoryId: "123",
+    expectedAccountId: "456",
+    branch: "codex/epic",
+  };
+  const result = await f.controller.handle("/projects/resolve-ref", request);
+  assert.equal(result.revision, "b".repeat(40));
+  assert.deepEqual(f.calls, []);
+  for (const branch of ["../main", "main^", "a/.hidden", "a.lock/b", "a//b", "a/", "a?b"])
+    await assert.rejects(f.controller.handle("/projects/resolve-ref", { ...request, branch }));
+  await assert.rejects(f.controller.handle("/projects/resolve", request));
+  f.deps.resolveRepository = async () => ({ ...result, branch: "main" });
+  await assert.rejects(
+    f.controller.handle("/projects/resolve-ref", request),
+    /repository_identity_changed/,
+  );
+});

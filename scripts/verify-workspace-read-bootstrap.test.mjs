@@ -6,6 +6,8 @@ for (const [file, count] of [
   ["test_workspace_read.py", 9],
   ["test_workspace_read_install.py", 8],
   ["test_workspace_read_bootstrap.py", 5],
+  ["test_workspace_identity_install.py", 4],
+  ["test_workspace_image_preview.py", 4],
 ])
   test(`workspace read Python boundary: ${file}`, () => {
     const result = spawnSync("/usr/bin/python3", ["-B", `scripts/agents/${file}`], {
