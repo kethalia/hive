@@ -7,7 +7,7 @@ implementation dependencies; actual preview/browser evidence must be added befor
 | Capability | Existing dependency | Current epic disposition / next proof |
 | --- | --- | --- |
 | Login, sessions, settings reads | Auth service, PostgreSQL, Coder HTTP | Real preview login, secure session, API logout and stale-session rejection pass. Settings now uses authenticated typed HTTP reads;46 local tests pass. Built preview Settings-screen logout acceptance remains. |
-| Workspace lifecycle and app authorization | Coder HTTP | REST client is portable; preview still blocks server actions until each callable capability is classified. |
+| Workspace lifecycle and app authorization | Coder HTTP | Eight reviewed actions and four discovery reads now pass the committed full-Next local workerd transport proof. Existing authentication/ownership remains; account-backed lifecycle and deployed browser acceptance remain. |
 | Project discovery and first task | Installed signed project host | Durable server intents and installed controller implemented; account-backed deployed pilot pending. |
 | Conversation and project Terminal | Host native events, tmux PTY, scoped WebSocket | Dedicated relay implemented under review; persistent authorization and browser proof pending. |
 | Existing generic terminals, discovery and file links | Coder PTY/proxy, server SSH helper | Needs bounded installed operations and authorized relay; project-terminal proof does not cover this surface. |
@@ -16,7 +16,7 @@ implementation dependencies; actual preview/browser evidence must be added befor
 | Template staleness | Runtime template filesystem + Coder archive | Build manifest and reproducible content-addressed archives implemented; actual local workerd matches all five archives and rejects malformed/unknown inputs. Authenticated Coder download and deployed UI acceptance remain. |
 | Template publishing and logs | Redis/BullMQ, local Coder CLI, local log files | Replace with durable jobs using Coder file/template-version APIs and bounded replayable logs; preserve current activation semantics and owner checks. |
 | Notification installation and event delivery | SSH installer + Redis/BullMQ | Delivery reports have durable outbox; existing agent-hook installation/event queue still require adapters. |
-| Credential rotation | Redis/BullMQ | Provenance checks implemented; bounded durable scheduler pending. |
+| Credential rotation | Redis/BullMQ | Disabled durable auth scheduler and expiry outbox implemented; real PostgreSQL concurrency/recovery, local workerd doubles and migration rehearsal pass. Live provider proof, operator reconciliation and single-scheduler cutover remain. |
 | Window layout, navigation and preferences | Browser state + authenticated reads/actions | Existing tests pass; real deployed mobile/desktop acceptance pending. |
 
 Template archive generation rejects symlinks, known private configuration inputs and excessive file
