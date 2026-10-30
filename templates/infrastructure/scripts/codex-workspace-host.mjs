@@ -6,6 +6,7 @@ import { lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createInstalledDeliveryRuntime } from "./codex-delivery-runtime.mjs";
 import { createGuardianOwnerHandler } from "./codex-guardian-worker.mjs";
 import { createHostRegistration } from "./codex-host-registration.mjs";
 import { createProjectController } from "./codex-project-controller.mjs";
@@ -49,9 +50,13 @@ export function validateHostConfig(value) {
   ];
   check(
     value &&
-      [keys.length, keys.length + 1, keys.length + 2].includes(Object.keys(value).length) &&
+      [keys.length, keys.length + 1, keys.length + 2, keys.length + 3].includes(
+        Object.keys(value).length,
+      ) &&
       Object.keys(value).every(
-        (k) => keys.includes(k) || ["nativeIsolationEnabled", "guardianEnabled"].includes(k),
+        (k) =>
+          keys.includes(k) ||
+          ["nativeIsolationEnabled", "guardianEnabled", "deliveryExecutionEnabled"].includes(k),
       ) &&
       value.schemaVersion === 1 &&
       value.enabled === true &&
@@ -61,7 +66,13 @@ export function validateHostConfig(value) {
         typeof value.nativeIsolationEnabled === "boolean") &&
       (value.guardianEnabled === undefined || typeof value.guardianEnabled === "boolean") &&
       (!value.guardianEnabled || value.nativeIsolationEnabled === true) &&
-      (!value.managerEnabled || value.nativeIsolationEnabled === true),
+      (!value.managerEnabled || value.nativeIsolationEnabled === true) &&
+      (value.deliveryExecutionEnabled === undefined ||
+        typeof value.deliveryExecutionEnabled === "boolean") &&
+      (!value.deliveryExecutionEnabled ||
+        (value.managerEnabled === true &&
+          value.guardianEnabled === true &&
+          value.nativeIsolationEnabled === true)),
   );
   check(
     Number.isInteger(value.port) &&
@@ -96,7 +107,7 @@ function verifyRuntime(home) {
   }
   return join(root, "bin/codex");
 }
-function installedFiles(directory) {
+function installedFiles(directory, delivery = false) {
   const manifestPath = join(directory, "package-manifest.json");
   check(realpathSync(manifestPath) === manifestPath);
   const s = lstatSync(manifestPath);
@@ -113,6 +124,17 @@ function installedFiles(directory) {
     "codex-project-terminal.py",
     "codex-project-lease.py",
     "vendor/ws.mjs",
+    ...(delivery
+      ? [
+          "delivery-source-worker.py",
+          "delivery-source-runtime.py",
+          "delivery-source-broker.py",
+          "delivery-source-provider.py",
+          "delivery-source-apply-worker.py",
+          "managed-source-apply.py",
+          "github-evidence.py",
+        ]
+      : []),
   ];
   for (const name of required) {
     const file = join(directory, name);
@@ -208,7 +230,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
     home = userInfo().homedir,
     directory = dirname(fileURLToPath(import.meta.url));
   check(Boolean(config.guardianEnabled) === Boolean(guardian));
-  const pins = installedFiles(directory),
+  const pins = installedFiles(directory, config.deliveryExecutionEnabled === true),
     executable = verifyRuntime(home);
   const controllerDirectory = privateDirectory(
     join(home, ".local/state/hive/codex-project-controller"),
@@ -238,6 +260,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
     () => executionAuthority?.assert(),
   );
   let gateway,
+    delivery,
     discovery,
     supervisor,
     registration,
@@ -307,7 +330,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
             issuerPublicKeyPem: config.issuerPublicKeyPem,
             issuerKeyId: config.issuerKeyId,
           });
-          if (config.managerEnabled)
+          if (config.managerEnabled && !config.deliveryExecutionEnabled)
             supervisor.setManagerAdapter(
               createDeliveryManagerAdapter({
                 enabled: true,
@@ -343,12 +366,36 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
             discovery,
           );
           executionAuthority?.assert();
+          if (config.deliveryExecutionEnabled) {
+            delivery = await createInstalledDeliveryRuntime({
+              config,
+              home,
+              supervisor,
+              controller,
+              registration,
+              guardian,
+              gateway,
+              inspectManaged: (repositoryId) =>
+                managed({
+                  schemaVersion: 1,
+                  operation: "inspect",
+                  provider: "github",
+                  repositoryId,
+                }),
+            });
+            supervisor.setManagerAdapter(delivery.adapter);
+          }
           return { supervisor, registration };
         } catch (error) {
           registration?.close();
-          await supervisor?.close();
+          const cleanup = await Promise.allSettled([delivery?.close(), supervisor?.close()]);
+          delivery = null;
           registration = null;
           supervisor = null;
+          if (cleanup.some((result) => result.status === "rejected")) {
+            admissionClosed = true;
+            await gateway?.close();
+          }
           if (swapped && !closed && !admissionClosed)
             gateway = await startDiscoveryGateway(
               { port: config.port, appOrigin: config.binding.appOrigin },
@@ -393,6 +440,9 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
   tick.unref();
   controller.resumePending();
   return {
+    deliveryStatus() {
+      return delivery?.evidenceStatus() ?? { phase: "disabled", reason: null };
+    },
     async closeAdmission(barrier) {
       check(guardian && !admissionClosed);
       admissionClosed = true;
@@ -402,6 +452,8 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       try {
         receipt = controller.closeAdmission(barrier);
       } finally {
+        const stopDelivery = delivery?.close();
+        void stopDelivery?.catch(() => {});
         registration?.close();
         discovery.close();
         // Revoke browser/PTY input synchronously, then close fixed owned CLI
@@ -409,6 +461,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
         // only the outer guardian may certify their eventual tree exit.
         await supervisor?.closeAdmission(barrier);
         await gateway.close();
+        await stopDelivery;
       }
       return receipt;
     },
@@ -418,6 +471,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       clearInterval(tick);
       clearInterval(renewal);
       controller.loseAdmission();
+      void delivery?.close().catch(() => {});
       registration?.close();
       discovery.close();
       supervisor?.revoke();
@@ -428,11 +482,14 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       closed = true;
       clearInterval(tick);
       clearInterval(renewal);
+      const stopDelivery = delivery?.close();
+      void stopDelivery?.catch(() => {});
       await controller.close();
       registration?.close();
       await gateway.close();
       await supervisor?.close();
       discovery.close();
+      await stopDelivery;
     },
   };
 }

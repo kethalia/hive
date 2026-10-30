@@ -44,6 +44,7 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
     assert.ok(Object.hasOwn(manifest.files, "delivery-source-worker.py"));
     for (const name of [
       "codex-source-application.mjs",
+      "codex-delivery-runtime.mjs",
       "delivery-source-apply-client.mjs",
       "delivery-source-apply-worker.py",
     ])

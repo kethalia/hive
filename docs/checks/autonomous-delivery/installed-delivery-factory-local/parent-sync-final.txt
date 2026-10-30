@@ -1,0 +1,5 @@
+
+> hive-web@2.31.0 templates:sync /tmp/hive-factory-parent-bu5266t7
+> node scripts/sync-workspace-profile-templates.mjs
+
+Synchronized 4 workspace profile scaffolds.

@@ -56,6 +56,7 @@ export function createSourceApplication(options = {}) {
     managerAdapter,
     inspectManaged,
     runWorker = runFixedSourceApplyWorker,
+    signal,
   } = options;
   check(
     supervisor &&
@@ -161,18 +162,25 @@ export function createSourceApplication(options = {}) {
   }
   return {
     async applyAcceptedSource(request, initialFacts) {
+      check(!signal?.aborted, "source_application_revoked");
       const projectId = request?.checkoutBinding?.projectId;
       check(typeof projectId === "string" && !running.has(projectId), "source_application_busy");
       running.add(projectId);
       let entry, scope;
       const execution = new AbortController();
       let expired = false;
+      const revoke = () => {
+        expired = true;
+        execution.abort();
+      };
+      signal?.addEventListener("abort", revoke, { once: true });
+      if (signal?.aborted) revoke();
       const deadline = setTimeout(() => {
         expired = true;
         execution.abort();
       }, 120000);
       const bounded = async (work) => {
-        check(!expired);
+        check(!expired && !execution.signal.aborted);
         let cancel;
         const stop = new Promise((_resolve, reject) => {
           cancel = () => reject(new Error("source_application_deadline"));
@@ -463,6 +471,7 @@ export function createSourceApplication(options = {}) {
         throw error;
       } finally {
         clearTimeout(deadline);
+        signal?.removeEventListener("abort", revoke);
         execution.abort();
         running.delete(projectId);
       }

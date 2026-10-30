@@ -290,6 +290,40 @@ test("application remains disabled without installed independent authority callb
   await assert.rejects(createSourceApplication().applyAcceptedSource(), /disabled/);
   assert.throws(() => createSourceApplication({ enabled: true }), /dependencies_unavailable/);
 });
+for (const method of ["currentMetadata", "applyReserve", "applyVerify", "applyCommit"])
+  test(`external lifetime revocation rejects a late ${method} reply without releasing input`, async () => {
+    const f = fixture(),
+      lifetime = new AbortController();
+    let entered, reply;
+    const waiting = new Promise((resolve) => {
+      entered = resolve;
+    });
+    const response = new Promise((resolve) => {
+      reply = resolve;
+    });
+    const original = f.options.guardian[method];
+    f.options.signal = lifetime.signal;
+    f.options.guardian[method] = async (...args) => {
+      const value = await original(...args);
+      entered();
+      await response;
+      return value;
+    };
+    const coordinator = createSourceApplication(f.options);
+    const pending = coordinator.applyAcceptedSource(f.request, f.facts);
+    void pending.catch(() => {});
+    await waiting;
+    lifetime.abort();
+    await assert.rejects(pending);
+    reply();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.releaseCount, 0);
+    if (method !== "currentMetadata") {
+      assert.equal(f.terminalClosed, true);
+      assert.equal(f.entry.sourceApplication.phase, "held");
+    }
+    await assert.rejects(coordinator.applyAcceptedSource(f.request, f.facts), /revoked/);
+  });
 test("accepted source is synchronized in both journals before commit; only fresh applied readback releases input", async () => {
   const f = fixture();
   let observed = false;
@@ -392,6 +426,39 @@ test("worker deadline aborts stalled trusted callback and reaps exact child", as
   assert.equal(aborted, true);
   assert.ok(Date.now() - before < 1500);
   assert.notEqual(child.signalCode, null);
+});
+test("coordinator lifetime revocation aborts and reaps its actual private FD worker", async () => {
+  const f = fixture(),
+    lifetime = new AbortController();
+  let child, entered;
+  const waiting = new Promise((resolve) => {
+    entered = resolve;
+  });
+  f.options.signal = lifetime.signal;
+  f.options.runWorker = (value, _exchange, options) => {
+    child = protocolChild(
+      `f.write(json.dumps({'schemaVersion':1,'type':'authority','id':1,'value':{}}).encode()+b'\\n')\ntime.sleep(10)`,
+    );
+    return runApplyWorkerChannel(
+      child,
+      value,
+      () => {
+        entered();
+        return new Promise(() => {});
+      },
+      options,
+    );
+  };
+  const pending = createSourceApplication(f.options).applyAcceptedSource(f.request, f.facts);
+  void pending.catch(() => {});
+  await waiting;
+  lifetime.abort();
+  await assert.rejects(pending, /uncertain/);
+  assert.equal(child.signalCode, "SIGKILL");
+  assert.throws(() => process.kill(-child.pid, 0), { code: "ESRCH" });
+  assert.equal(f.releaseCount, 0);
+  assert.equal(f.terminalClosed, true);
+  assert.equal(f.entry.sourceApplication.phase, "held");
 });
 test("EOF and nonmonotonic worker frames cannot be treated as success", async () => {
   for (const body of [

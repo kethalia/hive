@@ -256,6 +256,14 @@ def decode_archive(request):
     return archive
 
 
+def validate_execution_config(config):
+    # Explicit delivery capability is separate from legacy manager-only config.
+    require(isinstance(config, dict) and config.get("profile") == "software" and config.get("enabled") is True)
+    delivery = config.get("deliveryExecutionEnabled", False)
+    require(type(delivery) is bool and (not delivery or (config.get("managerEnabled") is True and config.get("guardianEnabled") is True and config.get("nativeIsolationEnabled") is True)))
+    require(config.get("managerEnabled") is False or delivery)
+
+
 def install(request):
     require(os.environ.get("HIVE_WORKSPACE_PROFILE") == "software")
     required = {"schemaVersion", "archive", "archiveSha256", "config"}
@@ -270,8 +278,7 @@ def install(request):
     try:
         archive = decode_archive(request)
         config = request["config"]
-        # Manager activation requires the separate producer-isolation acceptance.
-        require(isinstance(config, dict) and config.get("managerEnabled") is False and config.get("profile") == "software" and config.get("enabled") is True)
+        validate_execution_config(config)
         encoded = (json.dumps(config, separators=(",", ":"), sort_keys=True) + "\n").encode()
         require(len(encoded) <= 16384)
         target = install_package(root, archive, request["archiveSha256"])
