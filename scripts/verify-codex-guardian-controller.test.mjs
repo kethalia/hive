@@ -27,6 +27,7 @@ import {
   GUARDIAN_CONTROLLER_POLICY_DIGEST,
   openGuardianController,
 } from "../templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs";
+import { createDeliveryNativeSpool } from "../templates/ai-dev-k8s/scripts/delivery-native-spool.mjs";
 
 const sha = (v) => createHash("sha256").update(v).digest("hex"),
   digest = (v) => sha(canonical(v));
@@ -606,6 +607,7 @@ async function applicationFixture({ physical = false } = {}) {
       checkoutBinding: checkout,
       checkoutBindingDigest: digest(checkout),
       inputSourceSha: checkout.revision,
+      progressionProtocol: 1,
     },
     publication = {
       operationId,
@@ -619,7 +621,6 @@ async function applicationFixture({ physical = false } = {}) {
     spool = {
       schemaVersion: 1,
       sourceProtocol: 1,
-      progressionProtocol: 1,
       claims: { [managerThreadId]: claim },
       attempts: { [attemptId]: claim },
       cursors: {
@@ -1115,6 +1116,82 @@ test("lost applied ACK readback cannot release input after HEAD/index or valid s
       assert.deepEqual(saved.applications[f.request.applicationId].receipt, receipt);
       assert.equal(saved.applications[f.request.applicationId].authority.phase, "pending");
     } finally {
+      f.close();
+    }
+  }
+});
+
+test("actual native spool persists progression on claims, and unsupported claims cannot authorize application", async () => {
+  for (const valid of [true, false]) {
+    const f = await applicationFixture();
+    let writer;
+    try {
+      const o = f.app.sourceObservation,
+        registration = {
+          id: o.registrationId,
+          serverInstanceId: o.serverInstanceId,
+          expiresAt: Date.now() + 60000,
+          threads: [{ projectId: f.request.projectId, threadId: o.managerThreadId }],
+        },
+        directory = join(f.home, "actual-spool"),
+        params = { threadId: o.managerThreadId, turnId: o.parentTurnId, callId: "actual-claim" },
+        command = { operation: "claim_step", payload: { taskId: o.taskId, stepId: o.stepId } };
+      writer = createDeliveryNativeSpool({
+        stateDirectory: directory,
+        hostPrivateKeyPem: f.n.state.controllerPrivateKeyPem,
+        progressionProtocol: 1,
+        sourceProtocol: 1,
+        currentRegistration: () => registration,
+        currentServerInstanceId: () => o.serverInstanceId,
+        registerChild: () => {},
+        deliver: async () => {
+          throw new Error("unexpected native delivery");
+        },
+      });
+      writer.beginClaim(params, command, randomUUID(), o.checkoutBinding, undefined, {
+        registrationId: o.registrationId,
+        serverInstanceId: o.serverInstanceId,
+        inputSourceSha: o.inputSourceSha,
+      });
+      writer.recordClaim(
+        params,
+        command,
+        {
+          attemptId: o.attemptId,
+          managerBindingId: o.managerBindingId,
+          leaseGeneration: 1,
+          nativeSequence: 0,
+          cursorVersion: 1,
+          progressionProtocol: 1,
+          checkoutBindingDigest: o.checkoutBindingDigest,
+          inputSourceSha: o.inputSourceSha,
+          replayed: false,
+          outcome: "running",
+          canRun: false,
+          needsRuntimeBinding: true,
+          needsReconciliation: false,
+        },
+        o.checkoutBinding,
+      );
+      const actual = JSON.parse(readFileSync(join(directory, "source.json"))).state,
+        claim = actual.attempts[o.attemptId];
+      assert.equal(Object.hasOwn(actual, "progressionProtocol"), false);
+      assert.equal(actual.sourceProtocol, 1);
+      assert.equal(claim.progressionProtocol, 1);
+      // Other terminal facts remain the explicitly synthetic observer fixture.
+      f.spool.attempts[o.attemptId] = structuredClone(claim);
+      f.spool.claims[o.managerThreadId] = structuredClone(claim);
+      if (!valid) delete f.spool.attempts[o.attemptId].progressionProtocol;
+      f.app.sourceObservation.sourceJournalDigest = f.saveSpool();
+      f.app.barrier.sourceSpoolDigest = f.app.sourceObservation.sourceJournalDigest;
+      f.sync();
+      if (valid) assert.equal((await f.client.applyReserve(f.request)).phase, "pending");
+      else {
+        await assert.rejects(f.client.applyReserve(f.request));
+        assert.equal(f.calls.filter((c) => c.action === "apply_reserve").length, 0);
+      }
+    } finally {
+      await writer?.close();
       f.close();
     }
   }

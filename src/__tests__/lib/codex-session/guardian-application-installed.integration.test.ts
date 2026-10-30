@@ -216,11 +216,11 @@ describe.skipIf(!url)("protected source application composed with signed server 
         checkoutBinding: f.context,
         checkoutBindingDigest: guardianDigest(f.context),
         inputSourceSha: material.revision,
+        progressionProtocol: 1,
       };
       const spool = {
         schemaVersion: 1,
         sourceProtocol: 1,
-        progressionProtocol: 1,
         claims: { [f.managerThreadId]: claim },
         attempts: { [f.claim.attemptId]: claim },
         cursors: {

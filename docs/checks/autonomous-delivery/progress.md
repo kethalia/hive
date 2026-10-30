@@ -696,3 +696,24 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Evidence: [publication contract](template-publication-design.md),
   [workerd proof](template-publication-local/workerd.md),
   [parent checks](template-publication-local/parent-result.json).
+
+- Installed source progression: completed local composition, high difficulty. The actual
+  factory now crosses signed PostgreSQL services, outer journal validation and Python/Git
+  application before issuing one dependent-step continuation. Real composition exposed a
+  protocol field on the current claim that earlier synthetic journals had incorrectly placed
+  at the top level. The fixed reader and actual-spool regression pass. Parent checks pass
+  nine PostgreSQL cases,34 runtime cases and188 nested compiled cases; optional cases remain
+  skipped. Typecheck and synchronized template checks pass. Clean exports initially failed
+  on optional Git revision metadata; source hashes remain mandatory and the corrected proof
+  passes. Native execution, initial enrollment and provider results remain explicit doubles;
+  this does not establish the real-account pilot. Evidence:
+  [parent composition](installed-delivery-factory-local/parent-composed.json).
+
+- Neon publication migration and assembled application: completed, moderate difficulty.
+  Preview schema27 preserves26 migration checksums and all35 prior table hashes. The runtime
+  role has only SELECT/INSERT/UPDATE on the three new tables. The committed Cloudflare build
+  passes auth, task, portable-action and nine host-callback transport checks against Neon27.
+  Publication CI exposed a missing Coder host environment setting; its corrected16 database
+  tests pass. Two evidence JSON files also needed formatting. Production and deployed feature
+  flags are unchanged. Evidence: [Neon migration](neon-template-publication-migration.json),
+  [assembled application](cloudflare-auth-template-publication.json).

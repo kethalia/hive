@@ -1,0 +1,182 @@
+{
+  "observedAt": "2026-10-30T03:27:04.408669+00:00",
+  "database": "hive_app_preview",
+  "migrationSourceRevision": "8b29a9f6c8a30c8c2f61a2ed18e089509011c535",
+  "beforeMigrations": 26,
+  "afterMigrations": 27,
+  "existingMigrationChecksumsPreserved": true,
+  "existingTableHashesPreserved": {
+    "coder_tokens": {
+      "count": 1,
+      "digest": "5a32eaed8bb199ec731b9a6581eaca9e"
+    },
+    "codex_guardian_admissions": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "codex_guardian_barriers": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "codex_guardian_enrollment_grants": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "codex_guardian_runtimes": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "codex_guardian_stop_decisions": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "codex_host_registrations": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "codex_host_slots": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "codex_registered_threads": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "codex_registration_grants": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "credential_expiry_notices": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "credential_rotation_operations": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "credential_rotation_schedules": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_attempts": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_conversations": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_epics": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_events": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_evidence": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_manager_bindings": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_outbox": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_projects": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_report_evidence": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_source_applications": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_source_revisions": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_step_dependencies": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_step_reports": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_steps": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "delivery_tasks": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "navigation_favorites": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "notification_sources": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "project_task_intents": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "push_subscriptions": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "sessions": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "users": {
+      "count": 1,
+      "digest": "e38fcbc433bca29a658b99a334dc64ef"
+    },
+    "vapid_keys": {
+      "count": 0,
+      "digest": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  },
+  "applied": [
+    {
+      "migration_name": "20261029160000_template_publication",
+      "checksum": "54f451575e16aa77ad0a4e58e2c483090db96fbf02afef76c582c2c3b6b3c8dd",
+      "finished": true,
+      "rolled_back": false
+    }
+  ],
+  "runtimeRolePrivileges": {
+    "template_publication_targets": {
+      "select": true,
+      "insert": true,
+      "update": true,
+      "delete": false
+    },
+    "template_publication_jobs": {
+      "select": true,
+      "insert": true,
+      "update": true,
+      "delete": false
+    },
+    "template_publication_events": {
+      "select": true,
+      "insert": true,
+      "update": true,
+      "delete": false
+    }
+  },
+  "runtimeCanCreateSchema": false,
+  "productionAccessed": false,
+  "cronActivated": false,
+  "command": "existing services/migrate/src/migrate.mjs via direct preview owner connection"
+}

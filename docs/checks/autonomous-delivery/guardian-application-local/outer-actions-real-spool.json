@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "runtime": {
+    "node": "v24.21.0",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "observedAt": "2026-10-30T03:15:31.521Z",
+  "mode": "outer-private-transport",
+  "baseRevision": "e4191aa826d1fba52f36b2c50c7aa6f79871be49",
+  "endingBaseRevision": "e4191aa826d1fba52f36b2c50c7aa6f79871be49",
+  "sourceDigests": {
+    "templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs": "a9d7d205bcc1bcc1d22441e713700fddea71d023d5ff566283faa7f791359a82",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "956da3b44b606c650aa34d99ce669989698e9364563f7a6dae8133bc5a0a966f",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "e1c25c2e1acc21fea7d73acf21b734282b1a5f435bcd8115d8bfea0c57ed6d9e",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs": "886e369804078aae0c8a98fc7e7c805bab84ad550def5dcdba6cbffac9424943",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "731228834e262f4bfe930c3fa8a711d3b7ae2e2fc55d93f658b76dbff5648537",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs": "f5cc40737bd7497fc18f9001ab63117b2a8a5c5175ab7a84ee4b1948e31bba04",
+    "templates/ai-dev-k8s/scripts/codex-process-identity.mjs": "c93b5845f0d4b9eb0c98177ed0746f86a521332f0568403082d6aed5fd6da24c",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "5a669d54b9a80b43babac5abad10378f7aeb9fa0282c320e339f91e5ebd4cb15",
+    "scripts/build-native-guardian.mjs": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+    "scripts/verify-codex-guardian-controller.test.mjs": "bc386891a0ecb8a41d00cb5096536405765d14be02bb27da6d7988237c37005c",
+    "scripts/verify-codex-host-guardian.test.mjs": "5c458a6b1d1d8031f07cefd55fb51abef851daa2c6b014067a18ebb41a6f79f8",
+    "scripts/probe-guardian-application-actions.mjs": "04ac5ac114fd2d050c9a9146862afc110dd7a94861a902005da272e9df784c88"
+  },
+  "sourceStable": true,
+  "testedSourcesCommitted": false,
+  "passed": true,
+  "tests": {
+    "passed": 27,
+    "failed": 0
+  },
+  "checks": [
+    "Three strict inherited-FD application methods require the admitted project and open lifetime.",
+    "Independent controller/supervisor HMAC journals and original native spool must agree on closed input and complete terminal facts.",
+    "Python receipt float/Unicode HMAC bytes and FD-pinned HEAD/index are independently verified before signing applied receipt.",
+    "Unknown reserve/commit retains exact request/receipt; factual metadata and same-operation verify recover without re-reserving or timestamp rewrite.",
+    "Changed native/barrier/lease across response, forged receipts/spool, active input and index/HEAD changes fail closed."
+  ],
+  "limitations": [
+    "Application server responses and native terminal journals are explicitly synthetic unit fixtures; composed PostgreSQL/Python acceptance is a separate proof.",
+    "FD3 fixture uses an actual local guardian subtree; no deployed host/native inference or remote attestation is claimed."
+  ],
+  "inputBarrierIsKernelQuiescence": false,
+  "physicalWriterReleased": false,
+  "deployedActivation": false,
+  "cloudMutations": false,
+  "accountInference": false
+}

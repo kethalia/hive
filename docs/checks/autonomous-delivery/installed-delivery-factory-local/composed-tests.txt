@@ -1,0 +1,9 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, completes and applies accepted source before continuation through signed services 8585ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  03:19:56
+   Duration  9.27s (transform 400ms, setup 0ms, collect 543ms, tests 8.59s, environment 0ms, prepare 40ms)
