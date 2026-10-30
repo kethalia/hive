@@ -1,10 +1,13 @@
+import { execFileSync } from "node:child_process";
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { request as httpRequest } from "node:http";
@@ -57,11 +60,52 @@ describe.skipIf(!url)(
   "real guardian outer/FD3/owner-app/signed controller/PostgreSQL composition",
   () => {
     it("enrolls before preparation, gates actual Git, seals checkout inode and reserves exactly one native launch", async () => {
+      const pinnedNode = process.env.HIVE_GUARDIAN_INSTALLED_FIXTURE_NODE;
+      if (!pinnedNode) {
+        // CI caches can have a different UID or group-write bit. Re-exec only
+        // this fixture under one owned readonly copy, preserving Node's version
+        // and exact outer/worker inode agreement. Product pins stay unchanged.
+        const launcher = mkdtempSync(join(tmpdir(), "hive-guardian-installed-node-")),
+          executable = join(launcher, "node"),
+          log = join(launcher, "result.log");
+        copyFileSync(realpathSync(process.execPath), executable);
+        chmodSync(executable, 0o500);
+        try {
+          const output = execFileSync(
+            executable,
+            [
+              realpathSync("node_modules/vitest/vitest.mjs"),
+              "run",
+              "src/__tests__/lib/codex-session/guardian-installed.integration.test.ts",
+              "--reporter=verbose",
+            ],
+            {
+              encoding: "utf8",
+              timeout: 45000,
+              maxBuffer: 1048576,
+              env: { ...process.env, HIVE_GUARDIAN_INSTALLED_FIXTURE_NODE: executable },
+            },
+          );
+          writeFileSync(log, output, { mode: 0o600 });
+        } catch (error) {
+          const failure = error as { stdout?: string | Buffer; stderr?: string | Buffer };
+          writeFileSync(log, `${failure.stdout ?? ""}\n${failure.stderr ?? ""}`, { mode: 0o600 });
+          throw new Error(`Pinned fixture subprocess failed; retained ${log}`, { cause: error });
+        }
+        rmSync(launcher, { recursive: true, force: true });
+        return;
+      }
+      const own = statSync(pinnedNode);
+      expect(realpathSync(process.execPath)).toBe(pinnedNode);
+      expect(own.uid).toBe(process.getuid?.());
+      expect(own.mode & 0o222).toBe(0);
       const directory = mkdtempSync(join(tmpdir(), "hive-guardian-installed-")),
         packageDirectory = join(directory, "package"),
         home = directory;
       let host: Awaited<ReturnType<typeof openGuardedHost>> | undefined,
-        cleanupSafe = false;
+        cleanupSafe = false,
+        primaryError: unknown,
+        shutdownError: unknown;
       try {
         const build = buildNativeGuardian(resolve("."), packageDirectory),
           node = realpathSync(process.execPath);
@@ -325,14 +369,30 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
         expect(runtime.producerApproved).toBe(false);
         expect(await db.codexHostRegistration.count({ where: { ownerId: user.id } })).toBe(0);
         expect(await db.deliveryManagerBinding.count({ where: { ownerId: user.id } })).toBe(0);
+      } catch (error) {
+        primaryError = error;
       } finally {
         if (host) {
-          const result = await host.abort();
-          cleanupSafe = result.held !== true;
+          try {
+            const result = await host.abort();
+            cleanupSafe = result.held !== true;
+          } catch (error) {
+            shutdownError = error;
+          }
         }
-        if (cleanupSafe) rmSync(directory, { recursive: true, force: true });
-        else expect.fail(`Fixture shutdown uncertain; retained ${directory}`);
+        if (!cleanupSafe && !shutdownError)
+          shutdownError = new Error(`Fixture shutdown uncertain; retained ${directory}`);
+        if (cleanupSafe && !primaryError && !shutdownError)
+          rmSync(directory, { recursive: true, force: true });
       }
-    }, 30000);
+      if (primaryError && shutdownError)
+        throw new AggregateError(
+          [primaryError, shutdownError],
+          `Primary fixture failure and shutdown uncertainty; retained ${directory}`,
+          { cause: primaryError },
+        );
+      if (primaryError) throw primaryError;
+      if (shutdownError) throw shutdownError;
+    }, 60000);
   },
 );

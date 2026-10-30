@@ -532,3 +532,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   received SELECT/INSERT/UPDATE on six new tables, with no DELETE or DDL grant. No production
   database or deployment changed. The next workerd proof uses this matching schema.
   Evidence: [migration](neon-source-guardian-migration.json).
+
+- Installed guardian CI fixture: corrected and reviewed, moderate difficulty. A cache-like
+  Node executable reproduced the guardian's executable-pin rejection. The fixture now runs
+  under an owned, readonly copy of the same Node binary, keeping outer/worker version and
+  inode agreement and leaving production pin rules intact. It also preserves the original
+  failure alongside shutdown uncertainty. Official CI-version Node22 and local Node24 pass;
+  parent independently passes the actual installed test on localhost. Original hosted file
+  mode was not recorded, so the reproduction is not proof of its exact original permissions.
+  Evidence: [CI fixture](guardian-controller-local/ci-installed-node.json).
