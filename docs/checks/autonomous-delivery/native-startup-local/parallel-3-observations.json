@@ -1,0 +1,582 @@
+{
+  "schemaVersion": 1,
+  "records": [
+    {
+      "schemaVersion": 1,
+      "hostPid": 622909,
+      "sequence": 1,
+      "sourceSha256": "57310557a01a82e1c6a5a2a34a2faeb4fa3bd9bee0055c1c5f0ff9ae2ff2a6a9",
+      "metadata": true,
+      "events": [
+        {
+          "ms": 651.357,
+          "type": "spawn",
+          "port": 38999,
+          "pid": 622967,
+          "parentPid": 622909,
+          "startTime": "971670662",
+          "state": "R",
+          "wchan": "0"
+        },
+        {
+          "ms": 651.713,
+          "type": "poll",
+          "attempt": 0,
+          "processes": [
+            {
+              "pid": 622967,
+              "parentPid": 622909,
+              "startTime": "971670662",
+              "state": "R",
+              "wchan": "0"
+            }
+          ]
+        },
+        {
+          "ms": 655.698,
+          "type": "websocket_error",
+          "attempt": 0,
+          "code": "ECONNREFUSED",
+          "category": "connection_error"
+        },
+        {
+          "ms": 697.588,
+          "type": "stderr",
+          "categories": ["alias_read_only"]
+        },
+        {
+          "ms": 756.186,
+          "type": "poll",
+          "attempt": 1,
+          "processes": [
+            {
+              "pid": 622967,
+              "parentPid": 622909,
+              "startTime": "971670662",
+              "state": "S",
+              "wchan": "other"
+            },
+            {
+              "pid": 623021,
+              "parentPid": 622967,
+              "startTime": "971670666",
+              "state": "S",
+              "wchan": "do_wait"
+            },
+            {
+              "pid": 623022,
+              "parentPid": 623021,
+              "startTime": "971670667",
+              "state": "S",
+              "wchan": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "ms": 757.389,
+          "type": "websocket_error",
+          "attempt": 1,
+          "code": "ECONNREFUSED",
+          "category": "connection_error"
+        },
+        {
+          "ms": 858.105,
+          "type": "poll",
+          "attempt": 2,
+          "processes": [
+            {
+              "pid": 622967,
+              "parentPid": 622909,
+              "startTime": "971670662",
+              "state": "S",
+              "wchan": "other"
+            },
+            {
+              "pid": 623021,
+              "parentPid": 622967,
+              "startTime": "971670666",
+              "state": "S",
+              "wchan": "do_wait"
+            },
+            {
+              "pid": 623022,
+              "parentPid": 623021,
+              "startTime": "971670667",
+              "state": "S",
+              "wchan": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "ms": 858.978,
+          "type": "websocket_error",
+          "attempt": 2,
+          "code": "ECONNREFUSED",
+          "category": "connection_error"
+        },
+        {
+          "ms": 951.405,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 955.7,
+          "type": "stderr",
+          "categories": ["websocket_listening"]
+        },
+        {
+          "ms": 959.088,
+          "type": "poll",
+          "attempt": 3,
+          "processes": [
+            {
+              "pid": 622967,
+              "parentPid": 622909,
+              "startTime": "971670662",
+              "state": "S",
+              "wchan": "other"
+            },
+            {
+              "pid": 623021,
+              "parentPid": 622967,
+              "startTime": "971670666",
+              "state": "S",
+              "wchan": "do_wait"
+            },
+            {
+              "pid": 623022,
+              "parentPid": 623021,
+              "startTime": "971670667",
+              "state": "S",
+              "wchan": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "ms": 960.899,
+          "type": "websocket_open",
+          "attempt": 3
+        },
+        {
+          "ms": 960.964,
+          "type": "poll_complete",
+          "open": true
+        },
+        {
+          "ms": 961.047,
+          "type": "request",
+          "method": "initialize"
+        },
+        {
+          "ms": 977.108,
+          "type": "request",
+          "method": "configRequirements/read"
+        },
+        {
+          "ms": 979.39,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 1038.908,
+          "type": "namespace_verified"
+        },
+        {
+          "ms": 4074.414,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 4121.714,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 4335.476,
+          "type": "stop_requested"
+        },
+        {
+          "ms": 4336.303,
+          "type": "exit",
+          "exitCode": null,
+          "signal": "SIGTERM"
+        }
+      ],
+      "stderrBytes": 657,
+      "stderrTruncated": false
+    },
+    {
+      "schemaVersion": 1,
+      "hostPid": 622910,
+      "sequence": 1,
+      "sourceSha256": "57310557a01a82e1c6a5a2a34a2faeb4fa3bd9bee0055c1c5f0ff9ae2ff2a6a9",
+      "metadata": false,
+      "events": [
+        {
+          "ms": 657.537,
+          "type": "spawn",
+          "port": 37477,
+          "pid": 622966,
+          "parentPid": 622910,
+          "startTime": "971670661",
+          "state": "R",
+          "wchan": "0"
+        },
+        {
+          "ms": 657.93,
+          "type": "poll",
+          "attempt": 0,
+          "processes": [
+            {
+              "pid": 622966,
+              "parentPid": 622910,
+              "startTime": "971670661",
+              "state": "R",
+              "wchan": "0"
+            }
+          ]
+        },
+        {
+          "ms": 661.514,
+          "type": "websocket_error",
+          "attempt": 0,
+          "code": "ECONNREFUSED",
+          "category": "connection_error"
+        },
+        {
+          "ms": 682.57,
+          "type": "stderr",
+          "categories": ["alias_read_only"]
+        },
+        {
+          "ms": 762.306,
+          "type": "poll",
+          "attempt": 1,
+          "processes": [
+            {
+              "pid": 622966,
+              "parentPid": 622910,
+              "startTime": "971670661",
+              "state": "S",
+              "wchan": "other"
+            },
+            {
+              "pid": 622968,
+              "parentPid": 622966,
+              "startTime": "971670663",
+              "state": "S",
+              "wchan": "do_wait"
+            },
+            {
+              "pid": 622969,
+              "parentPid": 622968,
+              "startTime": "971670663",
+              "state": "S",
+              "wchan": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "ms": 763.473,
+          "type": "websocket_error",
+          "attempt": 1,
+          "code": "ECONNREFUSED",
+          "category": "connection_error"
+        },
+        {
+          "ms": 864.237,
+          "type": "poll",
+          "attempt": 2,
+          "processes": [
+            {
+              "pid": 622966,
+              "parentPid": 622910,
+              "startTime": "971670661",
+              "state": "S",
+              "wchan": "other"
+            },
+            {
+              "pid": 622968,
+              "parentPid": 622966,
+              "startTime": "971670663",
+              "state": "S",
+              "wchan": "do_wait"
+            },
+            {
+              "pid": 622969,
+              "parentPid": 622968,
+              "startTime": "971670663",
+              "state": "S",
+              "wchan": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "ms": 865.28,
+          "type": "websocket_error",
+          "attempt": 2,
+          "code": "ECONNREFUSED",
+          "category": "connection_error"
+        },
+        {
+          "ms": 937.183,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 942.005,
+          "type": "stderr",
+          "categories": ["websocket_listening"]
+        },
+        {
+          "ms": 962.263,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 965.607,
+          "type": "poll",
+          "attempt": 3,
+          "processes": [
+            {
+              "pid": 622966,
+              "parentPid": 622910,
+              "startTime": "971670661",
+              "state": "S",
+              "wchan": "other"
+            },
+            {
+              "pid": 622968,
+              "parentPid": 622966,
+              "startTime": "971670663",
+              "state": "S",
+              "wchan": "do_wait"
+            },
+            {
+              "pid": 622969,
+              "parentPid": 622968,
+              "startTime": "971670663",
+              "state": "S",
+              "wchan": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "ms": 966.868,
+          "type": "websocket_open",
+          "attempt": 3
+        },
+        {
+          "ms": 966.9,
+          "type": "poll_complete",
+          "open": true
+        },
+        {
+          "ms": 966.959,
+          "type": "request",
+          "method": "initialize"
+        },
+        {
+          "ms": 975.887,
+          "type": "request",
+          "method": "configRequirements/read"
+        },
+        {
+          "ms": 977.742,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 1039.943,
+          "type": "namespace_verified"
+        },
+        {
+          "ms": 1049.491,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 1111.996,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 1200.959,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 1254.373,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 1276.343,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 4104.125,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 5350.736,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 5950.964,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 6584.2,
+          "type": "stop_requested"
+        },
+        {
+          "ms": 6584.84,
+          "type": "exit",
+          "exitCode": null,
+          "signal": "SIGTERM"
+        }
+      ],
+      "stderrBytes": 1817,
+      "stderrTruncated": false
+    },
+    {
+      "schemaVersion": 1,
+      "hostPid": 622910,
+      "sequence": 2,
+      "sourceSha256": "57310557a01a82e1c6a5a2a34a2faeb4fa3bd9bee0055c1c5f0ff9ae2ff2a6a9",
+      "metadata": false,
+      "events": [
+        {
+          "ms": 718.8,
+          "type": "spawn",
+          "port": 33079,
+          "pid": 624794,
+          "parentPid": 622910,
+          "startTime": "971671333",
+          "state": "R",
+          "wchan": "0"
+        },
+        {
+          "ms": 718.928,
+          "type": "poll",
+          "attempt": 0,
+          "processes": [
+            {
+              "pid": 624794,
+              "parentPid": 622910,
+              "startTime": "971671333",
+              "state": "R",
+              "wchan": "0"
+            }
+          ]
+        },
+        {
+          "ms": 719.722,
+          "type": "websocket_error",
+          "attempt": 0,
+          "code": "ECONNREFUSED",
+          "category": "connection_error"
+        },
+        {
+          "ms": 749.569,
+          "type": "stderr",
+          "categories": ["alias_read_only"]
+        },
+        {
+          "ms": 779.801,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 780.237,
+          "type": "stderr",
+          "categories": ["websocket_listening"]
+        },
+        {
+          "ms": 795.902,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 819.339,
+          "type": "poll",
+          "attempt": 1,
+          "processes": [
+            {
+              "pid": 624794,
+              "parentPid": 622910,
+              "startTime": "971671333",
+              "state": "S",
+              "wchan": "other"
+            },
+            {
+              "pid": 624795,
+              "parentPid": 624794,
+              "startTime": "971671336",
+              "state": "S",
+              "wchan": "do_wait"
+            },
+            {
+              "pid": 624796,
+              "parentPid": 624795,
+              "startTime": "971671337",
+              "state": "S",
+              "wchan": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "ms": 820.486,
+          "type": "websocket_open",
+          "attempt": 1
+        },
+        {
+          "ms": 820.52,
+          "type": "poll_complete",
+          "open": true
+        },
+        {
+          "ms": 820.544,
+          "type": "request",
+          "method": "initialize"
+        },
+        {
+          "ms": 829.985,
+          "type": "request",
+          "method": "configRequirements/read"
+        },
+        {
+          "ms": 831.805,
+          "type": "request",
+          "method": "command/exec"
+        },
+        {
+          "ms": 891.98,
+          "type": "namespace_verified"
+        },
+        {
+          "ms": 970.535,
+          "type": "stderr",
+          "categories": ["error_mentioned"]
+        },
+        {
+          "ms": 1616.391,
+          "type": "stop_requested"
+        },
+        {
+          "ms": 1616.639,
+          "type": "exit",
+          "exitCode": null,
+          "signal": "SIGTERM"
+        }
+      ],
+      "stderrBytes": 1121,
+      "stderrTruncated": false
+    }
+  ]
+}

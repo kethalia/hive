@@ -1,0 +1,16 @@
+(node:625111) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./")); register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ actual native root, child, CLI and resumed thread retain read-only Git metadata with live host refs (4653.334534ms)
+(node:625700) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./")); register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (8102.192144ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13262.202798
