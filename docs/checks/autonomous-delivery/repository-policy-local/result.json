@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T05:08:03.017364+00:00",
+  "baseRevisionAtEvidenceWrite": "a1c70c7be0bfcc534317a3dabd775dd22b894b11",
+  "testedSourcesCommitted": false,
+  "sourceHashAuthority": "Exact SHA256 before and after the final full-suite run; HEAD is evidence-write context only.",
+  "sourceStable": true,
+  "sourceHashes": {
+    ".github/workflows/ci.yml": "d8a1c3ffa0eb39b44b91cf56879203be9cf95bedf6e19325796adc6d82f0512a",
+    "packages/db/prisma/schema.prisma": "5b81eea824ed5d4f793262888b1357af9d4cb789be588c45f3fe5cd5d409b144",
+    "packages/db/prisma/migrations/20261029190000_delivery_repository_policy/migration.sql": "296c5952f0701fcfafe431dca66b22074c5edcd440ed73f678caea45cb3dc1b3",
+    "packages/db/src/cloudflare.ts": "426b81cbb9d6e26e91fa4ed80b7e509d126f044589cec8daa1eb7b5b37131623",
+    "scripts/probe-repository-policy-migration.mjs": "642d0e47ffac22b347187c2bfb6a9ff14d5bfbdd455682d378422acd2dd23668",
+    "scripts/verify-codex-delivery-runtime.test.mjs": "3418f594c832fb6e44b0dcd1183c71b143fbbb437db858e6e1dd1636bb40657c",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "900367229890aa74a6398f17d555a97b05ea83dd209189a70212b60917f447b3",
+    "src/__tests__/lib/delivery/native-fixture.ts": "446b5afd13d692da25f20ee60c92df6935cdbd4bcc8788fd33ff2076fc5b5530",
+    "src/__tests__/lib/delivery/github-source-route.test.ts": "776aaa312ac45e57890b87a1c6d4db8782b60605ce4798c214b2bf5f7a3dacc0",
+    "src/__tests__/lib/delivery/manager-route.test.ts": "74549cb86e96f5f798e4c16840ee0df1ce3e9ea1237827d965f861c8e57b807d",
+    "src/__tests__/lib/delivery/source-transport-route.test.ts": "80db62528a304eceeb7f1726b2e77558713771c60238fe4d42cbca60bc785961",
+    "src/__tests__/lib/delivery/status-route.test.ts": "52c0cd2f47278864665bc6a3ba8703e7487e4631f2f425bf398aed9cc2bc5db5",
+    "src/__tests__/lib/delivery/repository-policy-contracts.test.ts": "50dc7059db2724209b56466cc3d1c7c7421435bf1a5f3efc4f002c43b3c79a26",
+    "src/__tests__/lib/delivery/repository-policy.integration.test.ts": "7b8d6e2e23e7c0a30c6f59cf65782152c5699d21c8b3bea647edc06ed0c8ad3f",
+    "src/__tests__/lib/delivery/repository-policy-manager.integration.test.ts": "40fc3ca47234ddfb25eecb4ec4b514e3453ebb8b150a0572723b37fe12b732a1",
+    "src/__tests__/lib/projects/task-guardian.test.ts": "0dda7d8beb3b30650d62b70eb8991b9a89eb10389ff0322bfbe9a88a2f5b6edc",
+    "src/__tests__/lib/projects/task.test.ts": "5dc048e1659c3f5458db035f60d5d44a9f3b53889d8d6d8db064bb12faa1d15d",
+    "src/app/api/delivery/host/route.ts": "d169ffa812cd6cd169b49b42b61b164a4c2e26c582191af2e574bd0a8a5c36b0",
+    "src/lib/delivery/github-persistence.server.ts": "84f2d0105ee2031e6e5ba4ebc233f0493f0d89b3dac8f5e8f7ce15eb526d1d9a",
+    "src/lib/delivery/github-policy.server.ts": "42a94961721a6cdbfe7dc65c3a81992c2e6f447c2da038a7b8a28fa8b849df19",
+    "src/lib/delivery/github-source-route.server.ts": "b16a41a105cc7cb49babca85b0fbe133b535576460b55dcea42f9d0a9f80a081",
+    "src/lib/delivery/github-transport.server.ts": "377611620d48945894b5a11d7912cb2ad481ae1ad67a35f2211a72cc9eae414e",
+    "src/lib/delivery/manager.server.ts": "689b46df16421062607dd31f65503be33e6de9da515927e47abc5343054b951b",
+    "src/lib/delivery/repository.ts": "0aac4365e70e95f147e276b73a90c36fde0e9bac5592f05e40351cf5eb7ad3ad",
+    "src/lib/delivery/repository-policy-contracts.ts": "73e582a448ef3489a4ba324f4f7664cf30fe7643a7b9106232fa5fe5f75cb3fe",
+    "src/lib/delivery/repository-policy-store.server.ts": "907122ac815c00ff0e2551543aab3bc7f3105cd2ecf44386c8f1ff830e15cd25",
+    "src/lib/delivery/repository-policy.server.ts": "141104eb46403e07cd21fd8946853011a0ff9c9bef3597217e26bb0f81a96811",
+    "src/lib/delivery/source-transport-route.server.ts": "33abf1fd01c5f85250b027f25c14f7b7cfb0b58f3826aef4eed806a102ae6f26",
+    "src/lib/delivery/source-transport.server.ts": "79a1fa60536d294f990115730a00ea76dc2bb3192ec761b4244a12d7d104f394",
+    "src/lib/delivery/status-contracts.ts": "216f1919b18385b10df776a7f81480ddcaf6daa44ab2a781ef5d4470e056364c",
+    "src/lib/delivery/status-route.server.ts": "178a4b5b0ab4ba374f175c8e8b8db8ed4f2b4ec6742498422bf99188aee02c4b",
+    "src/lib/delivery/status.server.ts": "e7759f455cd470f50e1ed13c352135054cb63cdbfe506c072fbd6d3af0f9155b",
+    "src/lib/projects/task-intents.server.ts": "37ecfeccb03e096ee68ed56a7233ea461acf543f7d58fa53c6d67c2faf65efba",
+    "src/lib/projects/task-route.server.ts": "d61c21d964b9fd33983ff688bb63938214a7193801f9bcaea5f60af50890e35b",
+    "src/lib/projects/task.server.ts": "efe84ecc0272851ebb47ea75bc8dd0866ea7e370427b193bd4daeac8bab5084e",
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": "baa8000d1fe0c7d46d674162080be50faa0779298abe9b1861d8a9032a66b4ad",
+    "templates/ai-dev-k8s/scripts/delivery-status-client.mjs": "c560f830d0063145bfa9ec1f276c43ea1f28cd5af0f77d3b1ca7b91d25025fa1",
+    "docs/checks/autonomous-delivery/repository-policy.md": "9d4917d689c13f08cb33739f8419ffcb9d11ced10c9e04d24716b9dad009452d"
+  },
+  "validation": {
+    "focused": {
+      "passed": 17,
+      "command": "HIVE_REPOSITORY_POLICY_TEST_DATABASE_URL=<local-fixture> pnpm exec vitest run src/__tests__/lib/delivery/repository-policy-contracts.test.ts src/__tests__/lib/delivery/repository-policy.integration.test.ts src/__tests__/lib/delivery/repository-policy-manager.integration.test.ts --no-file-parallelism --reporter=dot"
+    },
+    "full": {
+      "passed": 361,
+      "skipped": 4,
+      "filesPassed": 42,
+      "command": "HIVE_REPOSITORY_POLICY_TEST_DATABASE_URL=<local-fixture> HIVE_DELIVERY_TEST_DATABASE_URL=<local-fixture> pnpm exec vitest run src/__tests__/lib/delivery src/__tests__/lib/projects/task-intents.integration.test.ts src/__tests__/lib/projects/task.test.ts src/__tests__/lib/projects/task-guardian.test.ts src/__tests__/lib/projects/task-reconcile-cancellation.test.ts --no-file-parallelism --reporter=dot"
+    },
+    "node22": {
+      "version": "22.23.4",
+      "passed": 18,
+      "cancelled": 0,
+      "command": "node --test scripts/verify-delivery-status-client.test.mjs scripts/verify-codex-delivery-runtime.test.mjs"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "command": "pnpm exec tsc --noEmit"
+    },
+    "biome": {
+      "exitCode": 0,
+      "files": 33
+    },
+    "upgrade": {
+      "from": 29,
+      "to": 30,
+      "oldTablesPreserved": 39,
+      "legacyIntentUnbound": true,
+      "runtimeRoleSelectVerified": true,
+      "runtimeRoleDeleteDenied": true
+    }
+  },
+  "boundaries": {
+    "deploymentEnabled": false,
+    "cloudWrites": false,
+    "providerWrites": false,
+    "accountInference": false,
+    "semanticAcceptancePending": true,
+    "nondefaultPolicyRefResolutionPending": true,
+    "physicalWriterHoldRetained": true
+  },
+  "localFixture": {
+    "url": "postgresql://coder@127.0.0.1:44741/hive_delivery_test",
+    "finalSqlFreshlyDeployed": true,
+    "oldAppliedMigrationChecksumsEdited": false,
+    "priorDraftDatabasesRetained": true
+  },
+  "artifactHashes": {
+    "docs/checks/autonomous-delivery/repository-policy-local/delivery.log": "b67f24af66fa1a33b8d170f385dbd2d051f0f71a6188c296249030bc255e2b79",
+    "docs/checks/autonomous-delivery/repository-policy-local/focused.log": "4d4e48eb346d157128d2fb96ac5bd9c0e62406511424cbe8b24a503a08392bae",
+    "docs/checks/autonomous-delivery/repository-policy-local/node22.log": "942d290581eef4ff8f1c6fb108b442555606e78a2bef5b11bce7c8fd583d9dd2",
+    "docs/checks/autonomous-delivery/repository-policy-local/types.log": "d945a9a323cda94838f747a982c4b7dab38ab0cef9e769954609ab1b85618c6a",
+    "docs/checks/autonomous-delivery/repository-policy-local/biome.log": "1657e72fa4f826bb69e4428150bc24476e58a5109b16da1e5a2b01030df1c5ae",
+    "docs/checks/autonomous-delivery/repository-policy-local/fresh-migration.log": "6132a5c551571345a65b4c77ca9eac331691155c9771fcab7c89c0d7fabecd2e",
+    "docs/checks/autonomous-delivery/repository-policy-local/upgrade.log": "2a470f657754a3f821e02287d2d74e7fb6422fd631afdc5419cd39037bba6ee3",
+    "docs/checks/autonomous-delivery/repository-policy-local/initial-query-fixture-failure.log": "1a3a705f8b8075f5bf810794740d6030af323ff117d09b1f06332c70e6b8dcfd",
+    "docs/checks/autonomous-delivery/repository-policy-local/schema-diff.sql": "4eb5f4f105361d0458e7c4c0e6f0b4029fd272edbaf76eb787f203b0d71fa198",
+    "docs/checks/autonomous-delivery/repository-policy-local/initial-findings.json": "6d5841f96d6dcfa5772028d90119f3c65edc2e899ffcd6e54686f28de342f516",
+    "docs/checks/autonomous-delivery/repository-policy-local/upgrade.json": "5c4fa8c02ce4a761b02b82f23407d598b270cf1ca7e038b50d70ea37e5bf9584"
+  }
+}

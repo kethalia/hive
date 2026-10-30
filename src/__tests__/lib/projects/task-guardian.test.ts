@@ -11,6 +11,7 @@ vi.mock("@hive/db", () => ({
   getDb: () => ({
     user: { findUnique: mock.owner },
     deliveryProject: { findUnique: mock.project },
+    projectTaskIntent: { findUnique: async () => null },
   }),
 }));
 vi.mock("@/lib/codex-session/guardian-factory.server", () => ({

@@ -173,7 +173,17 @@ export class GitHubEvidencePublisher {
     private readonly source: AuthorizedGitHubSource,
     private readonly artifacts: ImmutableGitHubArtifactStore,
     private readonly clock = () => Date.now(),
-  ) {}
+    // Trusted constructor only; the transport derives these from immutable DB
+    // repository policy and rechecks them in authorizeTransaction. Never wire JSON.
+    private readonly repositoryCriteria: readonly string[] = [],
+  ) {
+    this.repositoryCriteria = Object.freeze(
+      z
+        .array(z.string().regex(/^repo:[A-Za-z0-9_.:-]{1,95}$/))
+        .max(40)
+        .parse(repositoryCriteria),
+    );
+  }
   async publish(
     ownerInput: string,
     taskId: string,
@@ -258,7 +268,9 @@ export class GitHubEvidencePublisher {
     ];
     if (
       groups.some((group) =>
-        group.criterionIds.some((id) => !task.steps[0].criterionIds.includes(id)),
+        group.criterionIds.some(
+          (id) => !task.steps[0].criterionIds.includes(id) && !this.repositoryCriteria.includes(id),
+        ),
       )
     )
       throw new DeliveryConflict("github_criterion_binding_mismatch");
@@ -433,7 +445,7 @@ export class GitHubEvidencePublisher {
               });
             const evidenceIds: string[] = [];
             for (const kind of ["check", "review"] as const) {
-              for (const criterion of step.criterionIds) {
+              for (const criterion of new Set([...step.criterionIds, ...this.repositoryCriteria])) {
                 const relevant = effective.filter(
                   (value) => value.kind === kind && value.criterionIds.includes(criterion),
                 );

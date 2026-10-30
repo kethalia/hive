@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
   service: vi.fn(),
   session: vi.fn(),
 }));
-vi.mock("@hive/db", () => ({ getDb: () => ({}) }));
+vi.mock("@hive/db", async (original) => ({
+  ...(await original<typeof import("@hive/db")>()),
+  getDb: () => ({}),
+}));
 vi.mock("@opennextjs/cloudflare", () => ({ getCloudflareContext: mocks.context }));
 vi.mock("@/lib/codex-session/route.server", async (original) => ({
   ...(await original<typeof import("@/lib/codex-session/route.server")>()),
@@ -83,7 +86,12 @@ describe("default-off source-only route", () => {
   });
   it("no policy or no R2 binding fails closed with no local-memory fallback", async () => {
     mocks.ingest.mockImplementation(async () =>
-      mocks.service.mock.calls.at(-1)?.[1].resolveTargetPolicy({ taskId }),
+      mocks.service.mock.calls
+        .at(-1)?.[1]
+        .resolveTargetPolicy(
+          { taskId },
+          { $queryRaw: async () => [], deliveryTask: { findUnique: async () => null } },
+        ),
     );
     vi.stubEnv("HIVE_DELIVERY_GITHUB_TARGETS_JSON", "");
     expect((await snapshot(request())).status).toBe(503);
@@ -101,8 +109,19 @@ describe("default-off source-only route", () => {
     expect(mocks.challenge).toHaveBeenCalledWith(body);
     expect(mocks.ingest).not.toHaveBeenCalled();
     const resolve = mocks.service.mock.calls[0][1].resolveTargetPolicy;
-    expect(resolve({ taskId })).toEqual(configured);
-    expect(() => resolve({ taskId: randomUUID() })).toThrow("github_task_policy_missing");
+    expect(
+      await resolve(
+        { taskId },
+        { $queryRaw: async () => [], deliveryTask: { findUnique: async () => null } },
+      ),
+    ).toEqual(configured);
+    await expect(resolve({ taskId })).rejects.toThrow("repository_policy_transaction_required");
+    await expect(
+      resolve(
+        { taskId: randomUUID() },
+        { $queryRaw: async () => [], deliveryTask: { findUnique: async () => null } },
+      ),
+    ).rejects.toThrow("github_task_policy_missing");
   });
   it("auth and internal failures never return raw credentials or snapshot details", async () => {
     mocks.ingest.mockRejectedValueOnce(new RegistrationRejected());

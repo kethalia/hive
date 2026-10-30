@@ -164,6 +164,10 @@ export class DeliveryRepository {
         outcome: string;
       }[],
     ) => Promise<void>,
+    private readonly afterTaskCreated?: (
+      tx: Transaction,
+      task: { id: string; ownerId: string },
+    ) => Promise<void>,
   ) {
     if (
       !policy.version.trim() ||
@@ -428,6 +432,7 @@ export class DeliveryRepository {
         await tx.deliveryStepDependency.createMany({
           data: input.dependencies.map((edge) => ({ ...edge, ownerId, taskId: task.id })),
         });
+      await this.afterTaskCreated?.(tx, task);
       await tx.deliveryEvent.create({
         data: {
           id: input.eventId,

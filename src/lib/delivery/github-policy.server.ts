@@ -1,3 +1,4 @@
+import type { Prisma } from "@hive/db";
 import { z } from "zod";
 import {
   githubBotReviewProducer,
@@ -66,7 +67,8 @@ const challengeBindingSchema = z
  * evidence status, producer or PR assertion supplied by the manager. */
 export function resolveControllerGitHubManagerPolicy(
   scope: ManagerPolicyScope,
-  readConfig = () => process.env.HIVE_DELIVERY_GITHUB_TARGETS_JSON,
+  readConfig: (() => string | undefined) | Prisma.TransactionClient = () =>
+    process.env.HIVE_DELIVERY_GITHUB_TARGETS_JSON,
 ): ResolvedManagerEvidencePolicy | null {
   if (
     !(
@@ -75,7 +77,21 @@ export function resolveControllerGitHubManagerPolicy(
     )
   )
     return null;
-  const configured = resolveControllerGitHubTargetPolicy(scope.taskId, readConfig);
+  return resolveConfiguredGitHubManagerPolicy(
+    scope,
+    resolveControllerGitHubTargetPolicy(
+      scope.taskId,
+      typeof readConfig === "function" ? readConfig : undefined,
+    ),
+  );
+}
+
+/** Reuses the complete provenance validator for independently persisted
+ * repository policy. The caller has already authorized the exact scope. */
+export function resolveConfiguredGitHubManagerPolicy(
+  scope: ManagerPolicyScope,
+  configured: z.infer<typeof githubTaskTargetPolicySchema>,
+): ResolvedManagerEvidencePolicy {
   const policyDigest = githubSourceDigest(configured.policy);
   const target = githubSourceTargetSchema.parse({
     schemaVersion: 1,

@@ -303,6 +303,7 @@ model DeliveryProject {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   owner                User @relation(fields: [ownerId], references: [id])
+  repositoryPolicy DeliveryRepositoryPolicy?
   conversations        DeliveryConversation[]
   registeredThreads    CodexRegisteredThread[]
   taskIntents          ProjectTaskIntent[]
@@ -372,12 +373,14 @@ model DeliveryTask {
   epic             DeliveryEpic? @relation(fields: [ownerId, projectId, epicId], references: [ownerId, projectId, id], onDelete: Restrict)
   conversation     DeliveryConversation? @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id], onDelete: Restrict)
   managerBinding   DeliveryManagerBinding? @relation(fields: [ownerId, projectId, managerBindingId], references: [ownerId, projectId, id], onDelete: Restrict)
+  repositoryPolicyBindings DeliveryTaskPolicyBinding[]
   steps            DeliveryStep[]
   events           DeliveryEvent[]
   sourceRevisions DeliverySourceRevision[] @relation("TaskSourceRevisions")
   sourceApplications DeliverySourceApplication[]
   currentSourceRevision DeliverySourceRevision? @relation("CurrentTaskSourceRevision", fields: [ownerId, id, sourceRevisionId], references: [ownerId, taskId, id], onDelete: Restrict)
   @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id], map: "delivery_task_repository_policy_project_key")
   @@unique([ownerId, id, managerBindingId])
   @@map("delivery_tasks")
 }
@@ -659,6 +662,11 @@ model ProjectTaskIntent {
   repositoryId String @map("repository_id")
   providerAccountId String @map("provider_account_id")
   sourceSha String @map("source_sha")
+  repositoryPolicyVersionId String? @map("repository_policy_version_id") @db.Uuid
+  repositoryPolicyDigest String? @map("repository_policy_digest")
+  intentTextDigest String? @map("intent_text_digest")
+  repositoryPolicyVersion DeliveryRepositoryPolicyVersion? @relation(fields: [ownerId, projectId, repositoryPolicyVersionId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "project_task_intent_repository_policy_fkey")
+  taskPolicyBindings DeliveryTaskPolicyBinding[]
   phase String @default("queued")
   ciphertext Bytes?
   iv Bytes?
@@ -948,4 +956,76 @@ model DeliverySourceApplication {
   @@unique([ownerId, admissionId, publicationOperationId])
   @@index([ownerId, admissionId, phase])
   @@map("delivery_source_applications")
+}
+
+
+// Deployment-owned repository policy, never selected by manager task metadata.
+model DeliveryRepositoryPolicy {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  provider String
+  repositoryId String @map("repository_id")
+  providerAccountId String @map("provider_account_id")
+  fullName String @map("full_name")
+  activeVersionId String? @map("active_version_id") @db.Uuid
+  generation Int @default(1)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_repository_policy_project_fkey")
+  versions DeliveryRepositoryPolicyVersion[] @relation("RepositoryPolicyVersions")
+  activeVersion DeliveryRepositoryPolicyVersion? @relation("ActiveRepositoryPolicy", fields: [ownerId, projectId, id, activeVersionId], references: [ownerId, projectId, policyId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_repository_policy_active_fkey")
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId])
+  @@unique([ownerId, projectId, id])
+  @@map("delivery_repository_policies")
+}
+
+model DeliveryRepositoryPolicyVersion {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  policyId String @map("policy_id") @db.Uuid
+  version Int
+  policyDigest String @map("policy_digest")
+  catalogDigest String @map("catalog_digest")
+  sourcePolicy Json @map("source_policy")
+  evidenceGates Json @map("evidence_gates")
+  acceptanceContracts Json @map("acceptance_contracts")
+  verifiedIdentity Json @map("verified_identity")
+  verifiedIdentityDigest String @map("verified_identity_digest")
+  createdBy String @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  parent DeliveryRepositoryPolicy @relation("RepositoryPolicyVersions", fields: [ownerId, projectId, policyId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_repository_policy_version_parent_fkey")
+  activeFor DeliveryRepositoryPolicy[] @relation("ActiveRepositoryPolicy")
+  intents ProjectTaskIntent[]
+  taskBindings DeliveryTaskPolicyBinding[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id])
+  @@unique([ownerId, policyId, version], map: "delivery_repository_policy_versi_owner_id_policy_id_version_key")
+  @@unique([ownerId, projectId, policyId, id], map: "delivery_repository_policy_ve_owner_id_project_id_policy_id_key")
+  @@map("delivery_repository_policy_versions")
+}
+
+model DeliveryTaskPolicyBinding {
+  ownerId String @map("owner_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  intentId String @map("intent_id") @db.Uuid
+  policyVersionId String @map("policy_version_id") @db.Uuid
+  policyDigest String @map("policy_digest")
+  bindingDigest String @map("binding_digest")
+  intentTextDigest String @map("intent_text_digest")
+  outcomeDigest String @map("outcome_digest")
+  sourceBase String @map("source_base")
+  compiledEvidencePolicy Json @map("compiled_evidence_policy")
+  criterionCoverage Json @map("criterion_coverage")
+  pendingRequirements Json @map("pending_requirements")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  task DeliveryTask @relation(fields: [ownerId, projectId, taskId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_task_policy_task_fkey")
+  intent ProjectTaskIntent @relation(fields: [ownerId, projectId, intentId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_task_policy_intent_fkey")
+  version DeliveryRepositoryPolicyVersion @relation(fields: [ownerId, projectId, policyVersionId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_task_policy_version_fkey")
+  @@id([ownerId, taskId])
+  @@map("delivery_task_policy_bindings")
 }

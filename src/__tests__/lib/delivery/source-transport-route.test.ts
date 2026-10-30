@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
   sessions: vi.fn(),
   admission: vi.fn(),
 }));
-vi.mock("@hive/db", () => ({ getDb: () => ({}) }));
+vi.mock("@hive/db", async (original) => ({
+  ...(await original<typeof import("@hive/db")>()),
+  getDb: () => ({}),
+}));
 vi.mock("@opennextjs/cloudflare", () => ({ getCloudflareContext: mocks.context }));
 vi.mock("@/lib/codex-session/guardian-store.server", () => ({
   lockProducerAdmission: mocks.admission,
@@ -106,15 +109,23 @@ describe("default-off protected source publication routes", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     const dependencies = mocks.service.mock.calls[0][1];
-    expect(dependencies.resolvePolicy({ taskId, ownerId, repositoryId: "123" })).toEqual(
-      configured.policy,
-    );
+    expect(
+      await dependencies.resolvePolicy(
+        { taskId, ownerId, repositoryId: "123" },
+        { $queryRaw: async () => [], deliveryTask: { findUnique: async () => null } },
+      ),
+    ).toEqual(configured.policy);
     for (const scope of [
       { taskId, ownerId: randomUUID(), repositoryId: "123" },
       { taskId, ownerId, repositoryId: "999" },
       { taskId: randomUUID(), ownerId, repositoryId: "123" },
     ])
-      expect(() => dependencies.resolvePolicy(scope)).toThrow("source_task_policy_missing");
+      await expect(
+        dependencies.resolvePolicy(scope, {
+          $queryRaw: async () => [],
+          deliveryTask: { findUnique: async () => null },
+        }),
+      ).rejects.toThrow("source_task_policy_missing");
     mocks.admission.mockRejectedValue(new RegistrationRejected());
     await expect(dependencies.lockProducerAdmission({}, {})).rejects.toThrow();
     expect(mocks.admission).toHaveBeenCalledOnce();
@@ -132,7 +143,12 @@ describe("default-off protected source publication routes", () => {
     mocks.context.mockResolvedValue({ env: { HIVE_DELIVERY_EVIDENCE: {} } });
     vi.stubEnv("HIVE_DELIVERY_SOURCE_POLICIES_JSON", "");
     mocks.issue.mockImplementation(() =>
-      mocks.service.mock.calls.at(-1)?.[1].resolvePolicy({ taskId, ownerId, repositoryId: "123" }),
+      mocks.service.mock.calls
+        .at(-1)?.[1]
+        .resolvePolicy(
+          { taskId, ownerId, repositoryId: "123" },
+          { $queryRaw: async () => [], deliveryTask: { findUnique: async () => null } },
+        ),
     );
     expect((await challenge(request())).status).toBe(503);
   });

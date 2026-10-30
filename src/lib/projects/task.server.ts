@@ -41,6 +41,7 @@ async function ownedProject(user: ProjectPrincipal, projectId: string) {
   z.string().uuid().parse(projectId);
   const project = await getDb().deliveryProject.findUnique({
     where: { ownerId_id: { ownerId: user.id, id: projectId } },
+    include: { repositoryPolicy: { select: { id: true } } },
   });
   if (!project || project.provider !== "github")
     throw new ProjectDiscoveryError("workspace_forbidden");
@@ -107,7 +108,41 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
     .enum(["low", "medium", "high", "xhigh", "max", "ultra"])
     .safeParse(process.env.HIVE_CODEX_MANAGER_EFFORT);
   if (!model.success || !effort.success) throw new Error("Manager runtime policy is unavailable");
-  const store = taskIntentStore();
+  let store = taskIntentStore();
+  if (process.env.HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED !== "true" && project.repositoryPolicy) {
+    const { DeliveryConflict } = await import("@/lib/delivery/state");
+    throw new DeliveryConflict("repository_policy_disabled");
+  }
+  if (process.env.HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED === "true") {
+    const { repositoryPolicyStore } = await import("@/lib/delivery/repository-policy.server");
+    const policies = repositoryPolicyStore(getDb(), async () => ({
+      repositoryId: resolved.repository.providerRepositoryId,
+      providerAccountId: resolved.providerAccountId,
+      fullName: resolved.repository.fullName,
+      defaultBranch: resolved.repository.defaultBranch,
+      defaultRevision: resolved.defaultRevision,
+      archived: resolved.repository.archived,
+      permissions: {
+        pull: resolved.repository.permissions.pull,
+        push: resolved.repository.permissions.push,
+      },
+    }));
+    const selected = await policies.enroll(user.id, projectId);
+    store = taskIntentStore((tx, payload) =>
+      policies.pinIntent(
+        tx,
+        {
+          ownerId: payload.ownerId,
+          projectId: payload.projectId,
+          repositoryId: payload.hostRequest.repositoryId,
+          providerAccountId: payload.hostRequest.expectedAccountId,
+          sourceSha: payload.hostRequest.revision,
+          text: payload.hostRequest.text,
+        },
+        selected,
+      ),
+    );
+  }
   const row = await store.enqueue({
     ownerId: user.id,
     projectId,
@@ -130,10 +165,36 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
   });
   return pendingTaskStatus(row);
 }
-function taskIntentStore() {
+function taskIntentStore(pinPolicy?: ConstructorParameters<typeof ProjectTaskIntents>[2]) {
   const key = process.env.ENCRYPTION_KEY;
   if (!key) throw new Error("Task intent encryption unavailable");
-  return new ProjectTaskIntents(getDb(), key);
+  return new ProjectTaskIntents(getDb(), key, pinPolicy);
+}
+async function authorizeIntentPolicy(ownerId: string, taskId: string) {
+  const row = await getDb().projectTaskIntent.findUnique({
+    where: { ownerId_id: { ownerId, id: taskId } },
+  });
+  if (
+    process.env.HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED !== "true" &&
+    !row?.repositoryPolicyVersionId
+  ) {
+    const project =
+      row &&
+      (await getDb().deliveryProject.findUnique({
+        where: { ownerId_id: { ownerId, id: row.projectId } },
+        select: { repositoryPolicy: { select: { id: true } } },
+      }));
+    if (!project?.repositoryPolicy) return;
+  }
+  const { repositoryPolicyStore } = await import("@/lib/delivery/repository-policy.server");
+  await getDb().$transaction(
+    (tx) => repositoryPolicyStore(getDb()).authorizeIntent(tx, ownerId, taskId),
+    {
+      isolationLevel: "Serializable",
+      maxWait: 5000,
+      timeout: 10000,
+    },
+  );
 }
 export async function reconcileProjectTasks(
   target?: { ownerId: string; taskId: string },
@@ -156,6 +217,8 @@ export async function reconcileProjectTasks(
         project.providerAccountId !== payload.providerAccountId
       )
         throw new Error("Task project identity changed");
+      await authorizeIntentPolicy(user.id, payload.taskId);
+      options.signal?.throwIfAborted();
       if (phase === "queued" && !payload.hostRequest)
         throw new Error("Queued intent payload unavailable");
       if (payload.hostRequest) {
@@ -217,6 +280,7 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
   const input = projectTaskReadSchema.parse(value);
   const project = await ownedProject(user, projectId);
   const store = taskIntentStore();
+  await authorizeIntentPolicy(user.id, input.taskId);
   const snapshot = await store.recoverySnapshot(
     user.id,
     projectId,
@@ -252,6 +316,8 @@ export async function readHostProjectTask(
   options.signal?.throwIfAborted();
   const input = projectTaskReadSchema.parse(value);
   await ownedProject(user, projectId);
+  options.signal?.throwIfAborted();
+  await authorizeIntentPolicy(user.id, input.taskId);
   options.signal?.throwIfAborted();
   const read = () =>
     signedHostProjectRequest(

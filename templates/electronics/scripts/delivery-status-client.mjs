@@ -54,6 +54,8 @@ const blockers = new Set([
   "attempt_not_running",
   "source_application_pending",
   "policy_unavailable",
+  "acceptance_evaluator_unavailable",
+  "acceptance_evaluator_provenance_pending",
   "evidence_missing",
   "evidence_invalid",
   "evidence_provenance_unavailable",

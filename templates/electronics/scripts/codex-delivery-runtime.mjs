@@ -242,6 +242,8 @@ export async function createInstalledDeliveryRuntime({
             "evidence_invalid",
             "evidence_provenance_unavailable",
             "source_application_pending",
+            "acceptance_evaluator_unavailable",
+            "acceptance_evaluator_provenance_pending",
           ].includes(b),
       );
     let lastRefreshAt = 0;

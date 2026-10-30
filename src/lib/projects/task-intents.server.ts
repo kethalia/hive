@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { decrypt, encrypt } from "@hive/auth";
-import type { PrismaClient, ProjectTaskIntent } from "@hive/db";
+import { Prisma, type PrismaClient, type ProjectTaskIntent } from "@hive/db";
 import { z } from "zod";
 import { type ProjectTaskStatus, projectTaskStatusSchema } from "./task-contracts";
 
@@ -72,46 +72,92 @@ export class ProjectTaskIntents {
   constructor(
     private readonly db: PrismaClient,
     private readonly encryptionKey: string,
+    private readonly pinRepositoryPolicy?: (
+      tx: Prisma.TransactionClient,
+      input: TaskIntentPayload,
+    ) => Promise<{
+      repositoryPolicyVersionId: string;
+      repositoryPolicyDigest: string;
+      intentTextDigest: string;
+    }>,
   ) {}
   async enqueue(value: TaskIntentPayload) {
     const input = taskIntentPayloadSchema.parse(value);
     const encrypted = encrypt(JSON.stringify(input), this.encryptionKey);
-    // PostgreSQL arbitrates duplicate inserts. Prisma may emulate this composite
-    // upsert with a read then insert, which races on the separately unique task ID.
-    await this.db.projectTaskIntent.createMany({
-      data: {
-        id: input.taskId,
-        ownerId: input.ownerId,
-        projectId: input.projectId,
-        workspaceId: input.workspaceId,
-        requestId: input.requestId,
-        requestDigest: input.requestDigest,
-        repositoryId: input.hostRequest.repositoryId,
-        providerAccountId: input.hostRequest.expectedAccountId,
-        sourceSha: input.hostRequest.revision,
-        ciphertext: Uint8Array.from(encrypted.ciphertext),
-        iv: Uint8Array.from(encrypted.iv),
-        authTag: Uint8Array.from(encrypted.authTag),
-      },
-      skipDuplicates: true,
-    });
-    const row = await this.db.projectTaskIntent.findUnique({
-      where: {
-        ownerId_projectId_requestId: {
+    const persist = async (tx: Prisma.TransactionClient) => {
+      // A replay keeps its immutable original pin even after catalog activation.
+      // It must still match exact owner/request bytes before returning history.
+      const previous = await tx.projectTaskIntent.findUnique({
+        where: { ownerId_id: { ownerId: input.ownerId, id: input.taskId } },
+      });
+      if (previous) {
+        if (
+          previous.projectId !== input.projectId ||
+          previous.workspaceId !== input.workspaceId ||
+          previous.requestId !== input.requestId ||
+          previous.requestDigest !== input.requestDigest
+        )
+          throw new TaskIntentConflict("task_identity_conflict");
+        return previous;
+      }
+      const policyPin = await this.pinRepositoryPolicy?.(tx, input);
+      // PostgreSQL arbitrates duplicate inserts. Prisma may emulate this composite
+      // upsert with a read then insert, which races on the separately unique task ID.
+      await tx.projectTaskIntent.createMany({
+        data: {
+          ...policyPin,
+          id: input.taskId,
           ownerId: input.ownerId,
           projectId: input.projectId,
+          workspaceId: input.workspaceId,
           requestId: input.requestId,
+          requestDigest: input.requestDigest,
+          repositoryId: input.hostRequest.repositoryId,
+          providerAccountId: input.hostRequest.expectedAccountId,
+          sourceSha: input.hostRequest.revision,
+          ciphertext: Uint8Array.from(encrypted.ciphertext),
+          iv: Uint8Array.from(encrypted.iv),
+          authTag: Uint8Array.from(encrypted.authTag),
         },
-      },
-    });
-    if (
-      !row ||
-      row.id !== input.taskId ||
-      row.workspaceId !== input.workspaceId ||
-      row.requestDigest !== input.requestDigest
-    )
-      throw new TaskIntentConflict("task_identity_conflict");
-    return row;
+        skipDuplicates: true,
+      });
+      const row = await tx.projectTaskIntent.findUnique({
+        where: {
+          ownerId_projectId_requestId: {
+            ownerId: input.ownerId,
+            projectId: input.projectId,
+            requestId: input.requestId,
+          },
+        },
+      });
+      if (
+        !row ||
+        row.id !== input.taskId ||
+        row.workspaceId !== input.workspaceId ||
+        row.requestDigest !== input.requestDigest
+      )
+        throw new TaskIntentConflict("task_identity_conflict");
+      return row;
+    };
+    if (!this.pinRepositoryPolicy) return persist(this.db);
+    for (let retry = 0; ; retry++) {
+      try {
+        return await this.db.$transaction(persist, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 5000,
+          timeout: 10000,
+        });
+      } catch (error) {
+        if (
+          retry >= 2 ||
+          !error ||
+          typeof error !== "object" ||
+          !("code" in error) ||
+          error.code !== "P2034"
+        )
+          throw error;
+      }
+    }
   }
   async get(ownerId: string, projectId: string, taskId: string, workspaceId: string) {
     const row = await this.db.projectTaskIntent.findFirst({

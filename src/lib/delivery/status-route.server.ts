@@ -2,7 +2,7 @@ import { getDb } from "@hive/db";
 import { ZodError } from "zod";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { boundedSessionJson, sessionService } from "@/lib/codex-session/route.server";
-import { resolveControllerGitHubManagerPolicy } from "./github-policy.server";
+import { repositoryPolicyAdapters, repositoryPolicyStore } from "./repository-policy.server";
 import { DeliveryConflict } from "./state";
 import { DeliveryStatusService } from "./status.server";
 
@@ -27,7 +27,8 @@ export async function deliveryStatusRoute(request: Request) {
     return json(
       await new DeliveryStatusService(getDb(), {
         reauthorize: (binding) => sessions.authority.reauthorize(binding),
-        resolveEvidencePolicy: resolveControllerGitHubManagerPolicy,
+        resolveEvidencePolicy: repositoryPolicyAdapters(repositoryPolicyStore(getDb()))
+          .resolveEvidencePolicy,
       }).read(value),
     );
   } catch (error) {

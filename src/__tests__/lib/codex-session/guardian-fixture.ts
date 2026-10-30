@@ -18,7 +18,7 @@ import {
 import { GuardianAdmissionStore } from "@/lib/codex-session/guardian-store.server";
 import type { ManagerDependencies } from "@/lib/delivery/manager.server";
 import { taskIntentPayloadSchema } from "@/lib/projects/task-intents.server";
-import { nativeFixture } from "../delivery/native-fixture";
+import { type NativeFixtureHooks, nativeFixture } from "../delivery/native-fixture";
 
 const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 /** Storage-level fixture: explicit local owner/package policy; no cloud identity
@@ -26,6 +26,7 @@ const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 export async function guardianFixture(
   db: PrismaClient,
   hooks: {
+    beforeIntent?: NativeFixtureHooks["beforeIntent"];
     deliveryExecutionEnabled?: boolean;
     workspaceEnrollment?: boolean;
     physical?: {
@@ -100,6 +101,7 @@ export async function guardianFixture(
       }
     | undefined;
   const f = await nativeFixture(db, randomUUID(), {
+    beforeIntent: hooks.beforeIntent,
     physical: hooks.physical && {
       revision: hooks.physical.revision,
       leaseId: hooks.physical.leaseId,

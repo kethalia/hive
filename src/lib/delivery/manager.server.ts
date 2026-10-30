@@ -26,7 +26,20 @@ export interface ManagerDependencies {
   evidencePolicy?: EvidencePolicy;
   resolveEvidencePolicy?(
     scope: ManagerPolicyScope,
+    tx?: Prisma.TransactionClient,
   ): Promise<ResolvedManagerEvidencePolicy | null> | ResolvedManagerEvidencePolicy | null;
+  bindTaskPolicy?(
+    tx: Prisma.TransactionClient,
+    ownerId: string,
+    taskId: string,
+    preparationIntentId: string,
+  ): Promise<void>;
+  authorizeTaskPolicy?(
+    tx: Prisma.TransactionClient,
+    ownerId: string,
+    taskId: string,
+    operation: string,
+  ): Promise<void>;
   allowedModelEfforts?: readonly { model: string; effort: string }[];
   // Test/explicit controller composition only. Routes/config do not opt in.
   progressionProtocol?: 1;
@@ -54,6 +67,13 @@ export interface ManagerPolicyScope {
   sourcePullNumber?: number;
 }
 export interface ResolvedManagerEvidencePolicy {
+  mandatoryRepositoryGates?: true;
+  pendingRequirements?: readonly {
+    stepId: string;
+    criterionId: string;
+    kind: string;
+    reason: "acceptance_evaluator_unavailable" | "acceptance_evaluator_provenance_pending";
+  }[];
   policy: EvidencePolicy;
   authorityDigest: string;
   authorizeReferences(
@@ -179,7 +199,7 @@ export class DeliveryManagerService {
                 host,
                 input.sourceContext,
               );
-              return resolvePolicy(scope);
+              return resolvePolicy(scope, tx);
             },
             {
               isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -226,6 +246,12 @@ export class DeliveryManagerService {
           const source = await resolveTaskSource(tx, ownerId, task.id, input.sourceContext, true);
           currentSourceContext = source.context;
           claimInputSha = source.headSha;
+          await this.dependencies.authorizeTaskPolicy?.(
+            tx,
+            ownerId,
+            task.id,
+            input.command.operation,
+          );
         } else if (input.sourceContext) {
           throw new DeliveryConflict("source_context_stale");
         }
@@ -258,7 +284,7 @@ export class DeliveryManagerService {
             scope,
             input.sourceContext,
           );
-          const currentPolicy = await resolvePolicy(currentScope);
+          const currentPolicy = await resolvePolicy(currentScope, tx);
           if (resolutionDigest(currentPolicy) !== selectedPolicyDigest)
             throw new DeliveryConflict("manager_policy_changed");
           await currentPolicy?.authorizeReferences(
@@ -421,6 +447,14 @@ export class DeliveryManagerService {
           throw new DeliveryConflict("invalid_continuation");
         for (const attempt of attempts)
           await resolveAttemptSource(tx, ownerId, input.command.payload.taskId, attempt.id, false);
+      },
+      async (tx, task) => {
+        await this.dependencies.bindTaskPolicy?.(
+          tx,
+          ownerId,
+          task.id,
+          input.checkoutBinding.preparationIntentId,
+        );
       },
     );
     const common = { schemaVersion: 1, eventId: input.eventId };

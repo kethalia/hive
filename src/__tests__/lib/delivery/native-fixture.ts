@@ -10,6 +10,16 @@ import { nativeProofPayload } from "@/lib/delivery/native-contracts";
 
 export interface NativeFixtureHooks {
   physical?: { revision: string; leaseId: string; leaseGeneration: number };
+  beforeIntent?(scope: {
+    user: User;
+    project: DeliveryProject;
+    host: RegistrationBinding;
+    context: ManagerCheckout;
+  }): Promise<{
+    repositoryPolicyVersionId: string;
+    repositoryPolicyDigest: string;
+    intentTextDigest: string;
+  }>;
   beforeRegister?(scope: {
     user: User;
     project: DeliveryProject;
@@ -94,8 +104,10 @@ export async function nativeFixture(
     leaseGeneration: 1,
     ...hooks.physical,
   };
+  const policyPin = await hooks.beforeIntent?.({ user, project, host, context });
   await db.projectTaskIntent.create({
     data: {
+      ...policyPin,
       id: context.preparationIntentId,
       ownerId: user.id,
       projectId: project.id,

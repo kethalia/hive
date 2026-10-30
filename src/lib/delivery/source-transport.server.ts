@@ -50,11 +50,14 @@ export interface SourceTransportDependencies extends Pick<ManagerDependencies, "
    * derive Coder owner from User+slot and check closed-barrier/generation. */
   lockProducerAdmission(tx: Tx, scope: SourceProducerScope): Promise<unknown>;
   /** Private controller configuration. No repository or model policy input. */
-  resolvePolicy(scope: {
-    ownerId: string;
-    taskId: string;
-    repositoryId: string;
-  }): Promise<unknown> | unknown;
+  resolvePolicy(
+    scope: {
+      ownerId: string;
+      taskId: string;
+      repositoryId: string;
+    },
+    tx?: Tx,
+  ): Promise<unknown> | unknown;
 }
 
 /** Only this transport's exact event-ID races may retry. Worker and Node
@@ -182,11 +185,14 @@ export class SourcePublicationTransport {
     )
       throw new RegistrationRejected();
     const policy = sourcePublicationPolicySchema.parse(
-      await this.dependencies.resolvePolicy({
-        ownerId: authenticated.ownerId,
-        taskId: task.id,
-        repositoryId: task.project.providerRepositoryId,
-      }),
+      await this.dependencies.resolvePolicy(
+        {
+          ownerId: authenticated.ownerId,
+          taskId: task.id,
+          repositoryId: task.project.providerRepositoryId,
+        },
+        tx,
+      ),
     );
     const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
     if (input.expiresAt <= now.getTime() || host.registration.expiresAt <= now)

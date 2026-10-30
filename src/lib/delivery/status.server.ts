@@ -175,7 +175,7 @@ export class DeliveryStatusService {
             };
             const readPolicy = async (): Promise<ResolvedManagerEvidencePolicy | null> => {
               try {
-                return (await this.dependencies.resolveEvidencePolicy?.(policyScope)) ?? null;
+                return (await this.dependencies.resolveEvidencePolicy?.(policyScope, tx)) ?? null;
               } catch (error) {
                 if (
                   !(error instanceof DeliveryConflict) &&
@@ -199,7 +199,8 @@ export class DeliveryStatusService {
             let references: string[] = [];
             let evidenceExpiresAt = Infinity;
             const observations: DeliveryStatusResponse["evidence"]["observations"] = [];
-            if (isInformationalStep(step)) requirementStatus = "informational";
+            if (isInformationalStep(step) && !policy?.mandatoryRepositoryGates)
+              requirementStatus = "informational";
             else if (!policy) blockers.push("policy_unavailable");
             else {
               const evidence = await tx.deliveryEvidence.findMany({
@@ -270,7 +271,10 @@ export class DeliveryStatusService {
                       ? "evidence_missing"
                       : error.code === "invalid_evidence"
                         ? "evidence_invalid"
-                        : "evidence_provenance_unavailable",
+                        : error.code === "acceptance_evaluator_unavailable" ||
+                            error.code === "acceptance_evaluator_provenance_pending"
+                          ? error.code
+                          : "evidence_provenance_unavailable",
                   );
                   if (!observations.length) references = [];
                 }

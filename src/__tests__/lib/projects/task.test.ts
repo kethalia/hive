@@ -12,6 +12,8 @@ const mock = vi.hoisted(() => ({
   snapshot: vi.fn(),
   recover: vi.fn(),
   get: vi.fn(),
+  transaction: vi.fn(),
+  policyAuthorize: vi.fn(),
 }));
 vi.mock("@hive/db", () => ({
   getDb: () => ({
@@ -19,9 +21,13 @@ vi.mock("@hive/db", () => ({
     projectTaskIntent: { findUnique: mock.intent },
     codexHostSlot: { findUnique: mock.slot },
     codexHostRegistration: { findUnique: mock.registration },
+    $transaction: mock.transaction,
   }),
 }));
 vi.mock("@/lib/projects/host.server", () => ({ signedHostProjectRequest: mock.host }));
+vi.mock("@/lib/delivery/repository-policy.server", () => ({
+  repositoryPolicyStore: () => ({ authorizeIntent: mock.policyAuthorize }),
+}));
 
 vi.mock("@/lib/coder/user-client", () => ({ getCoderClientForUser: async () => "coder" }));
 vi.mock("@/lib/codex-session/bootstrap-delivery.server", () => ({
@@ -48,8 +54,8 @@ vi.mock("@/lib/projects/task-intents.server", async (original) => ({
 import {
   projectTaskId,
   readHostProjectTask as readProjectTask,
-  startProjectTask,
   retryProjectTask,
+  startProjectTask,
 } from "@/lib/projects/task.server";
 
 const user = { id: "11111111-1111-4111-8111-111111111111", coderUserId: "owner" };
@@ -97,6 +103,8 @@ beforeEach(() => {
   vi.stubEnv("HIVE_CODEX_MANAGER_MODEL", "fixture-model");
   vi.stubEnv("HIVE_CODEX_MANAGER_EFFORT", "high");
   vi.stubEnv("ENCRYPTION_KEY", "a".repeat(64));
+  mock.transaction.mockImplementation((work) => work({}));
+  mock.policyAuthorize.mockResolvedValue(null);
   mock.enqueue.mockResolvedValue({ id: taskId, projectId, phase: "queued", status: null });
   mock.intent.mockResolvedValue(null);
   mock.project.mockResolvedValue(project);
@@ -164,6 +172,33 @@ describe("project task controller", () => {
       text: input.text,
     });
   });
+  it("flag-off does not downgrade an already-enrolled repository to a new unbound intent", async () => {
+    vi.stubEnv("HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED", "false");
+    mock.project.mockResolvedValue({ ...project, repositoryPolicy: { id: projectId } });
+    await expect(startProjectTask(user, projectId, input)).rejects.toThrow(
+      "repository_policy_disabled",
+    );
+    expect(mock.enqueue).not.toHaveBeenCalled();
+    expect(mock.host.mock.calls.every((call) => call[2] === "/projects/resolve")).toBe(true);
+  });
+  it("retry and host status reauthorize an old unbound intent when its repository is now enrolled", async () => {
+    vi.stubEnv("HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED", "false");
+    mock.intent.mockResolvedValue({ id: taskId, projectId, repositoryPolicyVersionId: null });
+    mock.project.mockResolvedValue({ ...project, repositoryPolicy: { id: projectId } });
+    mock.policyAuthorize.mockRejectedValue(new Error("repository_policy_intent_unbound"));
+    const request = { workspaceId, taskId, requestId };
+    await expect(retryProjectTask(user, projectId, request)).rejects.toThrow(
+      "repository_policy_intent_unbound",
+    );
+    await expect(readProjectTask(user, projectId, request)).rejects.toThrow(
+      "repository_policy_intent_unbound",
+    );
+    expect(mock.policyAuthorize).toHaveBeenCalledTimes(2);
+    expect(mock.policyAuthorize).toHaveBeenCalledWith({}, user.id, taskId);
+    expect(mock.host).not.toHaveBeenCalled();
+    expect(mock.snapshot).not.toHaveBeenCalled();
+    expect(mock.enqueue).not.toHaveBeenCalled();
+  });
   it("replays an accepted intent without re-resolving an advanced repository head", async () => {
     const { taskRequestDigest } = await import("@/lib/projects/task-intents.server");
     mock.intent.mockResolvedValue({
@@ -194,6 +229,7 @@ describe("project task controller", () => {
     await expect(startProjectTask(user, projectId, input)).rejects.toThrow();
     expect(mock.project).toHaveBeenCalledWith({
       where: { ownerId_id: { ownerId: user.id, id: projectId } },
+      include: { repositoryPolicy: { select: { id: true } } },
     });
     expect(mock.host).not.toHaveBeenCalled();
   });
