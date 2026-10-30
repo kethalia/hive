@@ -97,3 +97,28 @@ host composition, live account/source and immutable storage proof, and acceptanc
 production behavior by the owner. Background/external quiescence stays unknown and
 writer holds remain. The [preview storage plan](r2-preview-plan.md) is review-only;
 the current account cannot establish zero incremental cost.
+
+## Accepted source collection
+
+An opt-in installed `sourceProtocol:1` collector requires a trusted
+`currentAcceptedSource` callback for the exact manager/task/step and immutable
+physical checkout binding. It returns either the initial-source null context or
+the freshly verified accepted revision/version/head. Model-facing request fields
+cannot supply that context. The signed challenge and snapshot both include it,
+and the private journal binds it before retaining bytes for retries.
+
+The collector can read checks and reviews for accepted output before local HEAD
+application. Its remote target follows that accepted head; the original checkout
+revision, lease and incarnation remain unchanged. This is evidence about an
+immutable commit, not permission to execute or a claim that working files are clean.
+Source and registration are rechecked around asynchronous collection and response
+handling. A changed source, retained journal relabel or protocol downgrade with
+advanced-source bytes rejects rather than accepting stale success.
+
+Twenty focused collector checks pass, including lost acknowledgements, retained
+source bytes and late source changes. A separate actual-collector protocol test
+validates both emitted envelopes against the server schemas and independently
+verifies their signatures. The installed callback composition and account-backed
+provider run remain required; these tests use a local provider fixture.
+The fixed helper also avoids signaling its old numeric process group after its
+exit has been observed; a real missing-credential helper regression covers that case.

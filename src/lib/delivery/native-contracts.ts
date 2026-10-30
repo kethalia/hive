@@ -62,6 +62,7 @@ export const nativeSourceInputSchema = z
     leaseGeneration: z.number().int().positive(),
     sequence: z.number().int().positive().max(2147483647),
     source: nativeSourceSchema,
+    sourceContext: sourceContextSchema.optional(),
   })
   .strict();
 export const nativeEnvelopeSchema = nativeSourceInputSchema
@@ -70,7 +71,6 @@ export const nativeEnvelopeSchema = nativeSourceInputSchema
     serverInstanceId: nativeId,
     managerThreadId: nativeId,
     checkoutBinding: managerCheckoutSchema,
-    sourceContext: sourceContextSchema.optional(),
     issuedAt: z.number().int().nonnegative(),
     expiresAt: z.number().int().positive(),
     proof: z.string().regex(/^[A-Za-z0-9_-]{86}$/),

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
+import { requireAppliedSourceForAction } from "@/lib/codex-session/guardian-application-gate.server";
 import type { GuardianPolicy } from "@/lib/codex-session/guardian-contracts";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
@@ -228,6 +229,26 @@ export class DeliveryManagerService {
         } else if (input.sourceContext) {
           throw new DeliveryConflict("source_context_stale");
         }
+        const operation = input.command.operation;
+        await requireAppliedSourceForAction(tx, {
+          ownerId,
+          managerBindingId: scope.binding.id,
+          ...(operation === "create_task" ? {} : { taskId: input.command.payload.taskId }),
+          action:
+            operation === "complete_step"
+              ? "completion"
+              : operation === "report_step"
+                ? "report"
+                : operation === "fail_attempt"
+                  ? "failure"
+                  : "execution",
+          ...(operation === "complete_step" ||
+          operation === "report_step" ||
+          operation === "fail_attempt"
+            ? { attemptId: input.command.payload.attemptId }
+            : {}),
+          parentTurnId: input.nativeTurnId,
+        });
         if (resultCommand && resolvePolicy) {
           const currentScope = await loadPolicyScope(
             tx,

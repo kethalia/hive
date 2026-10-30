@@ -262,6 +262,48 @@ async function fixture(nativeComplete = true) {
 }
 
 describe.skipIf(!url)("internal source revision acceptance, synthetic independent producer", () => {
+  it("replays immutable input facts after accepted output, but blocks novel post-publication input", async () => {
+    const f = await fixture(),
+      terminal = await db.deliveryEvent.findFirstOrThrow({
+        where: {
+          ownerId: f.user.id,
+          attemptId: f.first.attemptId,
+          type: "native_attempt_observed",
+          payload: { path: ["nativeSourceKind"], equals: "turn_completed" },
+        },
+      });
+    const receipt = await f.service.accept(f.signed(f.publication()));
+    const original = f.sourceEnvelope(
+      f.first,
+      { ...f.source, kind: "turn_completed", status: "completed" },
+      2,
+      { eventId: terminal.id },
+    );
+    await expect(f.native.ingest(original)).resolves.toMatchObject({
+      replayed: true,
+      accepted: true,
+      blocked: false,
+    });
+    await expect(
+      f.native.ingest(
+        f.sourceEnvelope(f.first, { ...f.source, kind: "turn_completed", status: "completed" }, 3, {
+          sourceContext: { ...receipt.sourceContext, revisionId: randomUUID() },
+        }),
+      ),
+    ).rejects.toThrow("source_context_stale");
+    await expect(
+      f.native.ingest(
+        f.sourceEnvelope(f.first, { ...f.source, kind: "turn_completed", status: "completed" }, 3),
+      ),
+    ).resolves.toMatchObject({ blocked: true, accepted: false });
+    expect(
+      (
+        await db.deliveryManagerBinding.findUniqueOrThrow({
+          where: { id: f.first.managerBindingId },
+        })
+      ).blockedReason,
+    ).toBe("native_input_after_publication");
+  });
   it("accepts output under the same writer, verifies output evidence and advances a second immutable source link", async () => {
     const f = await fixture(),
       oldEvidence = await f.evidence(f.stepId, f.context.revision),
@@ -372,12 +414,13 @@ describe.skipIf(!url)("internal source revision acceptance, synthetic independen
         { stepId: f.nextStep, sourceContext: a.sourceContext },
       ),
     );
-    await f.native.ingest(
-      f.sourceEnvelope(second, { ...common, kind: "turn_completed", status: "completed" }, 5, {
-        stepId: f.nextStep,
-        sourceContext: a.sourceContext,
-      }),
+    const secondTerminal = f.sourceEnvelope(
+      second,
+      { ...common, kind: "turn_completed", status: "completed" },
+      5,
+      { stepId: f.nextStep, sourceContext: a.sourceContext },
     );
+    await f.native.ingest(secondTerminal);
     const secondOperation = randomUUID(),
       p2 = f.publication({
         operationId: secondOperation,
@@ -396,6 +439,16 @@ describe.skipIf(!url)("internal source revision acceptance, synthetic independen
         pullRequestId: "901",
       });
     const b = await f.service.accept(f.signed(p2));
+    await expect(f.native.ingest(secondTerminal)).resolves.toMatchObject({
+      accepted: true,
+      replayed: true,
+      blocked: false,
+    });
+    await expect(f.native.ingest(boundary)).resolves.toMatchObject({
+      accepted: true,
+      replayed: true,
+      blocked: false,
+    });
     expect(b.sourceContext).toMatchObject({ version: 2, headSha: p2.headSha });
     const secondReport = await f.complete(
       second,

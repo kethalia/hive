@@ -47,6 +47,8 @@ const withoutTime = (source) => {
 };
 export function createDeliveryNativeSpool(options) {
   const progression = options.progressionProtocol === 1;
+  const sourceProtocol = options.sourceProtocol === 1;
+  check(!sourceProtocol || progression, "native_source_protocol_requires_progression");
   const {
     stateDirectory,
     currentRegistration,
@@ -126,6 +128,59 @@ export function createDeliveryNativeSpool(options) {
       "native_spool_limit",
     );
   }
+  check(sourceProtocol || state.sourceProtocol !== 1, "native_source_protocol_required");
+  if (sourceProtocol) {
+    state.sourceProtocol = 1;
+    state.sourcePublications ??= {};
+    check(Object.keys(state.sourcePublications).length <= 128, "native_spool_limit");
+  }
+  const contextEqual = (a, b) => hash(a ?? null) === hash(b ?? null);
+  const validContext = (c) =>
+    c === undefined ||
+    (c &&
+      Object.keys(c).sort().join(",") === "headSha,revisionId,version" &&
+      id(c.revisionId) &&
+      Number.isSafeInteger(c.version) &&
+      c.version > 0 &&
+      /^[a-f0-9]{40}$/.test(c.headSha));
+  const inputContext = (claim) => claim.sourceContext;
+  const acceptedContext = (claim) =>
+    state.sourcePublications?.[claim.attemptId]?.sourceContext ?? inputContext(claim);
+  function outputRecord(claim, value) {
+    const a = value?.accepted,
+      scope = value?.scope;
+    check(
+      value?.isCurrent === true &&
+        value.publicationAuthorized === false &&
+        value.executionAuthorized === false &&
+        scope?.managerBindingId === claim.managerBindingId &&
+        scope.taskId === claim.taskId &&
+        scope.managerThreadId === claim.managerThreadId &&
+        scope.registrationId === claim.registrationId &&
+        scope.serverInstanceId === claim.serverInstanceId &&
+        hash(scope.checkoutBinding) === hash(claim.checkoutBinding) &&
+        a?.producingAttemptId === claim.attemptId &&
+        a.stepId === claim.stepId &&
+        validContext(a.sourceContext) &&
+        a.sourceContext &&
+        contextEqual(value.current?.sourceContext, a.sourceContext) &&
+        value.current.headSha === a.sourceContext.headSha &&
+        a.parentSha === claim.inputSourceSha &&
+        a.previousRevisionId === (claim.sourceContext?.revisionId ?? null) &&
+        a.sourceContext.version === (claim.sourceContext?.version ?? 0) + 1 &&
+        id(a.operationId),
+      "native_publication_scope_invalid",
+    );
+    return {
+      operationId: a.operationId,
+      sourceContext: structuredClone(a.sourceContext),
+      parentSha: a.parentSha,
+      previousRevisionId: a.previousRevisionId,
+      treeSha: a.treeSha,
+      manifestDigest: a.manifestDigest,
+      proofDigest: a.proofDigest,
+    };
+  }
   function save() {
     const encoded = JSON.stringify({ state, signature: mac(state) });
     check(Buffer.byteLength(encoded) <= 4 * 1024 * 1024, "native_spool_limit");
@@ -177,7 +232,7 @@ export function createDeliveryNativeSpool(options) {
   }
   const intentKey = (params, lifetime = currentServerInstanceId()) =>
     hash([lifetime, params.threadId, params.turnId, params.callId]);
-  function enqueue(claim, source) {
+  function enqueue(claim, source, sourceContext = inputContext(claim)) {
     const identity =
       source.kind === "root_boundary"
         ? [
@@ -199,7 +254,11 @@ export function createDeliveryNativeSpool(options) {
     const eventId = uuid(identity),
       existing = state.events.find((event) => event.input.eventId === eventId);
     if (existing) {
-      if (hash(withoutTime(existing.input.source)) === hash(withoutTime(source))) return existing;
+      if (
+        hash(withoutTime(existing.input.source)) === hash(withoutTime(source)) &&
+        (!sourceProtocol || contextEqual(existing.input.sourceContext, sourceContext))
+      )
+        return existing;
       hold(claim.managerThreadId, "native_source_conflict");
       if (state.events.some((event) => event.conflictFor === eventId)) return;
       check(state.events.length < 1024, "native_spool_limit");
@@ -214,6 +273,12 @@ export function createDeliveryNativeSpool(options) {
       save();
       return;
     }
+    if (
+      sourceProtocol &&
+      source.kind !== "root_boundary" &&
+      state.sourcePublications[claim.attemptId]
+    )
+      hold(claim.managerThreadId, "native_work_after_publication");
     check(state.events.length < 1024, "native_spool_limit");
     const cursor = progression && state.cursors[claim.managerThreadId];
     if (cursor) {
@@ -233,6 +298,9 @@ export function createDeliveryNativeSpool(options) {
         leaseGeneration: claim.leaseGeneration,
         sequence: claim.sequence,
         source,
+        ...(sourceProtocol && sourceContext
+          ? { sourceContext: structuredClone(sourceContext) }
+          : {}),
       },
       managerThreadId: claim.managerThreadId,
       checkoutBinding: claim.checkoutBinding,
@@ -461,6 +529,21 @@ export function createDeliveryNativeSpool(options) {
           unadmitted(params, item, "native_work_before_claim_receipt");
       }
     }
+    if (sourceProtocol && managerClaim && state.sourcePublications[managerClaim.attemptId]) {
+      const delivery =
+        item?.type === "function_call" && item.name === "hive_delivery" && !item.namespace;
+      let permitted = false;
+      if (delivery)
+        try {
+          permitted = ["complete_step", "report_step", "fail_attempt", "publish_source"].includes(
+            JSON.parse(item.arguments).operation,
+          );
+        } catch {}
+      if (method === "rawResponseItem/completed" && item?.type === "function_call" && !permitted)
+        unadmitted(params, item, "native_work_after_publication");
+      if (["item/started", "item/completed"].includes(method) && item?.type === "commandExecution")
+        unadmitted(params, item, "native_work_after_publication");
+    }
     const requested =
       method === "rawResponseItem/completed" &&
       item?.type === "function_call" &&
@@ -499,6 +582,14 @@ export function createDeliveryNativeSpool(options) {
       const key = hash([params.threadId, params.turnId, callId]);
       if (progression && state.cursors[params.threadId]?.attemptId !== managerClaim.attemptId)
         hold(params.threadId, "native_late_previous_attempt_spawn");
+      if (
+        sourceProtocol &&
+        state.sourcePublications[managerClaim.attemptId] &&
+        !state.fragments[key]
+      ) {
+        unadmitted(params, item, "native_spawn_after_publication");
+        return;
+      }
       if (!state.fragments[key]) {
         check(Object.keys(state.fragments).length < 128, "native_spool_limit");
         state.fragments[key] = {
@@ -578,6 +669,166 @@ export function createDeliveryNativeSpool(options) {
   }
   return {
     progressionProtocol: progression ? 1 : 0,
+    sourceApplicationSnapshot(managerThreadId, request) {
+      check(
+        sourceProtocol && !state.blocked[managerThreadId],
+        "native_source_snapshot_unavailable",
+      );
+      const claim = claimFor(managerThreadId),
+        cursor = state.cursors[managerThreadId],
+        publication = claim && state.sourcePublications[claim.attemptId],
+        root = claim && state.rootTurns[hash([managerThreadId, claim.parentTurnId])];
+      check(
+        claim &&
+          cursor &&
+          publication &&
+          state.results[claim.attemptId] &&
+          root?.status === "completed" &&
+          request?.managerThreadId === managerThreadId &&
+          request.managerBindingId === claim.managerBindingId &&
+          request.taskId === claim.taskId &&
+          request.stepId === claim.stepId &&
+          request.priorAttemptId === claim.attemptId &&
+          request.parentTurnId === claim.parentTurnId &&
+          request.cursorVersion === cursor.cursorVersion &&
+          request.registrationId === claim.registrationId &&
+          request.serverInstanceId === claim.serverInstanceId &&
+          hash(request.checkoutBinding) === hash(claim.checkoutBinding) &&
+          request.inputSourceSha === claim.inputSourceSha &&
+          contextEqual(request.inputSourceContext, claim.sourceContext),
+        "native_source_snapshot_scope_changed",
+      );
+      const pending = state.events.filter(
+          (v) => v.managerThreadId === managerThreadId && !v.acknowledged,
+        ),
+        unknown = Object.values(state.violations).filter(
+          (v) => v.managerThreadId === managerThreadId,
+        );
+      check(
+        !pending.length && !unknown.length && cursor.sequence === cursor.acknowledgedSequence,
+        "native_source_snapshot_not_drained",
+      );
+      const cohort = this.boundaryChildren(managerThreadId),
+        spawns = this.boundarySpawns(managerThreadId);
+      check(
+        hash(cohort) === hash(request.cohort) && hash(spawns) === hash(request.spawns),
+        "native_source_snapshot_scope_changed",
+      );
+      for (const child of cohort)
+        check(
+          state.events.some(
+            (v) =>
+              v.acknowledged &&
+              v.managerThreadId === managerThreadId &&
+              v.input.source.kind === "turn_completed" &&
+              v.input.source.childThreadId === child.childThreadId &&
+              v.input.source.childTurnId === child.childTurnId &&
+              v.input.source.status === "completed",
+          ),
+          "native_source_snapshot_child_unfinished",
+        );
+      const info = lstatSync(path, { bigint: true });
+      check(
+        info.isFile() &&
+          !info.isSymbolicLink() &&
+          info.nlink === 1n &&
+          info.uid === BigInt(process.getuid()) &&
+          !(info.mode & 0o077n),
+        "native_source_snapshot_journal_invalid",
+      );
+      const encoded = readFileSync(path, "utf8"),
+        saved = JSON.parse(encoded);
+      check(
+        saved.signature === mac(state) && hash(saved.state) === hash(state),
+        "native_source_snapshot_journal_changed",
+      );
+      return {
+        schemaVersion: 1,
+        scope: "native_observer_journal_only",
+        managerThreadId,
+        managerBindingId: claim.managerBindingId,
+        taskId: claim.taskId,
+        stepId: claim.stepId,
+        attemptId: claim.attemptId,
+        parentTurnId: claim.parentTurnId,
+        registrationId: claim.registrationId,
+        serverInstanceId: claim.serverInstanceId,
+        checkoutBinding: structuredClone(claim.checkoutBinding),
+        checkoutBindingDigest: claim.checkoutBindingDigest,
+        cursorVersion: cursor.cursorVersion,
+        nativeSequence: cursor.acknowledgedSequence,
+        inputSourceSha: claim.inputSourceSha,
+        ...(claim.sourceContext
+          ? { inputSourceContext: structuredClone(claim.sourceContext) }
+          : {}),
+        operationId: publication.operationId,
+        acceptedSourceContext: structuredClone(publication.sourceContext),
+        sourceJournalDigest: hash(encoded),
+        sourceJournalIdentity: { device: info.dev.toString(), inode: info.ino.toString() },
+        pendingSourceEvents: 0,
+        unknownInputs: 0,
+        writerHeld: true,
+        quiescenceAuthority: false,
+        metadataApplyAuthorized: false,
+      };
+    },
+    sourcePublication(managerThreadId) {
+      const claim = claimFor(managerThreadId);
+      return claim && state.sourcePublications?.[claim.attemptId]
+        ? structuredClone(state.sourcePublications[claim.attemptId])
+        : null;
+    },
+    recordPublication(managerThreadId, value) {
+      check(sourceProtocol, "native_source_protocol_disabled");
+      const claim = claimFor(managerThreadId);
+      check(claim && !state.blocked[managerThreadId], "native_source_unavailable");
+      const record = outputRecord(claim, value),
+        old = state.sourcePublications[claim.attemptId];
+      if (old) {
+        const { applied: _applied, ...previous } = old;
+        check(hash(previous) === hash(record), "native_publication_replay_conflict");
+      } else state.sourcePublications[claim.attemptId] = record;
+      save();
+      return structuredClone(record);
+    },
+    recordAppliedSource(managerThreadId, value) {
+      check(sourceProtocol, "native_source_protocol_disabled");
+      const claim = claimFor(managerThreadId),
+        old = claim && state.sourcePublications[claim.attemptId];
+      check(
+        old &&
+          hash(outputRecord(claim, value)) === hash((({ applied: _applied, ...v }) => v)(old)) &&
+          !state.blocked[managerThreadId],
+        "native_applied_source_mismatch",
+      );
+      old.applied = true;
+      save();
+    },
+    sourceBoundaryCandidate(managerThreadId) {
+      if (!sourceProtocol || state.blocked[managerThreadId]) return null;
+      const claim = claimFor(managerThreadId),
+        publication = claim && state.sourcePublications[claim.attemptId],
+        root = claim && state.rootTurns[hash([managerThreadId, claim.parentTurnId])];
+      return claim &&
+        publication &&
+        !publication.applied &&
+        state.results[claim.attemptId] &&
+        root?.status === "completed"
+        ? structuredClone(claim)
+        : null;
+    },
+    assertAppliedSource(managerThreadId, sourceContext) {
+      check(validContext(sourceContext), "native_source_context_invalid");
+      const claim = claimFor(managerThreadId),
+        publication = claim && state.sourcePublications?.[claim.attemptId];
+      if (publication)
+        check(
+          publication.applied && contextEqual(publication.sourceContext, sourceContext),
+          "native_source_not_applied",
+        );
+      else if (claim)
+        check(contextEqual(claim.sourceContext, sourceContext), "native_source_context_changed");
+    },
     currentClaim(managerThreadId) {
       const claim = claimFor(managerThreadId);
       return claim ? structuredClone(claim) : null;
@@ -773,13 +1024,19 @@ export function createDeliveryNativeSpool(options) {
         "native_boundary_receipt_missing",
       );
       await drainAcknowledgements(managerThreadId);
-      const event = enqueue(claim, {
-        kind: "root_boundary",
-        parentTurnId: claim.parentTurnId,
-        nextParentTurnId,
-        cursorVersion: cursor.cursorVersion,
-        observedAt,
-      });
+      const publication = state.sourcePublications?.[claim.attemptId];
+      check(!sourceProtocol || !publication || publication.applied, "native_source_not_applied");
+      const event = enqueue(
+        claim,
+        {
+          kind: "root_boundary",
+          parentTurnId: claim.parentTurnId,
+          nextParentTurnId,
+          cursorVersion: cursor.cursorVersion,
+          observedAt,
+        },
+        sourceProtocol ? acceptedContext(claim) : undefined,
+      );
       await drainAcknowledgements(managerThreadId);
       check(
         event.acknowledged &&
@@ -852,7 +1109,14 @@ export function createDeliveryNativeSpool(options) {
         "native_claim_authority_missing",
       );
       const key = intentKey(params),
-        digest = hash({ command, checkoutBinding, continuation: continuation ?? null });
+        digest = hash({
+          command,
+          checkoutBinding,
+          continuation: continuation ?? null,
+          ...(sourceProtocol
+            ? { sourceContext: pinned.sourceContext ?? null, inputSourceSha: pinned.inputSourceSha }
+            : {}),
+        });
       const existing = state.claimIntents[key];
       if (existing) {
         check(
@@ -872,6 +1136,12 @@ export function createDeliveryNativeSpool(options) {
         callId: params.callId,
         managerThreadId: params.threadId,
         continuation: continuation ?? null,
+        ...(sourceProtocol
+          ? {
+              sourceContext: structuredClone(pinned.sourceContext),
+              inputSourceSha: pinned.inputSourceSha,
+            }
+          : {}),
         registrationId: pinned.registrationId,
         serverInstanceId: pinned.serverInstanceId,
       };
@@ -921,9 +1191,27 @@ export function createDeliveryNativeSpool(options) {
         );
         check(
           intent.digest ===
-            hash({ command, checkoutBinding, continuation: intent.continuation ?? null }),
+            hash({
+              command,
+              checkoutBinding,
+              continuation: intent.continuation ?? null,
+              ...(sourceProtocol
+                ? {
+                    sourceContext: intent.sourceContext ?? null,
+                    inputSourceSha: intent.inputSourceSha,
+                  }
+                : {}),
+            }),
           "native_claim_intent_conflict",
         );
+        if (sourceProtocol)
+          check(
+            validContext(intent.sourceContext) &&
+              contextEqual(result.sourceContext, intent.sourceContext) &&
+              result.inputSourceSha === intent.inputSourceSha &&
+              intent.inputSourceSha === (intent.sourceContext?.headSha ?? checkoutBinding.revision),
+            "native_claim_source_mismatch",
+          );
         if (result.replayed === true || result.needsReconciliation === true) {
           intent.historicalReceipt = {
             attemptId: result.attemptId,
@@ -990,6 +1278,12 @@ export function createDeliveryNativeSpool(options) {
           serverInstanceId: intent.serverInstanceId,
           registrationId: intent.registrationId,
           checkoutBinding: structuredClone(checkoutBinding),
+          ...(sourceProtocol
+            ? {
+                sourceContext: structuredClone(intent.sourceContext),
+                inputSourceSha: intent.inputSourceSha,
+              }
+            : {}),
           checkoutBindingDigest: result.checkoutBindingDigest,
           managerBindingId: result.managerBindingId,
           taskId: command.payload.taskId,

@@ -260,6 +260,15 @@ export function createDeliveryManagerAdapter(options) {
   check(key.asymmetricKeyType === "ed25519", "invalid_delivery_key");
   check(typeof currentProjectContext === "function", "trusted_checkout_context_required");
   const progression = options.progressionProtocol === 1;
+  const sourceProtocol = options.sourceProtocol === 1;
+  check(
+    !sourceProtocol ||
+      (progression &&
+        ["currentSource", "publishSource", "readAcceptedSource", "applyAcceptedSource"].every(
+          (name) => typeof options[name] === "function",
+        )),
+    "trusted_source_callbacks_required",
+  );
   check(
     !progression ||
       (nativeEnabled &&
@@ -277,6 +286,7 @@ export function createDeliveryManagerAdapter(options) {
         registerChild: options.registerChild,
         readNativeHistory: options.readNativeHistory,
         progressionProtocol: progression ? 1 : 0,
+        sourceProtocol: sourceProtocol ? 1 : 0,
         onHold: options.onObserverHold,
         deliver: async (value) => {
           const deadline = Date.now() + (progression ? 3000 : 10000);
@@ -324,6 +334,72 @@ export function createDeliveryManagerAdapter(options) {
       throw new Error("delivery_authority_changed");
     }
   };
+  const validSourceContext = (c) =>
+    c === undefined ||
+    (c &&
+      Object.keys(c).sort().join(",") === "headSha,revisionId,version" &&
+      /^[a-f0-9-]{36}$/.test(c.revisionId) &&
+      Number.isSafeInteger(c.version) &&
+      c.version > 0 &&
+      /^[a-f0-9]{40}$/.test(c.headSha));
+  const sourceEqual = (a, b) =>
+    hash(JSON.stringify(canonical(a ?? null))) === hash(JSON.stringify(canonical(b ?? null)));
+  const sourceNow = async (thread, physical) => {
+    const value = structuredClone(await options.currentSource(thread));
+    check(
+      value &&
+        ["ready", "updating", "held"].includes(value.phase) &&
+        validSourceContext(value.sourceContext) &&
+        /^[a-f0-9]{40}$/.test(value.headSha) &&
+        value.headSha === (value.sourceContext?.headSha ?? physical.revision) &&
+        sourceEqual(value.checkoutBinding, physical),
+      "delivery_source_unavailable",
+    );
+    return value;
+  };
+  const sourceContextFor = (claim) => {
+    const fresh = assertAuthority({
+      managerThreadId: claim.managerThreadId,
+      registrationId: claim.registrationId,
+      serverInstanceId: claim.serverInstanceId,
+      checkoutBinding: claim.checkoutBinding,
+    });
+    return {
+      managerThreadId: claim.managerThreadId,
+      registration: {
+        id: fresh.id,
+        serverInstanceId: fresh.serverInstanceId,
+        expiresAt: fresh.expiresAt,
+      },
+      checkoutBinding: structuredClone(claim.checkoutBinding),
+      managerBindingId: claim.managerBindingId,
+      taskId: claim.taskId,
+      stepId: claim.stepId,
+      attemptId: claim.attemptId,
+      attemptLeaseGeneration: claim.leaseGeneration,
+      inputSourceSha: claim.inputSourceSha,
+      ...(claim.sourceContext ? { sourceContext: structuredClone(claim.sourceContext) } : {}),
+    };
+  };
+  const readOutput = async (claim) => {
+    const publication = nativeSpool.sourcePublication(claim.managerThreadId);
+    check(publication, "delivery_source_output_missing");
+    const value = await options.readAcceptedSource(sourceContextFor(claim), {
+      operationId: publication.operationId,
+      revisionId: publication.sourceContext.revisionId,
+    });
+    check(
+      Number.isSafeInteger(value?.observedAt) &&
+        value.observedAt <= Date.now() &&
+        Number.isSafeInteger(value?.expiresAt) &&
+        value.expiresAt > Date.now() &&
+        value.expiresAt - value.observedAt <= 30000,
+      "delivery_source_state_stale",
+    );
+    sourceContextFor(claim);
+    nativeSpool.recordPublication(claim.managerThreadId, value);
+    return value;
+  };
   const continuationRequest = (claim) => ({
     managerThreadId: claim.managerThreadId,
     parentTurnId: claim.parentTurnId,
@@ -341,19 +417,53 @@ export function createDeliveryManagerAdapter(options) {
       ]),
     ),
     checkoutBinding: structuredClone(claim.checkoutBinding),
+    ...(sourceProtocol
+      ? {
+          managerBindingId: claim.managerBindingId,
+          taskId: claim.taskId,
+          stepId: claim.stepId,
+          inputSourceSha: claim.inputSourceSha,
+          ...(claim.sourceContext
+            ? { inputSourceContext: structuredClone(claim.sourceContext) }
+            : {}),
+        }
+      : {}),
     spawns: nativeSpool.boundarySpawns(claim.managerThreadId),
     cohort: nativeSpool.boundaryChildren(claim.managerThreadId),
   });
   const scheduleContinuation = (managerThreadId) => {
     if (!progression || closed || continuationTasks.has(managerThreadId)) return;
-    const claim = nativeSpool.continuationCandidate(managerThreadId);
+    const claim =
+      (sourceProtocol && nativeSpool.sourceBoundaryCandidate(managerThreadId)) ||
+      nativeSpool.continuationCandidate(managerThreadId);
     if (!claim || nativeSpool.continuationStart(managerThreadId)) return;
     // Detach from the observer promise before asking the supervisor to drain
     // router work. Otherwise that drain would wait on this very observer.
     const operation = Promise.resolve()
       .then(async () => {
-        const request = continuationRequest(claim),
-          deadline = Date.now() + 5000;
+        const request = continuationRequest(claim);
+        if (sourceProtocol) {
+          const publication = nativeSpool.sourcePublication(managerThreadId);
+          if (publication && !publication.applied) {
+            const accepted = await readOutput(claim);
+            await options.applyAcceptedSource(request, accepted);
+            const after = await readOutput(claim),
+              local = await sourceNow(managerThreadId, claim.checkoutBinding);
+            check(
+              local.phase === "ready" &&
+                sourceEqual(local.sourceContext, after.accepted.sourceContext),
+              "delivery_source_apply_incomplete",
+            );
+            assertAuthority(request);
+            nativeSpool.recordAppliedSource(managerThreadId, after);
+          }
+          const local = await sourceNow(managerThreadId, claim.checkoutBinding);
+          check(local.phase === "ready", "delivery_source_not_ready");
+          nativeSpool.assertAppliedSource(managerThreadId, local.sourceContext);
+          if (!nativeSpool.continuationCandidate(managerThreadId)) return;
+          if (local.sourceContext) request.sourceContext = structuredClone(local.sourceContext);
+        }
+        const deadline = Date.now() + 5000;
         for (;;) {
           check(!closed, "delivery_closed");
           assertAuthority(request);
@@ -394,7 +504,42 @@ export function createDeliveryManagerAdapter(options) {
       );
       return assertAuthority(request);
     },
-    tools: () => [structuredClone(deliveryManagerToolSpec)],
+    tools: () => {
+      const spec = structuredClone(deliveryManagerToolSpec);
+      if (sourceProtocol) {
+        spec.inputSchema.properties.operation.enum.push("publish_source");
+        spec.description +=
+          " Publish a bounded implementation proposal through the protected host. Accepted output is not local application or new execution authority; end the root turn after reporting.";
+      }
+      return [spec];
+    },
+    sourceApplicationSnapshot(thread, request) {
+      check(sourceProtocol, "source_protocol_disabled");
+      assertAuthority(request);
+      return nativeSpool.sourceApplicationSnapshot(thread, request);
+    },
+    async currentAcceptedSource({ managerThreadId, taskId, stepId, checkoutBinding }) {
+      check(sourceProtocol, "source_protocol_disabled");
+      const claim = nativeSpool.currentClaim(managerThreadId);
+      check(
+        claim &&
+          claim.taskId === taskId &&
+          claim.stepId === stepId &&
+          sourceEqual(claim.checkoutBinding, checkoutBinding),
+        "delivery_source_scope_changed",
+      );
+      sourceContextFor(claim);
+      const publication = nativeSpool.sourcePublication(managerThreadId);
+      return publication
+        ? structuredClone((await readOutput(claim)).accepted.sourceContext)
+        : structuredClone(claim.sourceContext ?? null);
+    },
+    currentSourceContext(thread) {
+      check(sourceProtocol, "source_protocol_disabled");
+      const claim = nativeSpool.currentClaim(thread);
+      check(claim, "native_claim_missing");
+      return sourceContextFor(claim);
+    },
     observe(notification) {
       nativeSpool?.observe(notification);
       if (progression && notification?.method === "turn/completed")
@@ -410,7 +555,13 @@ export function createDeliveryManagerAdapter(options) {
     },
     async handleToolCall(params) {
       check(!closed, "delivery_closed");
-      const deadline = Date.now() + (progression ? 12000 : 10000);
+      const deadline =
+        Date.now() +
+        (sourceProtocol && params?.arguments?.operation === "publish_source"
+          ? 125000
+          : progression
+            ? 12000
+            : 10000);
       check(
         params?.tool === "hive_delivery" &&
           (params.namespace === null || params.namespace === undefined) &&
@@ -433,11 +584,36 @@ export function createDeliveryManagerAdapter(options) {
           typeof command === "object" &&
           !Array.isArray(command) &&
           Object.keys(command).sort().join(",") === "operation,payload" &&
-          ["create_task", "claim_step", "complete_step", "report_step", "fail_attempt"].includes(
-            command.operation,
-          ),
+          [
+            "create_task",
+            "claim_step",
+            "complete_step",
+            "report_step",
+            "fail_attempt",
+            ...(sourceProtocol ? ["publish_source"] : []),
+          ].includes(command.operation),
         "invalid_delivery_command",
       );
+      if (command.operation === "publish_source") {
+        const p = command.payload;
+        check(
+          p &&
+            Object.keys(p).sort().join(",") === "body,deletions,message,operationId,paths,title" &&
+            /^[a-f0-9-]{36}$/.test(p.operationId) &&
+            Array.isArray(p.paths) &&
+            Array.isArray(p.deletions) &&
+            p.paths.length + p.deletions.length > 0 &&
+            p.paths.length + p.deletions.length <= 100 &&
+            [...p.paths, ...p.deletions].every((v) => typeof v === "string" && v.length <= 240) &&
+            typeof p.message === "string" &&
+            Buffer.byteLength(p.message) <= 4000 &&
+            typeof p.title === "string" &&
+            Buffer.byteLength(p.title) <= 160 &&
+            typeof p.body === "string" &&
+            Buffer.byteLength(p.body) <= 8000,
+          "delivery_publication_proposal_invalid",
+        );
+      }
       nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
       const checkoutBinding = structuredClone(currentProjectContext(params.threadId));
       const fields = [
@@ -514,7 +690,13 @@ export function createDeliveryManagerAdapter(options) {
             check(current.claimCallId === params.callId, "native_same_turn_claim_unavailable");
           }
         }
-        if (progression && nativeSpool && command.operation === "complete_step") {
+        if (
+          progression &&
+          nativeSpool &&
+          ["complete_step", ...(sourceProtocol ? ["publish_source"] : [])].includes(
+            command.operation,
+          )
+        ) {
           await options.drainNativeRouting?.({
             excludeCall: {
               threadId: params.threadId,
@@ -523,15 +705,50 @@ export function createDeliveryManagerAdapter(options) {
             },
             timeoutMs: 5000,
           });
-          await nativeSpool.requireCompletedChild(params.threadId, command.payload.attemptId);
+          await nativeSpool.requireCompletedChild(
+            params.threadId,
+            command.operation === "publish_source"
+              ? nativeSpool.currentClaim(params.threadId)?.attemptId
+              : command.payload.attemptId,
+          );
         }
         nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
+        let sourceContext;
+        if (sourceProtocol) {
+          const local = await sourceNow(params.threadId, checkoutBinding),
+            claim = nativeSpool.currentClaim(params.threadId),
+            publication = nativeSpool.sourcePublication(params.threadId);
+          if (
+            ["complete_step", "report_step", "fail_attempt"].includes(command.operation) &&
+            claim
+          ) {
+            sourceContext = publication
+              ? (await readOutput(claim)).accepted.sourceContext
+              : claim.sourceContext;
+            check(
+              command.payload.sourceSha === (sourceContext?.headSha ?? claim.inputSourceSha),
+              "delivery_report_source_mismatch",
+            );
+          } else {
+            check(local.phase === "ready", "delivery_source_not_ready");
+            if (command.operation === "create_task")
+              check(!local.sourceContext, "delivery_source_new_task_requires_fresh_binding");
+            if (command.operation === "claim_step")
+              nativeSpool.assertAppliedSource(params.threadId, local.sourceContext);
+            sourceContext = local.sourceContext;
+          }
+        }
         const eventId = journal(
           stateDirectory,
           identity,
           hash(
             JSON.stringify(
-              canonical({ command, checkoutBinding, ...(continuation ? { continuation } : {}) }),
+              canonical({
+                command,
+                checkoutBinding,
+                ...(continuation ? { continuation } : {}),
+                ...(sourceProtocol ? { sourceContext: sourceContext ?? null } : {}),
+              }),
             ),
           ),
         );
@@ -540,6 +757,9 @@ export function createDeliveryManagerAdapter(options) {
           registrationId: registered.id,
           serverInstanceId: registered.serverInstanceId,
           checkoutBinding,
+          ...(sourceProtocol
+            ? { sourceContext, inputSourceSha: sourceContext?.headSha ?? checkoutBinding.revision }
+            : {}),
         };
         nativeSpool?.beginClaim(
           params,
@@ -549,6 +769,49 @@ export function createDeliveryManagerAdapter(options) {
           continuation,
           operationAuthority,
         );
+        if (sourceProtocol && command.operation === "publish_source") {
+          const claim = nativeSpool.currentClaim(params.threadId);
+          check(
+            claim &&
+              claim.parentTurnId === params.turnId &&
+              sourceEqual(claim.sourceContext, sourceContext),
+            "delivery_publication_claim_mismatch",
+          );
+          const existing = nativeSpool.sourcePublication(params.threadId);
+          check(
+            !existing || existing.operationId === command.payload.operationId,
+            "delivery_publication_already_pending",
+          );
+          const result = await options.publishSource(
+            sourceContextFor(claim),
+            structuredClone(command.payload),
+          );
+          check(
+            result?.executionAuthorized === false &&
+              result.current === true &&
+              result.inputSourceSha === claim.inputSourceSha &&
+              validSourceContext(result.sourceContext) &&
+              result.sourceContext,
+            "delivery_publication_receipt_invalid",
+          );
+          const state = await options.readAcceptedSource(sourceContextFor(claim), {
+            operationId: command.payload.operationId,
+            revisionId: result.sourceContext.revisionId,
+          });
+          check(
+            state?.expiresAt > Date.now() &&
+              sourceEqual(state.accepted?.sourceContext, result.sourceContext),
+            "delivery_source_state_stale",
+          );
+          assertAuthority(operationAuthority);
+          nativeSpool.recordPublication(params.threadId, state);
+          return {
+            contentItems: [
+              { type: "inputText", text: JSON.stringify({ ...result, locallyApplied: false }) },
+            ],
+            success: true,
+          };
+        }
         let result;
         const attempts = progression && command.operation === "complete_step" ? 2 : 1;
         for (let attempt = 0; attempt < attempts; attempt++) {
@@ -571,6 +834,7 @@ export function createDeliveryManagerAdapter(options) {
               command,
               checkoutBinding,
               ...(continuation ? { continuation } : {}),
+              ...(sourceProtocol && sourceContext ? { sourceContext } : {}),
             };
           const proof = sign(null, Buffer.from(deliveryProofPayload(value)), key).toString(
             "base64url",

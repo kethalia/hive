@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-10-30T01:06:56.995119+00:00",
+  "sourceRevision": "a1b8b06d04bd8fade5a8b76b7e4e6208573bea39",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "2209b7cf6f52cbc7154764a52a46f39d73d79bd2ad83cc476fcbf57223395f54",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "5a669d54b9a80b43babac5abad10378f7aeb9fa0282c320e339f91e5ebd4cb15",
+    "scripts/verify-delivery-manager-adapter.test.mjs": "328000f736109f7247fdbe21084fa69a47bd38884e23c2fd978a9479102df16e",
+    "src/lib/delivery/native-contracts.ts": "0ea0b6da8bf14b85d1008f8a38bc796aeb29a4c98f5ce173964d2269c5b30c0b",
+    "src/lib/delivery/native.server.ts": "9cc0249b306397ada060dbb92e6d44d02e79abb39cf5bd04bc05539451fc553d",
+    "src/__tests__/lib/delivery/source-publication.integration.test.ts": "1f7559ac43952be24950cda6473ff0f0eda55f0cbce8cf5ae1a28c3a0783fa8d"
+  },
+  "nodePassed": 49,
+  "nodeOptionalNativeSkipped": 1,
+  "postgresPassed": 39,
+  "postgresSchema": 24,
+  "postgresFixture": "isolated local 39989/hive_delivery_test",
+  "biome": "passed",
+  "fullTypecheck": "blocked by two concurrent host callback/proxy diagnostics; see typecheck.txt",
+  "installedInputBarrierProof": false,
+  "metadataApplicationAuthority": "injected callbacks only; persisted reservation and actual host barrier are separate slices",
+  "providerWrites": false,
+  "productionActivation": false,
+  "physicalWriterReleased": false,
+  "kernelQuiescenceClaimed": false,
+  "applicationGateProof": "schema24 result predates separately owned schema25 application gate; requires combined rerun"
+}

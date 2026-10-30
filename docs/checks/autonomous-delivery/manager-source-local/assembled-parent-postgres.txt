@@ -1,0 +1,58 @@
+
+ RUN  v3.2.4 /tmp/hive-source-assembly-parent-cic5jzyi
+
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts (8 tests) 8793ms
+   ✓ durable accepted-source application reservation, actual local PostgreSQL > reserves after producing-root completion, refreshes only same operation and retains physical writer  657ms
+   ✓ durable accepted-source application reservation, actual local PostgreSQL > pending application cannot admit another operation or accept foreign source/barrier receipt  499ms
+   ✓ durable accepted-source application reservation, actual local PostgreSQL > producer revocation preserves pending and cannot use old positive verification  438ms
+   ✓ durable accepted-source application reservation, actual local PostgreSQL > database retains immutable reservations, applied receipts and original source/physical scope  414ms
+   ✓ action gate closes accepted-to-reserve gap, preserves exact producing-root report, then reopens only after protected ACK  472ms
+   ✓ concurrent different application identities cannot both reserve the held admission  440ms
+   ✓ late native facts invalidate pending application verification without clearing its fence  346ms
+   ✓ lost apply ACK recovers by fresh applied-state verification after original receipt freshness expires  5525ms
+ ✓ src/__tests__/lib/codex-session/guardian-installed.integration.test.ts (1 test) 7074ms
+   ✓ real guardian outer/FD3/owner-app/signed controller/PostgreSQL composition > enrolls before preparation, gates actual Git, seals checkout inode and reserves exactly one native launch  7064ms
+ ✓ src/__tests__/lib/codex-session/guardian-service.integration.test.ts (7 tests) 4887ms
+   ✓ signed guardian bootstrap/service, actual local PostgreSQL > existing native enrollment cannot revive revoked producer or stale registered lifetime  467ms
+   ✓ signed guardian bootstrap/service, actual local PostgreSQL > issuer-grant expiry during enrollment SQL update rolls back consumption even while frame remains live  2348ms
+   ✓ guardian signed lifetime at real transaction boundary > expiry while SQL update is pending rolls back the authority extension  1403ms
+   ✓ guardian signed lifetime at real transaction boundary > abort after SQL work starts rolls back and never reports cancellation as commit  518ms
+ ✓ src/__tests__/lib/delivery/source-transport.integration.test.ts (12 tests) 4336ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > retains immutable signed proof and atomically consumes publication; exact lost-ACK replay preserves receipt  345ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > rejects wrong PR branch/account and expired grant before upload  879ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > serializes concurrent exact grant and publication retries  381ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > allows exact consumed receipt replay after original provider-readback freshness without new authority  1328ms
+ ✓ src/__tests__/lib/delivery/source-publication.integration.test.ts (17 tests) 4397ms
+   ✓ internal source revision acceptance, synthetic independent producer > accepts output under the same writer, verifies output evidence and advances a second immutable source link  650ms
+   ✓ internal source revision acceptance, synthetic independent producer > serializes duplicate and competing publications with exact lost-ACK replay only  330ms
+   ✓ internal source revision acceptance, synthetic independent producer > rejects unactivated fixture receipts, model booleans, bad signatures and binding/producer scope swaps  359ms
+   ✓ internal source revision acceptance, synthetic independent producer > checks revocation/expiry/pause inside mutation and never consumes a source version on rejection  446ms
+   ✓ internal source revision acceptance, synthetic independent producer > protects append-only chain/input/output and cross-owner/cross-attempt pointers in PostgreSQL  397ms
+ ✓ src/__tests__/lib/delivery/source-state.integration.test.ts (6 tests | 1 skipped) 3621ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > reads accepted source after original publication wire expiry with no data writes or new authority  1548ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > rejects foreign owner/task/operation/revision/physical scope  677ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > distinguishes first historical output from second current output without relabeling or rollback  599ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > closed barrier remains closed for factual reads even after feature flags turn off  545ms
+ ✓ src/__tests__/lib/delivery/manager-policy.integration.test.ts (12 tests) 2197ms
+ ✓ src/__tests__/lib/delivery/progression.integration.test.ts (12 tests) 2319ms
+   ✓ protocol-one server progression (synthetic signed host, not native ordering proof) > advances analysis then two delegated attempts at one source while preserving the physical writer and immutable receipts  415ms
+ ✓ src/__tests__/lib/codex-session/guardian-store.integration.test.ts (10 tests) 1520ms
+   ✓ independent guardian storage, actual local Postgres > all-terminal task state alone cannot close; a fresh exact idle receipt closes input but retains physical writer  310ms
+ ✓ src/__tests__/lib/delivery/informational-report.integration.test.ts (10 tests) 1432ms
+ ✓ src/__tests__/lib/delivery/source-guardian.integration.test.ts (3 tests) 1037ms
+   ✓ source issuer with real staged guardian store (local authorization/pin fixtures, synthetic native/provider) > publishes only under finalized persisted runtime/admission and preserves exact replay  599ms
+ ✓ src/__tests__/lib/delivery/github-transport.integration.test.ts (9 tests) 1040ms
+ ✓ src/__tests__/lib/delivery/native-source.integration.test.ts (10 tests) 1209ms
+ ✓ src/__tests__/lib/delivery/recovery.integration.test.ts (12 tests) 816ms
+ ✓ src/__tests__/lib/delivery/manager.integration.test.ts (9 tests) 936ms
+ ✓ src/__tests__/lib/delivery/repository.integration.test.ts (19 tests) 693ms
+ ✓ src/__tests__/lib/codex-session/registration-store.integration.test.ts (10 tests) 597ms
+ ✓ src/__tests__/lib/delivery/github-persistence.integration.test.ts (12 tests) 570ms
+ ✓ src/__tests__/lib/delivery/outbox.integration.test.ts (7 tests) 393ms
+ ✓ src/__tests__/lib/projects/task-intents.integration.test.ts (9 tests) 285ms
+ ✓ src/__tests__/lib/delivery/state.test.ts (13 tests) 6ms
+
+ Test Files  21 passed (21)
+      Tests  207 passed | 1 skipped (208)
+   Start at  01:27:41
+   Duration  52.69s (transform 643ms, setup 0ms, collect 1.96s, tests 48.16s, environment 3ms, prepare 842ms)

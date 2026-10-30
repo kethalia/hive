@@ -553,3 +553,18 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   successful host enrollment, real source publication or production deployment.
   Evidence: [enabled callbacks](cloudflare-auth-delivery-callbacks.json),
   [disabled callbacks and auth](cloudflare-auth-app.json).
+
+- Source progression and application reservation: reviewed assembled checkpoint, high
+  difficulty. Attempts retain their original input identity while completed evidence can
+  reference accepted output. Persisted application reservations block new execution until
+  that output is acknowledged as applied, while allowing exact completion/failure and factual
+  evidence paths. Timeouts retain the pending operation; lost commit acknowledgements recover
+  by fresh verification without rewriting receipts. Parent clean-export validation passes207
+  PostgreSQL checks (one opt-in skipped),69 source runtime checks,120 compiled behavioral
+  checks, cross-server collector protocol, typecheck and the actual fixed installer. The
+  schema24→25 rehearsal preserves every prior table hash and migration checksum. A compiled
+  test-harness assertion was corrected; the failed log remains. Signed service application
+  actions and installed controller/terminal input barriers remain separate integration work.
+  No runtime flag or production deployment changed. Evidence:
+  [application](guardian-source-application.md),
+  [assembled validation](manager-source-local/assembled-parent.json).

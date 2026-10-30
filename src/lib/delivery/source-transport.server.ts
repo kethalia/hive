@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
+import { requireAppliedSourceForAction } from "@/lib/codex-session/guardian-application-gate.server";
 import {
   lockActiveRegistration,
   RegistrationRejected,
@@ -213,6 +214,12 @@ export class SourcePublicationTransport {
       true,
     );
     const { attempt, binding, task, now } = scope;
+    await requireAppliedSourceForAction(tx, {
+      ownerId: task.ownerId,
+      managerBindingId: binding.id,
+      taskId: task.id,
+      action: "publication",
+    });
     if (
       binding.progressionProtocol !== 1 ||
       binding.currentAttemptId !== attempt.id ||

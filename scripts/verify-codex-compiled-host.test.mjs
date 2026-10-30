@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 
 // Exercise the installed transformed modules, with the same existing behavioral
 // tests. The resolver maps only exact manifest module names, never test/helpers.
-function compiled(t) {
+function compiled(t, requiredModules = ["codex-project-supervisor.mjs"]) {
   const root = resolve("."),
     directory = mkdtempSync(join(tmpdir(), "hive-compiled-host-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -58,7 +58,9 @@ function compiled(t) {
     );
     assert.equal(result.status, 0, result.error?.message || result.stderr + result.stdout);
     assert.match(result.stdout, /# tests [1-9][0-9]*/);
-    assert.ok(readFileSync(mappingLog, "utf8").includes("codex-project-supervisor.mjs"));
+    const mapped = new Set(readFileSync(mappingLog, "utf8").trim().split("\n").map(JSON.parse));
+    for (const name of requiredModules)
+      assert.ok(mapped.has(name), `Expected installed module was not exercised: ${name}`);
     t.diagnostic(result.stdout.trim());
   };
 }
@@ -69,6 +71,17 @@ test("compiled package preserves controller, startup fences and session bridge b
     "scripts/verify-codex-project-controller.test.mjs",
     "scripts/verify-codex-native-startup.test.mjs",
     "scripts/verify-codex-session-bridge.test.mjs",
+  ]);
+});
+test("compiled delivery preserves source progression, native facts and collector signatures", (t) => {
+  compiled(t, [
+    "delivery-manager-adapter.mjs",
+    "delivery-native-spool.mjs",
+    "delivery-github-collector.mjs",
+  ])([
+    "scripts/verify-delivery-manager-adapter.test.mjs",
+    "scripts/verify-delivery-native-spool.test.mjs",
+    "scripts/verify-delivery-github-collector.test.mjs",
   ]);
 });
 test("compiled namespace preserves actual native WS, CLI, child and resume isolation", {
