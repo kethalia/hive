@@ -23,10 +23,10 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D02/D03 persistence | Foundation, recovery and informational reports validated locally | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation. 2e3c10e adds informational reported outcomes separate from verified acceptance, with two additive local migrations and PostgreSQL CI coverage. |
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
-| D07/D08 eligibility | Independent semantic acceptance reviewed; repair/completion in progress | c53c785 binds encrypted intent, immutable plan, exact accepted source and independent native evaluation. Reviewed policy and live R2 integrity/retention remain in place. Repair33 review found a missing current-source SQL fence; correction and controller-derived completion are underway. |
+| D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
 | Test workspace | Installed identity and discovery passed; delivery stays off | Dedicated codex/hive-epic-test runs inactive f77f7373 on reviewed e9230f1 image. Signed runtime identity and read service pass real Coder checks. The next image must include voice identity support and pinned public bootstrap assets; global active template is unchanged. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
-| F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, agent-tools/integration adapters and legacy hook parity remain. |
+| F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
 ## Resource and cost record
@@ -985,3 +985,13 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   781bb9d explicitly restores directory traversal while keeping files read-only and adds
   directory-search permission validation; image verification is pending.
   No failed image was installed or published.
+
+- Agent tools bridge: local implementation/review complete, moderate difficulty. Review caught
+  stale tmux-server environment affecting custom agent homes; fixed and independently verified
+  with21 helper tests. Five parent packaging/host checks pass. Committed24a454c remains disabled
+  by default. Exact-source image workflow41034024253 is running before installed Coder validation.
+- CI recovery: both fe62afb and494cf3e passed the full CI workflow. The current24a454c
+  candidate is undergoing CI. No production cutover or release controller activation.
+- D10 review: the first20-test foundation passed, but independent review found an integrity
+  snapshot race and receipt-expiry window. Corrections and actual Prisma lock interoperability
+  are in progress. This is not a completed migration/backfill acceptance gate.

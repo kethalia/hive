@@ -22,11 +22,12 @@ Capability audits and foundation implementation are underway; remaining tasks ar
 Current implementation checkpoint (2026-10-30): the installed runtime identity resolver passes
 against the dedicated Coder test workspace. The private Cloudflare preview passes real browser
 login, GitHub repository discovery/search, project enrollment, mobile/desktop layout and logout.
-Neon schema31 preserves the prior data and migration history. Independent intent-aware acceptance
-is implemented and reviewed; its bounded repair loop and controller-driven completion are under
-review. Terminal, clipboard and voice transports have local proofs, with account-backed browser
+Neon now has32 committed migration entries, preserving prior data and history; uncommitted release
+migrations remain excluded. Independent intent-aware acceptance, bounded repair and controller-driven
+completion are implemented and reviewed locally; installed acceptance remains pending. Terminal, clipboard and voice transports have local proofs, with account-backed browser
 acceptance still pending. The release journal, artifact attestation and controlled delivery
-adapters are in development. The current package expansion must use image-baked public assets:
+adapters are in development, including a trusted tested-merge-tree producer. The scoped agent-tools
+bridge has passed independent local review and awaits its rebuilt image and real Coder pilot. The current package expansion must use image-baked public assets:
 historical live testing established that this Coder provisioner cannot create ConfigMaps.
 Shared-session browser pilots, full baseline compatibility and production-data migration rehearsal
 remain open. A reachable read-only production database or backup is needed for the latter.
