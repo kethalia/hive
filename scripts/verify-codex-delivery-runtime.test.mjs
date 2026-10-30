@@ -315,7 +315,11 @@ test("status schedules one bounded refresh per minute without waiting for collec
       value.evidence.requirementStatus = "missing";
       value.blockers = paused
         ? ["task_paused"]
-        : ["evidence_missing", "source_application_pending"];
+        : [
+            "evidence_missing",
+            "source_application_pending",
+            "acceptance_evaluator_provenance_pending",
+          ];
       value.task.pauseRequested = paused;
       return Response.json(value);
     },

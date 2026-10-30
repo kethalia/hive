@@ -4,8 +4,8 @@ import { ZodError } from "zod";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { boundedSessionJson, sessionService } from "@/lib/codex-session/route.server";
 import { type EvidenceR2Bucket, R2GitHubArtifactStore } from "./github-artifacts.server";
-import { resolveControllerGitHubTargetPolicy } from "./github-policy.server";
 import { GitHubSourceTransport } from "./github-transport.server";
+import { repositoryPolicyAdapters, repositoryPolicyStore } from "./repository-policy.server";
 import { DeliveryConflict } from "./state";
 
 const response = (error: string, status: number) =>
@@ -40,7 +40,8 @@ export async function githubSourceRoute(request: Request, phase: "challenge" | "
       getDb(),
       {
         reauthorize: (binding) => sessions.authority.reauthorize(binding),
-        resolveTargetPolicy: ({ taskId }) => resolveControllerGitHubTargetPolicy(taskId),
+        resolveTargetPolicy: repositoryPolicyAdapters(repositoryPolicyStore(getDb()))
+          .resolveTargetPolicy,
       },
       new R2GitHubArtifactStore(bucket),
     );

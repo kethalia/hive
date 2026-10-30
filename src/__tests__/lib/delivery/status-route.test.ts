@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   db: vi.fn(),
   cloudflare: vi.fn(),
 }));
-vi.mock("@hive/db", () => ({ getDb: mocks.db }));
+vi.mock("@hive/db", async (original) => ({
+  ...(await original<typeof import("@hive/db")>()),
+  getDb: mocks.db,
+}));
 vi.mock("@opennextjs/cloudflare", () => ({ getCloudflareContext: mocks.cloudflare }));
 vi.mock("@/lib/codex-session/route.server", async (original) => ({
   ...(await original<typeof import("@/lib/codex-session/route.server")>()),

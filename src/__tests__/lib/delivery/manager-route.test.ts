@@ -3,7 +3,10 @@ import { RegistrationRejected } from "@/lib/codex-session/registration-store.ser
 import { DeliveryConflict } from "@/lib/delivery/state";
 
 const mocks = vi.hoisted(() => ({ execute: vi.fn(), service: vi.fn(), db: {} }));
-vi.mock("@hive/db", () => ({ getDb: () => mocks.db }));
+vi.mock("@hive/db", async (original) => ({
+  ...(await original<typeof import("@hive/db")>()),
+  getDb: () => mocks.db,
+}));
 vi.mock("@/lib/auth/session", () => ({ getRequestSession: vi.fn() }));
 vi.mock("@/lib/codex-session/route.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/codex-session/route.server")>()),

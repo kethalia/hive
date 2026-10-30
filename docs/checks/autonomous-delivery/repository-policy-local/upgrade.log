@@ -1,0 +1,4 @@
+ERROR:  permission denied for table delivery_repository_policies
+ERROR:  permission denied for table delivery_repository_policy_versions
+ERROR:  permission denied for table delivery_task_policy_bindings
+{"passed":true,"evidence":"/home/coder/projects/kethalia/hive/docs/checks/autonomous-delivery/repository-policy-local/upgrade.json","oldTablesPreserved":39}

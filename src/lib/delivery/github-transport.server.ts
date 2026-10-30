@@ -31,6 +31,10 @@ const policyTarget = z
   .object({
     pullNumber: z.number().int().positive().max(2147483647),
     policy: githubEvidencePolicySchema,
+    repositoryCriterionIds: z
+      .array(z.string().regex(/^repo:[A-Za-z0-9_.:-]{1,95}$/))
+      .max(40)
+      .optional(),
   })
   .strict();
 const storedChallenge = githubCollectionChallengeSchema
@@ -42,14 +46,17 @@ const storedChallenge = githubCollectionChallengeSchema
 export interface GitHubTransportDependencies extends Pick<ManagerDependencies, "reauthorize"> {
   /** Controller configuration only. No producer, PR or policy is accepted from
    * the model/collector request. The resolver must never trust repository files. */
-  resolveTargetPolicy(scope: {
-    ownerId: string;
-    taskId: string;
-    stepId: string;
-    repositoryId: string;
-    sourceSha: string;
-    branch: string;
-  }): Promise<unknown> | unknown;
+  resolveTargetPolicy(
+    scope: {
+      ownerId: string;
+      taskId: string;
+      stepId: string;
+      repositoryId: string;
+      sourceSha: string;
+      branch: string;
+    },
+    tx?: Tx,
+  ): Promise<unknown> | unknown;
 }
 const challengeKey = (stepId: string) => `github-source-challenge/${stepId}`;
 
@@ -103,14 +110,17 @@ export class GitHubSourceTransport {
       true,
     );
     const configured = policyTarget.parse(
-      await this.dependencies.resolveTargetPolicy({
-        ownerId: authenticated.ownerId,
-        taskId: task.id,
-        stepId: input.stepId,
-        repositoryId: task.project.providerRepositoryId,
-        sourceSha: task.sourceSha,
-        branch: task.branch,
-      }),
+      await this.dependencies.resolveTargetPolicy(
+        {
+          ownerId: authenticated.ownerId,
+          taskId: task.id,
+          stepId: input.stepId,
+          repositoryId: task.project.providerRepositoryId,
+          sourceSha: task.sourceSha,
+          branch: task.branch,
+        },
+        tx,
+      ),
     );
     const target = {
       schemaVersion: 1 as const,
@@ -125,6 +135,7 @@ export class GitHubSourceTransport {
       task,
       target,
       policy: configured.policy,
+      repositoryCriterionIds: configured.repositoryCriterionIds ?? [],
       policyDigest: githubSourceDigest(configured.policy),
     };
   }
@@ -264,9 +275,9 @@ export class GitHubSourceTransport {
       if (consumed) {
         if (consumed.type !== "github_source_consumed" || consumed.requestDigest !== receiptDigest)
           throw new DeliveryConflict("github_challenge_already_consumed");
-        return;
+        return scope.repositoryCriterionIds;
       }
-      if (!consume) return;
+      if (!consume) return scope.repositoryCriterionIds;
       await tx.deliveryEvent.create({
         data: {
           id: receiptId,
@@ -285,10 +296,11 @@ export class GitHubSourceTransport {
           },
         },
       });
+      return scope.repositoryCriterionIds;
     };
     // Known-revoked, superseded or changed-body requests must not cause object
     // writes. Recheck again when publishing to close revocation/upload races.
-    await this.transaction((tx) => authorize(tx, false));
+    const repositoryCriteria = await this.transaction((tx) => authorize(tx, false));
     const publisher = new GitHubEvidencePublisher(
       this.db,
       {
@@ -306,10 +318,14 @@ export class GitHubSourceTransport {
             binding.policyDigest !== challenge.policyDigest
           )
             throw new RegistrationRejected();
-          await authorize(tx, true);
+          const currentCriteria = await authorize(tx, true);
+          if (canonicalGitHubSource(currentCriteria) !== canonicalGitHubSource(repositoryCriteria))
+            throw new DeliveryConflict("github_policy_changed");
         },
       },
       this.artifacts,
+      undefined,
+      repositoryCriteria,
     );
     return publisher.publish(
       ownerId,

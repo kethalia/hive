@@ -5,7 +5,7 @@ import { lockProducerAdmission } from "@/lib/codex-session/guardian-store.server
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { boundedSessionJson, sessionService } from "@/lib/codex-session/route.server";
 import { type EvidenceR2Bucket, R2GitHubArtifactStore } from "./github-artifacts.server";
-import { resolveControllerSourcePolicy } from "./source-policy.server";
+import { repositoryPolicyAdapters, repositoryPolicyStore } from "./repository-policy.server";
 import { SourcePublicationTransport } from "./source-transport.server";
 import { DeliveryConflict } from "./state";
 
@@ -39,7 +39,7 @@ export async function sourcePublicationRoute(
       {
         reauthorize: (binding) => sessions.authority.reauthorize(binding),
         lockProducerAdmission: (tx, scope) => lockProducerAdmission(tx, scope),
-        resolvePolicy: (scope) => resolveControllerSourcePolicy(scope),
+        resolvePolicy: repositoryPolicyAdapters(repositoryPolicyStore(getDb())).resolvePolicy,
       },
       new R2GitHubArtifactStore(bucket),
     );

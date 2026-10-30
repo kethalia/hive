@@ -5,6 +5,7 @@ import {
   sessionError,
   sessionResponseHeaders,
 } from "@/lib/codex-session/route.server";
+import { DeliveryConflict } from "@/lib/delivery/state";
 import { ProjectDiscoveryError } from "./errors";
 import {
   ProjectTaskConflict,
@@ -42,6 +43,21 @@ export function projectTaskRoute(operation: "start" | "status" | "retry") {
       if (error instanceof ZodError) return sessionError("invalid_request", 400);
       if (error instanceof TaskIntentConflict) return sessionError("task_identity_conflict", 409);
       if (error instanceof ProjectTaskConflict) return sessionError("source_changed", 409);
+      if (
+        error instanceof DeliveryConflict &&
+        [
+          "repository_policy_not_enrolled",
+          "repository_policy_ref_resolution_pending",
+          "repository_policy_revoked",
+          "repository_policy_disabled",
+          "repository_policy_selection_changed",
+          "repository_policy_source_changed",
+          "repository_policy_intent_unbound",
+          "repository_policy_identity_changed",
+          "repository_policy_enrollment_revoked",
+        ].includes(error.code)
+      )
+        return sessionError(error.code, 409);
       if (error instanceof ProjectDiscoveryError)
         return sessionError(
           error.code,
