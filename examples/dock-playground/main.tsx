@@ -1,4 +1,4 @@
-import { Code2, FileText, Folder, Monitor, Settings2, Terminal } from "lucide-react";
+import { Code2, FileText, Folder, Monitor, Terminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AppViewportSize } from "@/components/app-viewport-size";
@@ -63,13 +63,10 @@ const LAYOUT_ACTIONS = WINDOW_ACTIONS.filter((action) =>
 
 function Playground() {
   const [state, setState] = useState(emptyGeneralWorkspace);
-  const [panel, setPanel] = useState<"apps" | "keybinds" | "controls" | "pane" | null>(null);
-  const [theme, setTheme] = useState("dark");
-  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
-  const [event, setEvent] = useState("Local preview · disconnected from your Hive account");
+  const [panel, setPanel] = useState<"apps" | "keybinds" | "pane" | null>(null);
+  const [event, setEvent] = useState("");
   const [fontSize, setFontSize] = useState(13);
   const [clipboard, setClipboard] = useState("hello from the dock");
-  const [dockVersion, setDockVersion] = useState(0);
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
   const [editorText, setEditorText] = useState(
     "// Local VS Code preview\n\nexport function Hello() {\n  return <h1>Hello, Hive.</h1>;\n}\n",
@@ -96,9 +93,6 @@ function Playground() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-  }, [theme]);
   useEffect(() => {
     const open = () => setPanel("apps");
     const shortcut = (event: KeyboardEvent) => {
@@ -264,14 +258,6 @@ function Playground() {
       setEvent(`Terminal font size: ${next}px`);
     }
   }
-  function reset() {
-    setState(emptyGeneralWorkspace());
-    setFontSize(13);
-    setClipboard("hello from the dock");
-    setDockVersion((value) => value + 1);
-    setPanel(null);
-    setEvent("Local preview reset");
-  }
 
   function renderPane(pane: GeneralWindow, visible: boolean) {
     if (pane.kind === "terminal")
@@ -404,8 +390,6 @@ function Playground() {
                 </div>
                 <footer className="prototype-dock-area">
                   <WorkspaceDock
-                    key={dockVersion}
-                    density={density}
                     workspaces={state.boards.map((item, index) => ({
                       id: item.key,
                       name: `Workspace ${index + 1}`,
@@ -436,21 +420,9 @@ function Playground() {
                           }
                     }
                   />
-                  <div className="prototype-tools">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      aria-label="Playground controls"
-                      onClick={() => setPanel("controls")}
-                    >
-                      <Settings2 className="size-3" />
-                      Playground
-                    </Button>
-                  </div>
-                  <p role="status" className="prototype-status">
+                  <span role="status" className="sr-only" data-dock-feedback>
                     {event}
-                  </p>
+                  </span>
                 </footer>
               </section>
             </div>
@@ -505,7 +477,7 @@ function Playground() {
         </CommandList>
       </CommandDialog>
       <Dialog
-        open={panel === "controls" || panel === "keybinds" || panel === "pane"}
+        open={panel === "keybinds" || panel === "pane"}
         onOpenChange={(open) => {
           if (!open) setPanel(null);
         }}
@@ -513,59 +485,15 @@ function Playground() {
         <DialogContent className="prototype-dialog max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {panel === "controls"
-                ? "Playground controls"
-                : panel === "pane"
-                  ? `${active?.label ?? "Window"} actions`
-                  : "Keyboard Shortcuts"}
+              {panel === "pane" ? `${active?.label ?? "Window"} actions` : "Keyboard Shortcuts"}
             </DialogTitle>
             <DialogDescription>
-              {panel === "controls"
-                ? "Hive’s actual workspace components with local preview data. App integration remains deferred."
-                : panel === "pane"
-                  ? "Arrange this window using Hive’s window manager."
-                  : "Dock controls and Hive layout actions. Terminal sessions run locally."}
+              {panel === "pane"
+                ? "Arrange this window using Hive’s window manager."
+                : "Dock controls and Hive layout actions. Terminal sessions run locally."}
             </DialogDescription>
           </DialogHeader>
-          {panel === "controls" ? (
-            <div className="space-y-5 text-sm">
-              <label className="prototype-setting">
-                Theme
-                <select
-                  aria-label="Theme"
-                  value={theme}
-                  onChange={(event) => setTheme(event.target.value)}
-                >
-                  <option value="dark">Hive dark</option>
-                  <option value="light">Hive light</option>
-                </select>
-              </label>
-              <label className="prototype-setting">
-                Dock size
-                <select
-                  aria-label="Dock size"
-                  value={density}
-                  onChange={(event) => setDensity(event.target.value as typeof density)}
-                >
-                  <option value="comfortable">Comfortable</option>
-                  <option value="compact">Compact</option>
-                </select>
-              </label>
-              <p className="text-xs text-muted-foreground">
-                This uses the app’s Fira Code font, CRT background, WindowCanvas,
-                TerminalSessionFrame, and window manager. The dock replaces the navbar in this
-                preview. Real services stay disconnected.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => openTool("terminal")}>
-                  Add terminal
-                </Button>
-                <Button variant="outline" onClick={reset}>
-                  Reset playground
-                </Button>
-              </div>
-            </div>
-          ) : panel === "pane" ? (
+          {panel === "pane" ? (
             <div className="grid gap-2">
               {LAYOUT_ACTIONS.map((action) => (
                 <Button

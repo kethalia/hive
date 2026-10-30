@@ -24,6 +24,7 @@ import { encodeTerminalShortcut, type TerminalKeyModifiers } from "@/lib/termina
 import { cn } from "@/lib/utils";
 import "./workspace-dock.css";
 import { DockScrollArea } from "./dock-scroll-area";
+import { useDockSpaces } from "./use-dock-spaces";
 import { useDockView } from "./use-dock-view";
 
 export type DockView = "home" | "workspaces" | "keyboard";
@@ -151,10 +152,28 @@ export function WorkspaceDock({
   density = "comfortable",
   className,
 }: WorkspaceDockProps) {
-  const { view, busy, navRef, panelRef, changeView } = useDockView();
+  const { view, busy: viewBusy, navRef, panelRef, changeView } = useDockView();
+  const spaces = useDockSpaces({
+    ids: workspaces.map((workspace) => workspace.id),
+    activeId: activeWorkspaceId,
+    visible: view === "workspaces",
+    viewBusy,
+    navRef,
+    onCreate: onWorkspaceCreate,
+    onRemove: onWorkspaceRemove,
+  });
+  const busy = viewBusy || spaces.busy;
   const [modifiers, setModifiers] = useState(NO_MODIFIERS);
   const focusAfterRemoval = useRef(false);
+  const queuedBack = useRef(false);
   useLayoutEffect(() => {
+    if (busy) return;
+    if (queuedBack.current) {
+      queuedBack.current = false;
+      focusAfterRemoval.current = false;
+      changeView("home");
+      return;
+    }
     const selected = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
     if (!busy && view === "workspaces" && selected && focusAfterRemoval.current) {
       focusAfterRemoval.current = false;
@@ -162,7 +181,7 @@ export function WorkspaceDock({
         ?.querySelector<HTMLButtonElement>('[aria-current="page"]')
         ?.focus({ preventScroll: true });
     }
-  }, [view, busy, activeWorkspaceId, workspaces, navRef]);
+  }, [view, busy, activeWorkspaceId, workspaces, navRef, changeView]);
 
   function open(next: "workspaces" | "keyboard") {
     changeView(next);
@@ -170,6 +189,11 @@ export function WorkspaceDock({
 
   function back() {
     setModifiers(NO_MODIFIERS);
+    if (spaces.busy) {
+      queuedBack.current = true;
+      navRef.current?.focus({ preventScroll: true });
+      return;
+    }
     changeView("home");
   }
 
@@ -217,7 +241,8 @@ export function WorkspaceDock({
         className={cn("hive-dock", className)}
         data-view={view}
         data-density={density}
-        data-transitioning={busy}
+        data-transitioning={viewBusy}
+        data-spaces-changing={spaces.busy}
         aria-busy={busy}
         tabIndex={-1}
         onKeyDown={navigate}
@@ -229,7 +254,7 @@ export function WorkspaceDock({
               ? "Workspace controls"
               : "Extra keyboard controls"}
         </span>
-        <div key={view} ref={panelRef} className="hive-dock-panel" inert={busy}>
+        <div key={view} ref={panelRef} className="hive-dock-panel" inert={viewBusy}>
           {view === "home" ? (
             <div className="hive-dock-home">
               <DockButton
@@ -296,8 +321,9 @@ export function WorkspaceDock({
                 <DockButton
                   label="Create workspace"
                   className="hive-dock-create"
-                  onClick={onWorkspaceCreate}
+                  onClick={spaces.create}
                   disabled={!canCreateWorkspace}
+                  aria-disabled={spaces.busy || !canCreateWorkspace}
                 >
                   <Plus aria-hidden="true" />
                 </DockButton>
@@ -305,6 +331,7 @@ export function WorkspaceDock({
               <DockScrollArea
                 label={view === "workspaces" ? "spaces" : "keys"}
                 activeItem={view === "workspaces" ? activeWorkspaceId : undefined}
+                suspendReveal={spaces.busy}
               >
                 {view === "workspaces" ? (
                   workspaces.map((workspace, index) => (
@@ -312,6 +339,7 @@ export function WorkspaceDock({
                       key={workspace.id}
                       className="hive-dock-space"
                       data-dock-space={workspace.id}
+                      inert={spaces.busy}
                     >
                       <DockButton
                         label={`Workspace ${index + 1}: ${workspace.name}`}
@@ -333,7 +361,7 @@ export function WorkspaceDock({
                           title={`Remove workspace ${index + 1}`}
                           onClick={() => {
                             focusAfterRemoval.current = true;
-                            onWorkspaceRemove(workspace.id);
+                            spaces.remove(workspace.id);
                           }}
                         >
                           <X aria-hidden="true" />

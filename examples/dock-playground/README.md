@@ -40,6 +40,11 @@ next row during that resize. The slow lead-in accelerates into the resize before
 are inert while moving, Escape can queue a return, and focus moves only after the animation ends.
 Reduced-motion view changes are immediate.
 
+Creating a space grows the tray while the new cap fades/scales into its slot. Removing a space
+first fades/scales its cap out (180ms), then resizes the tray and slides surviving caps into their
+new positions (440ms). Mutations are coordinated so repeated actions cannot overlap; Back can
+queue a return while they finish. Reduced-motion mutations finish immediately.
+
 - **Apps / Add window:** opens Search Hive with Terminal, Files, VS Code, Desktop, built-in Hive tool
   previews, and window layout actions. Terminal uses the same xterm renderer, theme, and font as
   Hive. Files is a local file-list fixture, VS Code is an editable scratchpad, and remaining tools
@@ -56,9 +61,6 @@ Reduced-motion view changes are immediate.
   options. Edge fades show overflow, and the native scrollbar is hidden. Active spaces reveal
   themselves automatically when selected or when the viewport resizes.
 - **Keybinds:** opens prototype keyboard help and working layout action buttons.
-- **Playground:** a small utility button below the canvas opens the native dark/light theme,
-  dock density, add-terminal, and reset controls. It does not cover pane-header controls.
-
 
 Drag pane title bars and resize their divider grips using Hive's real canvas. Use the pane actions
 menu or Search Hive to switch Strip/Grid, cycle width, maximize, float, or equalize windows. Close
@@ -66,9 +68,12 @@ buttons remove panes. The dock remains isolated from the real application naviga
 
 The terminal shell is local. Type `help`, `ls`, `pwd`, `whoami`, `echo <text>`, or `clear`. Cursor
 arrows, history arrows, Backspace, Tab, Enter, Escape, Ctrl+C, and Ctrl+L work. Other modifier
-combinations appear in the status line. Dock modifiers reset after the next key. Copy/Paste use a
-preview-only clipboard. Upload opens a native file picker and displays filenames; contents are not
+combinations are encoded by the dock; unsupported combinations are ignored by the local shell.
+Dock modifiers reset after the next key. Copy/Paste use a preview-only clipboard. Upload opens a native file picker and displays filenames; contents are not
 read or sent anywhere. Refresh resets all local state. No shell command runs on Coder.
+
+The visible page contains only the main workspace and dock. There is no floating Playground button,
+settings panel, or visible interaction/status log. Action feedback remains available to screen readers.
 
 ## Component contract
 
@@ -129,9 +134,13 @@ Run `validate-navigation.browser.mjs` for the staged transitions, persistent dep
 wheel/arrow scrolling, pinned Back/+ at 320px, selected-space removal and focus, rapid Escape, and
 reduced motion. It records frame-by-frame tray widths and saves screenshots of the new controls.
 
+Run `validate-spaces.browser.mjs` for cap entry/exit, surviving-cap movement, tray resizing, focus,
+mobile overflow, queued Back, and reduced-motion mutations. It records per-frame cap opacity,
+position, and tray width.
+
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,
-density, reset, real canvas Strip/Grid layouts and resizing,
+page reload/reset, real canvas Strip/Grid layouts and resizing,
 320px/390px layouts with nine workspaces, and reduced motion. It saves screenshots and
 `results.json`. It uses `@playwright/test` from the repository's pinned dependencies and installed
 Chrome; it does not install a browser.

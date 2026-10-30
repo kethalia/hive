@@ -5,54 +5,18 @@ body,
   height: 100%;
   overflow: hidden;
 }
-.prototype-tools {
-  position: absolute;
-  right: max(8px, env(safe-area-inset-right));
-  bottom: max(8px, env(safe-area-inset-bottom));
-}
-.prototype-tools button {
-  background: var(--background);
-  font-family: var(--font-mono);
-}
 .prototype-dock-area {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
   flex-shrink: 0;
   padding: 12px max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
     max(12px, env(safe-area-inset-left));
 }
-.prototype-status {
-  color: var(--muted-foreground);
-  font-size: 9px;
-  font-family: var(--font-mono);
-  min-height: 14px;
-  max-width: calc(100% - 230px);
-  margin: 0;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
 .prototype-dialog {
   width: calc(100vw - 24px);
   font-family: var(--font-mono);
-}
-.prototype-setting {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-.prototype-setting select {
-  max-width: 60%;
-  background: var(--background);
-  color: var(--foreground);
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-family: inherit;
-  font-size: 12px;
 }
 .sandbox-terminal {
   height: 100%;
@@ -62,13 +26,4 @@ body,
 }
 .sandbox-terminal .xterm {
   height: 100%;
-}
-@media (max-width: 700px) {
-  .prototype-tools {
-    position: static;
-    order: 2;
-  }
-  .prototype-status {
-    max-width: 100%;
-  }
 }

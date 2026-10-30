@@ -14,10 +14,12 @@ export function DockScrollArea({
   children,
   label,
   activeItem,
+  suspendReveal = false,
 }: {
   children: ReactNode;
   label: "keys" | "spaces";
   activeItem?: string;
+  suspendReveal?: boolean;
 }) {
   const id = useId();
   const frame = useRef<HTMLDivElement>(null);
@@ -42,7 +44,7 @@ export function DockScrollArea({
   }, []);
   const reveal = useCallback(() => {
     const node = viewport.current;
-    if (!node) return;
+    if (!node || suspendReveal) return;
     const selected = Array.from(node.querySelectorAll<HTMLElement>("[data-dock-space]")).find(
       (item) => item.dataset.dockSpace === activeItem,
     );
@@ -52,7 +54,7 @@ export function DockScrollArea({
       if (item.left < bounds.left + 10) node.scrollLeft -= bounds.left + 10 - item.left;
       else if (item.right > bounds.right - 12) node.scrollLeft += item.right - bounds.right + 12;
     }
-  }, [activeItem]);
+  }, [activeItem, suspendReveal]);
   useLayoutEffect(() => {
     const update = () => {
       reveal();

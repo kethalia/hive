@@ -14,7 +14,7 @@ const failures = [],
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 page.on("pageerror", (error) => failures.push(error.message));
 const dock = page.getByRole("navigation", { name: "Workspace dock" });
-const status = page.locator(".prototype-status");
+const status = page.locator("[data-dock-feedback]");
 const frames = page.locator("[data-workspace-window-id]:visible");
 async function screenshot(name) {
   await expect(dock).toHaveAttribute("aria-busy", "false");
@@ -30,13 +30,7 @@ async function openApp(name) {
   await page.getByRole("option", { name: `${name} ai-dev-01`, exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 }
-async function settings() {
-  await page.getByRole("button", { name: "Playground controls" }).click();
-}
-async function reset() {
-  await settings();
-  await page.getByRole("button", { name: "Reset playground" }).click();
-}
+
 try {
   assert.equal(
     (await page.goto(process.env.DOCK_PREVIEW_URL ?? "http://127.0.0.1:4318")).status(),
@@ -147,25 +141,16 @@ try {
     "Workspace switching keeps real local terminal buffers; full key inventory, one-shot VT modifiers, clipboard/file/font actions, and focus restoration pass.",
   );
 
-  await settings();
-  await page.getByRole("combobox", { name: "Dock size", exact: true }).selectOption("compact");
-  await page.getByRole("combobox", { name: "Theme", exact: true }).selectOption("light");
-  await page.keyboard.press("Escape");
-  await expect(dock).toHaveAttribute("data-density", "compact");
-  await screenshot("hive-light");
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await dock.getByRole("button", { name: "Keybinds", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("Keyboard Shortcuts");
   await page.keyboard.press("Escape");
-  await settings();
-  await page.getByRole("combobox", { name: "Theme", exact: true }).selectOption("dark");
-  await page.keyboard.press("Escape");
-  checks.push("Native theme, dock density, command palette, and keybind help pass.");
+  checks.push("Command palette and keybind help pass.");
 
   for (const width of [390, 320]) {
-    await reset();
+    await page.reload();
     await page.setViewportSize({ width, height: 844 });
     await expect(page.getByRole("heading", { name: "Your workspace", exact: true })).toBeVisible();
     await screenshot(`hive-mobile-${width}-empty`);
