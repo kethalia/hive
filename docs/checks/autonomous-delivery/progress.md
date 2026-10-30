@@ -541,3 +541,15 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   parent independently passes the actual installed test on localhost. Original hosted file
   mode was not recorded, so the reproduction is not proof of its exact original permissions.
   Evidence: [CI fixture](guardian-controller-local/ci-installed-node.json).
+
+- Cloudflare host callback compatibility: actual local workerd checkpoint passed, moderate
+  difficulty. The committed05721d4 app build passes both enabled and default-disabled
+  configurations against isolated Neon24. Nine enabled exact routes return invalid-envelope
+  errors; neighboring/query variants stay private, while all nine disabled routes stay private.
+  Forged registration/unknown heartbeat are rejected; auth, task reads, ownership, logout,
+  expired sessions, serializable transactions and rollback pass in both runs. The second
+  failure exposed a missing pre-existing manager-binding table grant; its exact runtime grant
+  is corrected and both failures remain. This proves transport/runtime compatibility, not
+  successful host enrollment, real source publication or production deployment.
+  Evidence: [enabled callbacks](cloudflare-auth-delivery-callbacks.json),
+  [disabled callbacks and auth](cloudflare-auth-app.json).
