@@ -1,0 +1,28 @@
+{"attackResult":"{\"ok\":true}","events":[{"method":"turn/started","params":{"threadId":"01a18b93-e450-7243-bab7-f20b817e0740","turn":{"id":"01a18b93-e501-76f1-afff-e8d971720418","rootTurnId":"01a18b93-e501-76f1-afff-e8d971720418","items":[],"itemsView":"notLoaded","status":"inProgress","error":null,"startedAt":1793343087,"completedAt":null,"durationMs":null}},"emittedAtMs":1793343087917},{"method":"item/completed","params":{"item":{"type":"userMessage","id":"01a18b93-e5b9-7e22-96bd-804b130edea0","clientId":null,"content":[{"type":"text","text":"{\"input\":\"LOCAL_ACCEPTANCE_FIXTURE\",\"inputDigest\":\"16538d5136caba637cf03de2f1dec5a902fe0bef8795122cdd41e1724d9f5b0f\"}","text_elements":[]}]},"threadId":"01a18b93-e450-7243-bab7-f20b817e0740","turnId":"01a18b93-e501-76f1-afff-e8d971720418","completedAtMs":1793343088058},"emittedAtMs":1793343088061},{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m3","text":"{\"ok\":true}","phase":null,"memoryCitation":null,"delivery":null,"questions":null},"threadId":"01a18b93-e450-7243-bab7-f20b817e0740","turnId":"01a18b93-e501-76f1-afff-e8d971720418","completedAtMs":1793343088394},"emittedAtMs":1793343088394},{"method":"turn/completed","params":{"threadId":"01a18b93-e450-7243-bab7-f20b817e0740","turn":{"id":"01a18b93-e501-76f1-afff-e8d971720418","rootTurnId":"01a18b93-e501-76f1-afff-e8d971720418","items":[{"type":"agentMessage","id":"m3","text":"{\"ok\":true}","phase":null,"memoryCitation":null,"delivery":null,"questions":null}],"itemsView":"summary","status":"completed","error":null,"startedAt":1793343087,"completedAt":1793343088,"durationMs":523}},"emittedAtMs":1793343088401}],"toolReplies":[{"type":"function_call_output","id":"fco_01a18b93-e6f9-7430-a2b6-b0011636a919","call_id":"incoming-call","output":"unsupported call: collaborationsend_input"}],"toolNames":[[],[]]}
+Acceptance fixture retained: /home/coder/projects/kethalia/hive/.ae-25rjhO
+✖ actual manager cannot contaminate an evaluator result through incoming send_input (2190.467323ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2273.575125
+
+✖ failing tests:
+
+test at scripts/verify-codex-acceptance-native.test.mjs:246:39
+✖ actual manager cannot contaminate an evaluator result through incoming send_input (2190.467323ms)
+  AssertionError [ERR_ASSERTION]: incoming input was accepted
+      at TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-acceptance-native.test.mjs:393:417)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }

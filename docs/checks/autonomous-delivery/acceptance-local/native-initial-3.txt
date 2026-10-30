@@ -1,0 +1,25 @@
+✔ controller creates a separate configured evaluator and archives exact terminal thread (1.73522ms)
+✔ native configuration drift or unexpected tool output cannot become acceptance (0.696517ms)
+✔ cancellation retains a held exact turn and never retries inference (0.391456ms)
+✔ unknown producer/config fields cannot enable evaluation (0.636647ms)
+✔ pinned legacy null-phase final message still requires exact terminal turn (0.323616ms)
+Acceptance fixture retained: /home/coder/projects/kethalia/hive/.ae-gGfEyK
+✖ actual pinned native evaluator uses readonly permissions and no shell/collaboration tools (2343.787435ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2431.032979
+
+✖ failing tests:
+
+test at scripts/verify-codex-acceptance-native.test.mjs:246:1
+✖ actual pinned native evaluator uses readonly permissions and no shell/collaboration tools (2343.787435ms)
+  TypeError: Cannot read properties of undefined (reading 'includes')
+      at TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-acceptance-native.test.mjs:375:46)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)

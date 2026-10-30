@@ -1,0 +1,55 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+Acceptance native fixture retained: /home/coder/projects/kethalia/hive/.ai-WJ6V6k
+x
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/delivery/acceptance-native.integration.test.ts > actual pinned native to signed acceptance service > automatically plans once, persists actual model provenance, and replays result ACK without inference
+AssertionError: expected [Function] to throw error including 'lost_ack_after_database_commit' but got 'acceptance_transport_unavailable'
+
+Expected: "lost_ack_after_database_commit"
+Received: "acceptance_transport_unavailable"
+
+ ❯ src/__tests__/lib/delivery/acceptance-native.integration.test.ts:186:9
+    184|           });
+    185|         pump = make();
+    186|         await expect(pump.tick()).rejects.toThrow("lost_ack_after_data…
+       |         ^
+    187|         expect(requests).toBe(1);
+    188|         pump = make();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯
+SyntaxError: Unexpected end of JSON input
+ ❯ IncomingMessage.<anonymous> src/__tests__/lib/delivery/acceptance-native.integration.test.ts:76:30
+     74|         });
+     75|         req.on("end", () => {
+     76|           const input = JSON.parse(raw);
+       |                              ^
+     77|           requests++;
+     78|           tools.push(input.tools ?? []);
+ ❯ IncomingMessage.emit node:events:514:28
+ ❯ endReadableNT node:internal/streams/readable:1764:12
+ ❯ processTicksAndRejections node:internal/process/task_queues:90:21
+
+This error originated in "src/__tests__/lib/delivery/acceptance-native.integration.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "automatically plans once, persists actual model provenance, and replays result ACK without inference". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+     Errors  1 error
+   Start at  06:22:50
+   Duration  2.38s (transform 393ms, setup 0ms, collect 486ms, tests 1.74s, environment 0ms, prepare 40ms)
+

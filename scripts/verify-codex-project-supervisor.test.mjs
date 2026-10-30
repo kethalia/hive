@@ -1837,3 +1837,60 @@ test("durable source barrier uses exact native history after execution closes an
   );
   assert.equal(relaunched, 0);
 });
+
+test("independent plan finishes before the first manager input without changing original digest", async (t) => {
+  const f = fixture(t),
+    s = await openSupervisor(config(), f.options);
+  t.after(() => s.close());
+  await s.command(ensure);
+  let release;
+  const waiting = new Promise((r) => (release = r));
+  s.config.acceptance = { fixture: true };
+  s.setAcceptanceRuntime({
+    closeAdmission() {},
+    async beforeFirstPrompt(thread) {
+      assert.equal(thread, "thread-one");
+      await waiting;
+      return {
+        planDigest: "e".repeat(64),
+        plan: { requirements: [{ id: "acceptance:behavior", meaning: "fixture scope" }] },
+      };
+    },
+  });
+  const pending = s.command(prompt);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(f.calls.filter((c) => c.method === "turn/start").length, 0);
+  assert.equal(s.state.projects.project.firstPrompt, undefined);
+  release();
+  await pending;
+  const turn = f.calls.find((c) => c.method === "turn/start");
+  assert.equal(turn.params.input[0].text, prompt.text);
+  assert.match(turn.params.input[1].text, /acceptance:behavior/);
+  assert.equal(
+    s.state.projects.project.firstPrompt.digest,
+    createHash("sha256").update(prompt.text).digest("hex"),
+  );
+});
+test("native revocation during independent plan cannot start manager inference", async (t) => {
+  const f = fixture(t),
+    s = await openSupervisor(config(), f.options);
+  t.after(() => s.close());
+  await s.command(ensure);
+  let release;
+  const waiting = new Promise((r) => (release = r));
+  s.config.acceptance = { fixture: true };
+  s.setAcceptanceRuntime({
+    closeAdmission() {},
+    async beforeFirstPrompt() {
+      await waiting;
+      return { planDigest: "e".repeat(64), plan: {} };
+    },
+  });
+  const pending = s.command(prompt);
+  await new Promise((r) => setImmediate(r));
+  f.runtime.die();
+  release();
+  await assert.rejects(pending);
+  assert.equal(f.calls.filter((c) => c.method === "turn/start").length, 0);
+  assert.equal(s.state.projects.project.firstPrompt, undefined);
+});

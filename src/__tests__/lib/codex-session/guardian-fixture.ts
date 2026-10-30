@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import { encrypt } from "@hive/auth";
-import type { PrismaClient } from "@hive/db";
+import type { PrismaClient, ProjectTaskIntent } from "@hive/db";
 import {
   expectedGuardianHostConfig,
   guardianConfigSha256,
@@ -17,6 +17,7 @@ import {
 } from "@/lib/codex-session/guardian-contracts";
 import { GuardianAdmissionStore } from "@/lib/codex-session/guardian-store.server";
 import type { ManagerDependencies } from "@/lib/delivery/manager.server";
+import type { TaskIntentPayload } from "@/lib/projects/task-intents.server";
 import { taskIntentPayloadSchema } from "@/lib/projects/task-intents.server";
 import { type NativeFixtureHooks, nativeFixture } from "../delivery/native-fixture";
 
@@ -27,6 +28,7 @@ export async function guardianFixture(
   db: PrismaClient,
   hooks: {
     beforeIntent?: NativeFixtureHooks["beforeIntent"];
+    afterQueuedIntent?(payload: TaskIntentPayload, row: ProjectTaskIntent): Promise<void>;
     deliveryExecutionEnabled?: boolean;
     workspaceEnrollment?: boolean;
     physical?: {
@@ -133,7 +135,7 @@ export async function guardianFixture(
         hostRequest,
       });
       const encrypted = encrypt(JSON.stringify(payload), encryptionKey);
-      await db.projectTaskIntent.update({
+      const queuedIntent = await db.projectTaskIntent.update({
         where: { id: row.id },
         data: {
           phase: "queued",
@@ -143,6 +145,7 @@ export async function guardianFixture(
           authTag: Uint8Array.from(encrypted.authTag),
         },
       });
+      await hooks.afterQueuedIntent?.(payload, queuedIntent);
       const enrollmentBinding = hooks.workspaceEnrollment ? { ...host, projects: [] } : host;
       const configSha256 = expectedConfigSha256(enrollmentBinding);
       const runtime = await store.reserveRuntime(enrollmentBinding, {

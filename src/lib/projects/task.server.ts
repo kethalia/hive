@@ -8,6 +8,7 @@ import {
   createRegisteredSessionService,
   registeredSessionConfig,
 } from "@/lib/codex-session/registered-session.server";
+import { acceptanceServices } from "@/lib/delivery/acceptance-factory.server";
 import { ProjectDiscoveryError } from "./errors";
 import { type ProjectPrincipal, signedHostProjectRequest } from "./host.server";
 import { resolvedRepositorySchema } from "./session-contracts";
@@ -171,7 +172,13 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
 function taskIntentStore(pinPolicy?: ConstructorParameters<typeof ProjectTaskIntents>[2]) {
   const key = process.env.ENCRYPTION_KEY;
   if (!key) throw new Error("Task intent encryption unavailable");
-  return new ProjectTaskIntents(getDb(), key, pinPolicy);
+  const acceptance = acceptanceServices(getDb());
+  return new ProjectTaskIntents(
+    getDb(),
+    key,
+    pinPolicy,
+    acceptance ? (tx, input, row) => acceptance.store.captureIntent(tx, input, row) : undefined,
+  );
 }
 async function authorizeIntentPolicy(ownerId: string, taskId: string) {
   const row = await getDb().projectTaskIntent.findUnique({

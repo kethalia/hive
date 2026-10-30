@@ -1,4 +1,10 @@
 import type { Prisma, PrismaClient } from "@hive/db";
+import {
+  acceptanceEvidenceProducer,
+  acceptancePlanForIntent,
+  authorizeAcceptanceEvidence,
+  bindAcceptanceTask,
+} from "./acceptance-policy.server";
 
 import { githubSourceDigest } from "./github-evidence.server";
 import {
@@ -67,7 +73,10 @@ function stepEvidence(
     ].sort(),
   };
 }
-export function repositoryPolicyAdapters(store: RepositoryPolicyStore) {
+export function repositoryPolicyAdapters(
+  store: RepositoryPolicyStore,
+  { independentAcceptance = true } = {},
+) {
   async function resolve(scope: { ownerId: string; taskId: string }, tx?: Tx) {
     if (!tx) throw new DeliveryConflict("repository_policy_transaction_required");
     return store.resolveTask(tx, scope.ownerId, scope.taskId);
@@ -94,9 +103,28 @@ export function repositoryPolicyAdapters(store: RepositoryPolicyStore) {
       policy: stepEvidence(bound, scope.stepId).policy,
     };
     const resolved = resolveConfiguredGitHubManagerPolicy(scope, configured);
-    const pending = bound.projection.pendingRequirements.filter((p) => p.stepId === scope.stepId);
+    if (!tx) throw new DeliveryConflict("repository_policy_transaction_required");
+    const acceptance = independentAcceptance
+      ? await acceptancePlanForIntent(tx, scope.ownerId, bound.binding.intentId)
+      : null;
+    const semanticProducer = acceptance ? acceptanceEvidenceProducer(acceptance.digest) : null;
+    const supports = (id: string, kind: string) =>
+      acceptance &&
+      kind === "review" &&
+      scope.acceptancePhase === "implementation_preview" &&
+      acceptance.plan.requirements.some((r) => r.id === id && r.phase === scope.acceptancePhase);
+    const pending = bound.projection.pendingRequirements.filter(
+      (p) => p.stepId === scope.stepId && !supports(p.criterionId, p.kind),
+    );
+    const evidencePolicy = semanticProducer
+      ? {
+          ...resolved.policy,
+          trustedProducers: [...resolved.policy.trustedProducers, semanticProducer],
+        }
+      : resolved.policy;
     return {
       ...resolved,
+      policy: evidencePolicy,
       mandatoryRepositoryGates: true,
       pendingRequirements: pending,
       authorityDigest: githubSourceDigest({
@@ -104,13 +132,38 @@ export function repositoryPolicyAdapters(store: RepositoryPolicyStore) {
         policyDigest: bound.binding.policyDigest,
         bindingDigest: bound.binding.bindingDigest,
         evidence: resolved.authorityDigest,
+        ...(acceptance
+          ? {
+              acceptancePlanDigest: acceptance.row.planDigest,
+              acceptanceProducer: acceptance.digest,
+            }
+          : {}),
       }),
       async authorizeReferences(transaction, ids, requireCoverage) {
         // Re-lock at the eventual mutation/observation, not just at selection.
         const fresh = await store.resolveTask(transaction, scope.ownerId, scope.taskId);
         if (!fresh || fresh.binding.bindingDigest !== bound.binding.bindingDigest)
           throw new DeliveryConflict("repository_policy_binding_changed");
-        await resolved.authorizeReferences(transaction, ids, requireCoverage);
+        const supplied = await transaction.deliveryEvidence.findMany({
+          where: { ownerId: scope.ownerId, id: { in: ids } },
+          select: { id: true, producer: true },
+        });
+        const semanticIds = supplied
+          .filter((e) => e.producer === semanticProducer)
+          .map((e) => e.id);
+        await resolved.authorizeReferences(
+          transaction,
+          ids.filter((id) => !semanticIds.includes(id)),
+          requireCoverage,
+        );
+        if (acceptance)
+          await authorizeAcceptanceEvidence(
+            transaction,
+            scope,
+            bound.binding.intentId,
+            semanticIds,
+            requireCoverage,
+          );
         if (requireCoverage) {
           const evidence = await transaction.deliveryEvidence.findMany({
             where: { ownerId: scope.ownerId, stepId: scope.stepId, id: { in: ids } },
@@ -140,6 +193,21 @@ export function repositoryPolicyAdapters(store: RepositoryPolicyStore) {
               requiredKinds: [group.kind],
               policyVersion: resolved.policy.version,
               trustedProducers: resolved.policy.trustedProducers,
+              now,
+              maxAgeMs: resolved.policy.maxAgeMs,
+              evidence,
+            });
+          const semanticCriteria = scope.criterionIds.filter((id) => supports(id, "review"));
+          if (semanticProducer && semanticCriteria.length)
+            assertCompletionEvidence({
+              ownerId: scope.ownerId,
+              stepId: scope.stepId,
+              sourceSha: scope.sourceSha,
+              acceptancePhase: scope.acceptancePhase,
+              criterionIds: semanticCriteria,
+              requiredKinds: ["review"],
+              policyVersion: resolved.policy.version,
+              trustedProducers: [semanticProducer],
               now,
               maxAgeMs: resolved.policy.maxAgeMs,
               evidence,
@@ -250,6 +318,7 @@ export function repositoryPolicyAdapters(store: RepositoryPolicyStore) {
       )
         return;
       await store.bindCreatedTask(tx, ownerId, taskId, intentId);
+      await bindAcceptanceTask(tx, ownerId, taskId, intentId);
     },
   };
 }

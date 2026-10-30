@@ -45,6 +45,12 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
     for (const name of [
       "codex-source-application.mjs",
       "codex-delivery-runtime.mjs",
+      "codex-acceptance-native.mjs",
+      "codex-acceptance-pump.mjs",
+      "codex-acceptance-runtime.mjs",
+      "delivery-acceptance-client.mjs",
+      "delivery-acceptance-material.mjs",
+      "delivery-acceptance-material.py",
       "delivery-source-apply-client.mjs",
       "delivery-source-apply-worker.py",
     ])

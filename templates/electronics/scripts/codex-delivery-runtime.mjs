@@ -2,6 +2,7 @@
 // model arguments never choose keys, paths, producer identity or authority.
 import { lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { createInstalledAcceptanceRuntime } from "./codex-acceptance-runtime.mjs";
 import { createSourceApplication } from "./codex-source-application.mjs";
 import { createDeliveryGitHubCollector } from "./delivery-github-collector.mjs";
 import { createDeliveryManagerAdapter } from "./delivery-manager-adapter.mjs";
@@ -178,7 +179,7 @@ export async function createInstalledDeliveryRuntime({
       },
     ]),
   );
-  let publisher, sourceState, statusClient;
+  let publisher, sourceState, statusClient, acceptance;
   try {
     publisher = createDeliverySourcePublisher({
       enabled: true,
@@ -208,6 +209,20 @@ export async function createInstalledDeliveryRuntime({
       authorizeMetadata,
       fetchImpl: request,
     });
+    if (config.acceptance) {
+      acceptance = createInstalledAcceptanceRuntime({
+        config,
+        home,
+        supervisor,
+        controller,
+        registration,
+        guardian: applicationGuardian,
+        active,
+        fetchImpl: request,
+        signal: network.signal,
+      });
+      supervisor.setAcceptanceRuntime(acceptance);
+    }
     const collector = createDeliveryGitHubCollector({
       enabled: true,
       sourceProtocol: 1,
@@ -345,11 +360,21 @@ export async function createInstalledDeliveryRuntime({
       revalidateBoundary: (value, next, call) =>
         supervisor.revalidateDeliveryBoundary(value, next, call),
       currentSource: (thread) => controller.currentSource(thread),
+      ...(acceptance ? { readAcceptancePlan: (thread) => acceptance.readPlan(thread) } : {}),
       readStatus: async (claim) => {
         active();
         const status = await statusClient.read(claim.managerThreadId);
         active();
         check(context(claim.managerThreadId).attemptId === claim.attemptId);
+        if (acceptance && status.source.operationId && status.source.sourceContext)
+          acceptance.scheduleReview(
+            claim.managerThreadId,
+            {
+              operationId: status.source.operationId,
+              revisionId: status.source.sourceContext.revisionId,
+            },
+            sourceState,
+          );
         if (collectionPrerequisites(status)) {
           pendingCollections.set(claim.managerThreadId, {
             managerThreadId: claim.managerThreadId,
@@ -373,6 +398,11 @@ export async function createInstalledDeliveryRuntime({
         const result = await publisher.publish(claim.managerThreadId, proposed);
         active();
         check(context(claim.managerThreadId).attemptId === c.attemptId);
+        acceptance?.scheduleReview(
+          claim.managerThreadId,
+          { operationId: proposed.operationId, revisionId: result.sourceContext.revisionId },
+          sourceState,
+        );
         pendingCollections.set(claim.managerThreadId, {
           managerThreadId: claim.managerThreadId,
           taskId: c.taskId,
@@ -384,7 +414,22 @@ export async function createInstalledDeliveryRuntime({
         return result;
       },
       readAcceptedSource: (claim, query) => sourceState.readForApply(claim.managerThreadId, query),
-      applyAcceptedSource: (value, facts) => application.applyAcceptedSource(value, facts),
+      applyAcceptedSource: async (value, facts) => {
+        await acceptance?.closeAdmission();
+        const result = await application.applyAcceptedSource(value, facts);
+        active();
+        acceptance?.reopenAdmission();
+        if (acceptance)
+          await acceptance.reviewCurrent(
+            value.managerThreadId,
+            {
+              operationId: facts.accepted.operationId,
+              revisionId: facts.accepted.sourceContext.revisionId,
+            },
+            sourceState,
+          );
+        return result;
+      },
       onObserverHold: ({ managerThreadId, reason }) => {
         stopCollection("native_observer_held");
         if (supervisor.state.projects[project.projectId]?.threadId === managerThreadId)
@@ -422,6 +467,7 @@ export async function createInstalledDeliveryRuntime({
       if (closing) return closing;
       closed = true;
       network.abort();
+      const acceptanceClosing = acceptance?.close();
       unsubscribeNative?.();
       unsubscribeRegistration?.();
       clearTimeout(timer);
@@ -433,6 +479,7 @@ export async function createInstalledDeliveryRuntime({
           const outcomes = await Promise.race([
             Promise.allSettled([
               collection,
+              acceptanceClosing,
               sourceState.close(),
               statusClient.close(),
               publisher.close(),
@@ -467,10 +514,12 @@ export async function createInstalledDeliveryRuntime({
   } catch (error) {
     closed = true;
     network.abort();
+    const acceptanceClosing = acceptance?.close();
     unsubscribeNative?.();
     unsubscribeRegistration?.();
     clearTimeout(timer);
     await Promise.allSettled([
+      acceptanceClosing,
       publisher?.close(),
       sourceState?.close(),
       statusClient?.close(),

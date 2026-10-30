@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "onlyTaskCreatedFixtures": [".ai-WJ6V6k", ".ae-wNWCfw", ".ae-25rjhO", ".ae-C7KP1h"],
+  "matchingProcessReferences": 0,
+  "uninspectableSameUidProcesses": 0,
+  "syntheticAuthOnly": true,
+  "removedAfterEvidencePreserved": true
+}

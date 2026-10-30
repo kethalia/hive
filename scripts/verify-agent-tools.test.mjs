@@ -60,6 +60,10 @@ for (const [label, script] of [
     "test_managed_source_apply.py",
   ],
   ["private accepted-source worker and lost-ack recovery", "test_delivery_source_apply_worker.py"],
+  [
+    "independent acceptance reads only sealed publication material",
+    "test_delivery_acceptance_material.py",
+  ],
   ["managed project lease renewal", "test_codex_project_lease.py"],
   ["pinned host package installation and provisioner identity", "test_codex_host_install.py"],
 ]) {

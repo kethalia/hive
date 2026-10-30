@@ -178,6 +178,16 @@ class HostInstallerTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 installer.validate_execution_config({**enabled, **patch_value})
 
+    def test_acceptance_requires_exact_explicit_delivery_producer(self):
+        producer = {"schemaVersion": 1, "codeDigest": "a" * 64, "promptDigest": "b" * 64, "schemaDigest": "c" * 64, "permissionsDigest": "5cb0236664ba9833dc964200828cc6b650583eb0b7d2bd43d587889c5a9b175b", "runtimeVersion": "0.165.0", "model": "gpt-6.1-sol", "effort": "low", "maxDurationMs": 30000, "maxInputBytes": 262144, "maxOutputBytes": 65536}
+        enabled = {"profile": "software", "enabled": True, "managerEnabled": True, "guardianEnabled": True, "nativeIsolationEnabled": True, "deliveryExecutionEnabled": True, "acceptance": producer}
+        installer.validate_execution_config(enabled)
+        for patch_value in ({"allowTools": True}, {"maxDurationMs": 300001}, {"codeDigest": "invalid"}, {"maxInputBytes": True}, {"runtimeVersion": "future"}):
+            with self.assertRaises(RuntimeError):
+                installer.validate_execution_config({**enabled, "acceptance": {**producer, **patch_value}})
+        with self.assertRaises(RuntimeError):
+            installer.validate_execution_config({**enabled, "deliveryExecutionEnabled": False})
+
     def test_specialist_activation_is_rejected_before_start(self):
         with patch.dict(os.environ, {"HIVE_WORKSPACE_PROFILE": "browser"}), patch.object(installer.subprocess, "Popen") as start:
             with self.assertRaises(RuntimeError):

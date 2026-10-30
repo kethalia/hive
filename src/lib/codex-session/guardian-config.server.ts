@@ -1,5 +1,6 @@
 import { createHash, createPublicKey } from "node:crypto";
 import { z } from "zod";
+import { acceptanceDeploymentConfig } from "@/lib/delivery/acceptance-config.server";
 import type { RegisteredSessionConfig } from "./registered-session.server";
 import type { RegistrationBinding } from "./registration.server";
 
@@ -20,6 +21,7 @@ export function expectedGuardianHostConfig(
   const deliveryExecutionEnabled = env.HIVE_DELIVERY_EXECUTION_ENABLED === "true";
   if (deliveryExecutionEnabled && env.HIVE_DELIVERY_MANAGER_ENABLED !== "true")
     throw new Error("Delivery execution requires manager policy");
+  const acceptance = acceptanceDeploymentConfig(env);
   const publicKey = createPublicKey(config.privateKeyPem);
   if (publicKey.asymmetricKeyType !== "ed25519") throw new Error("Guardian issuer rejected");
   const { projects: _projects, ...hostBinding } = binding;
@@ -38,6 +40,7 @@ export function expectedGuardianHostConfig(
     nativeIsolationEnabled: true,
     guardianEnabled: true,
     ...(deliveryExecutionEnabled ? { deliveryExecutionEnabled: true } : {}),
+    ...(acceptance ? { acceptance } : {}),
   };
 }
 /** Matches the installed Python writer: sorted ASCII keys, compact JSON, LF. */
