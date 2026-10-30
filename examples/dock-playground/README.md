@@ -45,7 +45,10 @@ slot (260ms). Overflow controls retain their settled state until the layout fini
 temporary scroll arrows while the tray makes room. At the viewport limit, real overflow controls
 update after the mutation. Removing a space
 first fades/scales its cap out (180ms), then resizes the tray and slides surviving caps into their
-new positions (440ms). Mutations are coordinated so repeated actions cannot overlap; Back can
+new positions together (440ms, with the same easing). All final cap positions are measured before
+resize playback starts, including removal of scroll arrows when the remaining row fits. This
+keeps caps anchored to the centered tray and prevents a second snap after playback.
+Mutations are coordinated so repeated actions cannot overlap; Back can
 queue a return while they finish. Reduced-motion mutations finish immediately.
 
 - **Apps / Add window:** opens Search Hive with Terminal, Files, VS Code, Desktop, built-in Hive tool
@@ -141,6 +144,8 @@ Run `validate-spaces.browser.mjs` for cap entry/exit, surviving-cap movement, tr
 mobile overflow, queued Back, and reduced-motion mutations. It observes DOM insertions to catch
 transient scroll arrows and verifies that the tray finishes expanding before a new cap appears.
 It records per-frame cap opacity, position, tray width, and scroll-control presence.
+Removal checks cover first/middle/last caps, shared resize/movement progress, and the overflow
+boundary, including frames after playback to catch any final position snap.
 
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,

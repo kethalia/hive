@@ -123,9 +123,13 @@ export function useDockSpaces({
     nav.dataset.measuring = "true";
     nav.style.width = "max-content";
     const bounds = nav.getBoundingClientRect();
-    delete nav.dataset.measuring;
     nav.style.width = `${bounds.width}px`;
     const options = nav.querySelector<HTMLElement>(".hive-dock-options");
+    const frame = nav.querySelector<HTMLElement>(".hive-dock-scroll-frame");
+    // If the final row fits, keep its old arrows hidden throughout playback.
+    // Removing them only after playback would shift every cap by an arrow's width.
+    if (!options || !frame || options.scrollWidth > frame.clientWidth + 1)
+      delete nav.dataset.measuring;
     const selected = Array.from(nav.querySelectorAll<HTMLElement>("[data-dock-space]")).find(
       (node) => node.dataset.dockSpace === activeId,
     );
@@ -138,16 +142,25 @@ export function useDockSpaces({
     const adding = ids.some((id) => !before.positions.has(id));
     const resizeDuration = adding ? 280 : 440;
     const entryDelay = Math.abs(bounds.width - before.width) > 0.5 ? resizeDuration : 0;
+    // Read every destination before animating width: a centered tray moves as it
+    // resizes, so measuring against the final bounds after playback starts adds
+    // half the width change to each cap's movement.
+    const caps = Array.from(nav.querySelectorAll<HTMLElement>("[data-dock-space]")).map((node) => {
+      const old = before.positions.get(node.dataset.dockSpace ?? "");
+      return {
+        node,
+        delta:
+          old === undefined ? undefined : old - (node.getBoundingClientRect().left - bounds.left),
+      };
+    });
     const next: Animation[] = [
       nav.animate([{ width: `${before.width}px` }, { width: `${bounds.width}px` }], {
         duration: resizeDuration,
         easing: "cubic-bezier(.25, .8, .25, 1)",
       }),
     ];
-    for (const node of nav.querySelectorAll<HTMLElement>("[data-dock-space]")) {
-      const id = node.dataset.dockSpace ?? "";
-      const old = before.positions.get(id);
-      if (old === undefined)
+    for (const { node, delta } of caps) {
+      if (delta === undefined)
         next.push(
           node.animate(
             [
@@ -163,7 +176,6 @@ export function useDockSpaces({
           ),
         );
       else {
-        const delta = old - (node.getBoundingClientRect().left - bounds.left);
         if (Math.abs(delta) > 0.5)
           next.push(
             node.animate(
@@ -178,6 +190,12 @@ export function useDockSpaces({
       .then(release)
       .catch(() => {});
   });
+
+  useLayoutEffect(() => {
+    // The scroll area measures the settled layout in this same React commit.
+    // Keep the width-measurement override until that commit, including async callbacks.
+    if (!busy && !running.current && navRef.current) delete navRef.current.dataset.measuring;
+  }, [busy, navRef]);
 
   useEffect(() => {
     alive.current = true;

@@ -22,19 +22,22 @@ async function sample(name) {
       new Promise((resolve) => {
         const frames = [],
           start = performance.now();
+        let settled = 0;
         const frame = () => {
           frames.push({
             time: Math.round(performance.now() - start),
+            busy: node.dataset.spacesChanging === "true",
             width: node.getBoundingClientRect().width,
             scrollControls: node.querySelectorAll("[data-dock-scroll-control]").length,
             spaces: Array.from(node.querySelectorAll("[data-dock-space]")).map((item) => ({
               id: item.dataset.dockSpace,
               opacity: Number(getComputedStyle(item).opacity),
               x: new DOMMatrix(getComputedStyle(item).transform).m41,
+              relativeLeft: item.getBoundingClientRect().left - node.getBoundingClientRect().left,
             })),
           });
-          if (node.dataset.spacesChanging !== "true" || performance.now() - start > 2500)
-            resolve(frames);
+          if (node.dataset.spacesChanging !== "true") settled++;
+          if (settled >= 3 || performance.now() - start > 2500) resolve(frames);
           else requestAnimationFrame(frame);
         };
         requestAnimationFrame(frame);
@@ -43,6 +46,17 @@ async function sample(name) {
   await idle();
   await writeFile(resolve(output, `${name}.json`), JSON.stringify(frames, null, 2));
   return frames;
+}
+function assertRemovalSettles(frames) {
+  const moving = frames.findLast((frame) => frame.busy),
+    settled = frames.at(-1);
+  for (const space of settled.spaces) {
+    const prior = moving.spaces.find((item) => item.id === space.id);
+    assert.ok(
+      Math.abs(prior.relativeLeft - space.relativeLeft) < 1,
+      "Surviving caps reach their final positions before the animation is released",
+    );
+  }
 }
 async function createWithoutOverflow(name) {
   const count = await dock.locator("[data-dock-space]").count();
@@ -106,6 +120,7 @@ try {
   await dock.getByRole("button", { name: "Remove workspace 2", exact: true }).click();
   await expect(dock).toHaveAttribute("data-spaces-changing", "true");
   const removed = await sample("remove-space");
+  assertRemovalSettles(removed);
   assert.ok(
     removed.some((frame) =>
       frame.spaces.some(
@@ -120,6 +135,26 @@ try {
     ),
     "Survivors slide into the gap",
   );
+  const start = removed[0],
+    end = removed.at(-1);
+  const firstLeft = start.spaces[0].relativeLeft;
+  assert.ok(
+    removed.every((frame) => Math.abs(frame.spaces[0].relativeLeft - firstLeft) < 0.75),
+    "The first cap stays anchored to the tray while a middle cap is removed",
+  );
+  const survivorStart = start.spaces.find((space) => space.id === survivorId).relativeLeft,
+    survivorEnd = end.spaces.find((space) => space.id === survivorId).relativeLeft;
+  for (const frame of removed.filter(
+    (frame) => !frame.spaces.some((space) => space.id === removedId),
+  )) {
+    const progress = (start.width - frame.width) / (start.width - end.width);
+    const expected = survivorStart + (survivorEnd - survivorStart) * progress;
+    const actual = frame.spaces.find((space) => space.id === survivorId).relativeLeft;
+    assert.ok(
+      Math.abs(actual - expected) < 1,
+      "Surviving caps and tray resize share one easing curve",
+    );
+  }
   await expect(dock.locator(".hive-dock-space")).toHaveCount(2);
   await expect(
     dock.getByRole("button", { name: "Workspace 1: Workspace 1", exact: true }),
@@ -147,7 +182,7 @@ try {
   await expect(dock.getByRole("button", { name: "Scroll spaces left" })).toBeVisible();
   await expect(dock.getByRole("button", { name: "Scroll spaces right" })).toBeVisible();
   await dock.getByRole("button", { name: "Remove workspace 9", exact: true }).click();
-  await sample("mobile-remove");
+  assertRemovalSettles(await sample("mobile-remove"));
   await expect(dock.locator(".hive-dock-space")).toHaveCount(8);
   await expect(
     dock.getByRole("button", { name: "Workspace 1: Workspace 1", exact: true }),
@@ -186,6 +221,33 @@ try {
   await expect(dock.locator(".hive-dock-workspace[aria-current='page']")).toBeInViewport();
   checks.push(
     "At 320px, a fitting space creates no transient arrows; crossing the viewport limit still enables real overflow controls and reveals the new selection.",
+  );
+  const overflowingCount = await dock.locator("[data-dock-space]").count();
+  await dock
+    .getByRole("button", { name: `Remove workspace ${overflowingCount}`, exact: true })
+    .click();
+  const fitsAgain = await sample("mobile-remove-overflow");
+  assertRemovalSettles(fitsAgain);
+  await expect(dock.locator("[data-dock-scroll-control]")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.reload();
+  await dock.getByRole("button", { name: "Workspaces", exact: true }).click();
+  await idle();
+  for (let i = 0; i < 3; i++) {
+    await create.click();
+    await idle();
+  }
+  for (const index of [1, 3]) {
+    await dock
+      .locator(".hive-dock-workspace")
+      .nth(index - 1)
+      .click();
+    await dock.getByRole("button", { name: `Remove workspace ${index}`, exact: true }).click();
+    assertRemovalSettles(await sample(`remove-${index === 1 ? "first" : "last"}-space`));
+  }
+  checks.push(
+    "First, middle, last, and overflow-boundary removals finish without a final position snap.",
   );
   assert.deepEqual(errors, []);
   const results = { passed: true, checks, browserErrors: errors };
