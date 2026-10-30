@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:10:57.237702+00:00",
+  "testsPassed": 23,
+  "testsSkipped": 1,
+  "goVersion": "go1.26.10",
+  "reviewed": true,
+  "blockingFindings": [],
+  "sourceDigests": {
+    "main.go": "2ae7e098ea75bc7f9f19a30f4c4834b08f37ed2478dcf8aa7dad7586db8acf0c",
+    "main_test.go": "d4340b52f391f6e3b2855bea6f483df835f75128a648a978556466839d31d46f",
+    "go.mod": "4e762cd3d765362aeec5a12b9b58c72a77504df8a1b5ae0a7cac8237b8dcd62a",
+    "go.sum": "05e5cd00e38f889585c41983fec3b7039849cdbb8ad1e6219936c55b212ca852"
+  },
+  "newImageRequired": true,
+  "installedHelperReplaced": false
+}

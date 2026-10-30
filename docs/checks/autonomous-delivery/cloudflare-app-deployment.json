@@ -853,5 +853,22 @@
         "No browser validation of deployed artifact"
       ]
     }
-  ]
+  ],
+  "nativeIssuer": {
+    "keyId": "hive-preview-8af375a9-984b-497b-a56e-24a9947e0436",
+    "publicKeySHA256": "7d4c23f5009924eec357fef5e7da0bd2cf5538992df89d0ebabf1678efab534a",
+    "scope": {
+      "hiveOrigin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+      "coderOrigin": "https://coder.kethalia.com",
+      "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42"
+    }
+  },
+  "nativeIssuerEvidence": {
+    "candidate": "cloudflare-app-candidate.json",
+    "matchedSourceRevision": "106721df264ae25e860229efb43362d7d77d23b2",
+    "matchedPreparationRunId": "4ca691cd-f406-4fc7-8890-26ac5ceb1cbd",
+    "originalConfigAndSecretFileHashesVerified": true,
+    "retainedPrivateIssuerMatchesOriginalSecret": true,
+    "cloudWrites": 0
+  }
 }
