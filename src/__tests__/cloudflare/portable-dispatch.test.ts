@@ -88,4 +88,18 @@ describe("explicit portable terminal and discovery dispatch", () => {
     expect((await dispatch(request("/api/auth/terminal-ticket", "POST"))).status).toBe(503);
     expect(mock.framework).not.toHaveBeenCalled();
   });
+  it("paste admits only the fixed POST behind its own explicit flag", async () => {
+    const path = "/api/workspaces/10000000-0000-4000-8000-000000000001/terminal/paste-assets";
+    expect((await dispatch(request(path, "POST"))).status).toBe(503);
+    const enabled = { ...env(), HIVE_TERMINAL_PASTE_ENABLED: "true" };
+    expect((await dispatch(request(path, "POST"), enabled)).status).toBe(404);
+    expect(mock.framework).toHaveBeenCalledOnce();
+    expect((await dispatch(request(path, "GET"), enabled)).status).toBe(503);
+    expect((await dispatch(request(`${path}/extra`, "POST"), enabled)).status).toBe(503);
+    expect(
+      (await dispatch(request(path.replace("terminal/paste-assets", "voice"), "POST"), enabled))
+        .status,
+    ).toBe(503);
+    expect(mock.framework).toHaveBeenCalledOnce();
+  });
 });

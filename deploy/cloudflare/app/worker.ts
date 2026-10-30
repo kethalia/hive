@@ -28,9 +28,11 @@ import { type ProjectRelayEnvironment, projectRelay } from "./project-relay-runt
 import { runProjectTaskReconciliation } from "./project-tasks";
 import { runRequestLifetime } from "./request-lifetime";
 import { isPortableTemplatePublication } from "./template-publications";
+import { type TerminalPasteEnvironment, terminalPastePath } from "./terminal-paste-runtime";
 
 type Environment = ProjectRelayEnvironment &
   GenericTerminalEnvironment &
+  TerminalPasteEnvironment &
   ProjectReconcileEnvironment &
   HostCallbackCapabilities & {
     DATABASE_URL?: string;
@@ -91,7 +93,12 @@ export default {
       (pathname === "/api/auth/terminal-ticket" && env.HIVE_GENERIC_TERMINAL_ENABLED !== "true") ||
       pathname === "/api/notifications/events" ||
       (pathname === "/api/notifications/sources" && request.method !== "GET") ||
-      /^\/api\/workspaces\/[^/]+\/(voice|terminal\/paste-assets)(\/|$)/.test(pathname);
+      (/^\/api\/workspaces\/[^/]+\/(voice|terminal\/paste-assets)(\/|$)/.test(pathname) &&
+        !(
+          env.HIVE_TERMINAL_PASTE_ENABLED === "true" &&
+          request.method === "POST" &&
+          terminalPastePath(request)
+        ));
     if (requiresHost)
       return Response.json(
         { error: "This capability requires the scoped host bridge or durable job adapter." },

@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 export function validatePreviewRedeployment(preflight, previous, accountId, workerNames) {
   assert.equal(previous.accountId, accountId);
   assert.match(previous.sourceRevision, /^[a-f0-9]{40}$/);
-  assert.equal(previous.probe.finalPassed, true);
+  // Failed preview checks must remain recorded and repairable. Ownership and
+  // private state authorize this update; acceptance still gates release separately.
+  assert.equal(typeof previous.probe?.finalPassed, "boolean", "Record the prior probe outcome");
   for (const [kind, name] of Object.entries(workerNames)) {
     const identity = previous.scriptIdentities.find((item) => item.name === name);
     const deployment = previous.workers[kind];

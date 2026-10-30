@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:30:24.700550+00:00",
+  "hiveOwnerId": "3a8174c9-5c45-4b54-bdb8-2ed03b9b2f34",
+  "coderOwnerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "repositoryId": "1183966024",
+  "githubAccountId": "62855857",
+  "database": "hive_app_preview",
+  "databaseRole": "hive_app_runtime",
+  "rows": [],
+  "readOnly": true,
+  "productionAccessed": false,
+  "hostStateNotYetInspected": true
+}

@@ -16,6 +16,39 @@ afterEach(() => {
 });
 
 describe("proxy", () => {
+  it("passes only exact project API methods to their route-owned JSON authentication", () => {
+    const origin = "https://hive.example";
+    const project = "/api/projects/22222222-2222-4222-8222-222222222222";
+    for (const [path, method] of [
+      ["/api/projects", "GET"],
+      ["/api/projects/open", "POST"],
+      [`${project}/session-grant`, "POST"],
+      [`${project}/terminal-grant`, "POST"],
+      [`${project}/tasks/start`, "POST"],
+      [`${project}/tasks/retry`, "POST"],
+      [`${project}/tasks/status`, "POST"],
+    ]) {
+      const result = proxy(new NextRequest(`${origin}${path}`, { method }));
+      expect(result.headers.get("x-middleware-next")).toBe("1");
+      expect(result.headers.get("location")).toBeNull();
+    }
+    for (const [path, method] of [
+      ["/api/projects", "POST"],
+      ["/api/projects/open", "GET"],
+      ["/api/projects/open/extra", "POST"],
+      ["/api/projects/%6fpen", "POST"],
+      [`${project}/session-grant`, "GET"],
+      [`${project}/terminal-grant/extra`, "POST"],
+      [`${project}/tasks/start`, "GET"],
+      [`${project}/tasks/status`, "GET"],
+      ["/api/projects/not-a-uuid/tasks/status", "GET"],
+    ]) {
+      expect(proxy(new NextRequest(`${origin}${path}`, { method })).headers.get("location")).toBe(
+        `${origin}/login`,
+      );
+    }
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+  });
   it("routes enabled host delivery callbacks to signature authentication without browser authority", () => {
     for (const name of [
       "HIVE_CODEX_GATEWAY_ENABLED",

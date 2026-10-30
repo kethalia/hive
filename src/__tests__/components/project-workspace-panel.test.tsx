@@ -85,6 +85,51 @@ async function select() {
   fireEvent.click(await screen.findByRole("button", { name: "owner/repo" }));
 }
 describe("project task workspace", () => {
+  it("opens a repository without task execution and never submits or polls a task", async () => {
+    render(
+      <ProjectWorkspacePanel workspaceId={workspaceId} visible enabled tasksEnabled={false} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "owner/repo" }));
+    await screen.findByText("Project opened. Starting tasks is currently unavailable.");
+    expect(screen.queryByRole("button", { name: "Start task" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "What do you need?" })).not.toBeInTheDocument();
+    expect(
+      vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/tasks/")),
+    ).toHaveLength(0);
+    expect(useProjectConversation).toHaveBeenLastCalledWith(projectId, false);
+  });
+  it("reads an already registered conversation with tasks disabled without starting or recovering it", async () => {
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) =>
+      String(args[0]) === "/api/projects/open"
+        ? response({
+            ...opened,
+            phase: "running",
+            currentTaskId: taskId,
+            nativeThreadId: "registered-thread",
+            terminalSessionName: `project-${"a".repeat(24)}`,
+          })
+        : original(...args),
+    );
+    render(
+      <ProjectWorkspacePanel workspaceId={workspaceId} visible enabled tasksEnabled={false} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "owner/repo" }));
+    await screen.findByRole("region", { name: "Codex conversation" });
+    expect(useProjectConversation).toHaveBeenLastCalledWith(projectId, true);
+    expect(
+      vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/tasks/")),
+    ).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Start task" })).not.toBeInTheDocument();
+  });
+  it("keeps disabled discovery from exposing repository selection", async () => {
+    render(
+      <ProjectWorkspacePanel workspaceId={workspaceId} visible enabled={false} tasksEnabled />,
+    );
+    await screen.findByText("Project discovery is not enabled.");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "owner/repo" })).not.toBeInTheDocument();
+  });
   it("submits the displayed policy branch revision instead of the default branch", async () => {
     const defaultFetch = vi.mocked(fetch).getMockImplementation()!;
     vi.mocked(fetch).mockImplementation(async (...args) =>
