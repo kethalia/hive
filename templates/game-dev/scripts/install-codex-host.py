@@ -6,6 +6,7 @@ import gzip
 import hashlib
 import io
 import json
+import lzma
 import os
 from pathlib import Path
 import pwd
@@ -241,11 +242,16 @@ def install_package(root, archive, digest):
 def decode_archive(request):
     archive = base64.b64decode(request["archive"], validate=True)
     encoding = request.get("archiveEncoding", "tar")
-    require(encoding in ("tar", "gzip"))
+    require(encoding in ("tar", "gzip", "xz"))
     if encoding == "gzip":
         require(len(archive) <= 160000)
         with gzip.GzipFile(fileobj=io.BytesIO(archive)) as stream:
             archive = stream.read(2 * 1024 * 1024 + 1)
+    elif encoding == "xz":
+        require(len(archive) <= 160000)
+        stream = lzma.LZMADecompressor(format=lzma.FORMAT_XZ, memlimit=32 * 1024 * 1024)
+        archive = stream.decompress(archive, max_length=2 * 1024 * 1024 + 1)
+        require(stream.eof and not stream.unused_data)
     require(len(archive) <= 2 * 1024 * 1024)
     return archive
 

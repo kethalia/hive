@@ -78,6 +78,9 @@ RUN apt-get update \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
 
+# Managed host bootstraps decode bounded XZ archives with the standard library.
+RUN python3 -c "import lzma"
+
 # notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
 RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
         https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz \

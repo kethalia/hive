@@ -84,6 +84,15 @@ test("compiled delivery preserves source progression, native facts and collector
     "scripts/verify-delivery-github-collector.test.mjs",
   ]);
 });
+test("compiled source application preserves input barriers and recovery", {
+  timeout: 100000,
+}, (t) => {
+  compiled(t, ["codex-source-application.mjs", "delivery-source-apply-client.mjs"])([
+    "scripts/verify-codex-source-input.test.mjs",
+    "scripts/verify-codex-source-application.test.mjs",
+    "scripts/verify-codex-project-terminal.test.mjs",
+  ]);
+});
 test("compiled namespace preserves actual native WS, CLI, child and resume isolation", {
   skip: process.env.HIVE_TEST_NATIVE_CODEX !== "1",
   timeout: 100000,

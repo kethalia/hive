@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { transform } from "esbuild";
 import tar from "tar-stream";
+import { decodeHostArchive } from "./host-archive-codec.mjs";
 
 export const templateNames = [
   "ai-dev-k8s",
@@ -19,10 +20,16 @@ const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 /** Only omit a loose runtime source after verifying the installed copy, including the
  * exact build transform. Paths referenced by Terraform or bootstrap stay distributable. */
 async function deduplicateHostSources(files) {
-  const gzip = files.find((file) => file.path === "assets/codex-host.tar.gz");
-  if (!gzip) return files;
-  if (gzip.content.length > 160000) throw new Error("Host gzip exceeds metadata bounds");
-  const archive = gunzipSync(gzip.content, { maxOutputLength: 2 * 1024 * 1024 });
+  const packed = files.filter((file) =>
+    ["assets/codex-host.tar.xz", "assets/codex-host.tar.gz"].includes(file.path),
+  );
+  if (!packed.length) return files;
+  if (packed.length !== 1) throw new Error("Ambiguous host archive encoding");
+  const compressed = packed[0];
+  if (compressed.content.length > 160000) throw new Error("Host archive exceeds metadata bounds");
+  const archive = compressed.path.endsWith(".xz")
+    ? decodeHostArchive(compressed.content)
+    : gunzipSync(compressed.content, { maxOutputLength: 2 * 1024 * 1024 });
   const expected = files.find((file) => file.path === "assets/codex-host.tar.sha256");
   if (!expected || expected.content.toString().trim() !== sha256(archive))
     throw new Error("Host archive digest mismatch");

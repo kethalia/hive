@@ -53,6 +53,7 @@ try:
  receipt=json.loads(receipt_path.read_text());ready=receipt['guardianStartup']['ready'];identity=receipt['process']
  target=home/'.local/share/hive/codex-host'/request['archiveSha256']
  result['archiveSha256']=request['archiveSha256']
+ result['archiveEncoding']=request.get('archiveEncoding','tar')
  result['identities']={k:ready[k] for k in ('outerIdentity','guardianIdentity','workerIdentity')}
  result['pins']={k:ready[k] for k in ('configSha256','packageManifestSha256','nodeSha256','workerSha256','guardianSha256')}
  stage='repeat_after_installer_exit'
@@ -330,7 +331,7 @@ test("fixed Python installer and guarded outer attest exact worker readiness and
       [
         "-I",
         "-c",
-        "import io,tarfile,pathlib,hashlib,json,base64,sys;root=pathlib.Path(sys.argv[1]);out=io.BytesIO();tar=tarfile.open(fileobj=out,mode='w');[(lambda p:tar.add(p,arcname=str(p.relative_to(root/'bundle')),recursive=False))(p) for p in sorted((root/'bundle').rglob('*')) if p.is_file()];tar.close();raw=out.getvalue();(root/'request.json').write_text(json.dumps({'schemaVersion':1,'archive':base64.b64encode(raw).decode(),'archiveSha256':hashlib.sha256(raw).hexdigest(),'config':json.loads((root/'config.json').read_text())}))",
+        "import io,tarfile,pathlib,hashlib,json,base64,sys,lzma;root=pathlib.Path(sys.argv[1]);out=io.BytesIO();tar=tarfile.open(fileobj=out,mode='w');[(lambda p:tar.add(p,arcname=str(p.relative_to(root/'bundle')),recursive=False))(p) for p in sorted((root/'bundle').rglob('*')) if p.is_file()];tar.close();raw=out.getvalue();(root/'request.json').write_text(json.dumps({'schemaVersion':1,'archive':base64.b64encode(lzma.compress(raw,format=lzma.FORMAT_XZ,check=lzma.CHECK_CRC64,preset=6)).decode(),'archiveEncoding':'xz','archiveSha256':hashlib.sha256(raw).hexdigest(),'config':json.loads((root/'config.json').read_text())}))",
         directory,
       ],
       { timeout: 5000 },

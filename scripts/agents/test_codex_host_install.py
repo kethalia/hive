@@ -4,6 +4,8 @@ import gzip
 import importlib.util
 import io
 import json
+import lzma
+import zlib
 import os
 from pathlib import Path
 import socket
@@ -44,6 +46,26 @@ class HostInstallerTests(unittest.TestCase):
         request["archiveEncoding"] = "unknown"
         with self.assertRaises(RuntimeError):
             installer.decode_archive(request)
+
+    def test_xz_bootstrap_is_bounded_complete_and_single_stream(self):
+        raw = b"template-owned xz fixture"
+        packed = lzma.compress(raw, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC64, preset=6)
+        def decode(value):
+            return installer.decode_archive({"archive": base64.b64encode(value).decode(), "archiveEncoding": "xz"})
+        self.assertEqual(decode(packed), raw)
+        changed = bytearray(packed); changed[-5] ^= 1
+        for value in (packed[:-1], bytes(changed), packed+b"trailing", packed+packed,
+                      lzma.compress(b"x" * (2 * 1024 * 1024 + 1)), b"x" * 160001):
+            with self.assertRaises((RuntimeError, lzma.LZMAError)):
+                decode(value)
+        # Valid XZ block-header CRC with a 4-GiB dictionary declaration. Reject
+        # from the memory bound before allocating it; no huge compressor fixture.
+        large_dictionary = bytearray(packed)
+        self.assertEqual((large_dictionary[12],large_dictionary[14],large_dictionary[15]), (2,0x21,1))
+        large_dictionary[16] = 40
+        large_dictionary[20:24] = zlib.crc32(large_dictionary[12:20]).to_bytes(4,"little")
+        with self.assertRaises(lzma.LZMAError):
+            decode(bytes(large_dictionary))
 
     @classmethod
     def setUpClass(cls):

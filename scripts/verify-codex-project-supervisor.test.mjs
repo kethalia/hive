@@ -594,6 +594,41 @@ test("actual native first text persists through local mock provider then same-th
   assert.ok(JSON.stringify(history).includes("HIVE_LOCAL_PROVIDER_REPLY"));
   assert.equal(requests.length, 1);
   assert.ok(requests[0].includes(prompt.text));
+  // Explicit trusted fixture installs a pending record to exercise the actual
+  // native read-only seam. This is not a server application or release proof.
+  const sourceEntry = s.state.projects.project;
+  sourceEntry.sourceApplication = {
+    applicationId: randomUUID(),
+    projectId: "project",
+    phase: "closing",
+    serverInstanceId: s.state.serverInstanceId,
+    managerThreadId: created.threadId,
+    cohort: [],
+    barrier: { id: randomUUID(), generation: 1, closed: true },
+  };
+  s.save();
+  const sourceScope = s.sourceApplicationScope("project");
+  await assert.rejects(
+    native.call("turn/start", {
+      threadId: created.threadId,
+      input: [{ type: "text", text: "must not reach provider", text_elements: [] }],
+    }),
+    /input_closed/,
+  );
+  const factual = await s.readSourceApplication(sourceScope, "thread/turns/list", {
+    threadId: created.threadId,
+    limit: 10,
+    sortDirection: "asc",
+    itemsView: "full",
+  });
+  assert.ok(JSON.stringify(factual).includes("HIVE_LOCAL_PROVIDER_REPLY"));
+  await assert.rejects(
+    native.readSourceApplication(sourceScope, "turn/start", { threadId: created.threadId }),
+    /read_unavailable/,
+  );
+  assert.equal(requests.length, 1);
+  delete sourceEntry.sourceApplication;
+  s.save(); // End only this synthetic fence fixture.
   await s.command({ operation: "attach", projectId: "project" });
   await new Promise((r) => setTimeout(r, 1200));
   const pane = execFileSync(
@@ -735,17 +770,31 @@ test("actual native first text persists through local mock provider then same-th
     assert.equal(thread.parentThreadId, null);
     assert.equal(thread.status.type, "active");
   }
+  sourceEntry.sourceApplication = {
+    applicationId: sourceScope.applicationId,
+    projectId: "project",
+    phase: "held",
+    serverInstanceId: s.state.serverInstanceId,
+    managerThreadId: created.threadId,
+    cohort: [],
+    barrier: { id: sourceScope.barrierId, generation: sourceScope.generation, closed: true },
+  };
+  s.save();
   const revocation = await s.revokeExecution("project");
   assert.equal(
     revocation.reviewRequired,
     unknownThreads.length > 0,
     "unmapped active ephemeral threads must retain review hold despite acknowledged root interrupt",
   );
-  const rootAfterInterrupt = await native.call("thread/read", {
+  const rootAfterInterrupt = await s.readSourceApplication(sourceScope, "thread/read", {
     threadId: created.threadId,
-    includeTurns: false,
+    includeTurns: true,
   });
   assert.equal(rootAfterInterrupt.thread.status.type, "idle");
+  assert.equal(sourceEntry.sourceApplication.phase, "held");
+  assert.throws(() => s.assertSourceInputOpen(), /input_closed/);
+  delete sourceEntry.sourceApplication;
+  s.save(); // End synthetic source fixture; durable execution revocation remains.
   await assert.rejects(
     s.command({ operation: "attach", projectId: "project" }),
     /project_execution_revoked/,
@@ -1712,4 +1761,79 @@ test("positive manager receipt arriving after guardian closure cannot be returne
   open = false;
   release();
   await assert.rejects(result, /guardian_closed/);
+});
+
+test("durable source barrier uses exact native history after execution closes and retains read binding", async (t) => {
+  const f = await progressionSupervisor(t),
+    s = f.supervisor;
+  f.runtime.readSourceApplication = async (_scope, method, params) =>
+    f.runtime.call(method, params);
+  f.runtime.inspectCliInputs = () => ({ projectId: "project", activeCli: 0, unknownInputs: 0 });
+  const application = {
+    projectId: "project",
+    applicationId: randomUUID(),
+    publicationOperationId: randomUUID(),
+    targetSourceContext: { revisionId: randomUUID(), version: 1, headSha: "b".repeat(40) },
+    expectedAppliedSourceContext: null,
+    barrier: { id: randomUUID(), generation: 1 },
+  };
+  const scope = s.beginSourceApplication(f.request, application);
+  assert.throws(() => s.assertSourceInputOpen(), /input_closed/);
+  await assert.rejects(s.continueDeliveryRoot(f.request), /input_closed/);
+  const readBinding = s.binding("project");
+  assert.equal(readBinding.threadId, "thread-one");
+  const closed = await s.closeSourceApplicationInputs(f.request, scope, async () => ({
+    projectId: "project",
+    closed: true,
+    activeTerminals: 0,
+    helpersPendingClose: 0,
+    pendingInputs: 0,
+    unknownInputs: 0,
+  }));
+  assert.equal(closed.barrier.rootCompleted, true);
+  assert.equal(closed.boundary.rootTurns, 1);
+  assert.equal(closed.barrier.pendingCommands, 0);
+  assert.equal(closed.phase, "closing");
+  const originalBarrier = structuredClone(s.state.projects.project.sourceApplication.barrier);
+  s.state.projects.project.sourceApplication.sourceObservation = {
+    sourceJournalDigest: "c".repeat(64),
+  };
+  s.save();
+  await s.closeSourceApplicationInputs(f.request, scope, async () => ({
+    projectId: "project",
+    closed: true,
+    activeTerminals: 0,
+    helpersPendingClose: 0,
+    pendingInputs: 0,
+    unknownInputs: 0,
+  }));
+  assert.deepEqual(s.state.projects.project.sourceApplication.barrier, originalBarrier);
+  assert.equal(
+    s.state.projects.project.sourceApplication.lastInputVerification.historyDigest,
+    closed.boundary.historyDigest,
+  );
+  assert.equal(f.calls.filter((x) => x.method === "turn/start").length, 1);
+  const record = JSON.parse(
+    readFileSync(join(f.home, ".local/state/hive/codex-project-supervisor/registry.json"), "utf8"),
+  );
+  assert.equal(record.state.projects.project.sourceApplication.barrier.closed, true);
+  f.history.push({ id: "unexpected", status: "inProgress", itemsView: "full", items: [] });
+  await assert.rejects(
+    s.readDeliveryBoundary(f.request, { sourceScope: scope }),
+    /root_not_completed/,
+  );
+  assert.throws(() => s.assertSourceInputOpen(), /input_closed/);
+  await s.close();
+  let relaunched = 0;
+  await assert.rejects(
+    openSupervisor(config(), {
+      home: f.home,
+      runtimeFactory: async () => {
+        relaunched++;
+        throw new Error("must not launch");
+      },
+    }),
+    /input_closed/,
+  );
+  assert.equal(relaunched, 0);
 });

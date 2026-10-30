@@ -41,7 +41,7 @@ const sharedRelativePaths = [
   "main.tf",
   "hive-host.tf",
   "assets/codex-host.tar.sha256",
-  "assets/codex-host.tar.gz",
+  "assets/codex-host.tar.xz",
   "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
 ].sort();
@@ -49,7 +49,15 @@ const drift = [];
 let removedScripts = 0;
 
 for (const targetRoot of targetRoots) {
-  if (!checkOnly) await rm(join(targetRoot, "assets/codex-host.tar"), { force: true });
+  for (const obsolete of ["assets/codex-host.tar", "assets/codex-host.tar.gz"]) {
+    try {
+      await readFile(join(targetRoot, obsolete));
+      if (checkOnly) drift.push(relative(repositoryRoot, join(targetRoot, obsolete)));
+      else await rm(join(targetRoot, obsolete));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
   const targetScripts = await collectFiles(join(targetRoot, "scripts"));
   const obsoleteScripts = targetScripts
     .map((file) => relative(targetRoot, file))

@@ -1,0 +1,194 @@
+{
+  "recordedAt": "2026-10-30T02:00:34.534995+00:00",
+  "previousCheckpoint": {
+    "recordedAt": "2026-10-30T01:48:05.989511+00:00",
+    "initialCheckpoint": {
+      "recordedAt": "2026-10-30T01:36:17.905986+00:00",
+      "sourceHashes": {
+        "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "37e94036a4634852b9f1dfc4c5275dea082f2f403be8cf7c84dc65679a474014",
+        "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "2e8b776e03c44cabeeb8f2910a8efcea4e9aa3b5e22dd3485152898303192385",
+        "templates/ai-dev-k8s/scripts/codex-project-gateway.mjs": "a684ad9b248155b0104672ad277f0c933e895c5db37554679b887d469a7d40e9",
+        "templates/ai-dev-k8s/scripts/codex-project-terminal.mjs": "7455c226ae23d1ef75634d2970b4522bae3957e5320051054f626c14fcad3ba4",
+        "templates/ai-dev-k8s/scripts/codex-source-application.mjs": "415db515aedf487336aebe158f7f24d8ba24db0f8b3146929965a6950672876b",
+        "templates/ai-dev-k8s/scripts/delivery-source-apply-client.mjs": "713652184803209d3e12cd3598403eead1e3065cc45e6d7660f352061aad2daa",
+        "templates/ai-dev-k8s/scripts/delivery-source-apply-worker.py": "7e6764b83332e9295fc3ad9b1bff8fb4290bfc429805f51cb2eb07a0337f612b",
+        "scripts/verify-codex-project-supervisor.test.mjs": "1e23efc33851434454ff48d74b781dc0a064641741dc48e76a693eb3d0b346c8",
+        "scripts/verify-codex-project-controller.test.mjs": "e3896007a9bd2e627d5976827af82c1c4bc2ea16d3ccb593f8f12f2f7d17a828",
+        "scripts/verify-codex-project-terminal.test.mjs": "eb407e30fb03c1f9b15efe9fe8e3cef66dd15dbf7ad906fe8eba150afda69271",
+        "scripts/verify-codex-source-input.test.mjs": "75b2c702305fc6ea19bf46a22cbfda8962650b9ab92d3bc8948b9b810be223f9",
+        "scripts/verify-codex-source-application.test.mjs": "3e1dd89b1d0e0c70ad07fa7eb9448bf35d1b4e588c5b19c139262d43f87f9b54",
+        "scripts/agents/test_delivery_source_apply_worker.py": "dc1b1d5c69f6cb706710b75efd377768b95445b70e2dae0f4da0a9b1181b1694"
+      },
+      "checks": [
+        {
+          "command": "node --test scripts/verify-codex-source-input.test.mjs scripts/verify-codex-source-application.test.mjs scripts/verify-codex-project-controller.test.mjs scripts/verify-codex-project-terminal.test.mjs",
+          "passed": 50,
+          "failed": 0
+        },
+        {
+          "command": "python3 -B -m unittest scripts/agents/test_delivery_source_apply_worker.py scripts/agents/test_managed_source_apply.py scripts/agents/test_codex_project_lease.py -q",
+          "tests": 33,
+          "skipped": 1,
+          "failed": 0
+        },
+        {
+          "command": "HIVE_TEST_NATIVE_CODEX=1 node --test scripts/verify-codex-project-supervisor.test.mjs",
+          "passed": 42,
+          "failed": 0,
+          "nativeVersion": "0.165.0",
+          "provider": "local canned Responses fixture",
+          "accountInference": false
+        }
+      ],
+      "boundaries": {
+        "factoryDefaultDisabled": true,
+        "installedOuterServerApplicationProof": false,
+        "cleanupAuthority": false,
+        "kernelQuiescence": false,
+        "physicalWriterHoldRetained": true
+      },
+      "logs": {
+        "node.txt": "473904c981baf0af7d1935975f8ee615b066fb0511c9c3c8eb6e49fb987b97ea",
+        "python.txt": "bdbb9330a3c8921fb5d8e4e1a290050501dd35c7e9d95347910221893d9876ae",
+        "native.txt": "d4ca24da293ffefa1ff8a57ffb2da250a9f4e5a08cdbffd3a14329649b46a50c"
+      }
+    },
+    "sourceHashes": {
+      "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "82cc2d1c29d0a55d23e4af7fc6a9eb708fd4f4c8fe19b37cf0ecb436bf8c94e7",
+      "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "d39dba4afa57585727c3ed7041d10991020abe5e02bb44e5813c537705d20c99",
+      "templates/ai-dev-k8s/scripts/codex-project-gateway.mjs": "a684ad9b248155b0104672ad277f0c933e895c5db37554679b887d469a7d40e9",
+      "templates/ai-dev-k8s/scripts/codex-project-terminal.mjs": "7455c226ae23d1ef75634d2970b4522bae3957e5320051054f626c14fcad3ba4",
+      "templates/ai-dev-k8s/scripts/codex-source-application.mjs": "3d795487d294eef088249e16c2367a92d78b63dd6e5e43736cee6cbb66827307",
+      "templates/ai-dev-k8s/scripts/delivery-source-apply-client.mjs": "713652184803209d3e12cd3598403eead1e3065cc45e6d7660f352061aad2daa",
+      "templates/ai-dev-k8s/scripts/delivery-source-apply-worker.py": "7e6764b83332e9295fc3ad9b1bff8fb4290bfc429805f51cb2eb07a0337f612b",
+      "scripts/verify-codex-project-supervisor.test.mjs": "c62610f7275082cf08f380ede755f5eee491de83329fe7f05b22793029080bf6",
+      "scripts/verify-codex-project-controller.test.mjs": "ae17d2b219b738232f251d2f3e44f74278ecd9275320f860e194456251d9a58f",
+      "scripts/verify-codex-project-terminal.test.mjs": "eb407e30fb03c1f9b15efe9fe8e3cef66dd15dbf7ad906fe8eba150afda69271",
+      "scripts/verify-codex-source-input.test.mjs": "75b2c702305fc6ea19bf46a22cbfda8962650b9ab92d3bc8948b9b810be223f9",
+      "scripts/verify-codex-source-application.test.mjs": "f761376c385bc31f59f34086058e8c9eeaa78bc6bdac712516c5d1cfd4faaa32",
+      "scripts/agents/test_delivery_source_apply_worker.py": "dc1b1d5c69f6cb706710b75efd377768b95445b70e2dae0f4da0a9b1181b1694"
+    },
+    "checks": [
+      {
+        "command": "node --test scripts/verify-codex-source-input.test.mjs scripts/verify-codex-source-application.test.mjs scripts/verify-codex-project-controller.test.mjs scripts/verify-codex-project-terminal.test.mjs",
+        "passed": 56,
+        "failed": 0,
+        "log": "recovery-node.txt"
+      },
+      {
+        "command": "python3 -B -m unittest scripts/agents/test_delivery_source_apply_worker.py scripts/agents/test_managed_source_apply.py scripts/agents/test_codex_project_lease.py -q",
+        "tests": 33,
+        "skipped": 1,
+        "failed": 0,
+        "log": "python.txt",
+        "note": "Python source unchanged by the JS recovery fix; prior complete helper check retained."
+      },
+      {
+        "command": "HIVE_TEST_NATIVE_CODEX=1 node --test scripts/verify-codex-project-supervisor.test.mjs",
+        "passed": 42,
+        "failed": 0,
+        "log": "recovery-native.txt",
+        "nativeVersion": "0.165.0",
+        "provider": "local canned Responses fixture",
+        "accountInference": false
+      }
+    ],
+    "boundaries": {
+      "factoryDefaultDisabled": true,
+      "installedOuterServerApplicationProof": false,
+      "cleanupAuthority": false,
+      "kernelQuiescence": false,
+      "physicalWriterHoldRetained": true
+    },
+    "recovery": {
+      "originalBarrierAndIdleSnapshotPreserved": true,
+      "ambiguousReservationVerifyFirst": true,
+      "missingDoesNotAuthorizeRereserve": true,
+      "lostCommitAckSkipsRepeatedCommit": true,
+      "changedSpoolRetainsHold": true,
+      "newNativeLifetimeRefused": true
+    },
+    "logs": {
+      "node.txt": "473904c981baf0af7d1935975f8ee615b066fb0511c9c3c8eb6e49fb987b97ea",
+      "python.txt": "bdbb9330a3c8921fb5d8e4e1a290050501dd35c7e9d95347910221893d9876ae",
+      "native.txt": "d4ca24da293ffefa1ff8a57ffb2da250a9f4e5a08cdbffd3a14329649b46a50c",
+      "recovery-node.txt": "42cf90bf368086ecf08051c314f9ded66f6ce2340a706eb36648983638e1d911",
+      "recovery-native.txt": "1242f95843230dcf113fb21278db5648a1ecd0791ad0e0d3eaad335fa05b57ff"
+    }
+  },
+  "sourceHashes": {
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "82cc2d1c29d0a55d23e4af7fc6a9eb708fd4f4c8fe19b37cf0ecb436bf8c94e7",
+    "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "d39dba4afa57585727c3ed7041d10991020abe5e02bb44e5813c537705d20c99",
+    "templates/ai-dev-k8s/scripts/codex-project-gateway.mjs": "a684ad9b248155b0104672ad277f0c933e895c5db37554679b887d469a7d40e9",
+    "templates/ai-dev-k8s/scripts/codex-project-terminal.mjs": "7455c226ae23d1ef75634d2970b4522bae3957e5320051054f626c14fcad3ba4",
+    "templates/ai-dev-k8s/scripts/codex-source-application.mjs": "3d795487d294eef088249e16c2367a92d78b63dd6e5e43736cee6cbb66827307",
+    "templates/ai-dev-k8s/scripts/delivery-source-apply-client.mjs": "713652184803209d3e12cd3598403eead1e3065cc45e6d7660f352061aad2daa",
+    "templates/ai-dev-k8s/scripts/delivery-source-apply-worker.py": "7e6764b83332e9295fc3ad9b1bff8fb4290bfc429805f51cb2eb07a0337f612b",
+    "scripts/verify-codex-project-supervisor.test.mjs": "c62610f7275082cf08f380ede755f5eee491de83329fe7f05b22793029080bf6",
+    "scripts/verify-codex-project-controller.test.mjs": "ae17d2b219b738232f251d2f3e44f74278ecd9275320f860e194456251d9a58f",
+    "scripts/verify-codex-project-terminal.test.mjs": "eb407e30fb03c1f9b15efe9fe8e3cef66dd15dbf7ad906fe8eba150afda69271",
+    "scripts/verify-codex-source-input.test.mjs": "75b2c702305fc6ea19bf46a22cbfda8962650b9ab92d3bc8948b9b810be223f9",
+    "scripts/verify-codex-source-application.test.mjs": "907d2a08330429833dfacdeba1b42879d61de6409090119ace08b182823c761d",
+    "scripts/agents/test_delivery_source_apply_worker.py": "149322f53d6c67516f9ec94c784093426b4c08080c5a72f81651438515f6daee"
+  },
+  "checks": [
+    {
+      "command": "node --test scripts/verify-codex-source-input.test.mjs scripts/verify-codex-source-application.test.mjs scripts/verify-codex-project-controller.test.mjs scripts/verify-codex-project-terminal.test.mjs",
+      "tests": 57,
+      "passed": 56,
+      "skipped": 1,
+      "failed": 0,
+      "log": "fd3-node.txt",
+      "note": "Private-FD3 cross-language test is invoked by Python with its explicit temporary fixture; skips when standalone Node lacks that fixture."
+    },
+    {
+      "command": "python3 -B -m unittest scripts/agents/test_delivery_source_apply_worker.py scripts/agents/test_managed_source_apply.py scripts/agents/test_codex_project_lease.py -q",
+      "tests": 34,
+      "passed": 33,
+      "skipped": 1,
+      "failed": 0,
+      "log": "fd3-python.txt",
+      "note": "Includes actual JS coordinator to private FD3 worker/helper lost commit ACK recovery; only optional Hive-scale case skips."
+    },
+    {
+      "command": "HIVE_TEST_NATIVE_CODEX=1 node --test scripts/verify-codex-project-supervisor.test.mjs",
+      "passed": 42,
+      "failed": 0,
+      "log": "recovery-native.txt",
+      "nativeVersion": "0.165.0",
+      "provider": "local canned Responses fixture",
+      "accountInference": false
+    }
+  ],
+  "boundaries": {
+    "factoryDefaultDisabled": true,
+    "installedOuterServerApplicationProof": false,
+    "cleanupAuthority": false,
+    "kernelQuiescence": false,
+    "physicalWriterHoldRetained": true
+  },
+  "recovery": {
+    "originalBarrierAndIdleSnapshotPreserved": true,
+    "ambiguousReservationVerifyFirst": true,
+    "missingDoesNotAuthorizeRereserve": true,
+    "lostCommitAckSkipsRepeatedCommit": true,
+    "changedSpoolRetainsHold": true,
+    "newNativeLifetimeRefused": true,
+    "actualCoordinatorFd3HelperReplay": true,
+    "historicalExpectedSource": "null context / immutable physical base A, while acceptedSource and HEAD already B",
+    "workerProcesses": 2,
+    "reserveCalls": 1,
+    "commitCalls": 1,
+    "releaseCalls": 1,
+    "headIndexReceiptBytesInodesMtimeUnchangedOnReplay": true
+  },
+  "logs": {
+    "node.txt": "473904c981baf0af7d1935975f8ee615b066fb0511c9c3c8eb6e49fb987b97ea",
+    "fd3-node.txt": "a6c67c6c48842da6b8a4d511aa4a06599fe00db5b47fe5644f10a24c7d55ca49",
+    "python.txt": "bdbb9330a3c8921fb5d8e4e1a290050501dd35c7e9d95347910221893d9876ae",
+    "native.txt": "d4ca24da293ffefa1ff8a57ffb2da250a9f4e5a08cdbffd3a14329649b46a50c",
+    "recovery-node.txt": "42cf90bf368086ecf08051c314f9ded66f6ce2340a706eb36648983638e1d911",
+    "fd3-python.txt": "7bd1f1cc0f804ecf20cf690e361eac63df3f58597dbb1b8cf4ca332ae0d8e15b",
+    "recovery-native.txt": "1242f95843230dcf113fb21278db5648a1ecd0791ad0e0d3eaad335fa05b57ff"
+  }
+}

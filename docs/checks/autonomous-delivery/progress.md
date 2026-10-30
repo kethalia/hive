@@ -605,3 +605,17 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Four new tables receive only SELECT/INSERT/UPDATE for the runtime role; schema creation
   and DELETE remain denied. No production database, cron or remote credential changed.
   Evidence: [preview schema26](neon-source-application-rotation-migration.json).
+
+- Source input and metadata application: reviewed assembled checkpoint, high difficulty.
+  Durable supervisor/controller barriers close terminal and model input while exact factual
+  reads and revocation remain possible. The fixed FD3 helper applies accepted Git metadata
+  without rewriting worktree bytes. Lost-commit-ack recovery preserves HEAD/index/receipt
+  bytes, inodes and timestamps and does not reserve or commit twice. Parent checks pass56
+  source,33 Python,146 compiled behavioral and60 packaging tests, plus13 installer tests
+  and the actual fixed installer. Optional fixture/scale cases remain explicitly skipped.
+  The initial guardian-inclusive gzip exceeded the existing160000-byte budget at165416;
+  standard XZ reduces the same607744-byte tar to132420 bytes. Bounded single-stream decoding,
+  exact tar hashes and legacy gzip/tar support remain; malformed/oversized inputs are tested.
+  This is still disabled capability packaging. Signed server/outer application composition
+  and installed account-backed acceptance follow before activation. Evidence:
+  [input contract](source-input-application.md), [parent assembly](source-input-local/parent-result.json).

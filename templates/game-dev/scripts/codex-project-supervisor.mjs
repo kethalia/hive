@@ -234,6 +234,7 @@ export async function openSupervisor(raw, dependencies = {}) {
     save();
     const supervisor = new ProjectSupervisor(config, home, stateDirectory, state, save, lock);
     supervisor.executionAuthority = executionAuthority;
+    supervisor.assertSourceInputOpen();
     await executionAuthority?.fence();
     executionAuthority?.assert();
     let metadataApproval;
@@ -283,6 +284,13 @@ export async function openSupervisor(raw, dependencies = {}) {
       };
     }
     supervisor.runtime = runtime;
+    runtime.setSourceInputAuthority?.(() => supervisor.assertSourceInputOpen());
+    runtime.setSourceReadAuthority?.((scope, method, params) =>
+      supervisor.assertSourceApplicationRead(scope, method, params),
+    );
+    runtime.setSourceStopAuthority?.((scope, params) =>
+      supervisor.assertSourceApplicationStop(scope, params),
+    );
     if (config.metadataReadOnly) {
       check(
         runtime.metadataPins?.metadataPolicyDigest === metadataApproval.metadataPolicyDigest,
@@ -320,6 +328,117 @@ export class ProjectSupervisor {
     this.busy = false;
     this.revocationListeners = new Set();
     this.executionRevocations = new Map();
+  }
+  // A durable pending application closes execution. Read-only forensic access is
+  // separate; a completed HEAD/index update alone cannot reopen model inputs.
+  assertSourceInputOpen() {
+    for (const entry of Object.values(this.state.projects)) {
+      const application = entry.sourceApplication;
+      if (!application) continue;
+      check(
+        application.phase === "released" &&
+          /^[a-f0-9]{64}$/.test(application.serverCommitDigest ?? "") &&
+          JSON.stringify(entry.acceptedSource) === JSON.stringify(application.targetSourceContext),
+        "source_application_input_closed",
+      );
+    }
+  }
+  assertSourceApplicationRead(scope, method, params) {
+    this.executionAuthority?.assert(); // Tenant/lifetime identity remains mandatory for factual reads.
+    check(
+      exact(scope, ["projectId", "applicationId", "barrierId", "generation"]) &&
+        [scope.projectId, scope.applicationId, scope.barrierId].every(id) &&
+        Number.isSafeInteger(scope.generation) &&
+        scope.generation > 0,
+      "source_application_read_denied",
+    );
+    const entry = this.state.projects[scope.projectId],
+      application = entry?.sourceApplication;
+    check(
+      !this.closed &&
+        this.state.status === "ready" &&
+        this.runtime.alive() &&
+        application?.applicationId === scope.applicationId &&
+        application.projectId === scope.projectId &&
+        application.serverInstanceId === this.state.serverInstanceId &&
+        application.managerThreadId === entry.threadId &&
+        entry.serverInstanceId === this.state.serverInstanceId &&
+        application.barrier?.id === scope.barrierId &&
+        application.barrier.generation === scope.generation &&
+        application.barrier.closed === true &&
+        ["closing", "reserved", "applied", "committed", "held"].includes(application.phase) &&
+        Array.isArray(application.cohort) &&
+        application.cohort.length <= 20 &&
+        application.cohort.every(
+          (child) =>
+            id(child.childThreadId) &&
+            entry.children?.[child.childThreadId]?.serverInstanceId ===
+              this.state.serverInstanceId &&
+            entry.children[child.childThreadId].spawnCallId === child.spawnCallId,
+        ) &&
+        this.config.projects.length === 1,
+      "source_application_read_denied",
+    );
+    if (method === "thread/loaded/list") {
+      check(exact(params, ["limit"]) && params.limit === 64, "source_application_read_denied");
+      return;
+    }
+    const allowed = {
+      "thread/read": ["threadId", "includeTurns"],
+      "thread/turns/list": ["threadId", "limit", "sortDirection", "itemsView", "cursor"],
+      "thread/items/list": ["threadId", "turnId", "limit", "sortDirection", "cursor"],
+    };
+    const threads = new Set([
+      entry.threadId,
+      ...application.cohort.map((child) => child.childThreadId),
+    ]);
+    check(
+      Object.hasOwn(allowed, method) &&
+        exact(params, allowed[method]) &&
+        threads.has(params.threadId),
+      "source_application_read_denied",
+    );
+    if (method === "thread/read") {
+      check(params.includeTurns === true, "source_application_read_denied");
+      return;
+    }
+    check(
+      Number.isSafeInteger(params.limit) &&
+        params.limit > 0 &&
+        params.limit <= 100 &&
+        params.sortDirection === "asc" &&
+        (params.cursor === undefined ||
+          (typeof params.cursor === "string" && params.cursor.length <= 4096)) &&
+        (params.itemsView === undefined || params.itemsView === "full") &&
+        (method !== "thread/items/list" || id(params.turnId)),
+      "source_application_read_denied",
+    );
+  }
+  assertSourceApplicationStop(scope, params) {
+    this.assertSourceApplicationRead(scope, "thread/read", {
+      threadId: params?.threadId,
+      includeTurns: true,
+    });
+    check(
+      exact(params, ["threadId", "turnId"]) &&
+        id(params.turnId) &&
+        this.state.projects[scope.projectId].executionRevoked,
+      "source_application_stop_denied",
+    );
+  }
+  async readSourceApplication(scope, method, params) {
+    this.assertSourceApplicationRead(scope, method, params);
+    check(
+      typeof this.runtime.readSourceApplication === "function",
+      "source_application_read_unavailable",
+    );
+    const result = await this.runtime.readSourceApplication(
+      structuredClone(scope),
+      method,
+      structuredClone(params),
+    );
+    this.assertSourceApplicationRead(scope, method, params);
+    return result;
   }
   onRevoked(listener) {
     this.revocationListeners.add(listener);
@@ -426,6 +545,39 @@ export class ProjectSupervisor {
     entry.executionRevoked ??= { reason, at: Date.now(), reviewRequired: true };
     entry.executionRevoked.reviewRequired = true;
     this.save(); // Fence all new execution before any best-effort interruption.
+    const sourceScope =
+      entry.sourceApplication && entry.sourceApplication.phase !== "released"
+        ? this.sourceApplicationScope(projectId)
+        : null;
+    const factual = async (method, params) => {
+      if (!sourceScope) return this.runtime.call(method, params);
+      if (method === "turn/interrupt") {
+        this.assertSourceApplicationStop(sourceScope, params);
+        check(
+          typeof this.runtime.interruptSourceApplication === "function",
+          "source_application_stop_unavailable",
+        );
+        return this.runtime.interruptSourceApplication(sourceScope, params);
+      }
+      if (method === "thread/turns/list") {
+        const value = await this.readSourceApplication(sourceScope, method, {
+          threadId: params.threadId,
+          limit: 100,
+          sortDirection: "asc",
+          itemsView: "full",
+        });
+        check(
+          Array.isArray(value?.data) && value.data.length <= 100 && !value.nextCursor,
+          "native_thread_inventory_incomplete",
+        );
+        return { data: value.data.slice(-1) };
+      }
+      return this.readSourceApplication(
+        sourceScope,
+        method,
+        method === "thread/read" ? { threadId: params.threadId, includeTurns: true } : params,
+      );
+    };
     let interrupted = true,
       detached = false;
     const deadline = Date.now() + 10000;
@@ -438,7 +590,7 @@ export class ProjectSupervisor {
     for (const threadId of targets) {
       try {
         check(this.runtime.alive() && Date.now() < deadline, "native_lifetime_revoked");
-        const latest = await this.runtime.call("thread/turns/list", {
+        const latest = await factual("thread/turns/list", {
           threadId,
           limit: 1,
           sortDirection: "desc",
@@ -448,7 +600,7 @@ export class ProjectSupervisor {
         const turn = latest.data[0];
         if (turn?.status === "inProgress") {
           check(id(turn.id), "invalid_native_turn");
-          await this.runtime.call("turn/interrupt", { threadId, turnId: turn.id });
+          await factual("turn/interrupt", { threadId, turnId: turn.id });
         } else
           check(
             !turn || ["completed", "interrupted", "failed"].includes(turn.status),
@@ -463,7 +615,7 @@ export class ProjectSupervisor {
       // An interrupt acknowledgement alone does not establish child quiescence.
       // Unknown active threads retain the hold; never infer ownership from
       // sharing a native server with a registered project.
-      const loaded = await this.runtime.call("thread/loaded/list", { limit: 64 });
+      const loaded = await factual("thread/loaded/list", { limit: 64 });
       check(
         Array.isArray(loaded?.data) &&
           loaded.data.length <= 64 &&
@@ -489,7 +641,7 @@ export class ProjectSupervisor {
         check(Date.now() < deadline, "native_quiescence_unproven");
         check(id(threadId), "invalid_native_thread");
         if (otherProjects.has(threadId)) continue;
-        const result = await this.runtime.call("thread/read", { threadId, includeTurns: false });
+        const result = await factual("thread/read", { threadId, includeTurns: false });
         check(
           result?.thread?.id === threadId && result.thread.status?.type === "idle",
           "native_quiescence_unproven",
@@ -701,6 +853,7 @@ export class ProjectSupervisor {
     this.managerAdapter = adapter;
     this.runtime.setManagerAdapter({
       handleToolCall: async (params) => {
+        this.assertSourceInputOpen();
         await this.executionAuthority?.fence();
         this.executionAuthority?.assert();
         const project = this.config.projects.find(
@@ -711,6 +864,7 @@ export class ProjectSupervisor {
           "manager_thread_unregistered",
         );
         const result = await adapter.handleToolCall(params);
+        this.assertSourceInputOpen();
         this.executionAuthority?.assert();
         return result;
       },
@@ -748,7 +902,18 @@ export class ProjectSupervisor {
   }
   // Installed protocol-one callbacks only. These are deliberately absent from
   // command(), the gateway and the browser/native read RPC allowlists.
-  deliveryProgressionProject(request) {
+  deliveryProgressionProject(request, sourceScope) {
+    if (sourceScope) {
+      this.assertSourceApplicationRead(sourceScope, "thread/read", {
+        threadId: request.managerThreadId,
+        includeTurns: true,
+      });
+      const application = this.state.projects[sourceScope.projectId].sourceApplication;
+      check(
+        application.boundaryRequestDigest === hash(JSON.stringify(request)),
+        "source_application_boundary_changed",
+      );
+    } else this.assertSourceInputOpen();
     this.executionAuthority?.assert();
     check(
       this.managerAdapter?.progressionProtocol === 1 &&
@@ -792,11 +957,156 @@ export class ProjectSupervisor {
         request.cohort.length <= 20,
       "invalid_manager_progression_request",
     );
-    this.managerAdapter.assertProgressionAuthority(request);
+    if (!sourceScope) this.managerAdapter.assertProgressionAuthority(request);
+    // A source-closed factual boundary is not a progression authorization. The
+    // independent application authority must still authorize metadata mutation.
     return { project, entry };
   }
-  async readDeliveryBoundary(request, { nextParentTurnId, excludeCall } = {}) {
-    const { entry } = this.deliveryProgressionProject(request);
+  beginSourceApplication(request, application) {
+    const { project, entry } = this.deliveryProgressionProject(request);
+    check(
+      this.config.projects.length === 1 && !this.busy,
+      "source_application_exclusive_runtime_required",
+    );
+    const context = (v) =>
+      v &&
+      exact(v, ["revisionId", "version", "headSha"]) &&
+      id(v.revisionId) &&
+      Number.isSafeInteger(v.version) &&
+      v.version > 0 &&
+      /^[a-f0-9]{40}$/.test(v.headSha);
+    check(
+      exact(application, [
+        "applicationId",
+        "publicationOperationId",
+        "projectId",
+        "targetSourceContext",
+        "expectedAppliedSourceContext",
+        "barrier",
+      ]) &&
+        [application.applicationId, application.publicationOperationId].every(id) &&
+        application.projectId === project.projectId &&
+        context(application.targetSourceContext) &&
+        (application.expectedAppliedSourceContext === null ||
+          context(application.expectedAppliedSourceContext)) &&
+        JSON.stringify(entry.acceptedSource ?? null) ===
+          JSON.stringify(application.expectedAppliedSourceContext) &&
+        application.targetSourceContext.version ===
+          (application.expectedAppliedSourceContext?.version ?? 0) + 1 &&
+        exact(application.barrier, ["id", "generation"]) &&
+        id(application.barrier.id) &&
+        Number.isSafeInteger(application.barrier.generation) &&
+        application.barrier.generation > 0,
+      "source_application_invalid",
+    );
+    check(
+      !entry.sourceApplication ||
+        (entry.sourceApplication.phase === "released" &&
+          application.barrier.generation > entry.sourceApplication.barrier.generation),
+      "source_application_conflict",
+    );
+    entry.sourceApplication = {
+      ...structuredClone(application),
+      phase: "closing",
+      serverInstanceId: this.state.serverInstanceId,
+      managerThreadId: entry.threadId,
+      cohort: structuredClone(request.cohort),
+      boundaryRequestDigest: hash(JSON.stringify(request)),
+      leaseExpiresAt: this.lease(project).lease.expiresAt,
+      barrier: { ...application.barrier, closed: true },
+    };
+    this.save(); // Synchronous durable input fence before any awaited closure/read.
+    return this.sourceApplicationScope(project.projectId);
+  }
+  sourceApplicationScope(projectId) {
+    const a = this.state.projects[projectId]?.sourceApplication;
+    check(a, "source_application_missing");
+    return {
+      projectId,
+      applicationId: a.applicationId,
+      barrierId: a.barrier.id,
+      generation: a.barrier.generation,
+    };
+  }
+  async closeSourceApplicationInputs(request, scope, closeInputs) {
+    this.deliveryProgressionProject(request, scope);
+    check(
+      typeof closeInputs === "function" && typeof this.runtime.inspectCliInputs === "function",
+      "source_application_input_inventory_unavailable",
+    );
+    const terminals = await closeInputs(scope.projectId, structuredClone(scope));
+    this.deliveryProgressionProject(request, scope);
+    check(
+      terminals?.projectId === scope.projectId &&
+        terminals.closed === true &&
+        [
+          terminals.activeTerminals,
+          terminals.helpersPendingClose,
+          terminals.pendingInputs,
+          terminals.unknownInputs,
+        ].every((v) => v === 0),
+      "source_application_terminal_inputs_open",
+    );
+    let cli = this.runtime.inspectCliInputs(scope.projectId);
+    check(cli.unknownInputs === 0, "source_application_unknown_cli");
+    if (cli.activeCli) {
+      await this.runtime.detach(scope.projectId);
+      cli = this.runtime.inspectCliInputs(scope.projectId);
+    }
+    check(cli.activeCli === 0 && cli.unknownInputs === 0, "source_application_cli_open");
+    this.state.projects[scope.projectId].attached = false;
+    const boundary = await this.readDeliveryBoundary(request, { sourceScope: scope });
+    const routing = this.runtime.inspectManagerRouting();
+    check(
+      routing.receiveSequence === boundary.receiveSequence &&
+        !routing.pendingObservers &&
+        !routing.activeHandlers &&
+        Array.isArray(routing.observerFailures) &&
+        routing.observerFailures.length === 0,
+      "source_application_routing_not_idle",
+    );
+    const a = this.state.projects[scope.projectId].sourceApplication;
+    if (a.sourceObservation) {
+      // Reservation facts are immutable, including their original observation
+      // time. A fresh check may attest equality, never replace the old barrier.
+      check(
+        [
+          "historyDigest",
+          "loadedInventoryDigest",
+          "historyBytes",
+          "rootTurns",
+          "receiveSequence",
+        ].every((k) => boundary[k] === a.boundary?.[k]) &&
+          JSON.stringify(a.inputInventory) === JSON.stringify({ terminals, cli, routing }),
+        "source_application_input_changed",
+      );
+      a.lastInputVerification = structuredClone(boundary);
+      this.save();
+      return structuredClone(a);
+    }
+    a.inputInventory = { terminals, cli, routing };
+    a.barrier = {
+      ...a.barrier,
+      projectId: scope.projectId,
+      observedAt: boundary.observedAt,
+      rootCompleted: true,
+      commandInventoryDigest: hash(JSON.stringify(routing)),
+      terminalInventoryDigest: hash(JSON.stringify({ terminals, cli })),
+      pendingCommands: 0,
+      activeCli: 0,
+      pendingInputs: 0,
+      unknownInputs: 0,
+    };
+    a.boundary = boundary;
+    this.save();
+    return structuredClone(a);
+  }
+  async readDeliveryBoundary(request, { nextParentTurnId, excludeCall, sourceScope } = {}) {
+    check(
+      !sourceScope || (!nextParentTurnId && !excludeCall),
+      "source_application_boundary_changed",
+    );
+    const { entry } = this.deliveryProgressionProject(request, sourceScope);
     check(
       typeof this.runtime.inspectManagerRouting === "function" &&
         typeof this.runtime.drainManagerRouting === "function",
@@ -805,7 +1115,9 @@ export class ProjectSupervisor {
     const deadline = Date.now() + 10000;
     const read = async (method, params) => {
       check(Date.now() < deadline && this.runtime.alive(), "manager_boundary_deadline");
-      return this.runtime.call(method, params);
+      return sourceScope
+        ? this.readSourceApplication(sourceScope, method, params)
+        : this.runtime.call(method, params);
     };
     const history = async (threadId) => {
       const result = [],
@@ -1022,10 +1334,13 @@ export class ProjectSupervisor {
       await this.runtime.drainManagerRouting({ excludeCall, timeoutMs: 5000 });
       if (sequence !== this.runtime.inspectManagerRouting({ excludeCall }).receiveSequence)
         continue;
-      this.deliveryProgressionProject(request); // Fresh lease/lifetime after all awaits.
+      this.deliveryProgressionProject(request, sourceScope); // Fresh lease/lifetime after all awaits.
       return {
         observedAt: new Date().toISOString(),
         historyDigest: hash(JSON.stringify(root)),
+        loadedInventoryDigest: hash(JSON.stringify([...loaded.data].sort())),
+        historyBytes: Buffer.byteLength(JSON.stringify(root)),
+        rootTurns: root.length,
         receiveSequence: sequence,
       };
     }
@@ -1180,6 +1495,7 @@ export class ProjectSupervisor {
     throw new Error("session_binding_denied");
   }
   async command(request) {
+    if (request?.operation !== "inspect") this.assertSourceInputOpen();
     await this.executionAuthority?.fence();
     this.executionAuthority?.assert();
     check(!this.closed && !this.busy, "supervisor_busy_or_closed");
@@ -1736,11 +2052,12 @@ export async function launchNative({
   let ws;
   let closing = false;
   let callback = () => {};
-  let managerAdapter;
+  let managerAdapter, sourceInputAuthority, sourceReadAuthority, sourceStopAuthority;
   const managerRouter = createNativeManagerRouter(
     () => managerAdapter,
     (id, result) => {
       try {
+        sourceInputAuthority?.();
         executionAuthority?.assert();
       } catch {
         return;
@@ -1812,10 +2129,8 @@ export async function launchNative({
         revoke();
       }
     });
-    const call = async (method, params) => {
-      await executionAuthority?.fence();
-      executionAuthority?.assert();
-      const result = await new Promise((resolveCall, reject) => {
+    const requestNative = (method, params) =>
+      new Promise((resolveCall, reject) => {
         if (closing || ws.readyState !== WebSocket.OPEN || pending.size >= 8) {
           reject(new Error("native_unavailable"));
           return;
@@ -1828,6 +2143,13 @@ export async function launchNative({
         pending.set(requestId, { resolve: resolveCall, reject, timer });
         ws.send(JSON.stringify({ id: requestId, method, params }));
       });
+    const call = async (method, params) => {
+      sourceInputAuthority?.();
+      await executionAuthority?.fence();
+      sourceInputAuthority?.();
+      executionAuthority?.assert();
+      const result = await requestNative(method, params);
+      sourceInputAuthority?.();
       executionAuthority?.assert();
       return result;
     };
@@ -1854,6 +2176,50 @@ export async function launchNative({
       setManagerAdapter: (adapter) => {
         check(!managerAdapter, "manager_adapter_already_installed");
         managerAdapter = adapter;
+      },
+      setSourceInputAuthority: (authorize) => {
+        check(
+          !sourceInputAuthority && typeof authorize === "function",
+          "source_input_authority_invalid",
+        );
+        sourceInputAuthority = authorize;
+      },
+      setSourceReadAuthority: (authorize) => {
+        check(
+          !sourceReadAuthority && typeof authorize === "function",
+          "source_read_authority_invalid",
+        );
+        sourceReadAuthority = authorize;
+      },
+      setSourceStopAuthority: (authorize) => {
+        check(
+          !sourceStopAuthority && typeof authorize === "function",
+          "source_stop_authority_invalid",
+        );
+        sourceStopAuthority = authorize;
+      },
+      async interruptSourceApplication(scope, params) {
+        check(sourceStopAuthority, "source_application_stop_unavailable");
+        sourceStopAuthority(scope, params);
+        const result = await requestNative("turn/interrupt", params);
+        sourceStopAuthority(scope, params);
+        return result;
+      },
+      async readSourceApplication(scope, method, params) {
+        check(
+          sourceReadAuthority &&
+            [
+              "thread/read",
+              "thread/turns/list",
+              "thread/items/list",
+              "thread/loaded/list",
+            ].includes(method),
+          "source_application_read_unavailable",
+        );
+        sourceReadAuthority(scope, method, params);
+        const result = await requestNative(method, params);
+        sourceReadAuthority(scope, method, params);
+        return result;
       },
       inspectManagerRouting: (options) => managerRouter.inspect(options),
       drainManagerRouting: (options) => managerRouter.drain(options),
@@ -1884,6 +2250,32 @@ export async function launchNative({
         callback = fn;
       },
       close: stop,
+      inspectCliInputs(projectId) {
+        check(id(projectId), "invalid_project");
+        const socket = join(stateDirectory, "tmux.sock"),
+          name = `project-${hash(projectId).slice(0, 24)}`;
+        if (!existsSync(socket)) return { projectId, activeCli: 0, unknownInputs: 0 };
+        const sessions = execFileSync(
+          "/usr/bin/tmux",
+          ["-S", socket, "list-sessions", "-F", "#{session_name}"],
+          {
+            env,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+            timeout: 2000,
+            maxBuffer: 16384,
+          },
+        )
+          .trim()
+          .split("\n")
+          .filter(Boolean);
+        check(sessions.length <= 32, "source_application_cli_inventory_limit");
+        return {
+          projectId,
+          activeCli: sessions.filter((v) => v === name).length,
+          unknownInputs: sessions.filter((v) => v !== name).length,
+        };
+      },
       async detach(projectId) {
         check(id(projectId), "invalid_project");
         const socket = join(stateDirectory, "tmux.sock"),
@@ -1895,7 +2287,9 @@ export async function launchNative({
         });
       },
       async attach(threadId, cwd, projectId) {
+        sourceInputAuthority?.();
         await executionAuthority?.fence();
+        sourceInputAuthority?.();
         executionAuthority?.assert();
         const socket = join(stateDirectory, "tmux.sock");
         const name = `project-${hash(projectId).slice(0, 24)}`;

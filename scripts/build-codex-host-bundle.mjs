@@ -60,6 +60,8 @@ const modules = [
   "delivery-source-publisher.mjs",
   "delivery-source-publisher-journal.mjs",
   "delivery-source-state-client.mjs",
+  "codex-source-application.mjs",
+  "delivery-source-apply-client.mjs",
 ];
 const assets = [
   "managed-projects.py",
@@ -70,6 +72,7 @@ const assets = [
   "delivery-source-provider.py",
   "delivery-source-runtime.py",
   "delivery-source-worker.py",
+  "delivery-source-apply-worker.py",
   "codex-project-terminal.py",
   "codex-project-lease.py",
   "install-codex-runtime.py",
