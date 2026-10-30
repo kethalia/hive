@@ -9,6 +9,8 @@ const calls = vi.hoisted(() => ({
   token: vi.fn(),
   tokenSend: vi.fn(),
   templates: vi.fn(),
+  templateNotices: vi.fn(),
+  templateSend: vi.fn(),
   db: {},
 }));
 vi.mock("@hive/db", () => ({ getDb: () => calls.db }));
@@ -20,8 +22,8 @@ vi.mock("@/lib/delivery/dispatch", () => ({
   sendDeliveryPush: (...args: unknown[]) => calls.send(...args),
 }));
 
-vi.mock("@/lib/projects/task.server", () => ({
-  reconcileProjectTasks: (...args: unknown[]) => calls.reconcile(...args),
+vi.mock("../../../../deploy/cloudflare/jobs/project-tasks", () => ({
+  dispatchProjectTaskReconciliation: (...args: unknown[]) => calls.reconcile(...args),
 }));
 vi.mock("@/lib/auth/rotation-notices", () => ({
   dispatchTokenWarnings: (...args: unknown[]) => calls.token(...args),
@@ -29,6 +31,10 @@ vi.mock("@/lib/auth/rotation-notices", () => ({
 }));
 vi.mock("../../../../deploy/cloudflare/jobs/template-publications", () => ({
   dispatchTemplatePublication: (...args: unknown[]) => calls.templates(...args),
+}));
+vi.mock("@/lib/templates/publication-notices", () => ({
+  dispatchTemplatePublicationNotices: (...args: unknown[]) => calls.templateNotices(...args),
+  sendTemplatePublicationPush: (...args: unknown[]) => calls.templateSend(...args),
 }));
 
 import worker, { dispatchScheduled } from "../../../../deploy/cloudflare/jobs/worker";
@@ -43,6 +49,7 @@ describe("scheduled delivery Worker lifetime", () => {
   it("requires explicit activation before creating a database context", async () => {
     expect(await dispatchScheduled({})).toEqual({ enabled: false });
     expect(calls.create).not.toHaveBeenCalled();
+    expect(calls.templateNotices).not.toHaveBeenCalled();
     expect((await worker.fetch()).status).toBe(404);
   });
   it("keeps the database open through provider delivery and closes after completion", async () => {
@@ -79,7 +86,8 @@ describe("scheduled delivery Worker lifetime", () => {
       projectTasks: { processed: 1 },
     });
     expect(calls.dispatch).not.toHaveBeenCalled();
-    expect(calls.close).toHaveBeenCalledOnce();
+    expect(calls.create).not.toHaveBeenCalled();
+    expect(calls.close).not.toHaveBeenCalled();
   });
   it("dispatches token metadata independently without asking the jobs Worker for auth secrets", async () => {
     calls.token.mockImplementation(async (db, send) => {
@@ -160,6 +168,54 @@ describe("scheduled delivery Worker lifetime", () => {
     });
     expect(calls.dispatch).not.toHaveBeenCalled();
     expect(calls.reconcile).not.toHaveBeenCalled();
+    expect(calls.close).toHaveBeenCalledOnce();
+  });
+  it("dispatches template notices independently of publication or Coder auth", async () => {
+    const signal = new AbortController().signal;
+    calls.templateSend.mockResolvedValue("delivered");
+    calls.templateNotices.mockImplementation(async (db, send, options) => {
+      expect(db).toBe(calls.db);
+      expect(options).toEqual({ enabled: true });
+      expect(calls.close).not.toHaveBeenCalled();
+      await send("owner", { kind: "template" }, signal);
+      return { enabled: true, delivered: 1 };
+    });
+    expect(
+      await dispatchScheduled({
+        HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED: "true",
+        VAPID_SUBJECT: "mailto:fixture@example.invalid",
+      }),
+    ).toMatchObject({ templateNotifications: { delivered: 1 } });
+    expect(calls.templateSend).toHaveBeenCalledWith(
+      calls.db,
+      "owner",
+      { kind: "template" },
+      "mailto:fixture@example.invalid",
+      signal,
+    );
+    expect(calls.close).toHaveBeenCalledOnce();
+    expect(calls.reconcile).not.toHaveBeenCalled();
+  });
+  it("drains a pending template push despite another dispatch failure", async () => {
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    calls.dispatch.mockRejectedValue(new Error("provider failure"));
+    calls.templateNotices.mockImplementation(async () => {
+      await pending;
+      expect(calls.close).not.toHaveBeenCalled();
+      return { enabled: true, delivered: 1 };
+    });
+    const work = dispatchScheduled({
+      HIVE_DELIVERY_DISPATCH_ENABLED: "true",
+      HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED: "true",
+    });
+    const rejection = expect(work).rejects.toThrow("durable dispatch");
+    await Promise.resolve();
+    expect(calls.close).not.toHaveBeenCalled();
+    release();
+    await rejection;
     expect(calls.close).toHaveBeenCalledOnce();
   });
 });

@@ -4,6 +4,11 @@ import { NextResponse } from "next/server";
 import { getSessionCookieValuesFromHeader } from "./lib/auth/session-cookie";
 import { isHostCallbackTransport } from "./lib/codex-session/host-callback-transport";
 import {
+  authorizeProjectReconcile,
+  projectReconcileFailure,
+  projectReconcilePath,
+} from "./lib/projects/reconcile-transport";
+import {
   buildContentSecurityPolicy,
   buildPermissionsPolicy,
   CODER_FRAME_HOSTS_REQUEST_HEADER,
@@ -26,6 +31,13 @@ function withContentSecurityPolicy(
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (projectReconcilePath(request)) {
+    const rejected = authorizeProjectReconcile(request, process.env);
+    return rejected
+      ? projectReconcileFailure(rejected)
+      : withContentSecurityPolicy(NextResponse.next());
+  }
 
   if (
     STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||

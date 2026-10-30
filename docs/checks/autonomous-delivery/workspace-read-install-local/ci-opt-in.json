@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "ciRunId": "41002441846",
+  "ciJobId": "123889820653",
+  "failedRevision": "f14f569666a517aca9e90de70831a1e967be4d3b",
+  "cause": "Native-only standalone installer test omitted its existing opt-in environment guard; ordinary Node22 CI lacks /usr/bin/node24.",
+  "fix": "Honor HIVE_WORKSPACE_READ_INSTALL_NATIVE=1 before touching pinned native dependencies. Explicit opt-in still fails when prerequisites are absent.",
+  "runtimeChanged": false,
+  "defaultChecks": {
+    "passed": 3,
+    "nativeSkipped": 1
+  },
+  "explicitNativeChecks": {
+    "passed": 1,
+    "skipped": 0
+  },
+  "sourceSha256": "3140bf632f68529abab2a20085cd1e60625e6b38d4477387cfcf31729908a577",
+  "actualEvidence": "parent-opt-in.json"
+}

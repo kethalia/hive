@@ -10,6 +10,8 @@ import {
   templateAssetsLoader,
   templatePublicationArtifact,
 } from "../../../src/lib/templates/publication-artifact";
+import { TemplatePublicationLogService } from "../../../src/lib/templates/publication-log-service";
+import { dispatchTemplatePublicationNotices } from "../../../src/lib/templates/publication-notices";
 import { CoderTemplatePublicationProvider } from "../../../src/lib/templates/publication-provider";
 import { templatePublicationRoutes } from "../../../src/lib/templates/publication-routes";
 import { TemplatePublicationService } from "../../../src/lib/templates/publication-service";
@@ -30,6 +32,7 @@ type Env = {
   CODER: { fetch: typeof fetch };
   ASSETS: TemplateAssets;
   CREATION_PROOF?: string;
+  LOG_PROOF?: string;
 };
 type Context = { waitUntil(p: Promise<unknown>): void; passThroughOnException(): void };
 function requireProof(value: unknown, label: string): asserts value {
@@ -197,6 +200,49 @@ export default {
             stage,
           );
           checks[mode] = true;
+          if (env.LOG_PROOF === "true" && mode === "success") {
+            const human = new TemplatePublicationLogService(
+              db,
+              auth,
+              env.CODER.fetch.bind(env.CODER),
+            );
+            const page = await human.read(
+              actor,
+              "ai-dev-k8s",
+              job.id,
+              "0",
+              AbortSignal.timeout(15000),
+            );
+            requireProof(
+              page.records[0]?.output === "synthetic-secret-never-in-controller-journal" &&
+                page.nextAfter === "1",
+              "human_log_read",
+            );
+            checks.humanLogRead = true;
+            await env.CODER.fetch("https://synthetic.invalid/__fixture/log-mode", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${env.PROOF_BEARER}` },
+              body: JSON.stringify({ mode: "oversized" }),
+            });
+            const limit = await human.read(
+              actor,
+              "ai-dev-k8s",
+              job.id,
+              "0",
+              AbortSignal.timeout(15000),
+            );
+            requireProof(
+              limit.records.length === 0 &&
+                limit.nextAfter === "0" &&
+                limit.fallback === "row_too_large" &&
+                limit.coderUrl.startsWith(env.CODER_URL),
+              "human_log_cutoff",
+            );
+            checks.humanLogCutoff = true;
+            const events = await db.templatePublicationEvent.findMany({ where: { jobId: job.id } });
+            requireProof(!JSON.stringify(events).includes("synthetic-secret"), "raw_not_durable");
+            checks.rawOutputNotDurable = true;
+          }
           if (mode === "first_success") {
             const update = await service.enqueue(actor, "ai-dev-k8s", crypto.randomUUID());
             for (let n = 0; n < 4; n++) {
@@ -215,6 +261,25 @@ export default {
             );
             checks.firstCreateThenUpdate = true;
           }
+        }
+        if (env.LOG_PROOF === "true") {
+          const sent: unknown[] = [];
+          const result = await dispatchTemplatePublicationNotices(
+            db,
+            async (owner, payload) => {
+              requireProof(
+                owner === env.OWNER_ID &&
+                  payload.kind === "template" &&
+                  !JSON.stringify(payload).includes("synthetic-secret"),
+                "notice_scope",
+              );
+              sent.push(payload);
+              return "delivered";
+            },
+            { enabled: true },
+          );
+          requireProof(result.delivered === 1 && sent.length === 1, "notice_claim_ack");
+          checks.noticeMetadataClaimAck = true;
         }
         stage = "http_default_off";
         const routes = templatePublicationRoutes({
@@ -241,9 +306,11 @@ export default {
           checks,
           provider: "synthetic service binding only",
           database:
-            env.CREATION_PROOF === "true"
-              ? "isolated local PostgreSQL28"
-              : "isolated local PostgreSQL27",
+            env.LOG_PROOF === "true"
+              ? "isolated local PostgreSQL29"
+              : env.CREATION_PROOF === "true"
+                ? "isolated local PostgreSQL28"
+                : "isolated local PostgreSQL27",
         });
       } catch (error) {
         // Private local-only diagnostics; only synthetic fixture data exists here.

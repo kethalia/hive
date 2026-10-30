@@ -105,6 +105,10 @@ jobs:
         env:
           HIVE_TEMPLATE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_template_test
           CODER_URL: https://coder.kethalia.com
+      - name: Validate template log ownership and durable notification recovery
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/templates/publication-notices.integration.test.ts src/__tests__/lib/templates/publication-log-service.integration.test.ts
+        env:
+          HIVE_TEMPLATE_NOTICE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_template_test
 
   quality:
     name: Quality

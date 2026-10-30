@@ -99,6 +99,7 @@ model TemplatePublicationJob {
   target                  TemplatePublicationTarget   @relation("PublicationJobs", fields: [targetId], references: [id], onDelete: Restrict)
   currentFor              TemplatePublicationTarget[] @relation("PublicationCurrent")
   events                  TemplatePublicationEvent[]
+  notice                  TemplatePublicationNotice?
 
   @@unique([ownerId, id])
   @@unique([targetId, id])
@@ -118,10 +119,33 @@ model TemplatePublicationEvent {
   digest    String
   createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz
   job       TemplatePublicationJob @relation(fields: [ownerId, jobId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction)
+  notice    TemplatePublicationNotice?
 
+  @@unique([ownerId,jobId,id], map:"template_publication_event_notice_key")
   @@unique([jobId, sequence])
   @@unique([jobId, key])
   @@map("template_publication_events")
+}
+
+model TemplatePublicationNotice {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  jobId String @unique @map("job_id") @db.Uuid
+  eventId String @unique @map("event_id") @db.Uuid
+  status String @default("pending")
+  attempts Int @default(0)
+  leaseHolder String? @map("lease_holder") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  lastReason String? @map("last_reason")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz
+  job TemplatePublicationJob @relation(fields:[ownerId,jobId], references:[ownerId,id],onDelete:Restrict,onUpdate:NoAction)
+  event TemplatePublicationEvent @relation(fields:[ownerId,jobId,eventId],references:[ownerId,jobId,id],onDelete:Restrict,onUpdate:NoAction)
+  @@unique([ownerId,jobId])
+  @@unique([ownerId,jobId,eventId])
+  @@index([status,nextAttemptAt])
+  @@map("template_publication_notices")
 }
 
 model CoderToken {

@@ -1,0 +1,115 @@
+{
+  "observedAt": "2026-10-30T04:49:18.731958+00:00",
+  "localOnly": true,
+  "sourceStable": true,
+  "sourceHashes": {
+    "packages/db/prisma/migrations/20261029180000_template_publication_notices/migration.sql": "a590d0839853d4c554168cc5c21dd02231b090dd78a6bb6976902c1d972e0e91",
+    "src/lib/templates/publication-store.ts": "2d254d9adbe08e2578439666fce946bc067e2c5ff353465914a842afcaaf13fc",
+    "src/lib/templates/publication-routes.ts": "15ffebb3443d8c0b3d565095ed84262ff4ee0d532574e3ca002938a60ecf3a94",
+    "src/lib/templates/publication-notices.ts": "0cb738b85562f83a026af74534245b3f85b0c6656d285f89aaa40800bdd87764",
+    "src/lib/templates/publication-log-contracts.ts": "37797b07aa7acc430d588b31516ee62baa8f2dfa83cc6aff28cce18538483a4d",
+    "src/lib/templates/publication-log-factory.ts": "4ea3ae58fb437323e99cf1908daa94f601ee4105c820ccbad3dc6b7d0a4da14f",
+    "src/lib/templates/publication-log-provider.ts": "e6e5be19dc9613ad843f0d220240fc5df6141f13641d550855f9c044be483d39",
+    "src/lib/templates/publication-log-reader.ts": "4a1d4a9d15ab2ce5ce5ee87536b3017a7bce3611d3acddd2f2aacefb1326e8e7",
+    "src/lib/templates/publication-log-routes.ts": "5669676b9d4f2afa4cc9061868af9919977bf2a4fef16b1f8540f702c2c9f7f6",
+    "src/lib/templates/publication-log-service.ts": "6f2499951b68991f3730475b9453bacb4b29f151e8a572f8de82cd7616cec0dd",
+    "src/app/api/templates/[name]/push/[jobId]/logs/route.ts": "4660d2ba18add8fc808e8b8a8ecb299c0d1bb43724217164efd050962c1a4e59",
+    "src/components/templates/TemplatePublicationLogs.tsx": "4909870edb953502a31e6b383567b807da2b4e7a6d0f4ee40b1742a63d3d5168",
+    "src/components/templates/TemplateDetailClient.tsx": "49836178262b995e2f129e5c3a1270c6b854b5617566bf7ba64f64b22701fd8d",
+    "src/components/templates/TemplatesClient.tsx": "5abd8fe1f964ff8bd2b4e4e11c00d502fbba2b0148297bd1c864aef2e66db711",
+    "src/__tests__/components/template-publication-logs.test.tsx": "0a58f062463924d156a0481f71b7bbdd5fe567545d90594c3b0bee7fce7fd539",
+    "src/__tests__/lib/templates/publication-log-reader.test.ts": "401ebe5c4570d270dcb6864687f9c7f75f039490c7ed71a9dbb8b20640ab986b",
+    "src/__tests__/lib/templates/publication-log-service.integration.test.ts": "06ed4f60e2e6cfbedc0b28c499061cfeb34bf14982a0f161d7b7aa46284e4d0e",
+    "src/__tests__/lib/templates/publication-logs.test.ts": "0c8871dbef4a54728a5fd4eb7e582c5c5e38d459532038ff2f5afba7dc250fdb",
+    "src/__tests__/lib/templates/publication-notices.integration.test.ts": "eb03943d2afed7917fddef024a9f178952b4ad0c126fcf60a3b54c480ae11c6f",
+    "src/__tests__/lib/templates/publication-notices.test.ts": "3d4a1f901b91d99564a6fe9fe6f5bff0900810d5c6b7ec489066db98c2b0d185",
+    "deploy/cloudflare/jobs/local-publication.worker.ts": "373a9c3977520675b3aa68c70681eef2a7c663068ba46ff87c5fa76ff5fc370a",
+    "deploy/cloudflare/jobs/local-publication-fixture.worker.ts": "590231e0abce85e44ec81eb9232e81fc015fe2ceb0c7b0bb115c863ea2d5de15",
+    "deploy/cloudflare/jobs/run-local-publication.mjs": "219a79d7e6dbfc747ef39bfa711a443642334014c4a785fddd4a58e0c2301f61"
+  },
+  "schema29": {
+    "repositoryPath": "packages/db/prisma/schema.prisma",
+    "source": "immutable primary schema29 snapshot; canonical working schema30 intentionally excluded",
+    "snapshot": "/tmp/hive-template-schema29.prisma",
+    "sha256": "44ec6ee8ef6dbaeca1f68f5dae2233510a8364f64a6bd03d7c5ba5b673f509a9"
+  },
+  "checks": [
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@hive/db",
+        "exec",
+        "prisma",
+        "validate",
+        "--schema",
+        "/tmp/hive-template-schema29.prisma"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "biome",
+        "check",
+        "src/lib/templates/publication-store.ts",
+        "src/lib/templates/publication-routes.ts",
+        "src/lib/templates/publication-notices.ts",
+        "src/lib/templates/publication-log-contracts.ts",
+        "src/lib/templates/publication-log-factory.ts",
+        "src/lib/templates/publication-log-provider.ts",
+        "src/lib/templates/publication-log-reader.ts",
+        "src/lib/templates/publication-log-routes.ts",
+        "src/lib/templates/publication-log-service.ts",
+        "src/app/api/templates/[name]/push/[jobId]/logs/route.ts",
+        "src/components/templates/TemplatePublicationLogs.tsx",
+        "src/components/templates/TemplateDetailClient.tsx",
+        "src/components/templates/TemplatesClient.tsx",
+        "src/__tests__/components/template-publication-logs.test.tsx",
+        "src/__tests__/lib/templates/publication-log-reader.test.ts",
+        "src/__tests__/lib/templates/publication-log-service.integration.test.ts",
+        "src/__tests__/lib/templates/publication-logs.test.ts",
+        "src/__tests__/lib/templates/publication-notices.integration.test.ts",
+        "src/__tests__/lib/templates/publication-notices.test.ts",
+        "deploy/cloudflare/jobs/local-publication.worker.ts",
+        "deploy/cloudflare/jobs/local-publication-fixture.worker.ts",
+        "deploy/cloudflare/jobs/run-local-publication.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": ["pnpm", "exec", "tsc", "--noEmit", "--pretty", "false"],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/__tests__/lib/templates/publication-notices.test.ts",
+        "src/__tests__/lib/templates/publication-log-reader.test.ts",
+        "src/__tests__/lib/templates/publication-logs.test.ts",
+        "src/__tests__/components/template-publication-logs.test.tsx",
+        "src/__tests__/components/template-detail.test.tsx",
+        "src/__tests__/components/templates-list-mobile.test.tsx"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "latestOwnFocusedPgResult": {
+    "noticeTests": 11,
+    "logServiceTests": 5,
+    "database": "local36089/hive_template_test",
+    "noConcurrentPgSinceRelease": true
+  },
+  "parentIndependentValidation": {
+    "reportedPgTests": 42,
+    "reportedFocusedTests": 81,
+    "cleanExport": "/tmp/hive-reconcile-logs-parent-nv38x88e",
+    "reportedTypecheckPass": true
+  },
+  "workerdAfterLifetimeFixNoticeHashMatches": true,
+  "schema28FixtureUntouched": true
+}

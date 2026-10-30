@@ -36,3 +36,45 @@ describe("portable template publication transport", () => {
       expect(isPortableTemplatePublication(request(path, "POST", headers), "true")).toBe(false);
   });
 });
+
+describe("portable template log transport", () => {
+  const logs = stream.replace(/stream$/, "logs");
+  it("permits independently enabled historical reads and bounded canonical cursors", () => {
+    for (const suffix of ["", "?after=0", "?after=1", "?after=9223372036854775807"])
+      expect(isPortableTemplatePublication(request(logs + suffix, "GET"), "false", "true")).toBe(
+        true,
+      );
+    expect(isPortableTemplatePublication(request(logs, "GET"), "true")).toBe(false);
+    expect(isPortableTemplatePublication(request(logs, "POST"), "true", "true")).toBe(false);
+  });
+  it.each([
+    "?",
+    "?after=",
+    "?after=-1",
+    "?after=01",
+    "?after=9223372036854775808",
+    "?after=1&after=2",
+    "?after=%31",
+    "?%61fter=1",
+    "?limit=1",
+    "/",
+    "?after=1&",
+    "?after=1e3",
+  ])("rejects ambiguous or out-of-range query %s", (suffix) => {
+    expect(isPortableTemplatePublication(request(logs + suffix, "GET"), "true", "true")).toBe(
+      false,
+    );
+  });
+  it("retains exact template/path and rejects action or upgrade headers", () => {
+    for (const value of [
+      logs.replace("ai-dev-k8s", "custom"),
+      logs.replace("ai-dev-k8s", "%61i-dev-k8s"),
+      logs.replace("00000000", "ABCDEFGH"),
+    ])
+      expect(isPortableTemplatePublication(request(value, "GET"), "true", "true")).toBe(false);
+    for (const headers of [{ "Next-Action": "anything" }, { Upgrade: "websocket" }])
+      expect(isPortableTemplatePublication(request(logs, "GET", headers), "true", "true")).toBe(
+        false,
+      );
+  });
+});

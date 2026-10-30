@@ -39,6 +39,10 @@ import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 const TerminalPanel = dynamic(() => import("./TerminalPanel").then((m) => m.TerminalPanel), {
   ssr: false,
 });
+const TemplatePublicationLogs = dynamic(
+  () => import("./TemplatePublicationLogs").then((m) => m.TemplatePublicationLogs),
+  { ssr: false },
+);
 
 interface PushState {
   jobId: string | null;
@@ -46,6 +50,7 @@ interface PushState {
   /** null = pending/in-progress, true = succeeded, false = failed */
   result: boolean | null;
   terminalOpen: boolean;
+  canViewDetailedLogs?: boolean;
 }
 
 interface TemplatesClientProps {
@@ -202,7 +207,8 @@ export function TemplatesClient({
         [name]: { jobId: null, inProgress: true, result: null, terminalOpen: true },
       }));
 
-      let jobId: string;
+      let jobId: string,
+        canViewDetailedLogs = false;
       try {
         const res = await fetch(`/api/templates/${name}/push`, { method: "POST" });
         if (!res.ok) {
@@ -213,6 +219,7 @@ export function TemplatesClient({
         }
         const data = await res.json();
         jobId = data.jobId;
+        canViewDetailedLogs = data.canViewDetailedLogs === true;
       } catch (err) {
         writeLine(name, `[error] ${err instanceof Error ? err.message : String(err)}`);
         finish(false);
@@ -220,7 +227,7 @@ export function TemplatesClient({
       }
 
       if (!mounted.current) return;
-      setPushStates((prev) => ({ ...prev, [name]: { ...prev[name], jobId } }));
+      setPushStates((prev) => ({ ...prev, [name]: { ...prev[name], jobId, canViewDetailedLogs } }));
 
       const stop = followTemplatePush(name, jobId, {
         onLine: (line) => writeLine(name, line),
@@ -512,6 +519,9 @@ export function TemplatesClient({
               onReady={() => handleTerminalReady(status.name)}
               className="h-64"
             />
+            {push.canViewDetailedLogs && push.jobId ? (
+              <TemplatePublicationLogs name={status.name} jobId={push.jobId} />
+            ) : null}
           </div>
         );
       })}

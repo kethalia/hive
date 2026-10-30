@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-10-30T04:46:28.962795+00:00",
+  "remoteReadOnly": true,
+  "role": "hive_app_runtime",
+  "database": "hive_app_preview",
+  "effectivePushSubscriptionPrivileges": {
+    "select": true,
+    "insert": true,
+    "update": true,
+    "delete": true
+  },
+  "directDeleteGrants": [
+    "coder_tokens",
+    "codex_host_registrations",
+    "codex_host_slots",
+    "codex_registered_threads",
+    "codex_registration_grants",
+    "delivery_attempts",
+    "delivery_conversations",
+    "delivery_epics",
+    "delivery_events",
+    "delivery_evidence",
+    "delivery_outbox",
+    "delivery_projects",
+    "delivery_report_evidence",
+    "delivery_step_dependencies",
+    "delivery_step_reports",
+    "delivery_steps",
+    "delivery_tasks",
+    "navigation_favorites",
+    "notification_sources",
+    "project_task_intents",
+    "push_subscriptions",
+    "sessions",
+    "users",
+    "vapid_keys"
+  ],
+  "newPermissionGranted": false,
+  "localFixtureOnlyNoticeGrantsDoNotRepresentOldTableBaseline": true,
+  "externalPushesSent": 0,
+  "schema29MigrationRevokesNoticeDelete": true
+}

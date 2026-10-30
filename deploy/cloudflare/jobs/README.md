@@ -45,5 +45,29 @@ Build the maintained archives with `node scripts/build-template-artifacts.mjs --
 before packaging this Worker. Its ASSETS binding serves those fixed digest paths from
 `public`; the controller verifies archive size and digest against the committed manifest.
 The HTTP handler always returns404, including asset paths. No cron or public endpoint is
-enabled by this configuration. Existing-template publication is a foundation checkpoint;
-first creation, required variables, detailed log viewing and live acceptance remain gates.
+enabled by this configuration. Existing-template updates and first creation have local database/workerd proofs.
+Required variables stay server-inherited. Live provider acceptance remains a gate.
+
+Project intent reconciliation uses the independent app-owned `APP_SERVICE` binding.
+Jobs send one selector-free private wakeup, authenticated with a separate
+`HIVE_PROJECT_TASK_RECONCILE_SECRET`; neither database nor encryption/issuer keys are
+needed for a project-only wake. The app owns decryption, owner/build/app checks and
+at most one durable claim. Both Workers retain `HIVE_PROJECT_TASKS_ENABLED=false`.
+The authenticated deadline is at most 45 seconds; the caller aborts at 60 seconds and
+never interprets an unknown response as success. Caller cancellation does not revoke
+an accepted wake. See the [local reconciliation proof](../../../docs/checks/autonomous-delivery/project-reconciliation.md)
+for that runtime limitation, backend query bounds and awaited pool cleanup.
+
+Template completion notifications have their own default-off
+`HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED` gate. They can drain terminal results while
+publication is paused, without Coder credentials or an auth-service binding. One durable
+notice and at most20 subscriptions are handled per wake, with owner/origin checks, stable
+notification tags and a five-attempt budget. Sender cancellation must settle before the
+notice is acknowledged and before the shared database context closes. Job queries and
+transactions have10-second bounds; provider acknowledgements remain at-least-once.
+
+Detailed log reads use the app's independent `HIVE_TEMPLATE_LOG_VIEW_ENABLED` gate. The
+private authenticated route allows exact GET requests and one canonical nonnegative int64
+`after` cursor. It retains normal preview/session checks, and historical reads do not require
+publication activation. Raw log data is returned only after an explicit UI request and is
+not written into notification payloads, task events or application logs.

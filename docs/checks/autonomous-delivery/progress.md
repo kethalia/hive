@@ -757,7 +757,7 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   [read installer](workspace-read-installer.md), [status contract](delivery-status.md).
 
 - Preview schema28: completed with all38 existing tables' old columns/rows and migration
-  records preserved; runtime grants remain SELECT/INSERT/UPDATE only. The preflight initially
+  records preserved; publication-table runtime grants remain SELECT/INSERT/UPDATE only. The preflight initially
   rejected legitimate column names containing digits before any migration; its identifier
   validator was corrected and the reviewed migration/verification passed. No production access
   or cron activation. Schema28 CI and all image/native builds pass5c7ea17. Evidence:
@@ -804,3 +804,30 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   file counts still include regular files only. A new extraction regression creates no
   implicit parents. Packaging and consuming hash/artifact tests pass; live re-import follows.
   No active template version or production workspace was changed by the failed imports.
+
+- Real inactive Coder import: completed after the directory-header fix9ea8aca. The545792-byte
+  maintained artifact imports successfully with pinned providers and the reviewed guardian
+  binary. The existing persistent codex test workspace now runs that inactive version with
+  the read service enabled; global active template remains unchanged. Its first signed read
+  exposed an installed agent-ID mismatch and correctly returned403; diagnosis is ongoing.
+
+- Native CI opt-in repair: completed. f14f569 fixes the status test and passes all image/native
+  builds, but ordinary Node22 CI then reached an installer proof requiring root-owned
+  /usr/bin/node24. The existing dedicated probe already set an opt-in variable, but the
+  test omitted its guard. Restoring that guard leaves3 portable bootstrap checks enabled
+  and skips the native-only case by default; explicitly opting in passes the real isolated
+  installer proof. Production runtime code is unchanged by this correction.
+
+- Private Cloudflare task reconciliation and template logs/notices: parent validation complete
+  locally, high difficulty because actual Worker cancellation and database lifetime differed
+  from simple request mocks. Jobs call one fixed authenticated app wake; the app enforces its
+  deadline and closes its database before returning even if the caller disconnects. PostgreSQL
+  statement timeout57014 and recovery after a late host effect pass actual workerd checks.
+  Template logs remain explicit authenticated memory-only reads; terminal publication results
+  create a durable notice with bounded retry. Review caught and fixed a sender timeout that
+  could return before pending database work settled. The parent schema29 export passes82
+  distinct focused cases,42 real PostgreSQL cases, typecheck and actual workerd reconciliation.
+  Native installer opt-in also passes. Provider/push doubles and absent live browser acceptance
+  remain explicit. All new flags stay off; remote Neon migration29 follows this commit.
+  Evidence: [parent assembly](template-publication-logs-parent.json),
+  [actual Worker recovery](project-reconciliation-parent.json).
