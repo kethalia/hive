@@ -16,7 +16,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Complete | PR #401 merged main into epic through GitHub; pulled 4d8b821. Formatting-only conflict resolved. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | Updated preview login/logout passed; baseline parity pending | Source106721d remote hashes and local23 checks pass. Hydration-aware browser run verifies login, secure cookies, desktop/mobile overflow, API logout and stale-cookie401. Both URLs are disabled;54requests total including preserved first failure. Nineteen Neon migrations remain; Settings UI/full baseline parity pending. |
+| F02 Cloudflare/Neon | Updated preview login/logout passed; baseline parity pending | Source106721d remote hashes and local23 checks pass. Hydration-aware browser run verifies login, secure cookies, desktop/mobile overflow, API logout and stale-cookie401. Both URLs are disabled;54requests total including preserved first failure. Local full-Next workerd on9a0a556 passes auth and reviewed workspace action transport against isolated Neon. Preview schema26 preserves all31 prior table hashes; Settings UI/full baseline parity pending. |
 | F03 project discovery | Signed discovery and project enrollment implemented; preview pending | b0e278c ports discovery to verified Coder app transport, independently binds owner/build/app and uses agent-scoped GitHub access. No SSH fallback in Workers. 7635164 adds stable enrollment and durable first-task preparation; account-backed preview remains. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
@@ -26,6 +26,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D07/D08 eligibility | Signed transport and manager policy integration passed locally; live composition pending | 8571cd1 binds result references to the exact PR, checkout and full controller policy; 92 focused checks pass, including real PostgreSQL races. a4fa338 preserves pending retry bytes while retiring validated expired records. Live R2 retention/integrity passed; cleanup is complete. Installed source composition remains. GitHub reports no required PR checks. |
 | Test workspace | Created; last inspection healthy | User reconnected GitHub; verified valid. codex/hive-epic-test has a two-hour autostop and must be freshly inspected before the next installed pilot. Identity is preserved in test-workspace-creation.json. No primary credentials copied. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
+| F07 background-service replacement | Credential scheduler and notices implemented disabled; other adapters pending | 1034cfe adds durable credential rotation, expiry outbox and schema26; parent tests pass. Template publishing/logs, generic terminals/files/voice, agent tools and hook adapters remain. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
 ## Resource and cost record
@@ -597,3 +598,10 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   This run performs no Coder lifecycle mutation; account-backed lifecycle and browser acceptance
   remain. CI, image builds and native guardian build all pass for pushed9807fbc.
   Evidence: [workerd actions](cloudflare-auth-portable-actions.json).
+
+- Preview application/rotation schema: completed, moderate difficulty. The committedf2c7a0f
+  migration runner upgrades isolated Neon24→26 after verifying the prior history and all
+  table hashes. All31 existing table hashes and24 prior migration records are unchanged.
+  Four new tables receive only SELECT/INSERT/UPDATE for the runtime role; schema creation
+  and DELETE remain denied. No production database, cron or remote credential changed.
+  Evidence: [preview schema26](neon-source-application-rotation-migration.json).
