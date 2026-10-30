@@ -54,7 +54,7 @@ async function recordTransition(name, next) {
   await writeFile(resolve(output, `transition-${next}.json`), JSON.stringify(frames, null, 2));
 }
 try {
-  await page.goto(`${url}/?dock=keycaps`);
+  await page.goto(url);
   await recordTransition("Extra keyboard", "keyboard");
   await expect(back).toBeFocused();
   for (const modifier of ["Ctrl", "Alt"]) {
@@ -154,7 +154,7 @@ try {
   });
   const touchPage = await touchContext.newPage();
   touchPage.on("pageerror", (error) => errors.push(error.message));
-  await touchPage.goto(`${url}/?dock=keycaps`);
+  await touchPage.goto(url);
   await touchPage.getByRole("button", { name: "Extra keyboard", exact: true }).tap();
   const touchDock = touchPage.getByRole("navigation", { name: "Workspace dock" });
   await expect(touchDock).toHaveAttribute("aria-busy", "false");

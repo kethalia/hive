@@ -27,7 +27,6 @@ import { DockScrollArea } from "./dock-scroll-area";
 import { useDockView } from "./use-dock-view";
 
 export type DockView = "home" | "workspaces" | "keyboard";
-export type DockVariant = "phosphor" | "outline" | "keycaps" | "console" | "glass";
 export type DockAction = "copy" | "paste" | "upload" | "font-decrease" | "font-increase";
 export interface DockWorkspace {
   id: string;
@@ -53,7 +52,6 @@ export interface WorkspaceDockProps {
   disabledActions?: Partial<Record<DockAction, string>>;
   canCreateWorkspace?: boolean;
   density?: "comfortable" | "compact";
-  variant?: DockVariant;
   className?: string;
 }
 
@@ -151,7 +149,6 @@ export function WorkspaceDock({
   disabledActions,
   canCreateWorkspace = true,
   density = "comfortable",
-  variant = "keycaps",
   className,
 }: WorkspaceDockProps) {
   const { view, busy, navRef, panelRef, changeView } = useDockView();
@@ -220,7 +217,6 @@ export function WorkspaceDock({
         className={cn("hive-dock", className)}
         data-view={view}
         data-density={density}
-        data-variant={variant}
         data-transitioning={busy}
         aria-busy={busy}
         tabIndex={-1}
@@ -238,7 +234,7 @@ export function WorkspaceDock({
             <div className="hive-dock-home">
               <DockButton
                 label="Apps"
-                className="hive-dock-app hive-dock-launcher"
+                className="hive-dock-app"
                 onClick={onAppsOpen}
                 aria-haspopup="dialog"
               >
@@ -249,7 +245,7 @@ export function WorkspaceDock({
               </DockButton>
               <DockButton
                 label="Workspaces"
-                className="hive-dock-app hive-dock-workspaces"
+                className="hive-dock-app"
                 data-dock-opener="workspaces"
                 onClick={() => open("workspaces")}
                 aria-expanded={false}
@@ -262,7 +258,7 @@ export function WorkspaceDock({
               </DockButton>
               <DockButton
                 label="Extra keyboard"
-                className="hive-dock-app hive-dock-keyboard"
+                className="hive-dock-app"
                 data-dock-opener="keyboard"
                 onClick={() => open("keyboard")}
                 aria-expanded={false}
@@ -275,7 +271,7 @@ export function WorkspaceDock({
               <span className="hive-dock-divider" />
               <DockButton
                 label="Keybinds"
-                className="hive-dock-app hive-dock-keybinds"
+                className="hive-dock-app"
                 onClick={onKeybindsOpen}
                 aria-haspopup="dialog"
               >

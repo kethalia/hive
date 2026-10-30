@@ -1,11 +1,11 @@
 # Workspace dock experiment
 
-A standalone shadcn/Base UI dock experiment inside Hive's actual main-screen layout. The application
-has no imports of the experiment. Keep the tracking PR in draft until the larger refactor is ready.
+A standalone Keycaps-only shadcn/Base UI dock experiment inside Hive's actual main-screen layout.
+The application has no imports of the experiment. Keep the tracking PR in draft until the larger
+refactor is ready.
 
-The preview reuses the existing `WindowCanvas`, `TerminalSessionFrame`, `WorkspaceBoardBar`,
-`WorkspaceSearchButton`, `WindowLayoutControls`, window manager and layout helpers, Fira Code fonts,
-CRT background classes, and unmodified `src/app/globals.css`. Its empty-state copy and dashboard
+The preview reuses the existing `WindowCanvas`, `TerminalSessionFrame`, window manager and layout
+helpers, Fira Code fonts, CRT background classes, and unmodified `src/app/globals.css`. Its empty-state copy and dashboard
 wrappers follow `GeneralWorkspace.tsx` and the dashboard layout. The prototype adapter supplies
 local board/window state; it does not load the production page or call live services.
 
@@ -27,23 +27,6 @@ through Coder still requires the workspace owner's Coder sign-in.
 
 The screen starts with Hive's original **Your workspace** empty state and **Add window** button.
 There is no marketing page, wallpaper, decorative Mac window, or new application theme.
-
-Use the style buttons below the canvas to switch instantly, or **Compare** to see all five side by
-side. The active style is stored in the URL (`?dock=phosphor`, `?dock=outline`, `?dock=keycaps`,
-`?dock=console`, or `?dock=glass`), so links can be shared and refreshed. Switching styles preserves
-the dock's expanded view, workspace state, and terminal sessions.
-
-| Style | Treatment |
-| --- | --- |
-| Phosphor | Flat panel, muted labels, app colors and borders. |
-| Outline | Separate square buttons, fine outlines, transparent tray. |
-| Keycaps (default) | Raised keys, visible bottom-left shadows, smooth hover lift and key press. |
-| Console | A slim text-first command bar. |
-| Glass | The original colorful macOS-style treatment. |
-
-The four native variants use Hive's CSS tokens in both dark and light themes. All variants support
-the same workspace/keyboard expansions, focus behavior, and compact size. Comparison samples are
-inert illustrations; **Try** applies a style to the real playground controls.
 
 Keycaps keep their solid shadow anchored at the bottom-left. On hover a key lifts up/right and its
 shadow grows; pressing moves it down/left and collapses the shadow. The press is quick (65ms) and
@@ -73,14 +56,13 @@ Reduced-motion view changes are immediate.
   options. Edge fades show overflow, and the native scrollbar is hidden. Active spaces reveal
   themselves automatically when selected or when the viewport resizes.
 - **Keybinds:** opens prototype keyboard help and working layout action buttons.
-- **Playground:** a small utility button below the canvas opens controls for comparing the dock
-  with the **actual current Hive navbar**, switching the native dark/light theme, changing dock
-  density, adding a terminal, and resetting the preview. It does not cover pane-header controls.
+- **Playground:** a small utility button below the canvas opens the native dark/light theme,
+  dock density, add-terminal, and reset controls. It does not cover pane-header controls.
+
 
 Drag pane title bars and resize their divider grips using Hive's real canvas. Use the pane actions
 menu or Search Hive to switch Strip/Grid, cycle width, maximize, float, or equalize windows. Close
-buttons remove panes. The native navbar comparison includes the original search, layout, numbered
-workspace buttons, and workspace deletion behavior.
+buttons remove panes. The dock remains isolated from the real application navigation.
 
 The terminal shell is local. Type `help`, `ls`, `pwd`, `whoami`, `echo <text>`, or `clear`. Cursor
 arrows, history arrows, Backspace, Tab, Enter, Escape, Ctrl+C, and Ctrl+L work. Other modifier
@@ -111,7 +93,7 @@ import { WorkspaceDock } from "@/components/experimental/workspace-dock";
 ```
 
 The component owns its current view and one-shot modifiers. Consumers own workspace data and all
-effects. Optional `onWorkspaceRemove`, `variant`, `density`, `canCreateWorkspace`, `disabledActions`, and `className` props control
+effects. Optional `onWorkspaceRemove`, `density`, `canCreateWorkspace`, `disabledActions`, and `className` props control
 presentation and capabilities. `onKeyPress` receives the base key, modifier snapshot, and encoded VT
 sequence using Hive's existing encoder. `onAction` receives `copy`, `paste`, `upload`,
 `font-decrease`, or `font-increase`. Wire those to real selected-terminal capabilities only during
@@ -139,9 +121,9 @@ DOCK_EVIDENCE_DIR=/tmp/dock-evidence \
 node examples/dock-playground/validate.browser.mjs
 ```
 
-Run `validate-variants.browser.mjs` with the same environment to check all five styles in every dock
-view at desktop, 390px, and 320px widths, plus light/compact styles, URL reload, style switching
-without resetting the view, and comparison selection/focus. It also saves the comparison image.
+Run `validate-keycaps.browser.mjs` with the same environment for the resting shadow, hover lift,
+mouse press/release, latched state, Space/Enter activation, touch press/release, and reduced motion.
+It saves close-up screenshots of the cap states.
 
 Run `validate-navigation.browser.mjs` for the staged transitions, persistent depressed selections,
 wheel/arrow scrolling, pinned Back/+ at 320px, selected-space removal and focus, rapid Escape, and
@@ -149,7 +131,7 @@ reduced motion. It records frame-by-frame tray widths and saves screenshots of t
 
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,
-density, reset, native navbar comparison, real canvas Strip/Grid layouts and resizing,
+density, reset, real canvas Strip/Grid layouts and resizing,
 320px/390px layouts with nine workspaces, and reduced motion. It saves screenshots and
 `results.json`. It uses `@playwright/test` from the repository's pinned dependencies and installed
 Chrome; it does not install a browser.

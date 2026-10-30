@@ -1,19 +1,10 @@
-import {
-  Code2,
-  FileText,
-  Folder,
-  GalleryHorizontalEnd,
-  Monitor,
-  Settings2,
-  Terminal,
-} from "lucide-react";
+import { Code2, FileText, Folder, Monitor, Settings2, Terminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AppViewportSize } from "@/components/app-viewport-size";
 import {
   type DockAction,
   type DockKeyPress,
-  type DockVariant,
   WorkspaceDock,
 } from "@/components/experimental/workspace-dock";
 import { Button } from "@/components/ui/button";
@@ -35,9 +26,6 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
 import { WindowCanvas } from "@/components/workspaces/WindowCanvas";
-import { WindowLayoutControls } from "@/components/workspaces/WindowLayoutControls";
-import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
-import { WorkspaceSearchButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { OPEN_GLOBAL_COMMAND_PALETTE_EVENT } from "@/lib/terminal/global-command-palette";
 import {
@@ -59,8 +47,6 @@ import {
   windowGeometry,
 } from "@/lib/workspaces/window-manager";
 import { reconcileWorkspaceWindowLayout } from "@/lib/workspaces/workspace-window-layout";
-import { DockStyleComparison } from "./dock-style-comparison";
-import { DOCK_VARIANTS } from "./dock-variants";
 import { SandboxTerminal, type SandboxTerminalController } from "./sandbox-terminal";
 
 const ROOT = document.getElementById("root");
@@ -77,18 +63,9 @@ const LAYOUT_ACTIONS = WINDOW_ACTIONS.filter((action) =>
 
 function Playground() {
   const [state, setState] = useState(emptyGeneralWorkspace);
-  const [panel, setPanel] = useState<"apps" | "keybinds" | "controls" | "pane" | "styles" | null>(
-    null,
-  );
+  const [panel, setPanel] = useState<"apps" | "keybinds" | "controls" | "pane" | null>(null);
   const [theme, setTheme] = useState("dark");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
-  const [variant, setVariant] = useState<DockVariant>(
-    () =>
-      DOCK_VARIANTS.find(
-        (item) => item.id === new URLSearchParams(window.location.search).get("dock"),
-      )?.id ?? "keycaps",
-  );
-  const [navbar, setNavbar] = useState<"dock" | "current">("dock");
   const [event, setEvent] = useState("Local preview · disconnected from your Hive account");
   const [fontSize, setFontSize] = useState(13);
   const [clipboard, setClipboard] = useState("hello from the dock");
@@ -103,10 +80,6 @@ function Playground() {
   const mobile = useIsMobile();
   const board = state.boards.find((item) => item.key === state.activeBoardKey) ?? state.boards[0];
   const active = board.windows.find((item) => item.id === board.activeWindowId);
-  const manager = reconcileWindowManager(
-    board.manager,
-    board.windows.map((item) => item.id),
-  );
   const terminal = active?.kind === "terminal" ? controllers.current.get(active.id) : undefined;
   const register = useCallback((id: string, controller: SandboxTerminalController | null) => {
     if (controller) controllers.current.set(id, controller);
@@ -126,11 +99,6 @@ function Playground() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("dock", variant);
-    window.history.replaceState(null, "", url);
-  }, [variant]);
   useEffect(() => {
     const open = () => setPanel("apps");
     const shortcut = (event: KeyboardEvent) => {
@@ -375,23 +343,6 @@ function Playground() {
                 data-dashboard-full-bleed=""
                 data-testid="general-workspace"
               >
-                {navbar === "current" ? (
-                  <header
-                    className="relative isolate flex shrink-0 items-center justify-start gap-1 border-b bg-background pb-2 pl-[max(0.5rem,var(--safe-area-inset-left))] pr-[max(0.5rem,var(--safe-area-inset-right))] pt-[calc(var(--safe-area-inset-top)+0.5rem)]"
-                    data-testid="current-workspace-navbar"
-                  >
-                    <WorkspaceSearchButton />
-                    <WindowLayoutControls manager={manager} onAction={runAction} />
-                    <WorkspaceBoardBar
-                      boards={state.boards}
-                      activeBoardKey={board.key}
-                      onCreate={createBoard}
-                      onDelete={deleteBoard}
-                      onSelect={selectBoard}
-                      touchOptimized={mobile}
-                    />
-                  </header>
-                ) : null}
                 <div
                   ref={observeBody}
                   className="relative min-h-0 flex-1"
@@ -452,69 +403,39 @@ function Playground() {
                   />
                 </div>
                 <footer className="prototype-dock-area">
-                  {navbar === "dock" ? (
-                    <fieldset className="prototype-style-picker" aria-label="Dock style">
-                      <legend className="sr-only">Dock style</legend>
-                      {DOCK_VARIANTS.map((item) => (
-                        <Button
-                          key={item.id}
-                          type="button"
-                          variant="ghost"
-                          size="xs"
-                          aria-pressed={variant === item.id}
-                          onClick={() => setVariant(item.id)}
-                        >
-                          {item.name}
-                        </Button>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        aria-label="Compare dock styles"
-                        onClick={() => setPanel("styles")}
-                      >
-                        <GalleryHorizontalEnd className="size-3" />
-                        Compare
-                      </Button>
-                    </fieldset>
-                  ) : null}
-                  {navbar === "dock" ? (
-                    <WorkspaceDock
-                      key={dockVersion}
-                      density={density}
-                      variant={variant}
-                      workspaces={state.boards.map((item, index) => ({
-                        id: item.key,
-                        name: `Workspace ${index + 1}`,
-                      }))}
-                      activeWorkspaceId={board.key}
-                      onWorkspaceSelect={selectBoard}
-                      onWorkspaceCreate={createBoard}
-                      onWorkspaceRemove={deleteBoard}
-                      canCreateWorkspace={state.boards.length < MAX_GENERAL_BOARDS}
-                      onAppsOpen={() => setPanel("apps")}
-                      onKeybindsOpen={() => setPanel("keybinds")}
-                      onKeyPress={pressKey}
-                      onAction={terminalAction}
-                      disabledActions={
-                        terminal
-                          ? {
-                              "font-decrease":
-                                fontSize <= 8 ? "Minimum font size reached" : undefined,
-                              "font-increase":
-                                fontSize >= 28 ? "Maximum font size reached" : undefined,
-                            }
-                          : {
-                              copy: "Focus a terminal to copy",
-                              paste: "Focus a terminal to paste",
-                              upload: "Focus a terminal to upload",
-                              "font-decrease": "Focus a terminal to change font size",
-                              "font-increase": "Focus a terminal to change font size",
-                            }
-                      }
-                    />
-                  ) : null}
+                  <WorkspaceDock
+                    key={dockVersion}
+                    density={density}
+                    workspaces={state.boards.map((item, index) => ({
+                      id: item.key,
+                      name: `Workspace ${index + 1}`,
+                    }))}
+                    activeWorkspaceId={board.key}
+                    onWorkspaceSelect={selectBoard}
+                    onWorkspaceCreate={createBoard}
+                    onWorkspaceRemove={deleteBoard}
+                    canCreateWorkspace={state.boards.length < MAX_GENERAL_BOARDS}
+                    onAppsOpen={() => setPanel("apps")}
+                    onKeybindsOpen={() => setPanel("keybinds")}
+                    onKeyPress={pressKey}
+                    onAction={terminalAction}
+                    disabledActions={
+                      terminal
+                        ? {
+                            "font-decrease":
+                              fontSize <= 8 ? "Minimum font size reached" : undefined,
+                            "font-increase":
+                              fontSize >= 28 ? "Maximum font size reached" : undefined,
+                          }
+                        : {
+                            copy: "Focus a terminal to copy",
+                            paste: "Focus a terminal to paste",
+                            upload: "Focus a terminal to upload",
+                            "font-decrease": "Focus a terminal to change font size",
+                            "font-increase": "Focus a terminal to change font size",
+                          }
+                    }
+                  />
                   <div className="prototype-tools">
                     <Button
                       type="button"
@@ -536,17 +457,6 @@ function Playground() {
           </div>
         </main>
       </div>
-      <DockStyleComparison
-        open={panel === "styles"}
-        onOpenChange={(open) => {
-          if (!open) setPanel(null);
-        }}
-        selected={variant}
-        onSelect={(next) => {
-          setVariant(next);
-          setPanel(null);
-        }}
-      />
       <CommandDialog
         open={panel === "apps"}
         onOpenChange={(open) => {
@@ -619,31 +529,6 @@ function Playground() {
           </DialogHeader>
           {panel === "controls" ? (
             <div className="space-y-5 text-sm">
-              <label className="prototype-setting">
-                Dock style
-                <select
-                  aria-label="Dock style"
-                  value={variant}
-                  onChange={(event) => setVariant(event.target.value as DockVariant)}
-                >
-                  {DOCK_VARIANTS.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="prototype-setting">
-                Navigation
-                <select
-                  aria-label="Navigation"
-                  value={navbar}
-                  onChange={(event) => setNavbar(event.target.value as typeof navbar)}
-                >
-                  <option value="dock">Dock experiment</option>
-                  <option value="current">Current Hive navbar</option>
-                </select>
-              </label>
               <label className="prototype-setting">
                 Theme
                 <select

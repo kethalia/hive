@@ -148,17 +148,6 @@ try {
   );
 
   await settings();
-  await page.getByRole("combobox", { name: "Navigation", exact: true }).selectOption("current");
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("current-workspace-navbar")).toBeVisible();
-  await expect(dock).toHaveCount(0);
-  await expect(page.getByTestId("workspace-board-bar")).toBeVisible();
-  await screenshot("hive-current-navbar");
-  await page.getByRole("button", { name: "Search Hive", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await settings();
-  await page.getByRole("combobox", { name: "Navigation", exact: true }).selectOption("dock");
   await page.getByRole("combobox", { name: "Dock size", exact: true }).selectOption("compact");
   await page.getByRole("combobox", { name: "Theme", exact: true }).selectOption("light");
   await page.keyboard.press("Escape");
@@ -173,9 +162,7 @@ try {
   await settings();
   await page.getByRole("combobox", { name: "Theme", exact: true }).selectOption("dark");
   await page.keyboard.press("Escape");
-  checks.push(
-    "Comparison uses actual WorkspaceSearchButton, WindowLayoutControls, and WorkspaceBoardBar; native theme, density, command palette, and keybind help pass.",
-  );
+  checks.push("Native theme, dock density, command palette, and keybind help pass.");
 
   for (const width of [390, 320]) {
     await reset();
@@ -215,7 +202,7 @@ try {
   await writeFile(resolve(output, "results.json"), JSON.stringify(results, null, 2));
   console.log(JSON.stringify(results, null, 2));
 } catch (error) {
-  await screenshot("failure");
+  await page.screenshot({ path: resolve(output, "failure.png"), fullPage: true });
   throw error;
 } finally {
   await browser.close();
