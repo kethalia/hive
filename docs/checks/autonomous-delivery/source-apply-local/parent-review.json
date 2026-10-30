@@ -1,0 +1,18 @@
+{
+  "observedAt": "2026-10-30T00:31:41.537110+00:00",
+  "focusedPassed": 56,
+  "optionalScaleSkipped": 1,
+  "separateActualScalePassed": 1,
+  "scaleApplySeconds": 14.196,
+  "reviewCorrections": [
+    "Persist applied receipt and release managed lock before opening independent input barrier",
+    "Reload signed physical lease and accepted source after unlock",
+    "Retain rather than adopt uncertain candidate-index pre-journal crash gap"
+  ],
+  "activation": false,
+  "remaining": [
+    "Verified distributable packaging",
+    "Real server reservation and terminal-root input barrier",
+    "Installed protected apply worker and source progression"
+  ]
+}

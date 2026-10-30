@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-10-30T00:15:19.127450+00:00",
+  "sourceRevision": "3ec009f96c93b9fb63e8d9e777fe5bce7ae1c857",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/delivery-source-state-client.mjs": "4b6124ed687d65a6dc9785d6964ed37eb466ecadbe924b9be569f34ef663dc4b",
+    "scripts/verify-delivery-source-state-client.test.mjs": "96e5dac2e7815ffab578633ee6ac63fe3b0ebe61744c6d53dfa171404703ea3a",
+    "src/__tests__/lib/delivery/source-state-client-protocol.test.ts": "8e5d816aedbb667ec0d89945d42769cdb3f039f7d6e3e02fda9ceb2561b83a71"
+  },
+  "nodeTestsPassed": 11,
+  "serverSigningParityPassed": 1,
+  "typecheck": "passed",
+  "biome": "passed",
+  "metadataAndNetwork": "explicit local test doubles",
+  "installedBundleProof": false,
+  "remoteWrites": false,
+  "activation": false,
+  "publicationAuthorized": false,
+  "executionAuthorized": false,
+  "parentLogNormalization": "Removed only extra trailing blank lines for git diff --check; original logs retained under /tmp."
+}

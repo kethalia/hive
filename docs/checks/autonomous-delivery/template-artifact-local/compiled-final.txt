@@ -1,0 +1,360 @@
+✔ compiled package preserves controller, startup fences and session bridge behavior (9824.772413ms)
+ℹ TAP version 13
+# Subtest: one authenticated listener may finish durable startup beyond the old four-second retry window
+ok 1 - one authenticated listener may finish durable startup beyond the old four-second retry window
+  ---
+  duration_ms: 4559.720326
+  type: 'test'
+  ...
+# Subtest: absolute deadline stops the one child and closes pending handshake
+ok 2 - absolute deadline stops the one child and closes pending handshake
+  ---
+  duration_ms: 154.393459
+  type: 'test'
+  ...
+# Subtest: revocation interrupts readiness before any native initialization
+ok 3 - revocation interrupts readiness before any native initialization
+  ---
+  duration_ms: 105.553345
+  type: 'test'
+  ...
+# Subtest: deadline bounds a stalled authority fence without accepting its late completion
+ok 4 - deadline bounds a stalled authority fence without accepting its late completion
+  ---
+  duration_ms: 104.009012
+  type: 'test'
+  ...
+# Subtest: authority is checked again after authenticated WebSocket open
+ok 5 - authority is checked again after authenticated WebSocket open
+  ---
+  duration_ms: 7.228997
+  type: 'test'
+  ...
+# Subtest: cancellation and early child exit abort readiness without relaunch
+ok 6 - cancellation and early child exit abort readiness without relaunch
+  ---
+  duration_ms: 67.263361
+  type: 'test'
+  ...
+# Subtest: wrong authentication is a terminal handshake rejection, not a retry
+ok 7 - wrong authentication is a terminal handshake rejection, not a retry
+  ---
+  duration_ms: 7.998127
+  type: 'test'
+  ...
+# Subtest: enrollment is durable without clone/native; queued start waits registration then submits actual prompt once
+ok 8 - enrollment is durable without clone/native; queued start waits registration then submits actual prompt once
+  ---
+  duration_ms: 38.593807
+  type: 'test'
+  ...
+# Subtest: restart recovers exact durable intent and never repeats checkout preparation or first prompt
+ok 9 - restart recovers exact durable intent and never repeats checkout preparation or first prompt
+  ---
+  duration_ms: 32.149264
+  type: 'test'
+  ...
+# Subtest: ambiguous first prompt blocks replay without another inference
+ok 10 - ambiguous first prompt blocks replay without another inference
+  ---
+  duration_ms: 18.074531
+  type: 'test'
+  ...
+# Subtest: owned interrupted checkout preparation reuses verified lease without cleaning dirty edits
+ok 11 - owned interrupted checkout preparation reuses verified lease without cleaning dirty edits
+  ---
+  duration_ms: 15.781999
+  type: 'test'
+  ...
+# Subtest: private journal rejects competing writer, forgery, identity changes and unknown authority
+ok 12 - private journal rejects competing writer, forgery, identity changes and unknown authority
+  ---
+  duration_ms: 9.539808
+  type: 'test'
+  ...
+# Subtest: request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts
+ok 13 - request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts
+  ---
+  duration_ms: 5.467399
+  type: 'test'
+  ...
+# Subtest: manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs
+ok 14 - manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs
+  ---
+  duration_ms: 23.084973
+  type: 'test'
+  ...
+# Subtest: safe lease renewal keeps immutable intent and failed renewal revokes only execution
+ok 15 - safe lease renewal keeps immutable intent and failed renewal revokes only execution
+  ---
+  duration_ms: 32.423205
+  type: 'test'
+  ...
+# Subtest: revoked execution can re-register existing history after restart without new prompt or attach
+ok 16 - revoked execution can re-register existing history after restart without new prompt or attach
+  ---
+  duration_ms: 28.571257
+  type: 'test'
+  ...
+# Subtest: lease expiry revokes awaitingRegistration native execution without renewing or discarding history
+ok 17 - lease expiry revokes awaitingRegistration native execution without renewing or discarding history
+  ---
+  duration_ms: 29.767437
+  type: 'test'
+  ...
+# Subtest: lease expiry revokes blocked native execution without renewing or discarding history
+ok 18 - lease expiry revokes blocked native execution without renewing or discarding history
+  ---
+  duration_ms: 26.341795
+  type: 'test'
+  ...
+# Subtest: pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt
+ok 19 - pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt
+  ---
+  duration_ms: 33.831602
+  type: 'test'
+  ...
+# Subtest: retry receipt cannot automatically retry a second failure
+ok 20 - retry receipt cannot automatically retry a second failure
+  ---
+  duration_ms: 19.72706
+  type: 'test'
+  ...
+# Subtest: ready live empty native thread retries registration failure without recreating checkout or thread
+ok 21 - ready live empty native thread retries registration failure without recreating checkout or thread
+  ---
+  duration_ms: 22.704645
+  type: 'test'
+  ...
+# Subtest: retry refuses interrupted checkout/native proof
+ok 22 - retry refuses interrupted checkout/native proof
+  ---
+  duration_ms: 16.573047
+  type: 'test'
+  ...
+# Subtest: retry refuses incarnation checkout/native proof
+ok 23 - retry refuses incarnation checkout/native proof
+  ---
+  duration_ms: 16.064649
+  type: 'test'
+  ...
+# Subtest: retry refuses expired checkout/native proof
+ok 24 - retry refuses expired checkout/native proof
+  ---
+  duration_ms: 16.038463
+  type: 'test'
+  ...
+# Subtest: retry refuses history checkout/native proof
+ok 25 - retry refuses history checkout/native proof
+  ---
+  duration_ms: 18.581393
+  type: 'test'
+  ...
+# Subtest: retry cannot reopen uncertain first prompt or accept caller execution fields
+ok 26 - retry cannot reopen uncertain first prompt or accept caller execution fields
+  ---
+  duration_ms: 18.857033
+  type: 'test'
+  ...
+# Subtest: retry rejects legacy durable intent authority
+ok 27 - retry rejects legacy durable intent authority
+  ---
+  duration_ms: 15.244307
+  type: 'test'
+  ...
+# Subtest: retry rejects creationAttempted durable intent authority
+ok 28 - retry rejects creationAttempted durable intent authority
+  ---
+  duration_ms: 15.434742
+  type: 'test'
+  ...
+# Subtest: retry rejects promptAttempted durable intent authority
+ok 29 - retry rejects promptAttempted durable intent authority
+  ---
+  duration_ms: 14.532206
+  type: 'test'
+  ...
+# Subtest: retry rejects revoked durable intent authority
+ok 30 - retry rejects revoked durable intent authority
+  ---
+  duration_ms: 15.750983
+  type: 'test'
+  ...
+# Subtest: unavailable empty native history returns the existing blocked status without scheduling
+ok 31 - unavailable empty native history returns the existing blocked status without scheduling
+  ---
+  duration_ms: 15.293672
+  type: 'test'
+  ...
+# Subtest: guardian admission is durable before preparation and final binding is a separate immutable record
+ok 32 - guardian admission is durable before preparation and final binding is a separate immutable record
+  ---
+  duration_ms: 25.262591
+  type: 'test'
+  ...
+# Subtest: closing while preparation is in flight retains uncertainty and cannot enroll or start native execution
+ok 33 - closing while preparation is in flight retains uncertainty and cannot enroll or start native execution
+  ---
+  duration_ms: 15.974566
+  type: 'test'
+  ...
+# Subtest: lost guardian channel persists a closed admission fence and prevents helper dispatch
+ok 34 - lost guardian channel persists a closed admission fence and prevents helper dispatch
+  ---
+  duration_ms: 9.642057
+  type: 'test'
+  ...
+# Subtest: a new admitted project refreshes existing generation tokens before shared helper work
+ok 35 - a new admitted project refreshes existing generation tokens before shared helper work
+  ---
+  duration_ms: 35.465579
+  type: 'test'
+  ...
+# Subtest: closure during repository resolution cannot dispatch checkout inspection or preparation
+ok 36 - closure during repository resolution cannot dispatch checkout inspection or preparation
+  ---
+  duration_ms: 16.530518
+  type: 'test'
+  ...
+# Subtest: late lease renewal after the close barrier cannot rewrite the closed controller snapshot
+ok 37 - late lease renewal after the close barrier cannot rewrite the closed controller snapshot
+  ---
+  duration_ms: 28.950916
+  type: 'test'
+  ...
+# Subtest: signed owner capability reads the exact existing native thread and streams allowed events
+ok 38 - signed owner capability reads the exact existing native thread and streams allowed events
+  ---
+  duration_ms: 28.10812
+  type: 'test'
+  ...
+# Subtest: wrong owner, host bindings, scope, origin, expiry, and algorithms are rejected before native access
+ok 39 - wrong owner, host bindings, scope, origin, expiry, and algorithms are rejected before native access
+  ---
+  duration_ms: 17.827558
+  type: 'test'
+  ...
+# Subtest: Origin, Host, URL query credentials, and forged Coder headers do not grant access
+ok 40 - Origin, Host, URL query credentials, and forged Coder headers do not grant access
+  ---
+  duration_ms: 5.877291
+  type: 'test'
+  ...
+# Subtest: ticket replay remains rejected after a bridge restart
+ok 41 - ticket replay remains rejected after a bridge restart
+  ---
+  duration_ms: 10.790147
+  type: 'test'
+  ...
+# Subtest: active sockets close at ticket expiry
+ok 42 - active sockets close at ticket expiry
+  ---
+  duration_ms: 1920.938267
+  type: 'test'
+  ...
+# Subtest: fresh renewal extends one socket and native connection, with replay rejected
+ok 43 - fresh renewal extends one socket and native connection, with replay rejected
+  ---
+  duration_ms: 3000.043461
+  type: 'test'
+  ...
+# Subtest: a changed-binding renewal cannot extend the old capability deadline
+ok 44 - a changed-binding renewal cannot extend the old capability deadline
+  ---
+  duration_ms: 2000.866065
+  type: 'test'
+  ...
+# Subtest: execution, model overrides, arbitrary threads, and server request responses are rejected
+ok 45 - execution, model overrides, arbitrary threads, and server request responses are rejected
+  ---
+  duration_ms: 15.434847
+  type: 'test'
+  ...
+# Subtest: an unloaded thread is not resumed and unsupported native versions fail closed
+ok 46 - an unloaded thread is not resumed and unsupported native versions fail closed
+  ---
+  duration_ms: 8.759755
+  type: 'test'
+  ...
+# Subtest: duplicate IDs, malformed and oversized frames are bounded
+ok 47 - duplicate IDs, malformed and oversized frames are bounded
+  ---
+  duration_ms: 8.523937
+  type: 'test'
+  ...
+# Subtest: hidden reasoning and unsupported tool payloads never reach a read client
+ok 48 - hidden reasoning and unsupported tool payloads never reach a read client
+  ---
+  duration_ms: 5.148958
+  type: 'test'
+  ...
+# Subtest: configuration rejects public native endpoints, unsupported versions, and concurrent state owners
+ok 49 - configuration rejects public native endpoints, unsupported versions, and concurrent state owners
+  ---
+  duration_ms: 5.216227
+  type: 'test'
+  ...
+# Subtest: an incompatible native server cannot leak events before its version check
+ok 50 - an incompatible native server cannot leak events before its version check
+  ---
+  duration_ms: 3.820131
+  type: 'test'
+  ...
+# Subtest: SIGKILL releases the OS lock while preserving replay rejection on automatic restart
+ok 51 - SIGKILL releases the OS lock while preserving replay rejection on automatic restart
+  ---
+  duration_ms: 76.535181
+  type: 'test'
+  ...
+# Subtest: native 0.165 CLI and capability client share one loaded thread without inference
+ok 52 - native 0.165 CLI and capability client share one loaded thread without inference
+  ---
+  duration_ms: 2468.323504
+  type: 'test'
+  ...
+1..52
+# tests 52
+# suites 0
+# pass 52
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9680.238376
+✔ compiled namespace preserves actual native WS, CLI, child and resume isolation (12631.396847ms)
+ℹ TAP version 13
+# Subtest: isolated execution is an explicit configuration mode
+ok 1 - isolated execution is an explicit configuration mode
+  ---
+  duration_ms: 0.956
+  type: 'test'
+  ...
+# Subtest: actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity
+ok 2 - actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity
+  ---
+  duration_ms: 8427.377253
+  type: 'test'
+  ...
+# Subtest: actual wrapper, monitor and host crashes terminate pinned native and release inherited lock
+ok 3 - actual wrapper, monitor and host crashes terminate pinned native and release inherited lock
+  ---
+  duration_ms: 3694.372944
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12507.632471
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 22500.96998

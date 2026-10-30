@@ -79,6 +79,29 @@ class InstalledLeaseAuthorityTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self.authority.verify(self.project_id, self.expected)
 
+    def test_accepted_source_is_separate_from_immutable_physical_base(self):
+        current = {'revisionId': str(uuid.uuid4()), 'version': 1, 'headSha': 'b' * 40}
+        task = self.controller['projects'][self.project_id]['task']
+        entry = self.supervisor['projects'][self.project_id]
+        task['acceptedSource'] = current
+        entry['acceptedSource'] = current
+        self.save()
+        expected = {**self.expected, 'currentSource': current}
+        self.authority.verify(self.project_id, expected)
+        self.assertEqual(task['request']['revision'], 'a' * 40)
+        with self.assertRaisesRegex(lease.managed.ManagedError, 'renewal_source_changed'):
+            self.authority.verify(self.project_id, self.expected)
+        entry['acceptedSource'] = {**current, 'version': 2}
+        self.save()
+        with self.assertRaisesRegex(lease.managed.ManagedError, 'renewal_source_changed'):
+            self.authority.verify(self.project_id, expected)
+
+    def test_source_update_barrier_blocks_renewal_until_both_journals_agree(self):
+        self.controller['projects'][self.project_id]['task']['sourceUpdating'] = {'operationId': str(uuid.uuid4())}
+        self.save()
+        with self.assertRaisesRegex(lease.managed.ManagedError, 'source_update_pending'):
+            self.authority.verify(self.project_id, self.expected)
+
     def test_revoked_or_replaced_native_lifetime_and_forged_journal_fail_closed(self):
         entry = self.supervisor['projects'][self.project_id]
         entry['executionRevoked'] = {'reason': 'fixture'}

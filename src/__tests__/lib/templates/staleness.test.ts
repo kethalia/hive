@@ -96,6 +96,16 @@ describe("hashLocalTemplate", () => {
       vi.unstubAllEnvs();
     }
   });
+  it("uses identical build content identity on Node and Workers for all maintained templates", async () => {
+    for (const name of KNOWN_TEMPLATES) {
+      vi.stubEnv("HIVE_RUNTIME_TARGET", "node");
+      const node = await hashLocalTemplate(name);
+      vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+      expect(await hashLocalTemplate(name)).toBe(node);
+    }
+    vi.unstubAllEnvs();
+  });
+
   it("returns stable hash across two calls with same files", async () => {
     await mkdir(join(tempDir, "templates", "test-tpl"), { recursive: true });
     await writeFile(join(tempDir, "templates", "test-tpl", "main.tf"), "resource {}");
@@ -219,13 +229,13 @@ describe("compareTemplates", () => {
   });
 
   it("returns stale=true when local and remote hashes differ", async () => {
-    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "local content v2");
+    await mkdir(join(tempDir, "templates", "test-tpl"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "test-tpl", "main.tf"), "local content v2");
 
     const remoteTar = await createTarBuffer({ "main.tf": "remote content v1" });
 
     mockListTemplates.mockResolvedValue([
-      { id: "t1", name: "ai-dev-k8s", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t1", name: "test-tpl", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
     ]);
     mockGetTemplateVersion.mockResolvedValue({
       id: "ver-1",
@@ -236,10 +246,10 @@ describe("compareTemplates", () => {
     });
     mockFetchTemplateFiles.mockResolvedValue(remoteTar);
 
-    const results = await compareTemplates(["ai-dev-k8s"], "user-123");
+    const results = await compareTemplates(["test-tpl"], "user-123");
 
     expect(results).toHaveLength(1);
-    expect(results[0].name).toBe("ai-dev-k8s");
+    expect(results[0].name).toBe("test-tpl");
     expect(results[0].stale).toBe(true);
     expect(results[0].localHash).toMatch(/^[a-f0-9]{64}$/);
     expect(results[0].remoteHash).toMatch(/^[a-f0-9]{64}$/);
@@ -247,13 +257,13 @@ describe("compareTemplates", () => {
   });
 
   it("returns stale=false when local and remote hashes match", async () => {
-    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "same content");
+    await mkdir(join(tempDir, "templates", "test-tpl"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "test-tpl", "main.tf"), "same content");
 
     const remoteTar = await createTarBuffer({ "main.tf": "same content" });
 
     mockListTemplates.mockResolvedValue([
-      { id: "t1", name: "ai-dev-k8s", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t1", name: "test-tpl", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
     ]);
     mockGetTemplateVersion.mockResolvedValue({
       id: "ver-1",
@@ -264,7 +274,7 @@ describe("compareTemplates", () => {
     });
     mockFetchTemplateFiles.mockResolvedValue(remoteTar);
 
-    const results = await compareTemplates(["ai-dev-k8s"], "user-123");
+    const results = await compareTemplates(["test-tpl"], "user-123");
 
     expect(results).toHaveLength(1);
     expect(results[0].stale).toBe(false);
@@ -286,19 +296,19 @@ describe("compareTemplates", () => {
   });
 
   it("handles multiple templates in one call", async () => {
-    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
-    await mkdir(join(tempDir, "templates", "browser-testing"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "k8s content");
-    await writeFile(join(tempDir, "templates", "browser-testing", "main.tf"), "browser content");
+    await mkdir(join(tempDir, "templates", "test-tpl"), { recursive: true });
+    await mkdir(join(tempDir, "templates", "browser-tpl"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "test-tpl", "main.tf"), "k8s content");
+    await writeFile(join(tempDir, "templates", "browser-tpl", "main.tf"), "browser content");
 
     const k8sTar = await createTarBuffer({ "main.tf": "k8s content" });
     const browserTar = await createTarBuffer({ "main.tf": "different content" });
 
     mockListTemplates.mockResolvedValue([
-      { id: "t1", name: "ai-dev-k8s", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
+      { id: "t1", name: "test-tpl", activeVersionId: "ver-1", updatedAt: "2026-04-01T00:00:00Z" },
       {
         id: "t2",
-        name: "browser-testing",
+        name: "browser-tpl",
         activeVersionId: "ver-2",
         updatedAt: "2026-04-02T00:00:00Z",
       },
@@ -324,22 +334,22 @@ describe("compareTemplates", () => {
       return fileId === "file-1" ? k8sTar : browserTar;
     });
 
-    const results = await compareTemplates(["ai-dev-k8s", "browser-testing"], "user-123");
+    const results = await compareTemplates(["test-tpl", "browser-tpl"], "user-123");
 
     expect(results).toHaveLength(2);
-    expect(results[0].name).toBe("ai-dev-k8s");
+    expect(results[0].name).toBe("test-tpl");
     expect(results[0].stale).toBe(false);
-    expect(results[1].name).toBe("browser-testing");
+    expect(results[1].name).toBe("browser-tpl");
     expect(results[1].stale).toBe(true);
   });
 
   it("uses getCoderClientForUser with provided userId", async () => {
     const { getCoderClientForUser } = await import("@/lib/coder/user-client");
-    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "content");
+    await mkdir(join(tempDir, "templates", "test-tpl"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "test-tpl", "main.tf"), "content");
     mockListTemplates.mockResolvedValue([]);
 
-    await compareTemplates(["ai-dev-k8s"], "user-456");
+    await compareTemplates(["test-tpl"], "user-456");
 
     expect(getCoderClientForUser).toHaveBeenCalledWith("user-456");
   });
@@ -353,18 +363,18 @@ describe("compareTemplates", () => {
       ),
     );
 
-    await expect(compareTemplates(["ai-dev-k8s"], "not-real")).rejects.toThrow(
+    await expect(compareTemplates(["test-tpl"], "not-real")).rejects.toThrow(
       "User not-real not found",
     );
   });
 
   it("returns stale=false for all templates when Coder is unreachable", async () => {
-    await mkdir(join(tempDir, "templates", "ai-dev-k8s"), { recursive: true });
-    await writeFile(join(tempDir, "templates", "ai-dev-k8s", "main.tf"), "content");
+    await mkdir(join(tempDir, "templates", "test-tpl"), { recursive: true });
+    await writeFile(join(tempDir, "templates", "test-tpl", "main.tf"), "content");
 
     mockListTemplates.mockRejectedValue(new Error("network error"));
 
-    const results = await compareTemplates(["ai-dev-k8s"], "user-123");
+    const results = await compareTemplates(["test-tpl"], "user-123");
 
     expect(results).toHaveLength(1);
     expect(results[0].stale).toBe(false);

@@ -66,3 +66,169 @@ test("a missing entrypoint or oversized file cannot become a published artifact"
   await rm(join(path, "main.tf"));
   await assert.rejects(templateArtifact(path), /main.tf/);
 });
+
+async function installFixturePackage(path, sources) {
+  const { createHash } = await import("node:crypto");
+  const { gzipSync } = await import("node:zlib");
+  const { transform } = await import("esbuild");
+  const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+  await mkdir(join(path, "scripts"), { recursive: true });
+  await mkdir(join(path, "assets"), { recursive: true });
+  const contents = {};
+  for (const [name, source] of Object.entries(sources)) {
+    await writeFile(join(path, "scripts", name), source);
+    contents[name] = name.endsWith(".mjs")
+      ? (
+          await transform(source.replaceAll('from "ws"', 'from "./vendor/ws.mjs"'), {
+            loader: "js",
+            format: "esm",
+            target: "node24",
+            minifyWhitespace: true,
+            minifyIdentifiers: true,
+            minifySyntax: false,
+            keepNames: true,
+          })
+        ).code
+      : source;
+  }
+  contents["package-manifest.json"] = JSON.stringify({
+    schemaVersion: 1,
+    nodeMajor: 24,
+    nativeVersion: "0.165.0",
+    wsVersion: "8.21.3",
+    files: Object.fromEntries(
+      Object.entries(contents).map(([name, content]) => [name, digest(content)]),
+    ),
+  });
+  const pack = tar.pack(),
+    chunks = [];
+  const collect = (async () => {
+    for await (const chunk of pack) chunks.push(chunk);
+  })();
+  for (const [name, content] of Object.entries(contents))
+    pack.entry({ name, type: "file" }, content);
+  pack.finalize();
+  await collect;
+  const archive = Buffer.concat(chunks);
+  await writeFile(join(path, "assets/codex-host.tar.gz"), gzipSync(archive));
+  await writeFile(join(path, "assets/codex-host.tar.sha256"), `${digest(archive)}\n`);
+}
+async function unpack(archive) {
+  const files = new Map(),
+    extractor = tar.extract();
+  const done = new Promise((resolve, reject) => {
+    extractor.on("error", reject);
+    extractor.on("finish", resolve);
+    extractor.on("entry", (header, stream, next) => {
+      const chunks = [];
+      stream.on("data", (chunk) => chunks.push(chunk));
+      stream.on("end", () => {
+        files.set(header.name, Buffer.concat(chunks));
+        next();
+      });
+    });
+  });
+  extractor.end(archive);
+  await done;
+  return files;
+}
+test("dedup verifies compiled bytes, retains Terraform/bootstrap dependencies and rejects stale sources", async (t) => {
+  const path = await fixture(t);
+  await installFixturePackage(path, {
+    "runtime.mjs": "export const result = 42;\n",
+    "retained.py": 'print("needed")\n',
+    "shell-used.py": 'print("bootstrap")\n',
+    "python-used.py": "pass\n",
+  });
+  await writeFile(
+    join(path, "main.tf"),
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal Terraform input.
+    'locals { helper = file("${path.module}/scripts/retained.py") }',
+  );
+  await writeFile(join(path, "scripts/boot.sh"), 'python3 "$(dirname "$0")/shell-used.py"\n');
+  await writeFile(
+    join(path, "scripts/provision.py"),
+    'from pathlib import Path\nPath(__file__).with_name("python-used.py").read_text()\n',
+  );
+  const files = await unpack((await templateArtifact(path)).archive);
+  assert.equal(files.has("scripts/runtime.mjs"), false);
+  assert.equal(files.has("scripts/retained.py"), true);
+  assert.equal(files.has("scripts/shell-used.py"), true);
+  assert.equal(files.has("scripts/python-used.py"), true);
+  assert.equal(files.has("assets/codex-host.tar.gz"), true);
+  await writeFile(join(path, "scripts/runtime.mjs"), "export const result = 43;\n");
+  await assert.rejects(templateArtifact(path), /Stale packaged runtime source/);
+});
+test("digest mismatch and dynamic script selection cannot silently drop deployment inputs", async (t) => {
+  const path = await fixture(t);
+  await installFixturePackage(path, { "runtime.py": "pass\n" });
+  await writeFile(
+    join(path, "main.tf"),
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal Terraform dynamic-input rejection.
+    'locals { helper = file("${path.module}/scripts/${var.name}.py") }',
+  );
+  await assert.rejects(templateArtifact(path), /Dynamic template script reference/);
+  await writeFile(join(path, "main.tf"), "terraform {}\n");
+  await writeFile(join(path, "assets/codex-host.tar.sha256"), "0".repeat(64));
+  await assert.rejects(templateArtifact(path), /digest mismatch/);
+});
+test("a recompressed package with a stale internal file digest is rejected", async (t) => {
+  const { readFile } = await import("node:fs/promises");
+  const { createHash } = await import("node:crypto");
+  const { gunzipSync, gzipSync } = await import("node:zlib");
+  const path = await fixture(t);
+  await installFixturePackage(path, { "runtime.py": "pass\n" });
+  const entries = await unpack(gunzipSync(await readFile(join(path, "assets/codex-host.tar.gz"))));
+  entries.set("runtime.py", Buffer.from("altered\n"));
+  const pack = tar.pack(),
+    chunks = [];
+  const collected = (async () => {
+    for await (const chunk of pack) chunks.push(chunk);
+  })();
+  for (const [name, value] of entries) pack.entry({ name, type: "file" }, value);
+  pack.finalize();
+  await collected;
+  const altered = Buffer.concat(chunks);
+  await writeFile(join(path, "assets/codex-host.tar.gz"), gzipSync(altered));
+  await writeFile(
+    join(path, "assets/codex-host.tar.sha256"),
+    createHash("sha256").update(altered).digest("hex"),
+  );
+  await assert.rejects(templateArtifact(path), /Host package file digest mismatch/);
+});
+
+test("actual curated template fits deployment bound and every literal Terraform file remains extractable", async (t) => {
+  const { cp, readFile } = await import("node:fs/promises");
+  const { hostArchive } = await import("./build-codex-host-archive.mjs");
+  const path = await fixture(t);
+  await cp("templates/ai-dev-k8s", path, { recursive: true });
+  const host = await hostArchive(process.cwd());
+  await writeFile(join(path, "assets/codex-host.tar.gz"), host.compressed);
+  await writeFile(join(path, "assets/codex-host.tar.sha256"), `${host.sha256}\n`);
+  const artifact = await templateArtifact(path),
+    files = await unpack(artifact.archive);
+  assert.ok(artifact.archive.length <= 1024 * 1024);
+  assert.ok(host.compressed.length <= 160000);
+  assert.equal(files.has("scripts/delivery-source-state-client.mjs"), false);
+  assert.equal(files.has("scripts/install-codex-host.py"), true);
+  for (const name of ["main.tf", "hive-host.tf"]) {
+    const source = await readFile(join(path, name), "utf8");
+    for (const match of source.matchAll(/\$\{path\.module\}\/([^"\s]+)/g))
+      assert.ok(files.has(match[1]), `missing Terraform input ${match[1]}`);
+  }
+  const { createHash } = await import("node:crypto");
+  const hash = createHash("sha256");
+  for (const [name, bytes] of files) hash.update(name).update(bytes);
+  assert.equal(hash.digest("hex"), artifact.metadata.contentHash);
+  assert.equal(
+    createHash("sha256").update(artifact.archive).digest("hex"),
+    artifact.metadata.archiveDigest,
+  );
+  t.diagnostic(
+    JSON.stringify({
+      hostGzipBytes: host.compressed.length,
+      templateTarBytes: artifact.archive.length,
+      files: files.size,
+    }),
+  );
+});
