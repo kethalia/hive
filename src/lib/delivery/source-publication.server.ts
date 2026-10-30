@@ -55,6 +55,15 @@ export interface SourcePublicationAuthority {
   /** Separate installed producer authority, not a JSON boolean. Must authenticate
    * the entire receipt, provider readbacks and exact scope; no default exists. */
   verify(receipt: unknown): Promise<{ publication: unknown; proofDigest: string }>;
+  /** Real transport takes guardian runtime/admission locks after registration
+   * and before checkout/task locks. Never supplied through manager JSON. */
+  lockTransaction?(
+    tx: Prisma.TransactionClient,
+    scope: {
+      publication: SourcePublication;
+      proofDigest: string;
+    },
+  ): Promise<void>;
   /** Recheck persisted producer revocation/scope inside the mutation transaction.
    * Host owner/build/lease and source CAS are also independently checked below. */
   authorizeTransaction(
@@ -105,6 +114,7 @@ export class DeliverySourcePublicationService {
       try {
         const result = await this.db.$transaction(
           async (tx) => {
+            await authority.lockTransaction?.(tx, { publication: input, proofDigest });
             const scope = await lockManagerCheckout(tx, input, registration, {
               allowBlocked: true,
             });

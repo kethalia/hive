@@ -1,6 +1,6 @@
 # Autonomous delivery epic execution ledger
 
-Updated: 2026-10-29. Status: implementation in progress, not release-ready.
+Updated: 2026-10-30. Status: implementation in progress, not release-ready.
 Branch: `codex/delivery-system-design`.
 
 ## Authorization and boundaries
@@ -448,3 +448,11 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   identity and fail-closed cleanup; it does not claim to bound uninterruptible kernel IO.
   Parent9 focused checks,57 actual parallel runtime checks and20 clean-export packaging
   checks pass. Diagnostic failures remain recorded. Installed account validation remains.
+
+- Independent host authority and source transport: reviewed local checkpoint, high difficulty.
+  Schema24 persists staged host/project admissions and refuses revoked producers, including
+  replay and second-project finalization. Signed source grants bind exact checkout, attempt,
+  sealed bytes and provider readbacks; retained R2 proofs do not authorize execution. Parent13
+  guardian and23 transport checks pass; copied23→24 upgrade preserves all26 legacy tables.
+  Clean-export typecheck passes. Broader PostgreSQL run183/184 exposed an existing concurrent
+  task-enqueue race; evidence retained and immediate fix in progress. No remote migration.

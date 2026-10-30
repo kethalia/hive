@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
+import type { GuardianPolicy } from "@/lib/codex-session/guardian-contracts";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import type { SourceContext } from "./contracts";
@@ -28,6 +29,8 @@ export interface ManagerDependencies {
   allowedModelEfforts?: readonly { model: string; effort: string }[];
   // Test/explicit controller composition only. Routes/config do not opt in.
   progressionProtocol?: 1;
+  // Trusted constructor only; production defaults to the deployment guardian gate.
+  guardianPolicy?: GuardianPolicy;
 }
 export interface ManagerPolicyScope {
   ownerId: string;
@@ -164,6 +167,7 @@ export class DeliveryManagerService {
           selectedPolicy = await this.db.$transaction(
             async (tx) => {
               const host = await lockManagerCheckout(tx, input, registered, {
+                guardianPolicy: this.dependencies.guardianPolicy,
                 allowBlocked: input.command.operation === "fail_attempt",
               });
               const scope = await loadPolicyScope(
@@ -200,6 +204,7 @@ export class DeliveryManagerService {
       selectedPolicy?.policy ?? this.dependencies.evidencePolicy,
       async (tx) => {
         const scope = await lockManagerCheckout(tx, input, registered, {
+          guardianPolicy: this.dependencies.guardianPolicy,
           create: input.command.operation === "create_task",
           allowBlocked: input.command.operation === "fail_attempt",
           progressionProtocol: this.dependencies.progressionProtocol,

@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-10-30T00:03:48.281959+00:00",
+  "guardianTests": 13,
+  "sourceTransportTests": 23,
+  "cleanExport": "/tmp/hive-guardian-source-check-ukdokdv5",
+  "typecheck": "passed after linking existing generated clients and package dependencies matching schema24",
+  "biome": "passed",
+  "broadPostgres": {
+    "passed": 183,
+    "failed": 1,
+    "finding": "Existing ProjectTaskIntents.enqueue concurrent Prisma upsert can throw P2002 on id; preserved for immediate narrow follow-up"
+  },
+  "migrationUpgrade": "23 to 24 preserved all26 legacy tables and migration history; parent proof separate",
+  "remoteMutations": false
+}
