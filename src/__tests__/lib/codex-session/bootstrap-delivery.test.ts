@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
+  deliverGuardianEnrollment,
   deliverRegistrationGrant,
   exchangeVerifiedWorkspaceAppSessionCookie,
   exchangeVerifiedWorkspaceAppTerminalCookie,
   postToVerifiedWorkspaceApp,
+  requestGuardianIdentity,
 } from "@/lib/codex-session/bootstrap-delivery.server";
 
 const origin = "https://app--main--workspace--owner.apps.example.com",
@@ -53,6 +55,55 @@ function fixture() {
   return { coder, issued, fetcher };
 }
 describe("private Coder app bootstrap delivery", () => {
+  it("guardian calls use only their fixed app paths with a fresh scoped cookie", async () => {
+    for (const fixedPath of ["/guardian/identity", "/guardian/bootstrap"]) {
+      const f = fixture();
+      f.coder.getApplicationAuthRedirect.mockResolvedValue(
+        `${origin + fixedPath}?coder_application_connect_api_key_35e783=encrypted`,
+      );
+      f.fetcher
+        .mockReset()
+        .mockResolvedValueOnce(
+          new Response(null, {
+            status: 303,
+            headers: {
+              Location: fixedPath,
+              "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+            },
+          }),
+        )
+        .mockResolvedValueOnce(Response.json({ fixture: true }));
+      const nonce = "a".repeat(64),
+        grant = "b".repeat(100);
+      const result =
+        fixedPath === "/guardian/identity"
+          ? await requestGuardianIdentity(f.coder, f.issued.binding, nonce, f.fetcher)
+          : await deliverGuardianEnrollment(f.coder, f.issued.binding, grant, f.fetcher);
+      expect(result).toEqual({ fixture: true });
+      expect(f.coder.getApplicationAuthRedirect).toHaveBeenCalledWith(origin + fixedPath);
+      expect(f.fetcher.mock.calls[1]).toMatchObject([
+        origin + fixedPath,
+        {
+          method: "POST",
+          redirect: "manual",
+          credentials: "omit",
+          headers: { "Content-Type": "application/json", Cookie: `${name}=scoped_secret` },
+          body: JSON.stringify(fixedPath === "/guardian/identity" ? { nonce } : { grant }),
+        },
+      ]);
+    }
+  });
+  it("guardian identity cannot choose a nonce query or follow an exchange to another path", async () => {
+    const f = fixture();
+    await expect(
+      requestGuardianIdentity(f.coder, f.issued.binding, "a?token=x", f.fetcher),
+    ).rejects.toThrow();
+    expect(f.coder.getApplicationAuthRedirect).not.toHaveBeenCalled();
+    await expect(
+      requestGuardianIdentity(f.coder, f.issued.binding, "a".repeat(64), f.fetcher),
+    ).rejects.toThrow();
+    expect(f.fetcher).not.toHaveBeenCalled();
+  });
   it("uses exact-origin app cookie and POST body, never an owner header or redirect following", async () => {
     const f = fixture();
     await expect(deliverRegistrationGrant(f.coder, f.issued, f.fetcher)).resolves.toEqual({

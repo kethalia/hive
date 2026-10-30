@@ -3,6 +3,7 @@ import { getDb } from "@hive/db";
 import { z } from "zod";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { provisionRegisteredHost } from "@/lib/codex-session/bootstrap-delivery.server";
+import { createGuardianService } from "@/lib/codex-session/guardian-factory.server";
 import {
   createRegisteredSessionService,
   registeredSessionConfig,
@@ -153,7 +154,17 @@ export async function reconcileProjectTasks(
         throw new Error("Task project identity changed");
       if (phase === "queued" && !payload.hostRequest)
         throw new Error("Queued intent payload unavailable");
-      if (payload.hostRequest)
+      if (payload.hostRequest) {
+        // The durable intent exists before enrollment and preparation. This owner
+        // exchange authenticates the installed outer; a host status or browser
+        // request cannot substitute for the approved package/lifetime checks.
+        if (process.env.HIVE_GUARDIAN_ENABLED === "true") {
+          const enrollment = await createGuardianService().provision(
+            { hiveUserId: user.id, coderUserId: user.coderUserId },
+            payload.workspaceId,
+          );
+          if (enrollment.enrolled !== true) throw new Error("Guardian enrollment unavailable");
+        }
         return status(
           await signedHostProjectRequest(
             user,
@@ -164,6 +175,7 @@ export async function reconcileProjectTasks(
           payload.projectId,
           payload.taskId,
         );
+      }
       return readHostProjectTask(user, payload.projectId, {
         workspaceId: payload.workspaceId,
         taskId: payload.taskId,

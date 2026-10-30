@@ -79,7 +79,7 @@ const proof = {
   sourceDigests,
   sourceStable,
   passed:
-    run.status === 0 && tests.numPassedTests === 11 && tests.numFailedTests === 0 && sourceStable,
+    run.status === 0 && tests.numPassedTests === 12 && tests.numFailedTests === 0 && sourceStable,
   database: { host: "127.0.0.1", port: Number(url.port), name: "hive_delivery_test", schema: 24 },
   tests: {
     passed: tests.numPassedTests,
@@ -98,6 +98,8 @@ const proof = {
     forgedOuterKeyDeniedBeforeCoderResolution: true,
     sqlExpiryAndAbortRollback: true,
     issuerGrantExpiryRollback: true,
+    existingOpenProvisionFreshLiveness: true,
+    provisionDoesNotExtendOrReapproveRuntime: true,
     routeDefaultOffAndNoBrowserOrQueryAuthority: true,
     latePositiveResponseDiscarded: true,
   },
@@ -119,5 +121,5 @@ writeFileSync(output, `${JSON.stringify(proof, null, 2)}\n`);
 execFileSync("pnpm", ["exec", "biome", "format", "--write", output], { stdio: "ignore" });
 check(proof.passed);
 process.stdout.write(
-  `${JSON.stringify({ passed: true, tests: 11, sourceStable, evidence: output })}\n`,
+  `${JSON.stringify({ passed: true, tests: 12, sourceStable, evidence: output })}\n`,
 );

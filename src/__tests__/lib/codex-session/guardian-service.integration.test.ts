@@ -16,6 +16,7 @@ import { GuardianAdmissionStore } from "@/lib/codex-session/guardian-store.serve
 import {
   type GuardianIdentityResponse,
   guardianIdentityProofPayload,
+  guardianRuntimeIdentitySchema,
   guardianTransportProofPayload,
 } from "@/lib/codex-session/guardian-transport-contracts";
 import type { VerifiedHostBinding } from "@/lib/codex-session/registration.server";
@@ -225,6 +226,84 @@ describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQ
     });
     expect(consumed.consumedAt).not.toBeNull();
     await expect(f.service.execute(f.enrollment)).rejects.toBeInstanceOf(RegistrationRejected);
+    // Retry uses a fresh signed owner-app identity, not another enrollment grant,
+    // and cannot extend runtime authority merely by provisioning again.
+    expect(await f.service.provision(f.principal, f.binding.workspaceId)).toEqual({
+      enrolled: true,
+      runtimeId: runtime.id,
+    });
+    expect(await db.codexGuardianEnrollmentGrant.count({ where: { runtimeId: runtime.id } })).toBe(
+      1,
+    );
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: runtime.id } }))
+        .authorityUntil,
+    ).toEqual(runtime.authorityUntil);
+    const expired = new Date(Date.now() - 1000);
+    await db.codexGuardianRuntime.update({
+      where: { id: runtime.id },
+      data: { authorityUntil: expired },
+    });
+    await expect(f.service.provision(f.principal, f.binding.workspaceId)).rejects.toBeInstanceOf(
+      RegistrationRejected,
+    );
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: runtime.id } }))
+        .authorityUntil,
+    ).toEqual(expired);
+  });
+  it("existing native enrollment cannot revive revoked producer or stale registered lifetime", async () => {
+    for (const kind of [
+      "producer",
+      "registration_revoked",
+      "registration_expired",
+      "registration_replaced",
+    ] as const) {
+      const f = await guardianFixture(db),
+        runtime = f.guardian.runtime;
+      const identity = guardianRuntimeIdentitySchema.parse(
+        Object.fromEntries(
+          [
+            "lifetimeId",
+            "bindingDigest",
+            "outerPublicKeyPem",
+            "packageManifestSha256",
+            "guardianElfSha256",
+            "nodeSha256",
+            "policyDigest",
+            "metadataPolicyDigest",
+            "configSha256",
+          ].map((key) => [key, runtime[key as keyof typeof runtime]]),
+        ),
+      );
+      const before = await f.guardian.store.reserveRuntime(f.host, identity);
+      expect(before.phase).toBe("open");
+      if (kind === "producer")
+        await db.codexGuardianRuntime.update({
+          where: { id: runtime.id },
+          data: { producerApproved: false },
+        });
+      else if (kind === "registration_replaced") await f.register(randomUUID());
+      else {
+        const registered = await db.codexHostRegistration.findUniqueOrThrow({
+          where: { id: f.registration().id },
+        });
+        await db.codexHostRegistration.update({
+          where: { id: f.registration().id },
+          data:
+            kind === "registration_revoked"
+              ? { revokedAt: new Date() }
+              : { expiresAt: new Date(registered.registeredAt.getTime() + 1) },
+        });
+      }
+      await expect(f.guardian.store.reserveRuntime(f.host, identity)).rejects.toBeInstanceOf(
+        RegistrationRejected,
+      );
+      const after = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: runtime.id } });
+      expect(after.authorityUntil).toEqual(before.authorityUntil);
+      if (kind === "producer") expect(after.producerApproved).toBe(false);
+      expect(after.phase).toBe("open");
+    }
   });
   it("signed host package/config echoes cannot approve an unlisted or wrong-scope runtime", async () => {
     for (const patch of [

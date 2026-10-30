@@ -1,6 +1,7 @@
 // No CLI or listener startup. Called only by a trusted host integration.
-import { startBridge } from "./codex-session-bridge.mjs";
+
 import { createProjectTerminal } from "./codex-project-terminal.mjs";
+import { startBridge } from "./codex-session-bridge.mjs";
 
 /** Registry authorization is independent of ticket claims. This function does not
  * register the host with Hive or establish provisioner authority; deployment stays
@@ -59,6 +60,7 @@ export function startProjectGateway(config, supervisor, controllerRegistration, 
             })
         : undefined,
       handleBootstrap: controllerRegistration?.handleBootstrap,
+      handleGuardian: discovery?.handleGuardian,
       handleProjects: discovery?.handleProjects,
       createNativeSocket: () => supervisor.runtime.createReadSocket(),
       onRevoked: (callback) => {

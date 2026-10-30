@@ -353,21 +353,50 @@ export class GuardianAdmissionStore {
         where: { ownerId: user.id, slotId: slot.id, phase: { not: "tree_closed" } },
       });
       if (existing) {
+        const { runtime: current, now } = await lockGuardianRuntime(tx, user.id, existing.id);
         requireGuardian(
-          existing.lifetimeId === identity.lifetimeId &&
-            existing.outerKeyFingerprint === keyFingerprint &&
-            existing.bindingDigest === identity.bindingDigest &&
-            existing.configSha256 === identity.configSha256 &&
-            existing.buildId === binding.buildId &&
-            existing.packageManifestSha256 === identity.packageManifestSha256 &&
-            existing.guardianElfSha256 === identity.guardianElfSha256 &&
-            existing.nodeSha256 === identity.nodeSha256 &&
-            existing.policyDigest === identity.policyDigest &&
-            existing.metadataPolicyDigest === identity.metadataPolicyDigest &&
-            guardianDigest(existing.binding) === guardianDigest(binding),
+          current.lifetimeId === identity.lifetimeId &&
+            current.outerKeyFingerprint === keyFingerprint &&
+            current.bindingDigest === identity.bindingDigest &&
+            current.configSha256 === identity.configSha256 &&
+            current.buildId === binding.buildId &&
+            current.packageManifestSha256 === identity.packageManifestSha256 &&
+            current.guardianElfSha256 === identity.guardianElfSha256 &&
+            current.nodeSha256 === identity.nodeSha256 &&
+            current.policyDigest === identity.policyDigest &&
+            current.metadataPolicyDigest === identity.metadataPolicyDigest &&
+            guardianDigest(current.binding) === guardianDigest(binding) &&
+            current.authorityUntil > now,
         );
-        approvedRuntime(existing, this.options.policy);
-        return existing;
+        approvedRuntime(current, this.options.policy);
+        let registrationExpiresAt: Date | undefined;
+        if (current.phase === "open") {
+          openRuntime(current, now, current.generation, this.options.policy);
+          if (current.nativeLaunchId) requireGuardian(this.options.policy.producerEnabled);
+          if (current.serverInstanceId)
+            requireGuardian(current.producerApproved && slot.activeRegistrationId);
+          if (slot.activeRegistrationId) {
+            const { registration } = await lockActiveRegistration(tx, {
+              ownerId: user.id,
+              registrationId: slot.activeRegistrationId,
+            });
+            registrationExpiresAt = registration.expiresAt;
+            requireGuardian(
+              current.nativeLaunchId &&
+                registration.slotId === slot.id &&
+                registration.buildId === current.buildId &&
+                (!current.serverInstanceId ||
+                  (registration.serverInstanceId === current.serverInstanceId &&
+                    registration.hostKeyFingerprint === current.hostKeyFingerprint)),
+            );
+          }
+        }
+        const fresh = await databaseNow(tx);
+        requireGuardian(
+          current.authorityUntil > fresh &&
+            (!registrationExpiresAt || registrationExpiresAt > fresh),
+        );
+        return current;
       }
       // No native registration can be retroactively reclassified as guardian-owned.
       requireGuardian(!slot.activeRegistrationId);

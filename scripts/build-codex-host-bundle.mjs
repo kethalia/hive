@@ -48,6 +48,7 @@ const modules = [
   "codex-native-guardian.mjs",
   "codex-host-guardian.mjs",
   "codex-guardian-worker.mjs",
+  "codex-guardian-controller.mjs",
   "codex-project-gateway.mjs",
   "codex-session-bridge.mjs",
   "codex-host-registration.mjs",

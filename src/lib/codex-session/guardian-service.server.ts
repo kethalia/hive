@@ -210,7 +210,10 @@ export class GuardianService {
     const runtime = await store.reserveRuntime(this.workspace(binding), packet.identity);
     this.active();
     this.live(packet);
-    if (runtime.phase === "open") return { runtimeId: runtime.id, enrolled: true };
+    if (runtime.phase === "open") {
+      requireGuardian(packet.startup.generation === runtime.generation);
+      return { runtimeId: runtime.id, enrolled: true };
+    }
     requireGuardian(
       runtime.phase === "reserved" &&
         packet.startup.projects.length === 0 &&

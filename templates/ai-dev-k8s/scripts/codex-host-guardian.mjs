@@ -412,6 +412,75 @@ export async function openGuardedHost(options) {
             );
             return runtimeBinding();
           }),
+        identity: (value) =>
+          enqueue(async () => {
+            check(
+              phase === "open" &&
+                hello &&
+                startupReady &&
+                Object.keys(value ?? {}).join() === "nonce" &&
+                /^[a-f0-9]{64}$/.test(value.nonce) &&
+                typeof options.controllerIdentity === "function",
+            );
+            const result = await boundedAuthority(() => options.controllerIdentity(value.nonce));
+            check(phase === "open");
+            return result;
+          }),
+        bootstrap: (value) =>
+          enqueue(async () => {
+            check(
+              phase === "open" &&
+                hello &&
+                startupReady &&
+                Object.keys(value ?? {}).join() === "grant" &&
+                typeof value.grant === "string" &&
+                value.grant.length >= 100 &&
+                value.grant.length <= 16384 &&
+                typeof options.controllerBootstrap === "function",
+            );
+            const result = await boundedAuthority(() => options.controllerBootstrap(value.grant));
+            check(phase === "open");
+            return result;
+          }),
+        currentMetadata: (value) =>
+          enqueue(async () => {
+            check(
+              phase === "open" &&
+                hello &&
+                startupReady &&
+                Object.keys(value ?? {}).join() === "projectId" &&
+                guardian.state.projects.some((p) => p.projectId === value.projectId) &&
+                typeof options.controllerMetadata === "function",
+            );
+            const result = await boundedAuthority(() =>
+              options.controllerMetadata(value.projectId),
+            );
+            check(phase === "open");
+            return result;
+          }),
+        metadataAuthority: (value) =>
+          enqueue(async () => {
+            check(
+              phase === "open" &&
+                hello &&
+                startupReady &&
+                Object.keys(value ?? {}).join() === "projectIds" &&
+                Array.isArray(value.projectIds) &&
+                value.projectIds.length > 0 &&
+                value.projectIds.length <= 32 &&
+                new Set(value.projectIds).size === value.projectIds.length &&
+                value.projectIds.length === guardian.state.projects.length &&
+                value.projectIds.every((id) =>
+                  guardian.state.projects.some((p) => p.projectId === id),
+                ) &&
+                typeof options.metadataAuthority === "function",
+            );
+            const result = await boundedAuthority(() =>
+              options.metadataAuthority(value.projectIds.map((projectId) => ({ projectId }))),
+            );
+            check(phase === "open");
+            return result;
+          }),
       },
       unavailable,
     );

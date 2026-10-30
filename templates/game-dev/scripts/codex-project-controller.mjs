@@ -338,10 +338,15 @@ export function createProjectController(config, deps) {
       leaseId: t.prepared.leaseId,
       leaseGeneration: t.prepared.leaseGeneration,
       checkoutIncarnation: t.checkoutIncarnation,
+      checkoutIdentity: t.checkoutIdentity,
     };
     check(
       typeof binding.checkoutIncarnation === "string" &&
         binding.checkoutIncarnation.length > 0 &&
+        binding.checkoutIdentity &&
+        Object.keys(binding.checkoutIdentity).sort().join() === "device,inode" &&
+        /^[0-9]{1,24}$/.test(binding.checkoutIdentity.device) &&
+        /^[1-9][0-9]{0,24}$/.test(binding.checkoutIdentity.inode) &&
         (!t.guardianPrepared || digest(t.guardianPrepared) === digest(binding)),
       "guardian_prepared_identity_changed",
     );
@@ -454,6 +459,7 @@ export function createProjectController(config, deps) {
           "checkout_unavailable",
         );
         t.checkoutIncarnation = ready.checkoutIncarnation;
+        if (guardian) t.checkoutIdentity = structuredClone(ready.checkoutIdentity);
         t.renewalSequence = ready.renewalSequence ?? 0;
         t.prepared = {
           projectId: p.projectId,

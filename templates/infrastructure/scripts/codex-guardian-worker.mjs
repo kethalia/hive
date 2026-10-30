@@ -39,6 +39,46 @@ export function guardianProject(value) {
   return { projectId: value.projectId, bindingDigest: value.bindingDigest };
 }
 
+// These public-key/bootstrap paths rely on the independently verified owner-only
+// Coder app transport. A browser Origin is never accepted as controller authority.
+export function createGuardianOwnerHandler({ appOrigin, guardian }) {
+  const host = new URL(appOrigin).host;
+  return async (request, response) => {
+    check(
+      request.method === "POST" &&
+        ["/guardian/identity", "/guardian/bootstrap"].includes(request.url) &&
+        request.headers.host === host &&
+        !request.headers.origin &&
+        request.headers["content-type"]?.split(";")[0] === "application/json" &&
+        !request.headers["content-encoding"] &&
+        guardian.state.phase === "open",
+    );
+    const length = request.headers["content-length"];
+    check(!length || (/^[0-9]+$/.test(length) && Number(length) <= 20000));
+    const timer = setTimeout(() => request.destroy(), 4000),
+      chunks = [];
+    let bytes = 0;
+    try {
+      for await (const chunk of request) {
+        bytes += chunk.length;
+        check(bytes <= 20000);
+        chunks.push(chunk);
+      }
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")),
+        identity = request.url === "/guardian/identity";
+      check(Object.keys(body ?? {}).join() === (identity ? "nonce" : "grant"));
+      const answer = identity
+        ? await guardian.identity(body.nonce)
+        : await guardian.bootstrap(body.grant);
+      check(guardian.state.phase === "open" && !request.aborted && !response.destroyed);
+      response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      response.end(JSON.stringify(answer));
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 // Each endpoint has independent monotonically increasing IDs. Worker input and
 // output never share the guardian's C control stream. No replay mutates state.
 export function guardianWire(stream, handlers, onLost) {
@@ -250,6 +290,47 @@ export async function connectGuardianWorker({ fd = 3, startup, onCloseAdmission,
     },
     get state() {
       return structuredClone({ phase, ...binding, projects: [...projects.values()] });
+    },
+    async identity(nonce) {
+      check(phase === "open" && typeof nonce === "string" && digest.test(nonce));
+      const result = await wire.request("identity", { nonce });
+      check(phase === "open");
+      return result;
+    },
+    async bootstrap(grant) {
+      check(
+        phase === "open" &&
+          typeof grant === "string" &&
+          grant.length >= 100 &&
+          grant.length <= 16384,
+      );
+      const result = await wire.request("bootstrap", { grant });
+      check(phase === "open" && result?.enrolled === true);
+      return result;
+    },
+    async metadataAuthority({ projects: inventory }) {
+      check(
+        phase === "open" &&
+          Array.isArray(inventory) &&
+          inventory.length > 0 &&
+          inventory.length <= 32,
+      );
+      const projectIds = inventory.map((p) => p.projectId);
+      check(
+        projectIds.every((p) => uuid.test(p)) &&
+          new Set(projectIds).size === projectIds.length &&
+          projectIds.length === projects.size &&
+          projectIds.every((p) => projects.has(p)),
+      );
+      const result = await wire.request("metadataAuthority", { projectIds });
+      check(phase === "open");
+      return result;
+    },
+    async currentMetadata(projectId) {
+      check(phase === "open" && uuid.test(projectId) && projects.has(projectId));
+      const result = await wire.request("currentMetadata", { projectId });
+      check(phase === "open");
+      return result;
     },
     async admit(value) {
       const project = guardianProject(value);
