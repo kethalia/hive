@@ -1,0 +1,189 @@
+.hive-dock {
+  --dock-size: 54px;
+  --dock-ink: #f2f2f5;
+  --dock-muted: #b7b7c5;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 25px;
+  color: var(--dock-ink);
+  background: linear-gradient(155deg, rgb(106 106 129 / 52%), rgb(41 41 54 / 78%));
+  box-shadow:
+    0 18px 45px -12px rgb(0 0 0 / 55%),
+    inset 0 1px 0 rgb(255 255 255 / 20%),
+    inset 0 -1px 0 rgb(0 0 0 / 15%);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+.hive-dock[data-density="compact"] {
+  --dock-size: 44px;
+  padding: 8px;
+  border-radius: 21px;
+}
+.hive-dock-home,
+.hive-dock-options {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.hive-dock-options {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #8a8a9b transparent;
+  padding: 5px 3px;
+  margin: -5px -3px;
+  animation: hive-dock-enter 180ms ease-out;
+}
+.hive-dock .hive-dock-button {
+  position: relative;
+  width: var(--dock-size);
+  height: var(--dock-size);
+  min-width: var(--dock-size);
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 16px;
+  color: var(--dock-ink);
+  background: rgb(255 255 255 / 7%);
+  font-size: 18px;
+  font-weight: 500;
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+.hive-dock .hive-dock-button:hover {
+  background-color: rgb(255 255 255 / 16%);
+}
+.hive-dock .hive-dock-button:focus-visible {
+  outline: 2px solid #d5ccff;
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.hive-dock .hive-dock-button:active {
+  transform: scale(0.94);
+}
+.hive-dock .hive-dock-button:disabled {
+  opacity: 0.35;
+}
+.hive-dock .hive-dock-app {
+  border-color: rgb(255 255 255 / 30%);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 35%),
+    0 3px 6px rgb(0 0 0 / 20%);
+}
+.hive-dock .hive-dock-app svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.7;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 20%));
+}
+.hive-dock .hive-dock-launcher {
+  background: linear-gradient(145deg, #cb94ff, #8f50da 65%, #6e39ba);
+}
+.hive-dock .hive-dock-workspaces {
+  background: linear-gradient(145deg, #71c9ff, #387dea 65%, #2559b8);
+}
+.hive-dock .hive-dock-keyboard {
+  background: linear-gradient(145deg, #80d6be, #329b82 65%, #257464);
+}
+.hive-dock .hive-dock-keybinds {
+  background: linear-gradient(145deg, #ffce88, #dd9149 65%, #b76b2a);
+}
+.hive-dock-divider {
+  flex: 0 0 1px;
+  height: 30px;
+  background: rgb(255 255 255 / 20%);
+  margin: 0 3px;
+}
+.hive-dock-count {
+  position: absolute;
+  right: -3px;
+  top: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: #e6edff;
+  color: #2454a2;
+  border: 1px solid #87b0f5;
+  font-size: 11px;
+  font-weight: 700;
+}
+.hive-dock .hive-dock-back {
+  color: var(--dock-muted);
+  background: transparent;
+  border-color: transparent;
+}
+.hive-dock .hive-dock-create {
+  border-style: dashed;
+  color: #d2c6ff;
+  background: rgb(168 139 250 / 10%);
+}
+.hive-dock .hive-dock-workspace[aria-current="page"] {
+  color: #fff;
+  background: #7c61bd;
+  border-color: #bda5f4;
+  box-shadow: inset 0 1px 0 #cbb7ff55;
+}
+.hive-dock .hive-dock-workspace[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #e7dcff;
+}
+.hive-dock .hive-dock-key {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  border-radius: 12px;
+}
+.hive-dock .hive-dock-key[aria-pressed="true"] {
+  color: #f2eaff;
+  border-color: #b69ae9;
+  background: #7958ab;
+}
+.hive-dock-tooltip {
+  width: auto;
+  max-width: min(280px, calc(100vw - 24px));
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #23232d;
+  color: #f5f4fa;
+  border-color: #555460;
+  font-size: 12px;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .hive-dock .hive-dock-app:hover {
+    transform: translateY(-5px) scale(1.08);
+  }
+}
+@keyframes hive-dock-enter {
+  from {
+    opacity: 0.3;
+    transform: translateX(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hive-dock *,
+  .hive-dock *::after {
+    animation: none;
+    transition: none;
+  }
+}
