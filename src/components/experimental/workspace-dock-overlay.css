@@ -1,81 +1,101 @@
 .hive-dock-overlay {
   position: fixed;
   z-index: 40;
-  left: max(12px, env(safe-area-inset-left));
-  right: max(12px, env(safe-area-inset-right));
-  bottom: calc(
-    max(
-      0px,
-      calc(
-        var(--app-window-inner-height) -
-        var(--app-visual-viewport-height) -
-        var(--app-visual-viewport-offset-top)
-      )
-    ) +
-    max(4px, env(safe-area-inset-bottom))
-  );
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
+  scroll-padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  box-sizing: content-box;
+  max-width: var(--dock-available-width, calc(100vw - 24px));
   pointer-events: none;
 }
-.hive-dock-overlay-content {
-  order: 0;
-  display: flex;
-  justify-content: center;
-  max-width: calc(100% - 38px);
-  opacity: 1;
-  transform: translateY(0);
-  transition:
-    opacity 180ms ease-out,
-    transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    visibility 0s;
-  pointer-events: auto;
-}
-.hive-dock-overlay[data-dock-visible="false"] .hive-dock-overlay-content {
-  opacity: 0;
-  transform: translateY(16px);
-  visibility: hidden;
-  pointer-events: none;
-  transition:
-    opacity 160ms ease-in,
-    transform 200ms ease-in,
-    visibility 0s 200ms;
-}
-.hive-dock-overlay .hive-dock-toggle {
-  order: 1;
+.hive-dock-surface {
   position: relative;
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  padding: 0;
+  width: max-content;
+  max-width: var(--dock-available-width, calc(100vw - 24px));
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 9px;
   background: var(--card);
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  color: var(--foreground);
+  box-shadow: 0 5px 20px rgb(0 0 0 / 20%);
   pointer-events: auto;
 }
-.hive-dock-overlay .hive-dock-toggle::after {
-  position: absolute;
-  inset: -7px;
-  content: "";
+.hive-dock-layout {
+  width: max-content;
+  max-width: calc(var(--dock-available-width, 100vw - 24px) - 2px);
 }
-.hive-dock-overlay .hive-dock-toggle svg {
+.hive-dock-chrome {
+  display: flex;
+  height: 28px;
+}
+.hive-dock-overlay .hive-dock-grip,
+.hive-dock-overlay .hive-dock-minimise {
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+}
+.hive-dock-overlay .hive-dock-grip {
+  flex: 1;
+  min-width: 44px;
+  cursor: grab;
+  touch-action: none;
+}
+.hive-dock-overlay .hive-dock-minimise {
+  width: 28px;
+  margin-right: 2px;
+}
+.hive-dock-overlay .hive-dock-chrome svg {
   width: 14px;
   height: 14px;
 }
-.hive-dock-overlay .hive-dock-toggle:hover {
-  background: var(--accent);
-  color: var(--foreground);
+.hive-dock-overlay .hive-dock {
+  border: 0;
+  background: transparent;
+  padding-top: 6px;
+}
+.hive-dock-overlay .hive-dock-expand {
+  position: absolute;
+  inset: 0;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  color: var(--primary);
+  touch-action: none;
+  cursor: grab;
+}
+.hive-dock-overlay .hive-dock-expand svg {
+  width: 20px;
+  height: 20px;
+}
+.hive-dock-overlay[data-phase="expanded"] .hive-dock-expand {
+  visibility: hidden;
+}
+.hive-dock-overlay:not([data-phase="expanded"]) .hive-dock-layout {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.hive-dock-overlay:not([data-phase="expanded"]) .hive-dock-surface {
+  width: 48px;
+  height: 48px;
+  overflow: clip;
+}
+.hive-dock-overlay[data-phase="collapsed"] .hive-dock-layout {
+  visibility: hidden;
+}
+.hive-dock-overlay[data-phase="collapsed"] .hive-dock-surface {
+  border-radius: 12px;
+}
+.hive-dock-overlay[data-dragging="true"] {
+  user-select: none;
+}
+.hive-dock-overlay[data-dragging="true"] .hive-dock-grip,
+.hive-dock-overlay[data-dragging="true"] .hive-dock-expand {
+  cursor: grabbing;
 }
 @media (prefers-reduced-motion: reduce) {
-  .hive-dock-overlay[data-dock-visible] .hive-dock-overlay-content {
+  .hive-dock-overlay button {
     transition: none;
-    transform: none;
   }
 }

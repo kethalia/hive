@@ -30,17 +30,26 @@ There is no marketing page, wallpaper, decorative Mac window, or new application
 
 The canvas fills the entire screen. A separate `WorkspaceDockOverlay` places the dock above
 windows without reserving footer space, and keeps launcher/help dialogs above the dock. It starts
-visible and slides/fades away after 2.5 seconds away from its controls. Hover, keyboard focus, and
-an open playground dialog suspend auto-hide. Leaving those controls resumes it, including after
-manual show; there is no permanent pin mode.
+expanded and auto-minimises after 2.5 seconds away. Hover, keycap/grip focus, dragging, and an open
+playground dialog suspend the timer. Manual expansion resumes auto-minimise; there is no pin mode.
 
-The 32px arrow beside the dock remains visible with an expanded 44px touch target, sharing the dock's row
-instead of reserving another row underneath. Click/tap or Enter/Space shows
-or hides the dock, and Tab moves from the handle into the revealed controls. **Alt+Shift+D** toggles
-the dock from anywhere outside a dialog, focuses its controls when revealing, and returns focus
-to the handle when hiding. The handle exposes expanded state and the shortcut to assistive
-technology. Hidden dock controls are inert and excluded from the accessibility tree. Reduced
-motion removes the reveal transition; window geometry never changes when visibility changes.
+The top-right minus minimises the dock into one 48px expand button. The existing shell changes
+width and height: controls fade out (120ms), the shell shrinks (340ms), and the expand icon arrives
+as it settles. Expansion grows the shell (380ms), then the keycaps appear in a stagger (300ms per
+cap, up to 240ms total stagger). The layout stays mounted so the selected view and modifiers survive.
+Overlapping navigation/space mutations finish before a pending minimise. Reduced motion finishes
+immediately. Hidden controls are inert and excluded from the accessibility tree.
+
+Drag the grip at the top of the expanded dock, its unused background, or the collapsed button.
+Release attaches it to the nearest screen edge with a 12px/safe-area inset; centre drops cannot
+leave it floating in the canvas. The edge and position along it are shared between both shapes,
+including while changing views or resizing the visual viewport. Touch drags use the grip/button,
+while native key-strip swipes remain available. Dragging the button never activates expansion.
+
+Enter/Space activates Minimise/Expand; **Alt+Shift+D** toggles outside dialogs and focuses the
+revealed controls or returns focus to Expand. On the grip or collapsed button, arrows move along
+the current edge, Shift+Arrow chooses an edge, and Home/End move to corners. Escape cancels a
+drag. The expanded form has no additional control underneath. Window geometry stays full-screen.
 
 Keycaps keep their solid shadow anchored at the bottom-left. On hover a key lifts up/right and its
 shadow grows; pressing moves it down/left and collapses the shadow. The press is quick (65ms) and
@@ -92,7 +101,7 @@ combinations are encoded by the dock; unsupported combinations are ignored by th
 Dock modifiers reset after the next key. Copy/Paste use a preview-only clipboard. Upload opens a native file picker and displays filenames; contents are not
 read or sent anywhere. Refresh resets all local state. No shell command runs on Coder.
 
-The visible page contains only the main workspace, dock, and its small show/hide handle. There is no floating Playground button,
+The visible page contains only the main workspace and dock (or its single expand button). There is no floating Playground button,
 settings panel, or visible interaction/status log. Action feedback remains available to screen readers.
 
 ## Component contract
@@ -167,11 +176,10 @@ It records per-frame cap opacity, position, tray width, and scroll-control prese
 Removal checks cover first/middle/last caps, shared resize/movement progress, and the overflow
 boundary, including frames after playback to catch any final position snap.
 
-Run `validate-visibility.browser.mjs` for auto-hide, manual Enter/Space/touch toggling, the global
-shortcut, focus restoration, hover/focus/dialog holds, hidden-control accessibility, overlay hit
-testing, full-height canvas geometry, viewport resizing, and reduced motion. It uses the browser
-clock for idle timers and saves screenshots with full-height windows and the visible/hidden dock.
-It also checks that the compact handle shares the tray's row and its extended hit area remains clickable.
+Run `validate-visibility.browser.mjs` for shell morph frame samples, staged cap appearance,
+top-right minimise placement, collapsed-only accessibility, keyboard toggling/focus, auto-minimise,
+dialog holds, dragging both forms to every edge, centre-drop snapping, keyboard placement, Escape
+cancellation, real touch dragging, viewport resizing, full-height canvas geometry, and reduced motion.
 
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,

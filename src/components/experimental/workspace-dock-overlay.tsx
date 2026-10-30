@@ -1,46 +1,46 @@
 "use client";
-
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Grid2X2, GripHorizontal, Minus } from "lucide-react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useDockMorph } from "./use-dock-morph";
+import { useDockPlacement } from "./use-dock-placement";
 import "./workspace-dock-overlay.css";
 
-/** Overlay placement and visibility stay separate from the dock's navigation state. */
 export function WorkspaceDockOverlay({
   children,
   blocked = false,
 }: {
   children: ReactNode;
-  /** Keep the dock available while a launcher, dialog, or native picker is in use. */
   blocked?: boolean;
 }) {
-  const [visible, setVisible] = useState(true);
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const content = useRef<HTMLDivElement>(null);
-  const toggle = useRef<HTMLButtonElement>(null);
-  const focusOnShow = useRef(false);
+  const surface = useRef<HTMLDivElement>(null),
+    layout = useRef<HTMLDivElement>(null),
+    content = useRef<HTMLDivElement>(null);
+  const expand = useRef<HTMLButtonElement>(null),
+    minimise = useRef<HTMLButtonElement>(null);
+  const [hovered, setHovered] = useState(false),
+    [focused, setFocused] = useState(false);
+  const morph = useDockMorph({ surface, layout, content, expand, minimise, blocked });
+  const placement = useDockPlacement(surface, blocked || morph.busy);
   const id = useId();
-
-  function hide() {
-    if (content.current?.contains(document.activeElement)) toggle.current?.focus();
-    setHovered(false);
-    setFocused(false);
-    setVisible(false);
-  }
-
   useEffect(() => {
-    if (!visible || hovered || focused || blocked) return;
+    if (morph.phase === "collapsed") {
+      setHovered(false);
+      setFocused(false);
+    }
+  }, [morph.phase]);
+  useEffect(() => {
+    if (morph.phase !== "expanded" || hovered || focused || blocked || placement.dragging) return;
     const timer = window.setTimeout(() => {
-      if (!content.current?.contains(document.activeElement)) setVisible(false);
+      if (!content.current?.contains(document.activeElement)) morph.change(false);
     }, 2500);
     return () => window.clearTimeout(timer);
-  }, [visible, hovered, focused, blocked]);
-
+  }, [morph.phase, hovered, focused, blocked, placement.dragging, morph.change]);
   useEffect(() => {
-    function shortcut(event: KeyboardEvent) {
+    const shortcut = (event: KeyboardEvent) => {
       if (
         blocked ||
+        placement.dragging ||
         event.repeat ||
         event.isComposing ||
         !event.altKey ||
@@ -52,64 +52,103 @@ export function WorkspaceDockOverlay({
         return;
       event.preventDefault();
       event.stopPropagation();
-      if (visible) hide();
-      else {
-        focusOnShow.current = true;
-        setVisible(true);
-      }
-    }
+      morph.change(!morph.expanded, true);
+    };
     window.addEventListener("keydown", shortcut, true);
     return () => window.removeEventListener("keydown", shortcut, true);
   });
-
-  useLayoutEffect(() => {
-    if (!visible || !focusOnShow.current) return;
-    focusOnShow.current = false;
-    content.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-  }, [visible]);
-
   return (
-    <div className="hive-dock-overlay" data-dock-visible={visible}>
-      <Button
-        ref={toggle}
-        type="button"
-        variant="ghost"
-        className="hive-dock-toggle"
-        aria-label={visible ? "Hide dock" : "Show dock"}
-        aria-expanded={visible}
-        aria-controls={id}
-        aria-describedby={`${id}-help`}
-        aria-keyshortcuts="Alt+Shift+D"
-        title={`${visible ? "Hide" : "Show"} dock (Alt+Shift+D)`}
-        onClick={() => {
-          if (visible) hide();
-          else setVisible(true);
-        }}
-      >
-        {visible ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
-        <span className="sr-only">Dock</span>
-      </Button>
-      <div
-        ref={content}
-        id={id}
-        className="hive-dock-overlay-content"
-        inert={!visible}
-        aria-hidden={!visible}
-        onPointerEnter={(event) => {
-          if (event.pointerType === "mouse" || event.pointerType === "pen") setHovered(true);
-        }}
-        onPointerLeave={() => setHovered(false)}
-        onPointerCancel={() => setHovered(false)}
-        onFocusCapture={() => setFocused(true)}
-        onBlurCapture={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
-        }}
-      >
-        {children}
+    <div
+      ref={placement.root}
+      className="hive-dock-overlay"
+      data-dock-visible={morph.expanded}
+      data-phase={morph.phase}
+      data-edge={placement.edge}
+      data-dragging={placement.dragging}
+      {...placement.handlers}
+    >
+      <div ref={surface} className="hive-dock-surface" aria-busy={morph.busy}>
+        <div
+          ref={layout}
+          className="hive-dock-layout"
+          inert={morph.phase !== "expanded"}
+          aria-hidden={morph.phase !== "expanded"}
+          onPointerEnter={(event) => {
+            if (event.pointerType !== "touch") setHovered(true);
+          }}
+          onPointerLeave={() => setHovered(false)}
+          onFocusCapture={(event) =>
+            setFocused(
+              content.current?.contains(event.target) === true ||
+                (event.target as Element).hasAttribute("data-dock-drag-handle"),
+            )
+          }
+          onBlurCapture={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+          }}
+        >
+          <div className="hive-dock-chrome">
+            <Button
+              type="button"
+              variant="ghost"
+              className="hive-dock-grip"
+              data-dock-drag-handle
+              aria-label="Move dock"
+              aria-describedby={`${id}-help`}
+              title="Drag to an edge. Arrow keys move; Shift+Arrow chooses an edge."
+              onKeyDown={placement.key}
+            >
+              <GripHorizontal aria-hidden="true" />
+            </Button>
+            <Button
+              ref={minimise}
+              type="button"
+              variant="ghost"
+              className="hive-dock-minimise"
+              data-dock-minimise
+              aria-label="Minimise dock"
+              aria-expanded={morph.expanded}
+              aria-controls={id}
+              aria-keyshortcuts="Alt+Shift+D"
+              title="Minimise dock (Alt+Shift+D)"
+              onClick={() => morph.change(false)}
+            >
+              <Minus aria-hidden="true" />
+            </Button>
+          </div>
+          <div ref={content} id={id} className="hive-dock-overlay-content">
+            {children}
+          </div>
+        </div>
+        <Button
+          ref={expand}
+          type="button"
+          variant="ghost"
+          className="hive-dock-expand"
+          data-dock-expand
+          aria-label="Expand dock"
+          aria-expanded={morph.expanded}
+          aria-controls={id}
+          aria-describedby={`${id}-help`}
+          aria-keyshortcuts="Alt+Shift+D"
+          aria-disabled={morph.busy}
+          inert={morph.phase === "expanded"}
+          aria-hidden={morph.phase === "expanded"}
+          tabIndex={morph.phase === "expanded" ? -1 : 0}
+          title="Expand dock. Drag to move (Alt+Shift+D)"
+          onKeyDown={placement.key}
+          onClick={() => morph.change(true)}
+        >
+          <Grid2X2 aria-hidden="true" />
+        </Button>
       </div>
       <span id={`${id}-help`} className="sr-only">
-        The dock hides after 2.5 seconds away. Show it, then press Tab to reach its controls.
-        Alt+Shift+D shows the dock and focuses its controls, or hides it and returns focus here.
+        Drag the dock grip or expand button; release to attach to the nearest screen edge. Arrow
+        keys move along an edge; Shift+Arrow chooses an edge. Home/End move to corners. Escape
+        cancels a drag. Alt+Shift+D expands or minimises. The dock minimises after 2.5 seconds away.
+      </span>
+      <span className="sr-only" role="status">
+        Dock attached to the {placement.edge} edge.
       </span>
     </div>
   );
