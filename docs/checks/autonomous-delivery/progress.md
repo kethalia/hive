@@ -469,3 +469,9 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   remaining descendants retain the lock for outer recovery. Parent15 runtime/3 cross-server
   protocol checks and35 clean-export packaging/runtime checks pass. Installed composition
   and live provider validation remain; no publication flag was enabled.
+
+- Accepted-source readback: reviewed local server checkpoint, moderate difficulty. Fresh
+  host authentication and current guardian authority return exact historical/current source
+  facts after the publication grant expires, without writes or new execution permission.
+  Parent10 clean-export database/route checks and typecheck pass; producer6 checks include
+  a real61-second wait. Host client, protected apply and installed recovery still follow.
