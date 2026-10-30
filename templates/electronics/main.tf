@@ -626,7 +626,7 @@ resource "kubernetes_deployment_v1" "workspace" {
         # Verify this compatibility annotation against deployed k3s before rollout.
         # Opt in only after the named policy is loaded on eligible nodes.
         # The seed-home container continues using the runtime's default policy.
-        annotations = merge(local.hive_host_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+        annotations = merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
           "container.apparmor.security.beta.kubernetes.io/dev" = "localhost/${local.profile.codex_sandbox_apparmor_profile}"
         })
 
@@ -774,6 +774,14 @@ resource "kubernetes_deployment_v1" "workspace" {
               read_only  = true
             }
           }
+          dynamic "volume_mount" {
+            for_each = local.hive_read_enabled ? [true] : []
+            content {
+              name       = "hive-read-bootstrap"
+              mount_path = "/opt/hive-workspace-read-template"
+              read_only  = true
+            }
+          }
         }
 
         dynamic "volume" {
@@ -792,6 +800,40 @@ resource "kubernetes_deployment_v1" "workspace" {
                 path = "request.json"
                 field_ref {
                   field_path = "metadata.annotations['hive.kethalia.com/host-request']"
+                }
+              }
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_read_enabled ? [true] : []
+          content {
+            name = "hive-read-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "installer.gz.b64"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/read-installer']"
+                }
+              }
+              items {
+                path = "start.py"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/read-start']"
+                }
+              }
+              items {
+                path = "installer.sha256"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/read-installer-sha256']"
+                }
+              }
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/read-request']"
                 }
               }
             }

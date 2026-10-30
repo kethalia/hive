@@ -16,6 +16,7 @@ if (deliveryCallbacks && !callbacks) throw new Error("Delivery callback proof re
 const deliveryCallbackPaths = [
   "/api/codex-host/guardians",
   "/api/delivery/host",
+  "/api/delivery/host/status",
   "/api/delivery/native",
   "/api/delivery/github-source/challenge",
   "/api/delivery/github-source",
@@ -124,6 +125,7 @@ if (appMode) {
         ? {
             HIVE_GUARDIAN_ENABLED: "true",
             HIVE_DELIVERY_MANAGER_ENABLED: "true",
+            HIVE_DELIVERY_EXECUTION_ENABLED: "true",
             HIVE_DELIVERY_NATIVE_ENABLED: "true",
             HIVE_DELIVERY_GITHUB_SOURCE_ENABLED: "true",
             HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED: "true",
@@ -454,8 +456,8 @@ try {
           }
         }
         appChecks.deliveryCallbackTransport = deliveryCallbacks
-          ? "nine enabled routes reject malformed envelopes; no host authority established"
-          : "all nine disabled routes retain the private preview gate";
+          ? "ten enabled routes reject malformed envelopes; no host authority established"
+          : "all ten disabled routes retain the private preview gate";
         for (const [path, init] of [
           ["/api/codex-host/registrations", { method: "GET" }],
           [

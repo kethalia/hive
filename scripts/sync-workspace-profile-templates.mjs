@@ -3,6 +3,7 @@ import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { syncHostArchive } from "./build-codex-host-archive.mjs";
 import { buildTemplateArtifacts } from "./build-template-artifacts.mjs";
+import { syncWorkspaceReadPackage } from "./build-workspace-read-package.mjs";
 
 const repositoryRoot = process.cwd();
 const canonicalRoot = join(repositoryRoot, "templates", "ai-dev-k8s");
@@ -14,6 +15,7 @@ const targetRoots = [
 ];
 const checkOnly = process.argv.includes("--check");
 await syncHostArchive(repositoryRoot, checkOnly);
+await syncWorkspaceReadPackage(repositoryRoot, checkOnly);
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -40,8 +42,14 @@ const sharedRelativePaths = [
   ".terraform.lock.hcl",
   "main.tf",
   "hive-host.tf",
+  "hive-read.tf",
   "assets/codex-host.tar.sha256",
   "assets/codex-host.tar.xz",
+  "assets/workspace-read.tar.gz",
+  "assets/workspace-read-installer.py.gz",
+  "assets/workspace-read-installer.sha256",
+  "assets/workspace-read.tar.sha256",
+  "assets/workspace-read.manifest.sha256",
   "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
 ].sort();

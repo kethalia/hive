@@ -234,7 +234,7 @@ test("actual curated template fits deployment bound and every literal Terraform 
   assert.equal(files.has("scripts/codex-workspace-host.mjs"), false);
   assert.equal(files.has("scripts/codex-delivery-runtime.mjs"), false);
   assert.equal(files.has("scripts/install-codex-host.py"), true);
-  for (const name of ["main.tf", "hive-host.tf"]) {
+  for (const name of ["main.tf", "hive-host.tf", "hive-read.tf"]) {
     const source = await readFile(join(path, name), "utf8");
     for (const match of source.matchAll(/\$\{path\.module\}\/([^"\s]+)/g))
       assert.ok(files.has(match[1]), `missing Terraform input ${match[1]}`);

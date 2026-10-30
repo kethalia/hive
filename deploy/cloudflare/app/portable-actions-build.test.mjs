@@ -32,6 +32,7 @@ test("only reviewed exact exports from the built workspace page become portable"
   const output = portableActionManifest(input);
   assert.equal(Object.keys(output.actions).length, 4);
   assert.deepEqual(output.actions[key(0)].paths, ["/workspaces"]);
+  assert.equal(output.actions[key(0)].maxBodyBytes, 65536);
   assert.ok(!JSON.stringify(output).includes(input.encryptionKey));
   assert.ok(!JSON.stringify(output).includes("moduleId"));
 });
@@ -46,4 +47,29 @@ test("missing or changed framework action mappings fail the build closed", () =>
   invalidId.node.invalid = invalidId.node[key(0)];
   delete invalidId.node[key(0)];
   assert.throws(() => portableActionManifest(invalidId));
+});
+
+test("reviewed read actions are portable while terminal mutation stays excluded", () => {
+  const input = fixture();
+  const reads = [
+    "getWorkspaceSessionsAction",
+    "getExistingTerminalPathsAction",
+    "getWorkspaceSessionToolsAction",
+  ];
+  for (const [i, exportedName] of [...reads, "renameSessionAction", "killSessionAction"].entries())
+    input.node[key(20 + i)] = { ...input.node[key(0)], exportedName };
+  const output = portableActionManifest(input);
+  assert.equal(Object.keys(output.actions).length, 7);
+  for (const name of reads)
+    assert.ok(Object.values(output.actions).some((v) => v.exportedName === name));
+  for (const action of Object.values(output.actions))
+    assert.equal(
+      action.maxBodyBytes,
+      action.exportedName === "getExistingTerminalPathsAction" ? 786432 : 65536,
+    );
+  assert.ok(
+    !Object.values(output.actions).some(
+      (v) => v.exportedName === "killSessionAction" || v.exportedName === "renameSessionAction",
+    ),
+  );
 });

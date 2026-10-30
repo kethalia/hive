@@ -6,6 +6,7 @@ export type HostCallbackCapabilities = {
   [name: string]: unknown;
   HIVE_GUARDIAN_ENABLED?: unknown;
   HIVE_DELIVERY_MANAGER_ENABLED?: unknown;
+  HIVE_DELIVERY_EXECUTION_ENABLED?: unknown;
   HIVE_DELIVERY_NATIVE_ENABLED?: unknown;
   HIVE_DELIVERY_GITHUB_SOURCE_ENABLED?: unknown;
   HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED?: unknown;
@@ -42,6 +43,9 @@ export function isHostCallbackTransport(
       ? { "/api/codex-host/guardians": 65536 }
       : {}),
     ...(manager ? { "/api/delivery/host": 65536 } : {}),
+    ...(manager && capabilities.HIVE_DELIVERY_EXECUTION_ENABLED === "true"
+      ? { "/api/delivery/host/status": 16384 }
+      : {}),
     ...(manager && capabilities.HIVE_DELIVERY_NATIVE_ENABLED === "true"
       ? { "/api/delivery/native": 65536 }
       : {}),

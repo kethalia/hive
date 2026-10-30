@@ -58,6 +58,7 @@ describe("native callback transport exception (signature checks still required)"
   const capabilities = {
     HIVE_GUARDIAN_ENABLED: "true",
     HIVE_DELIVERY_MANAGER_ENABLED: "true",
+    HIVE_DELIVERY_EXECUTION_ENABLED: "true",
     HIVE_DELIVERY_NATIVE_ENABLED: "true",
     HIVE_DELIVERY_GITHUB_SOURCE_ENABLED: "true",
     HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED: "true",
@@ -65,6 +66,7 @@ describe("native callback transport exception (signature checks still required)"
   it.each([
     ["/api/codex-host/guardians", "HIVE_GUARDIAN_ENABLED", 65536],
     ["/api/delivery/host", "HIVE_DELIVERY_MANAGER_ENABLED", 65536],
+    ["/api/delivery/host/status", "HIVE_DELIVERY_EXECUTION_ENABLED", 16384],
     ["/api/delivery/native", "HIVE_DELIVERY_NATIVE_ENABLED", 65536],
     ["/api/delivery/github-source/challenge", "HIVE_DELIVERY_GITHUB_SOURCE_ENABLED", 65536],
     ["/api/delivery/github-source", "HIVE_DELIVERY_GITHUB_SOURCE_ENABLED", 1152 * 1024],

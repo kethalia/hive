@@ -17,6 +17,7 @@ import { DeliveryNativeSourceService } from "@/lib/delivery/native.server";
 import { DeliveryRepository } from "@/lib/delivery/repository";
 import { DeliverySourceStateService } from "@/lib/delivery/source-state.server";
 import { SourcePublicationTransport } from "@/lib/delivery/source-transport.server";
+import { DeliveryStatusService } from "@/lib/delivery/status.server";
 import {
   installedDeliveryHostFixture,
   metadataLaunch,
@@ -95,6 +96,7 @@ const observedPaths = [
     "delivery-native-spool.mjs",
     "delivery-source-publisher.mjs",
     "delivery-source-state-client.mjs",
+    "delivery-status-client.mjs",
     "delivery-source-worker.py",
     "delivery-source-runtime.py",
     "delivery-source-broker.py",
@@ -115,6 +117,8 @@ const observedPaths = [
     "native.server.ts",
     "source-transport.server.ts",
     "source-state.server.ts",
+    "status.server.ts",
+    "status-contracts.ts",
     "source-publication.server.ts",
     "repository.ts",
   ].map((name) => `src/lib/delivery/${name}`),
@@ -211,6 +215,7 @@ it.skipIf(!url)(
       );
       const manager = new DeliveryManagerService(db, { ...f.dependencies, progressionProtocol: 1 });
       const native = new DeliveryNativeSourceService(db, f.dependencies);
+      const status = new DeliveryStatusService(db, f.dependencies);
       const state = new DeliverySourceStateService(db, {
         reauthorize: f.dependencies.reauthorize,
         guardianPolicy: f.guardian.policy,
@@ -250,6 +255,8 @@ it.skipIf(!url)(
           if (endpoint.pathname === "/api/codex-host/guardians")
             value = await service.execute(body);
           else if (endpoint.pathname === "/api/delivery/host") value = await manager.execute(body);
+          else if (endpoint.pathname === "/api/delivery/host/status")
+            value = await status.read(body);
           else if (endpoint.pathname === "/api/delivery/native") value = await native.ingest(body);
           else if (endpoint.pathname === "/api/delivery/source-publication/policy")
             value = await source.policy(body);
@@ -326,6 +333,10 @@ it.skipIf(!url)(
         requestedEffort: "low",
       });
       expect(claim.canRun).toBe(false);
+      const initialStatus = await call("read_status", {});
+      expect(initialStatus.scope.attemptId).toBe(claim.attemptId);
+      expect(initialStatus.source.applicationPhase).toBe("base");
+      expect(initialStatus.executionAuthorized).toBe(false);
       observe({
         method: "rawResponseItem/completed",
         params: {
@@ -366,6 +377,12 @@ it.skipIf(!url)(
       });
       expect(published.sourceContext.version).toBe(1);
       const target = published.sourceContext;
+      const acceptedStatus = await call("read_status", {});
+      expect(acceptedStatus.source.sourceContext).toEqual(target);
+      expect(acceptedStatus.source.applicationPhase).toBe("accepted");
+      expect(acceptedStatus.blockers).toContain("source_application_pending");
+      expect(acceptedStatus.evidence.requirementStatus).toBe("held");
+      expect(acceptedStatus.publicationAuthorized).toBe(false);
       writeFileSync(join(material.checkout, "src/main.txt"), "later dirty bytes must remain\n");
       expect(readFileSync(join(material.checkout, ".git/HEAD"), "utf8").trim()).toBe(
         material.revision,
@@ -455,6 +472,9 @@ it.skipIf(!url)(
         JSON.parse(readFileSync(join(home, "provider-effects.json"), "utf8")).pullRequests,
       ).toBe(1);
       expect(requests).toContain("/api/delivery/source-publication/state");
+      expect(
+        requests.filter((path) => path === "/api/delivery/host/status").length,
+      ).toBeGreaterThanOrEqual(2);
       const hashesAfter = sourceHashes();
       expect(hashesAfter).toEqual(hashesBefore);
       if (process.env.HIVE_INSTALLED_DELIVERY_EVIDENCE_PATH) {

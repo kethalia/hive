@@ -734,3 +734,31 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 - CI checkpoint: c3448f8 passes CI, application/workspace image builds and native guardian build.
   The composed factory regression now runs in the PostgreSQL job. The corrected publication
   test environment and evidence formatting pass in CI.
+
+- Portable workspace reads and factual delivery status: reviewed assembled checkpoint,
+  high difficulty. Existing session lists, file checks and tool directory lookup now use
+  an independent signed, owner/build/app-bound service in Cloudflare. A review found stale
+  tool-link metadata; link creation now consumes the verified binding and rechecks the exact
+  owner/build/agent before authorizing a tool URL. Per-action streamed body limits preserve
+  large valid path batches without expanding unrelated actions. The manager can read current
+  claim/source/evidence prerequisites without turning a status response into write authority.
+  Collection refreshes only after fresh current-claim checks and is coalesced/bounded.
+  Parent clean-export checks pass164 focused cases,101 template checks,64 runtime checks,
+  196 nested compiled cases and22 Python boundary cases, plus typecheck and actual guardian
+  startup. Optional native cases remain skipped. The standalone read installer also passes
+  an independent actual private-home/network proof; its test-only root-ownership observation
+  is explicitly documented. An initial proof-output path was outside the harness evidence
+  directory and was rejected; the corrected path passes. Both services initially left too
+  little pod annotation room. Compressing only the pinned read installer keeps the unchanged
+  limit:229256 fixed bytes plus8192 config reserve under240000. The decoder checks bounded
+  single-stream gzip and SHA256 before startup. Native/provider doubles in composed delivery
+  remain explicit; live Coder installation, full app and browser acceptance follow.
+  Evidence: [parent assembly](workspace-read-install-local/parent-assembly.json),
+  [read installer](workspace-read-installer.md), [status contract](delivery-status.md).
+
+- Preview schema28: completed with all38 existing tables' old columns/rows and migration
+  records preserved; runtime grants remain SELECT/INSERT/UPDATE only. The preflight initially
+  rejected legitimate column names containing digits before any migration; its identifier
+  validator was corrected and the reviewed migration/verification passed. No production access
+  or cron activation. Schema28 CI and all image/native builds pass5c7ea17. Evidence:
+  [Neon verification](neon-template-creation-migration.json).
