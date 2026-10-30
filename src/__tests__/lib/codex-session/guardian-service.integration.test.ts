@@ -25,7 +25,7 @@ import { guardianFixture } from "./guardian-fixture";
 const url = process.env.HIVE_DELIVERY_TEST_DATABASE_URL;
 if (url) {
   const u = new URL(url);
-  if (u.hostname !== "127.0.0.1" || u.pathname !== "/hive_delivery_test")
+  if (!["127.0.0.1", "localhost"].includes(u.hostname) || u.pathname !== "/hive_delivery_test")
     throw new Error("Isolated fixture only");
 }
 const db = new PrismaClient({
