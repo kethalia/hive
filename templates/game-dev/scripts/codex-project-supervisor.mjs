@@ -19,6 +19,7 @@ import {
 import { createServer } from "node:net";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
 import {
@@ -1535,6 +1536,111 @@ export function createNativeManagerRouter(getAdapter, reply) {
   return route;
 }
 
+export const NATIVE_STARTUP_TIMEOUT_MS = 20000;
+
+// One process, one monotonic listener deadline. Durable initialization on the
+// workspace volume can exceed the old forty short connection-refusal attempts.
+// A failed attempt never starts another process or relaxes native authorization.
+export async function waitForNativeSocket({
+  child,
+  endpoint,
+  token,
+  executionAuthority,
+  deadline,
+  signal,
+  stop,
+}) {
+  check(
+    Number.isFinite(deadline) && deadline <= performance.now() + NATIVE_STARTUP_TIMEOUT_MS,
+    "invalid_native_start_deadline",
+  );
+  let socket;
+  let failure;
+  let rejectInterrupted;
+  const interrupted = new Promise((_, reject) => {
+    rejectInterrupted = reject;
+  });
+  void interrupted.catch(() => {});
+  const interrupt = (error) => {
+    if (failure) return;
+    failure = error;
+    socket?.terminate();
+    rejectInterrupted(error);
+  };
+  const exited = () => interrupt(new Error("native_start_failed"));
+  const cancelled = () => interrupt(new Error("native_start_cancelled"));
+  const assertCurrent = () => {
+    if (failure) throw failure;
+    check(!signal?.aborted, "native_start_cancelled");
+    check(child.exitCode === null && child.signalCode === null, "native_start_failed");
+    check(performance.now() < deadline, "native_start_timeout");
+    executionAuthority?.assert();
+  };
+  const guarded = (operation) => Promise.race([operation, interrupted]);
+  const timer = setTimeout(
+    () => interrupt(new Error("native_start_timeout")),
+    Math.max(0, deadline - performance.now()),
+  );
+  const authorityTimer = setInterval(() => {
+    try {
+      assertCurrent();
+    } catch (error) {
+      interrupt(error);
+    }
+  }, 50);
+  child.once("exit", exited);
+  child.once("error", exited);
+  signal?.addEventListener("abort", cancelled, { once: true });
+  try {
+    for (;;) {
+      assertCurrent();
+      await guarded(Promise.resolve().then(() => executionAuthority?.fence()));
+      assertCurrent();
+      try {
+        socket = new WebSocket(endpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+          handshakeTimeout: Math.max(1, Math.min(300, Math.ceil(deadline - performance.now()))),
+          maxPayload: 1024 * 1024,
+          followRedirects: false,
+          perMessageDeflate: false,
+        });
+        await guarded(
+          new Promise((resolveOpen, reject) => {
+            socket.once("open", resolveOpen);
+            socket.once("error", reject);
+            socket.once("unexpected-response", (_request, response) => {
+              response.destroy();
+              reject(new Error("native_handshake_rejected"));
+            });
+          }),
+        );
+      } catch (error) {
+        socket?.terminate();
+        assertCurrent();
+        if (error.message === "native_handshake_rejected") throw error;
+        // Only connection failures retry; deadline, authority and cancellation
+        // failures escape through assertCurrent and stop this exact lifetime.
+        await guarded(sleep(Math.min(100, Math.max(0, deadline - performance.now()))));
+        continue;
+      }
+      await guarded(Promise.resolve().then(() => executionAuthority?.fence()));
+      assertCurrent();
+      check(socket.readyState === WebSocket.OPEN, "native_disconnected");
+      return socket;
+    }
+  } catch (error) {
+    socket?.terminate();
+    await stop();
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    clearInterval(authorityTimer);
+    child.removeListener("exit", exited);
+    child.removeListener("error", exited);
+    signal?.removeEventListener("abort", cancelled);
+  }
+}
+
 export async function launchNative({
   config,
   home,
@@ -1543,6 +1649,7 @@ export async function launchNative({
   fixtureProvider,
   executionAuthority,
   metadataApproval,
+  signal,
 }) {
   check(
     !config.metadataReadOnly || config.executionMode === "isolated",
@@ -1553,6 +1660,7 @@ export async function launchNative({
     : undefined;
   await executionAuthority?.fence();
   executionAuthority?.assert();
+  check(!signal?.aborted, "native_start_cancelled");
   const executable = readFileSync(config.codexExecutable);
   check(
     realpathSync(config.codexExecutable) === config.codexExecutable &&
@@ -1609,6 +1717,8 @@ export async function launchNative({
     nativeCommand = namespace
       ? namespace.command(nativeArgs, { holdLock: true })
       : [config.codexExecutable, ...nativeArgs];
+    executionAuthority?.assert();
+    check(!signal?.aborted, "native_start_cancelled");
   } catch (error) {
     namespace?.close();
     throw error;
@@ -1617,6 +1727,7 @@ export async function launchNative({
   // supervisor until this exact child exits, including abrupt supervisor death.
   const guardian =
     "import ctypes,os,signal,sys\np=int(sys.argv[1])\nr=ctypes.CDLL(None).prctl(1,signal.SIGTERM,0,0,0)\nif r!=0 or os.getppid()!=p: sys.exit(1)\nos.execv(sys.argv[2],sys.argv[2:])";
+  const startupDeadline = performance.now() + NATIVE_STARTUP_TIMEOUT_MS;
   const child = spawn("/usr/bin/python3", ["-c", guardian, String(process.pid), ...nativeCommand], {
     cwd: home,
     env,
@@ -1649,7 +1760,9 @@ export async function launchNative({
   };
   child.once("exit", revoke);
   child.once("error", revoke);
-  const stop = async () => {
+  let stopPromise;
+  const stop = () => (stopPromise ??= stopRuntime());
+  const stopRuntime = async () => {
     closing = true;
     ws?.terminate();
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
@@ -1669,24 +1782,15 @@ export async function launchNative({
     namespace?.close();
   };
   try {
-    for (let attempt = 0; attempt < 40; attempt++) {
-      check(child.exitCode === null && child.signalCode === null, "native_start_failed");
-      try {
-        ws = await new Promise((r, j) => {
-          const s = new WebSocket(endpoint, {
-            headers: { Authorization: `Bearer ${token}` },
-            handshakeTimeout: 300,
-            maxPayload: 1024 * 1024,
-          });
-          s.once("open", () => r(s));
-          s.once("error", j);
-        });
-        break;
-      } catch {
-        await sleep(100);
-      }
-    }
-    check(ws?.readyState === WebSocket.OPEN, "native_start_timeout");
+    ws = await waitForNativeSocket({
+      child,
+      endpoint,
+      token,
+      executionAuthority,
+      deadline: startupDeadline,
+      signal,
+      stop,
+    });
     ws.on("close", revoke);
     ws.on("error", revoke);
     ws.on("message", (data, binary) => {

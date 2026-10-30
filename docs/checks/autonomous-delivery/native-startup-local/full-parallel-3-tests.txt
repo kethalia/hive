@@ -1,0 +1,74 @@
+(node:633527) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./")); register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ metadata mode requires exact first-native authority, policy and checkout identity (40.242226ms)
+✔ metadata pinning rejects symlink before launch (16.396195ms)
+✔ metadata pinning rejects metadata-symlink before launch (15.741013ms)
+✔ metadata pinning rejects gitfile before launch (12.044288ms)
+✔ metadata pinning rejects hardlink before launch (14.85832ms)
+✔ metadata pinning rejects alternates before launch (16.79197ms)
+✔ metadata pinning rejects commondir before launch (16.676407ms)
+✔ metadata pinning rejects worktrees before launch (13.396852ms)
+✔ metadata pinning rejects identity before launch (12.690562ms)
+✔ metadata pinning rejects oversize before launch (13.086798ms)
+✔ metadata pinning rejects entry-limit before launch (284.742942ms)
+✔ pinned descriptor mount resists checkout path replacement and consumes inherited handles (70.942799ms)
+✔ actual native root, child, CLI and resumed thread retain read-only Git metadata with live host refs (16355.658551ms)
+(node:633528) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./")); register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ isolated execution is an explicit configuration mode (1.023824ms)
+✔ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (20181.012216ms)
+✔ actual wrapper, monitor and host crashes terminate pinned native and release inherited lock (3872.646724ms)
+(node:633530) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./")); register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ one durable creation intent, actual first input once, persisted same-thread attach (36.05049ms)
+✔ ambiguous create survives restart and never creates a second thread (23.311847ms)
+✔ one workspace lifetime authorizes only each independently registered project's exact thread (34.490678ms)
+✔ lease expiry denies execution while durable read binding remains available (22.270906ms)
+✔ checkout absence retains durable reads while input and attach stay denied (25.834575ms)
+✔ failed helper provenance cannot authorize execution even with an otherwise current lease (16.542128ms)
+✔ ambiguous first prompt is durable, replay cannot repeat inference (24.141573ms)
+✔ native lifetime loss revokes all bindings and restart requires explicit same-thread rejoin (35.536692ms)
+✔ OS lock rejects another supervisor and private registry forgery cannot reopen (15.001452ms)
+✔ unpersisted rejoin failure is explicit and never substitutes a new thread (29.798983ms)
+✔ unknown caller fields, project substitutions, lease changes and path escapes are denied (13.879376ms)
+✔ unsupported profile/version and mismatched native thread metadata fail closed (23.965647ms)
+✔ SIGKILL releases process lock but preserves uncertain creation intent (71.038718ms)
+✔ installed native 0.165 rejects remote CLI attachment of an empty loaded thread (2757.413676ms)
+✔ actual native first text persists through local mock provider then same-thread CLI attaches (4496.341348ms)
+✔ SIGKILL supervisor terminates its actual native child and permits a fresh lifetime (877.45295ms)
+✔ registered empty thread supports first-turn manager enrollment but no premature history attach (22.500383ms)
+✔ native tool router separates request IDs and never answers approvals or arbitrary tools (9.427849ms)
+✔ router drain tracks detached observers and excludes read responses from its notification fence (10.758368ms)
+✔ a claim handler can drain others without awaiting itself or excluding a foreign same-named call (11.449631ms)
+✔ protocol one journals one private continuation and revalidates the exact claim without opening CLI admission (38.783687ms)
+✔ an ambiguous continuation start stays journaled and never sends a second native start (34.403862ms)
+✔ parallel native input and work before claim receipt retain the continuation hold (39.123024ms)
+✔ protocol-one boundary refuses unknown inventory and inconsistent full-item history (32.435953ms)
+✔ router timeout keeps the actual handler tracked until its underlying work settles (1.715698ms)
+✔ continuation rechecks registration after awaited history and again after durable start intent (64.629618ms)
+✔ registration cannot adopt an empty thread after a failed new-lifetime rejoin (39.542745ms)
+✔ installed manager observer receives exact notification methods, never approval requests (0.203036ms)
+✔ renewal failure durably fences execution, interrupts exact turn and preserves reads and other project (50.935457ms)
+✔ uncertain turn interruption stays durably revoked for review (33.518617ms)
+✔ revocation retains review hold for unknown-active native inventory (33.602775ms)
+✔ revocation retains review hold for truncated native inventory (32.227892ms)
+✔ revocation retains review hold for missing-root native inventory (33.453055ms)
+✔ pre-execution proof requires exact creation intent, loaded empty history and no first prompt (26.427784ms)
+✔ pre-execution proof cannot reinterpret uncertain creation (19.249104ms)
+✔ installed child mapping gates notifications and history by exact parent/spawn/lifetime (21.900841ms)
+✔ late mapped child after revocation is interrupted and failures retain review hold (30.964951ms)
+✔ supervisor holds process lock and native lifetime until installed observer close drains (27.833617ms)
+✔ guardian closure while a native response is pending keeps the durable creation intent uncertain (18.679173ms)
+✔ guardian close barrier revokes input before awaiting fixed owned CLI cleanup (32.757367ms)
+✔ positive manager receipt arriving after guardian closure cannot be returned to the native model (24.447354ms)
+ℹ tests 57
+ℹ suites 0
+ℹ pass 57
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 24446.215356

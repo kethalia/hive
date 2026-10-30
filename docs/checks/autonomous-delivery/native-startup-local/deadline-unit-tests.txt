@@ -1,0 +1,17 @@
+✔ startup diagnostic rejects source drift and never changes readiness bounds (3.155957ms)
+✔ startup stderr/error diagnostics retain only bounded categories (26.058197ms)
+✔ one authenticated listener may finish durable startup beyond the old four-second retry window (4556.443178ms)
+✔ absolute deadline stops the one child and closes pending handshake (152.408698ms)
+✔ revocation interrupts readiness before any native initialization (102.952258ms)
+✔ deadline bounds a stalled authority fence without accepting its late completion (102.351326ms)
+✔ authority is checked again after authenticated WebSocket open (4.437297ms)
+✔ cancellation and early child exit abort readiness without relaunch (64.128265ms)
+✔ wrong authentication is a terminal handshake rejection, not a retry (5.024559ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5134.846674

@@ -441,3 +441,10 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   insufficient provider budget rejects before effects. Production Git children remain in the
   worker's process group so timeout cleanup can cover them. Parent and independent43-test
   runs pass; the JS publisher still must prove group absence before releasing its lock.
+
+- Native startup deadline: reviewed and independently reproduced, high difficulty.
+  Parallel startup exposed slow filesystem waits close to the previous readiness limit.
+  A single-child monotonic20-second deadline now preserves cancellation, revocation, exact
+  identity and fail-closed cleanup; it does not claim to bound uninterruptible kernel IO.
+  Parent9 focused checks,57 actual parallel runtime checks and20 clean-export packaging
+  checks pass. Diagnostic failures remain recorded. Installed account validation remains.
