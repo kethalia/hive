@@ -9,6 +9,7 @@ import {
 } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
+import { GuardianSourceApplicationStore } from "./guardian-application-store.server";
 import { expectedGuardianHostConfig, guardianConfigSha256 } from "./guardian-config.server";
 import {
   type GuardianPolicy,
@@ -368,8 +369,10 @@ export class GuardianService {
     };
   }
   async execute(raw: unknown) {
-    const input = guardianTransportEnvelopeSchema.parse(raw),
-      runtime = await this.runtime(input);
+    const input = guardianTransportEnvelopeSchema.parse(raw);
+    if (["apply_reserve", "apply_verify", "apply_commit"].includes(input.action))
+      requireGuardian(this.env.HIVE_GUARDIAN_SOURCE_APPLICATION_ENABLED === "true");
+    const runtime = await this.runtime(input);
     this.active();
     const store = this.requestStore(input.expiresAt);
     if (input.action === "enroll") {
@@ -414,6 +417,31 @@ export class GuardianService {
         consumptionDigest: guardianDigest(input),
       });
       return { accepted: true, runtimeId: runtime.id, runtimeGeneration: enrolled.generation };
+    }
+    if (
+      input.action === "apply_reserve" ||
+      input.action === "apply_verify" ||
+      input.action === "apply_commit"
+    ) {
+      const scope = await this.nativeScope(runtime, input.projectId);
+      const application = new GuardianSourceApplicationStore(this.db, {
+        policy: this.policy,
+        expectedRuntime: { id: runtime.id, generation: input.runtimeGeneration },
+        signal: this.dependencies.signal,
+        authorizationExpiresAt: input.expiresAt,
+      });
+      if (input.action === "apply_reserve")
+        return application.reserve(scope, {
+          projectId: input.projectId,
+          applicationId: input.applicationId,
+          publicationOperationId: input.publicationOperationId,
+          expectedAppliedSourceContext: input.expectedAppliedSourceContext,
+          targetSourceContext: input.targetSourceContext,
+          idleSnapshot: input.idleSnapshot,
+          inputBarrier: input.inputBarrier,
+        });
+      if (input.action === "apply_verify") return application.verify(scope, input.applicationId);
+      return application.commit(scope, input.applicationId, input.appliedReceipt);
     }
     const common = {
       ownerId: runtime.ownerId,

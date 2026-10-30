@@ -26,6 +26,20 @@ const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 export async function guardianFixture(
   db: PrismaClient,
   hooks: {
+    workspaceEnrollment?: boolean;
+    physical?: {
+      revision: string;
+      leaseId: string;
+      leaseGeneration: number;
+      checkoutIncarnation: string;
+      checkoutIdentity: { device: string; inode: string };
+      gitIdentity: { device: string; inode: string };
+    };
+    policyDigest?: string;
+    namespaceReceiptDigest?: (value: {
+      fixture: Awaited<ReturnType<typeof nativeFixture>>;
+      launch: Awaited<ReturnType<GuardianAdmissionStore["reserveNativeLaunch"]>>;
+    }) => string;
     beforeNativeFinalize?: (stage: {
       fixture: Awaited<ReturnType<typeof nativeFixture>>;
       store: GuardianAdmissionStore;
@@ -51,7 +65,7 @@ export async function guardianFixture(
     guardianElfSha256: "2".repeat(64),
     nodeSha256: "3".repeat(64),
     protocol: "guardian-v1" as const,
-    policyDigest: "4".repeat(64),
+    policyDigest: hooks.policyDigest ?? "4".repeat(64),
     metadataPolicyDigest: GUARDIAN_METADATA_POLICY_DIGEST,
   };
   const policy: GuardianPolicy = { enabled: true, producerEnabled: true, packages: [pin] };
@@ -84,6 +98,11 @@ export async function guardianFixture(
       }
     | undefined;
   const f = await nativeFixture(db, randomUUID(), {
+    physical: hooks.physical && {
+      revision: hooks.physical.revision,
+      leaseId: hooks.physical.leaseId,
+      leaseGeneration: hooks.physical.leaseGeneration,
+    },
     beforeRegister: async ({ user, host, context }) => {
       const row = await db.projectTaskIntent.findUniqueOrThrow({
         where: { id: context.preparationIntentId },
@@ -120,16 +139,26 @@ export async function guardianFixture(
           authTag: Uint8Array.from(encrypted.authTag),
         },
       });
-      const runtime = await store.reserveRuntime(host, {
+      const enrollmentBinding = hooks.workspaceEnrollment ? { ...host, projects: [] } : host;
+      const configSha256 = expectedConfigSha256(enrollmentBinding);
+      const runtime = await store.reserveRuntime(enrollmentBinding, {
         lifetimeId: randomUUID(),
-        bindingDigest: "6".repeat(64),
+        bindingDigest: hooks.workspaceEnrollment
+          ? hash(
+              JSON.stringify({
+                schemaVersion: 1,
+                configSha256,
+                packageManifestSha256: pin.packageManifestSha256,
+              }),
+            )
+          : "6".repeat(64),
         outerPublicKeyPem: outer.publicKey.export({ type: "spki", format: "pem" }).toString(),
         packageManifestSha256: pin.packageManifestSha256,
         guardianElfSha256: pin.guardianElfSha256,
         nodeSha256: pin.nodeSha256,
         policyDigest: pin.policyDigest,
         metadataPolicyDigest: pin.metadataPolicyDigest,
-        configSha256: expectedConfigSha256(host),
+        configSha256,
       });
       const grant = {
         ownerId: user.id,
@@ -172,8 +201,8 @@ export async function guardianFixture(
       });
       const checkout: GuardianCheckout = {
         ...context,
-        checkoutIncarnation: randomUUID(),
-        checkoutIdentity: { device: "123", inode: "456" },
+        checkoutIncarnation: hooks.physical?.checkoutIncarnation ?? randomUUID(),
+        checkoutIdentity: hooks.physical?.checkoutIdentity ?? { device: "123", inode: "456" },
       };
       const bound = await store.bindCheckout({
         ownerId: user.id,
@@ -237,8 +266,12 @@ export async function guardianFixture(
     leaseGeneration: f.context.leaseGeneration,
   };
   const metadata = {
-    pins: { checkout: stage.checkout.checkoutIdentity, git: { device: "123", inode: "789" } },
-    namespaceReceiptDigest: "a".repeat(64),
+    pins: {
+      checkout: stage.checkout.checkoutIdentity,
+      git: hooks.physical?.gitIdentity ?? { device: "123", inode: "789" },
+    },
+    namespaceReceiptDigest:
+      hooks.namespaceReceiptDigest?.({ fixture: f, launch: stage.launch }) ?? "a".repeat(64),
     nativeLaunchId: stage.launch.nativeLaunchId,
     launchIntentDigest: stage.launch.launchIntentDigest,
     metadataPolicyDigest: pin.metadataPolicyDigest,

@@ -19,6 +19,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   realpathSync,
   renameSync,
   writeFileSync,
@@ -63,6 +64,7 @@ export const GUARDIAN_CONTROLLER_POLICY = Object.freeze({
   producer: "fresh-signed-server-fence",
   uncertainty: "durable-hold",
   drain: "independent-closed-barrier-required",
+  sourceApplication: "terminal-root-reservation-and-protected-applied-receipt",
   metadataPolicyDigest: "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b",
 });
 export const GUARDIAN_CONTROLLER_POLICY_DIGEST = digest(GUARDIAN_CONTROLLER_POLICY);
@@ -72,7 +74,13 @@ function privateRead(path, max = 2 * 1024 * 1024) {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const s = fstatSync(fd);
-    check(s.isFile() && s.uid === process.getuid() && !(s.mode & 0o077) && s.size <= max);
+    check(
+      s.isFile() &&
+        s.nlink === 1 &&
+        s.uid === process.getuid() &&
+        !(s.mode & 0o077) &&
+        s.size <= max,
+    );
     return readFileSync(fd);
   } finally {
     closeSync(fd);
@@ -115,6 +123,128 @@ function readEvidence(home, name, keyName) {
   );
   return saved.state;
 }
+// Python's signed managed receipts sort keys and retain float lexemes (1.0).
+// Compact the original record bytes rather than reserializing parsed JS numbers.
+function managedReceipt(home, repositoryId) {
+  check(/^[1-9][0-9]{0,19}$/.test(repositoryId));
+  const root = join(home, ".local/state/hive/managed-projects"),
+    raw = privateRead(join(root, `github-${repositoryId}.json`), 1048576).toString("utf8"),
+    saved = JSON.parse(raw),
+    key = privateRead(join(root, "key"), 32);
+  check(exact(saved, ["record", "signature"]) && hex(saved.signature) && key.length === 32);
+  let compact = "",
+    quoted = false,
+    escaped = false;
+  for (const c of raw) {
+    if (quoted) {
+      compact += c;
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') quoted = false;
+    } else if (c === '"') {
+      compact += c;
+      quoted = true;
+    } else if (!/[ \t\r\n]/.test(c)) compact += c;
+  }
+  const prefix = '{"record":';
+  check(compact.startsWith(prefix));
+  let depth = 0,
+    end = 0;
+  quoted = false;
+  escaped = false;
+  for (let i = prefix.length; i < compact.length; i++) {
+    const c = compact[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") {
+      depth--;
+      if (!depth) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  check(end && compact.slice(end) === `,"signature":"${saved.signature}"}`);
+  const body = compact.slice(prefix.length, end),
+    expected = createHmac("sha256", key).update(body).digest("hex");
+  check(timingSafeEqual(Buffer.from(expected), Buffer.from(saved.signature)));
+  return { record: saved.record, digest: sha(body) };
+}
+function pinnedMetadata(home, checkout, pins) {
+  const path = join(home, "projects/.hive-managed/github", checkout.repositoryId, "checkout");
+  check(realpathSync(path) === path);
+  const descriptors = [],
+    open = (path, flags) => {
+      const fd = openSync(path, flags | constants.O_NOFOLLOW);
+      descriptors.push(fd);
+      return fd;
+    },
+    pin = (fd, expected) => {
+      const v = fstatSync(fd, { bigint: true });
+      check(
+        v.isDirectory() &&
+          v.uid === BigInt(process.getuid()) &&
+          !(v.mode & 0o22n) &&
+          String(v.dev) === expected.device &&
+          String(v.ino) === expected.inode,
+      );
+    };
+  try {
+    const root = open(path, constants.O_RDONLY | constants.O_DIRECTORY);
+    pin(root, pins.checkout);
+    const git = open(`/proc/self/fd/${root}/.git`, constants.O_RDONLY | constants.O_DIRECTORY);
+    pin(git, pins.git);
+    const read = (name, limit) => {
+      const fd = open(`/proc/self/fd/${git}/${name}`, constants.O_RDONLY),
+        before = fstatSync(fd, { bigint: true });
+      check(
+        before.isFile() &&
+          before.uid === BigInt(process.getuid()) &&
+          before.nlink === 1n &&
+          !(before.mode & 0o22n) &&
+          before.size <= BigInt(limit),
+      );
+      const buffer = Buffer.alloc(limit + 1);
+      let offset = 0;
+      for (let i = 0; i < 4096; i++) {
+        const n = readSync(fd, buffer, offset, buffer.length - offset, null);
+        offset += n;
+        check(offset <= limit);
+        if (!n) break;
+        check(i < 4095);
+      }
+      const after = fstatSync(fd, { bigint: true });
+      check(
+        before.dev === after.dev &&
+          before.ino === after.ino &&
+          before.size === after.size &&
+          before.mtimeNs === after.mtimeNs &&
+          after.nlink === 1n &&
+          BigInt(offset) === after.size,
+      );
+      return {
+        bytes: buffer.subarray(0, offset),
+        identity: { device: String(after.dev), inode: String(after.ino) },
+      };
+    };
+    const head = read("HEAD", 100),
+      index = read("index", 16777216);
+    check(/^[a-f0-9]{40}\n$/.test(head.bytes.toString("ascii")));
+    return {
+      headSha: head.bytes.toString("ascii").trim(),
+      headIdentity: head.identity,
+      indexDigest: sha(index.bytes),
+      indexIdentity: index.identity,
+    };
+  } finally {
+    for (const fd of descriptors.reverse()) closeSync(fd);
+  }
+}
+
 async function boundedJson(response, signal) {
   check(response.status === 200 && !response.headers.has("location"));
   const reader = response.body?.getReader();
@@ -238,15 +368,25 @@ export function openGuardianController({
     metadataPolicyDigest: GUARDIAN_CONTROLLER_POLICY.metadataPolicyDigest,
     configSha256,
   });
-  const save = () =>
-    atomic(
-      statePath,
-      `${JSON.stringify({
-        state,
-        signature: sign(null, Buffer.from(guardianCanonical(state)), key).toString("base64url"),
-      })}\n`,
+  const save = () => {
+    const encoded = `${JSON.stringify({
+      state,
+      signature: sign(null, Buffer.from(guardianCanonical(state)), key).toString("base64url"),
+    })}\n`;
+    check(Buffer.byteLength(encoded) <= 2097152);
+    atomic(statePath, encoded);
+  };
+  const applicationUncertainty = () => {
+    const frame = state?.pending,
+      app = state?.applications?.[frame?.applicationId];
+    return Boolean(
+      app &&
+        frame.runtimeId === state.runtimeId &&
+        frame.projectId === app.request.projectId &&
+        ["apply_reserve", "apply_verify", "apply_commit"].includes(frame.action),
     );
-  const initialize = () => {
+  };
+  const initialize = (factual = false) => {
     const s = startup(),
       id = identity(s);
     if (!state) {
@@ -257,6 +397,7 @@ export function openGuardianController({
         runtimeId: null,
         generation: 1,
         projects: {},
+        applications: {},
         launch: null,
         pending: null,
         hold: false,
@@ -277,9 +418,9 @@ export function openGuardianController({
         state = saved.state;
       }
     }
+    state.applications ??= {};
     check(
-      !state.hold &&
-        !state.pending &&
+      ((!state.hold && !state.pending) || (factual && applicationUncertainty())) &&
         state.lifetimeId === s.lifetimeId &&
         state.identityDigest === digest(id),
     );
@@ -293,8 +434,19 @@ export function openGuardianController({
     queue = pending.catch(() => {});
     return pending;
   };
-  async function send(action, fields, accept) {
-    initialize();
+  async function send(action, fields, accept, mode) {
+    initialize(mode === "factual" || mode === "readback");
+    const previous = applicationUncertainty() ? structuredClone(state.pending) : null;
+    if (previous) {
+      const app = state.applications[previous.applicationId];
+      app.uncertainRequest ??= previous;
+      check(
+        mode === "factual" ||
+          (mode === "readback" &&
+            fields.applicationId === previous.applicationId &&
+            fields.projectId === previous.projectId),
+      );
+    }
     check(action === "enroll" || uuid(state.runtimeId));
     const issuedAt = Date.now(),
       body = {
@@ -315,6 +467,12 @@ export function openGuardianController({
         key,
       ).toString("base64url"),
     };
+    if (action.startsWith("apply_")) {
+      const app = state.applications[fields.applicationId];
+      check(app);
+      app.requests ??= {};
+      app.requests[action] ??= structuredClone(frame);
+    }
     state.pending = frame;
     state.sequence++;
     save();
@@ -334,11 +492,13 @@ export function openGuardianController({
       startup();
       accept(result);
       state.chainDigest = digest({ previous: state.chainDigest, request: frame, response: result });
-      state.pending = null;
+      state.pending = mode === "factual" ? previous : null;
+      state.hold = Boolean(state.pending);
       save();
       return structuredClone(result);
     } catch (error) {
       // The server may already have committed. No local retry can mint authority.
+      state.pending = previous ?? state.pending;
       state.hold = true;
       save();
       throw error;
@@ -375,6 +535,9 @@ export function openGuardianController({
       checkout: result.admission.checkoutBinding,
       preparationDigest: result.admission.preparationDigest,
       metadataPinsDigest: result.admission.metadataPinsDigest,
+      ...(state.projects[projectId]?.producer
+        ? { producer: state.projects[projectId].producer }
+        : {}),
     };
   };
   function controllerProject(projectId, s) {
@@ -403,7 +566,7 @@ export function openGuardianController({
         preparation.taskId === project.task.taskId &&
         preparation.requestDigest === sha(JSON.stringify(project.task.request)),
     );
-    return { project, preparation };
+    return { project, preparation, journal };
   }
   function nativeEvidence(projectId, s) {
     const native = readEvidence(home, "codex-project-supervisor", "key"),
@@ -427,6 +590,8 @@ export function openGuardianController({
         typeof thread.threadId === "string",
     );
     return {
+      native,
+      thread,
       registrationId: native.controllerRegistration.grantId,
       managerThreadId: thread.threadId,
       metadata: {
@@ -502,6 +667,488 @@ export function openGuardianController({
       (r) => acceptPair(r, value.projectId),
     );
     return { ...value };
+  }
+  async function currentMetadata(projectId) {
+    const s = initialize(true),
+      evidence = controllerProject(projectId, s);
+    if (state.projects[projectId]?.phase !== "native") {
+      check(!state.hold && !state.pending);
+      await admission({ projectId, bindingDigest: sha(JSON.stringify(evidence.preparation)) });
+    }
+    const a = state.projects[projectId],
+      fresh = nativeEvidence(projectId, startup());
+    check(a.phase === "native" && a.metadataPinsDigest === digest(fresh.metadata));
+    return send(
+      "metadata",
+      {
+        projectId,
+        admissionId: a.admissionId,
+        admissionGeneration: a.admissionGeneration,
+        metadataPinsDigest: a.metadataPinsDigest,
+      },
+      (r) => {
+        const current = nativeEvidence(projectId, startup());
+        check(
+          r?.runtimeId === state.runtimeId &&
+            r.runtimeGeneration === state.generation &&
+            r.admissionId === a.admissionId &&
+            r.admissionGeneration === a.admissionGeneration &&
+            r.barrierGeneration === 0 &&
+            r.metadataPinsDigest === digest(current.metadata) &&
+            digest(r.metadataPins) === digest(current.metadata.pins),
+        );
+        a.producer = structuredClone(r);
+      },
+      "factual",
+    );
+  }
+  const same = (a, b) => guardianCanonical(a ?? null) === guardianCanonical(b ?? null);
+  function applicationEvidence(projectId, applicationId) {
+    const s = initialize(true),
+      c = controllerProject(projectId, s),
+      n = nativeEvidence(projectId, s),
+      a = c.project.task.sourceApplication,
+      local = state.projects[projectId];
+    check(
+      local?.phase === "native" &&
+        uuid(applicationId) &&
+        a?.applicationId === applicationId &&
+        a.projectId === projectId &&
+        a.reserveAttempted === true &&
+        ["closing", "reserved", "applied", "committed", "held"].includes(a.phase) &&
+        same(a, n.thread.sourceApplication) &&
+        a.serverInstanceId === n.native.serverInstanceId &&
+        a.managerThreadId === n.managerThreadId &&
+        a.leaseExpiresAt > Date.now() / 1000 &&
+        same(
+          Object.fromEntries(
+            [
+              "projectId",
+              "preparationIntentId",
+              "repositoryId",
+              "revision",
+              "leaseId",
+              "leaseGeneration",
+            ].map((k) => [k, local.checkout?.[k]]),
+          ),
+          a.sourceObservation?.checkoutBinding,
+        ) &&
+        local.metadataPinsDigest === digest(n.metadata),
+    );
+    const o = a.sourceObservation,
+      b = a.barrier,
+      i = a.inputInventory,
+      idle = a.idleSnapshot;
+    check(
+      o.scope === "native_observer_journal_only" &&
+        o.writerHeld === true &&
+        o.quiescenceAuthority === false &&
+        o.metadataApplyAuthorized === false &&
+        o.pendingSourceEvents === 0 &&
+        o.unknownInputs === 0 &&
+        o.registrationId === n.registrationId &&
+        o.serverInstanceId === a.serverInstanceId &&
+        o.managerThreadId === a.managerThreadId &&
+        o.operationId === a.publicationOperationId &&
+        same(o.acceptedSourceContext, a.targetSourceContext) &&
+        b.closed === true &&
+        b.rootCompleted === true &&
+        b.projectId === projectId &&
+        uuid(b.id) &&
+        positive(b.generation) &&
+        b.sourceSpoolDigest === o.sourceJournalDigest &&
+        [b.pendingCommands, b.activeCli, b.pendingInputs, b.unknownInputs].every((v) => v === 0) &&
+        i.terminals.projectId === projectId &&
+        i.terminals.closed === true &&
+        [
+          i.terminals.activeTerminals,
+          i.terminals.helpersPendingClose,
+          i.terminals.pendingInputs,
+          i.terminals.unknownInputs,
+          i.cli.activeCli,
+          i.cli.unknownInputs,
+          i.routing.pendingObservers,
+          i.routing.activeHandlers,
+        ].every((v) => v === 0) &&
+        Array.isArray(i.routing.observerFailures) &&
+        !i.routing.observerFailures.length &&
+        i.routing.receiveSequence === a.boundary.receiveSequence &&
+        b.commandInventoryDigest === sha(JSON.stringify(i.routing)) &&
+        b.terminalInventoryDigest === sha(JSON.stringify({ terminals: i.terminals, cli: i.cli })) &&
+        idle.admissionId === local.admissionId &&
+        idle.admissionGeneration === local.admissionGeneration &&
+        idle.managerBindingId === o.managerBindingId &&
+        idle.currentAttemptId === o.attemptId &&
+        idle.parentTurnId === o.parentTurnId &&
+        idle.managerThreadId === o.managerThreadId &&
+        idle.cursorVersion === o.cursorVersion &&
+        idle.nativeSequence === o.nativeSequence &&
+        idle.fullHistory === true &&
+        idle.historyDigest === a.boundary.historyDigest &&
+        idle.loadedInventoryDigest === a.boundary.loadedInventoryDigest &&
+        idle.rootTurns === a.boundary.rootTurns &&
+        idle.historyBytes === a.boundary.historyBytes &&
+        [idle.pendingHandlers, idle.pendingObservers, idle.unknownFacts, idle.activeRoots].every(
+          (v) => v === 0,
+        ),
+    );
+    const raw = privateRead(
+        join(home, ".local/state/hive/delivery-manager/native/source.json"),
+        4194304,
+      ),
+      saved = JSON.parse(raw),
+      spool = saved.state,
+      mac = createHmac("sha256", sha(`hive-native-spool-v1\n${n.native.controllerPrivateKeyPem}`))
+        .update(JSON.stringify(spool))
+        .digest("hex");
+    check(
+      typeof n.native.controllerPrivateKeyPem === "string" &&
+        hex(saved.signature) &&
+        timingSafeEqual(Buffer.from(mac), Buffer.from(saved.signature)) &&
+        sha(raw) === o.sourceJournalDigest &&
+        spool.sourceProtocol === 1 &&
+        spool.progressionProtocol === 1 &&
+        !spool.blocked[o.managerThreadId],
+    );
+    const cursor = spool.cursors[o.managerThreadId],
+      claim = spool.attempts[o.attemptId],
+      publication = spool.sourcePublications[o.attemptId],
+      root = spool.rootTurns[digest([o.managerThreadId, o.parentTurnId])];
+    check(
+      cursor?.attemptId === o.attemptId &&
+        cursor.cursorVersion === o.cursorVersion &&
+        cursor.sequence === o.nativeSequence &&
+        cursor.acknowledgedSequence === o.nativeSequence &&
+        root?.status === "completed" &&
+        spool.results[o.attemptId] &&
+        [
+          "managerThreadId",
+          "managerBindingId",
+          "taskId",
+          "stepId",
+          "attemptId",
+          "parentTurnId",
+          "registrationId",
+          "serverInstanceId",
+          "checkoutBindingDigest",
+          "inputSourceSha",
+        ].every((k) => claim?.[k] === o[k]) &&
+        same(claim.checkoutBinding, o.checkoutBinding) &&
+        same(claim.sourceContext, o.inputSourceContext) &&
+        publication?.operationId === a.publicationOperationId &&
+        same(publication.sourceContext, a.targetSourceContext) &&
+        publication.parentSha === claim.inputSourceSha &&
+        publication.previousRevisionId === (a.expectedAppliedSourceContext?.revisionId ?? null) &&
+        !spool.events.some((v) => v.managerThreadId === o.managerThreadId && !v.acknowledged) &&
+        !Object.values(spool.violations).some((v) => v.managerThreadId === o.managerThreadId),
+    );
+    const cohort = Object.values(spool.fragments)
+      .filter((f) => f.managerThreadId === o.managerThreadId)
+      .map((f) => {
+        check(
+          f.requested && f.resolved && uuid(f.attemptId) && typeof f.childThreadId === "string",
+        );
+        const turns = [
+          ...new Set(
+            spool.events
+              .filter(
+                (v) =>
+                  v.input.attemptId === f.attemptId &&
+                  v.input.source.childThreadId === f.childThreadId,
+              )
+              .map((v) => v.input.source.childTurnId)
+              .filter(Boolean),
+          ),
+        ];
+        check(turns.length === 1);
+        return {
+          parentTurnId: f.parentTurnId,
+          spawnCallId: f.spawnCallId,
+          childThreadId: f.childThreadId,
+          childTurnId: turns[0],
+          ...f.requested,
+          ...f.resolved,
+        };
+      });
+    check(
+      Array.isArray(a.cohort) &&
+        same(a.cohort, cohort) &&
+        !Object.values(spool.rootTurns).some(
+          (r) => r.managerThreadId === o.managerThreadId && r.status !== "completed",
+        ),
+    );
+    for (const child of a.cohort)
+      check(
+        spool.events.some(
+          (v) =>
+            v.acknowledged &&
+            v.managerThreadId === o.managerThreadId &&
+            v.input.source.kind === "turn_completed" &&
+            v.input.source.childThreadId === child.childThreadId &&
+            v.input.source.childTurnId === child.childTurnId &&
+            v.input.source.status === "completed",
+        ),
+      );
+    return {
+      a,
+      c,
+      n,
+      local,
+      publication,
+      controllerJournalDigest: digest(c.journal),
+      supervisorJournalDigest: digest(n.native),
+    };
+  }
+  const applicationIdentity = (a) =>
+    digest({
+      serverInstanceId: a.serverInstanceId,
+      managerThreadId: a.managerThreadId,
+      cohort: a.cohort,
+      leaseExpiresAt: a.leaseExpiresAt,
+      boundaryRequestDigest: a.boundaryRequestDigest,
+      sourceObservation: Object.fromEntries(
+        Object.entries(a.sourceObservation).filter(([k]) => k !== "sourceJournalIdentity"),
+      ),
+    });
+  function appliedPhysical(evidence, saved) {
+    const a = evidence.a;
+    check(
+      saved.authority &&
+        same(evidence.c.project.task.acceptedSource, a.targetSourceContext) &&
+        same(evidence.n.thread.acceptedSource, a.targetSourceContext),
+    );
+    const managed = managedReceipt(home, evidence.local.checkout.repositoryId),
+      r = managed.record,
+      op = r.sourceLastApplied,
+      checkout = evidence.local.checkout,
+      physical = pinnedMetadata(home, checkout, evidence.n.metadata.pins);
+    const inode = (x) => ({ device: String(x?.device), inode: String(x?.inode) });
+    check(
+      r.provider === "github" &&
+        String(r.repositoryId) === checkout.repositoryId &&
+        r.revision === checkout.revision &&
+        r.checkoutIncarnation === evidence.local.producer.checkoutIncarnation &&
+        same(inode(r.checkoutIdentity), evidence.n.metadata.pins.checkout) &&
+        r.lease.id === checkout.leaseId &&
+        r.lease.generation === checkout.leaseGeneration &&
+        r.lease.taskId === checkout.preparationIntentId &&
+        r.lease.expiresAt > Date.now() / 1000 &&
+        same(r.acceptedSource, a.targetSourceContext) &&
+        !r.sourceUpdating &&
+        r.sourceAppliedOperation === a.publicationOperationId &&
+        op?.phase === "applied" &&
+        op.operationId === a.publicationOperationId &&
+        same(op.expected.currentSource, a.expectedAppliedSourceContext) &&
+        same(op.approval.sourceContext, a.targetSourceContext) &&
+        same(op.approval.producer, saved.authority.producer) &&
+        same(op.approval.metadataIdentity, evidence.n.metadata.pins) &&
+        physical.headSha === a.targetSourceContext.headSha &&
+        physical.indexDigest === op.candidateIndexDigest &&
+        same(physical.headIdentity, inode(op["candidate-headIdentity"])) &&
+        same(physical.indexIdentity, inode(op["candidate-indexIdentity"])),
+    );
+    return {
+      managedReceiptDigest: managed.digest,
+      sourceOperationDigest: digest(op),
+      appliedHeadSha: physical.headSha,
+      appliedIndexDigest: physical.indexDigest,
+    };
+  }
+  function acceptApplication(r, saved, evidence) {
+    const { a, n, local, publication } = evidence,
+      producer = local.producer;
+    check(
+      saved.evidenceDigest === applicationIdentity(a) &&
+        same(saved.request.idleSnapshot, a.idleSnapshot) &&
+        Object.keys(a.barrier).every((k) => same(saved.request.inputBarrier[k], a.barrier[k])),
+    );
+    check(
+      exact(r, [
+        "schemaVersion",
+        "applicationId",
+        "phase",
+        "operationId",
+        "sourceContext",
+        "previousSourceContext",
+        "parentSha",
+        "treeSha",
+        "manifestDigest",
+        "metadataIdentity",
+        "producer",
+        "inputBarrier",
+        "expiresAt",
+        "applicationAuthorized",
+        "executionAuthorized",
+        "cleanupAuthorized",
+      ]) &&
+        r.schemaVersion === 1 &&
+        r.applicationId === a.applicationId &&
+        ["pending", "applied"].includes(r.phase) &&
+        r.operationId === a.publicationOperationId &&
+        same(r.sourceContext, a.targetSourceContext) &&
+        same(r.previousSourceContext, a.expectedAppliedSourceContext) &&
+        r.parentSha === publication.parentSha &&
+        r.treeSha === publication.treeSha &&
+        r.manifestDigest === publication.manifestDigest &&
+        same(r.metadataIdentity, n.metadata.pins) &&
+        exact(r.producer, [
+          "runtimeId",
+          "runtimeGeneration",
+          "admissionId",
+          "admissionGeneration",
+          "producerDigest",
+          "checkoutIncarnation",
+          "barrierGeneration",
+          "metadataPinsDigest",
+          "metadataPolicyDigest",
+          "namespaceReceiptDigest",
+        ]) &&
+        Object.keys(r.producer).every((k) => r.producer[k] === producer?.[k]) &&
+        r.producer.runtimeId === state.runtimeId &&
+        r.producer.runtimeGeneration === state.generation &&
+        r.producer.metadataPinsDigest === digest(n.metadata) &&
+        exact(r.inputBarrier, ["id", "digest", "generation"]) &&
+        r.inputBarrier.id === saved.request.inputBarrier.id &&
+        r.inputBarrier.generation === saved.request.inputBarrier.generation &&
+        r.inputBarrier.digest === digest(saved.request.inputBarrier) &&
+        Number.isSafeInteger(r.expiresAt) &&
+        r.expiresAt > Date.now() / 1000 &&
+        r.expiresAt <= Date.now() / 1000 + 30 &&
+        r.applicationAuthorized === true &&
+        r.executionAuthorized === false &&
+        r.cleanupAuthorized === false,
+    );
+    if (saved.authority)
+      check(
+        same(saved.authority.producer, r.producer) &&
+          same(saved.authority.inputBarrier, r.inputBarrier) &&
+          (saved.authority.phase !== "applied" || r.phase === "applied"),
+      );
+    if (r.phase === "applied") {
+      check(saved.receipt);
+      const current = appliedPhysical(evidence, saved);
+      check(Object.keys(current).every((k) => current[k] === saved.receipt[k]));
+    }
+    saved.authority = structuredClone(r);
+  }
+  async function application(action, value) {
+    check(
+      exact(
+        value,
+        action === "reserve"
+          ? [
+              "projectId",
+              "applicationId",
+              "publicationOperationId",
+              "targetSourceContext",
+              "expectedAppliedSourceContext",
+            ]
+          : ["projectId", "applicationId"],
+      ) &&
+        uuid(value.projectId) &&
+        uuid(value.applicationId),
+    );
+    initialize(true);
+    state.applications ??= {};
+    let evidence = applicationEvidence(value.projectId, value.applicationId),
+      saved = state.applications[value.applicationId];
+    const a = evidence.a;
+    if (action === "reserve")
+      check(
+        value.publicationOperationId === a.publicationOperationId &&
+          same(value.targetSourceContext, a.targetSourceContext) &&
+          same(value.expectedAppliedSourceContext, a.expectedAppliedSourceContext),
+      );
+    if (!saved) {
+      check(
+        action === "reserve" &&
+          !state.pending &&
+          !state.hold &&
+          Object.keys(state.applications).length < 64,
+      );
+      const { controllerJournalDigest, supervisorJournalDigest } = evidence;
+      saved = state.applications[value.applicationId] = {
+        evidenceDigest: applicationIdentity(a),
+        request: {
+          projectId: value.projectId,
+          applicationId: value.applicationId,
+          publicationOperationId: a.publicationOperationId,
+          expectedAppliedSourceContext: structuredClone(a.expectedAppliedSourceContext),
+          targetSourceContext: structuredClone(a.targetSourceContext),
+          idleSnapshot: structuredClone(a.idleSnapshot),
+          inputBarrier: {
+            ...structuredClone(a.barrier),
+            controllerJournalDigest,
+            supervisorJournalDigest,
+          },
+        },
+      };
+      save(); // Immutable attempted reservation, before any network effect.
+    } else {
+      check(
+        saved.evidenceDigest === applicationIdentity(a) &&
+          saved.request.projectId === value.projectId &&
+          saved.request.publicationOperationId === a.publicationOperationId &&
+          same(saved.request.targetSourceContext, a.targetSourceContext) &&
+          same(saved.request.expectedAppliedSourceContext, a.expectedAppliedSourceContext) &&
+          same(saved.request.idleSnapshot, a.idleSnapshot) &&
+          Object.keys(a.barrier).every((k) => same(saved.request.inputBarrier[k], a.barrier[k])),
+      );
+      if (action === "reserve") action = "verify";
+    }
+    await currentMetadata(value.projectId);
+    evidence = applicationEvidence(value.projectId, value.applicationId);
+    const fields = { projectId: value.projectId, applicationId: value.applicationId };
+    if (action === "commit") {
+      check(
+        !state.pending &&
+          !state.hold &&
+          saved.authority &&
+          evidence.a.phase === "applied" &&
+          same(
+            evidence.c.project.task.acceptedSource ?? evidence.c.project.acceptedSource,
+            a.targetSourceContext,
+          ) &&
+          same(evidence.n.thread.acceptedSource, a.targetSourceContext),
+      );
+      if (!saved.receipt) {
+        const physical = appliedPhysical(evidence, saved);
+        saved.receipt = {
+          schemaVersion: 1,
+          applicationId: value.applicationId,
+          publicationOperationId: a.publicationOperationId,
+          sourceContext: a.targetSourceContext,
+          previousSourceContext: a.expectedAppliedSourceContext,
+          inputBarrierId: saved.authority.inputBarrier.id,
+          inputBarrierDigest: saved.authority.inputBarrier.digest,
+          metadataPinsDigest: saved.authority.producer.metadataPinsDigest,
+          namespaceReceiptDigest: saved.authority.producer.namespaceReceiptDigest,
+          managedReceiptDigest: physical.managedReceiptDigest,
+          sourceOperationDigest: physical.sourceOperationDigest,
+          controllerJournalDigest: evidence.controllerJournalDigest,
+          supervisorJournalDigest: evidence.supervisorJournalDigest,
+          appliedHeadSha: physical.appliedHeadSha,
+          appliedIndexDigest: physical.appliedIndexDigest,
+          sourceUpdating: false,
+          controllerSourceContext: a.targetSourceContext,
+          supervisorSourceContext: a.targetSourceContext,
+          observedAt: new Date().toISOString(),
+        };
+        save();
+      }
+      fields.appliedReceipt = structuredClone(saved.receipt);
+    }
+    const result = await send(
+      `apply_${action}`,
+      action === "reserve" ? saved.request : fields,
+      (r) => acceptApplication(r, saved, applicationEvidence(value.projectId, value.applicationId)),
+      action === "verify" ? "readback" : undefined,
+    );
+    // Preserve the exact server ACK in the durable chain. Only the downstream
+    // scoped permission is shortened by the worker's captured unextended lease.
+    result.expiresAt = Math.min(result.expiresAt, Math.floor(a.leaseExpiresAt));
+    check(result.expiresAt > Date.now() / 1000);
+    return result;
   }
   return {
     identity(nonce) {
@@ -667,34 +1314,19 @@ export function openGuardianController({
       }),
     currentMetadata: (projectId) =>
       serial(async () => {
-        const s = initialize(),
-          evidence = controllerProject(projectId, s);
-        await admission({ projectId, bindingDigest: sha(JSON.stringify(evidence.preparation)) });
-        const a = state.projects[projectId],
-          fresh = nativeEvidence(projectId, startup());
-        check(a.phase === "native" && a.metadataPinsDigest === digest(fresh.metadata));
-        return send(
-          "metadata",
-          {
-            projectId,
-            admissionId: a.admissionId,
-            admissionGeneration: a.admissionGeneration,
-            metadataPinsDigest: a.metadataPinsDigest,
-          },
-          (r) => {
-            const current = nativeEvidence(projectId, startup());
-            check(
-              r?.runtimeId === state.runtimeId &&
-                r.runtimeGeneration === state.generation &&
-                r.admissionId === a.admissionId &&
-                r.admissionGeneration === a.admissionGeneration &&
-                r.barrierGeneration === 0 &&
-                r.metadataPinsDigest === digest(current.metadata) &&
-                digest(r.metadataPins) === digest(current.metadata.pins),
-            );
-          },
-        );
+        try {
+          return await currentMetadata(projectId);
+        } catch (error) {
+          if (state) {
+            state.hold = true;
+            save();
+          }
+          throw error;
+        }
       }),
+    applyReserve: (value) => serial(() => application("reserve", value)),
+    applyVerify: (value) => serial(() => application("verify", value)),
+    applyCommit: (value) => serial(() => application("commit", value)),
     // No inference from a local terminal flag: fresh completed-root snapshots and
     // independently persisted closed-barrier authorization are a separate gate.
     authorizeDrain() {

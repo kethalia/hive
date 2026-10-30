@@ -93,6 +93,18 @@ test("compiled source application preserves input barriers and recovery", {
     "scripts/verify-codex-project-terminal.test.mjs",
   ]);
 });
+test("compiled guardian preserves signed application reads and private FD3 boundaries", {
+  timeout: 100000,
+}, (t) => {
+  compiled(t, [
+    "codex-guardian-controller.mjs",
+    "codex-guardian-worker.mjs",
+    "codex-host-guardian.mjs",
+  ])([
+    "scripts/verify-codex-guardian-controller.test.mjs",
+    "scripts/verify-codex-host-guardian.test.mjs",
+  ]);
+});
 test("compiled namespace preserves actual native WS, CLI, child and resume isolation", {
   skip: process.env.HIVE_TEST_NATIVE_CODEX !== "1",
   timeout: 100000,

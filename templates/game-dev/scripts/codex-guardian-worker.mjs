@@ -39,6 +39,41 @@ export function guardianProject(value) {
   return { projectId: value.projectId, bindingDigest: value.bindingDigest };
 }
 
+// Fixed private operations; the inner worker never supplies journal or receipt digests.
+export function guardianApplicationRequest(action, value) {
+  const keys =
+    action === "applyReserve"
+      ? [
+          "projectId",
+          "applicationId",
+          "publicationOperationId",
+          "targetSourceContext",
+          "expectedAppliedSourceContext",
+        ]
+      : ["projectId", "applicationId"];
+  const context = (v) =>
+    v &&
+    Object.keys(v).sort().join() === "headSha,revisionId,version" &&
+    uuid.test(v.revisionId) &&
+    /^[a-f0-9]{40}$/.test(v.headSha) &&
+    Number.isSafeInteger(v.version) &&
+    v.version > 0;
+  check(
+    ["applyReserve", "applyVerify", "applyCommit"].includes(action) &&
+      value &&
+      Object.keys(value).sort().join() === keys.sort().join() &&
+      uuid.test(value.projectId) &&
+      uuid.test(value.applicationId),
+  );
+  if (action === "applyReserve")
+    check(
+      uuid.test(value.publicationOperationId) &&
+        context(value.targetSourceContext) &&
+        (value.expectedAppliedSourceContext === null ||
+          context(value.expectedAppliedSourceContext)),
+    );
+  return structuredClone(value);
+}
 // These public-key/bootstrap paths rely on the independently verified owner-only
 // Coder app transport. A browser Origin is never accepted as controller authority.
 export function createGuardianOwnerHandler({ appOrigin, guardian }) {
@@ -332,6 +367,18 @@ export async function connectGuardianWorker({ fd = 3, startup, onCloseAdmission,
       check(phase === "open");
       return result;
     },
+    ...Object.fromEntries(
+      ["applyReserve", "applyVerify", "applyCommit"].map((action) => [
+        action,
+        async (value) => {
+          const request = guardianApplicationRequest(action, value);
+          check(phase === "open" && projects.has(request.projectId));
+          const result = await wire.request(action, request);
+          check(phase === "open" && projects.has(request.projectId));
+          return result;
+        },
+      ]),
+    ),
     async admit(value) {
       const project = guardianProject(value);
       check(phase === "open");

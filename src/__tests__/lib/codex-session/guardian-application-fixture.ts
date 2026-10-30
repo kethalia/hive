@@ -13,8 +13,15 @@ import { guardianFixture } from "./guardian-fixture";
 export async function guardianApplicationFixture(
   db: PrismaClient,
   setPolicy: (policy: unknown) => void,
+  material?: {
+    guardian: Parameters<typeof guardianFixture>[1];
+    operationId: string;
+    headSha: string;
+    treeSha: string;
+    manifestDigest: string;
+  },
 ) {
-  const f = await guardianFixture(db);
+  const f = await guardianFixture(db, { workspaceEnrollment: true, ...material?.guardian });
   setPolicy(f.guardian.policy);
   const manager = new DeliveryManagerService(db, { ...f.dependencies, progressionProtocol: 1 });
   await manager.execute(
@@ -72,7 +79,7 @@ export async function guardianApplicationFixture(
   await f.native.ingest(
     f.sourceEnvelope(claim, { ...f.source, kind: "turn_completed", status: "completed" }, 2),
   );
-  const operationId = randomUUID(),
+  const operationId = material?.operationId ?? randomUUID(),
     publication = {
       schemaVersion: 1,
       operationId,
@@ -90,9 +97,9 @@ export async function guardianApplicationFixture(
       expectedNativeSequence: 2,
       leaseGeneration: claim.leaseGeneration,
       parentSha: f.context.revision,
-      headSha: "b".repeat(40),
-      treeSha: "d".repeat(40),
-      manifestDigest: "e".repeat(64),
+      headSha: material?.headSha ?? "b".repeat(40),
+      treeSha: material?.treeSha ?? "d".repeat(40),
+      manifestDigest: material?.manifestDigest ?? "e".repeat(64),
       repositoryId: f.project.providerRepositoryId,
       providerAccountId: f.project.providerAccountId,
       fullName: f.project.fullName,
@@ -159,7 +166,13 @@ export async function guardianApplicationFixture(
       { sourceContext: accepted.sourceContext },
     ),
   );
-  const store = new GuardianSourceApplicationStore(db, { policy: f.guardian.policy });
+  const store = new GuardianSourceApplicationStore(db, {
+    policy: f.guardian.policy,
+    expectedRuntime: {
+      id: f.guardian.runtime.id,
+      generation: f.guardian.finalized.runtime.generation,
+    },
+  });
   function reservation() {
     const observedAt = new Date(Date.now() - 1).toISOString();
     return {

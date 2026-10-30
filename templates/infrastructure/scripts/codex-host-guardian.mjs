@@ -17,7 +17,12 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { guardianKernelIdentity, guardianStartChallenge } from "./codex-guardian-startup.mjs";
-import { guardianProject, guardianStartup, guardianWire } from "./codex-guardian-worker.mjs";
+import {
+  guardianApplicationRequest,
+  guardianProject,
+  guardianStartup,
+  guardianWire,
+} from "./codex-guardian-worker.mjs";
 import { openNativeGuardian } from "./codex-native-guardian.mjs";
 import { processIdentity, processParentPid } from "./codex-process-identity.mjs";
 
@@ -458,6 +463,26 @@ export async function openGuardedHost(options) {
             check(phase === "open");
             return result;
           }),
+        ...Object.fromEntries(
+          ["applyReserve", "applyVerify", "applyCommit"].map((action) => [
+            action,
+            (value) =>
+              enqueue(async () => {
+                const request = guardianApplicationRequest(action, value),
+                  callback = options[`controller${action[0].toUpperCase()}${action.slice(1)}`];
+                check(
+                  phase === "open" &&
+                    hello &&
+                    startupReady &&
+                    guardian.state.projects.some((p) => p.projectId === request.projectId) &&
+                    typeof callback === "function",
+                );
+                const result = await boundedAuthority(() => callback(request));
+                check(phase === "open");
+                return result;
+              }),
+          ]),
+        ),
         metadataAuthority: (value) =>
           enqueue(async () => {
             check(

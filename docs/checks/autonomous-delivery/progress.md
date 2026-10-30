@@ -643,3 +643,20 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   now passes on Node24 and CI's22.23.4; its strict pass-count assertion remains. Migration
   integration and app/native image builds already passed. Runtime code was unchanged.
   Evidence: [CI fixture correction](source-input-local/nested-runner-ci.json).
+
+- Signed source application: reviewed assembled checkpoint, high difficulty. Signed server
+  actions now bind the runtime generation under the database lock, and the outer controller
+  checks fixed private journals and pinned Git metadata before accepting application.
+  A composed real PostgreSQL/Python FD3 test survives lost reservation and commit replies
+  without repeating either write. Review caught a post-response metadata gap; fresh physical
+  checks now retain the hold when HEAD, index or receipt changes during a response.
+  Parent clean-export validation passes215 database tests,373 runtime tests and97 template
+  tests, plus172 nested compiled behavioral checks, typecheck and the actual fixed installer.
+  Explicit opt-in cases remain skipped. CI also exposed a stale diagnostic source marker;
+  its narrowly updated assertion and full runtime rerun pass, with the failed log retained.
+  The guardian-inclusive XZ package remains within the unchanged160000-byte limit at135892.
+  Synthetic enrollment/native observations in the composed test are documented; full installed
+  manager execution and account-backed acceptance remain open. No deployment flag changed.
+  Evidence: [signed application](guardian-source-application-actions.md),
+  [composed proof](guardian-application-installed-local/README.md),
+  [parent assembly](guardian-application-local/parent-result.json).

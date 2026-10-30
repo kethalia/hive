@@ -9,6 +9,7 @@ import { DeliveryNativeSourceService } from "@/lib/delivery/native.server";
 import { nativeProofPayload } from "@/lib/delivery/native-contracts";
 
 export interface NativeFixtureHooks {
+  physical?: { revision: string; leaseId: string; leaseGeneration: number };
   beforeRegister?(scope: {
     user: User;
     project: DeliveryProject;
@@ -91,6 +92,7 @@ export async function nativeFixture(
     revision: "a".repeat(40),
     leaseId: randomUUID(),
     leaseGeneration: 1,
+    ...hooks.physical,
   };
   await db.projectTaskIntent.create({
     data: {

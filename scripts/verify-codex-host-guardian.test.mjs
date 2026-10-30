@@ -19,7 +19,10 @@ import {
   guardianStartChallenge,
   readGuardianStart,
 } from "../templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs";
-import { guardianWire } from "../templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs";
+import {
+  guardianApplicationRequest,
+  guardianWire,
+} from "../templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs";
 import { openGuardedHost } from "../templates/ai-dev-k8s/scripts/codex-host-guardian.mjs";
 import { processParentPid } from "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs";
 import { buildNativeGuardian } from "./build-native-guardian.mjs";
@@ -35,7 +38,14 @@ async function until(predicate) {
 }
 function fixture(
   t,
-  { tmux = false, rejectBarrier = false, startup = false, mismatch = false, readyDelay = 0 } = {},
+  {
+    tmux = false,
+    rejectBarrier = false,
+    startup = false,
+    mismatch = false,
+    readyDelay = 0,
+    applications = false,
+  } = {},
 ) {
   const directory = mkdtempSync(join(tmpdir(), "hive-host-guardian-")),
     packageDirectory = join(directory, "package");
@@ -71,6 +81,16 @@ spawn('/usr/bin/python3',['-I','-c',${JSON.stringify(ptyScript)}],{env:{PATH:'/u
 }
 writeFileSync(${JSON.stringify(marker)},JSON.stringify({pid:process.pid,tmuxPid:tmux.pid,token}));
 ${startup ? `await new Promise(r=>setTimeout(r,${readyDelay}));await guard.ready({configSha256:'${"c".repeat(64)}',port:32123});` : ""}
+${
+  applications
+    ? `const appId='${randomUUID()}',opId='${randomUUID()}',ctx={revisionId:'${randomUUID()}',version:1,headSha:'${"b".repeat(40)}'};
+const results=[];results.push(await guard.applyReserve({projectId:'${project.projectId}',applicationId:appId,publicationOperationId:opId,targetSourceContext:ctx,expectedAppliedSourceContext:null}));
+results.push(await guard.applyVerify({projectId:'${project.projectId}',applicationId:appId}));
+results.push(await guard.applyCommit({projectId:'${project.projectId}',applicationId:appId}));
+let rejected=false;try{await guard.applyCommit({projectId:'${project.projectId}',applicationId:appId,appliedReceipt:{untrusted:true}})}catch{rejected=true}
+writeFileSync(${JSON.stringify(join(directory, "applications.json"))},JSON.stringify({results,rejected}));`
+    : ""
+}
 setInterval(()=>{},1000);`;
   writeFileSync(join(packageDirectory, "fixture-worker.mjs"), script, { mode: 0o600 });
   execFileSync(process.execPath, ["--check", join(packageDirectory, "fixture-worker.mjs")], {
@@ -88,7 +108,17 @@ setInterval(()=>{},1000);`;
     { mode: 0o600 },
   );
   let allow = false;
+  const applicationCalls = [];
   const options = {
+    ...Object.fromEntries(
+      ["ApplyReserve", "ApplyVerify", "ApplyCommit"].map((action) => [
+        `controller${action}`,
+        async (value) => {
+          applicationCalls.push({ action, value });
+          return { action };
+        },
+      ]),
+    ),
     packageDirectory,
     packageManifestSha256: hash(join(packageDirectory, "package-manifest.json")),
     workerName: "fixture-worker.mjs",
@@ -126,6 +156,7 @@ setInterval(()=>{},1000);`;
   });
   return {
     directory,
+    applicationCalls,
     options,
     project,
     marker,
@@ -326,4 +357,54 @@ test("private worker channel rejects repeated request IDs and bounded oversized 
     wire.close();
     client.destroy();
   }
+});
+
+test("three fixed application FD3 methods admit only the owned project and carry no worker-provided journal receipt", async (t) => {
+  const f = fixture(t, { startup: true, applications: true }),
+    host = await f.open();
+  await until(() => existsSync(join(f.directory, "applications.json")));
+  const record = JSON.parse(readFileSync(join(f.directory, "applications.json")));
+  assert.deepEqual(record.results, [
+    { action: "ApplyReserve" },
+    { action: "ApplyVerify" },
+    { action: "ApplyCommit" },
+  ]);
+  assert.equal(record.rejected, true);
+  assert.equal(host.state.phase, "open");
+  assert.deepEqual(
+    f.applicationCalls.map((c) => c.action),
+    ["ApplyReserve", "ApplyVerify", "ApplyCommit"],
+  );
+  for (const c of f.applicationCalls) assert.equal(c.value.projectId, f.project.projectId);
+});
+test("application private request schemas reject nonfixed actions, foreign fields and malformed contexts", () => {
+  const projectId = randomUUID(),
+    applicationId = randomUUID(),
+    publicationOperationId = randomUUID(),
+    targetSourceContext = { revisionId: randomUUID(), version: 1, headSha: "a".repeat(40) };
+  for (const action of ["applyReserve", "applyVerify", "applyCommit"]) {
+    const v =
+      action === "applyReserve"
+        ? {
+            projectId,
+            applicationId,
+            publicationOperationId,
+            targetSourceContext,
+            expectedAppliedSourceContext: null,
+          }
+        : { projectId, applicationId };
+    assert.deepEqual(guardianApplicationRequest(action, v), v);
+    assert.throws(() => guardianApplicationRequest(action, { ...v, appliedReceipt: {} }));
+    assert.throws(() => guardianApplicationRequest(action, { ...v, projectId: "not-a-uuid" }));
+  }
+  assert.throws(() => guardianApplicationRequest("arbitrary", { projectId, applicationId }));
+  assert.throws(() =>
+    guardianApplicationRequest("applyReserve", {
+      projectId,
+      applicationId,
+      publicationOperationId,
+      targetSourceContext: { ...targetSourceContext, version: 0 },
+      expectedAppliedSourceContext: null,
+    }),
+  );
 });

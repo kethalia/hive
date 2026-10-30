@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { guardianApplicationActions } from "./guardian-application-contracts";
 import {
   guardianCanonical,
   guardianCheckoutSchema,
@@ -111,6 +112,9 @@ const common = {
 };
 const generation = { runtimeGeneration: z.number().int().positive() };
 export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
+  guardianApplicationActions[0].extend({ ...common, ...generation }).strict(),
+  guardianApplicationActions[1].extend({ ...common, ...generation }).strict(),
+  guardianApplicationActions[2].extend({ ...common, ...generation }).strict(),
   z
     .object({ ...common, action: z.literal("enroll"), grant: z.string().min(100).max(16384) })
     .strict(),
