@@ -84,9 +84,11 @@
       "codex_guardian_enrollment_grants",
       "codex_guardian_admissions",
       "codex_guardian_barriers",
-      "codex_guardian_stop_decisions"
+      "codex_guardian_stop_decisions",
+      "delivery_manager_bindings"
     ],
     "privileges": ["SELECT", "INSERT", "UPDATE"],
     "deleteOrDDLGranted": false
-  }
+  },
+  "followup": "Actual workerd task-read probe identified missing runtime access to the existing manager binding table; exact SELECT/INSERT/UPDATE grant added, failure retained."
 }

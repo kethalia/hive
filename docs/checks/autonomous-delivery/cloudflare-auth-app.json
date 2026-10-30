@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-10-29T21:23:49.787Z",
+  "observedAt": "2026-10-30T01:25:23.712Z",
   "scope": "actual full-schema Prisma6 + auth Worker/domain and task read functions in local workerd, isolated Neon synthetic fixtures only",
-  "testedRevision": "3d17cbbce15b8d8e9a6db1c5635f7172d8226cc9",
+  "testedRevision": "05721d461f68585b8ebb0594bc567810a7c816f1",
   "testedSourceCommitted": true,
   "sourceStable": true,
-  "runId": "2a0a58c3-a734-4545-8477-d6b3d6ed58ce",
+  "runId": "d3c45911-e644-4e05-97c4-4ae174d359a5",
   "httpStatus": 200,
   "result": {
     "ok": true,
@@ -46,6 +46,7 @@
       "nativeCallbackIssuerConfigurationVerified": true,
       "nativeRegistrationTransportRejectsForgedIssuer": true,
       "nativeHeartbeatRejectsUnknownRegistration": true,
+      "deliveryCallbackTransport": "all nine disabled routes retain the private preview gate",
       "nativeCallbackExceptionRemainsExactAndPrivate": true
     }
   },
@@ -53,7 +54,7 @@
     "deploy/cloudflare/auth/worker.ts": "928aa513ed35574563328422e5095030ef97b7342b0a4a8df77db0bee380f93a",
     "deploy/cloudflare/auth/local-callback-app.worker.ts": "2e226e5cd9dfabc2ad4ac747aac3912d4def158f1ad180e7223ebb2c2b5e69a7",
     "deploy/cloudflare/auth/local-integration.worker.ts": "10541b88bb6d2452de843d4a2a546c09522ded69c54b95e62fb1441d9067b895",
-    "deploy/cloudflare/auth/run-local-integration.mjs": "c17b04841f9fe2d2cbb5f38c4cdf6bfd6f608889ff67533dd319759cd264f5d9",
+    "deploy/cloudflare/auth/run-local-integration.mjs": "a8a43b7381a9051949ede25480b3394a19c938beb21526df4e05e28b81c7cb21",
     "deploy/cloudflare/app/request-lifetime.ts": "e0a29d32d10d8f4d84a1b605630ae42aace6e28b4f837a53f4214fbe398ae600",
     "services/auth/src/fetch-handler.ts": "c74234eef3f023369cf864957052dbf46ee53ba97c3dec634db9687b6d268fe0",
     "services/auth/src/auth/domain.ts": "d742c4ad3b5691cedba5b1f57fa41818259810a1021afba465b89b53c325e58b",
@@ -66,27 +67,27 @@
     "packages/auth/src/client.ts": "c83bb6f2acd176d25c859c06e2fc2f9b777f2485f91291ebdb2051d771f882c0",
     "packages/auth/src/encryption.ts": "ca8f029d4eb6556c19512c1f2785c9bd507a1f6704a4bab1644dfc746a566eb4",
     "packages/auth/src/cookie.ts": "f1d71a5e875bc9b7ead31797ff375ae5cb8398e5470b9b8a4b83393ab03dc8bf",
-    "packages/db/prisma/schema.prisma": "3da782da16ea06c90d968bf57e312fd040db2a28b2375bc4853c30545a7b3f12",
+    "packages/db/prisma/schema.prisma": "742026558e679979f858dafb9af48980715123224bcfda86b0f754b18e82b151",
     "packages/db/src/cloudflare.ts": "17dfe24fa8c076329099a1e428dd3579f6fc1d2c820a2eca06046203e15f323f",
     "packages/db/src/workerd.ts": "14a1cd94f36a92922ce651f7c632914689a30667899aa83fc43a5a42f0763be1",
     "packages/db/src/request-scope.ts": "bf61a6ae3b04b33f7eaf29261cde262b5d12723bd10fa43280fecb5dca80b43a",
-    "packages/db/src/generated/prisma-workerd/client.ts": "179ee6cf16476b0fe55543cf8ab0165b9e37b4557f539582eab6b0279e7d4712",
-    "packages/db/src/generated/prisma-workerd/internal/class.ts": "bb1d4aedac9523a2b4d917c0787236799c43f4eee86f454a4cd37c3beff1dc48",
+    "packages/db/src/generated/prisma-workerd/client.ts": "1934bfaabe17f14dbd3604868c6e555156c5607aecabc648439aee45186eaaeb",
+    "packages/db/src/generated/prisma-workerd/internal/class.ts": "a3125103f6555fdd0573473733e73bc76b399f41128245e93d4c7a360a9a4078",
     "packages/db/package.json": "549f879af85ca17963ee9598b76dd315cba79eaf219311334d3b6f68aa980d8f",
     "next.config.ts": "a94614d630f5f8487c82b828fb135faf46e664fbd984647315e0bf0f2c2f1bea",
     "src/lib/auth/service-client.ts": "90979b852c228baaef5288a202afd64ad15a9781e1a43b19f9523858c38d4edc",
-    "deploy/cloudflare/app/worker.ts": "a99e72910b934c687c34bb88a8dac2e41479a6c03328a55fd357d07ada8b8240",
+    "deploy/cloudflare/app/worker.ts": "2e81d1d4d95876b5666aa5b1ad085c4df17b040af4d091cba5cab9679131d49f",
     "deploy/cloudflare/app/host-callback.ts": "b66c49b0b1d636cf492c62e9b068c79f2e2629a9c467e71935436bed55b55aee",
-    "src/lib/codex-session/host-callback-transport.ts": "023018c1380a537612a595995e334c021dd9e7d7b2b0945ab8aa34ca2dda4976",
-    "src/proxy.ts": "1137679e6ac48f5fb74518b8ea076976028759cbe7272516b24dba9c8eb60708",
+    "src/lib/codex-session/host-callback-transport.ts": "b0da11a76128667744a0172b4a607aaa7822a37a9f97dd24f348afe44d3ae6e9",
+    "src/proxy.ts": "1b129a985309a667331e4efd82938f6e79742032dc8b36185268f71cf5e9b2df",
     "src/lib/codex-session/route.server.ts": "768010897b4b36573287bf39e6ca4d8cfb2ae2661c60716b6c7d2f8f11c3b528",
     "src/lib/codex-session/registered-session.server.ts": "9db3f050938a7d43829756647aff89ca8390dd66b72e90950961c67e0faa8e46",
     "src/lib/codex-session/registration.server.ts": "a29e1cf84b8c9f25e47c999eec94681c06bd316e1507694978ddcdc350a61d90",
-    "src/lib/delivery/reads.ts": "c7c19c37f0bb0d022620d95a4b39f95134cec6efe3555ce6bd45562229eeb500"
+    "src/lib/delivery/reads.ts": "e5307f9f1fc09a7f82d8373eb840fc4f6b42da5438c977ec8bcc9b8bc8f7d448"
   },
   "coderLoginPerformed": false,
   "serviceBindingTransportVerified": true,
   "credentialRotationControllerVerified": false,
   "cloudDeployed": false,
-  "appBuildReadySHA256": "972f29e5806d1f4ced46ce946c8c139a04f21ed0f1de0e8353ecd68d74c9d678"
+  "appBuildReadySHA256": "e32c86fa19a173a8b9908713599e3627c16b09ff046204ede151a750cb72ea7f"
 }
