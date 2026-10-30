@@ -24,6 +24,9 @@ const check = (v) => {
 };
 const actions = {
   prepare_review: ["candidate"],
+  repair_prepare: [],
+  complete_verified: ["terminal"],
+  repair_ready: ["repairId"],
   claim_acceptance: [],
   read_acceptance_plan: [],
   read_acceptance: ["jobId"],

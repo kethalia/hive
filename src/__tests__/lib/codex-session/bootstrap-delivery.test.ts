@@ -5,6 +5,7 @@ import {
   deliverRegistrationGrant,
   exchangeVerifiedWorkspaceAppSessionCookie,
   exchangeVerifiedWorkspaceAppTerminalCookie,
+  exchangeVerifiedWorkspaceVoiceCookie,
   postToVerifiedWorkspaceApp,
   requestGuardianIdentity,
 } from "@/lib/codex-session/bootstrap-delivery.server";
@@ -309,4 +310,43 @@ it("permits the bounded encoding expansion of a maximum-length escaped task prom
       f.fetcher,
     ),
   ).resolves.toEqual({ accepted: true });
+});
+
+it("voice cookie exchanges are restricted to their fixed endpoints", async () => {
+  for (const path of ["/voice", "/voice/identity"] as const) {
+    const f = fixture();
+    f.coder.getApplicationAuthRedirect.mockResolvedValue(
+      `${origin}${path}?coder_application_connect_api_key_35e783=encrypted`,
+    );
+    f.fetcher.mockReset().mockResolvedValue(
+      new Response(null, {
+        status: 303,
+        headers: {
+          Location: path,
+          "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+        },
+      }),
+    );
+    await expect(
+      exchangeVerifiedWorkspaceVoiceCookie(
+        f.coder,
+        f.issued.binding,
+        path,
+        f.issued.expiresAt,
+        f.fetcher,
+      ),
+    ).resolves.toEqual({ cookie: `${name}=scoped_secret`, url: `${origin}${path}` });
+    expect(f.coder.getApplicationAuthRedirect).toHaveBeenCalledWith(`${origin}${path}`);
+  }
+  const f = fixture();
+  await expect(
+    exchangeVerifiedWorkspaceVoiceCookie(
+      f.coder,
+      f.issued.binding,
+      "/terminal" as "/voice",
+      f.issued.expiresAt,
+      f.fetcher,
+    ),
+  ).rejects.toThrow();
+  expect(f.coder.getApplicationAuthRedirect).not.toHaveBeenCalled();
 });

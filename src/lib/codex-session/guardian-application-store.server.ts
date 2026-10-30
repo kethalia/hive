@@ -1,4 +1,5 @@
 import { type DeliverySourceApplication, Prisma, type PrismaClient } from "@hive/db";
+import { currentRepairReservation } from "@/lib/delivery/acceptance-repair.server";
 import type { SourceContext } from "@/lib/delivery/contracts";
 import { resolveTaskSource } from "@/lib/delivery/source-resolver.server";
 import { DeliveryConflict } from "@/lib/delivery/state";
@@ -152,6 +153,10 @@ export class GuardianSourceApplicationStore {
       where: { id: target.producingAttemptId },
       include: { step: true },
     });
+    const repair =
+      attempt?.outcome === "failed"
+        ? await currentRepairReservation(tx, scope.hiveUserId, manager.id, attempt.id)
+        : null;
     requireCurrent(
       source.task.managerBindingId === manager.id &&
         source.task.projectId === scope.projectId &&
@@ -165,8 +170,9 @@ export class GuardianSourceApplicationStore {
         attempt.step.taskId === target.taskId &&
         attempt.outputRevisionId === target.id &&
         manager.currentAttemptId === attempt.id &&
-        ["reported", "succeeded"].includes(attempt.outcome) &&
-        attempt.step.state === attempt.outcome,
+        (repair !== null ||
+          (["reported", "succeeded"].includes(attempt.outcome) &&
+            attempt.step.state === attempt.outcome)),
     );
     const claim = await tx.deliveryEvent.findFirst({
       where: { ownerId: scope.hiveUserId, attemptId: attempt.id, type: "attempt_started" },

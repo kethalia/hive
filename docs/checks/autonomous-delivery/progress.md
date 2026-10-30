@@ -954,3 +954,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   findings on streaming byte limits, shared deadlines and directory replacement were corrected;
   the parent independently reran all4 tests. This is synthetic local data, not a completed
   production-data migration. Evidence: [capture proof](data-capture-local.json).
+
+- Repair/completion and packaged voice checkpoint: reviewed, high difficulty. The failed-attempt
+  SQL source fence and composed repository/semantic evidence filtering were corrected. Parent
+  validation passes26 PostgreSQL tests on a fresh database containing only committed31 plus
+  repair33, all105 template tests,449 runtime checks with20 optional skips, and6 private readiness
+  tests. All five profile artifacts are synchronized; a reviewed guardian ships by default while
+  execution stays opt-in. The matching-image Coder build and account-backed browser pilot remain
+  pending. Evidence: [parent review](repair-voice-parent-review.json),
+  [controller completion](acceptance-completion.md).

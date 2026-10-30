@@ -1,5 +1,4 @@
 #!/bin/sh
-# Read-only public bootstrap data; never place the package in shell arguments.
 set -eu
 set +x
-exec /usr/bin/python3 -I -B /opt/hive-workspace-read-template/start.py < /opt/hive-workspace-read-template/request.json
+exec /usr/bin/python3 -I -B /usr/local/libexec/hive-template-bootstrap read < /opt/hive-workspace-read-template/request.json

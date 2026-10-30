@@ -5,6 +5,7 @@ import {
   authorizeAcceptanceEvidence,
   bindAcceptanceTask,
 } from "./acceptance-policy.server";
+import { currentRepairReservation } from "./acceptance-repair.server";
 
 import { githubSourceDigest } from "./github-evidence.server";
 import {
@@ -195,7 +196,7 @@ export function repositoryPolicyAdapters(
               trustedProducers: resolved.policy.trustedProducers,
               now,
               maxAgeMs: resolved.policy.maxAgeMs,
-              evidence,
+              evidence: evidence.filter((e) => e.producer !== semanticProducer),
             });
           const semanticCriteria = scope.criterionIds.filter((id) => supports(id, "review"));
           if (semanticProducer && semanticCriteria.length)
@@ -210,7 +211,7 @@ export function repositoryPolicyAdapters(
               trustedProducers: [semanticProducer],
               now,
               maxAgeMs: resolved.policy.maxAgeMs,
-              evidence,
+              evidence: evidence.filter((e) => e.producer === semanticProducer),
             });
           if (pending.length) throw new DeliveryConflict(pending[0].reason);
         }
@@ -259,6 +260,11 @@ export function repositoryPolicyAdapters(
         where: { ownerId_id: { ownerId, id: binding.currentAttemptId } },
         include: { step: true },
       });
+      if (
+        previous.outcome === "failed" &&
+        (await currentRepairReservation(tx, ownerId, binding.id, previous.id, { ready: true }))
+      )
+        return;
       const project = await tx.deliveryProject.findUniqueOrThrow({
         where: { ownerId_id: { ownerId, id: bound.task.projectId } },
       });

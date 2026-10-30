@@ -74,6 +74,21 @@ func TestManifestBinding(t *testing.T) {
 		})
 	}
 }
+func TestVoiceManifestBinding(t *testing.T) {
+	r, m := fixture()
+	r.Kind = "voice"
+	r.AppOrigin = "https://hive-voice--main--work--owner.apps.example.test"
+	m.Apps[0].Slug = "hive-voice"
+	m.Apps[0].Url = "http://127.0.0.1:13343"
+	m.Apps[0].SubdomainName = "hive-voice--work--owner"
+	if _, err := validateManifest(r, m); err != nil {
+		t.Fatal("valid voice app rejected", err)
+	}
+	m.Apps[0].Url = "http://127.0.0.1:13342"
+	if _, err := validateManifest(r, m); err == nil {
+		t.Fatal("wrong voice target accepted")
+	}
+}
 func TestCredentialBoundary(t *testing.T) {
 	t.Setenv("CODER_AGENT_TOKEN", "")
 	t.Setenv("CODER_AGENT_TOKEN_FILE", "")

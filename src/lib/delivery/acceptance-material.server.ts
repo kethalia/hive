@@ -115,7 +115,18 @@ export class AcceptanceMaterialResolver {
       contentDigest: e.contentDigest,
       observedAt: e.observedAt.toISOString(),
     }));
-    return { binding, attempt, bound, revision, plan, content, criterionIds, policy, facts };
+    return {
+      binding,
+      attempt,
+      bound,
+      revision,
+      plan,
+      content,
+      criterionIds,
+      policy,
+      facts,
+      evidence,
+    };
   }
   async prepare(
     tx: Tx,

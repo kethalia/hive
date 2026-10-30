@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@hive/db";
+import { AcceptanceSuccessController } from "./acceptance-completion.server";
 import { acceptanceDeploymentConfig } from "./acceptance-config.server";
 import { AcceptanceMaterialResolver } from "./acceptance-material.server";
+import { AcceptanceRepairController } from "./acceptance-repair.server";
 import { AcceptanceStore } from "./acceptance-store.server";
 import { repositoryPolicyAdapters, repositoryPolicyStore } from "./repository-policy.server";
 export function acceptanceServices(db: PrismaClient) {
@@ -19,5 +21,14 @@ export function acceptanceServices(db: PrismaClient) {
     producer,
     materializeReview: (tx, scope, value) => material.material(tx, scope, value),
   });
-  return { store, material, policies };
+  return {
+    store,
+    material,
+    policies,
+    repair: new AcceptanceRepairController(material, store),
+    success: new AcceptanceSuccessController(
+      material,
+      repositoryPolicyAdapters(policies).resolveEvidencePolicy,
+    ),
+  };
 }

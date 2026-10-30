@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "baseRevisionAtEvidenceWrite": "177973bfad11fd45a10cd9c78b55a4ee0c9f6e4c",
+  "testedSourcesCommitted": false,
+  "sourceStable": true,
+  "sourceHashAuthority": {
+    "src/lib/delivery/acceptance-completion-contracts.ts": "e2a27ced296a4cd8d9435d9e3a9797a7d41f6b65b570ad53e20fd180b8b3dfb0",
+    "src/lib/delivery/acceptance-completion.server.ts": "2f3b06b3bb1e59dfc16bc9e71fcffeb13d68862951040ba15d7775a4201e9221",
+    "src/lib/delivery/completion-transaction.server.ts": "facbac752279a88021b84c5a588fad440faf7ba2125a0a7a66ae85bbfa1a4eea",
+    "src/lib/delivery/acceptance-contracts.ts": "d1f08297b7031e1695e7163b0d9e31ea3b7f1ede2aacffa2aab73026b54948f4",
+    "src/lib/delivery/acceptance-service.server.ts": "59889cda3485de17e9233000e664b4a85d19a62d2597fe423124ce1ce3c7cbbf",
+    "src/lib/delivery/acceptance-factory.server.ts": "67517b07a6612227eecf62668b8613037ca44b99ad436eba108f2a6102ce1ef9",
+    "src/lib/delivery/acceptance-route.server.ts": "384abfec6ad01bf820139d7918c906de8398883459f78b2903b973b1392e9b5b",
+    "src/lib/delivery/repository.ts": "158dd4c0af878e6249f29ee8ba4247b7266f5942dcf0349c65f4f0d0cd3b8f1f",
+    "src/lib/delivery/repository-policy.server.ts": "12d18b9945d723bebde834c7ba24312c6c83c2b87466c60a0352a01b0c672e94",
+    "src/__tests__/lib/delivery/acceptance-completion-fixture.ts": "3db1916ba6ad879870ba65163e64a4dcf5be73ed1f4b51c1a417456cbe57d0bc",
+    "src/__tests__/lib/delivery/acceptance-completion.integration.test.ts": "4ceb7c9fe059793f19de81343a02413c9367ef2639a4274a7ef5735743b8a50f",
+    "src/__tests__/lib/delivery/acceptance-repair-native.integration.test.ts": "a842923ccdebec961d0877753aa58b09e2934da13e7780ce0af25f0db7af8a74",
+    "scripts/verify-delivery-manager-adapter.test.mjs": "4af75385894644b86c8dab32331976539bdb3ee54819dd96fcf959710ddd9629",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "ad98a808bc72c7e811407ca36614bdb24e47f32a5e97963204e21bb1c339bbf4",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "6013e0660e80fa7c872b7ccb6469d792eb66fce16f32a754bd2588eacaa817a2",
+    "templates/ai-dev-k8s/scripts/delivery-acceptance-client.mjs": "3d8f28dacc3ad42a351174d7653b8f3593a2322b3eb9f0f3ac173f2af5fbffff",
+    "templates/ai-dev-k8s/scripts/codex-acceptance-runtime.mjs": "82014118e3ad64f09c3fe9f927df0db712eb08654c70dd5fefbf5f2529b876a3",
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": "22c696ae945293ecb11d8f5496f8e0723d2cbb50231d9b438c37d9ae742500f3"
+  },
+  "tests": {
+    "runtimeNative": 133,
+    "acceptanceRepairReviewPG": 26,
+    "completionPGIncluded": 11,
+    "repositoryPolicyManagerProgressionPG": 44,
+    "actualNativeSignedPG": 1,
+    "typecheck": true,
+    "biomeFiles": 18
+  },
+  "proofBoundary": {
+    "actualNative": "0.165.0 local canned Responses",
+    "repositorySemanticPolicy": "real",
+    "evidenceTransport": "real signed challenge/snapshot with explicit provider/R2 doubles",
+    "controllerCompletion": "real signed transaction/report/outbox",
+    "initialEnrollmentPublicationChildFactsApplicationReceipt": "explicit local fixture authority",
+    "accountInference": false,
+    "providerWrites": false,
+    "physicalWriterHeld": true,
+    "quiescenceClaim": false
+  },
+  "artifactHashes": {
+    "acceptance-pg.log": "1365eec00d23cfccdde18ac61ba18a5a1a9342f5eb89c8c6af410300c32ecd61",
+    "biome.log": "8099d0d61d9ec3b90cc7ae3a305ff8c780aef25619810d4bd2ce11d13884a427",
+    "database-name-first-failure.log": "29dcfbb05f868679d2254d84115d8b4034934ccf66f135537177961d891b27a8",
+    "fixture-cleanup.json": "11e64bcfbf67a45c1e3c3bf887341efd847029b8cdc41817dd2a8143c3f8b615",
+    "fresh33.log": "ddbf46284c502a80dfd282dda2ab2ed0eee53359b5de211816805dcdba24d20d",
+    "full-policy-first-failure.log": "088d1badd4e792a3a219752d13086bc6b6857f4be7d51f59d76029b4f0fe4ab8",
+    "native-final.json": "d9715a8fd8b9def6a07186adad445e1ee3b4ab25de3793f4a01e3d0fd2d811a5",
+    "native-final.log": "d8fc89aa5587b69334e3740ff7de4297ee4ae94487a1c92089a523e6add0b7f2",
+    "provider-double-initial.json": "0469b6f7d4304919e9870bb7aa10d77dbb9e6731e480df6f75064bba9fd21e3d",
+    "provider-double-initial.log": "45e31bef8464bcd04db70e4ff67df6e1091712b30c59e0ce9d91e8f1c656647c",
+    "repository-pg.log": "4101c8d12501a32b65c316467e45802c20b4832cd3797f13143577e212930601",
+    "runtime.log": "73ad3dc4bc5292d9b865e87d058ee03becd763a29a1136c4a289c151db27235e",
+    "types.log": "9344edc6b9ad85444ca57c97babcb46b86992e2fb841abebf3ebdd1d5d5b8932",
+    "upgrade-after.json": "2dbdcbe1a084c4f9a42e6b27d7c76c3ba0ed9e6351194f34b5081a665b1938f6",
+    "upgrade-before.json": "c78943f28a4b75d09b4c6507d9ccd8f975ee671a3f058945ca26507820978e3a",
+    "upgrade-migration.log": "a55a320fdaf829349caac43fe0ee46abfb764fc40f20c07d83571cdc2e05046a"
+  },
+  "upgrade": {
+    "oldTablesUnchanged": 45,
+    "oldMigrationChecksumsUnchanged": 31,
+    "newTables": [
+      "delivery_release_actions",
+      "delivery_release_observations",
+      "delivery_release_target_members",
+      "delivery_release_targets",
+      "delivery_releases"
+    ],
+    "sql33": "be770a78bd89e488f00d56e881b50e7006eb23e61e595574706f240e7ebc98ea"
+  }
+}

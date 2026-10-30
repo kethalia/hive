@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T08:55:45.815499+00:00",
+  "sourceHashes": {
+    "templates/ai-dev-k8s/assets/codex-host.tar.xz": "4336c18c1b38213ffed38e0d04aff580bf4f552c8ec690e4e307a9511d1af16c",
+    "templates/ai-dev-k8s/assets/voice.tar.gz": "6a77644cdca2385a06bb3d179737cc4b341a2ce5cc8a31bdfca8ac89a9b53db1",
+    "docker/hive-base/hive-template-bootstrap.py": "511de1cd8fe3539b32748c8eaf55d62a11b6047669684618c8e032d979296390",
+    "docker/hive-base/verify-template-image.py": "f8aa7d571ffb7781b13f18bf9fed9837160b1f8a180e46bdb2e4a95b1574e51c",
+    "deploy/cloudflare/app/release-health.ts": "7d20d587e917d3c547a8f357cec33f6aa983a2f7184842b830edddb66ece3f71",
+    "src/lib/templates/artifact-manifest.json": "37e67a98fa698433ed0e3525ef975de2dc650a74b638262b8b9c1717af2b4a32"
+  },
+  "independentReview": {
+    "repairSourceFence": "accepted after current task revision/version/SHA fence and direct SQL regression",
+    "controllerCompletion": "no confirmed actionable findings in frozen18 source paths",
+    "imageBootstrap": "accepted local design and isolated namespace tests; image build remains required"
+  },
+  "parentValidation": {
+    "templates": {
+      "passed": 105,
+      "failed": 0,
+      "synchronizedProfiles": 5
+    },
+    "stagedRuntimeCommand": {
+      "passed": 449,
+      "skipped": 20,
+      "failed": 0
+    },
+    "postgres": {
+      "passed": 26,
+      "failed": 0,
+      "scope": "fresh dedicated local database with committed31 migrations plus reviewed repair migration; release-journal WIP excluded"
+    },
+    "privateReadiness": {
+      "passed": 6,
+      "failed": 0
+    },
+    "biome": "passed for staged paths"
+  },
+  "nativeGuardian": {
+    "includedByDefault": true,
+    "activationDefault": false,
+    "elfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "source": "reviewed existing CI run40968234189 artifact12939316274"
+  },
+  "remoteActions": {
+    "workerDeployment": false,
+    "templateActivation": false,
+    "newImagePublished": false,
+    "productionChanged": false
+  },
+  "remaining": [
+    "build and inspect exact workspace image",
+    "inactive Coder import and matching-image test build",
+    "account-backed manager and shared-session browser pilot",
+    "real voice/clipboard/terminal browser parity",
+    "full clean-source app build and remote CI"
+  ]
+}

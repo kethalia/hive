@@ -1,0 +1,38 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/acceptance-repair.integration.test.ts (12 tests) 9063ms
+   ✓ controller-owned same-step repair reservations > records immutable failure feedback once, retains writer and cannot ready unapplied source  886ms
+   ✓ controller-owned same-step repair reservations > applies the exact failed candidate, consumes one same-step repair claim and retains the original physical writer  852ms
+   ✓ controller-owned same-step repair reservations > two repairs preserve original criteria and a third failure exhausts the budget  1646ms
+   ✓ controller-owned same-step repair reservations > required CI failure is repairable only with current authenticated facts (fresh=true)  593ms
+   ✓ controller-owned same-step repair reservations > required CI failure is repairable only with current authenticated facts (fresh=false)  590ms
+   ✓ controller-owned same-step repair reservations > insufficient context holds instead of creating code-churn retries  663ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed criteria without releasing its writer  611ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed lease without releasing its writer  658ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed producer without releasing its writer  624ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed pause without releasing its writer  708ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed registration without releasing its writer  615ms
+   ✓ controller-owned same-step repair reservations > cannot exceed the original attempt budget  615ms
+ ✓ src/__tests__/lib/delivery/acceptance-completion.integration.test.ts (11 tests) 6861ms
+   ✓ controller factual completion > completes exact verified source once without manager narrative or writer release  919ms
+   ✓ controller factual completion > real full repository policy refuses semantic pass without independently authenticated repository gates  624ms
+   ✓ controller factual completion > real signed provider+semantic evidence requires every mandatory family (review=true)  660ms
+   ✓ controller factual completion > real signed provider+semantic evidence requires every mandatory family (review=false)  715ms
+   ✓ controller factual completion > rejects source before factual completion  553ms
+   ✓ controller factual completion > rejects cohort before factual completion  562ms
+   ✓ controller factual completion > rejects expiry before factual completion  552ms
+   ✓ controller factual completion > rejects pause before factual completion  590ms
+   ✓ controller factual completion > rejects registration before factual completion  567ms
+   ✓ controller factual completion > rejects semantic before factual completion  546ms
+   ✓ controller factual completion > rejects ci before factual completion  571ms
+ ✓ src/__tests__/lib/delivery/acceptance-review.integration.test.ts (3 tests) 1602ms
+   ✓ independent acceptance candidate review > binds exact accepted blob bytes and records only independent review evidence  703ms
+   ✓ independent acceptance candidate review > prepares a real accepted zero-byte blob without inventing source content  454ms
+   ✓ independent acceptance candidate review > rejects modified content, omitted files and host-selected replacement manifest  443ms
+
+ Test Files  3 passed (3)
+      Tests  26 passed (26)
+   Start at  08:44:19
+   Duration  18.67s (transform 426ms, setup 0ms, collect 766ms, tests 17.53s, environment 0ms, prepare 110ms)
+

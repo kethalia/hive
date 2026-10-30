@@ -12,6 +12,7 @@ export async function acceptanceGuardianFixture(
   db: PrismaClient,
   materializeReview?: ConstructorParameters<typeof AcceptanceStore>[0]["materializeReview"],
   producer = acceptanceFixtureProducer,
+  native: { managerThreadId?: string; parentTurnId?: string } = {},
 ) {
   let policies: RepositoryPolicyStore | undefined;
   const store = new AcceptanceStore({
@@ -26,6 +27,7 @@ export async function acceptanceGuardianFixture(
   });
   const originalIntent = "Guardian storage synthetic task; no account inference";
   const f = await guardianFixture(db, {
+    ...native,
     beforeIntent: async ({ user, project, context }) => {
       const gates = githubFixture().policy;
       gates.checks[0].criterionIds = ["repo:ci"];

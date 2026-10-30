@@ -119,6 +119,8 @@ export function createDeliveryNativeSpool(options) {
       "violations",
       "taskPlans",
       "uncertainAcknowledgements",
+      "repairDecisions",
+      "repairPolls",
     ])
       state[name] ??= {};
     check(
@@ -667,110 +669,149 @@ export function createDeliveryNativeSpool(options) {
       appendItem(claim, fragment, params.turnId, item);
     }
   }
+  function factualSnapshot(managerThreadId, request, requireResult) {
+    check(sourceProtocol && !state.blocked[managerThreadId], "native_source_snapshot_unavailable");
+    const claim = claimFor(managerThreadId),
+      cursor = state.cursors[managerThreadId],
+      publication = claim && state.sourcePublications[claim.attemptId],
+      root = claim && state.rootTurns[hash([managerThreadId, claim.parentTurnId])];
+    check(
+      claim &&
+        cursor &&
+        publication &&
+        (!requireResult || state.results[claim.attemptId]) &&
+        root?.status === "completed" &&
+        request?.managerThreadId === managerThreadId &&
+        request.managerBindingId === claim.managerBindingId &&
+        request.taskId === claim.taskId &&
+        request.stepId === claim.stepId &&
+        request.priorAttemptId === claim.attemptId &&
+        request.parentTurnId === claim.parentTurnId &&
+        request.cursorVersion === cursor.cursorVersion &&
+        request.registrationId === claim.registrationId &&
+        request.serverInstanceId === claim.serverInstanceId &&
+        hash(request.checkoutBinding) === hash(claim.checkoutBinding) &&
+        request.inputSourceSha === claim.inputSourceSha &&
+        contextEqual(request.inputSourceContext, claim.sourceContext),
+      "native_source_snapshot_scope_changed",
+    );
+    const pending = state.events.filter(
+        (v) => v.managerThreadId === managerThreadId && !v.acknowledged,
+      ),
+      unknown = Object.values(state.violations).filter(
+        (v) => v.managerThreadId === managerThreadId,
+      );
+    check(
+      !pending.length && !unknown.length && cursor.sequence === cursor.acknowledgedSequence,
+      "native_source_snapshot_not_drained",
+    );
+    const cohort = this.boundaryChildren(managerThreadId),
+      spawns = this.boundarySpawns(managerThreadId);
+    check(
+      hash(cohort) === hash(request.cohort) && hash(spawns) === hash(request.spawns),
+      "native_source_snapshot_scope_changed",
+    );
+    for (const child of cohort)
+      check(
+        state.events.some(
+          (v) =>
+            v.acknowledged &&
+            v.managerThreadId === managerThreadId &&
+            v.input.source.kind === "turn_completed" &&
+            v.input.source.childThreadId === child.childThreadId &&
+            v.input.source.childTurnId === child.childTurnId &&
+            v.input.source.status === "completed",
+        ),
+        "native_source_snapshot_child_unfinished",
+      );
+    const info = lstatSync(path, { bigint: true });
+    check(
+      info.isFile() &&
+        !info.isSymbolicLink() &&
+        info.nlink === 1n &&
+        info.uid === BigInt(process.getuid()) &&
+        !(info.mode & 0o077n),
+      "native_source_snapshot_journal_invalid",
+    );
+    const encoded = readFileSync(path, "utf8"),
+      saved = JSON.parse(encoded);
+    check(
+      saved.signature === mac(state) && hash(saved.state) === hash(state),
+      "native_source_snapshot_journal_changed",
+    );
+    return {
+      schemaVersion: 1,
+      scope: "native_observer_journal_only",
+      managerThreadId,
+      managerBindingId: claim.managerBindingId,
+      taskId: claim.taskId,
+      stepId: claim.stepId,
+      attemptId: claim.attemptId,
+      parentTurnId: claim.parentTurnId,
+      registrationId: claim.registrationId,
+      serverInstanceId: claim.serverInstanceId,
+      checkoutBinding: structuredClone(claim.checkoutBinding),
+      checkoutBindingDigest: claim.checkoutBindingDigest,
+      cursorVersion: cursor.cursorVersion,
+      nativeSequence: cursor.acknowledgedSequence,
+      inputSourceSha: claim.inputSourceSha,
+      ...(claim.sourceContext ? { inputSourceContext: structuredClone(claim.sourceContext) } : {}),
+      operationId: publication.operationId,
+      acceptedSourceContext: structuredClone(publication.sourceContext),
+      sourceJournalDigest: hash(encoded),
+      sourceJournalIdentity: { device: info.dev.toString(), inode: info.ino.toString() },
+      pendingSourceEvents: 0,
+      unknownInputs: 0,
+      writerHeld: true,
+      quiescenceAuthority: false,
+      metadataApplyAuthorized: false,
+    };
+  }
   return {
     progressionProtocol: progression ? 1 : 0,
     sourceApplicationSnapshot(managerThreadId, request) {
-      check(
-        sourceProtocol && !state.blocked[managerThreadId],
-        "native_source_snapshot_unavailable",
-      );
+      return factualSnapshot.call(this, managerThreadId, request, true);
+    },
+    acceptanceTerminalSnapshot(managerThreadId, request) {
+      return factualSnapshot.call(this, managerThreadId, request, false);
+    },
+    recordVerifiedCompletion(managerThreadId, request, decision) {
       const claim = claimFor(managerThreadId),
-        cursor = state.cursors[managerThreadId],
-        publication = claim && state.sourcePublications[claim.attemptId],
-        root = claim && state.rootTurns[hash([managerThreadId, claim.parentTurnId])];
+        publication = claim && state.sourcePublications[claim.attemptId];
       check(
         claim &&
-          cursor &&
           publication &&
-          state.results[claim.attemptId] &&
-          root?.status === "completed" &&
-          request?.managerThreadId === managerThreadId &&
-          request.managerBindingId === claim.managerBindingId &&
-          request.taskId === claim.taskId &&
-          request.stepId === claim.stepId &&
-          request.priorAttemptId === claim.attemptId &&
-          request.parentTurnId === claim.parentTurnId &&
-          request.cursorVersion === cursor.cursorVersion &&
-          request.registrationId === claim.registrationId &&
-          request.serverInstanceId === claim.serverInstanceId &&
-          hash(request.checkoutBinding) === hash(claim.checkoutBinding) &&
-          request.inputSourceSha === claim.inputSourceSha &&
-          contextEqual(request.inputSourceContext, claim.sourceContext),
-        "native_source_snapshot_scope_changed",
+          decision?.phase === "completed" &&
+          decision.writerHeld === true &&
+          decision.executionAuthorized === false &&
+          decision.publicationAuthorized === false &&
+          decision.cleanupAuthorized === false &&
+          decision.scope?.managerBindingId === claim.managerBindingId &&
+          decision.scope.attemptId === claim.attemptId &&
+          decision.scope.taskId === claim.taskId &&
+          decision.scope.stepId === claim.stepId &&
+          decision.scope.managerThreadId === managerThreadId &&
+          decision.scope.parentTurnId === claim.parentTurnId &&
+          decision.scope.cursorVersion === state.cursors[managerThreadId]?.cursorVersion &&
+          decision.scope.nativeSequence === state.cursors[managerThreadId]?.acknowledgedSequence &&
+          contextEqual(decision.sourceContext, publication.sourceContext) &&
+          contextEqual(decision.scope.sourceContext, publication.sourceContext) &&
+          Number.isSafeInteger(decision.receipt?.version),
+        "native_verified_completion_mismatch",
       );
-      const pending = state.events.filter(
-          (v) => v.managerThreadId === managerThreadId && !v.acknowledged,
-        ),
-        unknown = Object.values(state.violations).filter(
-          (v) => v.managerThreadId === managerThreadId,
-        );
+      const before = this.acceptanceTerminalSnapshot(managerThreadId, request);
       check(
-        !pending.length && !unknown.length && cursor.sequence === cursor.acknowledgedSequence,
-        "native_source_snapshot_not_drained",
+        before.sourceJournalDigest === decision.scope.sourceJournalDigest,
+        "native_verified_completion_journal_changed",
       );
-      const cohort = this.boundaryChildren(managerThreadId),
-        spawns = this.boundarySpawns(managerThreadId);
-      check(
-        hash(cohort) === hash(request.cohort) && hash(spawns) === hash(request.spawns),
-        "native_source_snapshot_scope_changed",
+      this.recordResult(
+        { threadId: managerThreadId, turnId: claim.parentTurnId },
+        {
+          operation: "complete_step",
+          payload: { taskId: claim.taskId, stepId: claim.stepId, attemptId: claim.attemptId },
+        },
+        decision.receipt,
       );
-      for (const child of cohort)
-        check(
-          state.events.some(
-            (v) =>
-              v.acknowledged &&
-              v.managerThreadId === managerThreadId &&
-              v.input.source.kind === "turn_completed" &&
-              v.input.source.childThreadId === child.childThreadId &&
-              v.input.source.childTurnId === child.childTurnId &&
-              v.input.source.status === "completed",
-          ),
-          "native_source_snapshot_child_unfinished",
-        );
-      const info = lstatSync(path, { bigint: true });
-      check(
-        info.isFile() &&
-          !info.isSymbolicLink() &&
-          info.nlink === 1n &&
-          info.uid === BigInt(process.getuid()) &&
-          !(info.mode & 0o077n),
-        "native_source_snapshot_journal_invalid",
-      );
-      const encoded = readFileSync(path, "utf8"),
-        saved = JSON.parse(encoded);
-      check(
-        saved.signature === mac(state) && hash(saved.state) === hash(state),
-        "native_source_snapshot_journal_changed",
-      );
-      return {
-        schemaVersion: 1,
-        scope: "native_observer_journal_only",
-        managerThreadId,
-        managerBindingId: claim.managerBindingId,
-        taskId: claim.taskId,
-        stepId: claim.stepId,
-        attemptId: claim.attemptId,
-        parentTurnId: claim.parentTurnId,
-        registrationId: claim.registrationId,
-        serverInstanceId: claim.serverInstanceId,
-        checkoutBinding: structuredClone(claim.checkoutBinding),
-        checkoutBindingDigest: claim.checkoutBindingDigest,
-        cursorVersion: cursor.cursorVersion,
-        nativeSequence: cursor.acknowledgedSequence,
-        inputSourceSha: claim.inputSourceSha,
-        ...(claim.sourceContext
-          ? { inputSourceContext: structuredClone(claim.sourceContext) }
-          : {}),
-        operationId: publication.operationId,
-        acceptedSourceContext: structuredClone(publication.sourceContext),
-        sourceJournalDigest: hash(encoded),
-        sourceJournalIdentity: { device: info.dev.toString(), inode: info.ino.toString() },
-        pendingSourceEvents: 0,
-        unknownInputs: 0,
-        writerHeld: true,
-        quiescenceAuthority: false,
-        metadataApplyAuthorized: false,
-      };
     },
     sourcePublication(managerThreadId) {
       const claim = claimFor(managerThreadId);
@@ -804,15 +845,16 @@ export function createDeliveryNativeSpool(options) {
       old.applied = true;
       save();
     },
-    sourceBoundaryCandidate(managerThreadId) {
+    sourceBoundaryCandidate(managerThreadId, assess = false) {
       if (!sourceProtocol || state.blocked[managerThreadId]) return null;
       const claim = claimFor(managerThreadId),
         publication = claim && state.sourcePublications[claim.attemptId],
         root = claim && state.rootTurns[hash([managerThreadId, claim.parentTurnId])];
       return claim &&
         publication &&
-        !publication.applied &&
-        state.results[claim.attemptId] &&
+        (!publication.applied ||
+          (assess && state.repairDecisions[claim.attemptId]?.phase === "reserved")) &&
+        (state.results[claim.attemptId] || assess) &&
         root?.status === "completed"
         ? structuredClone(claim)
         : null;
@@ -842,6 +884,7 @@ export function createDeliveryNativeSpool(options) {
       if (!claim || !cursor || !result || root?.status !== "completed") return null;
       const plan = state.taskPlans[claim.taskId];
       if (
+        state.repairDecisions[claim.attemptId]?.phase !== "ready" &&
         plan?.stepIds.every((stepId) =>
           Object.values(state.attempts).some(
             (attempt) =>
@@ -857,6 +900,96 @@ export function createDeliveryNativeSpool(options) {
         cursorVersion: cursor.cursorVersion,
         resultEventId: result.eventId,
       });
+    },
+    needsRepairDecision(managerThreadId) {
+      const claim = claimFor(managerThreadId),
+        result = claim && state.results[claim.attemptId];
+      return !!claim && (!result || result.operation === "fail_attempt");
+    },
+    repairDecision(managerThreadId) {
+      const claim = claimFor(managerThreadId);
+      return structuredClone((claim && state.repairDecisions[claim.attemptId]) ?? null);
+    },
+    beginRepairPoll(managerThreadId) {
+      const claim = claimFor(managerThreadId);
+      check(claim && !state.blocked[managerThreadId], "native_repair_unavailable");
+      state.repairPolls[claim.attemptId] ??= { count: 0, startedAt: Date.now() };
+      const poll = state.repairPolls[claim.attemptId];
+      check(
+        poll.count < 30 && Date.now() - poll.startedAt <= 30 * 60000,
+        "native_repair_wait_exhausted",
+      );
+      poll.count++;
+      save();
+    },
+    recordRepairDecision(managerThreadId, decision) {
+      const claim = claimFor(managerThreadId),
+        publication = claim && state.sourcePublications[claim.attemptId],
+        r = decision?.reservation;
+      check(
+        sourceProtocol &&
+          claim &&
+          publication &&
+          !state.blocked[managerThreadId] &&
+          ["reserved", "ready"].includes(decision?.phase) &&
+          decision.executionAuthorized === false &&
+          decision.publicationAuthorized === false &&
+          decision.cleanupAuthorized === false &&
+          r?.schemaVersion === 1 &&
+          id(r.repairId) &&
+          id(r.reportId) &&
+          decision.eventId === r.repairId &&
+          decision.reportId === r.reportId &&
+          r.managerThreadId === managerThreadId &&
+          r.managerBindingId === claim.managerBindingId &&
+          r.taskId === claim.taskId &&
+          r.stepId === claim.stepId &&
+          r.attemptId === claim.attemptId &&
+          r.registrationId === claim.registrationId &&
+          r.serverInstanceId === claim.serverInstanceId &&
+          r.parentTurnId === claim.parentTurnId &&
+          r.cursorVersion === claim.cursorVersion &&
+          r.leaseGeneration === claim.leaseGeneration &&
+          r.leaseExpiresAt > Date.now() &&
+          r.projectId === claim.checkoutBinding.projectId &&
+          r.preparationIntentId === claim.checkoutBinding.preparationIntentId &&
+          r.publicationOperationId === publication.operationId &&
+          contextEqual(r.sourceContext, publication.sourceContext) &&
+          Number.isSafeInteger(r.ordinal) &&
+          r.ordinal >= 1 &&
+          r.ordinal <= 2 &&
+          r.feedbackDigest === hash(r.feedback) &&
+          Buffer.byteLength(JSON.stringify(decision)) <= 65536,
+        "native_repair_scope_changed",
+      );
+      const previous = state.repairDecisions[claim.attemptId];
+      check(!previous || hash(previous.reservation) === hash(r), "native_repair_replay_conflict");
+      check(
+        previous?.phase !== "ready" || hash(previous) === hash(decision),
+        "native_repair_replay_conflict",
+      );
+      if (decision.phase === "ready")
+        check(
+          publication.applied &&
+            previous &&
+            Number.isSafeInteger(decision.expectedVersion) &&
+            decision.expectedVersion > 0 &&
+            decision.attemptBudgetRemaining > 0,
+          "native_repair_not_applied",
+        );
+      const result = {
+        eventId: r.repairId,
+        reportId: r.reportId,
+        operation: "fail_attempt",
+        parentTurnId: r.parentTurnId,
+      };
+      check(
+        !state.results[claim.attemptId] || hash(state.results[claim.attemptId]) === hash(result),
+        "native_repair_result_conflict",
+      );
+      state.results[claim.attemptId] = result;
+      state.repairDecisions[claim.attemptId] = structuredClone(decision);
+      save();
     },
     recordTask(command, result) {
       if (!progression || command.operation !== "create_task") return;

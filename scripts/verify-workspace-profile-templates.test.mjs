@@ -236,6 +236,14 @@ test("profile synchronization detects and removes obsolete shared scripts", (t) 
     join(repositoryRoot, "scripts/build-native-guardian.mjs"),
     join(fixtureRoot, "scripts/build-native-guardian.mjs"),
   );
+  cpSync(
+    join(repositoryRoot, "tools/native-guardian/prebuilt/linux-x64"),
+    join(fixtureRoot, "tools/native-guardian/prebuilt/linux-x64"),
+    { recursive: true },
+  );
+  cpSync(join(repositoryRoot, "scripts/voice"), join(fixtureRoot, "scripts/voice"), {
+    recursive: true,
+  });
   symlinkSync(join(repositoryRoot, "node_modules"), join(fixtureRoot, "node_modules"), "dir");
   writeFileSync(join(canonical, "WORKSPACE_ROUTING.md"), "# Canonical routing\n");
 

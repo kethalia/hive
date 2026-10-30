@@ -1,0 +1,75 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/acceptance-repair.integration.test.ts (12 tests) 11674ms
+   ✓ controller-owned same-step repair reservations > records immutable failure feedback once, retains writer and cannot ready unapplied source  1336ms
+   ✓ controller-owned same-step repair reservations > applies the exact failed candidate, consumes one same-step repair claim and retains the original physical writer  1536ms
+   ✓ controller-owned same-step repair reservations > two repairs preserve original criteria and a third failure exhausts the budget  2545ms
+   ✓ controller-owned same-step repair reservations > required CI failure is repairable only with current authenticated facts (fresh=true)  848ms
+   ✓ controller-owned same-step repair reservations > required CI failure is repairable only with current authenticated facts (fresh=false)  771ms
+   ✓ controller-owned same-step repair reservations > insufficient context holds instead of creating code-churn retries  783ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed criteria without releasing its writer  766ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed lease without releasing its writer  758ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed producer without releasing its writer  600ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed pause without releasing its writer  588ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed registration without releasing its writer  580ms
+   ✓ controller-owned same-step repair reservations > cannot exceed the original attempt budget  560ms
+ ✓ src/__tests__/lib/delivery/acceptance-completion.integration.test.ts (9 tests) 5787ms
+   ✓ controller factual completion > completes exact verified source once without manager narrative or writer release  1021ms
+   ✓ controller factual completion > real full repository policy refuses semantic pass without independently authenticated repository gates  714ms
+   ✓ controller factual completion > rejects source before factual completion  576ms
+   ✓ controller factual completion > rejects cohort before factual completion  581ms
+   ✓ controller factual completion > rejects expiry before factual completion  639ms
+   ✓ controller factual completion > rejects pause before factual completion  587ms
+   ✓ controller factual completion > rejects registration before factual completion  516ms
+   ✓ controller factual completion > rejects semantic before factual completion  595ms
+   ✓ controller factual completion > rejects ci before factual completion  557ms
+ ✓ src/__tests__/lib/delivery/acceptance-review.integration.test.ts (3 tests) 1572ms
+   ✓ independent acceptance candidate review > binds exact accepted blob bytes and records only independent review evidence  678ms
+   ✓ independent acceptance candidate review > prepares a real accepted zero-byte blob without inventing source content  394ms
+   ✓ independent acceptance candidate review > rejects modified content, omitted files and host-selected replacement manifest  498ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/delivery/manager.integration.test.ts [ src/__tests__/lib/delivery/manager.integration.test.ts ]
+Error: Isolated local delivery fixture only
+ ❯ src/__tests__/lib/delivery/manager.integration.test.ts:19:11
+     17|     u.pathname !== "/hive_delivery_test"
+     18|   )
+     19|     throw new Error("Isolated local delivery fixture only");
+       |           ^
+     20| }
+     21| const db = new PrismaClient({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/__tests__/lib/delivery/progression.integration.test.ts [ src/__tests__/lib/delivery/progression.integration.test.ts ]
+Error: Isolated local fixture only
+ ❯ src/__tests__/lib/delivery/progression.integration.test.ts:16:11
+     14|     u.pathname !== "/hive_delivery_test"
+     15|   )
+     16|     throw new Error("Isolated local fixture only");
+       |           ^
+     17| }
+     18| const db = new PrismaClient({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/__tests__/lib/delivery/repository.integration.test.ts [ src/__tests__/lib/delivery/repository.integration.test.ts ]
+Error: Delivery integration tests require the isolated local fixture
+ ❯ src/__tests__/lib/delivery/repository.integration.test.ts:17:11
+     15|     parsed.pathname !== "/hive_delivery_test"
+     16|   )
+     17|     throw new Error("Delivery integration tests require the isolated l…
+       |           ^
+     18| }
+     19| const db = new PrismaClient({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  3 failed | 3 passed (6)
+      Tests  24 passed (24)
+   Start at  08:38:00
+   Duration  20.97s (transform 564ms, setup 0ms, collect 904ms, tests 19.03s, environment 1ms, prepare 241ms)
+

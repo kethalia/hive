@@ -79,7 +79,7 @@ resource "coder_agent" "main" {
     GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL         = data.coder_workspace_owner.me.email
     EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-    HIVE_RUNTIME_BUILD_ID       = local.hive_host_enabled ? data.external.hive_build_identity[0].result.build_id : (local.hive_read_enabled ? data.external.hive_read_build_identity[0].result.build_id : "")
+    HIVE_RUNTIME_BUILD_ID       = local.hive_host_enabled ? data.external.hive_build_identity[0].result.build_id : (local.hive_read_enabled ? data.external.hive_read_build_identity[0].result.build_id : (local.hive_voice_enabled ? data.external.hive_voice_build_identity[0].result.build_id : ""))
     HIVE_PROJECTS_ROOT          = "/home/coder"
     HIVE_WORKSPACE_PROFILE      = local.profile.id
     HIVE_MANAGED_PROJECTS       = tostring(local.hive_host_enabled)
@@ -585,6 +585,10 @@ resource "kubernetes_persistent_volume_claim_v1" "home" {
 resource "kubernetes_deployment_v1" "workspace" {
   lifecycle {
     precondition {
+      condition     = data.coder_parameter.enable_hive_voice.value != "true" || local.profile.id == "software"
+      error_message = "Hive voice signaling requires the software workspace profile."
+    }
+    precondition {
       condition     = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? true : can(regex("^hive-codex-v[0-9]+$", local.profile.codex_sandbox_apparmor_profile))
       error_message = "Codex sandbox AppArmor policy must be a versioned hive-codex-vN localhost profile installed by the cluster operator."
     }
@@ -627,7 +631,7 @@ resource "kubernetes_deployment_v1" "workspace" {
         # Verify this compatibility annotation against deployed k3s before rollout.
         # Opt in only after the named policy is loaded on eligible nodes.
         # The seed-home container continues using the runtime's default policy.
-        annotations = merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+        annotations = merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data, local.hive_voice_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
           "container.apparmor.security.beta.kubernetes.io/dev" = "localhost/${local.profile.codex_sandbox_apparmor_profile}"
         })
 
@@ -783,6 +787,15 @@ resource "kubernetes_deployment_v1" "workspace" {
               read_only  = true
             }
           }
+          dynamic "volume_mount" {
+            for_each = local.hive_voice_enabled ? [true] : []
+            content {
+              name       = "hive-voice-bootstrap"
+              mount_path = "/opt/hive-voice-template"
+              read_only  = true
+            }
+          }
+
         }
 
         dynamic "volume" {
@@ -791,12 +804,6 @@ resource "kubernetes_deployment_v1" "workspace" {
             name = "hive-host-bootstrap"
             downward_api {
               default_mode = "0444"
-              items {
-                path = "install-codex-host.py"
-                field_ref {
-                  field_path = "metadata.annotations['hive.kethalia.com/host-installer']"
-                }
-              }
               items {
                 path = "request.json"
                 field_ref {
@@ -814,27 +821,25 @@ resource "kubernetes_deployment_v1" "workspace" {
             downward_api {
               default_mode = "0444"
               items {
-                path = "installer.gz.b64"
-                field_ref {
-                  field_path = "metadata.annotations['hive.kethalia.com/read-installer']"
-                }
-              }
-              items {
-                path = "start.py"
-                field_ref {
-                  field_path = "metadata.annotations['hive.kethalia.com/read-start']"
-                }
-              }
-              items {
-                path = "installer.sha256"
-                field_ref {
-                  field_path = "metadata.annotations['hive.kethalia.com/read-installer-sha256']"
-                }
-              }
-              items {
                 path = "request.json"
                 field_ref {
                   field_path = "metadata.annotations['hive.kethalia.com/read-request']"
+                }
+              }
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_voice_enabled ? [true] : []
+          content {
+            name = "hive-voice-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/voice-request']"
                 }
               }
             }

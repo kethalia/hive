@@ -1,0 +1,17 @@
+Prisma schema loaded from ../../../../../../../tmp/hive-repair-fence33-n8xwdmpj/schema.prisma
+Datasource "db": PostgreSQL database "hive_acceptance_test_upgrade33final", schema "public" at "127.0.0.1:44741"
+
+33 migrations found in prisma/migrations
+
+Applying migration `20261030200000_delivery_release_journal`
+Applying migration `20261030210000_delivery_acceptance_repair`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261030200000_delivery_release_journal/
+    └─ migration.sql
+  └─ 20261030210000_delivery_acceptance_repair/
+    └─ migration.sql
+      
+All migrations have been successfully applied.

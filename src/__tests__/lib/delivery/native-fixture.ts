@@ -9,6 +9,7 @@ import { DeliveryNativeSourceService } from "@/lib/delivery/native.server";
 import { nativeProofPayload } from "@/lib/delivery/native-contracts";
 
 export interface NativeFixtureHooks {
+  parentTurnId?: string;
   physical?: { revision: string; leaseId: string; leaseGeneration: number };
   beforeIntent?(scope: {
     user: User;
@@ -145,7 +146,7 @@ export async function nativeFixture(
     native = new DeliveryNativeSourceService(db, dependencies);
   const taskId = randomUUID(),
     stepId = randomUUID(),
-    parentTurnId = randomUUID();
+    parentTurnId = hooks.parentTurnId ?? randomUUID();
   const definition = {
     id: taskId,
     outcome: "Native observer synthetic fixture",

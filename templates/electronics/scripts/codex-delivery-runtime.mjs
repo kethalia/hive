@@ -414,20 +414,87 @@ export async function createInstalledDeliveryRuntime({
         return result;
       },
       readAcceptedSource: (claim, query) => sourceState.readForApply(claim.managerThreadId, query),
+      ...(acceptance
+        ? {
+            assessAcceptance: async (value, facts) => {
+              active();
+              await supervisor.readDeliveryBoundary(value);
+              active();
+              const decision = await acceptance.repairDecision(
+                value.managerThreadId,
+                {
+                  operationId: facts.accepted.operationId,
+                  revisionId: facts.accepted.sourceContext.revisionId,
+                },
+                sourceState,
+              );
+              active();
+              if (decision.phase !== "passed") return decision;
+              // The evaluator has archived its independent thread. Re-read the
+              // exact root/cohort boundary now, then seal the native journal.
+              const history = await supervisor.readDeliveryBoundary(value);
+              active();
+              const observed = adapter.acceptanceTerminalSnapshot(value.managerThreadId, value);
+              const terminal = {
+                schemaVersion: 1,
+                managerBindingId: observed.managerBindingId,
+                taskId: observed.taskId,
+                stepId: observed.stepId,
+                attemptId: observed.attemptId,
+                managerThreadId: value.managerThreadId,
+                parentTurnId: observed.parentTurnId,
+                cursorVersion: observed.cursorVersion,
+                nativeSequence: observed.nativeSequence,
+                sourceContext: observed.acceptedSourceContext,
+                observedAt: history.observedAt,
+                historyDigest: history.historyDigest,
+                loadedInventoryDigest: history.loadedInventoryDigest,
+                sourceJournalDigest: observed.sourceJournalDigest,
+                rootCompleted: true,
+                pendingHandlers: 0,
+                pendingObservers: 0,
+                unknownInputs: 0,
+                cohort: value.cohort.map(
+                  ({
+                    parentTurnId,
+                    spawnCallId,
+                    childThreadId,
+                    childTurnId,
+                    effectiveModel,
+                    effectiveEffort,
+                  }) => ({
+                    parentTurnId,
+                    spawnCallId,
+                    childThreadId,
+                    childTurnId,
+                    effectiveModel,
+                    effectiveEffort,
+                  }),
+                ),
+              };
+              const completed = await acceptance.completeVerified(value.managerThreadId, terminal);
+              active();
+              const after = adapter.acceptanceTerminalSnapshot(value.managerThreadId, value);
+              check(after.sourceJournalDigest === observed.sourceJournalDigest);
+              return completed;
+            },
+            readyRepair: async (value, decision) => {
+              active();
+              const result = await acceptance.repairReady(
+                value.managerThreadId,
+                decision.reservation.repairId,
+              );
+              active();
+              return result;
+            },
+          }
+        : {}),
       applyAcceptedSource: async (value, facts) => {
         await acceptance?.closeAdmission();
         const result = await application.applyAcceptedSource(value, facts);
         active();
-        acceptance?.reopenAdmission();
-        if (acceptance)
-          await acceptance.reviewCurrent(
-            value.managerThreadId,
-            {
-              operationId: facts.accepted.operationId,
-              revisionId: facts.accepted.sourceContext.revisionId,
-            },
-            sourceState,
-          );
+        // The evaluator stays closed until a fresh claimed manager turn. A
+        // repair decision is not success evidence or new execution authority.
         return result;
       },
       onObserverHold: ({ managerThreadId, reason }) => {

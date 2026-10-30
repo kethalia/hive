@@ -307,7 +307,8 @@ export function createDeliveryManagerAdapter(options) {
     : null;
   const active = new Set();
   const activeRoots = new Map();
-  const continuationTasks = new Map();
+  const continuationTasks = new Map(),
+    repairTimers = new Map();
   let closed = false;
   const assertAuthority = (expected, allowFailure = false) => {
     try {
@@ -430,11 +431,24 @@ export function createDeliveryManagerAdapter(options) {
       : {}),
     spawns: nativeSpool.boundarySpawns(claim.managerThreadId),
     cohort: nativeSpool.boundaryChildren(claim.managerThreadId),
+    ...(nativeSpool.repairDecision(claim.managerThreadId)?.phase === "ready"
+      ? { repair: nativeSpool.repairDecision(claim.managerThreadId) }
+      : {}),
   });
   const scheduleContinuation = (managerThreadId) => {
-    if (!progression || closed || continuationTasks.has(managerThreadId)) return;
+    if (
+      !progression ||
+      closed ||
+      continuationTasks.has(managerThreadId) ||
+      repairTimers.has(managerThreadId)
+    )
+      return;
     const claim =
-      (sourceProtocol && nativeSpool.sourceBoundaryCandidate(managerThreadId)) ||
+      (sourceProtocol &&
+        nativeSpool.sourceBoundaryCandidate(
+          managerThreadId,
+          typeof options.assessAcceptance === "function",
+        )) ||
       nativeSpool.continuationCandidate(managerThreadId);
     if (!claim || nativeSpool.continuationStart(managerThreadId)) return;
     // Detach from the observer promise before asking the supervisor to drain
@@ -444,6 +458,35 @@ export function createDeliveryManagerAdapter(options) {
         const request = continuationRequest(claim);
         if (sourceProtocol) {
           const publication = nativeSpool.sourcePublication(managerThreadId);
+          if (
+            publication &&
+            typeof options.assessAcceptance === "function" &&
+            nativeSpool.needsRepairDecision(managerThreadId) &&
+            !nativeSpool.repairDecision(managerThreadId)
+          ) {
+            nativeSpool.beginRepairPoll(managerThreadId);
+            const accepted = await readOutput(claim);
+            const decision = await options.assessAcceptance(request, accepted);
+            assertAuthority(request);
+            check(
+              ["reserved", "completed", "waiting", "held"].includes(decision?.phase),
+              "native_repair_decision_invalid",
+            );
+            if (decision.phase === "waiting") {
+              const timer = setTimeout(() => {
+                repairTimers.delete(managerThreadId);
+                scheduleContinuation(managerThreadId);
+              }, 60000);
+              timer.unref();
+              repairTimers.set(managerThreadId, timer);
+              return;
+            }
+            check(decision.phase !== "held", "native_repair_requires_reconciliation");
+            if (decision.phase === "completed")
+              nativeSpool.recordVerifiedCompletion(managerThreadId, request, decision);
+            if (decision.phase === "reserved")
+              nativeSpool.recordRepairDecision(managerThreadId, decision);
+          }
           if (publication && !publication.applied) {
             const accepted = await readOutput(claim);
             await options.applyAcceptedSource(request, accepted);
@@ -460,6 +503,15 @@ export function createDeliveryManagerAdapter(options) {
           const local = await sourceNow(managerThreadId, claim.checkoutBinding);
           check(local.phase === "ready", "delivery_source_not_ready");
           nativeSpool.assertAppliedSource(managerThreadId, local.sourceContext);
+          const repair = nativeSpool.repairDecision(managerThreadId);
+          if (repair?.phase === "reserved") {
+            check(typeof options.readyRepair === "function", "native_repair_callback_required");
+            const ready = await options.readyRepair(request, repair);
+            assertAuthority(request);
+            nativeSpool.recordRepairDecision(managerThreadId, ready);
+          }
+          if (nativeSpool.repairDecision(managerThreadId)?.phase === "ready")
+            request.repair = nativeSpool.repairDecision(managerThreadId);
           if (!nativeSpool.continuationCandidate(managerThreadId)) return;
           if (local.sourceContext) request.sourceContext = structuredClone(local.sourceContext);
         }
@@ -502,6 +554,13 @@ export function createDeliveryManagerAdapter(options) {
           claim.serverInstanceId === request.serverInstanceId,
         "native_progression_scope_changed",
       );
+      if (request.repair)
+        check(
+          sourceEqual(request.repair, nativeSpool.repairDecision(request.managerThreadId)) &&
+            request.repair.phase === "ready" &&
+            request.repair.reservation.leaseExpiresAt > Date.now(),
+          "native_repair_scope_changed",
+        );
       return assertAuthority(request);
     },
     tools: () => {
@@ -522,6 +581,11 @@ export function createDeliveryManagerAdapter(options) {
           " Read fresh factual status for the current claim using an empty payload. Evidence collection may be scheduled; status grants no action permission.";
       }
       return [spec];
+    },
+    acceptanceTerminalSnapshot(thread, request) {
+      check(sourceProtocol, "source_protocol_disabled");
+      assertAuthority(request);
+      return nativeSpool.acceptanceTerminalSnapshot(thread, request);
     },
     sourceApplicationSnapshot(thread, request) {
       check(sourceProtocol, "source_protocol_disabled");
@@ -688,6 +752,19 @@ export function createDeliveryManagerAdapter(options) {
               "native_continuation_receipt_missing",
             );
             const request = continuationRequest(current);
+            if (request.repair)
+              check(
+                command.payload.taskId === current.taskId &&
+                  command.payload.stepId === current.stepId &&
+                  command.payload.expectedVersion === request.repair.expectedVersion,
+                "native_repair_claim_changed",
+              );
+            if (sourceProtocol) {
+              const local = await sourceNow(params.threadId, current.checkoutBinding);
+              check(local.phase === "ready", "delivery_source_not_ready");
+              nativeSpool.assertAppliedSource(params.threadId, local.sourceContext);
+              if (local.sourceContext) request.sourceContext = structuredClone(local.sourceContext);
+            }
             const checked = await options.revalidateBoundary(request, params.turnId, {
               threadId: params.threadId,
               turnId: params.turnId,
@@ -995,12 +1072,17 @@ export function createDeliveryManagerAdapter(options) {
       await nativeSpool?.resume();
       // Restart never manufactures a runnable claim from a historical replay.
       // Existing acknowledged claims may reconcile their exact native history.
+      if (typeof options.assessAcceptance === "function")
+        for (const thread of currentRegistration()?.threads ?? [])
+          scheduleContinuation(thread.threadId);
     },
     async flushNative() {
       await nativeSpool?.flush();
     },
     async close() {
       closed = true;
+      for (const timer of repairTimers.values()) clearTimeout(timer);
+      repairTimers.clear();
       await Promise.allSettled(continuationTasks.values());
       await nativeSpool?.close();
     },

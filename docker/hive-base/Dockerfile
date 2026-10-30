@@ -18,6 +18,9 @@ RUN python3 /src/build-image.py
 FROM debian:trixie
 COPY --from=workspace-identity-build --chmod=0755 /out/hive-workspace-identity /usr/local/libexec/hive-workspace-identity
 COPY --from=workspace-identity-build --chmod=0644 /out/hive-workspace-identity.json /usr/local/libexec/hive-workspace-identity.json
+COPY --chmod=0555 hive-template-bootstrap.py /usr/local/libexec/hive-template-bootstrap
+COPY --from=template-runtime --chmod=0444 assets/codex-host.tar.xz assets/workspace-read.tar.gz assets/voice.tar.gz /usr/local/libexec/hive-template-runtime/
+COPY --from=template-runtime --chmod=0444 scripts/install-codex-host.py scripts/install-workspace-read.py scripts/install-voice.py /usr/local/libexec/hive-template-runtime/
 
 ARG WORKSPACE_VARIANT=cli
 

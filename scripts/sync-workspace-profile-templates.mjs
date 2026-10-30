@@ -4,6 +4,7 @@ import { dirname, join, relative } from "node:path";
 import { syncHostArchive } from "./build-codex-host-archive.mjs";
 import { buildTemplateArtifacts } from "./build-template-artifacts.mjs";
 import { syncWorkspaceReadPackage } from "./build-workspace-read-package.mjs";
+import { syncVoicePackage } from "./voice/build-package.mjs";
 
 const repositoryRoot = process.cwd();
 const canonicalRoot = join(repositoryRoot, "templates", "ai-dev-k8s");
@@ -16,6 +17,7 @@ const targetRoots = [
 const checkOnly = process.argv.includes("--check");
 await syncHostArchive(repositoryRoot, checkOnly);
 await syncWorkspaceReadPackage(repositoryRoot, checkOnly);
+await syncVoicePackage(repositoryRoot, checkOnly);
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -43,6 +45,12 @@ const sharedRelativePaths = [
   "main.tf",
   "hive-host.tf",
   "hive-read.tf",
+  "hive-voice.tf",
+  "assets/voice.tar.gz",
+  "assets/voice.tar.sha256",
+  "assets/voice.manifest.sha256",
+  "assets/voice-installer.py.gz",
+  "assets/voice-installer.sha256",
   "assets/codex-host.tar.sha256",
   "assets/codex-host.tar.xz",
   "assets/workspace-read.tar.gz",

@@ -140,6 +140,31 @@ export function createInstalledAcceptanceRuntime({
     async close() {
       await Promise.allSettled([pump.close(), reviewPending]);
     },
+    async repairDecision(thread, query, sourceState) {
+      active();
+      check(currentContext().managerThreadId === thread);
+      if (reviewPending) await reviewPending;
+      pump.reopenAdmission();
+      const facts = await sourceState.readForApply(thread, query);
+      active();
+      const candidate = await readAcceptanceMaterial(facts, { signal });
+      active();
+      const prepared = await client.request("prepare_review", { candidate });
+      if (prepared.phase !== "completed") await pump.tick();
+      await pump.closeAdmission();
+      active();
+      return client.request("repair_prepare", {});
+    },
+    async completeVerified(thread, terminal) {
+      active();
+      check(currentContext().managerThreadId === thread);
+      return client.request("complete_verified", { terminal });
+    },
+    async repairReady(thread, repairId) {
+      active();
+      check(currentContext().managerThreadId === thread);
+      return client.request("repair_ready", { repairId });
+    },
     async reviewCurrent(thread, query, sourceState) {
       active();
       if (reviewPending) await reviewPending;

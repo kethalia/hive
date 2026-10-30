@@ -1,0 +1,29 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+Repair native fixture retained: /home/coder/projects/kethalia/hive/.ar-DGFz5W
+x
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/delivery/acceptance-repair-native.integration.test.ts > actual native repair and independent re-review with signed PostgreSQL services > failed exact B becomes same-step repair on B, publishes C and obtains fresh independent review without weakening criteria
+Error: source_publication_scope_changed
+ ❯ result.db.$transaction.isolationLevel src/lib/delivery/source-publication.server.ts:238:21
+    236|               input.branch !== `codex/delivery/${task.id}/${input.oper…
+    237|             )
+    238|               throw new DeliveryConflict("source_publication_scope_cha…
+       |                     ^
+    239|             const native = await tx.deliveryEvent.findFirst({
+    240|               where: {
+ ❯ Proxy._transactionWithCallback node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:722:18
+ ❯ DeliverySourcePublicationService.accept src/lib/delivery/source-publication.server.ts:116:24
+ ❯ src/__tests__/lib/delivery/acceptance-repair-native.integration.test.ts:445:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  07:55:07
+   Duration  4.38s (transform 437ms, setup 0ms, collect 542ms, tests 3.69s, environment 0ms, prepare 41ms)
+

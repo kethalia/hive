@@ -112,14 +112,16 @@ class HostInstallerTests(unittest.TestCase):
         binary[16:20] = b"\x03\x00\x3e\x00"
         binary = bytes(binary)
         original = json.loads(next(value for name, value, _ in self.entries if name == "package-manifest.json"))
-        self.assertNotIn("guardian", original)
+        original.pop("guardian", None)
+        original["files"].pop("codex-native-guardian", None)
+        base_entries = [(name, value, kind) for name, value, kind in self.entries if name != "codex-native-guardian"]
         for malformed in (None, "missing_metadata", "wrong_architecture", "wrong_digest", "not_elf"):
             manifest = json.loads(json.dumps(original))
             payload = b"#!/bin/sh\n" if malformed == "not_elf" else binary
             manifest["files"]["codex-native-guardian"] = hashlib.sha256(payload).hexdigest()
             if malformed != "missing_metadata":
                 manifest["guardian"] = {"schemaVersion": 1, "platform": "linux", "architecture": "arm64" if malformed == "wrong_architecture" else "x64", "elfSha256": "0" * 64 if malformed == "wrong_digest" else hashlib.sha256(payload).hexdigest(), "sourceSha256": "1" * 64, "recipeSha256": "2" * 64}
-            entries = [(name, json.dumps(manifest).encode() if name == "package-manifest.json" else value, kind) for name, value, kind in self.entries]
+            entries = [(name, json.dumps(manifest).encode() if name == "package-manifest.json" else value, kind) for name, value, kind in base_entries]
             content = archive(entries + [("codex-native-guardian", payload, tarfile.REGTYPE)])
             digest = hashlib.sha256(content).hexdigest()
             if malformed:

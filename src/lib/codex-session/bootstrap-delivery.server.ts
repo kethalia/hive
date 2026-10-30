@@ -74,7 +74,13 @@ export type HostProjectPath =
 async function exchangeAppCookie(
   coder: AppAuthCoder,
   binding: AppBinding,
-  fixedPath: HostProjectPath | "/session" | "/terminal" | "/workspace/read",
+  fixedPath:
+    | HostProjectPath
+    | "/session"
+    | "/terminal"
+    | "/workspace/read"
+    | "/voice"
+    | "/voice/identity",
   expiresAt: number,
   fetchApp: typeof fetch,
 ) {
@@ -162,6 +168,18 @@ export async function exchangeVerifiedWorkspaceAppTerminalCookie(
   fetchApp: typeof fetch = fetch,
 ) {
   const value = await exchangeAppCookie(coder, binding, "/terminal", expiresAt, fetchApp);
+  return { cookie: value.cookie, url: value.url };
+}
+/** Voice only: fixed endpoints and request-local scoped cookies. */
+export async function exchangeVerifiedWorkspaceVoiceCookie(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  path: "/voice" | "/voice/identity",
+  expiresAt: number,
+  fetchApp: typeof fetch = fetch,
+) {
+  if (path !== "/voice" && path !== "/voice/identity") reject();
+  const value = await exchangeAppCookie(coder, binding, path, expiresAt, fetchApp);
   return { cookie: value.cookie, url: value.url };
 }
 /** Uses only Coder's app-scoped cookie, never owner headers or a general jar. */
