@@ -568,3 +568,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   No runtime flag or production deployment changed. Evidence:
   [application](guardian-source-application.md),
   [assembled validation](manager-source-local/assembled-parent.json).
+
+- Portable workspace action transport: reviewed implementation checkpoint, moderate difficulty.
+  A build-derived allowlist admits eight reviewed workspace HTTP actions and four read-only
+  discovery resources through the Cloudflare compatibility gate. Existing authentication,
+  argument and lifecycle ownership checks remain. Independent review corrected headerless
+  form bypass, the pinned framework's42-character IDs and premature build-lock release;
+  generated action mappings are now covered by readiness. Actual workerd and account-backed
+  lifecycle/browser validation follow. No workspace was mutated by this implementation.
+  Details: [portable actions](cloudflare-portable-actions.md).

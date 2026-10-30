@@ -9,7 +9,9 @@ const root = process.cwd();
 const appMode = process.argv.includes("--app");
 const callbacks = process.argv.includes("--callbacks");
 const deliveryCallbacks = process.argv.includes("--delivery-callbacks");
+const portableActions = process.argv.includes("--portable-actions");
 if (callbacks && !appMode) throw new Error("Callback proof requires actual app mode");
+if (portableActions && !appMode) throw new Error("Portable action proof requires actual app mode");
 if (deliveryCallbacks && !callbacks) throw new Error("Delivery callback proof requires callbacks");
 const deliveryCallbackPaths = [
   "/api/codex-host/guardians",
@@ -294,6 +296,80 @@ try {
       )
         throw new Error("Cross-site app read accepted");
       appChecks.crossSiteReadRejected = true;
+      if (portableActions) {
+        const { default: manifest } = await import(
+          "../../../.open-next/cloudflare/hive-portable-actions.mjs"
+        );
+        const actionId = Object.entries(manifest.actions).find(
+          ([, entry]) => entry.exportedName === "startWorkspaceAction",
+        )?.[0];
+        if (!actionId) throw new Error("Actual app portable action mapping missing");
+        const actionHeaders = {
+          ...headers,
+          Origin: "http://127.0.0.1:8793",
+          "Content-Type": "text/plain;charset=UTF-8",
+          "Next-Action": actionId,
+        };
+        // Invalid input reaches the real framework/schema but cannot call Coder.
+        const invalid = await request("/workspaces", {
+          method: "POST",
+          headers: actionHeaders,
+          body: "[{}]",
+        });
+        const invalidBody = await invalid.text();
+        if (
+          invalid.status !== 200 ||
+          !invalid.headers.get("content-type")?.includes("text/x-component") ||
+          !invalidBody.includes("validationErrors") ||
+          !invalidBody.includes("workspaceId")
+        )
+          throw new Error(
+            `Actual app portable action did not reach input validation (${invalid.status})`,
+          );
+        const unreviewed = await request("/workspaces", {
+          method: "POST",
+          headers: { ...actionHeaders, "Next-Action": `7f${"f".repeat(40)}` },
+          body: "[{}]",
+        });
+        if (unreviewed.status !== 503) throw new Error("Actual app unreviewed action was not held");
+        await unreviewed.body?.cancel();
+        const form = new FormData();
+        form.set(`$ACTION_ID_${actionId}`, "");
+        const headerless = await request("/workspaces", {
+          method: "POST",
+          headers: { ...headers, Origin: "http://127.0.0.1:8793" },
+          body: form,
+        });
+        if (headerless.status !== 503)
+          throw new Error("Actual app headerless form bypassed action review");
+        await headerless.body?.cancel();
+        const foreign = await request("/workspaces", {
+          method: "POST",
+          headers: { ...actionHeaders, Origin: "https://foreign.invalid" },
+          body: "[{}]",
+        });
+        if (foreign.status !== 503) throw new Error("Actual app cross-origin action was not held");
+        await foreign.body?.cancel();
+        const anonymous = await request("/workspaces", {
+          method: "POST",
+          headers: { ...actionHeaders, Cookie: "" },
+          body: "[{}]",
+        });
+        if (![307, 401].includes(anonymous.status))
+          throw new Error("Actual app portable action bypassed session authentication");
+        await anonymous.body?.cancel();
+        appChecks.portableActionTransport =
+          "real Next input validation; unknown/headerless/cross-origin rejected; session required; zero Coder mutations";
+        for (const resource of ["workspaces", "template-options", "agent", "templates"]) {
+          const anonymousRead = await request(`/api/discovery/${resource}`, {
+            headers: { Authorization: `Bearer ${previewBearer}` },
+          });
+          if (anonymousRead.status !== 401)
+            throw new Error("Actual app portable discovery bypassed session authentication");
+          await anonymousRead.body?.cancel();
+        }
+        appChecks.portableDiscoveryRequiresSession = true;
+      }
       const logout = await request("/api/auth/logout", { method: "POST", headers });
       if (logout.status !== 200) throw new Error("Actual app logout failed");
       const revoked = await request("/api/delivery/tasks", { headers });
@@ -451,7 +527,7 @@ try {
         }
       : {}),
   };
-  const evidencePath = `docs/checks/autonomous-delivery/cloudflare-auth-${deliveryCallbacks ? "delivery-callbacks" : appMode ? "app" : "local"}.json`;
+  const evidencePath = `docs/checks/autonomous-delivery/cloudflare-auth-${portableActions ? "portable-actions" : deliveryCallbacks ? "delivery-callbacks" : appMode ? "app" : "local"}.json`;
   await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
   execFileSync("pnpm", ["exec", "biome", "format", "--write", evidencePath], { stdio: "ignore" });
   console.log(JSON.stringify({ httpStatus: response.status, ...result }));
