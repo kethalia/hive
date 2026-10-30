@@ -16,17 +16,17 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Complete | PR #401 merged main into epic through GitHub; pulled 4d8b821. Formatting-only conflict resolved. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | Updated preview login/logout passed; baseline parity pending | Source106721d remote hashes and local23 checks pass. Hydration-aware browser run verifies login, secure cookies, desktop/mobile overflow, API logout and stale-cookie401. Both URLs are disabled;54requests total including preserved first failure. Latest full-Next local workerd at2970a7d passes auth/action/callback checks against Neon29. Preview schema29 preserves all38 prior tables and migration checksums. Settings UI/full baseline parity pending. |
-| F03 project discovery | Signed discovery and project enrollment implemented; preview pending | b0e278c ports discovery to verified Coder app transport, independently binds owner/build/app and uses agent-scoped GitHub access. No SSH fallback in Workers. 7635164 adds stable enrollment and durable first-task preparation; account-backed preview remains. |
+| F02 Cloudflare/Neon | Real preview login/project browsing passed; full parity pending | Deployed a92e305 passes real browser Phase A. Schema31 preserves all42 prior table hashes and30 migration checksums; assembled app/auth local workerd proof passes. Both public Worker URLs are disabled. |
+| F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
 | D02/D03 persistence | Foundation, recovery and informational reports validated locally | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation. 2e3c10e adds informational reported outcomes separate from verified acceptance, with two additive local migrations and PostgreSQL CI coverage. |
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
-| D07/D08 eligibility | Repository enrollment and immutable task policy passed independent review; semantic evaluator pending | 8571cd1 binds result references to the exact PR, checkout and full controller policy; 92 focused checks pass, including real PostgreSQL races. a4fa338 preserves pending retry bytes while retiring validated expired records. Live R2 retention/integrity passed; cleanup is complete. Installed source composition remains. GitHub reports no required PR checks. |
-| Test workspace | Running inactive9ea8aca template; signed identity mismatch under repair | codex/hive-epic-test retains its two-hour autostop. Real import succeeds; the installed read service rejects a Terraform-versus-runtime agent UUID mismatch. Both read and project hosts need the authenticated Coder startup identity resolver before acceptance. No primary credentials copied. |
+| D07/D08 eligibility | Independent semantic acceptance reviewed; repair/completion in progress | c53c785 binds encrypted intent, immutable plan, exact accepted source and independent native evaluation. Reviewed policy and live R2 integrity/retention remain in place. Repair33 review found a missing current-source SQL fence; correction and controller-derived completion are underway. |
+| Test workspace | Installed identity and discovery passed; delivery stays off | Dedicated codex/hive-epic-test runs inactive f77f7373 on reviewed e9230f1 image. Signed runtime identity and read service pass real Coder checks. The next image must include voice identity support and pinned public bootstrap assets; global active template is unchanged. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
-| F07 background-service replacement | Rotation, template publication/logs/notices and private task resumption implemented disabled | 2970a7d passes82 focused cases,42 real PostgreSQL cases and actual workerd task recovery. Template creation/update and raw-log/notices proofs pass; live publication/push/browser acceptance remains. Generic terminal writes/relay, voice/uploads, agent tools and legacy hook adapters remain. |
+| F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, agent-tools/integration adapters and legacy hook parity remain. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
 ## Resource and cost record
@@ -928,3 +928,29 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 - Independent acceptance: c53c785 completes the default-off reviewed producer slice. Immutable encrypted intent, durable plan/review jobs, exact source material and native evaluator provenance now compose locally. Independent review corrected empty-file handling and required exhaustive bounded archived history. Parent18 PG checks and8 compiled suites, including actual native evaluator checks, pass; all profiles include the reviewed package. Semantic repair loop, installed account-backed pilot and remote schema31 are next; no production activation. Evidence: [acceptance](independent-acceptance.md).
 
 - Preview schema31: complete, moderate difficulty. The existing migration runner applied the reviewed c53c785 acceptance migration only to hive_app_preview. A first hash comparison raced the separate workerd fixtures; after fixture cleanup, all42 prior table hashes and30 migration checksums match exactly. New intent/plan tables deny UPDATE/DELETE; jobs allow UPDATE and deny DELETE. Actual assembled app/auth Workers proof passes from7cc2bfb against schema31. Production untouched. Evidence: [migration](neon-independent-acceptance-migration.json), [app proof](cloudflare-auth-independent-acceptance.json).
+
+- Acceptance repair review: one current-source database fence was missing from the failed-attempt
+  transition. The application already checked it; migration33 is being tightened and a direct-SQL
+  regression added. The frozen checkpoint otherwise passed independent hash verification and37
+  adapter checks. Controller-derived completion is separate ongoing work; no full autonomous
+  task-success claim is made yet.
+- Voice review: the pending-cancellation/late-acknowledgement correction passes independent12
+  checks and the implementation suite passes69 focused cases plus local workerd transport.
+  Real Codex startup/disconnect semantics still require the dedicated workspace/browser pilot.
+- Packaging correction: separate ConfigMaps fit the size limits but conflict with the provisioner's
+  previously observed permissions. That candidate is superseded by root-owned image-baked public
+  packages with small Downward API requests, preserving template-pinned hashes and avoiding new
+  cluster permissions. This replacement needs its own template/image/live-startup validation.
+- D09 release control: the journal, target locks, before-effect receipts, recovery, private readiness
+  probes and build attestation have local implementation/tests. The trusted publisher, controller
+  integration and complete policy producers are still being built; no release authority is active.
+- Production-data rehearsal: the stored database address refuses connections and this workspace
+  has no Kubernetes credentials. A reachable read-only database connection or existing backup has
+  been requested; the remaining implementation work continues independently.
+
+- F08 capture preparation: implemented and reviewed locally. A read-only exported snapshot now
+  produces a private bounded archive and SHA-256 row fingerprints. The PostgreSQL17 fixture
+  proves a concurrent insert is excluded from both captured rows and restored data. Review
+  findings on streaming byte limits, shared deadlines and directory replacement were corrected;
+  the parent independently reran all4 tests. This is synthetic local data, not a completed
+  production-data migration. Evidence: [capture proof](data-capture-local.json).

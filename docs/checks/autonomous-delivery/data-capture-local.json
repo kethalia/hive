@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T08:44:05.759490+00:00",
+  "scope": "local PostgreSQL 17.11 synthetic fixture only",
+  "sourceHashes": {
+    "scripts/checks/data-migration/capture.py": "253b0bf34bfd2e48d1e5f9b952818ec172cb57109f5787c4048eba3a4ad512d8",
+    "scripts/checks/data-migration/test_capture.py": "9dae132c49f854a93b469df5c737638cbdec463d7f4362067a6ac213820937a8"
+  },
+  "command": "HIVE_CAPTURE_TEST_PORT=44741 python3 -B -m unittest discover -s scripts/checks/data-migration -p 'test_*.py'",
+  "testsPassed": 4,
+  "sourceRowsCaptured": 3,
+  "sourceRowsAfterConcurrentInsert": 4,
+  "restoredRowFingerprintsMatch": true,
+  "privateOutputPermissionsVerified": true,
+  "hardArchiveWriteBoundVerified": true,
+  "stalledChildDeadlineVerified": true,
+  "directoryReplacementRejected": true,
+  "failedCaptureHasNoSuccessManifest": true,
+  "fixtureDatabasesCreatedAndRemoved": 2,
+  "independentReview": "Initial byte/time/destination findings corrected; parent independently reran final fixture. Added startup cleanup guard for deadline expiration during subprocess creation.",
+  "initialFailures": [
+    "libpq environment database URL was not expanded; replaced with parsed connection fields",
+    "nested metadata JSON contained line breaks; canonical single-line JSON added",
+    "fresh restore database already contained public schema; fixture removes only that empty schema before restore"
+  ],
+  "productionAccessed": false,
+  "cloudResourcesChanged": false,
+  "limitations": [
+    "ordinary public-table row snapshot only",
+    "sequence values not MVCC-snapshotted",
+    "schema compatibility, runtime grants, secrets and actual production-data restore remain unverified",
+    "physical source size is an estimate; database sort/read I/O are not capped by archive byte bound"
+  ]
+}
