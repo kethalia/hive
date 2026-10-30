@@ -483,3 +483,9 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   typecheck pass. Parallel test-fixture interference was fixed without weakening assertions;
   its original failure remains. Actual installed outer/worker composition remains next.
   CI, image builds and native-guardian builds are green at3ec009f.
+
+- Guardian CI fixture correction: completed, low difficulty. The new service suite rejected
+  CI's loopback hostname `localhost` before running. It now accepts both loopback names while
+  retaining the exact isolated test-database restriction. Parent6 checks pass using CI's
+  hostname. The original CI result was190 passed/one skipped plus this failed suite; application,
+  image and native-guardian builds passed. No production authorization rule changed.
