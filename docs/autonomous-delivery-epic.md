@@ -19,14 +19,17 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 ## Work queue
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
-Current implementation checkpoint (2026-10-30): installed source application and fresh manager
-status have local composed proofs; Cloudflare/Neon schema30 preservation, private task recovery,
-template logs/notices and five-profile Terraform validation pass. Repository policy enrollment
-and exact epic-branch source selection are implemented and reviewed. An inactive real Coder
-import passes after archive correction. The runtime agent UUID mismatch has an implemented,
-reviewed official-SDK startup resolver; acceptance on the new image remains pending.
-Independent semantic acceptance, the Cloudflare terminal relay, remaining baseline migration,
-and live project/session/browser pilots remain in progress.
+Current implementation checkpoint (2026-10-30): the installed runtime identity resolver passes
+against the dedicated Coder test workspace. The private Cloudflare preview passes real browser
+login, GitHub repository discovery/search, project enrollment, mobile/desktop layout and logout.
+Neon schema31 preserves the prior data and migration history. Independent intent-aware acceptance
+is implemented and reviewed; its bounded repair loop and controller-driven completion are under
+review. Terminal, clipboard and voice transports have local proofs, with account-backed browser
+acceptance still pending. The release journal, artifact attestation and controlled delivery
+adapters are in development. The current package expansion must use image-baked public assets:
+historical live testing established that this Coder provisioner cannot create ConfigMaps.
+Shared-session browser pilots, full baseline compatibility and production-data migration rehearsal
+remain open. A reachable read-only production database or backup is needed for the latter.
 No production cutover has occurred.
 
 Current step reports and blockers: [execution ledger](checks/autonomous-delivery/progress.md). Each task follows Understand → Implement → Review →
