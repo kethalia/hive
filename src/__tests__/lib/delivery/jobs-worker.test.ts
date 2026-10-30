@@ -8,6 +8,7 @@ const calls = vi.hoisted(() => ({
   reconcile: vi.fn(),
   token: vi.fn(),
   tokenSend: vi.fn(),
+  templates: vi.fn(),
   db: {},
 }));
 vi.mock("@hive/db", () => ({ getDb: () => calls.db }));
@@ -26,6 +27,9 @@ vi.mock("@/lib/auth/rotation-notices", () => ({
   dispatchTokenWarnings: (...args: unknown[]) => calls.token(...args),
   sendTokenWarning: (...args: unknown[]) => calls.tokenSend(...args),
 }));
+vi.mock("../../../../deploy/cloudflare/jobs/template-publications", () => ({
+  dispatchTemplatePublication: (...args: unknown[]) => calls.templates(...args),
+}));
 
 import worker, { dispatchScheduled } from "../../../../deploy/cloudflare/jobs/worker";
 
@@ -33,6 +37,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   calls.close.mockResolvedValue(undefined);
   calls.create.mockReturnValue({ run: (run: () => unknown) => run(), close: calls.close });
+  calls.templates.mockResolvedValue({ enabled: false });
 });
 describe("scheduled delivery Worker lifetime", () => {
   it("requires explicit activation before creating a database context", async () => {
@@ -116,6 +121,45 @@ describe("scheduled delivery Worker lifetime", () => {
     await expect(worker.scheduled({}, { HIVE_DELIVERY_DISPATCH_ENABLED: "true" })).rejects.toThrow(
       "Delivery dispatch unavailable",
     );
+    expect(calls.close).toHaveBeenCalledOnce();
+  });
+  it("awaits template work alongside failed notifications before closing the database", async () => {
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    calls.dispatch.mockRejectedValue(new Error("push provider"));
+    calls.templates.mockImplementation(async (db, env) => {
+      expect(db).toBe(calls.db);
+      expect(env.HIVE_TEMPLATE_PUBLICATION_ENABLED).toBe("true");
+      await pending;
+      expect(calls.close).not.toHaveBeenCalled();
+      return { enabled: true, claimed: 1, progressed: 1, heldOrDeferred: 0 };
+    });
+    const work = dispatchScheduled({
+      HIVE_DELIVERY_DISPATCH_ENABLED: "true",
+      HIVE_TEMPLATE_PUBLICATION_ENABLED: "true",
+    });
+    const rejection = expect(work).rejects.toThrow("durable dispatch");
+    await Promise.resolve();
+    expect(calls.close).not.toHaveBeenCalled();
+    finish?.();
+    await rejection;
+    expect(calls.close).toHaveBeenCalledOnce();
+  });
+  it("allows a template-only wake and returns only its aggregate result", async () => {
+    calls.templates.mockResolvedValue({
+      enabled: true,
+      claimed: 1,
+      progressed: 0,
+      heldOrDeferred: 1,
+    });
+    expect(await dispatchScheduled({ HIVE_TEMPLATE_PUBLICATION_ENABLED: "true" })).toEqual({
+      enabled: true,
+      templatePublications: { enabled: true, claimed: 1, progressed: 0, heldOrDeferred: 1 },
+    });
+    expect(calls.dispatch).not.toHaveBeenCalled();
+    expect(calls.reconcile).not.toHaveBeenCalled();
     expect(calls.close).toHaveBeenCalledOnce();
   });
 });

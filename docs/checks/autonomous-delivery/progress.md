@@ -679,3 +679,20 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   flag changed. CI, app images, workspace images and native guardian builds pass328283f.
   Evidence: [installed composition](installed-delivery-factory.md),
   [parent assembly](installed-delivery-factory-local/parent-result.json).
+
+- Portable template publication: reviewed foundation checkpoint, high difficulty. Existing
+  templates now have owner/session-bound durable stages, globally serialized targets, fixed
+  artifact hashes and bounded replayable progress. Ambiguous version creation or activation
+  retains a hold; no blind retry publishes a second version. Fresh and26→27 migration proofs
+  preserve all35 prior table hashes. Parent validation passes126 checks including16 real
+  PostgreSQL cases, typecheck and schema validation. Nine actual workerd checks use the full
+  PrismaNeon client against local PostgreSQL with synthetic auth/Coder bindings, covering a
+  successful publication and both uncertain outcomes. Workerd caught unsupported redirect
+  handling in archive loading; explicit manual redirect rejection fixes it, with the initial
+  failure retained. Jobs process one stage per wake and require explicit private bindings.
+  An initial schema-check command used the wrong package context; the pinned database-package
+  command passes. First creation, provisioner-tag/variable parity, detailed log viewing and
+  live provider acceptance remain. No cron, remote template activation or production change.
+  Evidence: [publication contract](template-publication-design.md),
+  [workerd proof](template-publication-local/workerd.md),
+  [parent checks](template-publication-local/parent-result.json).

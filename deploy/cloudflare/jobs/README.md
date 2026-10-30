@@ -33,3 +33,17 @@ and uses a separate durable warning outbox. It needs the fixed `CODER_URL` and e
 configuration, not `ENCRYPTION_KEY`. The auth Worker owns rotation and its independent default-off
 schedule. See the [rotation checkpoint](../../../docs/checks/autonomous-delivery/token-rotation-scheduling.md)
 for bounds, uncertainty holds and the required Node scheduler cutover.
+
+Template publication uses the independent `HIVE_TEMPLATE_PUBLICATION_ENABLED=false` gate.
+Each wake processes at most one durable stage; import polling waits for a later wake rather
+than holding a Worker open. The request-scoped `AUTH_SERVICE` binding and its service secret
+resolve the requesting user's current session and token. Replies are limited to64 KiB and
+ten seconds. Jobs never receive the credential encryption key. Only aggregate stage counts
+are logged. An unavailable binding or artifact fails before provider mutation.
+
+Build the maintained archives with `node scripts/build-template-artifacts.mjs --assets`
+before packaging this Worker. Its ASSETS binding serves those fixed digest paths from
+`public`; the controller verifies archive size and digest against the committed manifest.
+The HTTP handler always returns404, including asset paths. No cron or public endpoint is
+enabled by this configuration. Existing-template publication is a foundation checkpoint;
+first creation, required variables, detailed log viewing and live acceptance remain gates.

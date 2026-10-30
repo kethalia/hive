@@ -3,8 +3,12 @@ import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
 import { dispatchTokenWarnings, sendTokenWarning } from "../../../src/lib/auth/rotation-notices";
 import { dispatchNotificationBatch, sendDeliveryPush } from "../../../src/lib/delivery/dispatch";
 import { reconcileProjectTasks } from "../../../src/lib/projects/task.server";
+import {
+  dispatchTemplatePublication,
+  type TemplatePublicationEnvironment,
+} from "./template-publications";
 
-type Environment = {
+type Environment = TemplatePublicationEnvironment & {
   DATABASE_URL?: string;
   HIVE_DELIVERY_DISPATCH_ENABLED?: string;
   HIVE_PROJECT_TASKS_ENABLED?: string;
@@ -17,14 +21,15 @@ export async function dispatchScheduled(env: Environment) {
   if (
     env.HIVE_DELIVERY_DISPATCH_ENABLED !== "true" &&
     env.HIVE_PROJECT_TASKS_ENABLED !== "true" &&
-    env.HIVE_TOKEN_WARNING_DISPATCH_ENABLED !== "true"
+    env.HIVE_TOKEN_WARNING_DISPATCH_ENABLED !== "true" &&
+    env.HIVE_TEMPLATE_PUBLICATION_ENABLED !== "true"
   )
     return { enabled: false };
   const context = createCloudflareDatabaseRequest(env.DATABASE_URL);
   return context.run(async () => {
     try {
       const db = getDb();
-      const [noticeResult, taskResult, tokenResult] = await Promise.allSettled([
+      const [noticeResult, taskResult, tokenResult, templateResult] = await Promise.allSettled([
         env.HIVE_DELIVERY_DISPATCH_ENABLED === "true"
           ? dispatchNotificationBatch(db, (ownerId, payload) =>
               sendDeliveryPush(
@@ -48,13 +53,15 @@ export async function dispatchScheduled(env: Environment) {
               ),
             )
           : Promise.resolve(undefined),
+        dispatchTemplatePublication(db, env),
       ]);
       // Independent dispatches finish before closing the shared request context;
       // a push-provider failure cannot strand accepted project preparation.
       if (
         noticeResult.status === "rejected" ||
         taskResult.status === "rejected" ||
-        tokenResult.status === "rejected"
+        tokenResult.status === "rejected" ||
+        templateResult.status === "rejected"
       )
         throw new Error("A durable dispatch could not complete");
       return {
@@ -62,6 +69,7 @@ export async function dispatchScheduled(env: Environment) {
         ...noticeResult.value,
         ...(taskResult.value ? { projectTasks: taskResult.value } : {}),
         ...(tokenResult.value ? { tokenWarnings: tokenResult.value } : {}),
+        ...(templateResult.value.enabled ? { templatePublications: templateResult.value } : {}),
       };
     } finally {
       await context.close();

@@ -1,0 +1,65 @@
+{
+  "observedAt": "2026-10-30T03:15:35.109940+00:00",
+  "localOnly": true,
+  "provider": "explicit scoped doubles; no external mutations",
+  "sourceStable": true,
+  "sourceHashes": {
+    "packages/db/prisma/schema.prisma": "299281d8f4127d9877943179d5716e5dac534fa87a6281a3aa5176b4685b8006",
+    "packages/db/prisma/migrations/20261029160000_template_publication/migration.sql": "54f451575e16aa77ad0a4e58e2c483090db96fbf02afef76c582c2c3b6b3c8dd",
+    "src/lib/templates/publication-actor.ts": "d46af8c6a2cddf94d78023e15f7f746e6c7986df7ff94dd7ea151e01f7d2ac7b",
+    "src/lib/templates/publication-artifact.ts": "b49279a8fda718308bb410de732300aba73fd1adfb0736f7e8206ef647d5d13f",
+    "src/lib/templates/publication-contracts.ts": "a3d3d187e0bc80fe093cfdee4fb99e203abe17ed651ee1a58c125f764ef84239",
+    "src/lib/templates/publication-factory.ts": "ed03d8123f80b40a779794b1951e33d5fdfac8ac061d421426a6becd3328e06b",
+    "src/lib/templates/publication-io.ts": "6fe81fdeb48d079d66ba71b6aa5659346d62ad3df8c4787f2b44985da7da6cbc",
+    "src/lib/templates/publication-provider.ts": "48ab094792b40bcaabe02915a440ac79d945bb55dc71c3d943ab526a15928d09",
+    "src/lib/templates/publication-routes.ts": "645b11dc4920fbd95c560243c7d13ac8df601fc2d1c9f358123d8d70ae2a4641",
+    "src/lib/templates/publication-service.ts": "a20a333626a50e80cd25aac689d462612cd52c5515a43b33bc6cb02c23f7e3da",
+    "src/lib/templates/publication-store.ts": "3fbff8a0163c865fb0001b9a1905ba5b1676505ff31cfce3cbea8290a5bb3d4e",
+    "src/lib/templates/push-route.node.ts": "c5e8b7409e6c10dac3a94a480b70d358585237498329f9299b07f087234d2ec9",
+    "src/lib/templates/push-stream-route.node.ts": "aeed8dc677d058b7ef8786496a3f41a3a640ab0df98b6df3df93f0d8969aa04b",
+    "src/app/api/templates/[name]/push/route.ts": "44bccf75bcf72cde01ab0fae6b20a8b14ca397a72bb2b5b51839a3b9b0ca1b43",
+    "src/app/api/templates/[name]/push/[jobId]/stream/route.ts": "2194ec18b29a7c5335cb2ec12f3d7c77fc8c3d8301970b5e97811b9501ba04e8",
+    "src/__tests__/lib/templates/publication.test.ts": "112d33e874a91c49ac9ef82fe429cec3f807e0c74137dc8d4039bbdf34c559c6",
+    "src/__tests__/lib/templates/publication.integration.test.ts": "fd39b8fa2816e31e6fbff6440f36c86e6d103561a130c89c2624a6aeb28f3210"
+  },
+  "checks": [
+    {
+      "command": [
+        "pnpm",
+        "--filter",
+        "@hive/db",
+        "exec",
+        "prisma",
+        "validate"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "tsc",
+        "--noEmit",
+        "--pretty",
+        "false"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/__tests__/lib/templates/publication.integration.test.ts",
+        "src/__tests__/lib/templates/publication.test.ts",
+        "src/__tests__/app/api/templates/push-routes.test.ts",
+        "src/__tests__/lib/templates/push-queue.test.ts",
+        "src/__tests__/lib/templates/push-stream.test.ts"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "fixturePort": 48273,
+  "supersededDraftFixtureRetained": true
+}

@@ -1,0 +1,22 @@
+{
+  "localOnly": true,
+  "observations": [
+    {
+      "stage": "database",
+      "classification": "test transport configuration",
+      "result": "Neon directory/CJS configuration did not configure the ESM adapter driver; no loopback bridge connection occurred",
+      "resolution": "Configure the exact ESM driver entrypoint in the local-only fixture",
+      "privateEvidence": "/tmp/hive-publication-workerd-w061D5/private-result.json"
+    },
+    {
+      "stage": "asset_digest",
+      "classification": "production adapter compatibility defect",
+      "result": "Workers TypeError: Invalid redirect value; only follow/manual are supported",
+      "passedBeforeFailure": ["defaultOffJobs", "actualJobsEmptyWake"],
+      "resolution": "ASSETS request uses manual redirect mode and rejects redirects with bounded body cancellation",
+      "privateEvidence": "/tmp/hive-publication-workerd-7jn9U4/private-result.json"
+    }
+  ],
+  "realProviderEffects": 0,
+  "remoteDatabaseWrites": 0
+}

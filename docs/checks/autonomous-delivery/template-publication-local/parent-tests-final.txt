@@ -1,0 +1,90 @@
+
+ RUN  v3.2.4 /tmp/hive-publication-parent-lsn3qc8g
+
+ ✓ src/__tests__/lib/templates/publication-jobs.test.ts (6 tests) 10019ms
+   ✓ template publication jobs binding > bounds stalled response streams and cancels the stream at deadline  10002ms
+ ✓ src/__tests__/lib/templates/publication.integration.test.ts (16 tests) 2750ms
+   ✓ durable template publisher / real PostgreSQL > rejects a late database acknowledgement and rolls back its event after lease expiry during SQL  1248ms
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > resolves per-user credentials and spawns coder with them
+[template-push] Starting push for "ai-dev-k8s" (job job-1)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > resolves per-user credentials and spawns coder with them
+[template-push] Push succeeded for "ai-dev-k8s" (job job-1)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > does not spawn or resolve owner credentials when the artifact is invalid
+[template-push] Starting push for "ai-dev-k8s" (job bad)
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > does not spawn or resolve owner credentials when the artifact is invalid
+[template-push] Preflight failed for "ai-dev-k8s" (job bad) — Template artifact digest mismatch
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > retains failure when stdin errors but the child later reports exit zero
+[template-push] Starting push for "ai-dev-k8s" (job pipe)
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > retains failure when stdin errors but the child later reports exit zero
+[template-push] Push failed for "ai-dev-k8s" (job pipe) — artifact input failed
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > tees stdout and stderr to log file
+[template-push] Starting push for "ai-dev-k8s" (job job-2)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > tees stdout and stderr to log file
+[template-push] Push succeeded for "ai-dev-k8s" (job job-2)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes [exit:0] sentinel on success
+[template-push] Starting push for "ai-dev-k8s" (job job-3)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes [exit:0] sentinel on success
+[template-push] Push succeeded for "ai-dev-k8s" (job job-3)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes [exit:1] sentinel and rejects on non-zero exit
+[template-push] Starting push for "ai-dev-k8s" (job job-4)
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes [exit:1] sentinel and rejects on non-zero exit
+[template-push] Push failed for "ai-dev-k8s" (job job-4) — exit code 1
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > rejects on spawn error and writes error to log
+[template-push] Starting push for "ai-dev-k8s" (job job-5)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes failure log when userId has no token
+[template-push] Starting push for "ai-dev-k8s" (job job-6)
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes failure log when userId has no token
+[template-push] Preflight failed for "ai-dev-k8s" (job job-6) — No Coder API token stored for user bad-user
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes failure log when coder binary is unavailable before spawn
+[template-push] Starting push for "ai-dev-k8s" (job job-7)
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes failure log when coder binary is unavailable before spawn
+[template-push] Preflight failed for "ai-dev-k8s" (job job-7) — [template-push] coder binary not found — checked /tmp/coder.*/coder and PATH
+
+ ✓ src/__tests__/lib/templates/push-queue.test.ts (12 tests) 323ms
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the ai-dev-k8s template
+[api/templates/push] Enqueued job fc201f8f-30f5-4227-9e1b-1c3dec69db78 for template "ai-dev-k8s"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the browser-testing template
+[api/templates/push] Enqueued job 65edc0a3-d739-4276-979c-7b147211bde1 for template "browser-testing"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the game-dev template
+[api/templates/push] Enqueued job af3898ba-0d4b-4e3d-93fc-4920a27175b0 for template "game-dev"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the electronics template
+[api/templates/push] Enqueued job 6043b208-285b-4364-a797-f680b90ae597 for template "electronics"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the infrastructure template
+[api/templates/push] Enqueued job 5afa80ac-0b84-4877-9f6d-f8b96e6cd167 for template "infrastructure"
+
+stderr | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > returns 500 when queue.add fails
+[api/templates/push] Failed to enqueue job for "ai-dev-k8s": Redis down
+
+ ✓ src/__tests__/app/api/templates/push-routes.test.ts (28 tests) 68ms
+ ✓ src/__tests__/lib/templates/publication.test.ts (13 tests) 27ms
+ ✓ src/__tests__/lib/templates/staleness.test.ts (18 tests) 22ms
+ ✓ src/__tests__/lib/templates/push-stream.test.ts (5 tests) 11ms
+ ✓ src/__tests__/lib/templates/artifact.node.test.ts (2 tests) 8ms
+ ✓ src/__tests__/lib/delivery/jobs-worker.test.ts (8 tests) 7ms
+ ✓ src/__tests__/lib/db/template-publication-transport.test.ts (12 tests) 5ms
+ ✓ src/__tests__/lib/templates/catalog.test.ts (6 tests) 3ms
+
+ Test Files  11 passed (11)
+      Tests  126 passed (126)
+   Start at  03:18:54
+   Duration  15.17s (transform 378ms, setup 0ms, collect 677ms, tests 13.24s, environment 1ms, prepare 393ms)

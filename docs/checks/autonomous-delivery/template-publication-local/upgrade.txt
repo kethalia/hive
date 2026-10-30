@@ -1,0 +1,14 @@
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "hive_template_upgrade_test", schema "public" at "127.0.0.1:48273"
+
+27 migrations found in prisma/migrations
+
+Applying migration `20261029160000_template_publication`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261029160000_template_publication/
+    └─ migration.sql
+
+All migrations have been successfully applied.
