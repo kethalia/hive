@@ -12,6 +12,9 @@ const reviewed = new Map([
       "listWorkspaceTemplatesAction",
       "getWorkspaceAction",
       "getWorkspaceAgentAction",
+      "getWorkspaceSessionsAction",
+      "getExistingTerminalPathsAction",
+      "getWorkspaceSessionToolsAction",
       "createWorkspaceAction",
       "startWorkspaceAction",
       "stopWorkspaceAction",
@@ -34,6 +37,7 @@ export function portableActionManifest(manifest) {
       filename: entry.filename,
       exportedName: entry.exportedName,
       paths: ["/workspaces"],
+      maxBodyBytes: entry.exportedName === "getExistingTerminalPathsAction" ? 786432 : 65536,
     };
   }
   for (const name of [

@@ -4,6 +4,18 @@ vi.mock("@/lib/coder/user-client", () => ({
   getCoderClientForUser: vi.fn(),
 }));
 
+const { portableRead, portableReadBound } = vi.hoisted(() => ({
+  portableRead: vi.fn(),
+  portableReadBound: vi.fn(),
+}));
+vi.mock("@/lib/workspaces/read-service.server", () => ({
+  createWorkspaceReadService: () => {
+    if (process.env.HIVE_WORKSPACE_READ_ENABLED !== "true")
+      throw new Error("Workspace discovery is disabled");
+    return { read: portableRead, readBound: portableReadBound };
+  },
+}));
+
 vi.mock("@/lib/workspace/exec", () => ({
   execInWorkspace: vi.fn(),
 }));
@@ -61,6 +73,10 @@ describe("workspace server actions", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    portableRead.mockReset();
+    portableReadBound.mockReset();
+    vi.stubEnv("HIVE_WORKSPACE_READ_ENABLED", "false");
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "node");
     vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example.com");
     vi.stubEnv("COOKIE_DOMAIN", "");
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -112,6 +128,117 @@ describe("workspace server actions", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it("routes Cloudflare session and file reads through signed service without shell access", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    vi.stubEnv("HIVE_WORKSPACE_READ_ENABLED", "true");
+    portableRead.mockResolvedValueOnce({
+      sessions: [{ name: "main", created: 1, windows: 1 }],
+      nextCursor: null,
+    });
+    const { getWorkspaceSessionsAction, getExistingTerminalPathsAction } = await import(
+      "@/lib/actions/workspaces"
+    );
+    expect((await getWorkspaceSessionsAction({ workspaceId: "ws-1" }))?.data).toEqual([
+      { name: "main", created: 1, windows: 1 },
+    ]);
+    portableRead.mockResolvedValueOnce({ candidates: [{ index: 0, status: "file" }] });
+    expect(
+      (
+        await getExistingTerminalPathsAction({
+          workspaceId: "ws-1",
+          sessionName: "main",
+          paths: ["README.md"],
+        })
+      )?.data,
+    ).toEqual(["README.md"]);
+    expect(mockedExec).not.toHaveBeenCalled();
+    expect(
+      portableRead.mock.calls.every(([principal]) => principal.hiveUserId === MOCK_SESSION.user.id),
+    ).toBe(true);
+  });
+
+  it("keeps disabled Cloudflare discovery explicit and never falls back to SSH", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    const { getWorkspaceSessionsAction } = await import("@/lib/actions/workspaces");
+    expect((await getWorkspaceSessionsAction({ workspaceId: "ws-1" }))?.serverError).toBe(
+      "Workspace discovery is disabled",
+    );
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("builds authenticated tool URLs from a portable directory read", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    vi.stubEnv("HIVE_WORKSPACE_READ_ENABLED", "true");
+    mockGetWorkspace.mockResolvedValue({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      owner_id: "owner-id",
+      template_id: "tpl-1",
+      latest_build: { id: "build-1", status: "running", job: { status: "succeeded" } },
+    });
+    portableReadBound.mockResolvedValueOnce({
+      data: { cwd: "/home/coder/projects/hive", state: "present" },
+      binding: {
+        workspaceId: "ws-1",
+        ownerId: "owner-id",
+        templateId: "tpl-1",
+        buildId: "build-1",
+        agentId: "agent-1",
+        coderOrigin: "https://coder.example.com",
+      },
+    });
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "main",
+      tool: "files",
+      documentFrameHosts: [],
+      filePath: "README.md",
+    });
+    expect(result?.data?.folderPath).toBe("/home/coder/projects/hive/README.md");
+    expect(mockGetApplicationAuthRedirect).toHaveBeenCalled();
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "build",
+    "owner",
+    "agent",
+  ])("rejects a changed %s after a signed directory read", async (change) => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    vi.stubEnv("HIVE_WORKSPACE_READ_ENABLED", "true");
+    portableReadBound.mockResolvedValueOnce({
+      data: { cwd: "/home/coder/projects/hive", state: "present" },
+      binding: {
+        workspaceId: "ws-1",
+        ownerId: "owner-id",
+        templateId: "tpl-1",
+        buildId: "build-1",
+        agentId: change === "agent" ? "old-agent" : "agent-1",
+        coderOrigin: "https://coder.example.com",
+      },
+    });
+    mockGetWorkspace.mockResolvedValue({
+      id: "ws-1",
+      name: "dev-box",
+      owner_name: "alice",
+      owner_id: change === "owner" ? "new-owner" : "owner-id",
+      template_id: "tpl-1",
+      latest_build: { id: change === "build" ? "build-2" : "build-1", status: "running" },
+    });
+    const { getWorkspaceSessionToolsAction } = await import("@/lib/actions/workspaces");
+    const result = await getWorkspaceSessionToolsAction({
+      workspaceId: "ws-1",
+      sessionName: "main",
+      tool: "files",
+      documentFrameHosts: [],
+    });
+    expect(result?.serverError).toContain("Workspace changed");
+    expect(mockGetApplicationAuthRedirect).not.toHaveBeenCalled();
+    expect(mockedExec).not.toHaveBeenCalled();
   });
 
   it.each([

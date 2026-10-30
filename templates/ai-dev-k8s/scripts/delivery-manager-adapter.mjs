@@ -511,6 +511,11 @@ export function createDeliveryManagerAdapter(options) {
         spec.description +=
           " Publish a bounded implementation proposal through the protected host. Accepted output is not local application or new execution authority; end the root turn after reporting.";
       }
+      if (typeof options.readStatus === "function") {
+        spec.inputSchema.properties.operation.enum.push("read_status");
+        spec.description +=
+          " Read fresh factual status for the current claim using an empty payload. Evidence collection may be scheduled; status grants no action permission.";
+      }
       return [spec];
     },
     sourceApplicationSnapshot(thread, request) {
@@ -591,6 +596,7 @@ export function createDeliveryManagerAdapter(options) {
             "report_step",
             "fail_attempt",
             ...(sourceProtocol ? ["publish_source"] : []),
+            ...(typeof options.readStatus === "function" ? ["read_status"] : []),
           ].includes(command.operation),
         "invalid_delivery_command",
       );
@@ -711,6 +717,48 @@ export function createDeliveryManagerAdapter(options) {
               ? nativeSpool.currentClaim(params.threadId)?.attemptId
               : command.payload.attemptId,
           );
+        }
+        if (command.operation === "read_status") {
+          check(
+            command.payload &&
+              typeof command.payload === "object" &&
+              !Array.isArray(command.payload) &&
+              Object.keys(command.payload).length === 0,
+            "delivery_status_payload_invalid",
+          );
+          const claim = nativeSpool?.currentClaim(params.threadId);
+          check(claim && claim.parentTurnId === params.turnId, "native_claim_missing");
+          const before = sourceContextFor(claim);
+          const result = await options.readStatus(before);
+          const after = nativeSpool.currentClaim(params.threadId);
+          const current = after && sourceContextFor(after);
+          check(
+            after &&
+              after.attemptId === claim.attemptId &&
+              after.parentTurnId === params.turnId &&
+              // A heartbeat may extend this same registration during the read.
+              // sourceContextFor independently checks its current expiry; only
+              // immutable scope must remain identical across the await.
+              sourceEqual(
+                {
+                  ...current,
+                  registration: {
+                    ...current.registration,
+                    expiresAt: before.registration.expiresAt,
+                  },
+                },
+                before,
+              ),
+            "delivery_status_scope_changed",
+          );
+          check(
+            !closed && Date.now() < deadline && Buffer.byteLength(JSON.stringify(result)) <= 32768,
+            "delivery_status_unavailable",
+          );
+          return {
+            contentItems: [{ type: "inputText", text: JSON.stringify(result) }],
+            success: true,
+          };
         }
         nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
         let sourceContext;

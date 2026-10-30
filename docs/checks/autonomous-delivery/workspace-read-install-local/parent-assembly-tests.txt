@@ -1,0 +1,25 @@
+
+ RUN  v3.2.4 /tmp/hive-read-status-parent-kx6skv1a
+
+ ✓ src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts (1 test) 11254ms
+   ✓ actual installed factory publishes, completes and applies accepted source before continuation through signed services  11251ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts (8 tests) 2744ms
+   ✓ current-claim factual delivery status with real guardian locks > uses actual challenge/publication watermarks and independently scoped GitHub policy  483ms
+   ✓ current-claim factual delivery status with real guardian locks > rejects correctly signed foreign claim, thread, lifetime, lease and source fields  501ms
+   ✓ current-claim factual delivery status with real guardian locks > reads accepted and pending application facts without requiring metadata application  390ms
+   ✓ current-claim factual delivery status with real guardian locks > rechecks revocation after authentication and rejects policy/TTL changes across awaited reads  438ms
+ ✓ src/__tests__/lib/workspaces/read-service.test.ts (6 tests) 426ms
+ ✓ src/__tests__/lib/workspaces/read-client.test.ts (5 tests) 224ms
+ ✓ src/__tests__/lib/workspaces/actions.test.ts (71 tests) 126ms
+ ✓ src/__tests__/lib/workspaces/read-transport.test.ts (4 tests) 67ms
+ ✓ src/__tests__/lib/db/portable-actions.test.ts (22 tests) 23ms
+ ✓ src/__tests__/lib/codex-session/bootstrap-delivery.test.ts (10 tests) 16ms
+ ✓ src/__tests__/lib/delivery/status-route.test.ts (5 tests) 13ms
+ ✓ src/__tests__/lib/db/host-callback.test.ts (22 tests) 9ms
+ ✓ src/__tests__/lib/db/host-callback-route.test.ts (1 test) 7ms
+ ✓ src/__tests__/lib/workspaces/read-actions.test.ts (9 tests) 5ms
+
+ Test Files  12 passed (12)
+      Tests  164 passed (164)
+   Start at  04:02:08
+   Duration  17.55s (transform 713ms, setup 0ms, collect 1.21s, tests 14.92s, environment 1ms, prepare 465ms)

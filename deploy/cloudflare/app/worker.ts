@@ -5,6 +5,7 @@ import handler from "../../../.open-next/worker.js";
 import type { HostCallbackCapabilities } from "../../../src/lib/codex-session/host-callback-transport";
 import { isHostCallbackTransport } from "./host-callback";
 import {
+  boundPortableActionBody,
   isPortableDiscovery,
   isPortableServerAction,
   isUnsupportedPageMutation,
@@ -74,6 +75,11 @@ export default {
         { error: "Preview authentication service is not configured." },
         { status: 503, headers: { "Cache-Control": "private, no-store" } },
       );
+    if (request.headers.has("Next-Action")) {
+      const bounded = await boundPortableActionBody(request, portableActions);
+      if (bounded instanceof Response) return bounded;
+      request = bounded;
+    }
     const database = createCloudflareDatabaseRequest(env.DATABASE_URL);
     return privatePreviewResponse(
       await runRequestLifetime(database, context, (tracked) =>

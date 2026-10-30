@@ -9,6 +9,7 @@ import { validateHostConfig } from "../templates/ai-dev-k8s/scripts/codex-worksp
 import { deliveryProofPayload } from "../templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs";
 import { nativeSourceProofPayload } from "../templates/ai-dev-k8s/scripts/delivery-native-spool.mjs";
 import { sourcePublisherProofPayload } from "../templates/ai-dev-k8s/scripts/delivery-source-publisher.mjs";
+import { statusResponse } from "./fixtures/delivery-status-response.mjs";
 
 function config() {
   return {
@@ -137,6 +138,13 @@ async function fixture(t, patch = {}) {
     fetchImpl: async (url, init) => {
       const body = JSON.parse(init.body);
       calls.push(body);
+      if (url === "https://hive.invalid/api/delivery/host/status" && patch.statusFetch)
+        return patch.statusFetch(body);
+      if (
+        url === "https://hive.invalid/api/delivery/github-source/challenge" &&
+        patch.challengeFetch
+      )
+        return patch.challengeFetch(body);
       if (url === "https://hive.invalid/api/delivery/native") {
         assert(
           verify(
@@ -225,6 +233,150 @@ async function fixture(t, patch = {}) {
     },
   };
 }
+
+function statusMetadata(f) {
+  const checkout = f.supervisor.checkout(f.supervisor.config.projects[0]);
+  return {
+    runtimeId: randomUUID(),
+    runtimeGeneration: 1,
+    admissionId: randomUUID(),
+    admissionGeneration: 3,
+    producerDigest: "a".repeat(64),
+    checkoutIncarnation: randomUUID(),
+    barrierGeneration: 0,
+    metadataPins: Object.fromEntries(
+      [
+        ["checkout", checkout],
+        ["git", join(checkout, ".git")],
+      ].map(([key, path]) => {
+        const s = statSync(path, { bigint: true });
+        return [key, { device: String(s.dev), inode: String(s.ino) }];
+      }),
+    ),
+    metadataPinsDigest: "b".repeat(64),
+    metadataPolicyDigest: "c".repeat(64),
+    namespaceReceiptDigest: "d".repeat(64),
+  };
+}
+test("installed read_status uses only empty current-claim scope and never treats missing policy as evidence", async (t) => {
+  let f,
+    meta,
+    reads = 0;
+  f = await fixture(t, {
+    statusFetch: (input) => {
+      reads++;
+      f.registration.expiresAt += 1000; // same-lifetime heartbeat is not a scope change
+      return Response.json(statusResponse(input, f.options.config.binding.hiveUserId, meta));
+    },
+  });
+  meta = statusMetadata(f);
+  f.options.guardian.currentMetadata = async () => meta;
+  assert(
+    f.runtime.adapter.tools()[0].inputSchema.properties.operation.enum.includes("read_status"),
+  );
+  await assert.rejects(f.call("read_status", {}), /native_claim_missing/);
+  const taskId = randomUUID(),
+    stepId = randomUUID();
+  await f.call("create_task", { id: taskId, steps: [{ id: stepId }] });
+  await f.call("claim_step", { taskId, stepId });
+  for (const payload of [{ taskId }, { repositoryId: "123" }, [], null])
+    await assert.rejects(f.call("read_status", payload), /payload_invalid/);
+  const result = JSON.parse((await f.call("read_status", {})).contentItems[0].text);
+  assert.equal(reads, 1);
+  assert.equal(result.scope.taskId, taskId);
+  assert.equal(result.scope.stepId, stepId);
+  assert.equal(result.executionAuthorized, false);
+  assert.deepEqual(result.blockers, ["policy_unavailable"]);
+  assert.equal(f.runtime.evidenceStatus().phase, "pending");
+});
+test("status schedules one bounded refresh per minute without waiting for collector and stops on pause", async (t) => {
+  let f,
+    meta,
+    paused = false,
+    refreshes = 0,
+    entered,
+    reply;
+  const began = new Promise((r) => (entered = r)),
+    late = new Promise((r) => (reply = r));
+  const accepted = { revisionId: randomUUID(), version: 1, headSha: "b".repeat(40) },
+    operationId = randomUUID();
+  f = await fixture(t, {
+    statusFetch: (input) => {
+      const value = statusResponse(input, f.options.config.binding.hiveUserId, meta);
+      value.source = {
+        ...value.source,
+        headSha: accepted.headSha,
+        sourceContext: accepted,
+        applicationPhase: "accepted",
+        operationId,
+        pullNumber: 7,
+      };
+      value.evidence.policyVersion = "fixture";
+      value.evidence.requirementStatus = "missing";
+      value.blockers = paused
+        ? ["task_paused"]
+        : ["evidence_missing", "source_application_pending"];
+      value.task.pauseRequested = paused;
+      return Response.json(value);
+    },
+    challengeFetch: async () => {
+      refreshes++;
+      entered();
+      await late;
+      return Response.json({ error: "fixture_provider_unavailable" }, { status: 403 });
+    },
+  });
+  meta = statusMetadata(f);
+  f.options.guardian.currentMetadata = async () => meta;
+  const taskId = randomUUID(),
+    stepId = randomUUID();
+  await f.call("create_task", { id: taskId, steps: [{ id: stepId }] });
+  await f.call("claim_step", { taskId, stepId });
+  // Explicit source-read double: publication/provider effects are not exercised
+  // by this scheduling test; real composition covers those separately.
+  f.runtime.adapter.currentAcceptedSource = async () => accepted;
+  await f.call("read_status", {});
+  await began;
+  for (let i = 0; i < 8; i++) await f.call("read_status", {});
+  assert.equal(refreshes, 1);
+  assert.equal(f.runtime.evidenceStatus().phase, "refreshing");
+  reply();
+  await new Promise((r) => setTimeout(r, 10));
+  await f.call("read_status", {});
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(refreshes, 1);
+  paused = true;
+  await f.call("read_status", {});
+  assert.equal(f.runtime.evidenceStatus().phase, "pending");
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(refreshes, 1);
+});
+test("registration loss during status rejects late signed facts", async (t) => {
+  let f, meta, enter, reply;
+  const entered = new Promise((r) => (enter = r)),
+    late = new Promise((r) => (reply = r));
+  f = await fixture(t, {
+    statusFetch: async (input) => {
+      const value = statusResponse(input, f.options.config.binding.hiveUserId, meta);
+      enter();
+      await late;
+      return Response.json(value);
+    },
+  });
+  meta = statusMetadata(f);
+  f.options.guardian.currentMetadata = async () => meta;
+  const taskId = randomUUID(),
+    stepId = randomUUID();
+  await f.call("create_task", { id: taskId, steps: [{ id: stepId }] });
+  await f.call("claim_step", { taskId, stepId });
+  const pending = f.call("read_status", {});
+  void pending.catch(() => {});
+  await entered;
+  f.revokeRegistration();
+  await assert.rejects(pending, /unavailable|authority/);
+  reply();
+  await f.runtime.close();
+});
 
 test("explicit delivery capability cannot be inferred from legacy manager-only config", () => {
   const enabled = config();

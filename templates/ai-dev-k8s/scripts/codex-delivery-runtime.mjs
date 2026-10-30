@@ -7,6 +7,7 @@ import { createDeliveryGitHubCollector } from "./delivery-github-collector.mjs";
 import { createDeliveryManagerAdapter } from "./delivery-manager-adapter.mjs";
 import { createDeliverySourcePublisher } from "./delivery-source-publisher.mjs";
 import { createDeliverySourceStateClient } from "./delivery-source-state-client.mjs";
+import { createDeliveryStatusClient } from "./delivery-status-client.mjs";
 
 const check = (value) => {
   if (!value) throw new Error("delivery_runtime_unavailable");
@@ -177,7 +178,7 @@ export async function createInstalledDeliveryRuntime({
       },
     ]),
   );
-  let publisher, sourceState;
+  let publisher, sourceState, statusClient;
   try {
     publisher = createDeliverySourcePublisher({
       enabled: true,
@@ -193,6 +194,17 @@ export async function createInstalledDeliveryRuntime({
       hiveOrigin: config.hiveOrigin,
       hostPrivateKeyPem: key,
       currentContext: context,
+      authorizeMetadata,
+      fetchImpl: request,
+    });
+    statusClient = createDeliveryStatusClient({
+      enabled: true,
+      hiveOrigin: config.hiveOrigin,
+      hostPrivateKeyPem: key,
+      currentContext: (thread) => ({
+        ...context(thread),
+        inputSourceSha: adapter.currentSourceContext(thread).inputSourceSha,
+      }),
       authorizeMetadata,
       fetchImpl: request,
     });
@@ -213,8 +225,38 @@ export async function createInstalledDeliveryRuntime({
       pendingCollections.clear();
       collectionStatus = { phase: "pending", reason };
     }
+    // This schedules a read-only collector, never execution or step completion.
+    const collectionPrerequisites = (status) =>
+      status.attempt.outcome === "running" &&
+      status.step.state === "running" &&
+      status.attempt.leaseExpiresAt > Date.now() &&
+      !status.task.pauseRequested &&
+      !status.task.schedulingPaused &&
+      status.source.operationId &&
+      status.source.pullNumber &&
+      status.evidence.policyVersion &&
+      !status.blockers.some(
+        (b) =>
+          ![
+            "evidence_missing",
+            "evidence_invalid",
+            "evidence_provenance_unavailable",
+            "source_application_pending",
+          ].includes(b),
+      );
+    let lastRefreshAt = 0;
     async function refresh() {
       if (closed || collection || !pendingCollections.size) return;
+      const remaining = 60000 - (Date.now() - lastRefreshAt);
+      if (remaining > 0) {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = null;
+          void refresh();
+        }, remaining);
+        timer.unref();
+        return;
+      }
       const candidate = [...pendingCollections.values()][0];
       collection = (async () => {
         try {
@@ -233,6 +275,11 @@ export async function createInstalledDeliveryRuntime({
             checkoutBinding: c.checkoutBinding,
           });
           check(same(accepted, candidate.sourceContext));
+          // Each refresh needs fresh server confirmation, including timer work.
+          // Local publication/collector caches cannot override pause or scope loss.
+          const status = await statusClient.read(candidate.managerThreadId);
+          check(collectionPrerequisites(status) && same(status.source.sourceContext, accepted));
+          lastRefreshAt = Date.now();
           collectionStatus = { phase: "refreshing", reason: null };
           // The collector's signed challenge independently resolves the current PR;
           // neither this timer nor a model supplies provider identity or PR number.
@@ -296,6 +343,23 @@ export async function createInstalledDeliveryRuntime({
       revalidateBoundary: (value, next, call) =>
         supervisor.revalidateDeliveryBoundary(value, next, call),
       currentSource: (thread) => controller.currentSource(thread),
+      readStatus: async (claim) => {
+        active();
+        const status = await statusClient.read(claim.managerThreadId);
+        active();
+        check(context(claim.managerThreadId).attemptId === claim.attemptId);
+        if (collectionPrerequisites(status)) {
+          pendingCollections.set(claim.managerThreadId, {
+            managerThreadId: claim.managerThreadId,
+            taskId: claim.taskId,
+            stepId: claim.stepId,
+            attemptId: claim.attemptId,
+            registrationId: claim.registration.id,
+            sourceContext: status.source.sourceContext,
+          });
+        } else stopCollection("evidence_refresh_prerequisite_unavailable");
+        return status;
+      },
       publishSource: async (claim, proposed) => {
         active();
         const c = context(claim.managerThreadId);
@@ -368,6 +432,7 @@ export async function createInstalledDeliveryRuntime({
             Promise.allSettled([
               collection,
               sourceState.close(),
+              statusClient.close(),
               publisher.close(),
               closeAdapter(),
             ]),
@@ -391,8 +456,7 @@ export async function createInstalledDeliveryRuntime({
     return {
       adapter,
       close: adapter.close,
-      // Trusted installed read seam only; a model-facing read_status tool requires
-      // a separately reviewed scope and is deliberately not installed here.
+      // Collection diagnostics are not evidence or completion eligibility.
       evidenceStatus() {
         active();
         return structuredClone(collectionStatus);
@@ -404,7 +468,12 @@ export async function createInstalledDeliveryRuntime({
     unsubscribeNative?.();
     unsubscribeRegistration?.();
     clearTimeout(timer);
-    await Promise.allSettled([publisher?.close(), sourceState?.close(), adapter?.close()]);
+    await Promise.allSettled([
+      publisher?.close(),
+      sourceState?.close(),
+      statusClient?.close(),
+      adapter?.close(),
+    ]);
     throw error;
   }
 }

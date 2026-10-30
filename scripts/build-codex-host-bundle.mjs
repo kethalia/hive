@@ -55,6 +55,7 @@ const modules = [
   "codex-host-registration.mjs",
   "codex-project-terminal.mjs",
   "delivery-manager-adapter.mjs",
+  "delivery-status-client.mjs",
   "delivery-native-spool.mjs",
   "delivery-github-collector.mjs",
   "delivery-github-journal.mjs",

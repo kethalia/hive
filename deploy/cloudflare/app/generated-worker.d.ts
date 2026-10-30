@@ -5,6 +5,9 @@ declare module "*.open-next/worker.js" {
   export default handler;
 }
 declare module "*.open-next/cloudflare/hive-portable-actions.mjs" {
-  const manifest: { schemaVersion: number; actions: Record<string, { paths: readonly string[] }> };
+  const manifest: {
+    schemaVersion: number;
+    actions: Record<string, { paths: readonly string[]; maxBodyBytes: number }>;
+  };
   export default manifest;
 }

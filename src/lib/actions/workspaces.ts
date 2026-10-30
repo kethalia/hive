@@ -7,6 +7,7 @@ import { z } from "zod";
 import { usesSecureSessionCookies } from "@/lib/auth/session-cookie";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import type { VerifiedHostBinding } from "@/lib/codex-session/registration.server";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
 import { isSafeCloneRelativePath } from "@/lib/git/clone-public-identifiers";
@@ -24,6 +25,10 @@ import {
   getIsolatedWorkspaceAppAuthRedirect,
   getWorkspaceAppIsolationContext,
 } from "@/lib/workspaces/app-access";
+import {
+  usesWorkspaceReadTransport,
+  workspaceReadActions,
+} from "@/lib/workspaces/read-actions.server";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
 import {
@@ -249,7 +254,37 @@ function resolveWorkspaceFallbackDirectory(value: string | undefined): string | 
     : null;
 }
 
-async function getWorkspaceWithAgent(userId: string, workspaceId: string) {
+async function getWorkspaceWithAgent(
+  userId: string,
+  workspaceId: string,
+  expected?: VerifiedHostBinding,
+) {
+  if (expected) {
+    const client = await getCoderClientForUser(userId);
+    const workspace = await client.getWorkspace(workspaceId);
+    const matches = (value: CoderWorkspace) =>
+      value.id === expected.workspaceId &&
+      value.owner_id === expected.ownerId &&
+      value.template_id === expected.templateId &&
+      value.latest_build.id === expected.buildId &&
+      value.latest_build.status === "running";
+    if (!matches(workspace) || client.getBaseUrl() !== expected.coderOrigin)
+      throw new Error("Workspace changed. Refresh and reopen the tool.");
+    const [resources, applicationsHost] = await Promise.all([
+      client.getWorkspaceResources(workspaceId, expected.buildId),
+      client.getApplicationsHost(),
+    ]);
+    const agents = resources
+      .flatMap((resource) => resource.agents ?? [])
+      .filter((agent) => agent.id === expected.agentId);
+    if (
+      agents.length !== 1 ||
+      agents[0].status !== "connected" ||
+      !matches(await client.getWorkspace(workspaceId))
+    )
+      throw new Error("Workspace changed. Refresh and reopen the tool.");
+    return { client, workspace, agent: agents[0], applicationsHost };
+  }
   const client = await getCoderClientForUser(userId);
   const [workspace, resources, applicationsHost] = await Promise.all([
     client.getWorkspace(workspaceId),
@@ -301,6 +336,8 @@ async function getSessionCurrentDirectory({
 export const getWorkspaceSessionsAction = authActionClient
   .inputSchema(getWorkspaceSessionsSchema)
   .action(async ({ parsedInput, ctx }) => {
+    if (usesWorkspaceReadTransport())
+      return workspaceReadActions(ctx.user).sessions(parsedInput.workspaceId);
     const client = await getCoderClientForUser(ctx.user.id);
 
     const workspace = await client.getWorkspace(parsedInput.workspaceId);
@@ -364,6 +401,7 @@ export const getExistingTerminalPathsAction = authActionClient
   )
   .action(async ({ parsedInput, ctx }) => {
     if (!parsedInput.paths.length) return [];
+    if (usesWorkspaceReadTransport()) return workspaceReadActions(ctx.user).paths(parsedInput);
     const { agent, client, workspace } = await getWorkspaceWithAgent(
       ctx.user.id,
       parsedInput.workspaceId,
@@ -416,9 +454,16 @@ export const getExistingTerminalPathsAction = authActionClient
 export const getWorkspaceSessionToolsAction = authActionClient
   .inputSchema(workspaceSessionToolsSchema)
   .action(async ({ parsedInput, ctx }) => {
+    const portableDirectory = usesWorkspaceReadTransport()
+      ? await workspaceReadActions(ctx.user).directoryWithBinding(
+          parsedInput.workspaceId,
+          parsedInput.sessionName,
+        )
+      : null;
     const { agent, applicationsHost, client, workspace } = await getWorkspaceWithAgent(
       ctx.user.id,
       parsedInput.workspaceId,
+      portableDirectory?.binding,
     );
     const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
     const toolAvailable =
@@ -429,12 +474,14 @@ export const getWorkspaceSessionToolsAction = authActionClient
       );
     }
 
-    const currentDirectory = await getSessionCurrentDirectory({
-      agentTarget: `${workspace.name}.${agent.name}`,
-      coderUrl: client.getBaseUrl(),
-      sessionName: parsedInput.sessionName,
-      sessionToken: client.getSessionToken(),
-    });
+    const currentDirectory = portableDirectory
+      ? portableDirectory.data.cwd
+      : await getSessionCurrentDirectory({
+          agentTarget: `${workspace.name}.${agent.name}`,
+          coderUrl: client.getBaseUrl(),
+          sessionName: parsedInput.sessionName,
+          sessionToken: client.getSessionToken(),
+        });
     const currentPath =
       currentDirectory ?? resolveWorkspaceFallbackDirectory(parsedInput.fallbackPath) ?? undefined;
     const folderPath = parsedInput.filePath

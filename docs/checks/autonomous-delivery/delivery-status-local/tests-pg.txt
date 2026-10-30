@@ -1,0 +1,22 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, completes and applies accepted source before continuation through signed services 9324ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts > current-claim factual delivery status with real guardian locks > uses actual challenge/publication watermarks and independently scoped GitHub policy 388ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts > current-claim factual delivery status with real guardian locks > reads immutable physical scope without mutating task/events or granting permissions 179ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts > current-claim factual delivery status with real guardian locks > rejects correctly signed foreign claim, thread, lifetime, lease and source fields 447ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts > current-claim factual delivery status with real guardian locks > reports pause/held/expired attempt facts without clearing writer fences 152ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts > current-claim factual delivery status with real guardian locks > reads accepted and pending application facts without requiring metadata application 346ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts > current-claim factual delivery status with real guardian locks > checks trusted coverage and expiry instead of accepting cached/forged evidence success 224ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts > current-claim factual delivery status with real guardian locks > rejects registration revocation and authority expiry during a read 249ms
+ ✓ src/__tests__/lib/delivery/status.integration.test.ts > current-claim factual delivery status with real guardian locks > rechecks revocation after authentication and rejects policy/TTL changes across awaited reads 360ms
+ ✓ src/__tests__/lib/delivery/status-route.test.ts > default-off fresh delivery status route > checks both execution flags before parsing or account access 4ms
+ ✓ src/__tests__/lib/delivery/status-route.test.ts > default-off fresh delivery status route > reads factual state without R2/policy configuration or new permissions 2ms
+ ✓ src/__tests__/lib/delivery/status-route.test.ts > default-off fresh delivery status route > rejects browser/query/compressed/overlarge payloads before DB 1ms
+ ✓ src/__tests__/lib/delivery/status-route.test.ts > default-off fresh delivery status route > bounds stalled cancellation before authentication 4ms
+ ✓ src/__tests__/lib/delivery/status-route.test.ts > default-off fresh delivery status route > sanitizes private failures and preserves scoped not-found/auth distinction 1ms
+
+ Test Files  3 passed (3)
+      Tests  14 passed (14)
+   Start at  03:50:09
+   Duration  12.99s (transform 547ms, setup 0ms, collect 903ms, tests 11.69s, environment 0ms, prepare 122ms)

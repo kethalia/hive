@@ -78,10 +78,12 @@ test("compiled delivery preserves source progression, native facts and collector
     "delivery-manager-adapter.mjs",
     "delivery-native-spool.mjs",
     "delivery-github-collector.mjs",
+    "delivery-status-client.mjs",
   ])([
     "scripts/verify-delivery-manager-adapter.test.mjs",
     "scripts/verify-delivery-native-spool.test.mjs",
     "scripts/verify-delivery-github-collector.test.mjs",
+    "scripts/verify-delivery-status-client.test.mjs",
   ]);
 });
 test("compiled source application preserves input barriers and recovery", {

@@ -144,7 +144,7 @@ resource "coder_script" "hive_projects" {
   lifecycle {
     precondition {
       # Include key bytes and reserve space below Kubernetes' 256-KiB annotation limit.
-      condition     = sum([for key, content in local.hive_host_bootstrap_data : length(base64encode(key)) * 3 / 4 + length(base64encode(content)) * 3 / 4]) <= 240000
+      condition     = sum([for key, content in merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data) : length(base64encode(key)) * 3 / 4 + length(base64encode(content)) * 3 / 4]) <= 240000
       error_message = "The managed host bootstrap exceeds its bounded pod metadata capacity."
     }
     precondition {

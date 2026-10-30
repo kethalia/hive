@@ -65,7 +65,7 @@ export type HostProjectPath =
 async function exchangeAppCookie(
   coder: AppAuthCoder,
   binding: AppBinding,
-  fixedPath: HostProjectPath | "/session" | "/terminal",
+  fixedPath: HostProjectPath | "/session" | "/terminal" | "/workspace/read",
   expiresAt: number,
   fetchApp: typeof fetch,
 ) {
@@ -209,6 +209,96 @@ export async function postToVerifiedWorkspaceApp(
     await response.body?.cancel().catch(() => {});
   }
 }
+/** Independent read service only. Fixed path, request-local app cookie, bounded
+ * stream lifetime. This does not add an operation to the project dispatcher. */
+export async function requestVerifiedWorkspaceRead(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  request: { ticket: string; expiresAt: number; signal?: AbortSignal },
+  fetchApp: typeof fetch = fetch,
+): Promise<unknown> {
+  const body = JSON.stringify({ ticket: request.ticket });
+  if (Buffer.byteLength(body, "utf8") > 786432) reject();
+  const remaining = Math.min(10000, request.expiresAt * 1000 - Date.now());
+  if (remaining < 1) reject();
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(remaining),
+    ...(request.signal ? [request.signal] : []),
+  ]);
+  signal.throwIfAborted();
+  let rejectStopped!: (reason: unknown) => void;
+  const stopped = new Promise<never>((_resolve, reject) => {
+    rejectStopped = reject;
+  });
+  const abort = () => rejectStopped(signal.reason);
+  signal.addEventListener("abort", abort, { once: true });
+  const scopedFetch: typeof fetch = (input, init) => {
+    signal.throwIfAborted();
+    return fetchApp(input, {
+      ...init,
+      signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]),
+    });
+  };
+  const cancel = async (work: () => Promise<unknown> | undefined) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.resolve()
+          .then(work)
+          .catch(() => {}),
+        new Promise<void>((done) => {
+          timer = setTimeout(done, 100);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+  let response: Response | undefined;
+  try {
+    const exchange = await Promise.race([
+      exchangeAppCookie(coder, binding, "/workspace/read", request.expiresAt, scopedFetch),
+      stopped,
+    ]);
+    signal.throwIfAborted();
+    response = await Promise.race([
+      scopedFetch(exchange.url, {
+        method: "POST",
+        redirect: "manual",
+        credentials: "omit",
+        headers: { "Content-Type": "application/json", Cookie: exchange.cookie },
+        body,
+      }),
+      stopped,
+    ]);
+    boundedHeaders(response);
+    if (response.status !== 200 || response.headers.has("location")) reject();
+    const reader = response.body?.getReader();
+    if (!reader) reject();
+    const chunks: Uint8Array[] = [];
+    let bytes = 0,
+      count = 0;
+    try {
+      for (;;) {
+        signal.throwIfAborted();
+        const r = await Promise.race([reader.read(), stopped]);
+        signal.throwIfAborted();
+        if (r.done) break;
+        bytes += r.value.byteLength;
+        count++;
+        if (bytes > 131072 || count > 512) reject();
+        chunks.push(r.value);
+      }
+      return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } finally {
+      await cancel(() => reader.cancel());
+    }
+  } finally {
+    signal.removeEventListener("abort", abort);
+    await cancel(() => response?.body?.cancel());
+  }
+}
+
 /** Fixed owner-only guardian endpoints. No caller-selected app path or headers. */
 export async function requestGuardianIdentity(
   coder: AppAuthCoder,
