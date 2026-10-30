@@ -513,3 +513,13 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   setup cases are retained. Default flags stay off; real native producer/source composition,
   application barriers and cleanup authorization remain gates. Evidence:
   [controller checkpoint](guardian-controller.md), [parent assembly](guardian-controller-local/assembled-parent.json).
+
+- Installed callback transport: reviewed implementation checkpoint, moderate difficulty. The
+  Cloudflare private gate and Next middleware now admit only nine exact, explicitly enabled
+  non-browser host callback routes to their existing signature/replay checks. Query, encoded,
+  browser, oversized and neighboring requests remain rejected. Parent and independent review
+  each pass38 focused checks; typecheck passes. The local workerd harness now covers both
+  disabled-route privacy and enabled malformed-envelope rejection without enrolling a host or
+  using remote R2. Actual workerd execution follows this commit; no deployed flag changed.
+  CI for a1b8b06 passed197 database checks but failed the installed fixture shutdown; that
+  separate failure is under investigation, with image/native-guardian builds successful.
