@@ -1,0 +1,8 @@
+RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/auth/rotation-scheduler.integration.test.ts (11 tests) 837ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  01:41:47
+   Duration  1.25s (transform 182ms, setup 0ms, collect 286ms, tests 837ms, environment 0ms, prepare 37ms)

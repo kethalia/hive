@@ -1,0 +1,2 @@
+> hive-auth@1.1.5 typecheck /home/coder/projects/kethalia/hive/services/auth
+> tsc --noEmit

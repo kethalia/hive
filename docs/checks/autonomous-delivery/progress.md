@@ -577,3 +577,14 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   generated action mappings are now covered by readiness. Actual workerd and account-backed
   lifecycle/browser validation follow. No workspace was mutated by this implementation.
   Details: [portable actions](cloudflare-portable-actions.md).
+
+- Credential rotation scheduling: reviewed implementation checkpoint, high difficulty. The
+  auth Worker now has a disabled, bounded scheduler with persistent leases, credential-version
+  reservations and an expiry-notice outbox. Ambiguous provider outcomes retain a hold rather
+  than minting again after timeout. Parent clean-export validation passes191 auth tests and22
+  targeted tests, including11 real PostgreSQL cases; typecheck and five local workerd checks
+  pass. Schema25→26 rehearsal preserves all32 prior table hashes. Workerd uses explicit store
+  and provider doubles; real provider rotation, operator reconciliation, Node scheduler
+  cutover and cron activation remain gates. No cloud resource or credential was changed.
+  Evidence: [rotation design](token-rotation-scheduling.md),
+  [parent validation](token-rotation-local/parent-result.json).

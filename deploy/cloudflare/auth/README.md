@@ -55,3 +55,10 @@ tracks dedicated Hive key IDs, stores actual provider expiry, and removes broad 
 and revocation. The local proof additionally exercises its actual login credential/session
 transaction with synthetic data. No real provider key operations or scheduler activation follow
 from those tests.
+
+The [durable rotation controller](../../../docs/checks/autonomous-delivery/token-rotation-scheduling.md)
+adds `HIVE_TOKEN_ROTATION_ENABLED=false` and an empty cron list. Its scheduled handler owns
+credential encryption and fixed-origin Coder operations; it exposes no HTTP rotation API.
+Generation reservations retain uncertain provider outcomes across lease expiry. The jobs Worker
+can dispatch typed expiry warnings separately, without credential encryption authority. Local
+PostgreSQL/workerd evidence does not activate either schedule or authorize live key operations.

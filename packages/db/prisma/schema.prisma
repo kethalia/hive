@@ -51,9 +51,64 @@ model CoderToken {
   updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id])
+  rotationOperations CredentialRotationOperation[]
+  expiryNotices CredentialExpiryNotice[]
 
   @@unique([userId])
+  @@unique([userId, id])
   @@map("coder_tokens")
+}
+
+model CredentialRotationSchedule {
+  id String @id @default(uuid()) @db.Uuid
+  configuredOrigin String @unique @map("configured_origin")
+  afterId String? @map("after_id") @db.Uuid
+  holder String? @db.Uuid
+  generation Int @default(0)
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  nextRunAt DateTime @default(now()) @map("next_run_at") @db.Timestamptz
+  sweepStartedAt DateTime? @map("sweep_started_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  operations CredentialRotationOperation[]
+  @@map("credential_rotation_schedules")
+}
+
+model CredentialRotationOperation {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  tokenId String @map("token_id") @db.Uuid
+  tokenVersion Int @map("token_version")
+  coderUserId String @map("coder_user_id") @db.Uuid
+  configuredOrigin String @map("configured_origin")
+  holder String @db.Uuid
+  scheduleGeneration Int @map("schedule_generation")
+  phase String @default("minting")
+  remoteKeyId String? @map("remote_key_id")
+  reason String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz
+  token CoderToken @relation(fields:[ownerId,tokenId],references:[userId,id],onDelete:Restrict,onUpdate:NoAction)
+  schedule CredentialRotationSchedule @relation(fields:[configuredOrigin],references:[configuredOrigin],onDelete:Restrict,onUpdate:NoAction)
+  @@unique([tokenId,tokenVersion])
+  @@index([phase,createdAt])
+  @@map("credential_rotation_operations")
+}
+
+model CredentialExpiryNotice {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  tokenId String @map("token_id") @db.Uuid
+  tokenVersion Int @map("token_version")
+  configuredOrigin String @map("configured_origin")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  token CoderToken @relation(fields:[ownerId,tokenId],references:[userId,id],onDelete:Restrict,onUpdate:NoAction)
+  @@unique([tokenId,tokenVersion])
+  @@index([configuredOrigin,status,nextAttemptAt])
+  @@map("credential_expiry_notices")
 }
 
 model Session {

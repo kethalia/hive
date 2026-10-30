@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-10-30T01:41:25.320Z",
+  "result": {
+    "ok": true,
+    "checks": {
+      "controllerBounds": true,
+      "unknownRetained": true,
+      "verifiedReplacement": true,
+      "providerDeadline": true,
+      "stalledBodyAndCancel": true
+    },
+    "scope": "workerd actual controller with explicit store/provider doubles; no SQL/provider proof"
+  },
+  "sourceStable": true,
+  "sourceSha256": {
+    "services/auth/src/auth/rotation-scheduler.ts": "82ef21feda95f018ac19e4eaf79e9882448621f38152c3fea7631bd2c50b3067",
+    "services/auth/src/auth/rotation-store.ts": "d1d77a65947c1b91782154cbd88f23edab7182d6155c19167cbf5819503bd5fb",
+    "services/auth/src/auth/rotation-contracts.ts": "d846db352bcea2e23138878bbd675fd339fb1f9fb450be82c2ec239a9d883529",
+    "services/auth/src/auth/bounded-coder-json.ts": "bc1f202ad6e91f2287178d6cb4d75f29100e7f99877e8be594573726c2a7630c",
+    "deploy/cloudflare/auth/local-rotation.worker.ts": "63341b562cf848acf1a474d3d4506f2e56741f129345ba95728d34670baf7558",
+    "deploy/cloudflare/auth/run-local-rotation.mjs": "03853a25f0eeebfa821dd5621acbcf655ddc0c6ff6f48d3994a66321ccf56b64"
+  },
+  "externalRequests": 0,
+  "realDatabase": false,
+  "remoteProviderProof": false,
+  "productionActivation": false
+}

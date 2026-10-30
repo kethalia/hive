@@ -1,0 +1,37 @@
+# Durable credential rotation scheduling checkpoint
+
+Rotation now has a default-off scheduled entry in the existing authentication Worker. That Worker already owns credential decryption and Coder key operations; the jobs Worker receives only expiry-warning metadata and VAPID delivery responsibility. There is no production HTTP rotation endpoint, new Queue, Durable Object, Redis connection or process-local scheduler. Both new flags are false and both configurations have empty cron lists. The Node BullMQ adapter remains unchanged.
+
+## Durable ownership and provider uncertainty
+
+Migration `20261029150000_credential_rotation_scheduler` adds three tables and an owner/token composite index. It rewrites no credential bytes:
+
+- `credential_rotation_schedules` owns the configured Coder origin, fair scan cursor, sweep timing and monotonically fenced holder/generation/lease.
+- `credential_rotation_operations` consumes one mint reservation for a token ID/version before making the provider request. Owner, token, Coder user, origin and claim identity are immutable; reservations cannot be deleted or reset through normal SQL updates. A final outcome cannot be reopened.
+- `credential_expiry_notices` durably deduplicates warnings by token/version with an owner-scoped token foreign key and bounded delivery claims.
+
+An expired scan lease permits another controller to continue scanning other credentials. It never deletes a mint reservation or authorizes a second mint for the same credential generation. A crash can leave `minting`; a timeout or unverified provider result records `uncertain`. Both remain consumed and visible to operators. `not_stored` also remains consumed. There is deliberately no automatic retry/reset/reconciliation endpoint for these generations.
+
+The credential CAS revalidates the current configured origin, Hive owner, Coder identity, token version and scheduler lease inside the write transaction. User and credential locks serialize a concurrent login. Verified replacement bytes, expiry, remote key identity and the operation's stored outcome commit together. After a conclusive rollback, only that attempt's own verified candidate may be discarded. Unknown commit outcomes retain the candidate, including when a commit actually succeeded but its acknowledgement was lost. A successful replacement may revoke only the previously recorded Hive-owned key; legacy untracked keys remain for expiry. Provider cleanup failure is counted and retained for review; it cannot roll back a stored winner.
+
+The lease does not stop an already admitted or in-flight Coder request. Abort bounds the controller's wait and cannot prove that a remote mint did not happen. The durable per-generation reservation prevents reminting after lease expiry; this is not an exactly-once provider claim. A concurrent login or the unchanged Node adapter is a separate issuer and is not fenced by this scheduler's operation ledger.
+
+## Bounds and notification semantics
+
+Each invocation processes at most 20 credential rows and reserves at most two mints. Its admission/provider-await budget is 80 seconds; the scan lease lasts 120 seconds. Each provider operation is awaited for at most 10 seconds. Managed-key JSON reads accept at most 16 KiB and 128 chunks, and stalled cancellation is capped at 100 ms. Database calls and final scope cleanup may extend beyond the admission budget. No new provider operation is authorized by an expired generation. A completed sweep waits one hour; a partial sweep leaves a persisted cursor ready for the next wake-up. Scan capacity and wake-up cadence must be checked before activation so warnings are not delayed by a large backlog.
+
+The existing 75% lifetime threshold and 24-hour warning window use the actual current credential generation and provider expiry. Expired, wrong-origin, early and undecryptable credentials do not mint. An undecryptable but expiring credential may still produce a reauthentication warning. All Coder requests use the configured origin and reject redirects. Custom CA configuration is rejected by the Cloudflare controller rather than silently ignored.
+
+The jobs Worker can dispatch at most five warnings per invocation, each to at most 50 subscriptions with the existing Fetch/VAPID implementation. Token preferences are independent of delivery-report preferences. A fresh owner/token-version/origin/expiry check suppresses a warning whose successful replacement is already committed before dispatch. Rotation can still race a push after that check; there is no distributed transaction with the push provider. Stable per-notice tags collapse duplicate at-least-once pushes. Claims expire after 120 seconds, acknowledgements compare the exact attempt, retries back off from 30 seconds, and five consumed attempts permanently fail delivery. Expired subscriptions are removed only with their selected owner and endpoint. Delivery needs no encryption key and reads no credential ciphertext.
+
+## Local evidence and remaining gates
+
+Evidence is in [token-rotation-local](./token-rotation-local/). The dedicated local PostgreSQL suite covers competing wake-ups, cursor/process replacement, row/mint limits, crash reservations, lease takeover during an in-flight provider call, concurrent login and origin changes, both committed and uncommitted lost database acknowledgements, owner foreign keys, stale push acknowledgements and retry exhaustion. Coder and push callbacks in these tests are explicit doubles; no external key or push operation occurs.
+
+Fresh schema-26 migration and upgrade of a copied schema-25 database pass. Per-table hashes verify all existing rows in all 32 prior tables remain unchanged, including credentials. The original schema-25 fixture is retained unchanged. The local workerd proof exercises the actual controller, encryption and deadline/body handling with explicit store/provider doubles; it is not SQL or real-provider evidence. Separate PostgreSQL tests exercise the real store. Neither proof establishes deployed scheduling, account-backed key rotation or real device delivery.
+
+Before activation, independently review this migration and code, run the final actual authentication Worker build, and arrange the single scheduler cutover. Stop the Node rotation worker before enabling an auth Worker cron against the same credential database; the existing global background-worker flag also stops unrelated jobs and is not a selective migration switch. Supply the existing auth encryption identity and fixed Coder origin only to the auth Worker, configure jobs VAPID and token-warning dispatch separately, and approve the bounded account-backed key lifecycle proof. Operator alerts and a separately authorized reconciliation procedure for held generations remain necessary operational work. Do not reset a held reservation based only on lease expiry or an old committed-row read.
+
+No preview/production migration, real Coder mint/revocation, external push, cron activation or cloud deployment was performed by this checkpoint. Template publishing and agent-hook/background notification adapters remain separate F07 work; this slice does not establish complete F07 parity or authorize cutover.
+
+Cloudflare documents scheduled handlers for periodic maintenance and a 15-minute wall limit; the controller uses the smaller bounds above. See [Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/) and [Worker limits](https://developers.cloudflare.com/workers/platform/limits/).
