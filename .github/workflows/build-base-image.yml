@@ -202,7 +202,7 @@ jobs:
       - name: Record exact source, registry digest and helper identity
         run: |
           image="ghcr.io/kethalia/hive-base:preview-cli-${GITHUB_SHA}"
-          export EXPECTED_CONFIG_DIGEST="$(docker image inspect --format '{{.Id}}' "$image")"
+          export EXPECTED_LOCAL_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$image")"
           python3 tools/workspace-identity/preview-image.py published > /tmp/workspace-preview-proof.json
           {
             echo '### Reviewed cli preview image'

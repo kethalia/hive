@@ -7,6 +7,8 @@ import {
   type ProjectReconcileEnvironment,
   projectReconcilePath,
 } from "../../../src/lib/projects/reconcile-transport";
+import { genericTerminalPath } from "./generic-terminal-relay";
+import { type GenericTerminalEnvironment, genericTerminalRelay } from "./generic-terminal-runtime";
 import { isHostCallbackTransport } from "./host-callback";
 import {
   boundPortableActionBody,
@@ -28,6 +30,7 @@ import { runRequestLifetime } from "./request-lifetime";
 import { isPortableTemplatePublication } from "./template-publications";
 
 type Environment = ProjectRelayEnvironment &
+  GenericTerminalEnvironment &
   ProjectReconcileEnvironment &
   HostCallbackCapabilities & {
     DATABASE_URL?: string;
@@ -37,6 +40,7 @@ type Environment = ProjectRelayEnvironment &
     HIVE_PREVIEW_ORIGIN?: string;
     HIVE_TEMPLATE_PUBLICATION_ENABLED?: string;
     HIVE_TEMPLATE_LOG_VIEW_ENABLED?: string;
+    HIVE_PROJECT_DISCOVERY_ENABLED?: string;
   };
 type Context = { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void };
 
@@ -60,6 +64,8 @@ export default {
     const previewExpiresAt =
       previewCookieExpiresAt(request, cookieOptions) ?? Date.now() + 15 * 60 * 1000;
     request = withoutPreviewCredential(request);
+    if (genericTerminalPath(request))
+      return genericTerminalRelay(request, env, previewExpiresAt, context);
     if (projectRelayPath(request)) return projectRelay(request, env, previewExpiresAt, context);
     const pathname = new URL(request.url).pathname;
     // These paths still need the scoped host bridge and durable jobs. The
@@ -75,9 +81,14 @@ export default {
           env.HIVE_TEMPLATE_LOG_VIEW_ENABLED,
         )) ||
       (pathname.startsWith("/api/discovery/") && !isPortableDiscovery(request)) ||
-      pathname === "/api/projects" ||
+      (pathname === "/api/projects" &&
+        !(
+          request.method === "GET" &&
+          env.HIVE_PROJECT_DISCOVERY_ENABLED === "true" &&
+          env.HIVE_CODEX_GATEWAY_ENABLED === "true"
+        )) ||
       pathname.startsWith("/api/workspace-proxy") ||
-      pathname === "/api/auth/terminal-ticket" ||
+      (pathname === "/api/auth/terminal-ticket" && env.HIVE_GENERIC_TERMINAL_ENABLED !== "true") ||
       pathname === "/api/notifications/events" ||
       (pathname === "/api/notifications/sources" && request.method !== "GET") ||
       /^\/api\/workspaces\/[^/]+\/(voice|terminal\/paste-assets)(\/|$)/.test(pathname);

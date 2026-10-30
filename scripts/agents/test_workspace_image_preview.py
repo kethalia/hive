@@ -35,18 +35,21 @@ class ImagePreviewTests(unittest.TestCase):
                     with self.assertRaises(RuntimeError):
                         preview.run("absent")
 
-    def test_published_manifest_must_match_smoke_tested_config_digest(self):
+    def test_published_manifest_accepts_exact_classic_or_containerd_local_image_id(self):
         manifest = json.dumps({"config": {"digest": "sha256:" + "c" * 64}}, separators=(",", ":")).encode()
         digest = "sha256:" + hashlib.sha256(manifest).hexdigest()
         pin = {"schemaVersion": 1, "sdkVersion": "v2.38.4", "goVersion": "go1.26.10", "sha256": "d" * 64}
         replies = [(200, b'{"token":"anonymous-fixture"}', {}), (200, b"", {}), (200, manifest, {"Docker-Content-Digest": digest})]
-        for config, accepted in (("sha256:" + "c" * 64, True), ("sha256:" + "e" * 64, False)):
-            with patch.dict(os.environ, {**self.env, "EXPECTED_CONFIG_DIGEST": config}, clear=True), patch.object(preview, "fetch", side_effect=replies), patch.object(Path, "read_text", return_value=json.dumps(pin)):
+        for local, accepted in (("sha256:" + "c" * 64, True), (digest, True), ("sha256:" + "e" * 64, False), ("", False)):
+            with patch.dict(os.environ, {**self.env, "EXPECTED_LOCAL_IMAGE_ID": local}, clear=True), patch.object(preview, "fetch", side_effect=replies), patch.object(Path, "read_text", return_value=json.dumps(pin)):
                 if accepted:
                     proof = preview.run("published")
                     self.assertEqual(proof["image"], "ghcr.io/kethalia/hive-base@" + digest)
                     self.assertFalse(proof["activation"])
                     self.assertEqual(proof["helperSha256"], pin["sha256"])
+                    self.assertEqual(proof["imageConfigDigest"], "sha256:" + "c" * 64)
+                    self.assertEqual(proof["smokeTestedLocalImageId"], local)
+                    self.assertEqual(proof["localImageIdKind"], "manifest" if local == digest else "config")
                 else:
                     with self.assertRaises(RuntimeError):
                         preview.run("published")

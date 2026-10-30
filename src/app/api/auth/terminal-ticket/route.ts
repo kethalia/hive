@@ -1,6 +1,13 @@
 import { createTerminalTicket, isLoopbackHostname } from "@hive/auth";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getRequestSession } from "@/lib/auth/session";
 import { resolveTerminalWsUrl } from "@/lib/runtime-config";
+import { publicationBody } from "@/lib/templates/publication-io";
+import {
+  type GenericTerminalAuthEnvironment,
+  genericTerminalIssuerSession,
+} from "@/lib/terminal/generic-auth.server";
+import { parseGenericTerminalTarget } from "../../../../../deploy/cloudflare/app/generic-terminal-relay";
 
 const ENDPOINTS = new Set(["/ws", "/ws/audio", "/keepalive/status", "/session-events"]);
 
@@ -18,6 +25,9 @@ export async function POST(request: Request): Promise<Response> {
       headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
     });
   try {
+    const cloudflare = process.env.HIVE_RUNTIME_TARGET === "cloudflare";
+    if (cloudflare && process.env.HIVE_GENERIC_TERMINAL_ENABLED !== "true")
+      return response(404, { error: "Terminal transport unavailable" });
     // Forwarded headers alone are not authority for minting a browser credential.
     const origin = new URL(process.env.HIVE_PUBLIC_ORIGIN || request.url).origin;
     if (request.headers.get("origin") !== origin)
@@ -25,10 +35,29 @@ export async function POST(request: Request): Promise<Response> {
     const configured = process.env.NEXT_PUBLIC_TERMINAL_WS_URL || "";
     const location = new URL(origin);
     const base = httpUrl(resolveTerminalWsUrl(configured, location));
-    const { url: requestedUrl } = await request.json();
+    if (
+      request.headers.get("Content-Type")?.split(";")[0] !== "application/json" ||
+      request.headers.has("Content-Encoding")
+    )
+      return response(400, { error: "Invalid terminal request" });
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(5000)]);
+    const body = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(
+        await publicationBody(
+          new Response(request.body, { headers: request.headers }),
+          4096,
+          signal,
+        ),
+      ),
+    );
+    if (!body || Array.isArray(body) || Object.keys(body).length !== 1)
+      return response(400, { error: "Invalid terminal request" });
+    const { url: requestedUrl } = body;
     if (typeof requestedUrl !== "string" || requestedUrl.length > 3000)
       return response(400, { error: "Invalid terminal request" });
     const target = httpUrl(requestedUrl);
+    if (cloudflare && (target.origin !== origin || !parseGenericTerminalTarget(target)))
+      return response(400, { error: "Invalid terminal request" });
     const basePath = base.pathname.replace(/\/$/, "");
     const endpoint = target.pathname.slice(basePath.length);
     if (
@@ -41,7 +70,13 @@ export async function POST(request: Request): Promise<Response> {
       isLoopbackHostname(location.hostname) && isLoopbackHostname(base.hostname);
     if (process.env.NODE_ENV === "production" && base.protocol !== "https:" && !localLoopback)
       return response(503, { error: "Terminal requires HTTPS" });
-    const session = await getRequestSession();
+    const session = cloudflare
+      ? await genericTerminalIssuerSession(
+          request,
+          getCloudflareContext().env as GenericTerminalAuthEnvironment,
+        )
+      : await getRequestSession();
+    signal.throwIfAborted();
     if (!session) return response(401, { error: "Sign in required" });
     const ticket = createTerminalTicket(
       {

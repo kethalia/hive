@@ -30,7 +30,8 @@ test("only reviewed exact exports from the built workspace page become portable"
   input.node[key(10)] = { ...input.node[key(0)], exportedName: "createSessionAction" };
   input.node[key(11)] = { ...input.node[key(0)], filename: "other/workspaces.ts" };
   const output = portableActionManifest(input);
-  assert.equal(Object.keys(output.actions).length, 4);
+  assert.equal(Object.keys(output.actions).length, 5);
+  assert.equal(output.actions[key(10)].exportedName, "createSessionAction");
   assert.deepEqual(output.actions[key(0)].paths, ["/workspaces"]);
   assert.equal(output.actions[key(0)].maxBodyBytes, 65536);
   assert.ok(!JSON.stringify(output).includes(input.encryptionKey));

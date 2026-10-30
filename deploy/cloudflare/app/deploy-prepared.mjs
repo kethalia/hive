@@ -11,6 +11,7 @@ import {
   validateRuntimeDatabase,
 } from "./deployment-plan.mjs";
 import { assertPreparedArtifact } from "./prepared-artifact.mjs";
+import { assertWorkspaceProjectsCandidate } from "./workspace-projects-candidate.mjs";
 
 // Local artifact guard. The primary also rechecks connected-API ownership
 // immediately before an authorized upload. Default invocation is a dry run.
@@ -43,12 +44,21 @@ try {
             "PREVIEW_BEARER",
             "PREVIEW_COOKIE_SECRET",
             ...(record.nativeIssuer ? ["HIVE_CODEX_ISSUER_PRIVATE_KEY"] : []),
+            ...(record.workspaceProjectsCandidate
+              ? ["HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY"]
+              : []),
           ]
         : []),
     ].sort();
     assert.deepEqual(observed[name].secretNames, expected);
   }
   validatePreviewConfiguration(configs.app, configs.auth);
+  assertWorkspaceProjectsCandidate(
+    record,
+    configs.app,
+    secrets.app,
+    (await readFile("templates/ai-dev-k8s/assets/workspace-read.manifest.sha256", "utf8")).trim(),
+  );
   assert.equal(configs.app.assets.directory, resolve(".open-next/assets"));
   validateRuntimeDatabase(secrets.app.DATABASE_URL);
   assert.equal(secrets.app.DATABASE_URL, secrets.auth.DATABASE_URL);
