@@ -619,3 +619,11 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   This is still disabled capability packaging. Signed server/outer application composition
   and installed account-backed acceptance follow before activation. Evidence:
   [input contract](source-input-application.md), [parent assembly](source-input-local/parent-result.json).
+
+- Rotation cutover control: completed and independently reviewed, low difficulty. A selective
+  Node rotation-worker switch leaves template and notification workers running, skips queued
+  rotation jobs and stops between pages. Eight focused checks pass. It neither interrupts an
+  in-flight provider operation nor removes Redis scheduler records; the cutover procedure
+  requires draining every old instance before enabling Cloudflare rotation. No flag changed
+  in any deployed environment. The source-input/XZ checkpoint is pushed; priorf2c7a0f CI,
+  image and native guardian builds are all green.

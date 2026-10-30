@@ -13,6 +13,7 @@ const job = { data: { triggeredAt: "fixture" } } as Parameters<typeof processTok
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("ENCRYPTION_KEY", "a".repeat(64));
+  vi.stubEnv("HIVE_DISABLE_TOKEN_ROTATION_WORKER", "false");
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("Node token rotation schedule adapter", () => {
@@ -25,6 +26,19 @@ describe("Node token rotation schedule adapter", () => {
     expect(rotate.mock.calls[0][0].afterId).toBeUndefined();
     expect(rotate.mock.calls[1][0].afterId).toBe("cursor");
     expect(rotate.mock.calls[0][0].notifyExpiring).toEqual(expect.any(Function));
+  });
+  it("does not process an already queued job after selective rotation disable", async () => {
+    vi.stubEnv("HIVE_DISABLE_TOKEN_ROTATION_WORKER", "true");
+    await processTokenRotation(job);
+    expect(rotate).not.toHaveBeenCalled();
+  });
+  it("stops between pages if rotation is disabled while a page is in flight", async () => {
+    rotate.mockImplementationOnce(async () => {
+      vi.stubEnv("HIVE_DISABLE_TOKEN_ROTATION_WORKER", "true");
+      return { nextCursor: "cursor" };
+    });
+    await processTokenRotation(job);
+    expect(rotate).toHaveBeenCalledTimes(1);
   });
   it("retains the existing missing-key skip behavior", async () => {
     vi.stubEnv("ENCRYPTION_KEY", "");
