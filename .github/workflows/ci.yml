@@ -74,6 +74,8 @@ jobs:
       - run: node --test services/migrate/test/migrate.integration.test.mjs
         env:
           MIGRATION_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_migrate_test
+      - name: Prepare restricted application role for migration grant checks
+        run: docker exec "${{ job.services.postgres.id }}" psql -U hive -d hive_migrate_test -v ON_ERROR_STOP=1 -c 'CREATE ROLE hive_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;'
       - name: Prepare isolated delivery database
         run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_delivery_test
       - name: Apply delivery schema
