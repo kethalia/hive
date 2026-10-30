@@ -154,6 +154,8 @@ export interface GuardianStoreOptions {
   policy: GuardianPolicy;
   encryptionKey: string;
   expectedConfigSha256(binding: RegistrationBinding): string;
+  authorizationExpiresAt?: number;
+  signal?: AbortSignal;
 }
 const bytesDigest = (value: string) => createHash("sha256").update(value).digest("hex");
 const fingerprint = (pem: string) => {
@@ -292,10 +294,30 @@ export class GuardianAdmissionStore {
     private readonly options: GuardianStoreOptions,
   ) {}
   private transaction<T>(work: (tx: Tx) => Promise<T>) {
-    return this.db.$transaction(work, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      timeout: 10000,
-    });
+    const assertCurrent = () => {
+      this.options.signal?.throwIfAborted();
+      if (this.options.authorizationExpiresAt !== undefined)
+        requireGuardian(
+          Number.isSafeInteger(this.options.authorizationExpiresAt) &&
+            this.options.authorizationExpiresAt > Date.now(),
+        );
+    };
+    return this.db.$transaction(
+      async (tx) => {
+        assertCurrent();
+        const result = await work(tx);
+        if (this.options.authorizationExpiresAt !== undefined) {
+          const now = await databaseNow(tx);
+          requireGuardian(now.getTime() < this.options.authorizationExpiresAt);
+        }
+        assertCurrent();
+        return result;
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        timeout: 10000,
+      },
+    );
   }
   async reserveRuntime(binding: RegistrationBinding, identity: GuardianRuntimeIdentity) {
     requireGuardian(
