@@ -1,5 +1,7 @@
 # Portable template publication foundation
 
+This document records the schema-27 checkpoint. [Schema-28 first creation and tag parity](template-publication-creation.md) extends it and corrects the initial investigation: Coder already reuses existing variables server-side, while Hive's stdin CLI path deliberately skips README metadata updates. The earlier followup list below describes the checkpoint's investigation state, not a requirement to add secret copying or new metadata behavior.
+
 This slice replaces the Cloudflare path for an owner-requested publication of an **existing** maintained template. Node continues using the existing CLI/BullMQ adapter. Deployment, wake-up scheduling and remote provider effects remain disabled. First template creation, variable-prompt/reuse and README metadata parity, and authenticated detailed-log viewing remain required F07 followups.
 
 The public, unauthenticated build-info read on 2026-10-30 returned `v2.38.4+d16b1ca`. The adapter targets the documented file/template endpoints and checks the corresponding v2.38.4 SDK/server behavior. No authenticated provider mutation was used for this investigation.

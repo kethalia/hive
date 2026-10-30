@@ -1,0 +1,83 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/templates/push-stream.test.ts (5 tests) 19ms
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > resolves per-user credentials and spawns coder with them
+[template-push] Starting push for "ai-dev-k8s" (job job-1)
+
+ ✓ src/__tests__/lib/templates/publication.test.ts (16 tests) 31ms
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the ai-dev-k8s template
+[api/templates/push] Enqueued job 3400b82d-b183-4837-9924-a326109905c5 for template "ai-dev-k8s"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the browser-testing template
+[api/templates/push] Enqueued job 1ce78855-6572-4e83-a7ac-826088aab129 for template "browser-testing"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the game-dev template
+[api/templates/push] Enqueued job aa7d654c-6235-464a-adf8-558f926ffb07 for template "game-dev"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the electronics template
+[api/templates/push] Enqueued job 660ffbee-87e9-408d-8297-5ed3031a9d72 for template "electronics"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the infrastructure template
+[api/templates/push] Enqueued job 89e0a386-c4f5-49fb-b0c0-f0cb0cf4e735 for template "infrastructure"
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > resolves per-user credentials and spawns coder with them
+[template-push] Push succeeded for "ai-dev-k8s" (job job-1)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > does not spawn or resolve owner credentials when the artifact is invalid
+[template-push] Starting push for "ai-dev-k8s" (job bad)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > retains failure when stdin errors but the child later reports exit zero
+[template-push] Starting push for "ai-dev-k8s" (job pipe)
+
+ ✓ src/__tests__/app/api/templates/push-routes.test.ts (28 tests) 70ms
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > tees stdout and stderr to log file
+[template-push] Starting push for "ai-dev-k8s" (job job-2)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > tees stdout and stderr to log file
+[template-push] Push succeeded for "ai-dev-k8s" (job job-2)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes [exit:0] sentinel on success
+[template-push] Starting push for "ai-dev-k8s" (job job-3)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes [exit:0] sentinel on success
+[template-push] Push succeeded for "ai-dev-k8s" (job job-3)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes [exit:1] sentinel and rejects on non-zero exit
+[template-push] Starting push for "ai-dev-k8s" (job job-4)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > rejects on spawn error and writes error to log
+[template-push] Starting push for "ai-dev-k8s" (job job-5)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes failure log when userId has no token
+[template-push] Starting push for "ai-dev-k8s" (job job-6)
+
+stdout | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes failure log when coder binary is unavailable before spawn
+[template-push] Starting push for "ai-dev-k8s" (job job-7)
+
+ ✓ src/__tests__/lib/templates/push-queue.test.ts (12 tests) 316ms
+ ✓ src/__tests__/lib/templates/publication.integration.test.ts (26 tests) 4458ms
+   ✓ durable template publisher / real PostgreSQL > rejects a late database acknowledgement and rolls back its event after lease expiry during SQL  1255ms
+
+ Test Files  5 passed (5)
+      Tests  87 passed (87)
+   Start at  03:46:02
+   Duration  4.94s (transform 611ms, setup 0ms, collect 1.19s, tests 4.89s, environment 1ms, prepare 305ms)
+
+stderr | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > returns 500 when queue.add fails
+[api/templates/push] Failed to enqueue job for "ai-dev-k8s": Redis down
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > does not spawn or resolve owner credentials when the artifact is invalid
+[template-push] Preflight failed for "ai-dev-k8s" (job bad) — Template artifact digest mismatch
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > retains failure when stdin errors but the child later reports exit zero
+[template-push] Push failed for "ai-dev-k8s" (job pipe) — artifact input failed
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes [exit:1] sentinel and rejects on non-zero exit
+[template-push] Push failed for "ai-dev-k8s" (job job-4) — exit code 1
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes failure log when userId has no token
+[template-push] Preflight failed for "ai-dev-k8s" (job job-6) — No Coder API token stored for user bad-user
+
+stderr | src/__tests__/lib/templates/push-queue.test.ts > push-queue > processor > writes failure log when coder binary is unavailable before spawn
+[template-push] Preflight failed for "ai-dev-k8s" (job job-7) — [template-push] coder binary not found — checked /tmp/coder.*/coder and PATH

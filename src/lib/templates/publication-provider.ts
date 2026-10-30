@@ -10,6 +10,7 @@ import {
   type TemplateRemoteVersion,
 } from "./publication-contracts";
 import { cancelPublicationBody, publicationBody, publicationFetch } from "./publication-io";
+import { canonicalProvisionerTags } from "./publication-tags";
 
 const uuid = z.string().uuid();
 const slug = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/);
@@ -20,12 +21,13 @@ const targetSchema = z.object({
   organization_name: slug,
   active_version_id: uuid,
   deleted: z.boolean(),
+  created_by_id: uuid.optional(),
 });
 const versionSchema = z.object({
   id: uuid,
   name: slug,
   organization_id: uuid,
-  template_id: uuid,
+  template_id: uuid.nullish(),
   message: z.string().max(512),
   created_by: z.object({ id: uuid }),
   archived: z.boolean(),
@@ -38,19 +40,28 @@ const versionSchema = z.object({
     status: z.enum(["pending", "running", "succeeded", "failed", "canceling", "canceled"]),
     error_code: z.string().max(80).nullable().optional(),
     logs_overflowed: z.boolean().optional(),
+    tags: z.unknown().optional(),
   }),
 });
 export interface TemplatePublicationProvider {
   readonly actor: TemplatePublicationActor;
   locate(name: string): Promise<TemplateRemoteTarget>;
   current(target: TemplateRemoteTarget): Promise<TemplateRemoteTarget>;
+  absent(target: TemplateRemoteTarget): Promise<void>;
+  tags(target: TemplateRemoteTarget, versionId: string): Promise<Record<string, string>>;
+  createTemplate(target: TemplateRemoteTarget, versionId: string): Promise<TemplateRemoteTarget>;
   upload(bytes: Uint8Array): Promise<string>;
   verifyFile(fileId: string, identity: TemplateArtifactIdentity): Promise<void>;
   versionByName(target: TemplateRemoteTarget, name: string): Promise<TemplateRemoteVersion | null>;
   versionById(target: TemplateRemoteTarget, versionId: string): Promise<TemplateRemoteVersion>;
   createVersion(
     target: TemplateRemoteTarget,
-    input: { name: string; message: string; fileId: string },
+    input: {
+      name: string;
+      message: string;
+      fileId: string;
+      provisionerTags?: Record<string, string>;
+    },
   ): Promise<TemplateRemoteVersion>;
   logs(
     versionId: string,
@@ -186,6 +197,7 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
       templateId: t.id,
       name: t.name,
       activeVersionId: t.active_version_id,
+      ...(t.created_by_id ? { createdById: t.created_by_id } : {}),
     };
   }
   private async permission(target: TemplateRemoteTarget) {
@@ -193,10 +205,10 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
       await this.json("POST", "/api/v2/authcheck", {
         checks: {
           publish: {
-            action: "update",
+            action: target.templateId ? "update" : "create",
             object: {
               resource_type: "template",
-              resource_id: target.templateId,
+              ...(target.templateId ? { resource_id: target.templateId } : {}),
               organization_id: target.organizationId,
             },
           },
@@ -215,8 +227,15 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
       undefined,
       true,
     );
-    if (!raw) throw new TemplatePublicationError("missing_template");
-    const target = this.target(raw);
+    const target: TemplateRemoteTarget = raw
+      ? this.target(raw)
+      : {
+          organizationId: organization.id,
+          organizationName: organization.name,
+          name,
+          templateId: null,
+          activeVersionId: null,
+        };
     if (
       target.name !== name ||
       target.organizationId !== organization.id ||
@@ -224,6 +243,56 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
     )
       throw new TemplatePublicationError("provider_identity_mismatch");
     await this.permission(target);
+    return target;
+  }
+  async absent(expected: TemplateRemoteTarget) {
+    if (expected.templateId !== null || expected.activeVersionId !== null)
+      throw new TemplatePublicationError("provider_identity_mismatch");
+    const current = await this.locate(expected.name);
+    if (
+      current.templateId !== null ||
+      current.organizationId !== expected.organizationId ||
+      current.organizationName !== expected.organizationName ||
+      current.name !== expected.name
+    )
+      throw new TemplatePublicationError("external_drift");
+  }
+  async tags(expected: TemplateRemoteTarget, versionId: string) {
+    const raw = z
+      .object({
+        id: uuid,
+        template_id: uuid,
+        organization_id: uuid,
+        job: z.object({ organization_id: uuid, tags: z.unknown() }),
+      })
+      .parse(await this.json("GET", `/api/v2/templateversions/${uuid.parse(versionId)}`));
+    if (
+      raw.id !== versionId ||
+      raw.template_id !== expected.templateId ||
+      raw.organization_id !== expected.organizationId ||
+      raw.job.organization_id !== expected.organizationId
+    )
+      throw new TemplatePublicationError("provider_identity_mismatch");
+    return canonicalProvisionerTags(raw.job.tags);
+  }
+  async createTemplate(expected: TemplateRemoteTarget, versionId: string) {
+    if (expected.templateId !== null || expected.activeVersionId !== null)
+      throw new TemplatePublicationError("provider_identity_mismatch");
+    const target = this.target(
+      await this.json(
+        "POST",
+        `/api/v2/organizations/${uuid.parse(expected.organizationId)}/templates`,
+        { name: slug.parse(expected.name), template_version_id: uuid.parse(versionId) },
+      ),
+    );
+    if (
+      target.organizationId !== expected.organizationId ||
+      target.organizationName !== expected.organizationName ||
+      target.name !== expected.name ||
+      target.activeVersionId !== versionId ||
+      target.createdById !== this.actor.coderUserId
+    )
+      throw new TemplatePublicationError("provider_identity_mismatch");
     return target;
   }
   async current(expected: TemplateRemoteTarget) {
@@ -270,7 +339,7 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
     const v = versionSchema.parse(value);
     if (
       v.archived ||
-      v.template_id !== target.templateId ||
+      (v.template_id ?? null) !== target.templateId ||
       v.organization_id !== target.organizationId ||
       v.job.organization_id !== target.organizationId ||
       v.created_by.id !== this.actor.coderUserId ||
@@ -281,7 +350,7 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
       id: v.id,
       name: v.name,
       organizationId: v.organization_id,
-      templateId: v.template_id,
+      templateId: v.template_id ?? null,
       fileId: v.job.file_id,
       importJobId: v.job.id,
       creatorId: v.created_by.id,
@@ -290,6 +359,9 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
       status: v.job.status,
       errorCode: v.job.error_code ?? null,
       logsOverflowed: v.job.logs_overflowed ?? false,
+      ...(v.job.tags !== undefined
+        ? { provisionerTags: canonicalProvisionerTags(v.job.tags) }
+        : {}),
     };
   }
   async versionByName(target: TemplateRemoteTarget, name: string) {
@@ -309,7 +381,12 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
   }
   async createVersion(
     target: TemplateRemoteTarget,
-    input: { name: string; message: string; fileId: string },
+    input: {
+      name: string;
+      message: string;
+      fileId: string;
+      provisionerTags?: Record<string, string>;
+    },
   ) {
     return this.version(
       await this.json(
@@ -318,7 +395,10 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
         {
           name: slug.parse(input.name),
           message: input.message,
-          template_id: target.templateId,
+          ...(target.templateId ? { template_id: uuid.parse(target.templateId) } : {}),
+          ...(input.provisionerTags
+            ? { provisioner_tags: canonicalProvisionerTags(input.provisionerTags) }
+            : {}),
           storage_method: "file",
           file_id: uuid.parse(input.fileId),
           provisioner: "terraform",

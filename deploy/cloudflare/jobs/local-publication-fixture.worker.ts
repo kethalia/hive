@@ -11,9 +11,11 @@ let mode = "success",
   templateId = "",
   organizationId = "",
   activeVersionId = "";
+let templateExists = true,
+  priorVersionId = "";
 const files = new Map<string, ArrayBuffer>(),
   versions = new Map<string, Record<string, unknown>>();
-let effects = { uploads: 0, versions: 0, activations: 0 };
+let effects = { uploads: 0, versions: 0, activations: 0, templateCreations: 0 };
 export default {
   async fetch(request: Request, env: Env) {
     const path = new URL(request.url).pathname;
@@ -32,9 +34,11 @@ export default {
       templateId = value.templateId;
       organizationId = value.organizationId;
       activeVersionId = value.activeVersionId;
+      priorVersionId = activeVersionId;
+      templateExists = !mode.startsWith("first_");
       files.clear();
       versions.clear();
-      effects = { uploads: 0, versions: 0, activations: 0 };
+      effects = { uploads: 0, versions: 0, activations: 0, templateCreations: 0 };
       return Response.json({ configured: true });
     }
     if (
@@ -74,7 +78,8 @@ export default {
     if (
       path === `/api/v2/organizations/${organizationId}/templates/ai-dev-k8s` ||
       path === `/api/v2/templates/${templateId}`
-    )
+    ) {
+      if (!templateExists) return new Response(null, { status: 404 });
       return Response.json({
         id: templateId,
         name: "ai-dev-k8s",
@@ -82,7 +87,9 @@ export default {
         organization_name: "default",
         active_version_id: activeVersionId,
         deleted: false,
+        created_by_id: env.CODER_USER_ID,
       });
+    }
     if (path === "/api/v2/authcheck") return Response.json({ publish: true });
     if (path === "/api/v2/files" && request.method === "POST") {
       const id = crypto.randomUUID();
@@ -103,6 +110,7 @@ export default {
         message: string;
         file_id: string;
         template_id: string;
+        provisioner_tags?: Record<string, string>;
       };
       const id = crypto.randomUUID();
       const version = {
@@ -110,7 +118,7 @@ export default {
         name: value.name,
         message: value.message,
         organization_id: organizationId,
-        template_id: templateId,
+        ...(value.template_id ? { template_id: value.template_id } : {}),
         archived: false,
         created_by: { id: env.CODER_USER_ID },
         job: {
@@ -121,13 +129,44 @@ export default {
           type: "template_version_import",
           status: "succeeded",
           logs_overflowed: false,
+          tags: {
+            ...(value.provisioner_tags ?? {
+              pool: "synthetic-provisioner-tag",
+              scope: "organization",
+            }),
+            owner: value.provisioner_tags?.scope === "user" ? env.CODER_USER_ID : "",
+          },
         },
       };
       versions.set(id, version);
       effects.versions++;
-      return mode === "version_unknown"
+      return mode.endsWith("version_unknown")
         ? new Response(null, { status: 500 })
         : Response.json(version, { status: 201 });
+    }
+    if (path === `/api/v2/organizations/${organizationId}/templates` && request.method === "POST") {
+      const value = (await request.json()) as { name: string; template_version_id: string };
+      const version = versions.get(value.template_version_id);
+      if (templateExists || !version || value.name !== "ai-dev-k8s")
+        return new Response(null, { status: 409 });
+      templateExists = true;
+      version.template_id = templateId;
+      activeVersionId = value.template_version_id;
+      effects.templateCreations++;
+      return mode === "first_template_unknown"
+        ? new Response(null, { status: 500 })
+        : Response.json(
+            {
+              id: templateId,
+              name: value.name,
+              organization_id: organizationId,
+              organization_name: "default",
+              active_version_id: activeVersionId,
+              created_by_id: env.CODER_USER_ID,
+              deleted: false,
+            },
+            { status: 201 },
+          );
     }
     if (path === `/api/v2/templates/${templateId}/versions` && request.method === "PATCH") {
       const value = (await request.json()) as { id: string };
@@ -146,7 +185,18 @@ export default {
     if (path.startsWith("/api/v2/templateversions/")) {
       if (path.endsWith("/logs"))
         return Response.json([{ id: 1, output: "synthetic-secret-never-in-controller-journal" }]);
-      const version = versions.get(path.split("/").at(-1) ?? "");
+      const requested = path.split("/").at(-1) ?? "";
+      if (requested === priorVersionId)
+        return Response.json({
+          id: priorVersionId,
+          template_id: templateId,
+          organization_id: organizationId,
+          job: {
+            organization_id: organizationId,
+            tags: { pool: "synthetic-provisioner-tag", scope: "organization", owner: "" },
+          },
+        });
+      const version = versions.get(requested);
       return version ? Response.json(version) : new Response(null, { status: 404 });
     }
     return new Response(null, { status: 404 });

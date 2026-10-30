@@ -717,3 +717,20 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   tests pass. Two evidence JSON files also needed formatting. Production and deployed feature
   flags are unchanged. Evidence: [Neon migration](neon-template-publication-migration.json),
   [assembled application](cloudflare-auth-template-publication.json).
+
+- Template creation and update parity: completed local implementation, high difficulty.
+  Schema28 reserves a catalog name before the first remote template exists and permits one
+  UUID binding after verified creation. Unknown version/template outcomes retain a hold.
+  Existing-template pushes preserve provisioner tags by a canonical digest; variable values
+  stay on Coder, matching its CLI behavior. Stdin template archives do not use README metadata.
+  Parent clean-export validation passes113 checks including26 PostgreSQL cases and typecheck.
+  Thirteen actual workerd checks cover first creation followed by update and ambiguous effects.
+  A populated27→28 rehearsal preserves old columns/rows across38 tables, including90 publication
+  jobs. Migration27 is unchanged. Detailed logs, durable completion notifications and live
+  provider acceptance remain. No provider mutation or deployed flag change. Evidence:
+  [creation and parity](template-publication-creation.md),
+  [parent validation](template-publication-creation-local/parent-result.json).
+
+- CI checkpoint: c3448f8 passes CI, application/workspace image builds and native guardian build.
+  The composed factory regression now runs in the PostgreSQL job. The corrected publication
+  test environment and evidence formatting pass in CI.

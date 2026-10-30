@@ -1,0 +1,67 @@
+{
+  "observedAt": "2026-10-30T03:46:07.308452+00:00",
+  "localOnly": true,
+  "provider": "explicit scoped doubles; no external mutations",
+  "sourceStable": true,
+  "sourceHashes": {
+    "packages/db/prisma/schema.prisma": "9f019f5ce1222a097986664e8e6c1f5676acf035513a362d9d552a0bf83d8ede",
+    "packages/db/prisma/migrations/20261029170000_template_publication_creation/migration.sql": "e523c9cf5bebf7927af66887aaa192bcba19e9e9b919444567eae295d6150637",
+    "src/lib/templates/publication-contracts.ts": "b61a3a9a7bd90d5834ef28ff335e0662a1bb410e44ce67b3bbf4c77d387f42be",
+    "src/lib/templates/publication-provider.ts": "665e6d1ad6d5acc4df89c2e14c8dfd0564de991c6859c493492bd69b25dc57b5",
+    "src/lib/templates/publication-routes.ts": "954c775d9e252f2571b8ce2821eab556bbfa8b307341fce74b41479816cfbb0c",
+    "src/lib/templates/publication-service.ts": "b92adce5ac0317d8a57c1bb7565491bb58bf3b2b4347c63356a54233743ae1c1",
+    "src/lib/templates/publication-store.ts": "1eb095fdff9c192cee8de58ca49790c33603ab66da7dd693c55b4889e35da606",
+    "src/lib/templates/publication-tags.ts": "45ac9da9d52a6cf6d30d8cef75d1100320d3b856c0bb606d747f9a25a4676ae3",
+    "src/__tests__/lib/templates/publication.test.ts": "6637fa8b742b51daba0acc7d23167a2404b8dd15ae0f88584674ef00c78dfec1",
+    "src/__tests__/lib/templates/publication.integration.test.ts": "e8fc5f2025e6efa76cf21a8b719745892fd6f65b8b785c7793d268399895896b",
+    "deploy/cloudflare/jobs/local-publication.worker.ts": "87091b0afe8bec5a764e50545d6d407062e76c49ba756ff197528d83610aee02",
+    "deploy/cloudflare/jobs/local-publication-fixture.worker.ts": "863e17e45a1835bd1f92fb69f3714f19a38c4a47a51874b96701c838d6a49cb1",
+    "deploy/cloudflare/jobs/run-local-publication.mjs": "5f3b1f6d540840228f8423b89e73ae065a26a69eb14a4b9b594a416446f04456"
+  },
+  "checks": [
+    {
+      "command": ["pnpm", "--filter", "@hive/db", "exec", "prisma", "validate"],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "biome",
+        "check",
+        "src/lib/templates/publication-contracts.ts",
+        "src/lib/templates/publication-provider.ts",
+        "src/lib/templates/publication-routes.ts",
+        "src/lib/templates/publication-service.ts",
+        "src/lib/templates/publication-store.ts",
+        "src/lib/templates/publication-tags.ts",
+        "src/__tests__/lib/templates/publication.test.ts",
+        "src/__tests__/lib/templates/publication.integration.test.ts",
+        "deploy/cloudflare/jobs/local-publication.worker.ts",
+        "deploy/cloudflare/jobs/local-publication-fixture.worker.ts",
+        "deploy/cloudflare/jobs/run-local-publication.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": ["pnpm", "exec", "tsc", "--noEmit", "--pretty", "false"],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/__tests__/lib/templates/publication.integration.test.ts",
+        "src/__tests__/lib/templates/publication.test.ts",
+        "src/__tests__/app/api/templates/push-routes.test.ts",
+        "src/__tests__/lib/templates/push-queue.test.ts",
+        "src/__tests__/lib/templates/push-stream.test.ts"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "fixturePort": 39931,
+  "schema27FixtureUntouched": true
+}

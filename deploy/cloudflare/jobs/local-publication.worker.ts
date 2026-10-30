@@ -29,6 +29,7 @@ type Env = {
   AUTH_SERVICE: { fetch: typeof fetch };
   CODER: { fetch: typeof fetch };
   ASSETS: TemplateAssets;
+  CREATION_PROOF?: string;
 };
 type Context = { waitUntil(p: Promise<unknown>): void; passThroughOnException(): void };
 function requireProof(value: unknown, label: string): asserts value {
@@ -119,7 +120,14 @@ export default {
           coderUserId: env.CODER_USER_ID,
           sessionId: env.SESSION_ID,
         };
-        for (const mode of ["success", "version_unknown", "activation_unknown"]) {
+        for (const mode of [
+          "success",
+          "version_unknown",
+          "activation_unknown",
+          ...(env.CREATION_PROOF === "true"
+            ? ["first_success", "first_version_unknown", "first_template_unknown"]
+            : []),
+        ]) {
           stage = mode;
           await env.CODER.fetch("https://synthetic.invalid/__fixture/config", {
             method: "POST",
@@ -139,7 +147,11 @@ export default {
               CoderTemplatePublicationProvider.create(a, env.CODER.fetch.bind(env.CODER), s),
           });
           const job = await service.enqueue(actor, "ai-dev-k8s", crypto.randomUUID());
-          for (let n = 0; n < (mode === "version_unknown" ? 3 : 4); n++) {
+          for (
+            let n = 0;
+            n < (mode === "first_version_unknown" ? 2 : mode.endsWith("version_unknown") ? 3 : 4);
+            n++
+          ) {
             await db.templatePublicationJob.update({
               where: { id: job.id },
               data: { nextAttemptAt: new Date(0) },
@@ -152,17 +164,31 @@ export default {
             await env.CODER.fetch("https://synthetic.invalid/__fixture/counts", {
               headers: { Authorization: `Bearer ${env.PROOF_BEARER}` },
             })
-          ).json()) as { uploads: number; versions: number; activations: number };
+          ).json()) as {
+            uploads: number;
+            versions: number;
+            activations: number;
+            templateCreations: number;
+          };
           requireProof(
             counts.uploads === 1 &&
               counts.versions === 1 &&
-              counts.activations === (mode === "version_unknown" ? 0 : 1),
+              counts.activations ===
+                (mode.endsWith("version_unknown") || mode.startsWith("first_") ? 0 : 1) &&
+              counts.templateCreations ===
+                (mode.startsWith("first_") && !mode.endsWith("version_unknown") ? 1 : 0),
             stage,
           );
           requireProof(
-            mode === "success"
+            mode === "success" || mode === "first_success"
               ? stored.stage === "succeeded"
-              : stored.stage === "held" && stored.heldReason === mode,
+              : stored.stage === "held" &&
+                  stored.heldReason ===
+                    (mode === "first_template_unknown"
+                      ? "template_creation_unknown"
+                      : mode === "first_version_unknown"
+                        ? "version_unknown"
+                        : mode),
             stage,
           );
           requireProof(
@@ -171,6 +197,24 @@ export default {
             stage,
           );
           checks[mode] = true;
+          if (mode === "first_success") {
+            const update = await service.enqueue(actor, "ai-dev-k8s", crypto.randomUUID());
+            for (let n = 0; n < 4; n++) {
+              await db.templatePublicationJob.update({
+                where: { id: update.id },
+                data: { nextAttemptAt: new Date(0) },
+              });
+              await service.processOne();
+            }
+            const advanced = await service.store.read(actor.ownerId, "ai-dev-k8s", update.id);
+            requireProof(
+              advanced?.stage === "succeeded" &&
+                advanced.operationMode === "update" &&
+                advanced.targetId === stored.targetId,
+              "first_create_then_update",
+            );
+            checks.firstCreateThenUpdate = true;
+          }
         }
         stage = "http_default_off";
         const routes = templatePublicationRoutes({
@@ -196,7 +240,10 @@ export default {
           passed: true,
           checks,
           provider: "synthetic service binding only",
-          database: "isolated local PostgreSQL27",
+          database:
+            env.CREATION_PROOF === "true"
+              ? "isolated local PostgreSQL28"
+              : "isolated local PostgreSQL27",
         });
       } catch (error) {
         // Private local-only diagnostics; only synthetic fixture data exists here.

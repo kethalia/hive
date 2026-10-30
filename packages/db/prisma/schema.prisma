@@ -44,7 +44,7 @@ model TemplatePublicationTarget {
   configuredOrigin String                   @map("configured_origin")
   organizationId   String                   @map("organization_id") @db.Uuid
   organizationName String                   @map("organization_name")
-  templateId       String                   @map("template_id") @db.Uuid
+  templateId       String?                  @map("template_id") @db.Uuid
   templateName     String                   @map("template_name")
   currentJobId     String?                  @map("current_job_id") @db.Uuid
   generation       Int                      @default(0)
@@ -54,6 +54,7 @@ model TemplatePublicationTarget {
   currentJob       TemplatePublicationJob?  @relation("PublicationCurrent", fields: [id, currentJobId], references: [targetId, id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([configuredOrigin, organizationId, templateId])
+  @@unique([configuredOrigin, organizationId, templateName], map: "template_publication_target_name_key")
   @@map("template_publication_targets")
 }
 
@@ -72,7 +73,9 @@ model TemplatePublicationJob {
   archiveBytes            Int                         @map("archive_bytes")
   manifestDigest          String                      @map("manifest_digest")
   versionName             String                      @map("version_name")
-  expectedActiveVersionId String                      @map("expected_active_version_id") @db.Uuid
+  expectedActiveVersionId String?                     @map("expected_active_version_id") @db.Uuid
+  operationMode           String                      @default("update") @map("operation_mode")
+  provisionerTagsDigest   String?                     @map("provisioner_tags_digest")
   stage                   String                      @default("queued")
   effectState             String                      @default("clear") @map("effect_state")
   effectDigest            String?                     @map("effect_digest")
