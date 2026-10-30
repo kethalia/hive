@@ -7,6 +7,10 @@ on:
     paths:
       - "docker/hive-base/**"
       - "tools/workspace-identity/**"
+      - "templates/ai-dev-k8s/assets/**"
+      - "templates/ai-dev-k8s/scripts/install-codex-host.py"
+      - "templates/ai-dev-k8s/scripts/install-workspace-read.py"
+      - "templates/ai-dev-k8s/scripts/install-voice.py"
       - ".github/workflows/build-base-image.yml"
   pull_request:
     branches:
@@ -14,6 +18,10 @@ on:
     paths:
       - "docker/hive-base/**"
       - "tools/workspace-identity/**"
+      - "templates/ai-dev-k8s/assets/**"
+      - "templates/ai-dev-k8s/scripts/install-codex-host.py"
+      - "templates/ai-dev-k8s/scripts/install-workspace-read.py"
+      - "templates/ai-dev-k8s/scripts/install-voice.py"
       - ".github/workflows/build-base-image.yml"
   workflow_dispatch:
     inputs:
@@ -58,7 +66,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: docker/hive-base
-          build-contexts: workspace-identity=./tools/workspace-identity
+          build-contexts: |
+            workspace-identity=./tools/workspace-identity
+            template-runtime=./templates/ai-dev-k8s
           push: false
           load: true
           platforms: linux/amd64
@@ -72,6 +82,10 @@ jobs:
           bash docker/hive-base/smoke-test.sh
           ghcr.io/kethalia/hive-base:${{ matrix.variant }}-${{ github.sha }}
           ${{ matrix.variant }}
+      - name: Verify image bootstrap source and ownership
+        run: >-
+          python3 docker/hive-base/verify-template-image.py
+          ghcr.io/kethalia/hive-base:${{ matrix.variant }}-${{ github.sha }}
 
   build-test-push:
     name: Build, smoke test, and push (${{ matrix.variant }})
@@ -105,7 +119,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: docker/hive-base
-          build-contexts: workspace-identity=./tools/workspace-identity
+          build-contexts: |
+            workspace-identity=./tools/workspace-identity
+            template-runtime=./templates/ai-dev-k8s
           push: false
           load: true
           platforms: linux/amd64
@@ -119,6 +135,10 @@ jobs:
           bash docker/hive-base/smoke-test.sh
           ghcr.io/kethalia/hive-base:${{ matrix.variant }}-${{ github.sha }}
           ${{ matrix.variant }}
+      - name: Verify image bootstrap source and ownership
+        run: >-
+          python3 docker/hive-base/verify-template-image.py
+          ghcr.io/kethalia/hive-base:${{ matrix.variant }}-${{ github.sha }}
 
       - name: Push tested image
         run: |
@@ -173,7 +193,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: docker/hive-base
-          build-contexts: workspace-identity=./tools/workspace-identity
+          build-contexts: |
+            workspace-identity=./tools/workspace-identity
+            template-runtime=./templates/ai-dev-k8s
           push: false
           load: true
           platforms: linux/amd64
@@ -189,6 +211,13 @@ jobs:
           image="ghcr.io/kethalia/hive-base:preview-cli-${GITHUB_SHA}"
           bash docker/hive-base/smoke-test.sh "$image" cli
           docker run --rm "$image" cat /usr/local/libexec/hive-workspace-identity.json > /tmp/workspace-preview-helper.json
+          python3 docker/hive-base/verify-template-image.py "$image" > /tmp/workspace-preview-bootstrap.json
+          {
+            echo '### Verified public bootstrap image files'
+            echo '```json'
+            cat /tmp/workspace-preview-bootstrap.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Log in to existing public GHCR package
         uses: docker/login-action@v3
         with:

@@ -27,6 +27,8 @@ export async function acceptanceRoute(request: Request) {
     return reply(
       await new DeliveryAcceptanceService(db, services.store, {
         policies: services.policies,
+        repair: services.repair,
+        success: services.success,
         reauthorize: (b) => sessions.authority.reauthorize(b),
         prepareReview: (tx, host, candidate) =>
           services.material.prepare(

@@ -1,0 +1,22 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/acceptance-repair.integration.test.ts (12 tests) 9948ms
+   ✓ controller-owned same-step repair reservations > records immutable failure feedback once, retains writer and cannot ready unapplied source  863ms
+   ✓ controller-owned same-step repair reservations > applies the exact failed candidate, consumes one same-step repair claim and retains the original physical writer  953ms
+   ✓ controller-owned same-step repair reservations > two repairs preserve original criteria and a third failure exhausts the budget  2195ms
+   ✓ controller-owned same-step repair reservations > required CI failure is repairable only with current authenticated facts (fresh=true)  749ms
+   ✓ controller-owned same-step repair reservations > required CI failure is repairable only with current authenticated facts (fresh=false)  653ms
+   ✓ controller-owned same-step repair reservations > insufficient context holds instead of creating code-churn retries  616ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed criteria without releasing its writer  732ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed lease without releasing its writer  688ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed producer without releasing its writer  661ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed pause without releasing its writer  643ms
+   ✓ controller-owned same-step repair reservations > reserved repair refuses changed registration without releasing its writer  587ms
+   ✓ controller-owned same-step repair reservations > cannot exceed the original attempt budget  606ms
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  08:29:59
+   Duration  10.64s (transform 402ms, setup 0ms, collect 559ms, tests 9.95s, environment 0ms, prepare 43ms)
+

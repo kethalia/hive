@@ -6,7 +6,9 @@ import {
   lockActiveRegistration,
   RegistrationRejected,
 } from "@/lib/codex-session/registration-store.server";
+import type { AcceptanceSuccessController } from "./acceptance-completion.server";
 import { acceptanceProofPayload, acceptanceRequestSchema } from "./acceptance-contracts";
+import type { AcceptanceRepairController } from "./acceptance-repair.server";
 import type { AcceptanceAuthority, AcceptanceStore } from "./acceptance-store.server";
 import { canonicalGitHubSource } from "./github-evidence.server";
 import { isGitHubSerializationConflict } from "./github-persistence.server";
@@ -26,6 +28,8 @@ export class DeliveryAcceptanceService {
       reauthorize(binding: RegistrationBinding): Promise<RegistrationBinding>;
       policies: RepositoryPolicyStore;
       guardianPolicy?: GuardianPolicy;
+      repair?: AcceptanceRepairController;
+      success?: AcceptanceSuccessController;
       // Installed controller derivation only, never called with model task IDs.
       prepareReview?(
         tx: Prisma.TransactionClient,
@@ -132,6 +136,27 @@ export class DeliveryAcceptanceService {
                 planDigest: plan?.planDigest ?? null,
                 plan: plan?.content ?? null,
               };
+            } else if (input.action === "repair_prepare" || input.action === "repair_ready") {
+              if (!this.dependencies.repair)
+                throw new DeliveryConflict("acceptance_repair_unavailable");
+              result =
+                input.action === "repair_prepare"
+                  ? await this.dependencies.repair.prepare(tx, authority, host.binding.id)
+                  : await this.dependencies.repair.ready(
+                      tx,
+                      authority,
+                      host.binding.id,
+                      input.repairId,
+                    );
+            } else if (input.action === "complete_verified") {
+              if (!this.dependencies.success)
+                throw new DeliveryConflict("acceptance_completion_unavailable");
+              result = await this.dependencies.success.complete(
+                tx,
+                authority,
+                host.binding.id,
+                input.terminal,
+              );
             } else if (input.action === "prepare_review") {
               if (!this.dependencies.prepareReview)
                 throw new DeliveryConflict("acceptance_material_unavailable");
@@ -198,7 +223,13 @@ export class DeliveryAcceptanceService {
           },
         );
       } catch (error) {
-        if (retry >= 2 || !isGitHubSerializationConflict(error)) throw error;
+        const repairRace =
+          ["repair_prepare", "repair_ready", "complete_verified"].includes(input.action) &&
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002" &&
+          JSON.stringify(error.meta?.target) ===
+            JSON.stringify(["owner_id", "aggregate_key", "aggregate_version"]);
+        if (retry >= 2 || (!isGitHubSerializationConflict(error) && !repairRace)) throw error;
       }
     }
   }

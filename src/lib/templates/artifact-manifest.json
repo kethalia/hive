@@ -2,34 +2,34 @@
   "schemaVersion": 1,
   "templates": {
     "ai-dev-k8s": {
-      "contentHash": "fc5fb144258ca16765512b29b11ddf1f8e39361f99b7c4de0e1e1e8c20d132cb",
-      "archiveDigest": "3641e27b68e1d4c8a58d9176ddd8947c316b0849481eb5de7e48c6f213eb87c2",
-      "archiveBytes": 555008,
-      "fileCount": 56
+      "contentHash": "260e4ece78d7272a8ba5b6682cbb78f6f16859e11ab4bad20e45212119560dad",
+      "archiveDigest": "7b99f5e4c97337607cf24074425f18089b8a961b01a9877ea85eb4173a75964a",
+      "archiveBytes": 630272,
+      "fileCount": 65
     },
     "browser-testing": {
-      "contentHash": "5580da2b6ce92baae0040b5fb7f11c92cc651eeb053b8bd623e2c74636443321",
-      "archiveDigest": "b4877ec7bf6a5f5646e8cc14a8d966840618f6724ae296323fe4f9a2a2934608",
-      "archiveBytes": 550400,
-      "fileCount": 56
+      "contentHash": "3fbd5979cf177e008e2f809ff7fb2104d087084f4a060db7062079915fe973ef",
+      "archiveDigest": "87c3dee4b02be5e6d77d12e240c83e145edd82f024d14ef4c05c88aded94005c",
+      "archiveBytes": 625664,
+      "fileCount": 65
     },
     "game-dev": {
-      "contentHash": "56c33832c7dc07d485806f8c3e08357dc064cdd86cbbe0afe9b5e5d3687b9195",
-      "archiveDigest": "47b8a2dc340b0e1b5cc64407fb25ce097a3e14cb2f8775becc7118585ece9b37",
-      "archiveBytes": 551424,
-      "fileCount": 56
+      "contentHash": "a63493025e750039383aaf89ed8ff0d9cb75e02dd5781e30a5d41847baf599c3",
+      "archiveDigest": "1c5e697ad729e6b447550b92cfe6c4cbadfc27dbf35cb6d893a0131afe90b89c",
+      "archiveBytes": 626688,
+      "fileCount": 65
     },
     "electronics": {
-      "contentHash": "141b30a20a66eb2161112485e2984b800076ccd689dd7c31c5b01afde7974e91",
-      "archiveDigest": "26615e0fd6bd028dbeebb0d51d0c23ddd88d5fed6ec354fbf8026df22f14344c",
-      "archiveBytes": 550912,
-      "fileCount": 56
+      "contentHash": "9ed0e1367338f5310c1a72fe7012d197f2b540de531cc07acf68b5636ab38ab9",
+      "archiveDigest": "9add4283fda924e38956abb0b8dc8f670e3d8f6056387caafa6772b5564d7931",
+      "archiveBytes": 626176,
+      "fileCount": 65
     },
     "infrastructure": {
-      "contentHash": "b7701f78fad04e66b3f5b5cfc9a5bfd67c6fde836a8f62ddcf0afa1d2f092a23",
-      "archiveDigest": "9e4ad22f60be3b57903db198bdcae9fd089a60890361ed13afc226ad2dcee3bf",
-      "archiveBytes": 551424,
-      "fileCount": 56
+      "contentHash": "40939bade1109ddb3df123d3bedca51bc5afdfc0378b7d90caa53b4d1532b6ab",
+      "archiveDigest": "6bfd55fbeba297b751026de9ee7dbd3835534acf978ae7898d14b48dd0e7fee2",
+      "archiveBytes": 626688,
+      "fileCount": 65
     }
   }
 }

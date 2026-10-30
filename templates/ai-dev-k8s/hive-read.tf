@@ -41,12 +41,10 @@ resource "coder_app" "hive_read" {
 
 locals {
   hive_read_bootstrap_data = local.hive_read_enabled ? {
-    "hive.kethalia.com/read-start"            = file("${path.module}/scripts/start-workspace-read.py")
-    "hive.kethalia.com/read-installer"        = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
-    "hive.kethalia.com/read-installer-sha256" = trimspace(file("${path.module}/assets/workspace-read-installer.sha256"))
     "hive.kethalia.com/read-request" = jsonencode({
       schemaVersion  = 1
-      archive        = filebase64("${path.module}/assets/workspace-read.tar.gz")
+      imageArchiveSha256   = filesha256("${path.module}/assets/workspace-read.tar.gz")
+      imageInstallerSha256 = filesha256("${path.module}/scripts/install-workspace-read.py")
       archiveSha256  = local.hive_read_archive_sha256
       manifestSha256 = local.hive_read_manifest_sha256
       config = {
@@ -85,8 +83,8 @@ resource "coder_script" "hive_read" {
   script             = file("${path.module}/scripts/install-workspace-read.sh.tftpl")
   lifecycle {
     precondition {
-      condition     = sum([for key, content in merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data) : length(base64encode(key)) * 3 / 4 + length(base64encode(content)) * 3 / 4]) <= 240000
-      error_message = "Combined Hive services exceed their bounded pod metadata capacity."
+      condition     = sum([for key, content in local.hive_read_bootstrap_data : length(base64encode(key)) * 3 / 4 + length(base64encode(content)) * 3 / 4]) <= 16384
+      error_message = "Workspace read request exceeds its annotation capacity."
     }
     precondition {
       condition     = can(regex("^https://[a-z0-9.-]+$", var.hive_control_origin)) && var.hive_issuer_public_key_pem != "" && can(regex("^[A-Za-z0-9._-]{1,64}$", var.hive_issuer_key_id))

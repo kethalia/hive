@@ -49,6 +49,22 @@ variable "hive_project_effort" {
   }
 }
 
+variable "hive_delivery_enabled" {
+  type        = bool
+  default     = false
+  description = "Operator opt-in for the guarded delivery manager. Requires a packaged native guardian and matching Hive deployment policy."
+}
+
+variable "hive_acceptance_producer_json" {
+  type        = string
+  default     = ""
+  description = "Reviewed public evaluator descriptor matching Hive deployment policy and the compiled host package. Empty keeps independent acceptance disabled."
+  validation {
+    condition     = var.hive_acceptance_producer_json == "" || (length(var.hive_acceptance_producer_json) <= 4096 && try(jsondecode(var.hive_acceptance_producer_json).schemaVersion, 0) == 1)
+    error_message = "Acceptance requires a bounded version-one producer descriptor. The installer validates all fields and package identity."
+  }
+}
+
 data "coder_parameter" "enable_hive_projects" {
   name         = "enable_hive_projects"
   display_name = "Managed Hive projects"
@@ -96,21 +112,21 @@ resource "coder_app" "hive_projects" {
   hidden       = true
 }
 
-# Public pod bootstrap input. Coder passes scripts through shell -c,
-# so embedding the package in a here-document still exceeds Linux argv limits.
+# Public configuration is mounted from a bounded Downward API annotation.
+# Coder scripts use a fixed file path rather than embedding the package in argv.
 locals {
   hive_host_bootstrap_data = local.hive_host_enabled ? {
-    "hive.kethalia.com/host-installer" = file("${path.module}/scripts/install-codex-host.py")
     "hive.kethalia.com/host-request" = jsonencode({
       schemaVersion   = 1
-      archive         = filebase64("${path.module}/assets/codex-host.tar.xz")
+      imageArchiveSha256   = filesha256("${path.module}/assets/codex-host.tar.xz")
+      imageInstallerSha256 = filesha256("${path.module}/scripts/install-codex-host.py")
       archiveEncoding = "xz"
       archiveSha256   = trimspace(file("${path.module}/assets/codex-host.tar.sha256"))
-      config = {
+      config = merge({
         schemaVersion          = 1
         enabled                = true
         profile                = "software"
-        managerEnabled         = false
+        managerEnabled         = var.hive_delivery_enabled
         nativeIsolationEnabled = true
         hiveOrigin             = var.hive_control_origin
         issuerPublicKeyPem     = var.hive_issuer_public_key_pem
@@ -129,7 +145,12 @@ locals {
           appOrigin   = local.hive_host_origin
           appId       = coder_app.hive_projects[0].id
         }
-      }
+      }, var.hive_delivery_enabled ? {
+        guardianEnabled          = true
+        deliveryExecutionEnabled = true
+      } : {}, var.hive_acceptance_producer_json != "" ? {
+        acceptance = jsondecode(var.hive_acceptance_producer_json)
+      } : {})
     })
   } : {}
 }
@@ -143,9 +164,12 @@ resource "coder_script" "hive_projects" {
   script             = file("${path.module}/scripts/install-codex-host.sh.tftpl")
   lifecycle {
     precondition {
-      # Include key bytes and reserve space below Kubernetes' 256-KiB annotation limit.
-      condition     = sum([for key, content in merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data) : length(base64encode(key)) * 3 / 4 + length(base64encode(content)) * 3 / 4]) <= 240000
-      error_message = "The managed host bootstrap exceeds its bounded pod metadata capacity."
+      condition     = var.hive_acceptance_producer_json == "" || var.hive_delivery_enabled
+      error_message = "Independent acceptance requires guarded delivery to be enabled by the deployment operator."
+    }
+    precondition {
+      condition     = sum([for key, content in local.hive_host_bootstrap_data : length(base64encode(key)) * 3 / 4 + length(base64encode(content)) * 3 / 4]) <= 16384
+      error_message = "The managed host bootstrap request exceeds its annotation capacity."
     }
     precondition {
       condition     = can(regex("^https://[a-z0-9.-]+$", var.hive_control_origin)) && var.hive_issuer_public_key_pem != "" && can(regex("^[A-Za-z0-9._:-]{1,200}$", var.hive_issuer_key_id))

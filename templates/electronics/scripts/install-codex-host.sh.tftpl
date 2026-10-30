@@ -1,6 +1,5 @@
 #!/bin/sh
-# Public template data is mounted read-only; keep packages out of shell argv.
 set -eu
 set +x
 test "$HIVE_WORKSPACE_PROFILE" = software
-exec /usr/bin/python3 -B /opt/hive-codex-host-template/install-codex-host.py < /opt/hive-codex-host-template/request.json
+exec /usr/bin/python3 -I -B /usr/local/libexec/hive-template-bootstrap host < /opt/hive-codex-host-template/request.json

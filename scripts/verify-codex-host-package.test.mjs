@@ -39,6 +39,7 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
     const manifest = JSON.parse(readFileSync(join(out, "package-manifest.json")));
     assert.equal(manifest.wsVersion, "8.21.3");
     assert.equal(manifest.nativeVersion, "0.165.0");
+    assert.equal(manifest.files["codex-native-guardian"], manifest.guardian.elfSha256);
     assert.ok(Object.hasOwn(manifest.files, "github-evidence.py"));
     assert.ok(Object.hasOwn(manifest.files, "delivery-source-runtime.py"));
     assert.ok(Object.hasOwn(manifest.files, "delivery-source-worker.py"));

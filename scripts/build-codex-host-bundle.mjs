@@ -85,10 +85,15 @@ const assets = [
   "codex-project-lease.py",
   "install-codex-runtime.py",
 ];
-// A separately built, reviewed artifact is opt-in. This never invokes a compiler.
-const guardianArtifact = process.env.HIVE_GUARDIAN_ARTIFACT_DIR
-  ? validateGuardianArtifact(root, resolve(process.env.HIVE_GUARDIAN_ARTIFACT_DIR))
-  : null;
+// Ship the reviewed CI artifact in every host package. Enabling execution is a
+// separate operator policy. Source/recipe changes require a new reviewed artifact;
+// building or installing a template never downloads or compiles one implicitly.
+const guardianArtifact = validateGuardianArtifact(
+  root,
+  process.env.HIVE_GUARDIAN_ARTIFACT_DIR
+    ? resolve(process.env.HIVE_GUARDIAN_ARTIFACT_DIR)
+    : join(root, "tools/native-guardian/prebuilt/linux-x64"),
+);
 // Identifier/whitespace compaction preserves runtime names and avoids syntax minification while
 // fitting the existing pod metadata budget. The artifact builder recomputes this
 // exact transform before omitting any loose source from the distributable tar.

@@ -96,7 +96,7 @@ async function fixture(protocol: 0 | 1 = 1) {
       report,
     },
   });
-  async function boundary(nextTurn = randomUUID(), sourceOverrides = {}, overrides = {}) {
+  async function boundary(nextTurn: string = randomUUID(), sourceOverrides = {}, overrides = {}) {
     const input = f.sourceEnvelope(
       first,
       {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { acceptanceTerminalSchema } from "./acceptance-completion-contracts";
 import { canonicalGitHubSource, githubSourceDigest } from "./github-evidence.server";
 import { managerCheckoutSchema } from "./manager-contracts";
 import { sourceManifestSchema } from "./source-transport-contracts";
@@ -210,6 +211,11 @@ export const acceptanceRequestSchema = z.discriminatedUnion("action", [
     .extend({ action: z.literal("prepare_review"), candidate: acceptanceCandidateSchema })
     .strict(),
   baseRequest.extend({ action: z.literal("read_acceptance_plan") }).strict(),
+  baseRequest.extend({ action: z.literal("repair_prepare") }).strict(),
+  baseRequest
+    .extend({ action: z.literal("complete_verified"), terminal: acceptanceTerminalSchema })
+    .strict(),
+  baseRequest.extend({ action: z.literal("repair_ready"), repairId: id }).strict(),
   baseRequest
     .extend({
       action: z.literal("start_acceptance"),

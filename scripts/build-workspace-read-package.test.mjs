@@ -74,36 +74,31 @@ test("check rejects stale package or changed source until deliberate resynchroni
   await assert.rejects(workspaceReadPackage(root), /bounds/);
 });
 
-test("combined public bootstrap retains room for both configs under unchanged metadata budget", async (t) => {
+test("image-pinned bootstrap requests fit the Downward API annotation budget", async (t) => {
   const root = resolve("."),
     host = await hostArchive(root),
     read = await workspaceReadPackage(root),
     installer = await workspaceReadInstaller(root);
-  const hostInstaller = await readFile(
-    join(root, "templates/ai-dev-k8s/scripts/install-codex-host.py"),
-  );
-  const loader = await readFile(join(root, "templates/ai-dev-k8s/scripts/start-workspace-read.py"));
-  const fixedBytes =
-    host.compressed.toString("base64").length +
-    read.compressed.toString("base64").length +
-    installer.compressed.toString("base64").length +
-    hostInstaller.length +
-    loader.length +
-    64;
-  // Terraform separately bounds actual annotations. Reserve 8KiB here for the
-  // two fixed JSON configurations, their field names and annotation names.
-  assert.ok(
-    fixedBytes + 8192 <= 240000,
-    `combined bootstrap ${fixedBytes} leaves insufficient config room`,
-  );
+  const request = JSON.stringify({
+    schemaVersion: 1,
+    imageArchiveSha256: "a".repeat(64),
+    imageInstallerSha256: "b".repeat(64),
+    archiveSha256: host.sha256,
+    manifestSha256: read.manifestSha256,
+    config: {},
+  });
+  // Each of the three request annotations is bounded to 16 KiB, with 8 KiB
+  // reserve each for full JSON config; no archive or installer occupies metadata.
+  assert.ok(Buffer.byteLength(request) + 8192 <= 16384);
+  assert.ok(3 * 16384 < 240000);
   t.diagnostic(
     JSON.stringify({
       hostCompressedBytes: host.compressed.length,
       readCompressedBytes: read.compressed.length,
       installerCompressedBytes: installer.compressed.length,
-      fixedBytes,
-      configReserve: 8192,
-      limit: 240000,
+      requestBytes: Buffer.byteLength(request),
+      configReserveEach: 8192,
+      requestLimit: 16384,
     }),
   );
 });

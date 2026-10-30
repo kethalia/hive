@@ -1,4 +1,50 @@
-import type { WebSocket } from "ws";
+/** Transport adapter: implementations must deliver each frame once and close idempotently. */
+export interface VoiceSocket {
+  readonly readyState: number;
+  onMessage(listener: (data: string) => void): void;
+  onError(listener: () => void): void;
+  onClose(listener: () => void): void;
+  send(data: string, callback?: (error?: Error) => void): void;
+  close(): void;
+}
+
+/** Native WebSocket adapter for Workers. Audio remains outside this signaling channel. */
+export function nativeVoiceSocket(socket: WebSocket): VoiceSocket {
+  const decoder = new TextDecoder();
+  return {
+    get readyState() {
+      return socket.readyState;
+    },
+    onMessage(listener) {
+      socket.addEventListener("message", (event) => {
+        const data: unknown = event.data;
+        if (typeof data === "string") {
+          if (new TextEncoder().encode(data).byteLength <= 2 * 1024 * 1024) listener(data);
+          else socket.close(1009, "Message too large");
+        } else if (data instanceof ArrayBuffer && data.byteLength <= 2 * 1024 * 1024) {
+          listener(decoder.decode(data));
+        } else socket.close(1009, "Invalid message");
+      });
+    },
+    onError(listener) {
+      socket.addEventListener("error", listener);
+    },
+    onClose(listener) {
+      socket.addEventListener("close", listener);
+    },
+    send(data, callback) {
+      try {
+        socket.send(data);
+        callback?.();
+      } catch {
+        callback?.(new Error("Codex connection closed"));
+      }
+    },
+    close() {
+      if (socket.readyState < 2) socket.close();
+    },
+  };
+}
 
 type Notification = { method: string; params?: Record<string, unknown> };
 
@@ -19,13 +65,13 @@ export class VoiceRpc {
   onClose: () => void = () => {};
 
   constructor(
-    private socket: WebSocket,
+    private socket: VoiceSocket,
     private dispose: () => void = () => {},
   ) {
-    socket.on("message", (raw) => {
+    socket.onMessage((raw) => {
       let message: Record<string, unknown>;
       try {
-        message = JSON.parse(raw.toString());
+        message = JSON.parse(raw);
       } catch {
         this.close();
         return;
@@ -51,8 +97,8 @@ export class VoiceRpc {
       }
       // Do not answer server approval/elicitation requests. The existing TUI owns them.
     });
-    socket.on("error", () => this.close());
-    socket.on("close", () => {
+    socket.onError(() => this.close());
+    socket.onClose(() => {
       this.rejectPending();
       this.dispose();
       this.onClose();
@@ -95,7 +141,7 @@ export class VoiceRpc {
 
   close() {
     this.rejectPending();
-    this.socket.terminate();
+    this.socket.close();
     this.dispose();
   }
 }

@@ -27,6 +27,8 @@ const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 export async function guardianFixture(
   db: PrismaClient,
   hooks: {
+    managerThreadId?: string;
+    parentTurnId?: string;
     beforeIntent?: NativeFixtureHooks["beforeIntent"];
     afterQueuedIntent?(payload: TaskIntentPayload, row: ProjectTaskIntent): Promise<void>;
     deliveryExecutionEnabled?: boolean;
@@ -102,7 +104,8 @@ export async function guardianFixture(
         launch: Awaited<ReturnType<typeof store.reserveNativeLaunch>>;
       }
     | undefined;
-  const f = await nativeFixture(db, randomUUID(), {
+  const f = await nativeFixture(db, hooks.managerThreadId ?? randomUUID(), {
+    parentTurnId: hooks.parentTurnId,
     beforeIntent: hooks.beforeIntent,
     physical: hooks.physical && {
       revision: hooks.physical.revision,

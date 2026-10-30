@@ -1,4 +1,4 @@
-import { VoiceRequestRejected, type VoiceRpc } from "./voice-rpc";
+import type { VoiceRpc } from "./voice-rpc";
 
 export type VoiceThread = { id: string; name: string; cwd: string };
 type Thread = {
@@ -10,19 +10,53 @@ type Thread = {
 };
 
 export async function listVoiceThreads(rpc: VoiceRpc): Promise<VoiceThread[]> {
-  const loaded = await rpc.request<{ data: string[]; nextCursor?: string | null }>(
-    "thread/loaded/list",
-    { limit: 100 },
-  );
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const cursors = new Set<string>();
+  let cursor: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const loaded = await rpc.request<{ data: unknown; nextCursor?: unknown }>(
+      "thread/loaded/list",
+      { limit: 100, ...(cursor ? { cursor } : {}) },
+    );
+    if (
+      !loaded ||
+      !Array.isArray(loaded.data) ||
+      loaded.data.length > 100 ||
+      loaded.data.some(
+        (id) => typeof id !== "string" || id.length === 0 || id.length > 200 || seen.has(id),
+      ) ||
+      new Set(loaded.data).size !== loaded.data.length
+    )
+      throw new Error("Invalid Codex thread list");
+    for (const id of loaded.data as string[]) {
+      seen.add(id);
+      ids.push(id);
+    }
+    const next = loaded.nextCursor;
+    if (next === null || next === undefined) break;
+    if (
+      typeof next !== "string" ||
+      !next.length ||
+      next.length > 256 ||
+      cursors.has(next) ||
+      page === 9
+    )
+      throw new Error("Invalid Codex thread cursor");
+    cursors.add(next);
+    cursor = next;
+  }
   // A bounded prototype: no saved-thread resumption, no configuration overrides.
   const threads: VoiceThread[] = [];
-  for (let index = 0; index < loaded.data.length; index += 10) {
+  for (let index = 0; index < ids.length; index += 10) {
     const results = await Promise.all(
-      loaded.data.slice(index, index + 10).map(async (threadId) => {
+      ids.slice(index, index + 10).map(async (threadId) => {
         const { thread } = await rpc.request<{ thread: Thread }>("thread/read", {
           threadId,
           includeTurns: false,
         });
+        if (!thread || thread.id !== threadId || typeof thread.cwd !== "string")
+          throw new Error("Invalid Codex thread");
         if (thread.parentThreadId || thread.canAcceptDirectInput === false) return null;
         return { id: thread.id, name: thread.name || thread.id, cwd: thread.cwd };
       }),
@@ -43,8 +77,21 @@ export function createVoiceStream(
   return new ReadableStream<Uint8Array>({
     start(controller) {
       let finished = false;
-      let startSent = false;
+      let startPending = false;
       let startAccepted = false;
+      let upstreamClosed = false;
+      let stopStarted = false;
+      const closeStartedCall = () => {
+        if (stopStarted) return;
+        stopStarted = true;
+        rpc.onNotification = () => {};
+        if (startAccepted) {
+          void rpc
+            .request("thread/realtime/stop", { threadId }, 3_000)
+            .catch(() => {})
+            .finally(() => rpc.close());
+        } else rpc.close();
+      };
       const encoder = new TextEncoder();
       let heartbeat: ReturnType<typeof setInterval>;
       let deadline: ReturnType<typeof setTimeout>;
@@ -69,21 +116,21 @@ export function createVoiceStream(
         clearTimeout(deadline);
         clearTimeout(startupDeadline);
         signal.removeEventListener("abort", finish);
-        rpc.onNotification = () => {};
+        rpc.onNotification = startPending
+          ? ({ method, params }) => {
+              if (method === "thread/realtime/closed" && params?.threadId === threadId)
+                upstreamClosed = true;
+            }
+          : () => {};
         rpc.onClose = () => {};
         try {
           controller.close();
         } catch {
           /* Consumer canceled. */
         }
-        // Keep the control connection briefly so disconnect actually ends voice.
-        // Never stop a session whose start was explicitly rejected.
-        if (startAccepted || startSent) {
-          void rpc
-            .request("thread/realtime/stop", { threadId }, 3_000)
-            .catch(() => {})
-            .finally(() => rpc.close());
-        } else rpc.close();
+        // If startup is pending, its response decides whether this call owns a
+        // session. An uncertain/rejected start must not stop another client's call.
+        if (!startPending) closeStartedCall();
       };
       rpc.onClose = () => {
         send({ type: "error", message: "The Codex connection closed. Voice has ended." });
@@ -102,7 +149,7 @@ export function createVoiceStream(
           });
           finish();
         } else if (method === "thread/realtime/closed") {
-          startSent = false;
+          upstreamClosed = true;
           startAccepted = false;
           send({ type: "closed" });
           finish();
@@ -125,7 +172,7 @@ export function createVoiceStream(
         finish();
         return;
       }
-      startSent = true;
+      startPending = true;
       void rpc
         .request("thread/realtime/start", {
           threadId,
@@ -135,16 +182,19 @@ export function createVoiceStream(
           transport: { type: "webrtc", sdp },
         })
         .then(() => {
-          startAccepted = true;
+          startPending = false;
+          startAccepted = !upstreamClosed;
+          if (finished) closeStartedCall();
         })
-        .catch((error) => {
-          if (error instanceof VoiceRequestRejected) startSent = false;
+        .catch(() => {
+          startPending = false;
           send({
             type: "error",
             message:
               "Codex rejected voice startup. Check voice availability and end any existing voice call first.",
           });
-          finish();
+          if (finished) closeStartedCall();
+          else finish();
         });
     },
     cancel() {

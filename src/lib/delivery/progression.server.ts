@@ -1,4 +1,5 @@
 import type { Prisma } from "@hive/db";
+import { currentRepairReservation } from "./acceptance-repair.server";
 import type { ManagerEnvelope } from "./manager-contracts";
 import { NATIVE_OBSERVER_PRODUCER } from "./native-contracts";
 import { resolveAttemptSource } from "./source-resolver.server";
@@ -85,6 +86,13 @@ export async function authorizeProgressionClaim(
   });
   const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
   const age = now.getTime() - Date.parse(String(payload?.source?.observedAt));
+  const repair =
+    old?.outcome === "failed"
+      ? await currentRepairReservation(tx, ownerId, binding.id, old.id, {
+          ready: true,
+          stepId: input.command.payload.stepId,
+        })
+      : null;
   if (
     !boundary ||
     boundary.type !== "native_root_boundary" ||
@@ -101,8 +109,8 @@ export async function authorizeProgressionClaim(
     age > 60_000 ||
     !old ||
     old.managerBindingId !== binding.id ||
-    !["reported", "succeeded"].includes(old.outcome) ||
-    old.step.state !== old.outcome ||
+    (!repair && !["reported", "succeeded"].includes(old.outcome)) ||
+    (!repair && old.step.state !== old.outcome) ||
     old.step.taskId !== input.command.payload.taskId ||
     old.leaseExpiresAt <= now ||
     anchor?.step.taskId !== input.command.payload.taskId
@@ -122,6 +130,7 @@ export async function authorizeProgressionClaim(
   )
     throw new DeliveryConflict("continuation_boundary_consumed");
   return {
+    ...(repair ? { repairId: repair.repairId } : {}),
     cursorVersion: binding.cursorVersion + 1,
     sequence: binding.nativeSequence,
     continuing: true,

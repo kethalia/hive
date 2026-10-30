@@ -4,6 +4,7 @@ import { requireAppliedSourceForAction } from "@/lib/codex-session/guardian-appl
 import type { GuardianPolicy } from "@/lib/codex-session/guardian-contracts";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
+import { repairWriterHeld } from "./acceptance-repair.server";
 import type { SourceContext } from "./contracts";
 import { githubSourceDigest } from "./github-evidence.server";
 import { isGitHubSerializationConflict } from "./github-persistence.server";
@@ -384,6 +385,25 @@ export class DeliveryManagerService {
           )
             throw new DeliveryConflict("invalid_continuation");
           const continuation = input.continuation;
+          if ("repairId" in progression && progression.repairId)
+            await tx.deliveryEvent.create({
+              data: {
+                id: randomUUID(),
+                ownerId,
+                taskId: input.command.payload.taskId,
+                stepId: input.command.payload.stepId,
+                attemptId: attempt.id,
+                aggregateKey: `repair-consumed/${progression.repairId}`,
+                aggregateVersion: 1,
+                type: "acceptance_repair_consumed",
+                policyVersion: "acceptance-repair-v1",
+                requestDigest: githubSourceDigest({
+                  repairId: progression.repairId,
+                  claimEventId: input.eventId,
+                }),
+                payload: { repairId: progression.repairId, claimEventId: input.eventId },
+              },
+            });
           const changed = await tx.deliveryManagerBinding.updateMany({
             where: {
               ownerId,
@@ -436,13 +456,18 @@ export class DeliveryManagerService {
       async (tx, attempts) => {
         if (
           !progression?.continuing ||
-          attempts.some(
-            (attempt) =>
-              attempt.managerBindingId !== expected.id ||
-              !["reported", "succeeded"].includes(attempt.outcome),
-          )
+          attempts.some((attempt) => attempt.managerBindingId !== expected.id)
         )
           throw new DeliveryConflict("native_reconciliation_required");
+        for (const attempt of attempts)
+          if (
+            !["reported", "succeeded"].includes(attempt.outcome) &&
+            !(
+              attempt.outcome === "failed" &&
+              (await repairWriterHeld(tx, ownerId, expected.id, attempt.id))
+            )
+          )
+            throw new DeliveryConflict("native_reconciliation_required");
         if (input.command.operation !== "claim_step")
           throw new DeliveryConflict("invalid_continuation");
         for (const attempt of attempts)

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { generateKeyPairSync, randomUUID, verify } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID, verify } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -1010,6 +1010,14 @@ function sourceAdapter(t, overrides = {}) {
       };
     },
     readAcceptedSource: read,
+    revalidateBoundary: async (request) => {
+      assert.equal(
+        JSON.stringify(request),
+        JSON.stringify(f.starts.at(-1)),
+        "Supervisor journals the exact continuation request bytes",
+      );
+      return { observedAt: new Date().toISOString() };
+    },
     applyAcceptedSource: async (request, accepted) => {
       const snapshot = f.adapter.sourceApplicationSnapshot(request.managerThreadId, request);
       assert.equal(snapshot.scope, "native_observer_journal_only");
@@ -1400,4 +1408,281 @@ test("source application snapshot rejects pre-terminal and substituted claim sco
     /snapshot_scope_changed/,
   );
   assert.equal(f.adapter.inspectNative().held, 1);
+});
+
+function repairDecision(f, claim) {
+  const feedback = {
+    reason: "semantic_review_failed",
+    reviewJobId: randomUUID(),
+    reviewResultDigest: "1".repeat(64),
+    requirements: [
+      {
+        id: "acceptance:behavior",
+        meaning: "Preserve original behavior",
+        observation: "Exact candidate fails the fixture",
+      },
+    ],
+    failedEvidence: [],
+  };
+  const digest = (v) =>
+    createHash("sha256")
+      .update(
+        JSON.stringify(v, (_k, x) =>
+          x && typeof x === "object" && !Array.isArray(x)
+            ? Object.fromEntries(
+                Object.keys(x)
+                  .sort()
+                  .map((k) => [k, x[k]]),
+              )
+            : x,
+        ),
+      )
+      .digest("hex");
+  const reservation = {
+    schemaVersion: 1,
+    repairId: randomUUID(),
+    reportId: randomUUID(),
+    ownerId: randomUUID(),
+    projectId: f.options.currentProjectContext().projectId,
+    preparationIntentId: f.options.currentProjectContext().preparationIntentId,
+    managerThreadId: f.request.threadId,
+    managerBindingId: claim.managerBindingId,
+    taskId: f.taskId,
+    stepId: f.firstStep,
+    attemptId: claim.attemptId,
+    registrationId: f.registration.id,
+    serverInstanceId: f.registration.serverInstanceId,
+    parentTurnId: f.request.turnId,
+    cursorVersion: 1,
+    leaseGeneration: claim.leaseGeneration,
+    leaseExpiresAt: Date.now() + 60000,
+    sourceContext: f.output.sourceContext,
+    publicationOperationId: f.output.operationId,
+    stepDigest: "2".repeat(64),
+    planDigest: "3".repeat(64),
+    policyDigest: "4".repeat(64),
+    producerDigest: "5".repeat(64),
+    feedbackDigest: digest(feedback),
+    feedback,
+    ordinal: 1,
+  };
+  return {
+    phase: "reserved",
+    reservation,
+    eventId: reservation.repairId,
+    reportId: reservation.reportId,
+    executionAuthorized: false,
+    publicationAuthorized: false,
+    cleanupAuthorized: false,
+  };
+}
+test("terminal failed acceptance applies source and resumes the same step only after controller readiness", async (t) => {
+  let f,
+    claim,
+    decision,
+    readyCalls = 0;
+  f = sourceAdapter(t, {
+    assessAcceptance: async () => decision,
+    readyRepair: async () => {
+      readyCalls++;
+      return { ...decision, phase: "ready", expectedVersion: 3, attemptBudgetRemaining: 2 };
+    },
+  });
+  claim = await f.begin(true);
+  await f.publish();
+  decision = repairDecision(f, claim);
+  f.terminal();
+  for (let i = 0; i < 100 && !f.starts.length; i++) await new Promise((r) => setTimeout(r, 5));
+  assert.equal(f.adapter.inspectNative().blocked, 0);
+  assert.equal(f.applies.length, 1);
+  assert.equal(readyCalls, 1);
+  assert.equal(f.starts.length, 1);
+  assert.deepEqual(f.starts[0].repair.reservation, decision.reservation);
+  assert.equal(f.starts[0].sourceContext.headSha, "b".repeat(40));
+  // The same visible root now claims a fresh attempt; feedback is not a claim.
+  const next = JSON.parse(
+    (
+      await f.call("continuation-1", "repair-claim", "claim_step", {
+        taskId: f.taskId,
+        stepId: f.firstStep,
+        expectedVersion: 3,
+      })
+    ).contentItems[0].text,
+  );
+  assert.notEqual(next.attemptId, claim.attemptId);
+  assert.equal(next.inputSourceSha, "b".repeat(40));
+});
+test("a repair cannot switch steps or replace immutable feedback", async (t) => {
+  let f, decision;
+  f = sourceAdapter(t, {
+    assessAcceptance: async () => decision,
+    readyRepair: async () => ({
+      ...decision,
+      phase: "ready",
+      expectedVersion: 3,
+      attemptBudgetRemaining: 2,
+    }),
+  });
+  const claim = await f.begin(true);
+  await f.publish();
+  decision = repairDecision(f, claim);
+  f.terminal();
+  for (let i = 0; i < 100 && !f.starts.length; i++) await new Promise((r) => setTimeout(r, 5));
+  assert.equal(f.starts.length, 1);
+  assert.throws(
+    () =>
+      f.adapter.assertProgressionAuthority({
+        ...f.starts[0],
+        repair: { ...f.starts[0].repair, expectedVersion: 4 },
+      }),
+    /repair_scope/,
+  );
+  await assert.rejects(
+    f.call("continuation-1", "changed-step", "claim_step", {
+      taskId: f.taskId,
+      stepId: randomUUID(),
+      expectedVersion: 3,
+    }),
+    /repair_claim/,
+  );
+});
+for (const phase of ["waiting", "held"])
+  test(`independent ${phase} never applies or starts another inference`, async (t) => {
+    const f = sourceAdapter(t, { assessAcceptance: async () => ({ phase, reason: "fixture" }) });
+    await f.begin(true);
+    await f.publish();
+    f.terminal();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(f.applies.length, 0);
+    assert.equal(f.starts.length, 0);
+    assert.equal(f.adapter.inspectNative().blocked, phase === "held" ? 1 : 0);
+    await f.adapter.close();
+  });
+
+test("acknowledged repair continuation survives adapter restart without a second inference", async (t) => {
+  let f, decision;
+  f = sourceAdapter(t, {
+    assessAcceptance: async () => decision,
+    readyRepair: async () => ({
+      ...decision,
+      phase: "ready",
+      expectedVersion: 3,
+      attemptBudgetRemaining: 2,
+    }),
+  });
+  const claim = await f.begin(true);
+  await f.publish();
+  decision = repairDecision(f, claim);
+  f.terminal();
+  for (let i = 0; i < 100 && !f.starts.length; i++) await new Promise((r) => setTimeout(r, 5));
+  assert.equal(f.starts.length, 1);
+  await f.adapter.close();
+  const reopened = createDeliveryManagerAdapter(f.options);
+  t.after(() => reopened.close());
+  await reopened.resume();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(f.starts.length, 1);
+  reopened.assertProgressionAuthority(f.starts[0]);
+});
+test("lost repair-ready acknowledgement holds the applied source without starting a model", async (t) => {
+  let f,
+    decision,
+    calls = 0;
+  f = sourceAdapter(t, {
+    assessAcceptance: async () => decision,
+    readyRepair: async () => {
+      calls++;
+      throw Error("lost_ready_ack");
+    },
+  });
+  const claim = await f.begin(true);
+  await f.publish();
+  decision = repairDecision(f, claim);
+  f.terminal();
+  for (let i = 0; i < 100 && !f.adapter.inspectNative().blocked; i++)
+    await new Promise((r) => setTimeout(r, 5));
+  assert.equal(f.applies.length, 1);
+  assert.equal(f.starts.length, 0);
+  assert.equal(calls, 1);
+  await f.adapter.close();
+  const reopened = createDeliveryManagerAdapter(f.options);
+  t.after(() => reopened.close());
+  await reopened.resume();
+  assert.equal(calls, 1);
+  assert.equal(reopened.inspectNative().blocked, 1);
+});
+
+test("verified terminal success records a controller receipt and applies final source without another inference", async (t) => {
+  let f;
+  f = sourceAdapter(t, {
+    assessAcceptance: async (request) => {
+      const facts = f.adapter.acceptanceTerminalSnapshot(request.managerThreadId, request);
+      // A factual terminal snapshot does not waive the separate result requirement
+      // for protected metadata application.
+      assert.throws(
+        () => f.adapter.sourceApplicationSnapshot(request.managerThreadId, request),
+        /scope_changed/,
+      );
+      return {
+        phase: "completed",
+        sourceContext: f.output.sourceContext,
+        scope: {
+          managerBindingId: facts.managerBindingId,
+          taskId: facts.taskId,
+          stepId: facts.stepId,
+          attemptId: facts.attemptId,
+          managerThreadId: facts.managerThreadId,
+          parentTurnId: facts.parentTurnId,
+          cursorVersion: facts.cursorVersion,
+          nativeSequence: facts.nativeSequence,
+          sourceContext: f.output.sourceContext,
+          sourceJournalDigest: facts.sourceJournalDigest,
+        },
+        receipt: { eventId: randomUUID(), reportId: randomUUID(), version: 3 },
+        writerHeld: true,
+        executionAuthorized: false,
+        publicationAuthorized: false,
+        cleanupAuthorized: false,
+      };
+    },
+  });
+  const claim = await f.begin(true);
+  await f.publish();
+  f.terminal();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(f.applies.length, 1);
+  assert.equal(f.starts.length, 0);
+  assert.equal(f.adapter.inspectNative().blocked, 0);
+  const raw = JSON.parse(
+    readFileSync(join(f.options.stateDirectory, "native/source.json"), "utf8"),
+  );
+  assert.equal(raw.state.results[claim.attemptId].operation, "complete_step");
+  assert.equal(raw.state.sourcePublications[claim.attemptId].applied, true);
+  assert.equal(f.adapter.inspectNative().held, 1);
+});
+
+test("changed verified completion receipt never authorizes source application", async (t) => {
+  let f;
+  f = sourceAdapter(t, {
+    assessAcceptance: async (request) => {
+      const facts = f.adapter.acceptanceTerminalSnapshot(request.managerThreadId, request);
+      return {
+        phase: "completed",
+        sourceContext: f.output.sourceContext,
+        scope: { ...facts, attemptId: randomUUID(), sourceContext: f.output.sourceContext },
+        receipt: { eventId: randomUUID(), reportId: randomUUID(), version: 3 },
+        writerHeld: true,
+        executionAuthorized: false,
+        publicationAuthorized: false,
+        cleanupAuthorized: false,
+      };
+    },
+  });
+  await f.begin(true);
+  await f.publish();
+  f.terminal();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(f.applies.length, 0);
+  assert.equal(f.starts.length, 0);
+  assert.equal(f.adapter.inspectNative().blocked, 1);
 });

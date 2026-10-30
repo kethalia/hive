@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "actualNativeVersion": "0.165.0",
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "managerThreadId": "01a18bfc-560d-7750-bf1a-ca3f57b3b597",
+  "initialTurnId": "01a18bfc-56d5-7101-b605-7ae20988a916",
+  "repairTurnId": "01a18bfc-5f5f-7b72-ad29-a2abaa0c7a8f",
+  "evaluatorThreadIds": [
+    "01a18bfc-5bae-73e0-9a12-c44f838d51d8",
+    "01a18bfc-6232-7872-be42-dcca24e649c2"
+  ],
+  "reviewOutcomes": ["fail", "pass"],
+  "candidateHeads": [
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "cccccccccccccccccccccccccccccccccccccccc"
+  ],
+  "sameStepId": "8bc19fe6-3d0a-4fd8-9879-bc2915f6ee9c",
+  "attemptIds": ["25207193-64cf-4c82-ba4c-e626b10179b8", "04a53432-85b0-42ed-b31b-934d1a9cc700"],
+  "criteriaUnchanged": true,
+  "physicalWriterHeld": true,
+  "requests": 5,
+  "accountInference": false,
+  "providerPublication": "explicit-local-double",
+  "nativeChildFacts": "explicit-local-double",
+  "inputBarrierReceipt": "explicit-local-double",
+  "productionCompletion": false,
+  "controllerCompletion": "succeeded through real full repository/semantic policy with signed provider snapshot and observer doubles",
+  "completionEventId": "6fd1bf08-026f-4d19-aef3-3d46d59b0995"
+}
