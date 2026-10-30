@@ -177,9 +177,10 @@ export function WorkspaceDock({
     const selected = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
     if (!busy && view === "workspaces" && selected && focusAfterRemoval.current) {
       focusAfterRemoval.current = false;
-      navRef.current
-        ?.querySelector<HTMLButtonElement>('[aria-current="page"]')
-        ?.focus({ preventScroll: true });
+      if (navRef.current?.contains(document.activeElement))
+        navRef.current
+          .querySelector<HTMLButtonElement>('[aria-current="page"]')
+          ?.focus({ preventScroll: true });
     }
   }, [view, busy, activeWorkspaceId, workspaces, navRef, changeView]);
 

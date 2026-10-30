@@ -53,7 +53,8 @@ function assertRemovalSettles(frames) {
   for (const space of settled.spaces) {
     const prior = moving.spaces.find((item) => item.id === space.id);
     assert.ok(
-      Math.abs(prior.relativeLeft - space.relativeLeft) < 1,
+      // scrollLeft is rounded to CSS pixels in the narrow overlay viewport.
+      Math.abs(prior.relativeLeft - space.relativeLeft) <= 1,
       "Surviving caps reach their final positions before the animation is released",
     );
   }

@@ -136,8 +136,10 @@ export function useDockSpaces({
     if (options && selected) {
       const item = selected.getBoundingClientRect(),
         area = options.getBoundingClientRect();
-      if (item.left < area.left + 10) options.scrollLeft -= area.left + 10 - item.left;
-      else if (item.right > area.right - 12) options.scrollLeft += item.right - area.right + 12;
+      const padding = Math.max(0, Math.min(10, (area.width - item.width) / 2));
+      if (item.left < area.left + padding) options.scrollLeft -= area.left + padding - item.left;
+      else if (item.right > area.right - padding)
+        options.scrollLeft += item.right - area.right + padding;
     }
     const adding = ids.some((id) => !before.positions.has(id));
     const resizeDuration = adding ? 280 : 440;

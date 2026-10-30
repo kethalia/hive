@@ -7,6 +7,7 @@ import {
   type DockKeyPress,
   WorkspaceDock,
 } from "@/components/experimental/workspace-dock";
+import { WorkspaceDockOverlay } from "@/components/experimental/workspace-dock-overlay";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -388,7 +389,7 @@ function Playground() {
                     )}
                   />
                 </div>
-                <footer className="prototype-dock-area">
+                <WorkspaceDockOverlay blocked={panel !== null}>
                   <WorkspaceDock
                     workspaces={state.boards.map((item, index) => ({
                       id: item.key,
@@ -420,10 +421,10 @@ function Playground() {
                           }
                     }
                   />
-                  <span role="status" className="sr-only" data-dock-feedback>
-                    {event}
-                  </span>
-                </footer>
+                </WorkspaceDockOverlay>
+                <span role="status" className="sr-only" data-dock-feedback>
+                  {event}
+                </span>
               </section>
             </div>
           </div>
@@ -513,7 +514,9 @@ function Playground() {
               <p className="text-xs text-muted-foreground">
                 Tab / Shift+Tab move through controls. Arrow keys, Home, and End navigate the dock.
                 Enter/Space activate. Escape returns from an expanded dock. Ctrl/Cmd+K opens Search
-                Hive. Ctrl/Cmd+/ opens this help.
+                Hive. Ctrl/Cmd+/ opens this help. Alt+Shift+D shows/hides the dock. The arrow beside
+                the dock also works with touch or Enter/Space. It resumes auto-hide after 2.5
+                seconds away; hovering or focusing its controls keeps it open.
               </p>
               <p className="text-xs text-muted-foreground">
                 Extra keyboard modifiers apply to the next key. Copy/Paste use a preview-only

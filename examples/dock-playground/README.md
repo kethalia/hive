@@ -28,6 +28,20 @@ through Coder still requires the workspace owner's Coder sign-in.
 The screen starts with Hive's original **Your workspace** empty state and **Add window** button.
 There is no marketing page, wallpaper, decorative Mac window, or new application theme.
 
+The canvas fills the entire screen. A separate `WorkspaceDockOverlay` places the dock above
+windows without reserving footer space, and keeps launcher/help dialogs above the dock. It starts
+visible and slides/fades away after 2.5 seconds away from its controls. Hover, keyboard focus, and
+an open playground dialog suspend auto-hide. Leaving those controls resumes it, including after
+manual show; there is no permanent pin mode.
+
+The 32px arrow beside the dock remains visible with an expanded 44px touch target, sharing the dock's row
+instead of reserving another row underneath. Click/tap or Enter/Space shows
+or hides the dock, and Tab moves from the handle into the revealed controls. **Alt+Shift+D** toggles
+the dock from anywhere outside a dialog, focuses its controls when revealing, and returns focus
+to the handle when hiding. The handle exposes expanded state and the shortcut to assistive
+technology. Hidden dock controls are inert and excluded from the accessibility tree. Reduced
+motion removes the reveal transition; window geometry never changes when visibility changes.
+
 Keycaps keep their solid shadow anchored at the bottom-left. On hover a key lifts up/right and its
 shadow grows; pressing moves it down/left and collapses the shadow. The press is quick (65ms) and
 release eases back (220ms). Mouse, touch, Space, and Enter get the same depressed-key feedback.
@@ -78,7 +92,7 @@ combinations are encoded by the dock; unsupported combinations are ignored by th
 Dock modifiers reset after the next key. Copy/Paste use a preview-only clipboard. Upload opens a native file picker and displays filenames; contents are not
 read or sent anywhere. Refresh resets all local state. No shell command runs on Coder.
 
-The visible page contains only the main workspace and dock. There is no floating Playground button,
+The visible page contains only the main workspace, dock, and its small show/hide handle. There is no floating Playground button,
 settings panel, or visible interaction/status log. Action feedback remains available to screen readers.
 
 ## Component contract
@@ -89,18 +103,21 @@ The playground owns app launcher and keybind dialogs using shadcn `Dialog`.
 
 ```tsx
 import { WorkspaceDock } from "@/components/experimental/workspace-dock";
+import { WorkspaceDockOverlay } from "@/components/experimental/workspace-dock-overlay";
 
-<WorkspaceDock
-  workspaces={workspaces}
-  activeWorkspaceId={activeWorkspaceId}
-  onWorkspaceSelect={setActiveWorkspaceId}
-  onWorkspaceCreate={createWorkspace}
-  onWorkspaceRemove={removeWorkspace}
-  onAppsOpen={() => setPanel("apps")}
-  onKeybindsOpen={() => setPanel("keybinds")}
-  onKeyPress={({ sequence }) => sendToFocusedTerminal(sequence)}
-  onAction={handleTerminalAction}
-/>
+<WorkspaceDockOverlay blocked={dialogOpen}>
+  <WorkspaceDock
+    workspaces={workspaces}
+    activeWorkspaceId={activeWorkspaceId}
+    onWorkspaceSelect={setActiveWorkspaceId}
+    onWorkspaceCreate={createWorkspace}
+    onWorkspaceRemove={removeWorkspace}
+    onAppsOpen={() => setPanel("apps")}
+    onKeybindsOpen={() => setPanel("keybinds")}
+    onKeyPress={({ sequence }) => sendToFocusedTerminal(sequence)}
+    onAction={handleTerminalAction}
+  />
+</WorkspaceDockOverlay>
 ```
 
 The component owns its current view and one-shot modifiers. Consumers own workspace data and all
@@ -109,11 +126,14 @@ presentation and capabilities. `onKeyPress` receives the base key, modifier snap
 sequence using Hive's existing encoder. `onAction` receives `copy`, `paste`, `upload`,
 `font-decrease`, or `font-increase`. Wire those to real selected-terminal capabilities only during
 the later integration. Workspaces are numbered by their array order and identified by stable IDs.
+The optional overlay owns visibility and placement; `blocked` suspends its timer while a consuming
+dialog or picker is open. The base dock can still be rendered without the overlay.
 
 Tab and Shift+Tab follow normal button order. Left/Right, Home, and End move between enabled dock
 buttons and reveal options inside the dock. Enter/Space activate buttons. Escape returns from an
 expanded dock while focus is inside it; it does not capture terminal input globally. Expanding
-focuses Back; returning focuses the opener. Reduced-motion preferences disable entrance and hover
+focuses Back; returning focuses the opener. Completed animations preserve focus if a dialog has
+opened in the meantime. Reduced-motion preferences disable entrance and hover
 animations. Dialog focus management comes from Base UI.
 
 ## Validate
@@ -147,6 +167,12 @@ It records per-frame cap opacity, position, tray width, and scroll-control prese
 Removal checks cover first/middle/last caps, shared resize/movement progress, and the overflow
 boundary, including frames after playback to catch any final position snap.
 
+Run `validate-visibility.browser.mjs` for auto-hide, manual Enter/Space/touch toggling, the global
+shortcut, focus restoration, hover/focus/dialog holds, hidden-control accessibility, overlay hit
+testing, full-height canvas geometry, viewport resizing, and reduced motion. It uses the browser
+clock for idle timers and saves screenshots with full-height windows and the visible/hidden dock.
+It also checks that the compact handle shares the tray's row and its extended hit area remains clickable.
+
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,
 page reload/reset, real canvas Strip/Grid layouts and resizing,
@@ -156,7 +182,7 @@ Chrome; it does not install a browser.
 
 ## Deferred integration
 
-After the main refactor, decide on dock placement with the native mobile keyboard open, preserve
+After the main refactor, validate the overlay and handle with the native mobile keyboard open, preserve
 xterm focus/selection during terminal actions, wire the real app registry and workspace lifecycle,
 use the real keybinding registry, and connect actual clipboard/upload capability and busy states.
 The preview deliberately has no imports in application routes, layouts, providers, or navigation.

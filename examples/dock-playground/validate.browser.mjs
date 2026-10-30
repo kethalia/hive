@@ -143,7 +143,10 @@ try {
 
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.locator(".hive-dock")).toHaveAttribute("aria-busy", "false");
+  await expect(page.getByPlaceholder("Search Hive…")).toBeFocused();
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await dock.getByRole("button", { name: "Keybinds", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("Keyboard Shortcuts");
   await page.keyboard.press("Escape");

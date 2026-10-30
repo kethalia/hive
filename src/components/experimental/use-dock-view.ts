@@ -103,7 +103,9 @@ export function useDockView() {
     focusPending.current = false;
     const selector =
       view === "home" ? `[data-dock-opener="${opener.current}"]` : "[data-dock-back]";
-    navRef.current?.querySelector<HTMLButtonElement>(selector)?.focus({ preventScroll: true });
+    // A launcher may have taken focus while the row was animating.
+    if (navRef.current?.contains(document.activeElement))
+      navRef.current.querySelector<HTMLButtonElement>(selector)?.focus({ preventScroll: true });
     const next = queued.current;
     queued.current = null;
     if (next && next !== view) changeView(next);

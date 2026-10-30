@@ -54,8 +54,10 @@ export function DockScrollArea({
     if (selected) {
       const item = selected.getBoundingClientRect(),
         bounds = node.getBoundingClientRect();
-      if (item.left < bounds.left + 10) node.scrollLeft -= bounds.left + 10 - item.left;
-      else if (item.right > bounds.right - 12) node.scrollLeft += item.right - bounds.right + 12;
+      const padding = Math.max(0, Math.min(10, (bounds.width - item.width) / 2));
+      if (item.left < bounds.left + padding) node.scrollLeft -= bounds.left + padding - item.left;
+      else if (item.right > bounds.right - padding)
+        node.scrollLeft += item.right - bounds.right + padding;
     }
   }, [activeItem, suspendLayout]);
   useLayoutEffect(() => {
