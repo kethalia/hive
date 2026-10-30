@@ -478,11 +478,18 @@ try {
     await waitForExit();
   }
   let groupGone = false;
-  try {
-    process.kill(-child.pid, 0);
-  } catch (error) {
-    groupGone = error.code === "ESRCH";
-  }
+  const settleDeadline = Date.now() + 3000;
+  do {
+    try {
+      process.kill(-child.pid, 0);
+    } catch (error) {
+      groupGone = error.code === "ESRCH";
+    }
+    if (groupGone) break;
+    // Children can finish their own shutdown after the leader exits. Observe
+    // that bounded settling period without signaling a reaped numeric group.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  } while (Date.now() < settleDeadline);
   if (!running() && groupGone) await rm(privateDirectory, { recursive: true, force: true });
   else {
     // A surviving descendant or unknown identity is not permission to signal
