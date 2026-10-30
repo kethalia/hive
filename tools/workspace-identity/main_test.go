@@ -24,7 +24,7 @@ import (
 func fixture() (request, *proto.Manifest) {
 	r := request{1, "workspace-read", "https://coder.example.test", uuid.NewString(), uuid.NewString(), uuid.NewString(), "https://hive-read--main--work--owner.apps.example.test", uuid.NewString()}
 	a, w, id := uuid.New(), uuid.MustParse(r.WorkspaceID), uuid.MustParse(r.AppID)
-	m := &proto.Manifest{AgentId: a[:], WorkspaceId: w[:], AgentName: "main", WorkspaceName: "work", OwnerUsername: "owner", EnvironmentVariables: map[string]string{"HIVE_RUNTIME_BUILD_ID": r.BuildID}, Apps: []*proto.WorkspaceApp{{Id: id[:], Url: "http://127.0.0.1:13342", Slug: "hive-read", Subdomain: true, SubdomainName: "hive-read--main--work--owner", SharingLevel: proto.WorkspaceApp_OWNER}}}
+	m := &proto.Manifest{AgentId: a[:], WorkspaceId: w[:], AgentName: "main", WorkspaceName: "work", OwnerUsername: "owner", EnvironmentVariables: map[string]string{"HIVE_RUNTIME_BUILD_ID": r.BuildID}, Apps: []*proto.WorkspaceApp{{Id: id[:], Url: "http://127.0.0.1:13342", Slug: "hive-read", Subdomain: true, SubdomainName: "hive-read--work--owner", SharingLevel: proto.WorkspaceApp_OWNER}}}
 	return r, m
 }
 func TestStrictRequest(t *testing.T) {
@@ -41,22 +41,28 @@ func TestStrictRequest(t *testing.T) {
 }
 func TestManifestBinding(t *testing.T) {
 	tests := map[string]func(*proto.Manifest){
-		"missing build":     func(m *proto.Manifest) { delete(m.EnvironmentVariables, "HIVE_RUNTIME_BUILD_ID") },
-		"wrong build":       func(m *proto.Manifest) { m.EnvironmentVariables["HIVE_RUNTIME_BUILD_ID"] = uuid.NewString() },
-		"foreign workspace": func(m *proto.Manifest) { v := uuid.New(); m.WorkspaceId = v[:] },
-		"owner":             func(m *proto.Manifest) { m.OwnerUsername = "other" },
-		"agent":             func(m *proto.Manifest) { m.AgentName = "other" },
-		"foreign app":       func(m *proto.Manifest) { v := uuid.New(); m.Apps[0].Id = v[:] },
-		"target":            func(m *proto.Manifest) { m.Apps[0].Url = "http://127.0.0.1:22" },
-		"sharing":           func(m *proto.Manifest) { m.Apps[0].SharingLevel = proto.WorkspaceApp_PUBLIC },
-		"subdomain":         func(m *proto.Manifest) { m.Apps[0].SubdomainName = "wrong" },
-		"duplicate app":     func(m *proto.Manifest) { m.Apps = append(m.Apps, m.Apps[0]) },
-		"nil app":           func(m *proto.Manifest) { m.Apps = append(m.Apps, nil) },
+		"missing build":                   func(m *proto.Manifest) { delete(m.EnvironmentVariables, "HIVE_RUNTIME_BUILD_ID") },
+		"wrong build":                     func(m *proto.Manifest) { m.EnvironmentVariables["HIVE_RUNTIME_BUILD_ID"] = uuid.NewString() },
+		"foreign workspace":               func(m *proto.Manifest) { v := uuid.New(); m.WorkspaceId = v[:] },
+		"owner":                           func(m *proto.Manifest) { m.OwnerUsername = "other" },
+		"agent":                           func(m *proto.Manifest) { m.AgentName = "other" },
+		"foreign app":                     func(m *proto.Manifest) { v := uuid.New(); m.Apps[0].Id = v[:] },
+		"target":                          func(m *proto.Manifest) { m.Apps[0].Url = "http://127.0.0.1:22" },
+		"sharing":                         func(m *proto.Manifest) { m.Apps[0].SharingLevel = proto.WorkspaceApp_PUBLIC },
+		"subdomain":                       func(m *proto.Manifest) { m.Apps[0].SubdomainName = "wrong" },
+		"explicit alias is not canonical": func(m *proto.Manifest) { m.Apps[0].SubdomainName = "hive-read--main--work--owner" },
+		"empty canonical label":           func(m *proto.Manifest) { m.Apps[0].SubdomainName = "" },
+		"duplicate app":                   func(m *proto.Manifest) { m.Apps = append(m.Apps, m.Apps[0]) },
+		"nil app":                         func(m *proto.Manifest) { m.Apps = append(m.Apps, nil) },
 	}
 	r, m := fixture()
 	v, err := validateManifest(r, m)
 	if err != nil || v.AgentID == r.ProvisionalAgentID || len(v.ManifestBindingSHA) != 64 {
 		t.Fatal("actual runtime agent normalization failed")
+	}
+	r.AppOrigin = "https://hive-read--other--work--owner.apps.example.test"
+	if _, err := validateManifest(r, m); err == nil {
+		t.Fatal("configured explicit-agent alias lost its agent binding")
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {

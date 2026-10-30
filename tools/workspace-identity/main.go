@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/google/uuid"
 )
@@ -258,7 +259,13 @@ func validateManifest(expected request, manifest *proto.Manifest) (result, error
 	if originErr != nil {
 		return empty, unavailable
 	}
-	label := slug + "--" + manifest.AgentName + "--" + manifest.WorkspaceName + "--" + manifest.OwnerUsername
+	appURL := appurl.ApplicationURL{AppSlugOrPort: slug, AgentName: manifest.AgentName, WorkspaceName: manifest.WorkspaceName, Username: manifest.OwnerUsername}
+	label := appURL.String()
+	// Coder db2sdk.AppSubdomain omits AgentName for named (non-port) apps.
+	// Our configured origin keeps its explicit-agent alias, pinned above; the
+	// manifest's canonical label is checked independently on the same agent.
+	appURL.AgentName = ""
+	canonicalNamedLabel := appURL.String()
 	if len(label) > 63 || strings.Split(u.Hostname(), ".")[0] != label {
 		return empty, unavailable
 	}
@@ -275,7 +282,7 @@ func validateManifest(expected request, manifest *proto.Manifest) (result, error
 			return empty, unavailable
 		}
 		if id.String() == expected.AppID || app.Slug == slug {
-			if id.String() != expected.AppID || app.Slug != slug || app.External || !app.Subdomain || app.SubdomainName != label || app.SharingLevel != proto.WorkspaceApp_OWNER || strings.TrimSuffix(app.Url, "/") != target {
+			if id.String() != expected.AppID || app.Slug != slug || app.External || !app.Subdomain || app.SubdomainName != canonicalNamedLabel || app.SharingLevel != proto.WorkspaceApp_OWNER || strings.TrimSuffix(app.Url, "/") != target {
 				return empty, unavailable
 			}
 			matches++

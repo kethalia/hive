@@ -1,0 +1,36 @@
+{
+  "sourceStable": true,
+  "sourceDigests": {
+    "main.go": "2ae7e098ea75bc7f9f19a30f4c4834b08f37ed2478dcf8aa7dad7586db8acf0c",
+    "main_test.go": "d4340b52f391f6e3b2855bea6f483df835f75128a648a978556466839d31d46f",
+    "go.mod": "4e762cd3d765362aeec5a12b9b58c72a77504df8a1b5ae0a7cac8237b8dcd62a",
+    "go.sum": "05e5cd00e38f889585c41983fec3b7039849cdbb8ad1e6219936c55b212ca852"
+  },
+  "testsPassed": 23,
+  "testsSkipped": 1,
+  "binarySha256": "56ce474cb0a3b4b0e4910f6ec934ee2800633294ae5dfb4cc370dd826e82db3a",
+  "binaryBytes": 54095998,
+  "repeatedBuildIdentical": true,
+  "schemaVersion": 1,
+  "createdAt": "2026-10-30T06:09:06.041764+00:00",
+  "baseRevisionAtEvidenceWrite": "6006d6b44c4cdbd8513df73452b0c0eb5cba3693",
+  "testedSourcesCommitted": false,
+  "sourceIdentity": "Exact file digests; base revision is an observation, not committed test source.",
+  "vendorContract": {
+    "db2sdk": "https://github.com/coder/coder/blob/v2.38.4/coderd/database/db2sdk/db2sdk.go#L661",
+    "appurl": "https://github.com/coder/coder/blob/v2.38.4/coderd/workspaceapps/appurl/appurl.go#L71",
+    "namedAppCanonicalOmitsAgent": true,
+    "configuredExplicitAgentAliasStillPinned": true
+  },
+  "preservedChecks": [
+    "runtime agent UUID from authenticated manifest",
+    "manifest agent/workspace/owner names match configured explicit-agent origin",
+    "workspace UUID and provisioner build metadata",
+    "static app UUID, fixed slug, owner sharing, subdomain, fixed loopback target",
+    "root-owned helper/config pinning and same-build immutable identity receipts"
+  ],
+  "firstFailure": "helper-canonical-first-failure.json",
+  "liveNewHelperExecuted": false,
+  "requiresNewReviewedImage": true,
+  "installedReplacement": false
+}

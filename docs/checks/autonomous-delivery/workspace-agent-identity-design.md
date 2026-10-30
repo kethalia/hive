@@ -41,3 +41,15 @@ installed package or running service is changed during investigation.
 Primary source: [Coder provisioner runtime UUID assignment](https://github.com/coder/coder/blob/v2.38.4/coderd/provisionerdserver/provisionerdserver.go#L2116),
 [official Agent SDK connection](https://github.com/coder/coder/blob/v2.38.4/codersdk/agentsdk/agentsdk.go#L352),
 and [manifest protocol](https://github.com/coder/coder/blob/v2.38.4/agent/proto/agent.proto#L77).
+
+The first new-image startup exposed a second, separate compatibility check:
+Coder's named-app `SubdomainName` is canonical without an agent component, while
+the configured app origin deliberately selects the explicit `main` agent alias.
+The pinned SDK [canonical app-name contract](https://github.com/coder/coder/blob/v2.38.4/coderd/database/db2sdk/db2sdk.go#L661)
+and an authenticated manifest read confirmed this for both services. The helper
+now derives both representations with the official `appurl.ApplicationURL` type,
+checks the configured alias against the manifest agent name, and independently
+checks the canonical named-app label. Exact runtime agent UUID and all other
+owner/build/static-app checks remain required. The original failure and new
+source/reproducible-build proof are in `workspace-identity-live/helper-canonical-*.json`;
+no installed helper was replaced and new-image runtime acceptance is pending.
