@@ -7,7 +7,7 @@ import { startBridge } from "./codex-session-bridge.mjs";
  * register the host with Hive or establish provisioner authority; deployment stays
  * disabled until the registration result has been durably accepted by Hive.
  */
-export function startProjectGateway(config, supervisor, controllerRegistration, discovery) {
+export async function startProjectGateway(config, supervisor, controllerRegistration, discovery) {
   const keys = [
     "schemaVersion",
     "protocolVersion",
@@ -26,7 +26,8 @@ export function startProjectGateway(config, supervisor, controllerRegistration, 
     ["ownerId", "workspaceId", "buildId"].map((key) => [key, supervisor.config[key]]),
   );
   binding.serverInstanceId = supervisor.state.serverInstanceId;
-  return startBridge(
+  let terminal;
+  const bridge = await startBridge(
     { ...config, binding },
     {
       authorizeBinding: (candidate) => {
@@ -36,7 +37,7 @@ export function startProjectGateway(config, supervisor, controllerRegistration, 
       },
       createTerminal: controllerRegistration
         ? (verifiedConfig) =>
-            createProjectTerminal(verifiedConfig, {
+            (terminal = createProjectTerminal(verifiedConfig, {
               authorize(candidate) {
                 const registration = controllerRegistration.currentRegistration();
                 if (!registration || registration.serverInstanceId !== candidate.serverInstanceId)
@@ -44,6 +45,7 @@ export function startProjectGateway(config, supervisor, controllerRegistration, 
                 const thread = registration.threads.find((t) => t.threadId === candidate.threadId);
                 if (!thread) throw new Error("terminal_thread_unregistered");
                 supervisor.authorizeBinding(candidate);
+                supervisor.assertSourceInputOpen();
                 supervisor.lease(supervisor.project(thread.projectId));
                 if (!supervisor.snapshot(thread.projectId).attached)
                   throw new Error("terminal_not_attached");
@@ -57,7 +59,7 @@ export function startProjectGateway(config, supervisor, controllerRegistration, 
                   registered();
                 };
               },
-            })
+            }))
         : undefined,
       handleBootstrap: controllerRegistration?.handleBootstrap,
       handleGuardian: discovery?.handleGuardian,
@@ -73,4 +75,45 @@ export function startProjectGateway(config, supervisor, controllerRegistration, 
       },
     },
   );
+  function sourceScope(projectId, scope) {
+    if (!terminal || scope?.projectId !== projectId)
+      throw new Error("project_input_inventory_unavailable");
+    const entry = supervisor.state.projects[projectId];
+    supervisor.assertSourceApplicationRead(scope, "thread/read", {
+      threadId: entry?.threadId,
+      includeTurns: true,
+    });
+  }
+  return {
+    ...bridge,
+    async closeProjectInputs(projectId, scope) {
+      sourceScope(projectId, scope);
+      const result = await terminal.closeProjectInputs(projectId, {
+        id: scope.barrierId,
+        generation: scope.generation,
+      });
+      sourceScope(projectId, scope);
+      return result;
+    },
+    projectInputInventory(projectId, scope) {
+      sourceScope(projectId, scope);
+      return terminal.inputInventory(projectId);
+    },
+    async releaseProjectInputs(projectId, scope, authorizeRelease) {
+      sourceScope(projectId, scope);
+      if (typeof authorizeRelease !== "function")
+        throw new Error("project_input_release_unavailable");
+      await terminal.releaseProjectInputs(
+        projectId,
+        {
+          id: scope.barrierId,
+          generation: scope.generation,
+        },
+        async () => {
+          await authorizeRelease(projectId, structuredClone(scope));
+          sourceScope(projectId, scope);
+        },
+      );
+    },
+  };
 }

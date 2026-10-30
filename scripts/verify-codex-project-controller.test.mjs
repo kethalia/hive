@@ -133,6 +133,7 @@ function fixture(t, configure) {
   return {
     config,
     deps,
+    supervisor,
     open,
     start,
     status,
@@ -865,4 +866,76 @@ test("late lease renewal after the close barrier cannot rewrite the closed contr
   await f.controller.drain();
   assert.equal(JSON.stringify(f.saved()), closed);
   assert.equal(f.calls.includes("revokeExecution"), false);
+});
+
+test("source input closure persists accepted context and enforces lease expiry without racing metadata lock", async (t) => {
+  const f = fixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  await f.controller.handle("/projects/tasks/start", f.start);
+  await f.controller.drain();
+  f.register();
+  await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  const status = await f.controller.handle("/projects/tasks/status", f.status);
+  await f.controller.drain();
+  const projectId = f.open.projectId,
+    target = { revisionId: randomUUID(), version: 1, headSha: "b".repeat(40) };
+  const record = {
+    projectId,
+    applicationId: randomUUID(),
+    publicationOperationId: randomUUID(),
+    targetSourceContext: target,
+    expectedAppliedSourceContext: null,
+    phase: "closing",
+    serverInstanceId: "server",
+    managerThreadId: status.nativeThreadId,
+    cohort: [],
+    boundaryRequestDigest: "a".repeat(64),
+    leaseExpiresAt: Date.now() / 1000 + 300,
+    barrier: { id: randomUUID(), generation: 1, closed: true },
+  };
+  const entry = {
+    threadId: status.nativeThreadId,
+    serverInstanceId: "server",
+    sourceApplication: record,
+  };
+  f.supervisor.state = { serverInstanceId: "server", projects: { [projectId]: entry } };
+  f.controller.syncSourceApplication(record);
+  assert.throws(() => f.controller.assertExecution(projectId), /input_closed/);
+  let inspections = 0;
+  f.supervisor.lease = () => {
+    inspections++;
+    throw new Error("metadata_transaction_in_progress");
+  };
+  assert.equal(f.controller.currentSource(status.nativeThreadId).phase, "updating");
+  assert.equal(
+    f.controller.currentProjectContext(status.nativeThreadId).revision,
+    f.start.revision,
+  );
+  f.controller.renewLeases();
+  assert.doesNotThrow(
+    () => f.controller.syncSourceApplication(record),
+    "pending source lease check must not enqueue a conflicting controller transition",
+  );
+  await f.controller.drain();
+  assert.equal(inspections, 0);
+  assert.equal(f.calls.includes("revokeExecution"), false);
+  const before = f.calls.filter((v) => v === "firstPrompt").length;
+  f.controller.resumePending();
+  await f.controller.drain();
+  assert.equal(f.calls.filter((v) => v === "firstPrompt").length, before);
+  entry.acceptedSource = target;
+  record.phase = "applied";
+  f.controller.syncSourceApplication(record);
+  assert.throws(() => f.controller.assertExecution(projectId), /input_closed/);
+  const persisted = JSON.parse(readFileSync(join(f.config.stateDirectory, "projects.json"))).state
+    .projects[projectId].task;
+  assert.deepEqual(persisted.acceptedSource, target);
+  assert.equal(persisted.request.revision, f.start.revision);
+  record.leaseExpiresAt = 1;
+  f.controller.syncSourceApplication(record);
+  f.controller.renewLeases();
+  await f.controller.drain();
+  assert.equal(f.calls.filter((v) => v === "revokeExecution").length, 1);
+  assert.equal(inspections, 0);
 });

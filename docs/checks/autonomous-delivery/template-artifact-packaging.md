@@ -72,3 +72,21 @@ output; its validation was discarded and the harness now rejects that condition.
 
 This is packaging/runtime compatibility evidence. It grants no source application,
 model execution, writer quiescence or checkout deletion authority.
+
+## Bounded XZ checkpoint
+
+The accepted-source input package with the reviewed guardian ELF exceeded the retained gzip
+budget (165,416 bytes). The build now uses Python's standard `lzma` encoder with explicit
+XZ/CRC64/preset6; the same607,744-byte tar becomes132,420 bytes. No deployment limit changes.
+The new installer explicitly decodes XZ with32MiB memory,160,000 compressed bytes and2MiB
+expanded bounds, requiring EOF and no trailing or concatenated stream. SHA256 and package
+member validation still operate on the expanded tar. Old gzip and raw-tar requests remain
+supported. Build-time template deduplication recognizes both formats and rejects ambiguity.
+New templates carry only `.tar.xz`; synchronization removes obsolete generated gzip files.
+The web image needs Python only during its build; workspace image builds verify `lzma` import.
+
+The parent proof includes corruption, truncation, concatenation, trailing data, expansion and
+large-dictionary rejection, reproducible package generation, and actual fixed-guardian startup
+from an XZ request. See [assembly evidence](source-input-local/parent-result.json) and
+[Python's LZMA API](https://docs.python.org/3/library/lzma.html). Installed server/application
+authority and live workspace rollout remain separate gates.

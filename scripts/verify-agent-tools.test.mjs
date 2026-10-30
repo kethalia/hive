@@ -59,6 +59,7 @@ for (const [label, script] of [
     "accepted source application preserves work and authority barriers",
     "test_managed_source_apply.py",
   ],
+  ["private accepted-source worker and lost-ack recovery", "test_delivery_source_apply_worker.py"],
   ["managed project lease renewal", "test_codex_project_lease.py"],
   ["pinned host package installation and provisioner identity", "test_codex_host_install.py"],
 ]) {

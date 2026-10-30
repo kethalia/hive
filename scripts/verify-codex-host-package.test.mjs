@@ -42,6 +42,12 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
     assert.ok(Object.hasOwn(manifest.files, "github-evidence.py"));
     assert.ok(Object.hasOwn(manifest.files, "delivery-source-runtime.py"));
     assert.ok(Object.hasOwn(manifest.files, "delivery-source-worker.py"));
+    for (const name of [
+      "codex-source-application.mjs",
+      "delivery-source-apply-client.mjs",
+      "delivery-source-apply-worker.py",
+    ])
+      assert.ok(Object.hasOwn(manifest.files, name));
     assert.ok(Object.hasOwn(manifest.files, "delivery-source-broker.py"));
     assert.ok(Object.hasOwn(manifest.files, "delivery-source-provider.py"));
     assert.ok(Object.hasOwn(manifest.files, "codex-native-namespace.mjs"));

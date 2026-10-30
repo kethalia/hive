@@ -257,6 +257,16 @@ export function createProjectController(config, deps) {
     check(!closed && !state.guardianBarrier, "controller_admission_closed");
     if (guardian) check(guardian.state.phase === "open", "controller_admission_closed");
   }
+  function assertSourceInputOpen(p) {
+    const a = p.task?.sourceApplication;
+    check(
+      !a ||
+        (a.phase === "released" &&
+          /^[a-f0-9]{64}$/.test(a.serverCommitDigest ?? "") &&
+          JSON.stringify(p.task.acceptedSource) === JSON.stringify(a.targetSourceContext)),
+      "source_application_input_closed",
+    );
+  }
   function assertAdmission(projectId) {
     assertOpen();
     if (guardian) {
@@ -416,6 +426,7 @@ export function createProjectController(config, deps) {
   }
   async function advance(p) {
     const t = p.task;
+    if (t?.sourceApplication && t.sourceApplication.phase !== "released") return;
     if (closed || !t || (t.phase === "blocked" && !(t.executionRevoked && t.prepared))) return;
     if (t.executionRevoked) historyRecovered.add(p.projectId);
     try {
@@ -562,6 +573,7 @@ export function createProjectController(config, deps) {
     if (
       closed ||
       state.guardianBarrier ||
+      (p.task?.sourceApplication && p.task.sourceApplication.phase !== "released") ||
       pending.has(p.projectId) ||
       (p.task?.phase === "blocked" &&
         !(
@@ -580,6 +592,7 @@ export function createProjectController(config, deps) {
     const operation = queue.then(async () => {
       assertOpen();
       const t = p.task;
+      assertSourceInputOpen(p);
       check(
         t && t.taskId === request.taskId && t.digest === digest(t.request),
         "task_identity_conflict",
@@ -748,6 +761,14 @@ export function createProjectController(config, deps) {
           pending.has(p.projectId)
         )
           continue;
+        const application = p.task.sourceApplication;
+        if (
+          application &&
+          application.phase !== "released" &&
+          Number.isFinite(application.leaseExpiresAt) &&
+          application.leaseExpiresAt > Date.now() / 1000
+        )
+          continue; // No renewal/queue race while metadata applies; expiry is never extended.
         pending.add(p.projectId);
         queue = queue
           .then(async () => {
@@ -757,11 +778,23 @@ export function createProjectController(config, deps) {
             try {
               await fence(p, true);
               assertAdmission(p.projectId);
+              if (t.sourceApplication && t.sourceApplication.phase !== "released") {
+                // Metadata helper owns the managed lock. Do not race its pending
+                // HEAD/index transaction with inspect/renew. The captured exact
+                // active lease deadline still applies, with no extension here.
+                check(
+                  Number.isFinite(t.sourceApplication.leaseExpiresAt) &&
+                    t.sourceApplication.leaseExpiresAt > Date.now() / 1000,
+                  "checkout_unavailable",
+                );
+                return;
+              }
               // Phase transitions never exempt a live native task from expiry.
               // Inspection also fails closed on changed checkout provenance.
               const lease = runtime.supervisor.lease(t.prepared);
               check(lease?.lease?.expiresAt > Date.now() / 1000, "checkout_unavailable");
               if (
+                (t.sourceApplication && t.sourceApplication.phase !== "released") ||
                 !["running", "awaitingFirstPrompt"].includes(t.phase) ||
                 typeof deps.renewLease !== "function"
               )
@@ -825,7 +858,17 @@ export function createProjectController(config, deps) {
           registration.threads.some((t) => t.projectId === p.projectId && t.threadId === threadId),
         "registration_unavailable",
       );
-      runtime.supervisor.lease(p.task.prepared);
+      const application = p.task.sourceApplication;
+      if (application && application.phase !== "released") {
+        // Factual immutable context must not reenter the managed flock while the
+        // apply helper asks the parent for fresh authority. No execution grant.
+        check(
+          application.leaseExpiresAt > Date.now() / 1000 &&
+            JSON.stringify(application) ===
+              JSON.stringify(runtime.supervisor.state.projects[p.projectId]?.sourceApplication),
+          "source_application_journal_mismatch",
+        );
+      } else runtime.supervisor.lease(p.task.prepared);
       return {
         projectId: p.projectId,
         preparationIntentId: p.task.taskId,
@@ -834,6 +877,84 @@ export function createProjectController(config, deps) {
         leaseId: p.task.prepared.leaseId,
         leaseGeneration: p.task.prepared.leaseGeneration,
       };
+    },
+    currentSource(threadId) {
+      const checkoutBinding = this.currentProjectContext(threadId),
+        p = project(checkoutBinding.projectId),
+        a = p.task.sourceApplication;
+      const entry = runtime.supervisor.state.projects[p.projectId];
+      check(
+        JSON.stringify(p.task.acceptedSource ?? null) ===
+          JSON.stringify(entry.acceptedSource ?? null),
+        "source_application_journal_mismatch",
+      );
+      return {
+        checkoutBinding,
+        headSha: p.task.acceptedSource?.headSha ?? checkoutBinding.revision,
+        ...(p.task.acceptedSource ? { sourceContext: structuredClone(p.task.acceptedSource) } : {}),
+        phase:
+          p.task.executionRevoked || a?.phase === "held"
+            ? "held"
+            : a && a.phase !== "released"
+              ? "updating"
+              : "ready",
+      };
+    },
+    sourceApplication(projectId) {
+      return structuredClone(project(projectId).task?.sourceApplication ?? null);
+    },
+    syncSourceApplication(record) {
+      assertOpen();
+      const p = project(record?.projectId),
+        t = p.task;
+      check(
+        t?.prepared && !t.executionRevoked && !pending.has(p.projectId),
+        "source_application_controller_busy",
+      );
+      assertAdmission(p.projectId);
+      const entry = runtime?.supervisor.state.projects[p.projectId];
+      check(
+        entry?.threadId === t.nativeThreadId &&
+          entry.serverInstanceId === runtime.supervisor.state.serverInstanceId &&
+          JSON.stringify(entry.sourceApplication) === JSON.stringify(record),
+        "source_application_journal_mismatch",
+      );
+      const old = t.sourceApplication;
+      check(
+        !old ||
+          old.applicationId === record.applicationId ||
+          (old.phase === "released" &&
+            record.phase === "closing" &&
+            record.barrier.generation > old.barrier.generation),
+        "source_application_conflict",
+      );
+      if (old?.applicationId === record.applicationId) {
+        check(
+          [
+            "publicationOperationId",
+            "projectId",
+            "targetSourceContext",
+            "expectedAppliedSourceContext",
+            "serverInstanceId",
+            "managerThreadId",
+            "cohort",
+            "boundaryRequestDigest",
+          ].every((k) => JSON.stringify(old[k]) === JSON.stringify(record[k])) &&
+            old.barrier.id === record.barrier.id &&
+            old.barrier.generation === record.barrier.generation,
+          "source_application_conflict",
+        );
+      }
+      if (["applied", "committed", "released"].includes(record.phase)) {
+        check(
+          JSON.stringify(entry.acceptedSource) === JSON.stringify(record.targetSourceContext),
+          "source_application_journal_mismatch",
+        );
+        t.acceptedSource = structuredClone(entry.acceptedSource);
+      }
+      t.sourceApplication = structuredClone(record);
+      save();
+      return structuredClone(t.sourceApplication);
     },
     resumePending() {
       if (closed || state.guardianBarrier) return;
@@ -845,10 +966,16 @@ export function createProjectController(config, deps) {
     },
     assertExecution(projectId) {
       const p = project(projectId);
+      assertSourceInputOpen(p);
       if (guardian) check(p.task?.guardianPrepared, "guardian_prepared_binding_missing");
       assertAdmission(projectId);
     },
-    executionFence: (projectId) => fence(project(projectId), true),
+    async executionFence(projectId) {
+      const p = project(projectId);
+      assertSourceInputOpen(p);
+      await fence(p, true);
+      assertSourceInputOpen(p);
+    },
     assertRuntimeExecution() {
       assertOpen();
       if (guardian)

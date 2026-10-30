@@ -203,7 +203,7 @@ test("actual curated template fits deployment bound and every literal Terraform 
   const path = await fixture(t);
   await cp("templates/ai-dev-k8s", path, { recursive: true });
   const host = await hostArchive(process.cwd());
-  await writeFile(join(path, "assets/codex-host.tar.gz"), host.compressed);
+  await writeFile(join(path, "assets/codex-host.tar.xz"), host.compressed);
   await writeFile(join(path, "assets/codex-host.tar.sha256"), `${host.sha256}\n`);
   const artifact = await templateArtifact(path),
     files = await unpack(artifact.archive);

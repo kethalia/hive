@@ -103,8 +103,8 @@ locals {
     "hive.kethalia.com/host-installer" = file("${path.module}/scripts/install-codex-host.py")
     "hive.kethalia.com/host-request" = jsonencode({
       schemaVersion   = 1
-      archive         = filebase64("${path.module}/assets/codex-host.tar.gz")
-      archiveEncoding = "gzip"
+      archive         = filebase64("${path.module}/assets/codex-host.tar.xz")
+      archiveEncoding = "xz"
       archiveSha256   = trimspace(file("${path.module}/assets/codex-host.tar.sha256"))
       config = {
         schemaVersion          = 1

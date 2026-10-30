@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn, execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { EventEmitter, once } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -11,6 +11,7 @@ import test from "node:test";
 import { WebSocket } from "ws";
 import { createProjectTerminal } from "../templates/ai-dev-k8s/scripts/codex-project-terminal.mjs";
 import { validateConfig } from "../templates/ai-dev-k8s/scripts/codex-session-bridge.mjs";
+
 async function fixture(t, launch) {
   const root = mkdtempSync(join(tmpdir(), "hive-terminal-")),
     keys = generateKeyPairSync("ed25519");
@@ -105,6 +106,7 @@ async function fixture(t, launch) {
     return socket;
   }
   return {
+    terminal,
     ticket,
     connect,
     children,
@@ -210,4 +212,50 @@ test("real stdlib PTY attaches existing tmux session and client disconnect prese
   s.close();
   await once(s, "close");
   execFileSync("/usr/bin/tmux", ["-S", socket, "has-session", "-t", "fixture"]);
+});
+
+test("project input closure waits for actual helper close and fences reconnects until trusted release", async (t) => {
+  const f = await fixture(t),
+    projectId = "11111111-1111-4111-8111-111111111111";
+  const barrier = { id: randomUUID(), generation: 1 };
+  const s = await authenticate(f),
+    child = f.children[0];
+  child.kill = () => true; // Signal delivery is not a reap/closed-pipe receipt.
+  let finished = false;
+  const closing = f.terminal.closeProjectInputs(projectId, barrier).then((v) => {
+    finished = true;
+    return v;
+  });
+  await new Promise((r) => setTimeout(r, 25));
+  assert.equal(finished, false);
+  assert.equal(f.terminal.inputInventory(projectId).helpersPendingClose, 1);
+  assert.equal(child.stdin.destroyed, true);
+  const reconnect = await f.connect(),
+    rejected = once(reconnect, "close");
+  reconnect.send(JSON.stringify({ type: "authenticate", ticket: f.ticket() }));
+  assert.equal((await rejected)[0], 1008);
+  assert.equal(f.launched, 1);
+  child.exitCode = 0;
+  child.emit("close", 0);
+  assert.deepEqual(await closing, {
+    projectId,
+    closed: true,
+    activeTerminals: 0,
+    helpersPendingClose: 0,
+    pendingInputs: 0,
+    unknownInputs: 0,
+  });
+  await assert.rejects(f.terminal.releaseProjectInputs(projectId, barrier), /terminal_rejected/);
+  await assert.rejects(
+    f.terminal.releaseProjectInputs(projectId, barrier, async () => {
+      throw new Error("authority_revoked");
+    }),
+    /authority_revoked/,
+  );
+  assert.equal(f.terminal.inputInventory(projectId).closed, true);
+  await f.terminal.releaseProjectInputs(projectId, barrier, async () => {});
+  assert.equal(f.terminal.inputInventory(projectId).closed, false);
+  await authenticate(f);
+  assert.equal(f.launched, 2);
+  s.terminate();
 });

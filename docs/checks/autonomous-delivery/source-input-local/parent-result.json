@@ -1,0 +1,52 @@
+{
+  "observedAt": "2026-10-30T02:10:03.232754+00:00",
+  "scope": "parent staged-source clean exports before commit; not deployed",
+  "sourceExport": "/tmp/hive-source-input-parent-d_pkxhek",
+  "xzExport": "/tmp/hive-source-xz-parent-w176r__f",
+  "sourceTestsPassed": 56,
+  "sourceOptionalFixtureSkips": 1,
+  "pythonTestsPassed": 33,
+  "pythonOptionalSkips": 1,
+  "compiledBehavioralTestsPassed": 146,
+  "compiledOptionalSkips": 3,
+  "packageTestsPassed": 60,
+  "installerPythonTestsPassed": 13,
+  "actualFixedInstaller": "passed with XZ request and reviewed CI ELF; no native inference",
+  "biome": "passed",
+  "initialGzipWithGuardian": {
+    "compressedBytes": 165416,
+    "archiveBytes": 607744,
+    "result": "rejected by unchanged160000-byte limit"
+  },
+  "xzWithGuardian": {
+    "compressedBytes": 132420,
+    "archiveBytes": 607744,
+    "archiveSha256": "d3bafdb6c62c06fded7028ee17ecec4068cfc2fe167304479c8bbcb04e19be37"
+  },
+  "templateArchiveBytes": {
+    "ai-dev-k8s": 968704,
+    "browser-testing": 964096,
+    "game-dev": 965120,
+    "electronics": 964608,
+    "infrastructure": 965120
+  },
+  "encoding": "explicit XZ; gzip/tar backward decode retained",
+  "decoderBounds": {
+    "compressedBytes": 160000,
+    "expandedBytes": 2097152,
+    "memoryBytes": 33554432,
+    "singleStream": true
+  },
+  "sourceApplicationAuthorityEnabled": false,
+  "fullSignedApplicationComposition": false,
+  "logNormalization": "trailing whitespace/blank EOF removed; raw /tmp logs retained",
+  "evidenceSha256": {
+    "parent-node.txt": "5ca07a9f4b91ea7cff88d7520c30321d09df0ee9cf45d778422e6b87ec226e34",
+    "parent-python.txt": "aa4199eff785c6fb89ad9e99c85c900b1e8f8fc5296ab883cd464e409063939a",
+    "parent-compiled.txt": "d73fc3de6f49be46a263489ba6562815f4cafa50b9f15431e786b4a44c66d885",
+    "parent-package.txt": "60ea5941fc9868dae0380612a92bf9da003b08e0ede5ce95f0679fdd2743571a",
+    "parent-installer-python.txt": "a3ee436a169e5c949862fc2257594e36178ea2f7e347fd5090e1930006bd583e",
+    "parent-installed.txt": "e780626b10f5c82e38effa4c9a768d367c5f5d492acecc6ecf9ccafe00c815ef",
+    "parent-installed.json": "31e641b4dc072c97d5b8ab6b9cf268d7f0bd0c3ad85f2c007c0eeed4b55acf29"
+  }
+}
