@@ -485,12 +485,7 @@
       "created_at",
       "updated_at"
     ],
-    "delivery_report_evidence": [
-      "owner_id",
-      "step_id",
-      "report_id",
-      "evidence_id"
-    ],
+    "delivery_report_evidence": ["owner_id", "step_id", "report_id", "evidence_id"],
     "delivery_repository_policies": [
       "id",
       "owner_id",
@@ -585,12 +580,7 @@
       "pull_number",
       "created_at"
     ],
-    "delivery_step_dependencies": [
-      "owner_id",
-      "task_id",
-      "step_id",
-      "depends_on_step_id"
-    ],
+    "delivery_step_dependencies": ["owner_id", "task_id", "step_id", "depends_on_step_id"],
     "delivery_step_reports": [
       "id",
       "owner_id",
@@ -713,13 +703,7 @@
       "created_at",
       "preferences"
     ],
-    "sessions": [
-      "id",
-      "session_id",
-      "user_id",
-      "expires_at",
-      "created_at"
-    ],
+    "sessions": ["id", "session_id", "user_id", "expires_at", "created_at"],
     "template_publication_events": [
       "id",
       "owner_id",
@@ -805,12 +789,7 @@
       "updated_at",
       "terminal_controls_beyond_mobile"
     ],
-    "vapid_keys": [
-      "id",
-      "public_key",
-      "private_key",
-      "created_at"
-    ]
+    "vapid_keys": ["id", "public_key", "private_key", "created_at"]
   },
   "applied": [
     {

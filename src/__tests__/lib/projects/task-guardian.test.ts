@@ -7,7 +7,8 @@ const mock = vi.hoisted(() => ({
   host: vi.fn(),
   payload: {} as Record<string, unknown>,
 }));
-vi.mock("@hive/db", () => ({
+vi.mock("@hive/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hive/db")>()),
   getDb: () => ({
     user: { findUnique: mock.owner },
     deliveryProject: { findUnique: mock.project },
