@@ -61,11 +61,17 @@ def run(mode):
     digest = "sha256:" + hashlib.sha256(raw).hexdigest()
     require(headers.get("Docker-Content-Digest") == digest)
     manifest = json.loads(raw)
-    config_digest = os.environ.get("EXPECTED_CONFIG_DIGEST", "")
-    require(re.fullmatch("sha256:[a-f0-9]{64}", config_digest) is not None and manifest.get("config", {}).get("digest") == config_digest)
+    config_digest = manifest.get("config", {}).get("digest", "")
+    local_image_id = os.environ.get("EXPECTED_LOCAL_IMAGE_ID", "")
+    require(re.fullmatch("sha256:[a-f0-9]{64}", config_digest) is not None)
+    require(re.fullmatch("sha256:[a-f0-9]{64}", local_image_id) is not None)
+    # Classic Docker stores report the config digest as .Id; containerd image
+    # stores report the manifest digest. Both identify the exact local image.
+    require(local_image_id in (digest, config_digest))
+    local_id_kind = "manifest" if local_image_id == digest else "config"
     pin = json.loads(Path("/tmp/workspace-preview-helper.json").read_text())
     require(set(pin) == {"schemaVersion", "sdkVersion", "goVersion", "sha256"} and type(pin["schemaVersion"]) is int and pin["schemaVersion"] == 1 and pin["sdkVersion"] == "v2.38.4" and pin["goVersion"] == "go1.26.10" and re.fullmatch("[a-f0-9]{64}", pin["sha256"]) is not None)
-    return {"schemaVersion": 1, "sourceSha": source, "publicPackage": True, "image": "ghcr.io/" + PACKAGE + "@" + digest, "imageTag": "ghcr.io/" + PACKAGE + ":" + tag, "imageConfigDigest": config_digest, "helperSha256": pin["sha256"], "sdkVersion": pin["sdkVersion"], "goVersion": pin["goVersion"], "activation": False}
+    return {"schemaVersion": 1, "sourceSha": source, "publicPackage": True, "image": "ghcr.io/" + PACKAGE + "@" + digest, "imageTag": "ghcr.io/" + PACKAGE + ":" + tag, "imageConfigDigest": config_digest, "smokeTestedLocalImageId": local_image_id, "localImageIdKind": local_id_kind, "helperSha256": pin["sha256"], "sdkVersion": pin["sdkVersion"], "goVersion": pin["goVersion"], "activation": False}
 
 
 if __name__ == "__main__":

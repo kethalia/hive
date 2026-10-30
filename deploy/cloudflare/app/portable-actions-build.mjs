@@ -15,6 +15,7 @@ const reviewed = new Map([
       "getWorkspaceSessionsAction",
       "getExistingTerminalPathsAction",
       "getWorkspaceSessionToolsAction",
+      "createSessionAction",
       "createWorkspaceAction",
       "startWorkspaceAction",
       "stopWorkspaceAction",

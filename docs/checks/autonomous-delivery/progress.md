@@ -850,3 +850,44 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 
 - Coder runtime identity: source fix implemented and independently reviewed, high difficulty. Actual authenticated manifest read confirmed Terraform and runtime agent UUIDs differ. A pinned official SDK helper now verifies provisioner build/app/workspace metadata before normalization; same-build identity changes remain blocked. Parent30 Python/5 Node checks and102 template checks pass; all5 Terraform profiles validate without warnings. Real new-image startup remains the next gate.
 - Preview policy migration: schema30 applied from6a55bb5, with39 existing tables and migration checksums preserved. New policy tables have restricted runtime grants. Production untouched.
+
+- Assembled application at014d08e: complete locally against real Neon30. Auth, encrypted
+  credentials, transactions, owner isolation, portable actions and malformed callback guards
+  pass through actual Next/workerd service bindings. All pull-request CI workflows also pass
+  at this revision. This is not installed workspace or browser acceptance. Evidence:
+  [assembled application](cloudflare-auth-identity-source.json).
+
+- Private project candidate preparation: implemented, moderate difficulty. The explicit
+  workspace-projects candidate requires the existing owned preview, native gateway, retained
+  scoped issuer and current software read-package manifest. Preparation and upload validation
+  agree on flags, profile pin and secret bindings; tasks/background execution remain disabled.
+  Ten focused deployment checks pass. No candidate was deployed by this step.
+
+- Preview image build: build, smoke and registry publication pass for014d08e, but the final
+  identity-recording step failed. The image is not yet accepted for workspace startup; the
+  registry/runner identity mismatch is under investigation. No production image alias or
+  active template was updated.
+
+- Infrastructure identity validation cleanup: complete. The installed receipt-based wrapper
+  stopped and requested deletion of the task-created validation workspace; a fresh primary
+  read confirms410 Gone. Completion evidence remains preserved. Evidence:
+  [cleanup](identity-template-validation/cleanup.json).
+
+- Preview image provenance: recovered and recorder fixed, moderate difficulty. Build/export/
+  push logs and independently hashed registry manifest/config/layers identify the same014d08e
+  image and root-owned helper. Docker's containerd image store reports the manifest as its
+  local image ID; the recorder now supports that and the classic config-ID form. Four Python
+  checks pass. The original failed workflow remains visible. The inactive557056-byte template
+  imports and the dedicated test workspace connects on that image, but reports a startup
+  script error under investigation. Evidence: [image recovery](workspace-image-preview-recovery.json),
+  [template/build inputs](workspace-identity-live/template-input.json).
+
+- Generic Cloudflare terminal transport: implemented and independently reviewed, high
+  difficulty because connection renewal must retain the existing remote PTY and distinguish
+  temporary auth failures from revoked sessions. Seventy-one focused checks, three portable
+  manifest checks and typecheck pass; the parent separately reruns32 focused checks. Actual
+  local workerd passes12 checks with drained processes and matching source hashes. Review
+  caught flattened auth failure types, now fixed; initial failures are preserved. The feature
+  stays off pending actual Coder/browser validation. Evidence:
+  [terminal validation](generic-terminal-local/validation.json),
+  [parent review](generic-terminal-local/parent-review.json).

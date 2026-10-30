@@ -625,7 +625,13 @@ const createSessionSchema = z.object({
 export const createSessionAction = authActionClient
   .inputSchema(createSessionSchema)
   .action(async ({ parsedInput }) => {
+    if (
+      process.env.HIVE_RUNTIME_TARGET === "cloudflare" &&
+      process.env.HIVE_GENERIC_TERMINAL_ENABLED !== "true"
+    )
+      throw new Error("Generic terminal transport is disabled.");
     const name = parsedInput.sessionName ?? `session-${Date.now()}`;
+    if (name.length > 128) throw new Error("Session name is too long.");
     assertGenericSessionName(name, "create");
 
     console.log(

@@ -18,6 +18,10 @@ import {
   validateRuntimeDatabase,
 } from "./deployment-plan.mjs";
 import { loadPreviewHostIdentity } from "./host-identity.mjs";
+import {
+  workspaceProjectsCandidate,
+  workspaceProjectsVars,
+} from "./workspace-projects-candidate.mjs";
 
 // Preparation only: no Cloudflare write, public URL, route, schedule or key operation.
 const digest = (value) => createHash("sha256").update(value).digest("hex");
@@ -25,6 +29,7 @@ try {
   const revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   const updating = process.argv.includes("--update-preview");
   const nativeCandidate = process.argv.includes("--native-gateway-candidate");
+  const projectsCandidate = process.argv.includes("--workspace-projects-candidate");
   const previous = updating
     ? JSON.parse(
         execFileSync(
@@ -147,11 +152,22 @@ try {
     )
   )
     throw new Error("Existing issuer lacks ownership evidence");
+  const workspaceCandidate = workspaceProjectsCandidate({
+    enabled: projectsCandidate,
+    updating,
+    nativeCandidate,
+    issuer: hostIdentity,
+    manifestSha256: (
+      await readFile("templates/ai-dev-k8s/assets/workspace-read.manifest.sha256", "utf8")
+    ).trim(),
+  });
   const runId = randomUUID();
   const directory = join(credentials, `app-preview-${runId}`);
   await mkdir(directory, { mode: 0o700 });
   const bindings = previewRuntimeBindings(identity, databaseUrl);
   if (hostIdentity) bindings.app.HIVE_CODEX_ISSUER_PRIVATE_KEY = hostIdentity.privateKeyPem;
+  if (workspaceCandidate)
+    bindings.app.HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY = hostIdentity.privateKeyPem;
   const configs = {};
   for (const [kind, config] of Object.entries({ app, auth })) {
     delete config.$schema;
@@ -166,6 +182,7 @@ try {
         ? {
             HIVE_PREVIEW_ORIGIN: previewOrigin,
             HIVE_CODEX_GATEWAY_ENABLED: nativeCandidate ? "true" : "false",
+            ...workspaceProjectsVars(workspaceCandidate, hostIdentity),
           }
         : {}),
       ...(kind === "app" && hostIdentity
@@ -212,6 +229,7 @@ try {
         }
       : undefined,
     nativeGatewayCandidate: nativeCandidate,
+    workspaceProjectsCandidate: workspaceCandidate,
     nativeIssuer: hostIdentity
       ? {
           keyId: hostIdentity.keyId,

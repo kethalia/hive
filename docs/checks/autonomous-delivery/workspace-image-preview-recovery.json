@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "014d08e33ce4091a739715a284b1b7fb504e465b",
+  "image": "ghcr.io/kethalia/hive-base@sha256:30ea4d3d6271efb8b4e351d2983cc09f01cb1a92ddb7e8f889f6d21d1021bbcc",
+  "imageConfigDigest": "sha256:b40d18c37ceeb7bfaa7b7fafd7c3f19263066752d035dc981b1721b3b9791a1a",
+  "helperSha256": "6696bfcf39d80dd4236997df87def6ba592ef27526a9d817a4b85db6e2f58be8",
+  "helperBytes": 54091902,
+  "sdkVersion": "v2.38.4",
+  "goVersion": "go1.26.10",
+  "registryManifestDigestVerified": true,
+  "registryConfigDigestVerified": true,
+  "configSourceLabelVerified": true,
+  "configPlatformVerified": true,
+  "helperAndPinLayers": [
+    {
+      "index": 1,
+      "digest": "sha256:f0acf0bcb6208019ede649e49d4bcb59b620827f168a2216e71b5e503137f8f0",
+      "compressedBytes": 17300444,
+      "diffId": "sha256:4d7855502b03878bf450651aaf3b27929de3c753308c688cbbc592688137dc39"
+    },
+    {
+      "index": 2,
+      "digest": "sha256:03f9fd44d0663a1267f56880b142793a8c2195d94a753a47f4fa1df26d31bb8a",
+      "compressedBytes": 297,
+      "diffId": "sha256:77a1a0257e0aba38af3f0d1611349ada2dc58c47850b7f3bb0993681e17d0494"
+    }
+  ],
+  "helperFileMatchesRootOwnedPin": true,
+  "readOnlyRecovery": true,
+  "rebuilt": false,
+  "repushed": false,
+  "activated": false,
+  "failedWorkflowPreserved": 41009109919,
+  "createdAt": "2026-10-30T05:56:31.074809+00:00",
+  "baseRevisionAtEvidenceWrite": "014d08e33ce4091a739715a284b1b7fb504e465b",
+  "testedSourcesCommitted": false,
+  "verifierSourceDigests": {
+    "tools/workspace-identity/preview-image.py": "0486a61edadf6e53e8d79cbb272dc54a3b023a34c2240bc7917060b55185c061",
+    "scripts/agents/test_workspace_image_preview.py": "00e12ff99f1b1d140d8103f0f43f4206607e74c23173b238a4acd4f4578d46a7",
+    ".github/workflows/build-base-image.yml": "7d92dba0abf71095c354d0d66a5d7794533ce18c64efa2d68184f0baddce611b"
+  },
+  "job": {
+    "completed_at": "2026-10-30T05:40:27Z",
+    "conclusion": "failure",
+    "id": 123910717223,
+    "run_id": 41009109919,
+    "started_at": "2026-10-30T05:33:45Z",
+    "steps": [
+      {
+        "conclusion": "success",
+        "name": "Set up job",
+        "number": 1
+      },
+      {
+        "conclusion": "success",
+        "name": "Checkout exact dispatched revision",
+        "number": 2
+      },
+      {
+        "conclusion": "success",
+        "name": "Verify reviewed source and absent public package tag",
+        "number": 3
+      },
+      {
+        "conclusion": "success",
+        "name": "Set up Docker Buildx",
+        "number": 4
+      },
+      {
+        "conclusion": "success",
+        "name": "Build exact preview image locally",
+        "number": 5
+      },
+      {
+        "conclusion": "success",
+        "name": "Smoke exact preview image",
+        "number": 6
+      },
+      {
+        "conclusion": "success",
+        "name": "Log in to existing public GHCR package",
+        "number": 7
+      },
+      {
+        "conclusion": "success",
+        "name": "Recheck absence and publish exact smoke-tested image",
+        "number": 8
+      },
+      {
+        "conclusion": "failure",
+        "name": "Record exact source, registry digest and helper identity",
+        "number": 9
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Log in to existing public GHCR package",
+        "number": 15
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Build exact preview image locally",
+        "number": 16
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Set up Docker Buildx",
+        "number": 17
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Checkout exact dispatched revision",
+        "number": 18
+      },
+      {
+        "conclusion": "success",
+        "name": "Complete job",
+        "number": 19
+      }
+    ]
+  },
+  "jobLogSha256": "c3e60c65648f25fd4608878e06b76b367994309273c931d2d7ef6cd843dfc7f8",
+  "fixedRecorderActualReadback": {
+    "activation": false,
+    "goVersion": "go1.26.10",
+    "helperSha256": "6696bfcf39d80dd4236997df87def6ba592ef27526a9d817a4b85db6e2f58be8",
+    "image": "ghcr.io/kethalia/hive-base@sha256:30ea4d3d6271efb8b4e351d2983cc09f01cb1a92ddb7e8f889f6d21d1021bbcc",
+    "imageConfigDigest": "sha256:b40d18c37ceeb7bfaa7b7fafd7c3f19263066752d035dc981b1721b3b9791a1a",
+    "imageTag": "ghcr.io/kethalia/hive-base:preview-cli-014d08e33ce4091a739715a284b1b7fb504e465b",
+    "localImageIdKind": "manifest",
+    "publicPackage": true,
+    "schemaVersion": 1,
+    "sdkVersion": "v2.38.4",
+    "smokeTestedLocalImageId": "sha256:30ea4d3d6271efb8b4e351d2983cc09f01cb1a92ddb7e8f889f6d21d1021bbcc",
+    "sourceSha": "014d08e33ce4091a739715a284b1b7fb504e465b"
+  },
+  "tests": {
+    "pythonCases": 4,
+    "localIdForms": ["classic-config", "containerd-manifest"],
+    "unrelatedOrMissingIdRejected": true,
+    "nodeBoundaryWrappersPassed": 5
+  },
+  "recoveryScript": {
+    "path": "/tmp/hive-preview-image-recover.py",
+    "sha256": "d9eb96376d619a36254c8f5cc4c96de22b41c1a70c57a37c45333d0cda1627dd"
+  },
+  "limitations": [
+    "The original workflow stays failed; retrospective read-only verification does not rewrite its conclusion.",
+    "The final failed shell step did not echo dockerinspect.Id. Store semantics, Buildx ImageID and recovered predicates identify the incorrect config-only assumption.",
+    "No actual workspace/image deployment or runtime normalization acceptance is claimed."
+  ]
+}

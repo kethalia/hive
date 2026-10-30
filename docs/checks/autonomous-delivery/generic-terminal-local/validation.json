@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:01:42.718949+00:00",
+  "sourceStable": true,
+  "sourceHashes": {
+    "deploy/cloudflare/app/generic-terminal-relay.ts": "7e863a5c503fb322e960ddfbcd80acf1caa5f7f5efccbdb6bf7806560141d0dc",
+    "deploy/cloudflare/app/generic-terminal-runtime.ts": "fb23cc7ff90ac2f8b103c080264f47421e8ccb943f172f6fee6119f5a7289b91",
+    "src/lib/terminal/generic-auth.server.ts": "f5fcd55d7f937653bf3e35464c52e9870d72812d8f5693b551c0619e91fe74ac",
+    "deploy/cloudflare/app/local-generic-terminal-provider.ts": "7bf16b2bb94993e62321362bfae4f103c0fd79577ad050934ff89fe5b5e27243",
+    "deploy/cloudflare/app/local-generic-terminal.worker.ts": "2c61ae206b712cd37a4a67d8a92567e43396fcce16a9a8a97a12c240b08bf397",
+    "deploy/cloudflare/app/run-local-generic-terminal.mjs": "fcc004a0dd30e5e85614090696f831fcb2df4f5c8c5b821ca2d92985a7f408bc",
+    "src/__tests__/cloudflare/generic-terminal-relay.test.ts": "22584a8518aa71c868f43f416c1ba7a9ccd337a4aa5f0db385a23e3e03fef5dd",
+    "src/__tests__/cloudflare/generic-terminal-runtime.test.ts": "40f0c8510cfbd362e4c938ceafa80dc714583b73b888411dbf66e34c40813629",
+    "src/__tests__/cloudflare/generic-terminal-ticket.test.ts": "e4b8816e1f9c6f6302d56dac55374bdebb06d6c7cc5dfe06b1f5340060083826",
+    "src/__tests__/cloudflare/portable-dispatch.test.ts": "acfb0b79ff9a05c65abf3ca5f1be992ff4a229869ff402102c6c7092abefa822",
+    "deploy/cloudflare/app/worker.ts": "e8fec7b16f2dcb68f7119192810953a9680c8b226d658f5605471e883615a98d",
+    "deploy/cloudflare/app/portable-actions-build.mjs": "d2200d17eb33e56908227303982f2fceba5bacd5482829dd5e9efcf616092612",
+    "deploy/cloudflare/app/portable-actions-build.test.mjs": "2b76df157a0d83d47156520cd36c966139ff74c559186333a078e0c9893726fa",
+    "src/lib/actions/workspaces.ts": "61809f2dc4b53e4db0f3f317f76ad074f508801a8894f323b159dec65fe91b99",
+    "src/app/api/auth/terminal-ticket/route.ts": "011e64dcb0fca1912c2fa921a15d8d11dfc07f41d86e4451c1820984337ef098",
+    "docs/checks/autonomous-delivery/generic-terminal.md": "c7da158472eca04b6acde094e09284fac50d820a88481bb7eb943c4087c8efd8",
+    "docs/checks/autonomous-delivery/generic-terminal-local/workerd-initial-count-failure.json": "fe40b33d870b4f318c597e5fe3aa4f6911bf6ad92822e30c9274b942d90f2c8c",
+    "docs/checks/autonomous-delivery/generic-terminal-local/workerd-refresh-classification-failure.json": "2d333183c0eec40ca739416e07b8cfd6239882b95c1d6012b53ca9346d76b435",
+    "docs/checks/autonomous-delivery/generic-terminal-local/workerd.json": "06de4b4ad5fb98709386987e6d9fd7adf3fdf21d06925ff3026ae1aedb750f52"
+  },
+  "checks": {
+    "focusedVitest": {
+      "passed": 71,
+      "files": 6,
+      "command": "pnpm exec vitest run src/__tests__/cloudflare/generic-terminal-relay.test.ts src/__tests__/cloudflare/generic-terminal-runtime.test.ts src/__tests__/cloudflare/generic-terminal-ticket.test.ts src/__tests__/cloudflare/portable-dispatch.test.ts src/__tests__/auth/terminal-ticket-route.test.ts src/__tests__/lib/actions/session-actions.test.ts"
+    },
+    "portableActionManifest": {
+      "passed": 3,
+      "command": "node --test deploy/cloudflare/app/portable-actions-build.test.mjs"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "pnpm exec tsc --noEmit --pretty false"
+    },
+    "scopedBiome": {
+      "passed": true
+    },
+    "actualLocalWorkerd": {
+      "passed": 12,
+      "sourceStable": true,
+      "processGroupDrained": true,
+      "command": "node deploy/cloudflare/app/run-local-generic-terminal.mjs"
+    }
+  },
+  "cloudMutation": false,
+  "liveCoderMutation": false,
+  "browserProof": false,
+  "featureDefaultOff": true,
+  "limitations": [
+    "Synthetic private auth and Coder binding; no actual Coder/browser acceptance.",
+    "Delivered-frame and cumulative bounds do not prevent platform initial message allocation.",
+    "Rename/kill, audio, clone mutations and coherent diagnostics remain separately gated."
+  ]
+}

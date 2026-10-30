@@ -20,11 +20,13 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
 Current implementation checkpoint (2026-10-30): installed source application and fresh manager
-status have local composed proofs; Cloudflare/Neon schema29 preservation, private task recovery,
-template logs/notices and five-profile Terraform validation pass. An inactive real Coder import
-passes after archive correction. Installed service acceptance exposed a runtime agent UUID
-mismatch; an authenticated startup resolver is being implemented. Repository-policy enrollment,
-remaining baseline migration and live project/session/browser pilots remain in progress.
+status have local composed proofs; Cloudflare/Neon schema30 preservation, private task recovery,
+template logs/notices and five-profile Terraform validation pass. Repository policy enrollment
+and exact epic-branch source selection are implemented and reviewed. An inactive real Coder
+import passes after archive correction. The runtime agent UUID mismatch has an implemented,
+reviewed official-SDK startup resolver; acceptance on the new image remains pending.
+Independent semantic acceptance, the Cloudflare terminal relay, remaining baseline migration,
+and live project/session/browser pilots remain in progress.
 No production cutover has occurred.
 
 Current step reports and blockers: [execution ledger](checks/autonomous-delivery/progress.md). Each task follows Understand → Implement → Review →
