@@ -118,6 +118,7 @@ export function ProjectWorkspacePanel({
       <ProjectSession
         key={selected.projectId}
         project={selected}
+        tasksEnabled={tasksEnabled}
         onBack={() => setSelected(null)}
       />
     );
@@ -137,14 +138,20 @@ export function ProjectWorkspacePanel({
         workspaceId={workspaceId}
         visible={visible}
         enabled={enabled}
-        onSelectProject={
-          tasksEnabled ? (project, account) => void open(project, account) : undefined
-        }
+        onSelectProject={enabled ? (project, account) => void open(project, account) : undefined}
       />
     </>
   );
 }
-function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: () => void }) {
+function ProjectSession({
+  project,
+  onBack,
+  tasksEnabled,
+}: {
+  project: OpenedProject;
+  onBack: () => void;
+  tasksEnabled: boolean;
+}) {
   const [text, setText] = useState("");
   const [task, setTask] = useState<ProjectTaskStatus | null>(
     project.currentTaskId
@@ -183,7 +190,7 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
   const preparing = Boolean(task && !["running", "blocked"].includes(task.phase));
   // biome-ignore lint/correctness/useExhaustiveDependencies: pollGeneration deliberately restarts the bounded status loop.
   useEffect(() => {
-    if (!taskId) return;
+    if (!taskId || !tasksEnabled) return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
@@ -227,8 +234,9 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
       request.abort();
       clearTimeout(timer);
     };
-  }, [project.projectId, project.workspaceId, taskId, preparing, pollGeneration]);
+  }, [project.projectId, project.workspaceId, taskId, preparing, pollGeneration, tasksEnabled]);
   const retry = async () => {
+    if (!tasksEnabled) return;
     if (busy || !task || task.phase !== "blocked") return;
     retryRequestId.current ??= crypto.randomUUID();
     setBusy(true);
@@ -265,7 +273,7 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
     }
   };
   const start = async () => {
-    if (busy || !text.trim()) return;
+    if (!tasksEnabled || busy || !text.trim()) return;
     if (new TextEncoder().encode(text.trim()).length > 32768) {
       setError("Please shorten the task description.");
       return;
@@ -329,7 +337,12 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
           ) : null}
         </div>
       ) : null}
-      {!task && !nativeThreadId ? (
+      {!tasksEnabled && !task && !nativeThreadId ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          Project opened. Starting tasks is currently unavailable.
+        </p>
+      ) : null}
+      {tasksEnabled && !task && !nativeThreadId ? (
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -380,7 +393,8 @@ function ProjectSession({ project, onBack }: { project: OpenedProject; onBack: (
               : "The task needs attention. Refresh its status or inspect the workspace."}{" "}
             Existing work is retained.
           </p>
-          {task.reason &&
+          {tasksEnabled &&
+          task.reason &&
           [
             "github_auth_required",
             "checkout_busy",

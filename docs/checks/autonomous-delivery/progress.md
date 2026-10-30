@@ -891,3 +891,35 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   stays off pending actual Coder/browser validation. Evidence:
   [terminal validation](generic-terminal-local/validation.json),
   [parent review](generic-terminal-local/parent-review.json).
+
+- Installed workspace identity and repository reads: complete on the reviewed e9230f1 image,
+  high difficulty. Real Coder's canonical named-app label omits the agent component; the
+  helper now checks that separately from the configured explicit-agent alias. The new image
+  passes build/smoke/provenance, imports as an inactive version, and starts successfully in
+  the dedicated persistent test workspace. The reviewed live probe passes55 direct requests
+  plus one receipt-inspection SSH: signed identity/session/CWD/path reads, GitHub discovery,
+  exact epic ref, package/process receipts and credential isolation. A separate read-only
+  preflight confirms no enrolled controller project or managed checkout for the browser target.
+  No model inference, project enrollment, active-template update or production change.
+  Evidence: [live runtime](workspace-runtime-identity-live-e923.json),
+  [controller preflight](workspace-identity-live/controller-inventory-e923.json).
+
+- Ordinary clipboard transport: implemented and independently reviewed, high difficulty.
+  Parent100 focused checks and nine real Python PTY checks pass; matching-source local workerd
+  passes nine checks including the full20 MiB multipart limit. Fixed commands, nonce/digest ACKs,
+  exclusive partial files and a bounded helper lifetime replace SSH in this disabled candidate.
+  Review caught preexisting-partial cleanup and malformed upgrade socket handling; both are
+  fixed. Real Coder/browser and deployed CPU/memory acceptance remain pending. Evidence:
+  [upload validation](terminal-paste-local/validation.json),
+  [parent review](terminal-paste-local/parent-review.json).
+
+- Private project preview deployed at e9230f1; public URLs remain disabled. The seven-check
+  live smoke stopped on request five: Next middleware redirected the project API to login
+  HTML instead of its route-owned JSON error. The failed result is preserved. The repair
+  routes only exact project API methods to their existing authentication handlers; review
+  corrected task status to POST. Repository opening now follows discovery capability, while
+  task creation/retry/polling remain separately disabled. Parent35 UI/route/middleware checks
+  and12 deployment-policy checks pass. Owned private previews can now be repaired after a
+  recorded failed probe without weakening identity/version/private-state/headroom checks.
+  Browser validation and the repaired deployment remain next. Evidence:
+  [first live failure](cloudflare-project-preview-smoke-e923.json).

@@ -19,6 +19,8 @@ const PUBLIC_PATHS = ["/login", "/api/auth", "/manifest.webmanifest", "/robots.t
 const STATIC_PREFIXES = ["/_next", "/favicon.ico"];
 const deliveryTaskPath =
   /^\/api\/delivery\/tasks\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const projectPostPath =
+  /^\/api\/projects\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:session-grant|terminal-grant|tasks\/(?:start|status|retry))$/i;
 
 function withContentSecurityPolicy(
   response: NextResponse,
@@ -52,6 +54,11 @@ export function proxy(request: NextRequest) {
     isHostCallbackTransport(request, process.env.HIVE_CODEX_GATEWAY_ENABLED, process.env) ||
     // Discovery authenticates in its route and must return JSON 401, not login HTML.
     pathname.startsWith("/api/discovery/") ||
+    // Project routes enforce their own feature, origin and session checks. Let
+    // expired sessions receive their JSON errors instead of a followed HTML redirect.
+    (request.method === "GET" && pathname === "/api/projects") ||
+    (request.method === "POST" &&
+      (pathname === "/api/projects/open" || projectPostPath.test(pathname))) ||
     // This exact read endpoint authenticates its session in the route and
     // returns typed JSON failures rather than a login-page redirect.
     (request.method === "GET" && pathname === "/api/settings/window") ||

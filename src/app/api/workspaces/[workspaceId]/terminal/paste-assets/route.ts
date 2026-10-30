@@ -1,3 +1,4 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 import { getRequestSession } from "@/lib/auth/session";
 import { TERMINAL_PASTE_ASSET_MAX_TOTAL_BYTES } from "@/lib/terminal/paste-limits";
@@ -12,6 +13,10 @@ import {
   readTerminalPasteFormData,
   TERMINAL_PASTE_REQUEST_TIMEOUT_MS,
 } from "@/lib/workspace/paste-request";
+import {
+  type TerminalPasteEnvironment,
+  terminalPasteRuntime,
+} from "../../../../../../../deploy/cloudflare/app/terminal-paste-runtime";
 
 export const runtime = "nodejs";
 
@@ -19,6 +24,11 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ workspaceId: string }> },
 ) {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+    if (process.env.HIVE_TERMINAL_PASTE_ENABLED !== "true")
+      return NextResponse.json({ error: "Paste uploads unavailable" }, { status: 404 });
+    return terminalPasteRuntime(request, getCloudflareContext().env as TerminalPasteEnvironment);
+  }
   const session = await getRequestSession();
   if (!session) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

@@ -25,6 +25,11 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("project enrollment route", () => {
+  it("allows authenticated metadata enrollment while task execution remains disabled", async () => {
+    vi.stubEnv("HIVE_PROJECT_TASKS_ENABLED", "false");
+    expect((await POST(request())).status).toBe(200);
+    expect(mock.open).toHaveBeenCalledWith(user, {});
+  });
   it("does not enroll when discovery is disabled or owner authorization rejects", async () => {
     vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "false");
     expect((await POST(request())).status).toBe(404);

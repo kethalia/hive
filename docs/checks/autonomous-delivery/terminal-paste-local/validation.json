@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:21:15.227790+00:00",
+  "sourceStable": true,
+  "sourceHashes": {
+    "deploy/cloudflare/app/terminal-paste-transport.ts": "e9e6c79a08b1377ad226a5795422758493f754ff387b159f25f73850066e8a09",
+    "deploy/cloudflare/app/terminal-paste-runtime.ts": "e34461d21a7dbab70b5c1bdedf620cf03217fa31c340700659d331a74e0a7517",
+    "deploy/cloudflare/app/generic-terminal-runtime.ts": "cf9928d88f7957fec67a6c232aa6a6d144a0b340c1062f84dbbfb1a33724584b",
+    "deploy/cloudflare/app/worker.ts": "22d0fbda2a1ce0a5096c933ad0840c88c344bd9cc884c482bcac8848358ac9c9",
+    "src/lib/workspace/paste-writer.ts": "1d057814041f53c8c340c4c201a35e6ef6ae9172267235fc9c14f9b50a4eb045",
+    "src/lib/workspace/paste-request.ts": "d3b6cc9051766b93fe851f0753e36c77a034c36e214ae30f522a1dfc67eb17a6",
+    "src/app/api/workspaces/[workspaceId]/terminal/paste-assets/route.ts": "5584c24442dfa333d47586df71cb384b1dac7471052851f83923efbb8dd42d56",
+    "src/__tests__/cloudflare/terminal-paste-runtime.test.ts": "b5966ccdf8e1920b0d33f1b0b7e09b1ec3d67f3b9b6eec178e2229ad19ac72d2",
+    "src/__tests__/cloudflare/terminal-paste-transport.test.ts": "1efec3afcd55e0d0524c8484a79d1cebab228b9efa5de60e67df0a6d88299a8a",
+    "src/__tests__/cloudflare/portable-dispatch.test.ts": "3c45fc68460d6ecf76015e5dff6707bd10c0f515cbfa7b17ff0fca2847332fa9",
+    "scripts/agents/test_terminal_paste_writer.py": "57fdca2a5fa12baafff80e0850c5178bd30a47bf2bc9c995699f01a646af4ada",
+    "deploy/cloudflare/app/local-terminal-paste-provider.ts": "785a76138a2860b813e3e4e194be8f0a8df3d90550bdf193c7a669441d43dcbc",
+    "deploy/cloudflare/app/local-terminal-paste.worker.ts": "c13cbd1fe0c989bfb9042251644dbcb8474c11308c6e100555379f916d4ca749",
+    "deploy/cloudflare/app/run-local-terminal-paste.mjs": "b3184e0bc880a4b70968cf476c85e4a0b1793b647edd2d7e69c0f22a86a27bd8",
+    "docs/checks/autonomous-delivery/terminal-paste.md": "fcf19705ce7f3a596f3997e49465f770210e6fbecce62204952946e77333d210",
+    "docs/checks/autonomous-delivery/terminal-paste-local/workerd.json": "86799a83196cd193fca47657348ee4969938160fcd67b6f8cd634093b2e4c789"
+  },
+  "checks": {
+    "focusedVitest": {
+      "passed": 100,
+      "files": 9,
+      "command": "pnpm exec vitest run src/__tests__/cloudflare/terminal-paste-runtime.test.ts src/__tests__/cloudflare/terminal-paste-transport.test.ts src/__tests__/cloudflare/generic-terminal-runtime.test.ts src/__tests__/cloudflare/generic-terminal-relay.test.ts src/__tests__/cloudflare/generic-terminal-ticket.test.ts src/__tests__/cloudflare/portable-dispatch.test.ts src/__tests__/app/api/workspaces/paste-assets-route.test.ts src/__tests__/app/api/workspaces/paste-credential-route.test.ts src/__tests__/lib/workspace/paste-assets.test.ts"
+    },
+    "actualPythonPty": {
+      "passed": 9,
+      "command": "python3 -m unittest scripts/agents/test_terminal_paste_writer.py"
+    },
+    "actualLocalWorkerd": {
+      "passed": 9,
+      "exactMaximumBytes": 20971520,
+      "command": "node deploy/cloudflare/app/run-local-terminal-paste.mjs"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "pnpm exec tsc --noEmit --pretty false"
+    },
+    "scopedBiome": true,
+    "diffCheck": true
+  },
+  "featureFlag": "HIVE_TERMINAL_PASTE_ENABLED",
+  "defaultEnabled": false,
+  "liveProviderCalls": false,
+  "cloudMutations": false,
+  "browserProof": false,
+  "deployedCpuOrMemoryAcceptance": false,
+  "limitations": [
+    "Actual workerd uses explicit synthetic private auth/Coder provider; actual Python PTY is an independent local proof.",
+    "No retry of ambiguous write or process-quiescence claim.",
+    "One local upload per isolate and fixed helper nonblocking target-directory lock; no global durable quota.",
+    "Voice, agent-tool mutation and legacy notification hook transport remain separate F07 work."
+  ]
+}

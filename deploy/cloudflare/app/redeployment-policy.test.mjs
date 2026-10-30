@@ -55,6 +55,13 @@ function fixture(accountId = account, workerNames = names) {
 test("accepts only the existing task-created identities and unchanged private deployments", () => {
   fixture().validate();
 });
+test("permits repairing an owned private preview after a recorded failed probe", () => {
+  const f = fixture();
+  f.previous.probe.finalPassed = false;
+  f.validate();
+  f.preflight.targets[0].deploymentId = "foreign";
+  assert.throws(f.validate);
+});
 test("existing targets require explicit prior evidence and still require fresh included headroom", () => {
   const f = fixture(ACCOUNT_ID, { app: APP_NAME, auth: AUTH_NAME });
   Object.assign(f.preflight, {
@@ -108,7 +115,7 @@ test("rejects foreign account or incomplete/unproven prior deployment evidence",
       previous.accountId = "foreign";
     },
     (previous) => {
-      previous.probe.finalPassed = false;
+      delete previous.probe.finalPassed;
     },
     (previous) => {
       previous.scriptIdentities = [];

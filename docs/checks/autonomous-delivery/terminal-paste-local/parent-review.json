@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:27:36.665382+00:00",
+  "reviewed": true,
+  "blockingFindings": [],
+  "focusedTestsPassed": 100,
+  "actualPythonPtyTestsPassed": 9,
+  "actualWorkerdSourceHashesIndependentlyMatched": true,
+  "actualWorkerdChecks": 9,
+  "actualMaximumMultipartBytes": 20971520,
+  "deployedNextCpuMemoryAcceptance": false,
+  "liveProviderCalls": false,
+  "reviewFix": "Malformed upgrade response socket now closed; dedicated regression passes."
+}

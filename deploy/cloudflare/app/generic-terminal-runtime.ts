@@ -75,6 +75,93 @@ function configuredOrigin(value: string | undefined) {
     throw new Error("origin");
   return url.origin;
 }
+/** Only authenticated server callers supply sessionId; no request payload is identity. */
+export async function authorizeOwnedWorkspacePty(
+  sessionId: string,
+  env: GenericTerminalEnvironment,
+  workspaceId: string,
+  agentId: string | undefined,
+  callerSignal: AbortSignal,
+  fetcher: typeof fetch = fetch,
+) {
+  const coderOrigin = configuredOrigin(env.CODER_URL);
+  if (
+    !uuid.safeParse(workspaceId).success ||
+    (agentId !== undefined && !uuid.safeParse(agentId).success)
+  )
+    throw new Error("workspace");
+  async function json(path: string, token: string, signal: AbortSignal) {
+    const response = await publicationFetch(
+      fetcher(`${coderOrigin}${path}`, {
+        redirect: "manual",
+        credentials: "omit",
+        signal,
+        headers: { "Coder-Session-Token": token, Accept: "application/json" },
+      }),
+      signal,
+    );
+    if (response.status !== 200 || response.redirected) {
+      await cancelPublicationBody(response);
+      throw new Error("coder");
+    }
+    return JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(
+        await publicationBody(response, 1048576, signal),
+      ),
+    );
+  }
+  const signal = AbortSignal.any([callerSignal, AbortSignal.timeout(5000)]);
+  const auth = genericTerminalAuthClient(env, signal);
+  const [rawSession, rawToken] = await settledPair(
+    auth.getSession(sessionId),
+    auth.getCoderToken(sessionId),
+  );
+  const session = genericTerminalSessionSchema.parse(rawSession),
+    credential = tokenSchema.parse(rawToken);
+  const sessionExpiry = Date.parse(session.expiresAt),
+    tokenExpiry = credential.expiresAt === null ? Infinity : Date.parse(credential.expiresAt);
+  if (
+    session.sessionId !== sessionId ||
+    session.coderUrl !== coderOrigin ||
+    credential.coderUrl !== coderOrigin ||
+    !Number.isFinite(sessionExpiry) ||
+    sessionExpiry <= Date.now() ||
+    (tokenExpiry !== Infinity && (!Number.isFinite(tokenExpiry) || tokenExpiry <= Date.now()))
+  )
+    throw new GenericTerminalFailure(4401);
+  const [user, workspace] = await settledPair(
+    json("/api/v2/users/me", credential.token, signal),
+    json(`/api/v2/workspaces/${workspaceId}`, credential.token, signal),
+  );
+  const current = workspaceSchema.parse(workspace);
+  const agents = current.latest_build.resources
+    .flatMap((r) => r.agents)
+    .filter((a) => agentId === undefined || a.id === agentId);
+  if (
+    user?.id !== session.coderUserId ||
+    current.id !== workspaceId ||
+    current.owner_id !== session.coderUserId
+  )
+    throw new GenericTerminalFailure(4403);
+  if (
+    current.latest_build.status !== "running" ||
+    agents.length !== 1 ||
+    agents[0].status !== "connected"
+  )
+    throw new GenericTerminalFailure(4404);
+  signal.throwIfAborted();
+  return {
+    sessionId,
+    agentId: agents[0].id,
+    userId: session.userId,
+    coderUserId: session.coderUserId,
+    coderOrigin,
+    buildId: current.latest_build.id,
+    token: credential.token,
+    expiresAt: Math.min(sessionExpiry, tokenExpiry),
+  };
+}
+
 export function createGenericTerminalDependencies(
   request: Request,
   env: GenericTerminalEnvironment,
@@ -113,78 +200,17 @@ export function createGenericTerminalDependencies(
   // captured session/subject independently; it never renews a stale ticket.
   const sessionId = ticket.sessionId;
   const fetcher = transport.fetch ?? fetch;
-  async function json(path: string, token: string, signal: AbortSignal) {
-    const response = await publicationFetch(
-      fetcher(`${coderOrigin}${path}`, {
-        redirect: "manual",
-        credentials: "omit",
-        signal,
-        headers: { "Coder-Session-Token": token, Accept: "application/json" },
-      }),
-      signal,
-    );
-    if (response.status !== 200 || response.redirected) {
-      await cancelPublicationBody(response);
-      throw new Error("coder");
-    }
-    return JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(
-        await publicationBody(response, 1048576, signal),
-      ),
-    );
-  }
   const deps: GenericTerminalDependencies = {
     ...transport,
     async authorize(_incoming, target, callerSignal) {
-      const signal = AbortSignal.any([callerSignal, AbortSignal.timeout(5000)]);
-      const auth = genericTerminalAuthClient(env, signal);
-      const [rawSession, rawToken] = await settledPair(
-        auth.getSession(sessionId),
-        auth.getCoderToken(sessionId),
-      );
-      const session = genericTerminalSessionSchema.parse(rawSession),
-        credential = tokenSchema.parse(rawToken);
-      const sessionExpiry = Date.parse(session.expiresAt),
-        tokenExpiry = credential.expiresAt === null ? Infinity : Date.parse(credential.expiresAt);
-      if (
-        session.sessionId !== sessionId ||
-        session.coderUrl !== coderOrigin ||
-        credential.coderUrl !== coderOrigin ||
-        !Number.isFinite(sessionExpiry) ||
-        sessionExpiry <= Date.now() ||
-        (tokenExpiry !== Infinity && (!Number.isFinite(tokenExpiry) || tokenExpiry <= Date.now()))
-      )
-        throw new GenericTerminalFailure(4401);
-      const [user, workspace] = await settledPair(
-        json("/api/v2/users/me", credential.token, signal),
-        json(`/api/v2/workspaces/${target.workspaceId}`, credential.token, signal),
-      );
-      const current = workspaceSchema.parse(workspace);
-      const agents = current.latest_build.resources
-        .flatMap((r) => r.agents)
-        .filter((a) => a.id === target.agentId);
-      if (
-        user?.id !== session.coderUserId ||
-        current.id !== target.workspaceId ||
-        current.owner_id !== session.coderUserId
-      )
-        throw new GenericTerminalFailure(4403);
-      if (
-        current.latest_build.status !== "running" ||
-        agents.length !== 1 ||
-        agents[0].status !== "connected"
-      )
-        throw new GenericTerminalFailure(4404);
-      signal.throwIfAborted();
-      return {
+      return authorizeOwnedWorkspacePty(
         sessionId,
-        userId: session.userId,
-        coderUserId: session.coderUserId,
-        coderOrigin,
-        buildId: current.latest_build.id,
-        token: credential.token,
-        expiresAt: Math.min(sessionExpiry, tokenExpiry),
-      };
+        env,
+        target.workspaceId,
+        target.agentId,
+        callerSignal,
+        fetcher,
+      );
     },
     async upgrade(url, init) {
       const signal = init.signal ?? AbortSignal.timeout(10000);
