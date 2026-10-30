@@ -13,6 +13,7 @@ let mode = "success",
   activeVersionId = "";
 let templateExists = true,
   priorVersionId = "";
+let logMode = "normal";
 const files = new Map<string, ArrayBuffer>(),
   versions = new Map<string, Record<string, unknown>>();
 let effects = { uploads: 0, versions: 0, activations: 0, templateCreations: 0 };
@@ -35,6 +36,7 @@ export default {
       organizationId = value.organizationId;
       activeVersionId = value.activeVersionId;
       priorVersionId = activeVersionId;
+      logMode = "normal";
       templateExists = !mode.startsWith("first_");
       files.clear();
       versions.clear();
@@ -46,6 +48,13 @@ export default {
       request.headers.get("Authorization") === `Bearer ${env.PROOF_BEARER}`
     )
       return Response.json(effects);
+    if (
+      path === "/__fixture/log-mode" &&
+      request.headers.get("Authorization") === `Bearer ${env.PROOF_BEARER}`
+    ) {
+      logMode = ((await request.json()) as { mode: string }).mode;
+      return Response.json({ configured: true });
+    }
     if (path.startsWith("/sessions/")) {
       if (
         request.method !== "GET" ||
@@ -184,7 +193,15 @@ export default {
     }
     if (path.startsWith("/api/v2/templateversions/")) {
       if (path.endsWith("/logs"))
-        return Response.json([{ id: 1, output: "synthetic-secret-never-in-controller-journal" }]);
+        return Response.json([
+          {
+            id: 1,
+            output:
+              logMode === "oversized"
+                ? "x".repeat(40000)
+                : "synthetic-secret-never-in-controller-journal",
+          },
+        ]);
       const requested = path.split("/").at(-1) ?? "";
       if (requested === priorVersionId)
         return Response.json({

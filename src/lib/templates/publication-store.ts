@@ -529,6 +529,12 @@ export class TemplatePublicationStore {
           ? { heldReason: reason ?? "provider_unavailable" }
           : { currentJobId: null, heldReason: null },
     });
+    const event = await tx.templatePublicationEvent.findUniqueOrThrow({
+      where: { jobId_key: { jobId: job.id, key: `terminal:${stage}` } },
+    });
+    await tx.templatePublicationNotice.create({
+      data: { ownerId: job.ownerId, jobId: job.id, eventId: event.id },
+    });
   }
   settle(
     claim: PublicationClaim,

@@ -17,6 +17,8 @@
   "vars": {
     "HIVE_RUNTIME_TARGET": "cloudflare",
     "HIVE_DISABLE_BACKGROUND_WORKERS": "true",
+    "HIVE_PROJECT_TASKS_ENABLED": "false",
+    "HIVE_TEMPLATE_LOG_VIEW_ENABLED": "false",
     "CODER_URL": "https://coder.kethalia.com"
   }
 }

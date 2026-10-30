@@ -1,0 +1,14 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/templates/publication-logs.test.ts (7 tests) 26ms
+ ✓ src/__tests__/lib/templates/publication-log-reader.test.ts (8 tests) 78ms
+ ✓ src/__tests__/lib/templates/publication-notices.test.ts (6 tests) 13ms
+ ✓ src/__tests__/components/template-publication-logs.test.tsx (4 tests) 202ms
+ ✓ src/__tests__/components/template-detail.test.tsx (14 tests) 284ms
+ ✓ src/__tests__/components/templates-list-mobile.test.tsx (13 tests) 739ms
+
+ Test Files  6 passed (6)
+      Tests  52 passed (52)
+   Start at  04:49:16
+   Duration  1.77s (transform 475ms, setup 0ms, collect 1.22s, tests 1.34s, environment 1.40s, prepare 347ms)

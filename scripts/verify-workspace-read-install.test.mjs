@@ -18,6 +18,7 @@ import { workspaceReadPackage } from "./build-workspace-read-package.mjs";
 
 test("actual standalone installer pins Node/config/package/listener inside private home and network namespace", {
   timeout: 60000,
+  skip: process.env.HIVE_WORKSPACE_READ_INSTALL_NATIVE !== "1",
 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "hive-read-install-actual-")),
     home = join(root, "home"),

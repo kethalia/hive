@@ -59,7 +59,15 @@ export function templatePublicationRoutes(dependencies: PublicationRouteDependen
           ),
           signal,
         );
-        return Response.json({ jobId: job.id }, { headers });
+        return Response.json(
+          {
+            jobId: job.id,
+            ...(process.env.HIVE_TEMPLATE_LOG_VIEW_ENABLED === "true"
+              ? { canViewDetailedLogs: true }
+              : {}),
+          },
+          { headers },
+        );
       } catch (e) {
         const code = e instanceof TemplatePublicationError ? e.code : "publication_unavailable";
         return error(

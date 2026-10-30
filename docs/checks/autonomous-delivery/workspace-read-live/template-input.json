@@ -1,0 +1,402 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "9ea8aca80e408eb859dd8dc5c5f12f3913a14e5c",
+  "guardianArtifact": "/tmp/hive-guardian-ci-17dbf25",
+  "templateActiveVersionChanged": false,
+  "files": {
+    "templates/ai-dev-k8s/.terraform.lock.hcl": {
+      "sha256": "df1e0629c8e13a9a23013d62e65b5e9baf1d7c25dfdab4606b1acbdba1bb04aa",
+      "bytes": 3607
+    },
+    "templates/ai-dev-k8s/CLAUDE.md": {
+      "sha256": "e7cbe779f74d3293ad831992cab6e651c36e21b53cbe343dafcca296971125f3",
+      "bytes": 1588
+    },
+    "templates/ai-dev-k8s/README.md": {
+      "sha256": "c9af6a1bcba2e37a99be6fa52a427846576dc6ea71e5d784d42dd9ff34697b65",
+      "bytes": 2230
+    },
+    "templates/ai-dev-k8s/WORKSPACE.md": {
+      "sha256": "7dc0cd7c19edbf78930418faf3831fd1b5fbc3cda593f094068f07a2548d251d",
+      "bytes": 2679
+    },
+    "templates/ai-dev-k8s/WORKSPACE_ROUTING.md": {
+      "sha256": "d53315454bf0a06145c48aa7b7c7e9636260e7bb3650fe3accdd2c6f985af330",
+      "bytes": 12516
+    },
+    "templates/ai-dev-k8s/assets/codex-host.tar.sha256": {
+      "sha256": "82efa97849a2184de0302c9c11a470c47c7a725b76ecc3f1ab22f1fb1b9ac0fb",
+      "bytes": 65
+    },
+    "templates/ai-dev-k8s/assets/codex-host.tar.xz": {
+      "sha256": "39a4090c0c0e74405036f9a89f67c583f858cfababafcecdfeb999942b3ffd97",
+      "bytes": 140104
+    },
+    "templates/ai-dev-k8s/assets/workspace-read-installer.py.gz": {
+      "sha256": "33e4b4de600ded3dd0610be0ad929f9a49c1fa7815ed243bf9ccf62e3dc46393",
+      "bytes": 5690
+    },
+    "templates/ai-dev-k8s/assets/workspace-read-installer.sha256": {
+      "sha256": "e82785941d3f3a8d2b1c4077d1b4d7f7d8f8aa547eff05cb6340fab44aee4fad",
+      "bytes": 65
+    },
+    "templates/ai-dev-k8s/assets/workspace-read.manifest.sha256": {
+      "sha256": "302b6e9a17c3931150fb2e66d9a950c1047d4aeb28597af73be27a03af92760e",
+      "bytes": 65
+    },
+    "templates/ai-dev-k8s/assets/workspace-read.tar.gz": {
+      "sha256": "9f6b5a19dc589754c5cc430dfe1eb38b1ba79f1e417d92749fb2de412ad4fd7e",
+      "bytes": 9382
+    },
+    "templates/ai-dev-k8s/assets/workspace-read.tar.sha256": {
+      "sha256": "0a94342ef7c6907b0343be4ed44359ebb827f071625c25e2970627551d37b2c0",
+      "bytes": 65
+    },
+    "templates/ai-dev-k8s/hive-host.tf": {
+      "sha256": "8c3c6aac39edf2ae8b4ea9fbce8e3fbb1021de77c4f92ab9dbfb9496c39312cf",
+      "bytes": 6805
+    },
+    "templates/ai-dev-k8s/hive-read.tf": {
+      "sha256": "12f7719802c15b1c76a8071d175654b06ccbe317951f6e4da561e531d9997a54",
+      "bytes": 4869
+    },
+    "templates/ai-dev-k8s/main.tf": {
+      "sha256": "fd03ce8a2f73e06337ce642ec8562dd1fed3347213ec70986a1dd09d5ac4c672",
+      "bytes": 30794
+    },
+    "templates/ai-dev-k8s/profile.json": {
+      "sha256": "f99b78755ec68f1ea4f73d2456fb277847adec9a19cb063faf3e2a1f8efa4eb6",
+      "bytes": 978
+    },
+    "templates/ai-dev-k8s/repositories.txt": {
+      "sha256": "2f2dc5ec19b8d714ee778b660233bd6a2e2a4e03bb6493a493ed67cdca9f2cf1",
+      "bytes": 786
+    },
+    "templates/ai-dev-k8s/scripts/agent-integrations.sh": {
+      "sha256": "f15cbcce218343686ba4cc71798d89dbb9c95eecd52f2b45a211032914524859",
+      "bytes": 2013
+    },
+    "templates/ai-dev-k8s/scripts/agent-tools.py": {
+      "sha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787",
+      "bytes": 21473
+    },
+    "templates/ai-dev-k8s/scripts/clone-repositories.sh": {
+      "sha256": "c718ea22c2b64819af7fd2224be8470c10457b6391a503676ba135ff5d9953ee",
+      "bytes": 1707
+    },
+    "templates/ai-dev-k8s/scripts/coder-credential-cleanup.py": {
+      "sha256": "0cec985766bdfb2d55c6c3b7fc3d2db2e8cd5fbd5a579dad83a97522f6837bde",
+      "bytes": 2860
+    },
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": {
+      "sha256": "0c87624ea170e859dae7f859efd529e704b3bbd980dc9acb244ea61a7774abd2",
+      "bytes": 17171
+    },
+    "templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs": {
+      "sha256": "a9d7d205bcc1bcc1d22441e713700fddea71d023d5ff566283faa7f791359a82",
+      "bytes": 49689
+    },
+    "templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs": {
+      "sha256": "f5cc40737bd7497fc18f9001ab63117b2a8a5c5175ab7a84ee4b1948e31bba04",
+      "bytes": 4357
+    },
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": {
+      "sha256": "956da3b44b606c650aa34d99ce669989698e9364563f7a6dae8133bc5a0a966f",
+      "bytes": 14349
+    },
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": {
+      "sha256": "e1c25c2e1acc21fea7d73acf21b734282b1a5f435bcd8115d8bfea0c57ed6d9e",
+      "bytes": 19675
+    },
+    "templates/ai-dev-k8s/scripts/codex-host-registration.mjs": {
+      "sha256": "c9cc1019bb3d0784df0f9e6be9542e3042d5ee43328ffa42747e5d4de521aef7",
+      "bytes": 12717
+    },
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": {
+      "sha256": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+      "bytes": 17616
+    },
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": {
+      "sha256": "731228834e262f4bfe930c3fa8a711d3b7ae2e2fc55d93f658b76dbff5648537",
+      "bytes": 20677
+    },
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": {
+      "sha256": "33550f4d7ac4e3c5532429d7a71d57c8cec285bec3c3423a7803b79d5695b8d7",
+      "bytes": 20486
+    },
+    "templates/ai-dev-k8s/scripts/codex-process-identity.mjs": {
+      "sha256": "c93b5845f0d4b9eb0c98177ed0746f86a521332f0568403082d6aed5fd6da24c",
+      "bytes": 1695
+    },
+    "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": {
+      "sha256": "d39dba4afa57585727c3ed7041d10991020abe5e02bb44e5813c537705d20c99",
+      "bytes": 38064
+    },
+    "templates/ai-dev-k8s/scripts/codex-project-discovery.mjs": {
+      "sha256": "ca0f0387e3e59b665b88fd4cf342a325467f416917d3d192c7dd7de6f82eed2e",
+      "bytes": 13192
+    },
+    "templates/ai-dev-k8s/scripts/codex-project-gateway.mjs": {
+      "sha256": "a684ad9b248155b0104672ad277f0c933e895c5db37554679b887d469a7d40e9",
+      "bytes": 4672
+    },
+    "templates/ai-dev-k8s/scripts/codex-project-lease.py": {
+      "sha256": "c2c2b174e6dbc8a7af3c36aa3e4d7e8332f2b247ef39038d959b590221f28bfc",
+      "bytes": 8677
+    },
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.md": {
+      "sha256": "9add0b15115e521f074e31f112bd4a77b31cb6c0e7974061b8bc2406aaccd673",
+      "bytes": 15715
+    },
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": {
+      "sha256": "82cc2d1c29d0a55d23e4af7fc6a9eb708fd4f4c8fe19b37cf0ecb436bf8c94e7",
+      "bytes": 89026
+    },
+    "templates/ai-dev-k8s/scripts/codex-project-terminal.mjs": {
+      "sha256": "7455c226ae23d1ef75634d2970b4522bae3957e5320051054f626c14fcad3ba4",
+      "bytes": 10247
+    },
+    "templates/ai-dev-k8s/scripts/codex-project-terminal.py": {
+      "sha256": "3c020ce1071f10bd40960cb2d5a6d1914cb3c586536c9f12efd32cc123a12860",
+      "bytes": 7001
+    },
+    "templates/ai-dev-k8s/scripts/codex-sandbox-readiness.py": {
+      "sha256": "d6a91c4fdb4aa02aa342d93d6ca52aeadd8ce12fe694866b00dfb2614d822e1b",
+      "bytes": 12768
+    },
+    "templates/ai-dev-k8s/scripts/codex-session-bridge.md": {
+      "sha256": "fed0e655be393ca3cbc0823356bf9a97e66d3c12ec157494253d6476ab08e7ce",
+      "bytes": 11787
+    },
+    "templates/ai-dev-k8s/scripts/codex-session-bridge.mjs": {
+      "sha256": "24df16ae9d8b0828087fa49797d159c113ae61d5057e90a8db9cac12dc9c36d7",
+      "bytes": 25277
+    },
+    "templates/ai-dev-k8s/scripts/codex-source-application.mjs": {
+      "sha256": "5f1e4dd0bbce8be7a8c9dcdc3d0dfe64dec086aec68cd718a4e97adf0e8c67bc",
+      "bytes": 19421
+    },
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs": {
+      "sha256": "886e369804078aae0c8a98fc7e7c805bab84ad550def5dcdba6cbffac9424943",
+      "bytes": 4289
+    },
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-worker.mjs": {
+      "sha256": "8d6d99ecbe352f55a0db21dc757f70a85e6f49ef5ad59775b183cbde4951dc50",
+      "bytes": 1693
+    },
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": {
+      "sha256": "61c0c1e8c0ca910a0065f1e6fb0814eef33b5efae1865156dab479e235ece712",
+      "bytes": 18708
+    },
+    "templates/ai-dev-k8s/scripts/delivery-github-collector.mjs": {
+      "sha256": "e1f5fb5722b6389dbc5253f949629f590c026612bac53f64c3790e3af486a24e",
+      "bytes": 13558
+    },
+    "templates/ai-dev-k8s/scripts/delivery-github-journal.mjs": {
+      "sha256": "ed0158a8588088cd2e7f96bfaa609c14bc876a31da0297c092c94601adf61a94",
+      "bytes": 5026
+    },
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": {
+      "sha256": "45751a56b5e9322ce42d280047bd0a2fef010eb3d0e05d90a214301b6fd2af7e",
+      "bytes": 38160
+    },
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": {
+      "sha256": "5a669d54b9a80b43babac5abad10378f7aeb9fa0282c320e339f91e5ebd4cb15",
+      "bytes": 54791
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-apply-client.mjs": {
+      "sha256": "713652184803209d3e12cd3598403eead1e3065cc45e6d7660f352061aad2daa",
+      "bytes": 7271
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-apply-worker.py": {
+      "sha256": "7e6764b83332e9295fc3ad9b1bff8fb4290bfc429805f51cb2eb07a0337f612b",
+      "bytes": 12002
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-broker.py": {
+      "sha256": "a1046b274d4947924c5b10ba02b509982d629b8c332c6ac075aaf3f39638ba70",
+      "bytes": 31490
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-provider.py": {
+      "sha256": "cf737991ab5606b85e468a5872b72a4d3a0cd5dbdf8ff926189c470aff9b0b3b",
+      "bytes": 8249
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-publisher-journal.mjs": {
+      "sha256": "9b21789a483bcd2fbc8e06567ab29c36af5cbc4286b821eae0961d68e5602ab4",
+      "bytes": 5823
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-publisher.mjs": {
+      "sha256": "1500e602ff0f34bc6c7a82b0f7543b2cddc61b71e5950db06a8768751a190f00",
+      "bytes": 29709
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-runtime.py": {
+      "sha256": "fe6bd196e98030449897ce5076ccc2688d48af127c5c9f68e0525212c8c926ef",
+      "bytes": 19685
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-state-client.mjs": {
+      "sha256": "4b6124ed687d65a6dc9785d6964ed37eb466ecadbe924b9be569f34ef663dc4b",
+      "bytes": 15202
+    },
+    "templates/ai-dev-k8s/scripts/delivery-source-worker.py": {
+      "sha256": "25d707e7873f71e515fbf6820e8a9c36a19951a99b465a51c7ee9239f0a5d419",
+      "bytes": 6671
+    },
+    "templates/ai-dev-k8s/scripts/delivery-status-client.mjs": {
+      "sha256": "5ce1575a181c55ff73161fa8c6c03084e2e088631270ef48c1685d0a8a821a12",
+      "bytes": 13586
+    },
+    "templates/ai-dev-k8s/scripts/git-config-retry.sh": {
+      "sha256": "9a05e3a620121ffa94aa4b5a978e76e085f30695389f7dbd0de6a41517f87d5f",
+      "bytes": 687
+    },
+    "templates/ai-dev-k8s/scripts/github-cli.sh": {
+      "sha256": "20048726c1588e66333d4edebb3f9c6c39c5bd12b60d0151b71afba484ca9284",
+      "bytes": 302
+    },
+    "templates/ai-dev-k8s/scripts/github-credential.sh": {
+      "sha256": "b0c26c7d5e1a060e772e98b58f6fd969b6b9ce53b9a3078c4cc48b3c5db5a714",
+      "bytes": 411
+    },
+    "templates/ai-dev-k8s/scripts/github-evidence.py": {
+      "sha256": "5e7dbcfa8286b4c955aa7b56b569c4566285911c84fa25f22d6ccf2dbbd3e136",
+      "bytes": 17315
+    },
+    "templates/ai-dev-k8s/scripts/github-projects.py": {
+      "sha256": "54f8bdf9199612e3adeec314532b2c35e333f2b93f24c298f3c32a0399afd2d1",
+      "bytes": 14495
+    },
+    "templates/ai-dev-k8s/scripts/hive-build-identity.sh": {
+      "sha256": "b22feb543a1d2914099d27667c7ee82e9dd8ee4162c5bf47f5544e72291e32f5",
+      "bytes": 506
+    },
+    "templates/ai-dev-k8s/scripts/hive-workspace-read.mjs": {
+      "sha256": "daa64b16a068d76a92ab4419b96472c062043d131e7fcad8fc97a5748fb4db0d",
+      "bytes": 20229
+    },
+    "templates/ai-dev-k8s/scripts/hive-workspace-read.py": {
+      "sha256": "617bcc9fd343eecd16bcd6108bde4ba0fe8c8b8e251bde4211172617e7a93da5",
+      "bytes": 10965
+    },
+    "templates/ai-dev-k8s/scripts/init.sh": {
+      "sha256": "b795858ac3d9d1be0d2c91cd3736c939607834c549133cadc8ac910c48cdb1fe",
+      "bytes": 8905
+    },
+    "templates/ai-dev-k8s/scripts/install-codex-host.py": {
+      "sha256": "5e8a5748d2cd2a62ad21f036a5ae555ad19c2d5c3028b3fc76798b18f3ee0205",
+      "bytes": 20757
+    },
+    "templates/ai-dev-k8s/scripts/install-codex-host.sh.tftpl": {
+      "sha256": "1af6e5a39316a4bcb8a82db400284c63dc5e02225b5a683e71a9e29768e0e756",
+      "bytes": 267
+    },
+    "templates/ai-dev-k8s/scripts/install-codex-runtime.py": {
+      "sha256": "62bbf5266bc539f430a02db31c1f9299ea4ad31ad637a4ca6cf366be2f34de21",
+      "bytes": 4612
+    },
+    "templates/ai-dev-k8s/scripts/install-neon-skill.py": {
+      "sha256": "550dd8c5d8eee63c81a85362bc2e04aa26834f2b3a98370c2d7ebef2b9dfb404",
+      "bytes": 3887
+    },
+    "templates/ai-dev-k8s/scripts/install-workspace-read.py": {
+      "sha256": "9a80c2fc9708918c89a160160a96f38e3478b1732677a21026b6749918aa7913",
+      "bytes": 18546
+    },
+    "templates/ai-dev-k8s/scripts/install-workspace-read.sh.tftpl": {
+      "sha256": "61504194d2dc18cbb0b37d8eb6632491b119e7ec6598b023866962cb954fce88",
+      "bytes": 224
+    },
+    "templates/ai-dev-k8s/scripts/kasmvnc-loopback.c": {
+      "sha256": "6e83588ccae2c2bc29ab711a538f44b7336eeaf22ab9f81af21a3f6da0001546",
+      "bytes": 1429
+    },
+    "templates/ai-dev-k8s/scripts/managed-projects.py": {
+      "sha256": "7e2ff9eeb57b34fcf1f29308de0d463fd5b3b7b6e26ab7968e252fba2979f6d1",
+      "bytes": 39107
+    },
+    "templates/ai-dev-k8s/scripts/managed-source-apply.py": {
+      "sha256": "7e894b75fad56b92886b1c4e47098806952deabc097ea9d7f32d895280512660",
+      "bytes": 30090
+    },
+    "templates/ai-dev-k8s/scripts/prune-turbo-cache.py": {
+      "sha256": "c1359badda538d19ef07dead380d5a0cd97d2180e26fc5054dc8b0021e1cadc7",
+      "bytes": 15540
+    },
+    "templates/ai-dev-k8s/scripts/retire-tmux-snapshots.py": {
+      "sha256": "9e788fdd0761faece41b78f7ca22475da6005fa50dcf806781837c4bcdc6ff3a",
+      "bytes": 1773
+    },
+    "templates/ai-dev-k8s/scripts/specialist-agent-entrypoint.sh": {
+      "sha256": "3846a3d333c6d503b2cfcf3cdb2445e6e1a764cc9df3056508e385f98b0622a7",
+      "bytes": 376
+    },
+    "templates/ai-dev-k8s/scripts/start-workspace-read.py": {
+      "sha256": "f4bbd6362985a8ef6e97a57010601a69e326840f62eb6efb3b38a20bfc950cdb",
+      "bytes": 1527
+    },
+    "templates/ai-dev-k8s/scripts/symlinks.sh": {
+      "sha256": "fe40e7252af70a2bb9a9a5cc3c89f947c42fde837081afe87adebb9408b6ab21",
+      "bytes": 1846
+    },
+    "templates/ai-dev-k8s/scripts/tools-ai.sh": {
+      "sha256": "c13c9166fae630242220a3b157f065cceefe7edb9ef208d163e6f12b1b0a04c7",
+      "bytes": 13743
+    },
+    "templates/ai-dev-k8s/scripts/tools-browser.sh": {
+      "sha256": "f998994d1120754c627d16ad7c9129642f7be5b56d9dd073d3f61a9036bff861",
+      "bytes": 2311
+    },
+    "templates/ai-dev-k8s/scripts/tools-ci.sh": {
+      "sha256": "cb95a92ea6ae8b170c92c44a1c87131041273cb690fc9604c1d773d237b16d1d",
+      "bytes": 4202
+    },
+    "templates/ai-dev-k8s/scripts/tools-desktop.sh": {
+      "sha256": "dbe6c3ae18209181fb7d7856d55e67535416edd8b9b66c5d3729f17d0bc5be6d",
+      "bytes": 8631
+    },
+    "templates/ai-dev-k8s/scripts/tools-filebrowser.sh": {
+      "sha256": "1df29462f5b4ede8d3dc09063cadfbe3b586315c0df20ef8e3b77bd2beceeede",
+      "bytes": 3840
+    },
+    "templates/ai-dev-k8s/scripts/tools-node.sh": {
+      "sha256": "373a0d284abdb560961316ca15d3db66a369457e86ca85f70f6ec4d31a4d23cb",
+      "bytes": 1221
+    },
+    "templates/ai-dev-k8s/scripts/tools-opencode.sh": {
+      "sha256": "7ab81335a6ec529cd4b648d86619d83fa2cb5200d04fb0600f27348c2e9de110",
+      "bytes": 510
+    },
+    "templates/ai-dev-k8s/scripts/tools-shell.sh": {
+      "sha256": "4ba0923b1c0ef9ba0dcf61557341789b26bb47dc3ed13f7fead33be99fa607ff",
+      "bytes": 2963
+    },
+    "templates/ai-dev-k8s/scripts/tools-web3.sh": {
+      "sha256": "ee073c3561974203da50adddf4a197abbb34bb585ddce7a5a08407d72eaa55c6",
+      "bytes": 1144
+    },
+    "templates/ai-dev-k8s/scripts/update-official-agents.py": {
+      "sha256": "b6d442c29c6ba5ae6bacedca111baaea3af3eea2e11e48b418646bc991257c1e",
+      "bytes": 15036
+    },
+    "templates/ai-dev-k8s/scripts/workspace-cache-maintenance.sh": {
+      "sha256": "c710c4ce7bfbedfac5171e6be92651e10dd608236fa9a23a57b2eb61d4221f83",
+      "bytes": 1518
+    },
+    "templates/ai-dev-k8s/scripts/workspace-lifecycle.py": {
+      "sha256": "56fcd57e17d6034f8510e84757ed54aaaaa98bacad84b7983f461172b6bb8340",
+      "bytes": 13464
+    },
+    "templates/ai-dev-k8s/scripts/worktree-lifecycle.py": {
+      "sha256": "0cbc40e62496b3dbb39a2a83af45213de0c9a597a47ae768fd7a260c19fcbead",
+      "bytes": 15704
+    }
+  },
+  "hostArchiveSha256": "783a39a5092cea164b84fee4ded6d655247f5c6112b5c582dc1596dc961b68cd",
+  "readManifestSha256": "d44457b7751cfab4a2119841f14bb00aab19500ff44716e4a54c49be60345d48",
+  "distribution": {
+    "contentHash": "4605542f883c157edc6fb80cfdaca2ff98e1e9cdcaa80852909005dd40318fed",
+    "archiveDigest": "b84378f621b5bafc98b636983b881d11a0062225933ea020e943926802a16118",
+    "archiveBytes": 545792,
+    "fileCount": 56
+  },
+  "firstDirectoryUploadRejectedBeforeVersionCreation": true,
+  "directoriesIncluded": true
+}

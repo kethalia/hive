@@ -2,8 +2,8 @@
 
 The new `hive-read` boundary supplies fixed read operations for generic terminals
 and file links without managed-project enrollment, native Codex startup or an SSH
-fallback. It has its own package and process lifecycle. No existing action is
-switched to it and `HIVE_WORKSPACE_READ_ENABLED` remains default off.
+fallback. It has its own package and process lifecycle. Session discovery, file-link validation and tool directory actions now use this transport
+when enabled; `HIVE_WORKSPACE_READ_ENABLED` remains default off.
 
 The server selects a profile from the deployment-owned template-ID map and uses
 `resolveVerifiedWorkspaceHost` to verify the current Coder owner UUID, running
@@ -85,6 +85,7 @@ rechecks are exercised. Coder API/auth responses are explicit fixtures, with no
 live account request. All-profile tests use profile configs in the software
 workspace; they do not claim installations in all five workspace templates.
 
-Independent installer and template/app wiring, actual Coder app validation,
-existing action dispatch, generic terminal writes, browser integration and live
-Cloudflare deployment remain separate gates. This proof activates none of them.
+The independent installer, template/app wiring and three existing actions now have
+local proofs; see [installer validation](workspace-read-installer.md). Actual Coder app
+validation is in progress. Generic terminal writes, browser integration and live
+Cloudflare deployment remain separate gates. Local proofs activate none of them.

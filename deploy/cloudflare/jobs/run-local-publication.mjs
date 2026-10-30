@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { connect, createServer as tcpServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -9,10 +9,15 @@ import { WebSocketServer } from "ws";
 import { templateArtifact } from "../../../scripts/build-template-artifacts.mjs";
 
 const directory = await mkdtemp(join(tmpdir(), "hive-publication-workerd-"));
-const creationMode = process.argv.includes("--creation");
+const logMode = process.argv.includes("--logs");
+const creationMode = logMode || process.argv.includes("--creation");
 const fixture = JSON.parse(
   await readFile(
-    creationMode ? "/tmp/hive-template-creation-fixture.json" : "/tmp/hive-template-fixture.json",
+    logMode
+      ? "/tmp/hive-template-notices-fixture.json"
+      : creationMode
+        ? "/tmp/hive-template-creation-fixture.json"
+        : "/tmp/hive-template-fixture.json",
     "utf8",
   ),
 );
@@ -30,10 +35,41 @@ execFileSync(
   { stdio: "pipe" },
 );
 const databaseUrl = `postgresql://coder@127.0.0.1:${fixture.port}/${databaseName}?sslmode=disable`;
-execFileSync("pnpm", ["--filter", "@hive/db", "exec", "prisma", "migrate", "deploy"], {
-  env: { ...process.env, DATABASE_URL: databaseUrl },
-  stdio: "pipe",
-});
+const schemaDirectory = join(directory, "database");
+await mkdir(join(schemaDirectory, "migrations"), { recursive: true });
+await cp(
+  logMode ? "/tmp/hive-template-schema29.prisma" : "packages/db/prisma/schema.prisma",
+  join(schemaDirectory, "schema.prisma"),
+);
+const maximum = logMode
+  ? "20261029180000_template_publication_notices"
+  : creationMode
+    ? "20261029170000_template_publication_creation"
+    : "20261029160000_template_publication";
+for (const entry of await readdir("packages/db/prisma/migrations", { withFileTypes: true }))
+  if ((entry.isDirectory() && entry.name <= maximum) || entry.name === "migration_lock.toml")
+    await cp(
+      resolve("packages/db/prisma/migrations", entry.name),
+      join(schemaDirectory, "migrations", entry.name),
+      { recursive: true },
+    );
+execFileSync(
+  "pnpm",
+  [
+    "--filter",
+    "@hive/db",
+    "exec",
+    "prisma",
+    "migrate",
+    "deploy",
+    "--schema",
+    join(schemaDirectory, "schema.prisma"),
+  ],
+  {
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    stdio: "pipe",
+  },
+);
 const templateRevision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const templateExport = join(directory, "template-source");
 await mkdir(templateExport);
@@ -133,6 +169,7 @@ const vars = {
   CODER_URL: "https://coder.publication-proof.invalid",
   HIVE_TEMPLATE_PUBLICATION_ENABLED: "false",
   CREATION_PROOF: String(creationMode),
+  LOG_PROOF: String(logMode),
   WS_PORT: String(wsPort),
   OWNER_ID: owner,
   CODER_USER_ID: coder,
@@ -174,6 +211,15 @@ await writeFile(
   { mode: 0o600 },
 );
 const sourcePaths = [
+  ...(logMode
+    ? [
+        "packages/db/prisma/migrations/20261029180000_template_publication_notices/migration.sql",
+        ...["contracts", "reader", "provider", "service", "routes", "factory"].map(
+          (part) => `src/lib/templates/publication-log-${part}.ts`,
+        ),
+        "src/lib/templates/publication-notices.ts",
+      ]
+    : []),
   ...(creationMode
     ? [
         "packages/db/prisma/migrations/20261029170000_template_publication_creation/migration.sql",
@@ -276,9 +322,11 @@ try {
   });
   if (!response.ok || !result.passed)
     throw new Error(`Local publication proof failed at ${result.stage ?? "unknown"}`);
-  const output = creationMode
-    ? "docs/checks/autonomous-delivery/template-publication-creation-local"
-    : "docs/checks/autonomous-delivery/template-publication-local";
+  const output = logMode
+    ? "docs/checks/autonomous-delivery/template-publication-logs-local"
+    : creationMode
+      ? "docs/checks/autonomous-delivery/template-publication-creation-local"
+      : "docs/checks/autonomous-delivery/template-publication-local";
   await mkdir(output, { recursive: true });
   const evidence = {
     observedAt: new Date().toISOString(),
