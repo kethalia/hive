@@ -94,6 +94,16 @@ jobs:
         run: pnpm exec vitest run src/__tests__/auth/rotation-scheduler.integration.test.ts
         env:
           HIVE_ROTATION_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_rotation_test
+      - name: Prepare isolated template publication database
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_template_test
+      - name: Apply template publication schema
+        run: pnpm --filter @hive/db migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_template_test
+      - name: Validate template publication ownership and recovery
+        run: pnpm exec vitest run src/__tests__/lib/templates/publication.integration.test.ts
+        env:
+          HIVE_TEMPLATE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_template_test
 
   quality:
     name: Quality

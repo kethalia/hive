@@ -25,6 +25,8 @@ model User {
   updatedAt                    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   terminalControlsBeyondMobile Boolean  @default(false) @map("terminal_controls_beyond_mobile")
 
+  templatePublications TemplatePublicationJob[]
+
   coderTokens         CoderToken[]
   sessions            Session[]
   pushSubscriptions   PushSubscription[]
@@ -35,6 +37,88 @@ model User {
 
   @@unique([coderUrl, coderUserId])
   @@map("users")
+}
+
+model TemplatePublicationTarget {
+  id               String                   @id @default(uuid()) @db.Uuid
+  configuredOrigin String                   @map("configured_origin")
+  organizationId   String                   @map("organization_id") @db.Uuid
+  organizationName String                   @map("organization_name")
+  templateId       String                   @map("template_id") @db.Uuid
+  templateName     String                   @map("template_name")
+  currentJobId     String?                  @map("current_job_id") @db.Uuid
+  generation       Int                      @default(0)
+  heldReason       String?                  @map("held_reason")
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  jobs             TemplatePublicationJob[] @relation("PublicationJobs")
+  currentJob       TemplatePublicationJob?  @relation("PublicationCurrent", fields: [id, currentJobId], references: [targetId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([configuredOrigin, organizationId, templateId])
+  @@map("template_publication_targets")
+}
+
+model TemplatePublicationJob {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  ownerId                 String                      @map("owner_id") @db.Uuid
+  actorSessionId          String                      @map("actor_session_id") @db.Uuid
+  actorCoderUserId        String                      @map("actor_coder_user_id") @db.Uuid
+  targetId                String                      @map("target_id") @db.Uuid
+  targetGeneration        Int                         @map("target_generation")
+  requestId               String                      @map("request_id") @db.Uuid
+  requestDigest           String                      @map("request_digest")
+  templateName            String                      @map("template_name")
+  contentHash             String                      @map("content_hash")
+  archiveDigest           String                      @map("archive_digest")
+  archiveBytes            Int                         @map("archive_bytes")
+  manifestDigest          String                      @map("manifest_digest")
+  versionName             String                      @map("version_name")
+  expectedActiveVersionId String                      @map("expected_active_version_id") @db.Uuid
+  stage                   String                      @default("queued")
+  effectState             String                      @default("clear") @map("effect_state")
+  effectDigest            String?                     @map("effect_digest")
+  fileId                  String?                     @map("file_id") @db.Uuid
+  versionId               String?                     @map("version_id") @db.Uuid
+  importJobId             String?                     @map("import_job_id") @db.Uuid
+  remoteStatus            String?                     @map("remote_status")
+  remoteLogAfter          BigInt                      @default(0) @map("remote_log_after")
+  logsOverflowed          Boolean                     @default(false) @map("logs_overflowed")
+  leaseHolder             String?                     @map("lease_holder") @db.Uuid
+  leaseGeneration         Int                         @default(0) @map("lease_generation")
+  leaseUntil              DateTime?                   @map("lease_until") @db.Timestamptz
+  nextAttemptAt           DateTime                    @default(now()) @map("next_attempt_at") @db.Timestamptz
+  retries                 Int                         @default(0)
+  eventSequence           Int                         @default(0) @map("event_sequence")
+  heldReason              String?                     @map("held_reason")
+  createdAt               DateTime                    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime                    @default(now()) @map("updated_at") @db.Timestamptz
+  finishedAt              DateTime?                   @map("finished_at") @db.Timestamptz
+  owner                   User                        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  target                  TemplatePublicationTarget   @relation("PublicationJobs", fields: [targetId], references: [id], onDelete: Restrict)
+  currentFor              TemplatePublicationTarget[] @relation("PublicationCurrent")
+  events                  TemplatePublicationEvent[]
+
+  @@unique([ownerId, id])
+  @@unique([targetId, id])
+  @@unique([ownerId, requestId])
+  @@index([stage, nextAttemptAt])
+  @@map("template_publication_jobs")
+}
+
+model TemplatePublicationEvent {
+  id        String                 @id @default(uuid()) @db.Uuid
+  ownerId   String                 @map("owner_id") @db.Uuid
+  jobId     String                 @map("job_id") @db.Uuid
+  sequence  Int
+  key       String
+  code      String
+  data      Json
+  digest    String
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  job       TemplatePublicationJob @relation(fields: [ownerId, jobId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([jobId, sequence])
+  @@unique([jobId, key])
+  @@map("template_publication_events")
 }
 
 model CoderToken {

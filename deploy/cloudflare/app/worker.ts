@@ -19,6 +19,7 @@ import {
 import { projectRelayPath } from "./project-relay";
 import { type ProjectRelayEnvironment, projectRelay } from "./project-relay-runtime";
 import { runRequestLifetime } from "./request-lifetime";
+import { isPortableTemplatePublication } from "./template-publications";
 
 type Environment = ProjectRelayEnvironment &
   HostCallbackCapabilities & {
@@ -27,6 +28,7 @@ type Environment = ProjectRelayEnvironment &
     PREVIEW_BEARER?: string;
     PREVIEW_COOKIE_SECRET?: string;
     HIVE_PREVIEW_ORIGIN?: string;
+    HIVE_TEMPLATE_PUBLICATION_ENABLED?: string;
   };
 type Context = { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void };
 
@@ -53,7 +55,8 @@ export default {
       request.headers.has("Upgrade") ||
       isUnsupportedPageMutation(request, portableActions) ||
       (request.headers.has("Next-Action") && !isPortableServerAction(request, portableActions)) ||
-      pathname.startsWith("/api/templates/") ||
+      (pathname.startsWith("/api/templates/") &&
+        !isPortableTemplatePublication(request, env.HIVE_TEMPLATE_PUBLICATION_ENABLED)) ||
       (pathname.startsWith("/api/discovery/") && !isPortableDiscovery(request)) ||
       pathname === "/api/projects" ||
       pathname.startsWith("/api/workspace-proxy") ||
