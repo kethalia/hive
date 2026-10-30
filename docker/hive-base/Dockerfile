@@ -22,6 +22,9 @@ COPY --chmod=0555 hive-template-bootstrap.py /usr/local/libexec/hive-template-bo
 COPY --from=template-runtime --chmod=0444 assets/codex-host.tar.xz assets/workspace-read.tar.gz assets/voice.tar.gz /usr/local/libexec/hive-template-runtime/
 COPY --from=template-runtime --chmod=0444 scripts/install-codex-host.py scripts/install-workspace-read.py scripts/install-voice.py /usr/local/libexec/hive-template-runtime/
 
+# COPY --chmod protects file contents; the unprivileged runtime must traverse the asset directory.
+RUN chmod 0555 /usr/local/libexec/hive-template-runtime
+
 ARG WORKSPACE_VARIANT=cli
 
 ENV DEBIAN_FRONTEND=noninteractive
