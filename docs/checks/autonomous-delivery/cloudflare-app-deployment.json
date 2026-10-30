@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-10-30T06:39:43.943Z",
-  "sourceRevision": "e9230f136939e0749e0c77f85d62d91b53adae67",
+  "observedAt": "2026-10-30T07:09:46.693Z",
+  "sourceRevision": "a92e3052953ac04d3657596e55edec7b2767a044",
   "accountId": "225177f82b9234ede14e897fe15e0cb5",
   "scriptIdentities": [
     {
@@ -24,8 +24,8 @@
   "workers": {
     "app": {
       "name": "hive-app-compatibility-preview",
-      "deploymentId": "b3aaf772-45df-4e84-98f3-30461c517b60",
-      "versionId": "a46f94fe-407b-482b-8f40-5dabacd386bb",
+      "deploymentId": "a5e829af-d998-4f23-ac49-fe7580714154",
+      "versionId": "5034f69b-9919-4057-88c3-59584c1a58c1",
       "percentage": 100,
       "cpuMilliseconds": 100,
       "bindings": [
@@ -160,7 +160,7 @@
         {
           "name": "SOURCE_REVISION",
           "type": "plain_text",
-          "value": "e9230f136939e0749e0c77f85d62d91b53adae67"
+          "value": "a92e3052953ac04d3657596e55edec7b2767a044"
         }
       ],
       "subdomainBeforeProbes": {
@@ -172,8 +172,8 @@
     },
     "auth": {
       "name": "hive-auth-compatibility-preview",
-      "deploymentId": "9bb9fa5a-0b4d-4060-bcb8-c7d2a93fb73e",
-      "versionId": "af1ed0e4-7b63-4053-8619-6f0387f49282",
+      "deploymentId": "5b1700ec-db43-41a9-af42-fc15cfaf64e0",
+      "versionId": "7bcf113d-a56a-4d27-a389-cc4299f250ba",
       "percentage": 100,
       "cpuMilliseconds": 100,
       "bindings": [
@@ -205,7 +205,7 @@
         {
           "name": "SOURCE_REVISION",
           "type": "plain_text",
-          "value": "e9230f136939e0749e0c77f85d62d91b53adae67"
+          "value": "a92e3052953ac04d3657596e55edec7b2767a044"
         }
       ],
       "subdomainBeforeProbes": {
@@ -219,27 +219,29 @@
   "probe": {
     "started": true,
     "maxOuterRequests": 200,
-    "totalOuterRequests": 5,
-    "remainingOuterRequests": 195,
-    "finalPassed": false,
+    "totalOuterRequests": 148,
+    "remainingOuterRequests": 52,
+    "finalPassed": true,
     "firstFailuresPreserved": true,
     "scope": "Deployment/private-gate smoke only; project/session/browser acceptance remains pending.",
-    "failureStep": "projects_session_gate",
-    "failureStatus": 307,
-    "artifact": "cloudflare-project-preview-smoke-e923.json"
+    "failureStep": null,
+    "failureStatus": null,
+    "artifact": "cloudflare-project-preview-smoke-a92-retry.json",
+    "browserPhaseAPassed": true,
+    "browserArtifact": "project-preview-browser/browser-a92-final.json"
   },
-  "realCoderLogin": false,
+  "realCoderLogin": true,
   "productionChanges": false,
   "additionalPaidProducts": false,
   "prepared": {
-    "runId": "b557367b-3f91-49b7-b58b-3d9b37ec29f2",
+    "runId": "e5bee20a-0e07-4ca1-8d78-1ac59f4d97fa",
+    "readinessSHA256": "1fb240c78b9a9f24157b77e845c63fba59c8e497dc264d31ffb8cb4ea7b992b8",
+    "artifactSetSHA256": "ff73b738ea6cf637569eacf622716cfc6a872b6beb3bc1f0e77edb3cc8bc5ee1",
+    "previewIdentityId": "0d4d2304-ed4e-4224-939d-e363c5833811",
     "configDigests": {
-      "app": "c28a96f563195618e14bae479fd0670065fdf82a533a401738dcea5fd79334f0",
-      "auth": "3e90b48f0a5e0fb2072ccc6771ede7d3e32cb46e87c15194e33484075875016c"
-    },
-    "readinessSHA256": "c7e11e965d7f0a0ce87b75fa34c3edc8a7fe59a762f832f771819dcca65f5477",
-    "artifactSetSHA256": "fcc148ebe5c2b2e847150fbe7394af9b3f9acab1495c3b54f5966ead81b58d28",
-    "previewIdentityId": "0d4d2304-ed4e-4224-939d-e363c5833811"
+      "app": "084db901ca26a1d8bed14635a03dca25d43c7bfadae7176f4b79b40b4079c243",
+      "auth": "8c0da6312cd15043378e5d87b93f9ab176f0742b5a68f9bbc28b4b0f212ea9af"
+    }
   },
   "nativeIssuer": {
     "keyId": "hive-preview-8af375a9-984b-497b-a56e-24a9947e0436",
@@ -265,13 +267,13 @@
       "enabled": false,
       "previews_enabled": false
     },
-    "verifiedAt": "2026-10-30T06:39:43.943Z",
+    "verifiedAt": "2026-10-30T07:09:46.693Z",
     "disabledInFinallyAfterEveryAttempt": true
   },
   "evidence": {
-    "deployedMetadata": "cloudflare-project-preview-deployed.json",
-    "smoke": "cloudflare-project-preview-smoke-e923.json",
-    "priorDeploymentGitRecord": "e9230f136939e0749e0c77f85d62d91b53adae67:docs/checks/autonomous-delivery/cloudflare-app-deployment.json"
+    "deployedMetadata": "cloudflare-project-preview-deployed-a92.json",
+    "smoke": "cloudflare-project-preview-smoke-a92-retry.json",
+    "priorDeploymentGitRecord": "a92e3052953ac04d3657596e55edec7b2767a044:docs/checks/autonomous-delivery/cloudflare-app-deployment.json"
   },
-  "remaining": "Repair middleware JSON authentication response; authenticated project/browser/shared-session acceptance pending."
+  "remaining": "Phase A passes. Shared-session/terminal/reconnect and real manager pilot remain pending."
 }
