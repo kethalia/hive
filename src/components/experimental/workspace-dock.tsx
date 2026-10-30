@@ -14,6 +14,7 @@ import {
   Layers,
   Minus,
   Plus,
+  X,
 } from "lucide-react";
 import { type ComponentProps, type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ import { MOBILE_SMART_KEYS } from "@/lib/terminal/mobile-smart-keys";
 import { encodeTerminalShortcut, type TerminalKeyModifiers } from "@/lib/terminal/shortcut-keys";
 import { cn } from "@/lib/utils";
 import "./workspace-dock.css";
+import { DockScrollArea } from "./dock-scroll-area";
+import { useDockView } from "./use-dock-view";
 
 export type DockView = "home" | "workspaces" | "keyboard";
 export type DockVariant = "phosphor" | "outline" | "keycaps" | "console" | "glass";
@@ -41,6 +44,7 @@ export interface WorkspaceDockProps {
   activeWorkspaceId: string;
   onWorkspaceSelect: (id: string) => void;
   onWorkspaceCreate: () => void;
+  onWorkspaceRemove?: (id: string) => void;
   onAppsOpen: () => void;
   onKeybindsOpen: () => void;
   onKeyPress: (press: DockKeyPress) => void;
@@ -139,6 +143,7 @@ export function WorkspaceDock({
   activeWorkspaceId,
   onWorkspaceSelect,
   onWorkspaceCreate,
+  onWorkspaceRemove,
   onAppsOpen,
   onKeybindsOpen,
   onKeyPress,
@@ -149,42 +154,41 @@ export function WorkspaceDock({
   variant = "keycaps",
   className,
 }: WorkspaceDockProps) {
-  const [view, setView] = useState<DockView>("home");
+  const { view, busy, navRef, panelRef, changeView } = useDockView();
   const [modifiers, setModifiers] = useState(NO_MODIFIERS);
-  const navRef = useRef<HTMLElement>(null);
-  const previousView = useRef(view);
-  const returnTarget = useRef("workspaces");
-
+  const focusAfterRemoval = useRef(false);
   useLayoutEffect(() => {
-    if (previousView.current === view) return;
-    const selector =
-      view === "home" ? `[data-dock-opener="${returnTarget.current}"]` : "[data-dock-back]";
-    navRef.current?.querySelector<HTMLButtonElement>(selector)?.focus({ preventScroll: true });
-    const options = navRef.current?.querySelector(".hive-dock-options");
-    if (options) options.scrollLeft = 0;
-    previousView.current = view;
-  }, [view]);
+    const selected = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+    if (!busy && view === "workspaces" && selected && focusAfterRemoval.current) {
+      focusAfterRemoval.current = false;
+      navRef.current
+        ?.querySelector<HTMLButtonElement>('[aria-current="page"]')
+        ?.focus({ preventScroll: true });
+    }
+  }, [view, busy, activeWorkspaceId, workspaces, navRef]);
 
   function open(next: "workspaces" | "keyboard") {
-    returnTarget.current = next;
-    setView(next);
+    changeView(next);
   }
 
   function back() {
     setModifiers(NO_MODIFIERS);
-    setView("home");
+    changeView("home");
   }
 
   function navigate(event: KeyboardEvent<HTMLElement>) {
-    if (event.key === "Escape" && view !== "home") {
+    if (event.key === "Escape" && (view !== "home" || busy)) {
       event.preventDefault();
       event.stopPropagation();
       back();
       return;
     }
+    if (busy) return;
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     const buttons = Array.from(
-      event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+      event.currentTarget.querySelectorAll<HTMLButtonElement>(
+        "button:not(:disabled):not([data-dock-scroll-control])",
+      ),
     );
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (index < 0) return;
@@ -217,6 +221,9 @@ export function WorkspaceDock({
         data-view={view}
         data-density={density}
         data-variant={variant}
+        data-transitioning={busy}
+        aria-busy={busy}
+        tabIndex={-1}
         onKeyDown={navigate}
       >
         <span className="sr-only" aria-live="polite">
@@ -226,154 +233,185 @@ export function WorkspaceDock({
               ? "Workspace controls"
               : "Extra keyboard controls"}
         </span>
-        {view === "home" ? (
-          <div className="hive-dock-home">
-            <DockButton
-              label="Apps"
-              className="hive-dock-app hive-dock-launcher"
-              onClick={onAppsOpen}
-              aria-haspopup="dialog"
-            >
-              <Grid2X2 aria-hidden="true" />
-              <span className="hive-dock-caption" aria-hidden="true">
-                Apps
-              </span>
-            </DockButton>
-            <DockButton
-              label="Workspaces"
-              className="hive-dock-app hive-dock-workspaces"
-              data-dock-opener="workspaces"
-              onClick={() => open("workspaces")}
-              aria-expanded={false}
-            >
-              <Layers aria-hidden="true" />
-              <span className="hive-dock-caption" aria-hidden="true">
-                Spaces
-              </span>
-              <span className="hive-dock-count">{workspaces.length}</span>
-            </DockButton>
-            <DockButton
-              label="Extra keyboard"
-              className="hive-dock-app hive-dock-keyboard"
-              data-dock-opener="keyboard"
-              onClick={() => open("keyboard")}
-              aria-expanded={false}
-            >
-              <Keyboard aria-hidden="true" />
-              <span className="hive-dock-caption" aria-hidden="true">
-                Keys
-              </span>
-            </DockButton>
-            <span className="hive-dock-divider" />
-            <DockButton
-              label="Keybinds"
-              className="hive-dock-app hive-dock-keybinds"
-              onClick={onKeybindsOpen}
-              aria-haspopup="dialog"
-            >
-              <Command aria-hidden="true" />
-              <span className="hive-dock-caption" aria-hidden="true">
-                Binds
-              </span>
-            </DockButton>
-          </div>
-        ) : (
-          <>
-            <DockButton
-              label="Back to main dock"
-              className="hive-dock-back"
-              data-dock-back
-              onClick={back}
-            >
-              <ArrowLeft aria-hidden="true" />
-            </DockButton>
-            <span className="hive-dock-divider" />
-            <div className="hive-dock-options" key={view}>
-              {view === "workspaces" ? (
-                <>
-                  <DockButton
-                    label="Create workspace"
-                    className="hive-dock-create"
-                    onClick={onWorkspaceCreate}
-                    disabled={!canCreateWorkspace}
-                  >
-                    <Plus aria-hidden="true" />
-                  </DockButton>
-                  {workspaces.map((workspace, index) => (
-                    <DockButton
-                      key={workspace.id}
-                      label={`Workspace ${index + 1}: ${workspace.name}`}
-                      className="hive-dock-workspace"
-                      aria-current={workspace.id === activeWorkspaceId ? "page" : undefined}
-                      onClick={() => onWorkspaceSelect(workspace.id)}
-                    >
-                      {index + 1}
-                    </DockButton>
-                  ))}
-                </>
-              ) : (
-                <>
-                  {(["ctrl", "alt", "shift"] as const).map((modifier) => (
-                    <DockButton
-                      key={modifier}
-                      label={`${modifier === "ctrl" ? "Ctrl" : modifier === "alt" ? "Alt" : "Shift"} modifier`}
-                      className="hive-dock-key"
-                      aria-pressed={modifiers[modifier]}
-                      onClick={() =>
-                        setModifiers((current) => ({ ...current, [modifier]: !current[modifier] }))
-                      }
-                    >
-                      {modifier === "ctrl" ? "Ctrl" : modifier === "alt" ? "Alt" : "Shift"}
-                    </DockButton>
-                  ))}
-                  <span className="hive-dock-divider" />
-                  {MOBILE_SMART_KEYS.map(({ label }) => {
-                    const Icon = ARROWS[label as keyof typeof ARROWS];
-                    return (
-                      <DockButton
-                        key={label}
-                        label={`${prefix}${label}`}
-                        className="hive-dock-key"
-                        onClick={() => {
-                          onKeyPress({
-                            key: label,
-                            sequence: encodeTerminalShortcut(label, modifiers),
-                            modifiers: { ...modifiers },
-                          });
-                          setModifiers(NO_MODIFIERS);
-                        }}
-                      >
-                        {Icon ? (
-                          <Icon aria-hidden="true" />
-                        ) : label === "Backspace" ? (
-                          "⌫"
-                        ) : label === "Enter" ? (
-                          "↵"
-                        ) : label === "Space" ? (
-                          "␣"
-                        ) : (
-                          label
-                        )}
-                      </DockButton>
-                    );
-                  })}
-                  <span className="hive-dock-divider" />
-                  {ACTIONS.map(({ id, label, Icon }) => (
-                    <DockButton
-                      key={id}
-                      label={disabledActions?.[id] ?? label}
-                      className="hive-dock-key"
-                      disabled={Boolean(disabledActions?.[id])}
-                      onClick={() => onAction(id)}
-                    >
-                      <Icon aria-hidden="true" />
-                    </DockButton>
-                  ))}
-                </>
-              )}
+        <div key={view} ref={panelRef} className="hive-dock-panel" inert={busy}>
+          {view === "home" ? (
+            <div className="hive-dock-home">
+              <DockButton
+                label="Apps"
+                className="hive-dock-app hive-dock-launcher"
+                onClick={onAppsOpen}
+                aria-haspopup="dialog"
+              >
+                <Grid2X2 aria-hidden="true" />
+                <span className="hive-dock-caption" aria-hidden="true">
+                  Apps
+                </span>
+              </DockButton>
+              <DockButton
+                label="Workspaces"
+                className="hive-dock-app hive-dock-workspaces"
+                data-dock-opener="workspaces"
+                onClick={() => open("workspaces")}
+                aria-expanded={false}
+              >
+                <Layers aria-hidden="true" />
+                <span className="hive-dock-caption" aria-hidden="true">
+                  Spaces
+                </span>
+                <span className="hive-dock-count">{workspaces.length}</span>
+              </DockButton>
+              <DockButton
+                label="Extra keyboard"
+                className="hive-dock-app hive-dock-keyboard"
+                data-dock-opener="keyboard"
+                onClick={() => open("keyboard")}
+                aria-expanded={false}
+              >
+                <Keyboard aria-hidden="true" />
+                <span className="hive-dock-caption" aria-hidden="true">
+                  Keys
+                </span>
+              </DockButton>
+              <span className="hive-dock-divider" />
+              <DockButton
+                label="Keybinds"
+                className="hive-dock-app hive-dock-keybinds"
+                onClick={onKeybindsOpen}
+                aria-haspopup="dialog"
+              >
+                <Command aria-hidden="true" />
+                <span className="hive-dock-caption" aria-hidden="true">
+                  Binds
+                </span>
+              </DockButton>
             </div>
-          </>
-        )}
+          ) : (
+            <>
+              <DockButton
+                label="Back to main dock"
+                className="hive-dock-back"
+                data-dock-back
+                onClick={back}
+              >
+                <ArrowLeft aria-hidden="true" />
+              </DockButton>
+              <span className="hive-dock-divider" />
+              {view === "workspaces" ? (
+                <DockButton
+                  label="Create workspace"
+                  className="hive-dock-create"
+                  onClick={onWorkspaceCreate}
+                  disabled={!canCreateWorkspace}
+                >
+                  <Plus aria-hidden="true" />
+                </DockButton>
+              ) : null}
+              <DockScrollArea
+                label={view === "workspaces" ? "spaces" : "keys"}
+                activeItem={view === "workspaces" ? activeWorkspaceId : undefined}
+              >
+                {view === "workspaces" ? (
+                  workspaces.map((workspace, index) => (
+                    <div
+                      key={workspace.id}
+                      className="hive-dock-space"
+                      data-dock-space={workspace.id}
+                    >
+                      <DockButton
+                        label={`Workspace ${index + 1}: ${workspace.name}`}
+                        className="hive-dock-workspace"
+                        aria-current={workspace.id === activeWorkspaceId ? "page" : undefined}
+                        onClick={() => onWorkspaceSelect(workspace.id)}
+                      >
+                        {index + 1}
+                      </DockButton>
+                      {workspace.id === activeWorkspaceId &&
+                      workspaces.length > 1 &&
+                      onWorkspaceRemove ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="hive-dock-remove"
+                          data-dock-remove
+                          aria-label={`Remove workspace ${index + 1}`}
+                          title={`Remove workspace ${index + 1}`}
+                          onClick={() => {
+                            focusAfterRemoval.current = true;
+                            onWorkspaceRemove(workspace.id);
+                          }}
+                        >
+                          <X aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    {(["ctrl", "alt", "shift"] as const).map((modifier) => (
+                      <DockButton
+                        key={modifier}
+                        label={`${modifier === "ctrl" ? "Ctrl" : modifier === "alt" ? "Alt" : "Shift"} modifier`}
+                        className="hive-dock-key"
+                        aria-pressed={modifiers[modifier]}
+                        onClick={() =>
+                          setModifiers((current) => ({
+                            ...current,
+                            [modifier]: !current[modifier],
+                          }))
+                        }
+                      >
+                        {modifier === "ctrl" ? "Ctrl" : modifier === "alt" ? "Alt" : "Shift"}
+                      </DockButton>
+                    ))}
+                    <span className="hive-dock-divider" />
+                    {MOBILE_SMART_KEYS.map(({ label }) => {
+                      const Icon = ARROWS[label as keyof typeof ARROWS];
+                      return (
+                        <DockButton
+                          key={label}
+                          label={`${prefix}${label}`}
+                          className="hive-dock-key"
+                          onClick={() => {
+                            onKeyPress({
+                              key: label,
+                              sequence: encodeTerminalShortcut(label, modifiers),
+                              modifiers: { ...modifiers },
+                            });
+                            setModifiers(NO_MODIFIERS);
+                          }}
+                        >
+                          {Icon ? (
+                            <Icon aria-hidden="true" />
+                          ) : label === "Backspace" ? (
+                            "⌫"
+                          ) : label === "Enter" ? (
+                            "↵"
+                          ) : label === "Space" ? (
+                            "␣"
+                          ) : (
+                            label
+                          )}
+                        </DockButton>
+                      );
+                    })}
+                    <span className="hive-dock-divider" />
+                    {ACTIONS.map(({ id, label, Icon }) => (
+                      <DockButton
+                        key={id}
+                        label={disabledActions?.[id] ?? label}
+                        className="hive-dock-key"
+                        disabled={Boolean(disabledActions?.[id])}
+                        onClick={() => onAction(id)}
+                      >
+                        <Icon aria-hidden="true" />
+                      </DockButton>
+                    ))}
+                  </>
+                )}
+              </DockScrollArea>
+            </>
+          )}
+        </div>
       </nav>
     </TooltipProvider>
   );

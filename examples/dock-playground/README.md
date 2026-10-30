@@ -49,6 +49,13 @@ Keycaps keep their solid shadow anchored at the bottom-left. On hover a key lift
 shadow grows; pressing moves it down/left and collapses the shadow. The press is quick (65ms) and
 release eases back (220ms). Mouse, touch, Space, and Enter get the same depressed-key feedback.
 Hover lift is limited to fine pointers, and reduced-motion mode removes transitions and hover lift.
+Toggled modifiers and the selected space keep the depressed position and collapsed shadow; they
+do not lift on hover. Modifiers still reset after the next key.
+
+View changes fade the old row out (160ms), ease the tray to its new width (560ms), and reveal the
+next row during that resize. The slow lead-in accelerates into the resize before settling. Controls
+are inert while moving, Escape can queue a return, and focus moves only after the animation ends.
+Reduced-motion view changes are immediate.
 
 - **Apps / Add window:** opens Search Hive with Terminal, Files, VS Code, Desktop, built-in Hive tool
   previews, and window layout actions. Terminal uses the same xterm renderer, theme, and font as
@@ -57,10 +64,14 @@ Hover lift is limited to fine pointers, and reduced-motion mode removes transiti
 - **Workspaces:** replaces the four home buttons with Back, +, and numbered workspaces. New
   workspaces become active and start empty, matching Hive. Boards preserve their panes and terminal
   buffers. The maximum is Hive's existing nine-board limit.
+  Back and + stay fixed while the numbered spaces scroll. The selected space has a round × to
+  remove it; after removal the remaining selection receives focus. The last space cannot be removed.
 - **Extra keyboard:** replaces home buttons with Back and every current mobile terminal control:
   Ctrl, Alt, Shift, Enter, Tab, Esc, Backspace, Up, Down, Left, Right, Space, Copy, Paste, Upload,
   Decrease font size, and Increase font size. Focus a terminal to use terminal actions. Scroll
-  horizontally on narrow screens; Back stays outside the scrolling options.
+  using the side arrows, mouse wheel, trackpad, or touch swipe; Back stays outside the scrolling
+  options. Edge fades show overflow, and the native scrollbar is hidden. Active spaces reveal
+  themselves automatically when selected or when the viewport resizes.
 - **Keybinds:** opens prototype keyboard help and working layout action buttons.
 - **Playground:** a small utility button below the canvas opens controls for comparing the dock
   with the **actual current Hive navbar**, switching the native dark/light theme, changing dock
@@ -91,6 +102,7 @@ import { WorkspaceDock } from "@/components/experimental/workspace-dock";
   activeWorkspaceId={activeWorkspaceId}
   onWorkspaceSelect={setActiveWorkspaceId}
   onWorkspaceCreate={createWorkspace}
+  onWorkspaceRemove={removeWorkspace}
   onAppsOpen={() => setPanel("apps")}
   onKeybindsOpen={() => setPanel("keybinds")}
   onKeyPress={({ sequence }) => sendToFocusedTerminal(sequence)}
@@ -99,7 +111,7 @@ import { WorkspaceDock } from "@/components/experimental/workspace-dock";
 ```
 
 The component owns its current view and one-shot modifiers. Consumers own workspace data and all
-effects. Optional `variant`, `density`, `canCreateWorkspace`, `disabledActions`, and `className` props control
+effects. Optional `onWorkspaceRemove`, `variant`, `density`, `canCreateWorkspace`, `disabledActions`, and `className` props control
 presentation and capabilities. `onKeyPress` receives the base key, modifier snapshot, and encoded VT
 sequence using Hive's existing encoder. `onAction` receives `copy`, `paste`, `upload`,
 `font-decrease`, or `font-increase`. Wire those to real selected-terminal capabilities only during
@@ -130,6 +142,10 @@ node examples/dock-playground/validate.browser.mjs
 Run `validate-variants.browser.mjs` with the same environment to check all five styles in every dock
 view at desktop, 390px, and 320px widths, plus light/compact styles, URL reload, style switching
 without resetting the view, and comparison selection/focus. It also saves the comparison image.
+
+Run `validate-navigation.browser.mjs` for the staged transitions, persistent depressed selections,
+wheel/arrow scrolling, pinned Back/+ at 320px, selected-space removal and focus, rapid Escape, and
+reduced motion. It records frame-by-frame tray widths and saves screenshots of the new controls.
 
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,

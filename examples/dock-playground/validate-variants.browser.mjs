@@ -18,10 +18,12 @@ const picker = page.getByRole("group", { name: "Dock style", exact: true });
 const url = process.env.DOCK_PREVIEW_URL ?? "http://127.0.0.1:4318";
 const variants = ["phosphor", "outline", "keycaps", "console", "glass"];
 async function screenshot(name) {
+  await expect(dock).toHaveAttribute("aria-busy", "false");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.screenshot({ path: resolve(output, `${name}.png`), animations: "disabled" });
 }
 async function fits() {
+  await expect(dock).toHaveAttribute("aria-busy", "false");
   assert.ok(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     "No page overflow",
@@ -29,11 +31,16 @@ async function fits() {
   const rect = await dock.boundingBox();
   const width = page.viewportSize().width;
   assert.ok(rect.x >= 0 && rect.x + rect.width <= width, `Dock within ${width}px viewport`);
-  for (const button of await dock.getByRole("button").all()) {
-    const bounds = await button.boundingBox();
-    assert.ok(bounds.height >= 40, "Controls retain a usable height");
-  }
+  const controls = await dock.locator("button:visible").evaluateAll((buttons) =>
+    buttons.map((button) => ({
+      height: button.getBoundingClientRect().height,
+      remove: button.hasAttribute("data-dock-remove"),
+    })),
+  );
+  for (const control of controls)
+    assert.ok(control.height >= (control.remove ? 24 : 40), "Controls retain a usable height");
 }
+
 try {
   for (const variant of variants) {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -146,9 +153,9 @@ try {
   await dock.screenshot({ path: resolve(output, "keycaps-press.png") });
   await page.mouse.up();
   await expect(cap).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => position(cap)).toEqual([2, -3]);
+  await expect.poll(() => position(cap)).toEqual([-3, 4]);
   await page.mouse.move(40, 40);
-  await expect.poll(() => position(cap)).toEqual([0, 0]);
+  await expect.poll(() => position(cap)).toEqual([-3, 4]);
   await cap.focus();
   for (const key of ["Space", "Enter"]) {
     await page.keyboard.down(key);
@@ -156,8 +163,10 @@ try {
     await expect.poll(() => position(cap)).toEqual([-3, 4]);
     await page.keyboard.up(key);
     await expect(cap).not.toHaveAttribute("data-depressed", "true");
-    await expect.poll(() => position(cap)).toEqual([0, 0]);
+    await expect.poll(() => position(cap)).toEqual(key === "Space" ? [0, 0] : [-3, 4]);
   }
+  await cap.click();
+  await expect(cap).toHaveAttribute("aria-pressed", "false");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await cap.hover();
   await expect.poll(() => position(cap)).toEqual([0, 0]);
@@ -172,6 +181,10 @@ try {
   touchPage.on("pageerror", (error) => errors.push(error.message));
   await touchPage.goto(`${url}/?dock=keycaps`);
   await touchPage.getByRole("button", { name: "Extra keyboard", exact: true }).tap();
+  await expect(touchPage.getByRole("navigation", { name: "Workspace dock" })).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
   const touchCap = touchPage.getByRole("button", { name: "Ctrl modifier", exact: true });
   const bounds = await touchCap.boundingBox();
   const cdp = await touchContext.newCDPSession(touchPage);
@@ -181,7 +194,7 @@ try {
   });
   await expect.poll(() => position(touchCap)).toEqual([-3, 4]);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await expect.poll(() => position(touchCap)).toEqual([0, 0]);
+  await expect.poll(() => position(touchCap)).toEqual([-3, 4]);
   await expect(touchCap).toHaveAttribute("aria-pressed", "true");
   await touchContext.close();
   checks.push(

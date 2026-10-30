@@ -491,6 +491,7 @@ function Playground() {
                       activeWorkspaceId={board.key}
                       onWorkspaceSelect={selectBoard}
                       onWorkspaceCreate={createBoard}
+                      onWorkspaceRemove={deleteBoard}
                       canCreateWorkspace={state.boards.length < MAX_GENERAL_BOARDS}
                       onAppsOpen={() => setPanel("apps")}
                       onKeybindsOpen={() => setPanel("keybinds")}

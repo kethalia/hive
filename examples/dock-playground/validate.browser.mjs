@@ -17,6 +17,7 @@ const dock = page.getByRole("navigation", { name: "Workspace dock" });
 const status = page.locator(".prototype-status");
 const frames = page.locator("[data-workspace-window-id]:visible");
 async function screenshot(name) {
+  await expect(dock).toHaveAttribute("aria-busy", "false");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.screenshot({
     path: resolve(output, `${name}.png`),
