@@ -311,24 +311,60 @@
   margin: 0;
 }
 
-/* 03 — keyboard-like caps, with a restrained physical edge. */
+/* 03 — the shadow stays anchored while a key lifts or sinks toward its base. */
 .hive-dock[data-variant="keycaps"] {
   gap: 7px;
-  padding: 9px 9px 12px;
+  padding: 12px 10px 15px 14px;
   border-radius: 9px;
   background: var(--card);
 }
 .hive-dock[data-variant="keycaps"] .hive-dock-button {
+  --key-side: color-mix(in srgb, var(--primary) 34%, var(--background));
+  --key-shadow:
+    -1px 1px 0 var(--key-side), -2px 3px 0 var(--key-side), -4px 5px 0 var(--key-side),
+    -5px 8px 10px rgb(0 0 0 / 22%), inset 0 1px 0 var(--border);
   border: 1px solid var(--input);
   border-radius: 5px;
   background: var(--secondary);
-  box-shadow:
-    0 3px 0 var(--border),
-    inset 0 1px 0 var(--border);
+  box-shadow: var(--key-shadow);
+  transform: translate(0, 0);
+  scale: 1;
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 150ms ease,
+    border-color 150ms ease;
 }
-.hive-dock[data-variant="keycaps"] .hive-dock-button:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--border);
+.hive-dock[data-variant="keycaps"]
+  .hive-dock-button:is([aria-pressed="true"], [aria-current="page"]) {
+  box-shadow: var(--key-shadow);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .hive-dock[data-variant="keycaps"] .hive-dock-button:hover:not(:disabled) {
+    --key-shadow:
+      -2px 2px 0 var(--key-side), -4px 5px 0 var(--key-side), -6px 8px 0 var(--key-side),
+      -7px 12px 14px rgb(0 0 0 / 25%), inset 0 1px 0 var(--border);
+    transform: translate(2px, -3px);
+    border-color: var(--primary);
+  }
+}
+.hive-dock[data-variant="keycaps"]
+  .hive-dock-button:is(:active, [data-depressed="true"]):not(:disabled) {
+  --key-shadow:
+    0 0.5px 0 var(--key-side), -0.5px 0.75px 0 var(--key-side), -1px 1px 0 var(--key-side),
+    -1px 2px 3px rgb(0 0 0 / 18%), inset 0 1px 2px rgb(0 0 0 / 12%);
+  transform: translate(-3px, 4px);
+  transition-duration: 65ms, 65ms, 100ms, 100ms;
+  transition-timing-function: ease-out;
+}
+.hive-dock[data-variant="keycaps"] .hive-dock-options {
+  padding: 9px 8px;
+  margin: -9px -8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hive-dock[data-variant="keycaps"] .hive-dock-button {
+    transition: none;
+  }
 }
 .hive-dock[data-variant="keycaps"] .hive-dock-app {
   flex-direction: column;

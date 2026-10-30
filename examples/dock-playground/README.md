@@ -35,15 +35,20 @@ the dock's expanded view, workspace state, and terminal sessions.
 
 | Style | Treatment |
 | --- | --- |
-| Phosphor (default) | Flat panel, muted labels, app colors and borders. |
+| Phosphor | Flat panel, muted labels, app colors and borders. |
 | Outline | Separate square buttons, fine outlines, transparent tray. |
-| Keycaps | Raised keyboard keys with monospace legends. |
+| Keycaps (default) | Raised keys, visible bottom-left shadows, smooth hover lift and key press. |
 | Console | A slim text-first command bar. |
 | Glass | The original colorful macOS-style treatment. |
 
 The four native variants use Hive's CSS tokens in both dark and light themes. All variants support
 the same workspace/keyboard expansions, focus behavior, and compact size. Comparison samples are
 inert illustrations; **Try** applies a style to the real playground controls.
+
+Keycaps keep their solid shadow anchored at the bottom-left. On hover a key lifts up/right and its
+shadow grows; pressing moves it down/left and collapses the shadow. The press is quick (65ms) and
+release eases back (220ms). Mouse, touch, Space, and Enter get the same depressed-key feedback.
+Hover lift is limited to fine pointers, and reduced-motion mode removes transitions and hover lift.
 
 - **Apps / Add window:** opens Search Hive with Terminal, Files, VS Code, Desktop, built-in Hive tool
   previews, and window layout actions. Terminal uses the same xterm renderer, theme, and font as

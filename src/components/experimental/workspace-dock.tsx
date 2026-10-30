@@ -67,8 +67,17 @@ function DockButton({
   label,
   children,
   className,
+  onKeyDown,
+  onKeyUp,
+  onBlur,
+  onPointerDown,
+  onPointerUp,
+  onPointerCancel,
+  onPointerLeave,
+  onLostPointerCapture,
   ...props
 }: ComponentProps<typeof Button> & { label: string }) {
+  const [pressed, setPressed] = useState(false);
   return (
     <Tooltip>
       <TooltipTrigger
@@ -79,6 +88,39 @@ function DockButton({
             aria-label={label}
             className={cn("hive-dock-button", className)}
             {...props}
+            data-depressed={pressed || undefined}
+            onPointerDown={(event) => {
+              if (event.button === 0) setPressed(true);
+              onPointerDown?.(event);
+            }}
+            onPointerUp={(event) => {
+              setPressed(false);
+              onPointerUp?.(event);
+            }}
+            onPointerCancel={(event) => {
+              setPressed(false);
+              onPointerCancel?.(event);
+            }}
+            onPointerLeave={(event) => {
+              setPressed(false);
+              onPointerLeave?.(event);
+            }}
+            onLostPointerCapture={(event) => {
+              setPressed(false);
+              onLostPointerCapture?.(event);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === " " || event.key === "Enter") setPressed(true);
+              onKeyDown?.(event);
+            }}
+            onKeyUp={(event) => {
+              if (event.key === " " || event.key === "Enter") setPressed(false);
+              onKeyUp?.(event);
+            }}
+            onBlur={(event) => {
+              setPressed(false);
+              onBlur?.(event);
+            }}
           />
         }
       >
@@ -104,7 +146,7 @@ export function WorkspaceDock({
   disabledActions,
   canCreateWorkspace = true,
   density = "comfortable",
-  variant = "phosphor",
+  variant = "keycaps",
   className,
 }: WorkspaceDockProps) {
   const [view, setView] = useState<DockView>("home");

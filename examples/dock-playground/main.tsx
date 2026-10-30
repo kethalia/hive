@@ -86,7 +86,7 @@ function Playground() {
     () =>
       DOCK_VARIANTS.find(
         (item) => item.id === new URLSearchParams(window.location.search).get("dock"),
-      )?.id ?? "phosphor",
+      )?.id ?? "keycaps",
   );
   const [navbar, setNavbar] = useState<"dock" | "current">("dock");
   const [event, setEvent] = useState("Local preview · disconnected from your Hive account");

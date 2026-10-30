@@ -18,8 +18,8 @@ export const DOCK_VARIANTS = [
     id: "keycaps",
     name: "Keycaps",
     description:
-      "Raised keys with monospace legends. A little tactile weight without the colorful app icons.",
-    note: "Tactile",
+      "Raised keys with a visible bottom-left edge. Hover lifts each cap; pressing sinks it into its base.",
+    note: "Selected direction",
   },
   {
     id: "console",
