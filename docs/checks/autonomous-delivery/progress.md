@@ -16,7 +16,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Complete | PR #401 merged main into epic through GitHub; pulled 4d8b821. Formatting-only conflict resolved. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | Updated preview login/logout passed; baseline parity pending | Source106721d remote hashes and local23 checks pass. Hydration-aware browser run verifies login, secure cookies, desktop/mobile overflow, API logout and stale-cookie401. Both URLs are disabled;54requests total including preserved first failure. Local full-Next workerd on9a0a556 passes auth and reviewed workspace action transport against isolated Neon. Preview schema26 preserves all31 prior table hashes; Settings UI/full baseline parity pending. |
+| F02 Cloudflare/Neon | Updated preview login/logout passed; baseline parity pending | Source106721d remote hashes and local23 checks pass. Hydration-aware browser run verifies login, secure cookies, desktop/mobile overflow, API logout and stale-cookie401. Both URLs are disabled;54requests total including preserved first failure. Latest full-Next local workerd at2970a7d passes auth/action/callback checks against Neon29. Preview schema29 preserves all38 prior tables and migration checksums. Settings UI/full baseline parity pending. |
 | F03 project discovery | Signed discovery and project enrollment implemented; preview pending | b0e278c ports discovery to verified Coder app transport, independently binds owner/build/app and uses agent-scoped GitHub access. No SSH fallback in Workers. 7635164 adds stable enrollment and durable first-task preparation; account-backed preview remains. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
@@ -24,9 +24,9 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Signed transport and manager policy integration passed locally; live composition pending | 8571cd1 binds result references to the exact PR, checkout and full controller policy; 92 focused checks pass, including real PostgreSQL races. a4fa338 preserves pending retry bytes while retiring validated expired records. Live R2 retention/integrity passed; cleanup is complete. Installed source composition remains. GitHub reports no required PR checks. |
-| Test workspace | Created; last inspection healthy | User reconnected GitHub; verified valid. codex/hive-epic-test has a two-hour autostop and must be freshly inspected before the next installed pilot. Identity is preserved in test-workspace-creation.json. No primary credentials copied. |
+| Test workspace | Running inactive9ea8aca template; signed identity mismatch under repair | codex/hive-epic-test retains its two-hour autostop. Real import succeeds; the installed read service rejects a Terraform-versus-runtime agent UUID mismatch. Both read and project hosts need the authenticated Coder startup identity resolver before acceptance. No primary credentials copied. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
-| F07 background-service replacement | Credential scheduler and notices implemented disabled; other adapters pending | 1034cfe adds durable credential rotation, expiry outbox and schema26; parent tests pass. Template publishing/logs, generic terminals/files/voice, agent tools and hook adapters remain. |
+| F07 background-service replacement | Rotation, template publication/logs/notices and private task resumption implemented disabled | 2970a7d passes82 focused cases,42 real PostgreSQL cases and actual workerd task recovery. Template creation/update and raw-log/notices proofs pass; live publication/push/browser acceptance remains. Generic terminal writes/relay, voice/uploads, agent tools and legacy hook adapters remain. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
 ## Resource and cost record
@@ -831,3 +831,14 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   remain explicit. All new flags stay off; remote Neon migration29 follows this commit.
   Evidence: [parent assembly](template-publication-logs-parent.json),
   [actual Worker recovery](project-reconciliation-parent.json).
+
+- Preview migration29 and assembled application: completed, moderate difficulty. The direct
+  preview migration runner applies the reviewed additive notice migration; all38 pre-existing
+  tables preserve their old-column row hashes and all28 prior migration checksums. The new
+  notice table grants SELECT/INSERT/UPDATE without DELETE; schema creation remains denied.
+  Existing old-table permissions are unchanged. Full-Next local workerd2970a7d then passes
+  auth, encrypted credentials, ownership, rollback, portable actions and ten malformed callback
+  rejection gates against Neon29. This is actual app/DB execution with controlled provider
+  operations, not live workspace or browser acceptance. No production traffic or schedules.
+  Evidence: [Neon29](neon-template-notices-migration.json),
+  [assembled application](cloudflare-auth-template-reconciliation.json).
