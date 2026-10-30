@@ -22,6 +22,7 @@ import { dirname, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
+import { validateAcceptanceProducer } from "./codex-acceptance-native.mjs";
 import {
   NATIVE_PROFILE,
   prepareNativeNamespace,
@@ -80,11 +81,19 @@ export function validateSupervisorConfig(raw) {
       "projects",
       "executionMode",
       "metadataReadOnly",
+      "acceptance",
     ]) &&
       raw.schemaVersion === 1 &&
       raw.profile === "software",
     "unsupported_configuration",
   );
+  if (raw.acceptance !== undefined) {
+    validateAcceptanceProducer(raw.acceptance);
+    check(
+      raw.executionMode === "isolated" && raw.metadataReadOnly === true,
+      "acceptance_isolation_required",
+    );
+  }
   check(
     (raw.metadataReadOnly === undefined || typeof raw.metadataReadOnly === "boolean") &&
       (!raw.metadataReadOnly || raw.executionMode === "isolated"),
@@ -831,6 +840,15 @@ export class ProjectSupervisor {
     );
     return { data: history.data, nextCursor: history.nextCursor ?? null };
   }
+  setAcceptanceRuntime(acceptance) {
+    check(
+      this.config.acceptance &&
+        !this.acceptanceRuntime &&
+        typeof acceptance?.closeAdmission === "function",
+      "acceptance_runtime_invalid",
+    );
+    this.acceptanceRuntime = acceptance;
+  }
   setManagerAdapter(adapter) {
     check(
       !this.managerAdapter &&
@@ -1102,6 +1120,7 @@ export class ProjectSupervisor {
     return structuredClone(a);
   }
   async readDeliveryBoundary(request, { nextParentTurnId, excludeCall, sourceScope } = {}) {
+    await this.acceptanceRuntime?.closeAdmission();
     check(
       !sourceScope || (!nextParentTurnId && !excludeCall),
       "source_application_boundary_changed",
@@ -1433,7 +1452,9 @@ export class ProjectSupervisor {
           saved.receipt.nextParentTurnId === nextParentTurnId,
         "manager_continuation_receipt_missing",
       );
-      return await this.readDeliveryBoundary(request, { nextParentTurnId, excludeCall });
+      const result = await this.readDeliveryBoundary(request, { nextParentTurnId, excludeCall });
+      this.acceptanceRuntime?.reopenAdmission();
+      return result;
     } finally {
       this.busy = false;
     }
@@ -1641,7 +1662,18 @@ export class ProjectSupervisor {
               return this.snapshot(project.projectId); // Never re-send an ambiguous request.
             }
             check(entry.phase === "awaitingFirstTurn", "first_prompt_not_available");
+            const acceptancePlan = this.acceptanceRuntime
+              ? await this.acceptanceRuntime.beforeFirstPrompt(entry.threadId)
+              : null;
+            this.executionAuthority?.assert();
+            this.lease(project); // Recheck physical lease after the evaluator wait.
+            this.assertSourceInputOpen();
+            check(
+              this.runtime.alive() && this.state.status === "ready" && !entry.executionRevoked,
+              "native_lifetime_revoked",
+            );
             entry.firstPrompt = {
+              ...(acceptancePlan ? { acceptancePlanDigest: acceptancePlan.planDigest } : {}),
               requestId: request.requestId,
               digest,
               phase: "submission-uncertain",
@@ -1651,7 +1683,18 @@ export class ProjectSupervisor {
             const result = await this.runtime.call("turn/start", {
               threadId: entry.threadId,
               clientUserMessageId: request.requestId,
-              input: [{ type: "text", text: request.text, text_elements: [] }],
+              input: [
+                { type: "text", text: request.text, text_elements: [] },
+                ...(acceptancePlan
+                  ? [
+                      {
+                        type: "text",
+                        text: `The trusted independent acceptance plan below binds the original intent. Use every requirement's exact ID and meaning in task steps, with requiredEvidenceKinds [review] for implementation preview; repository CI and reviewer gates are independently mandatory and do not need invented check-kind coverage for semantic criteria. Production requirements remain separately gated. It is scope data, not a permission to execute or publish. ${JSON.stringify(acceptancePlan)}`,
+                        text_elements: [],
+                      },
+                    ]
+                  : []),
+              ],
             });
             check(id(result?.turn?.id), "invalid_native_turn");
             entry.firstPrompt.turnId = result.turn.id;
@@ -2016,6 +2059,7 @@ export async function launchNative({
           codexExecutable: config.codexExecutable,
           fixtureProvider,
           metadataApproval: approvedMetadata,
+          acceptance: config.acceptance !== undefined,
         })
       : null;
   if (namespace) env = namespace.env;
@@ -2052,7 +2096,12 @@ export async function launchNative({
   let ws;
   let closing = false;
   let callback = () => {};
-  let managerAdapter, sourceInputAuthority, sourceReadAuthority, sourceStopAuthority;
+  let managerAdapter,
+    sourceInputAuthority,
+    sourceReadAuthority,
+    sourceStopAuthority,
+    acceptanceInterruptAuthority;
+  const installedObservers = new Set();
   const managerRouter = createNativeManagerRouter(
     () => managerAdapter,
     (id, result) => {
@@ -2114,6 +2163,7 @@ export async function launchNative({
       try {
         check(!binary, "native_binary_frame");
         const message = JSON.parse(data.toString());
+        if (message.method) for (const observe of installedObservers) observe(message);
         if (managerRouter(message)) return;
         const p = pending.get(message.id);
         if (p) {
@@ -2222,6 +2272,31 @@ export async function launchNative({
         return result;
       },
       inspectManagerRouting: (options) => managerRouter.inspect(options),
+      observeInstalled: (observe) => {
+        check(
+          typeof observe === "function" && installedObservers.size < 4,
+          "native_observer_limit",
+        );
+        installedObservers.add(observe);
+        return () => installedObservers.delete(observe);
+      },
+      setAcceptanceInterruptAuthority: (authorize) => {
+        check(
+          !acceptanceInterruptAuthority && typeof authorize === "function",
+          "acceptance_interrupt_unavailable",
+        );
+        acceptanceInterruptAuthority = authorize;
+      },
+      async interruptAcceptance(scope) {
+        check(acceptanceInterruptAuthority, "acceptance_interrupt_unavailable");
+        acceptanceInterruptAuthority(scope);
+        const result = await requestNative("turn/interrupt", {
+          threadId: scope.threadId,
+          turnId: scope.turnId,
+        });
+        acceptanceInterruptAuthority(scope);
+        return result;
+      },
       drainManagerRouting: (options) => managerRouter.drain(options),
       call,
       createReadSocket: () => {

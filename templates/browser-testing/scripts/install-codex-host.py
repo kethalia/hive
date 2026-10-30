@@ -262,6 +262,16 @@ def validate_execution_config(config):
     delivery = config.get("deliveryExecutionEnabled", False)
     require(type(delivery) is bool and (not delivery or (config.get("managerEnabled") is True and config.get("guardianEnabled") is True and config.get("nativeIsolationEnabled") is True)))
     require(config.get("managerEnabled") is False or delivery)
+    if "acceptance" in config:
+        producer = config["acceptance"]
+        require(delivery and isinstance(producer, dict) and set(producer) == {"schemaVersion", "codeDigest", "promptDigest", "schemaDigest", "permissionsDigest", "runtimeVersion", "model", "effort", "maxDurationMs", "maxInputBytes", "maxOutputBytes"})
+        require(producer["permissionsDigest"] == "5cb0236664ba9833dc964200828cc6b650583eb0b7d2bd43d587889c5a9b175b")
+        require(producer["schemaVersion"] == 1 and type(producer["schemaVersion"]) is int and producer["runtimeVersion"] == "0.165.0")
+        require(all(isinstance(producer[k], str) and re.fullmatch(r"[a-f0-9]{64}", producer[k]) for k in ("codeDigest", "promptDigest", "schemaDigest", "permissionsDigest")))
+        require(isinstance(producer["model"], str) and re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,99}", producer["model"]) and producer["effort"] in ("minimal", "low", "medium", "high", "xhigh", "max", "ultra"))
+        for field, lower, upper in (("maxDurationMs", 1000, 300000), ("maxInputBytes", 32768, 262144), ("maxOutputBytes", 1024, 65536)):
+            require(type(producer[field]) is int and lower <= producer[field] <= upper)
+
 
 
 def image_asset(path, limit, executable=False):

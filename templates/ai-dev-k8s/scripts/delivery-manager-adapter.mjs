@@ -511,6 +511,11 @@ export function createDeliveryManagerAdapter(options) {
         spec.description +=
           " Publish a bounded implementation proposal through the protected host. Accepted output is not local application or new execution authority; end the root turn after reporting.";
       }
+      if (typeof options.readAcceptancePlan === "function") {
+        spec.inputSchema.properties.operation.enum.push("read_acceptance_plan");
+        spec.description +=
+          " Before creating a task, read_acceptance_plan with empty payload returns the independent intent requirements. Use those exact acceptance IDs and meanings; pending plans grant no criterion coverage.";
+      }
       if (typeof options.readStatus === "function") {
         spec.inputSchema.properties.operation.enum.push("read_status");
         spec.description +=
@@ -597,6 +602,7 @@ export function createDeliveryManagerAdapter(options) {
             "fail_attempt",
             ...(sourceProtocol ? ["publish_source"] : []),
             ...(typeof options.readStatus === "function" ? ["read_status"] : []),
+            ...(typeof options.readAcceptancePlan === "function" ? ["read_acceptance_plan"] : []),
           ].includes(command.operation),
         "invalid_delivery_command",
       );
@@ -717,6 +723,45 @@ export function createDeliveryManagerAdapter(options) {
               ? nativeSpool.currentClaim(params.threadId)?.attemptId
               : command.payload.attemptId,
           );
+        }
+        if (command.operation === "read_acceptance_plan") {
+          check(
+            command.payload &&
+              typeof command.payload === "object" &&
+              !Array.isArray(command.payload) &&
+              Object.keys(command.payload).length === 0,
+            "acceptance_payload_invalid",
+          );
+          const result = await options.readAcceptancePlan(params.threadId);
+          const after = currentRegistration();
+          check(
+            after &&
+              after.id === registered.id &&
+              after.serverInstanceId === registered.serverInstanceId &&
+              after.expiresAt > Date.now() &&
+              after.threads.some((t) => t.threadId === params.threadId),
+            "acceptance_registration_changed",
+          );
+          check(
+            JSON.stringify(checkoutBinding) ===
+              JSON.stringify(currentProjectContext(params.threadId)),
+            "acceptance_checkout_changed",
+          );
+          return {
+            contentItems: [
+              {
+                type: "inputText",
+                text: JSON.stringify({
+                  schemaVersion: 1,
+                  result,
+                  executionAuthorized: false,
+                  publicationAuthorized: false,
+                  cleanupAuthorized: false,
+                }),
+              },
+            ],
+            success: true,
+          };
         }
         if (command.operation === "read_status") {
           check(

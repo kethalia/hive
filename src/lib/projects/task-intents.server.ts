@@ -80,6 +80,11 @@ export class ProjectTaskIntents {
       repositoryPolicyDigest: string;
       intentTextDigest: string;
     }>,
+    private readonly captureAcceptanceIntent?: (
+      tx: Prisma.TransactionClient,
+      input: TaskIntentPayload,
+      row: ProjectTaskIntent,
+    ) => Promise<void>,
   ) {}
   async enqueue(value: TaskIntentPayload) {
     const input = taskIntentPayloadSchema.parse(value);
@@ -137,9 +142,10 @@ export class ProjectTaskIntents {
         row.requestDigest !== input.requestDigest
       )
         throw new TaskIntentConflict("task_identity_conflict");
+      await this.captureAcceptanceIntent?.(tx, input, row);
       return row;
     };
-    if (!this.pinRepositoryPolicy) return persist(this.db);
+    if (!this.pinRepositoryPolicy && !this.captureAcceptanceIntent) return persist(this.db);
     for (let retry = 0; ; retry++) {
       try {
         return await this.db.$transaction(persist, {

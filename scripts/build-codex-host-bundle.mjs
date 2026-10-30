@@ -38,6 +38,11 @@ const source = join(root, "templates/ai-dev-k8s/scripts");
 const modules = [
   "codex-workspace-host.mjs",
   "codex-delivery-runtime.mjs",
+  "codex-acceptance-native.mjs",
+  "codex-acceptance-pump.mjs",
+  "codex-acceptance-runtime.mjs",
+  "delivery-acceptance-client.mjs",
+  "delivery-acceptance-material.mjs",
   "codex-workspace-host-outer.mjs",
   "codex-workspace-host-worker.mjs",
   "codex-guardian-startup.mjs",
@@ -68,6 +73,7 @@ const modules = [
 const assets = [
   "managed-projects.py",
   "managed-source-apply.py",
+  "delivery-acceptance-material.py",
   "github-projects.py",
   "github-evidence.py",
   "delivery-source-broker.py",

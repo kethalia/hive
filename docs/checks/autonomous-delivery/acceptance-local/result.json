@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "baseRevisionAtTestStart": "9c2c40b5a680670d8949b4cafe71490409b52d26",
+  "baseRevisionAtEvidenceWrite": "9c2c40b5a680670d8949b4cafe71490409b52d26",
+  "testedSourcesCommitted": false,
+  "sourceHashAuthority": true,
+  "sourceStable": true,
+  "sources": {
+    ".github/workflows/ci.yml": "d3c0fd81731065cd2a5243d293318b688acea0b86d1be5c245928a6140a54f5e",
+    "packages/db/prisma/schema.prisma": "a6d7fd3ac7d73b9de409ca7f5acff279027688e78103d99a93b5c947993f7384",
+    "scripts/agents/test_codex_host_install.py": "19c0bc4636982f9d6cf3680d2c7e09b11dd8067502e3a77ba2872729a928649c",
+    "scripts/verify-codex-project-supervisor.test.mjs": "df84e59512a5acf9d8d5430efbd632ab8fcba53749b09e14ff13fa891f2b9059",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "a968f8f7942aa11757bc6338ee569dc4072ff3404ff6f9f6f68698c9fe6a8e3e",
+    "src/lib/codex-session/guardian-config.server.ts": "20fcd74125c4dc0823f483c2f47dd4c88e407ba109f0fee9287ad67f56b22ec2",
+    "src/lib/delivery/repository-policy.server.ts": "d37d74a3343c53287978946204d3da2c0777689948935721ef76117f4ca3629f",
+    "src/lib/projects/task-intents.server.ts": "3be487de38a663f14943b61200d68d3a2f260d5d24b3ccf416d708b744678c57",
+    "src/lib/projects/task.server.ts": "9f8c4527453e083839d62b98669bbd4dd67e13191d08543627eebef9a3f3b283",
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": "0d7a9db90dbc80fbabd470a072379345d1c0fea91aeb1c86881415e53c5293dd",
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": "5b2ba1046bc674554795f9e018d1a1dc2526b99b763060d514b0c8bcc59b3326",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "f8144a27f997a3b36c59bf88be7256c632e027735265ca755b5f36f21fddbf38",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": "708ee07502b56ee11c34c3e38bbc4e82b4d6e224a296449ee0053a146b942e62",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "2187f6fd358ebb89def9b4677be61e37f268b6164fa4f055286647969791a480",
+    "templates/ai-dev-k8s/scripts/install-codex-host.py": "0f4a1d17f85d2f5833a08bbf4784fee60ee7d944e18711753462c1b4419b2b5e",
+    "docs/checks/autonomous-delivery/independent-acceptance.md": "ce8792151436f23f3b44d3888a7334f7c7e128de13a3a921e54356bc0840cb7e",
+    "packages/db/prisma/migrations/20261029200000_delivery_acceptance/migration.sql": "0bd8d40821f150e69b76817845e6f37ba8966117cdbb8709144d4d91a1f3488d",
+    "scripts/agents/test_delivery_acceptance_material.py": "09f21a398ce7f1c0b9af0cd7c87cddb9b43fdb19e1b843e45532a8c89564a7cd",
+    "scripts/probe-acceptance-upgrade.py": "e1b11882e4f1a9520ad05f084477b4587fde7bb1f219c7c7c13b9a831df98082",
+    "scripts/verify-codex-acceptance-native.test.mjs": "0f8806a91ad7c1d0ef1bf9e31d05029824e064d4c6e33fae2f8dcdb3f3be79e8",
+    "scripts/verify-codex-acceptance-pump.test.mjs": "ed6c56a0a2c54d9d2f23affcfa35ac87f6b2c4692a65b6556282dc82a5615b06",
+    "scripts/verify-delivery-acceptance-client.test.mjs": "1f5883b8fec189715fa7d5ac476d70d174cb2e1b39e5bac7cc0c7adf89afd7ee",
+    "src/__tests__/lib/delivery/acceptance-config.test.ts": "2f3b67fa8a2cdd3da8eb99eda07921bd0cb6b601b29589cdbba9ec7d3639edae",
+    "src/__tests__/lib/delivery/acceptance-contracts.test.ts": "7a155ae9ebbe4bd0307f9aaee77306445786f73d5ec19c432e1b27f0358893af",
+    "src/__tests__/lib/delivery/acceptance-fixture.ts": "15dcf3afef4866ecae982db215ec1035871d97c13d50aed82437961f06928b38",
+    "src/__tests__/lib/delivery/acceptance-guardian-fixture.ts": "62ee0f5fc3fac8fcb71bd895438e491efc5b77bb03d61d293cdca3a4c974b0ff",
+    "src/__tests__/lib/delivery/acceptance-native.integration.test.ts": "bbcfb9b0659b50221bb770384fa7c5710adf2ea63fb303a78f1af571206c8f03",
+    "src/__tests__/lib/delivery/acceptance-review.integration.test.ts": "aa025111f83042c94eabce42ede7dfeb817dff720df24ff749efc98a34ecc46e",
+    "src/__tests__/lib/delivery/acceptance-service.integration.test.ts": "e6dcb497a9655b5aa2c3093f76e28064e4bff358896725fe01d22acc50df058d",
+    "src/__tests__/lib/delivery/acceptance-store.integration.test.ts": "8d108eea54c71cceb6a8e32dc689c427bdab0affc0d70275ecb030a6bc1efa00",
+    "src/app/api/delivery/host/acceptance/route.ts": "7e42e7feb3510773a2732be867f97dc95b2e9e65584067e7135a64726a975223",
+    "src/lib/delivery/acceptance-config.server.ts": "8bbe8f5a69c1e42ce0d7c6ce7fad878826183674e6712f207de662c9b59efd95",
+    "src/lib/delivery/acceptance-contracts.ts": "a1c62972d06be07811862e33159a1c84cd43a3b72894e376e84bcb6baec73ec8",
+    "src/lib/delivery/acceptance-factory.server.ts": "c2b3c3e556155327fdba3b4924372b0cd651785220e53c9908ba54e79f965cba",
+    "src/lib/delivery/acceptance-material.server.ts": "afbb7e9eff2425d037ba0b848257c3d75a59f677e8fbe1a1f46ec9bf2f77fccd",
+    "src/lib/delivery/acceptance-policy.server.ts": "202b8c9edfb1f4f9530af5ce5b924096d28ac6470a78fe88ca95d717028effe8",
+    "src/lib/delivery/acceptance-prompts.ts": "8f02914b6836c8cadbcc68faaa60599df8cb9c193489c313f5506a075f9916e3",
+    "src/lib/delivery/acceptance-route.server.ts": "85558d5cab64eba19ef5cc8308a2f473898a7a8bccb2c26db01cb44e284e1cb8",
+    "src/lib/delivery/acceptance-service.server.ts": "755d813b21db847b885cefdff920e0edba447c130549aec99e122c7ffff7784b",
+    "src/lib/delivery/acceptance-store.server.ts": "e5815a052d89c6a33c11ddbf48a2fac8d4514dbb5f540c801cf51f2361153d2d",
+    "templates/ai-dev-k8s/scripts/codex-acceptance-native.mjs": "aa95e5ea702c261ee5ed9946449cf71454c040cdece45a6f44789a95ac549e88",
+    "templates/ai-dev-k8s/scripts/codex-acceptance-pump.mjs": "d9d7cca16f690123f4f18fa9a076addb70d7fb253c3dc4cbb8dab9d0d6c95d55",
+    "templates/ai-dev-k8s/scripts/codex-acceptance-runtime.mjs": "c1a9fd02ff97b88a1ed68ec0b18c066490915eb9b63049373d4718ced88249e4",
+    "templates/ai-dev-k8s/scripts/delivery-acceptance-client.mjs": "c96cb85792dd3fec956e5c396c26d8c71cf075c93149356ad1c660cfef2238ea",
+    "templates/ai-dev-k8s/scripts/delivery-acceptance-material.mjs": "f50b9d9c39cf909ed95f38e4a8edd0795415541133a83fca43eed5f2782e9c30",
+    "templates/ai-dev-k8s/scripts/delivery-acceptance-material.py": "4142bea25f25c0d4bbb183edc128a165da27de5bbb1a44a0554203d22a93d5ac"
+  },
+  "validation": {
+    "focusedPostgresAndContracts": {
+      "pass": 18
+    },
+    "actualPinnedNative": {
+      "pass": 8,
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "accountInference": false,
+      "provider": "task-private canned Responses"
+    },
+    "actualNativeSignedServicePostgres": {
+      "pass": 1,
+      "inferenceRequests": 1,
+      "lostPostCommitAckRecoveredWithoutInference": true,
+      "guardianEnrollmentAndPublicationAuthority": "explicit synthetic fixture"
+    },
+    "runtime": {
+      "pass": 95,
+      "optionalNativeSkip": 4
+    },
+    "python": {
+      "pass": 18
+    },
+    "typecheck": true,
+    "biomeFiles": 37
+  },
+  "migration": {
+    "fixture": "local-only44741/hive_acceptance_test_upgrade",
+    "oldTableCount": 42,
+    "newTableCount": 45,
+    "oldTableRowsAndDigestsUnchanged": true,
+    "oldMigrationChecksumsUnchanged": true,
+    "newMigration": "20261029200000_delivery_acceptance",
+    "restrictedRoleDeleteDenied": true
+  },
+  "nativeExecutableSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "reviewCorrections": [
+    "Legal zero-byte source files accepted with exact blob/content hashes.",
+    "Actual v1 send_input unsupported; advertised v2 send_message rejects foreign evaluator root. Earlier expected-rejection assertions were fixture corrections, not an exploit.",
+    "Seal archived full history before server result; one bounded turn/item page each, explicit null cursor, duplicate/truncation rejection and total-byte/deadline bounds."
+  ],
+  "remainingGates": [
+    "Independent final review and compiled installed package validation.",
+    "Deployment-owned matching producer descriptor and explicit default-off activation.",
+    "Bounded account-backed installed workspace pilot.",
+    "Automatic repair after failed or insufficient acceptance/CI remains separate follow-on.",
+    "Changed-files-only material cannot establish unavailable context or production behavior."
+  ],
+  "effects": {
+    "cloudCalls": 0,
+    "accountInference": 0,
+    "providerWrites": 0,
+    "productionActivation": false,
+    "quiescenceAuthority": false
+  },
+  "artifacts": {
+    "docs/checks/autonomous-delivery/acceptance-local/biome.txt": "71dabe2322e564a9dae46c3ac42993e909dbe32bb492c3e5285495a477408053",
+    "docs/checks/autonomous-delivery/acceptance-local/contracts-pg.txt": "d17559ce00c67c6048bce16a8312b942e2a57f2e1e7f48be5ccd757fba998e27",
+    "docs/checks/autonomous-delivery/acceptance-local/fixture-cleanup.json": "ea366e5d921c157b05de1cb904d58c43c91b6842f06bdac369f01de74b25dd9b",
+    "docs/checks/autonomous-delivery/acceptance-local/incoming-v1-initial-assertion.txt": "2a8a48dc596c658b77d8223c6fade0ff5b4e250ea3ae0cc329dce61efc4e5472",
+    "docs/checks/autonomous-delivery/acceptance-local/incoming-v2-initial-assertion.txt": "bf66ff0a09760bdfa36fc98dc44d78b9dff71091584984543c1c08b4025abcc9",
+    "docs/checks/autonomous-delivery/acceptance-local/native-initial-1.txt": "7fecd0bb28e999ae380fd1db6aad1b0c971f78d5ad334c9322d88ba7b8c28483",
+    "docs/checks/autonomous-delivery/acceptance-local/native-initial-2.txt": "186ce480f319e9e96228f37be3c48f2a53e2b94e792568dfc1e34ce1999504b1",
+    "docs/checks/autonomous-delivery/acceptance-local/native-initial-3.txt": "945f9b417403cf96183809036adea55afe91dabfaed34003f31ba00e9e646164",
+    "docs/checks/autonomous-delivery/acceptance-local/native-initial-4.txt": "6119eede371a8b1d5f9e58fa0c1dc24ac69a2bbaa75f8d50ea07f7a6d78b15a0",
+    "docs/checks/autonomous-delivery/acceptance-local/native-signed-first-failure.txt": "e9be004f8636778b6fdcd07bb6b7c29bb6129f1011dc77e98836aa7cf0efbbc6",
+    "docs/checks/autonomous-delivery/acceptance-local/native-signed-pg.txt": "9a8d2ad2a7575f13b952e96a644854e6ce8d148f638854e826f6057c041f8653",
+    "docs/checks/autonomous-delivery/acceptance-local/native.txt": "8d3cb41f43b436009f590de4e0099e47a960a91b3a01808f59c49398b2f53f8a",
+    "docs/checks/autonomous-delivery/acceptance-local/python.txt": "3a9f2e90158c6ad7830bab81abb534040e8f98e7d08fa8a940ee03fb4b52caab",
+    "docs/checks/autonomous-delivery/acceptance-local/restricted-role-denied.txt": "0dd8af9457314b2f7a25db552ae4f6dc279bd6f2b7dc0a48c9e9b247ef551681",
+    "docs/checks/autonomous-delivery/acceptance-local/restricted-role-read.txt": "56d5ddca54caab0a3a88e976f9f51bb537e8279b68c9998bdeff401133c132a0",
+    "docs/checks/autonomous-delivery/acceptance-local/runtime.txt": "5257f7bd4ac4e4b688deb5fd323e5e7f03fdf6beec65e8f592fd8066609f5456",
+    "docs/checks/autonomous-delivery/acceptance-local/types.txt": "9344edc6b9ad85444ca57c97babcb46b86992e2fb841abebf3ebdd1d5d5b8932",
+    "docs/checks/autonomous-delivery/acceptance-local/upgrade-after.json": "45c5a3bb4fda3acab7cabede148a982e742c2b6a53522469d6c18187b976d77e",
+    "docs/checks/autonomous-delivery/acceptance-local/upgrade-before.json": "920bb5fc882d957858b345a51b8e2ac3afb63a8d3743a4cd4d4bb66dc5c44bac"
+  }
+}

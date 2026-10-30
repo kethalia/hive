@@ -19,6 +19,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { ACCEPTANCE_PROFILE } from "./codex-acceptance-native.mjs";
 import { processIdentity, processParentPid } from "./codex-process-identity.mjs";
 export const NATIVE_PROFILE = "hive-native-isolated";
 export const NATIVE_PINS = Object.freeze({
@@ -318,6 +319,7 @@ export function prepareNativeNamespace({
   codexExecutable,
   fixtureProvider,
   metadataApproval,
+  acceptance = false,
 }) {
   const vendor = dirname(dirname(codexExecutable));
   for (const [relative, pin] of Object.entries(NATIVE_PINS)) {
@@ -356,7 +358,11 @@ export function prepareNativeNamespace({
     "/proc",
     "/etc/codex",
   ];
-  const requirements = `allowed_approval_policies=["never"]\nallowed_sandbox_modes=["read-only","workspace-write"]\nallowed_web_search_modes=["disabled"]\ndefault_permissions="${NATIVE_PROFILE}"\nmcp_servers={}\n[allowed_permission_profiles]\n${NATIVE_PROFILE}=true\n[permissions.filesystem]\ndeny_read=${JSON.stringify(denied)}\n[permissions.${NATIVE_PROFILE}.filesystem]\n":minimal"="read"\n${JSON.stringify(codexExecutable)}="read"\n${JSON.stringify(rgExecutable)}="read"\n[permissions.${NATIVE_PROFILE}.filesystem.":workspace_roots"]\n"."="write"\n[permissions.${NATIVE_PROFILE}.network]\nenabled=false\n[features]\napps=false\nplugins=false\nhooks=false\n`;
+  check(typeof acceptance === "boolean");
+  const evaluatorPolicy = acceptance
+    ? `\n[permissions.${ACCEPTANCE_PROFILE}.filesystem]\n":minimal"="read"\n${JSON.stringify(codexExecutable)}="read"\n${JSON.stringify(rgExecutable)}="read"\n[permissions.${ACCEPTANCE_PROFILE}.filesystem.":workspace_roots"]\n"."="read"\n[permissions.${ACCEPTANCE_PROFILE}.network]\nenabled=false\n`
+    : "";
+  const requirements = `allowed_approval_policies=["never"]\nallowed_sandbox_modes=["read-only","workspace-write"]\nallowed_web_search_modes=["disabled"]\ndefault_permissions="${NATIVE_PROFILE}"\nmcp_servers={}\n[allowed_permission_profiles]\n${NATIVE_PROFILE}=true\n${acceptance ? `${ACCEPTANCE_PROFILE}=true\n` : ""}[permissions.filesystem]\ndeny_read=${JSON.stringify(denied)}\n[permissions.${NATIVE_PROFILE}.filesystem]\n":minimal"="read"\n${JSON.stringify(codexExecutable)}="read"\n${JSON.stringify(rgExecutable)}="read"\n[permissions.${NATIVE_PROFILE}.filesystem.":workspace_roots"]\n"."="write"\n[permissions.${NATIVE_PROFILE}.network]\nenabled=false\n[features]\napps=false\nplugins=false\nhooks=false\n${evaluatorPolicy}`;
   writePrivate(policyPath, requirements);
   let config =
     'approval_policy="never"\nweb_search="disabled"\ncheck_for_update_on_startup=false\n[features]\napps=false\nplugins=false\nhooks=false\nmemories=false\n';
@@ -534,8 +540,13 @@ export function prepareNativeNamespace({
       const { requirements: effective } = await call("configRequirements/read", {});
       check(
         effective?.defaultPermissions === NATIVE_PROFILE &&
-          JSON.stringify(effective.allowedPermissionProfiles) ===
-            JSON.stringify({ [NATIVE_PROFILE]: true }) &&
+          JSON.stringify(Object.entries(effective.allowedPermissionProfiles ?? {}).sort()) ===
+            JSON.stringify(
+              Object.entries({
+                [NATIVE_PROFILE]: true,
+                ...(acceptance ? { [ACCEPTANCE_PROFILE]: true } : {}),
+              }).sort(),
+            ) &&
           effective.allowedApprovalPolicies?.length === 1 &&
           effective.allowedApprovalPolicies[0] === "never" &&
           effective.allowedSandboxModes?.length === 2 &&

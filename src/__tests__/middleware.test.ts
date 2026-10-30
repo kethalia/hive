@@ -16,6 +16,32 @@ afterEach(() => {
 });
 
 describe("proxy", () => {
+  it("requires all acceptance capability flags and bounds the exact callback transport", () => {
+    vi.stubEnv("HIVE_CODEX_GATEWAY_ENABLED", "true");
+    const names = [
+      "HIVE_DELIVERY_MANAGER_ENABLED",
+      "HIVE_DELIVERY_EXECUTION_ENABLED",
+      "HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED",
+      "HIVE_DELIVERY_ACCEPTANCE_ENABLED",
+    ];
+    const url = "https://hive.example/api/delivery/host/acceptance";
+    const request = (length = "262144", headers = {}) =>
+      new NextRequest(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": length, ...headers },
+      });
+    for (const name of names) vi.stubEnv(name, "true");
+    expect(proxy(request()).headers.get("x-middleware-next")).toBe("1");
+    expect(proxy(request("262145")).headers.get("location")).toBe("https://hive.example/login");
+    expect(proxy(request("100", { Origin: "https://hive.example" })).headers.get("location")).toBe(
+      "https://hive.example/login",
+    );
+    for (const name of names) {
+      vi.stubEnv(name, "false");
+      expect(proxy(request()).headers.get("location")).toBe("https://hive.example/login");
+      vi.stubEnv(name, "true");
+    }
+  });
   it("passes only exact project API methods to their route-owned JSON authentication", () => {
     const origin = "https://hive.example";
     const project = "/api/projects/22222222-2222-4222-8222-222222222222";

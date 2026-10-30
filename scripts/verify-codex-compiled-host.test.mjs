@@ -120,3 +120,17 @@ test("compiled namespace preserves actual native WS, CLI, child and resume isola
 }, (t) => {
   compiled(t)(["scripts/verify-codex-native-namespace.test.mjs"]);
 });
+test("compiled acceptance preserves scoped jobs and exact result recovery", {
+  timeout: 100000,
+}, (t) => {
+  compiled(t, ["codex-acceptance-pump.mjs", "delivery-acceptance-client.mjs"])([
+    "scripts/verify-codex-acceptance-pump.test.mjs",
+    "scripts/verify-delivery-acceptance-client.test.mjs",
+  ]);
+});
+test("compiled acceptance seals actual native evaluator history", {
+  skip: process.env.HIVE_TEST_NATIVE_CODEX !== "1",
+  timeout: 100000,
+}, (t) => {
+  compiled(t, ["codex-acceptance-native.mjs"])(["scripts/verify-codex-acceptance-native.test.mjs"]);
+});

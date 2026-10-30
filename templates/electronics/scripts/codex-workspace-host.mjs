@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 // Software profile opt-in only. Fixed installed configuration; no startup hook.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -6,6 +7,7 @@ import { lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { validateAcceptanceProducer } from "./codex-acceptance-native.mjs";
 import { createInstalledDeliveryRuntime } from "./codex-delivery-runtime.mjs";
 import { createGuardianOwnerHandler } from "./codex-guardian-worker.mjs";
 import { createHostRegistration } from "./codex-host-registration.mjs";
@@ -50,13 +52,18 @@ export function validateHostConfig(value) {
   ];
   check(
     value &&
-      [keys.length, keys.length + 1, keys.length + 2, keys.length + 3].includes(
+      [keys.length, keys.length + 1, keys.length + 2, keys.length + 3, keys.length + 4].includes(
         Object.keys(value).length,
       ) &&
       Object.keys(value).every(
         (k) =>
           keys.includes(k) ||
-          ["nativeIsolationEnabled", "guardianEnabled", "deliveryExecutionEnabled"].includes(k),
+          [
+            "nativeIsolationEnabled",
+            "guardianEnabled",
+            "deliveryExecutionEnabled",
+            "acceptance",
+          ].includes(k),
       ) &&
       value.schemaVersion === 1 &&
       value.enabled === true &&
@@ -82,6 +89,10 @@ export function validateHostConfig(value) {
       /^[a-z0-9][a-z0-9._-]{0,99}$/.test(value.model) &&
       ["low", "medium", "high", "xhigh", "max", "ultra"].includes(value.effort),
   );
+  if (value.acceptance !== undefined) {
+    check(value.deliveryExecutionEnabled === true);
+    validateAcceptanceProducer(value.acceptance);
+  }
   // createProjectDiscovery independently validates all exact binding and key fields.
   return structuredClone(value);
 }
@@ -310,6 +321,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
               projects,
               executionMode: config.nativeIsolationEnabled ? "isolated" : "direct",
               ...(guardian ? { metadataReadOnly: true } : {}),
+              ...(config.acceptance ? { acceptance: config.acceptance } : {}),
             },
             {
               executionAuthority,

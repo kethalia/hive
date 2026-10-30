@@ -374,6 +374,7 @@ model DeliveryTask {
   conversation     DeliveryConversation? @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id], onDelete: Restrict)
   managerBinding   DeliveryManagerBinding? @relation(fields: [ownerId, projectId, managerBindingId], references: [ownerId, projectId, id], onDelete: Restrict)
   repositoryPolicyBindings DeliveryTaskPolicyBinding[]
+  acceptanceJobs DeliveryAcceptanceJob[]
   steps            DeliveryStep[]
   events           DeliveryEvent[]
   sourceRevisions DeliverySourceRevision[] @relation("TaskSourceRevisions")
@@ -667,6 +668,7 @@ model ProjectTaskIntent {
   intentTextDigest String? @map("intent_text_digest")
   repositoryPolicyVersion DeliveryRepositoryPolicyVersion? @relation(fields: [ownerId, projectId, repositoryPolicyVersionId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "project_task_intent_repository_policy_fkey")
   taskPolicyBindings DeliveryTaskPolicyBinding[]
+  acceptanceIntent DeliveryAcceptanceIntent?
   phase String @default("queued")
   ciphertext Bytes?
   iv Bytes?
@@ -1006,6 +1008,7 @@ model DeliveryRepositoryPolicyVersion {
   @@unique([ownerId, policyId, version], map: "delivery_repository_policy_versi_owner_id_policy_id_version_key")
   @@unique([ownerId, projectId, policyId, id], map: "delivery_repository_policy_ve_owner_id_project_id_policy_id_key")
   @@map("delivery_repository_policy_versions")
+  acceptanceIntents DeliveryAcceptanceIntent[]
 }
 
 model DeliveryTaskPolicyBinding {
@@ -1028,4 +1031,85 @@ model DeliveryTaskPolicyBinding {
   version DeliveryRepositoryPolicyVersion @relation(fields: [ownerId, projectId, policyVersionId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_task_policy_version_fkey")
   @@id([ownerId, taskId])
   @@map("delivery_task_policy_bindings")
+}
+
+
+// Separate purpose-bound original intent survives preparation ciphertext clearing.
+model DeliveryAcceptanceIntent {
+  ownerId String @map("owner_id") @db.Uuid
+  intentId String @map("intent_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  policyVersionId String @map("policy_version_id") @db.Uuid
+  policyDigest String @map("policy_digest")
+  intentDigest String @map("intent_digest")
+  requestDigest String @map("request_digest")
+  ciphertext Bytes
+  iv Bytes
+  authTag Bytes @map("auth_tag")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  intent ProjectTaskIntent @relation(fields: [ownerId, projectId, intentId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_intent_owner_fkey")
+  policy DeliveryRepositoryPolicyVersion @relation(fields: [ownerId, projectId, policyVersionId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_intent_policy_fkey")
+  jobs DeliveryAcceptanceJob[]
+  plans DeliveryAcceptancePlan[]
+  @@id([ownerId,intentId])
+  @@unique([ownerId,projectId,intentId])
+  @@map("delivery_acceptance_intents")
+}
+
+model DeliveryAcceptanceJob {
+  material Json?
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  intentId String @map("intent_id") @db.Uuid
+  taskId String? @map("task_id") @db.Uuid
+  kind String
+  scope Json
+  requestDigest String @map("request_digest")
+  producer Json
+  producerDigest String @map("producer_digest")
+  phase String @default("queued")
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseGeneration Int @default(0) @map("lease_generation")
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  registrationId String? @map("registration_id") @db.Uuid
+  serverInstanceId String? @map("server_instance_id")
+  managerThreadId String? @map("manager_thread_id")
+  evaluatorThreadId String? @map("evaluator_thread_id")
+  evaluatorTurnId String? @map("evaluator_turn_id")
+  authority Json?
+  inputDigest String? @map("input_digest")
+  result Json?
+  resultDigest String? @map("result_digest")
+  receipt Json?
+  heldReason String? @map("held_reason")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  completedAt DateTime? @map("completed_at") @db.Timestamptz
+  intent DeliveryAcceptanceIntent @relation(fields: [ownerId,projectId,intentId], references: [ownerId,projectId,intentId], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_job_intent_fkey")
+  task DeliveryTask? @relation(fields: [ownerId,projectId,taskId], references: [ownerId,projectId,id], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_job_task_fkey")
+  plans DeliveryAcceptancePlan[]
+  @@unique([ownerId,id])
+  @@unique([ownerId,intentId,requestDigest])
+  @@index([ownerId,intentId,phase,createdAt], map: "delivery_acceptance_jobs_queue")
+  @@map("delivery_acceptance_jobs")
+}
+
+model DeliveryAcceptancePlan {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  intentId String @map("intent_id") @db.Uuid
+  sourceJobId String @map("source_job_id") @db.Uuid
+  producerDigest String @map("producer_digest")
+  intentDigest String @map("intent_digest")
+  planDigest String @map("plan_digest")
+  content Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  intent DeliveryAcceptanceIntent @relation(fields: [ownerId,projectId,intentId], references: [ownerId,projectId,intentId], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_plan_intent_fkey")
+  sourceJob DeliveryAcceptanceJob @relation(fields: [ownerId,sourceJobId], references: [ownerId,id], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_plan_job_fkey")
+  @@unique([ownerId,id])
+  @@unique([ownerId,intentId,producerDigest])
+  @@unique([ownerId,sourceJobId])
+  @@map("delivery_acceptance_plans")
 }

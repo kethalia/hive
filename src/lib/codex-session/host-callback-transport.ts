@@ -10,6 +10,8 @@ export type HostCallbackCapabilities = {
   HIVE_DELIVERY_NATIVE_ENABLED?: unknown;
   HIVE_DELIVERY_GITHUB_SOURCE_ENABLED?: unknown;
   HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED?: unknown;
+  HIVE_DELIVERY_ACCEPTANCE_ENABLED?: unknown;
+  HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED?: unknown;
 };
 
 /** Only a transport exception. Existing native signature/replay checks remain mandatory. */
@@ -43,6 +45,12 @@ export function isHostCallbackTransport(
       ? { "/api/codex-host/guardians": 65536 }
       : {}),
     ...(manager ? { "/api/delivery/host": 65536 } : {}),
+    ...(manager &&
+    capabilities.HIVE_DELIVERY_EXECUTION_ENABLED === "true" &&
+    capabilities.HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED === "true" &&
+    capabilities.HIVE_DELIVERY_ACCEPTANCE_ENABLED === "true"
+      ? { "/api/delivery/host/acceptance": 262144 }
+      : {}),
     ...(manager && capabilities.HIVE_DELIVERY_EXECUTION_ENABLED === "true"
       ? { "/api/delivery/host/status": 16384 }
       : {}),
