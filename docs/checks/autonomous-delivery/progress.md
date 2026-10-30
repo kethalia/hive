@@ -796,3 +796,11 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   inspection showed service-binding caller cancellation does not automatically propagate to
   the app. An authenticated app-enforced deadline and response-independent database cleanup
   are being validated before the private reconciliation route is enabled.
+
+- Live template import uncovered a distribution bug, moderate difficulty. The first directory
+  upload exceeded Coder's one-MiB limit; the maintained544768-byte artifact then reached the
+  provisioner but failed before Terraform because its tar omitted parent directory headers.
+  The builder now emits deterministic directories before files; source content identity and
+  file counts still include regular files only. A new extraction regression creates no
+  implicit parents. Packaging and consuming hash/artifact tests pass; live re-import follows.
+  No active template version or production workspace was changed by the failed imports.

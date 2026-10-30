@@ -3,32 +3,32 @@
   "templates": {
     "ai-dev-k8s": {
       "contentHash": "40470a96c4494f097d44ae4fe551a1f41f57e9e8fb50b598f7bdb207469aacf2",
-      "archiveDigest": "fc4f5ce46a29c6e5934b5a0197eb0c052de424a891de4ea625b4de3635ee9df0",
-      "archiveBytes": 534528,
+      "archiveDigest": "34ee0ab0160f4b7c1d7c97a05722db7b993762c78cc2a8740be8fefee3af759e",
+      "archiveBytes": 535552,
       "fileCount": 56
     },
     "browser-testing": {
       "contentHash": "ed8999a3655c17cd49a57716f01639ce35bddff779d2190bfa2e5b40fd0b11ac",
-      "archiveDigest": "3a46d923ec478e63d6d6034dd9bbc6e7c1121887aef8bcda5c5f6b6571990a7d",
-      "archiveBytes": 529920,
+      "archiveDigest": "dc9ea0aa39dc6b26ca9744242709419050effc47a83565f097c618555eba6d7b",
+      "archiveBytes": 530944,
       "fileCount": 56
     },
     "game-dev": {
       "contentHash": "e1e9825b5cbb91573c35e68f90bbe8bd9dad3663c3041738c6b8ad0f28f5bed4",
-      "archiveDigest": "06709bef719a7b3fd07fd86b74c7c122c46a7e7cd3a9fa7ec9ead7001fb35b4e",
-      "archiveBytes": 530944,
+      "archiveDigest": "a68a8d3a67c57f661cbfbca101e32141cad392a73cd7b3701fdb9faf821bff5c",
+      "archiveBytes": 531968,
       "fileCount": 56
     },
     "electronics": {
       "contentHash": "5abae3953829e35a019f2c673d24549e1405b0ef4ee7ea253509e0098d106428",
-      "archiveDigest": "448374c36fc09405fe680bb049d8d9eb1d4b34ce175f69ec5f69f2b22719d79d",
-      "archiveBytes": 530432,
+      "archiveDigest": "96a6dd72afb990d82811c69b130ea2cf7e713f839ae658ba1f3dfa253278ff11",
+      "archiveBytes": 531456,
       "fileCount": 56
     },
     "infrastructure": {
       "contentHash": "dd73f2aedf7ec9d1091163a8bb6b050ff48d0b6755a0b5fe9c2d911de91fe73f",
-      "archiveDigest": "51d8c3ccf37653399e41284fb69d621eb447a9ee3843242e8a614bf29b49021e",
-      "archiveBytes": 530944,
+      "archiveDigest": "2f04cc93fdd958dae99205a5bfdfc58a20edbcda9a2d7694bf5c95114d2af74f",
+      "archiveBytes": 531968,
       "fileCount": 56
     }
   }
