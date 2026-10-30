@@ -807,7 +807,6 @@ export function openGuardianController({
         timingSafeEqual(Buffer.from(mac), Buffer.from(saved.signature)) &&
         sha(raw) === o.sourceJournalDigest &&
         spool.sourceProtocol === 1 &&
-        spool.progressionProtocol === 1 &&
         !spool.blocked[o.managerThreadId],
     );
     const cursor = spool.cursors[o.managerThreadId],
@@ -815,7 +814,10 @@ export function openGuardianController({
       publication = spool.sourcePublications[o.attemptId],
       root = spool.rootTurns[digest([o.managerThreadId, o.parentTurnId])];
     check(
-      cursor?.attemptId === o.attemptId &&
+      // Progression version belongs to the immutable admitted claim, not the
+      // journal header. Source mode requires progression in the pinned writer.
+      claim?.progressionProtocol === 1 &&
+        cursor?.attemptId === o.attemptId &&
         cursor.cursorVersion === o.cursorVersion &&
         cursor.sequence === o.nativeSequence &&
         cursor.acknowledgedSequence === o.nativeSequence &&

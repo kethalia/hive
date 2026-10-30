@@ -23,6 +23,7 @@ const paths = outer
       `${root}codex-native-guardian.c`,
       `${root}codex-guardian-startup.mjs`,
       `${root}codex-process-identity.mjs`,
+      `${root}delivery-native-spool.mjs`,
       "scripts/build-native-guardian.mjs",
       "scripts/verify-codex-guardian-controller.test.mjs",
       "scripts/verify-codex-host-guardian.test.mjs",
@@ -138,7 +139,7 @@ const sourceStable = paths.every((p) => hash(p) === sourceDigests[p]),
     }).trim(),
     passed:
       run.status === 0 &&
-      passed === (outer ? 26 : 7) &&
+      passed === (outer ? 27 : 7) &&
       failed === 0 &&
       sourceStable &&
       endingBaseRevision === baseRevision,

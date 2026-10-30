@@ -1,0 +1,40 @@
+
+ RUN  v3.2.4 /tmp/hive-composed-parent-gqpasey0
+
+fatal: not a git repository (or any of the parent directories): .git
+ × src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, completes and applies accepted source before continuation through signed services 12ms
+   → Command failed: git rev-parse HEAD
+fatal: not a git repository (or any of the parent directories): .git
+
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed application actions use approved outer/current PostgreSQL scope > crosses signed fixed route and strict positive schema through reserve/verify/protected commit 691ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed application actions use approved outer/current PostgreSQL scope > new actions default off and forged outer proofs fail before Coder resolution 434ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed application actions use approved outer/current PostgreSQL scope > foreign application/project and extra policy fields cannot select source or execution authority 523ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed application lifetime expires during observed SQL commit write and rolls back acknowledgement 1811ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed stale generations cannot reserve, verify or commit current application authority 497ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > concurrent persisted generation change after signed authentication cannot upgrade an old generation 446ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > abort during observed signed application write rolls back the pending reservation 1771ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-installed.integration.test.ts > protected source application composed with signed server authority > applies actual sealed Git objects, retains worktree/staged bytes and reconciles lost commit ACK without rewriting 3050ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, completes and applies accepted source before continuation through signed services
+Error: Command failed: git rev-parse HEAD
+fatal: not a git repository (or any of the parent directories): .git
+
+ ❯ src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts:147:33
+    145|   async () => {
+    146|     const hashesBefore = sourceHashes();
+    147|     const baseRevisionAtStart = execFileSync("git", ["rev-parse", "HEA…
+       |                                 ^
+    148|       encoding: "utf8",
+    149|     }).trim();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: 128, signal: null, output: [ null, '', 'fatal: not a git repository (or any of the parent directories): .git\n' ], pid: 941009, stdout: '', stderr: 'fatal: not a git repository (or any of the parent directories): .git\n' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 8 passed (9)
+   Start at  03:22:22
+   Duration  10.86s (transform 586ms, setup 0ms, collect 1.17s, tests 9.25s, environment 0ms, prepare 133ms)

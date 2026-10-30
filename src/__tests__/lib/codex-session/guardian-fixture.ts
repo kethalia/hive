@@ -26,6 +26,7 @@ const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 export async function guardianFixture(
   db: PrismaClient,
   hooks: {
+    deliveryExecutionEnabled?: boolean;
     workspaceEnrollment?: boolean;
     physical?: {
       revision: string;
@@ -82,6 +83,7 @@ export async function guardianFixture(
     HIVE_CODEX_MANAGER_MODEL: "gpt-6.1-sol",
     HIVE_CODEX_MANAGER_EFFORT: "low",
     HIVE_DELIVERY_MANAGER_ENABLED: "true",
+    ...(hooks.deliveryExecutionEnabled ? { HIVE_DELIVERY_EXECUTION_ENABLED: "true" } : {}),
   };
   const expectedConfigSha256 = (binding: Parameters<typeof expectedGuardianHostConfig>[0]) =>
     guardianConfigSha256(expectedGuardianHostConfig(binding, sessionConfig, runtimeEnv));

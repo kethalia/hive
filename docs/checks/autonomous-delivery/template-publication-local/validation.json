@@ -24,25 +24,11 @@
   },
   "checks": [
     {
-      "command": [
-        "pnpm",
-        "--filter",
-        "@hive/db",
-        "exec",
-        "prisma",
-        "validate"
-      ],
+      "command": ["pnpm", "--filter", "@hive/db", "exec", "prisma", "validate"],
       "exitCode": 0
     },
     {
-      "command": [
-        "pnpm",
-        "exec",
-        "tsc",
-        "--noEmit",
-        "--pretty",
-        "false"
-      ],
+      "command": ["pnpm", "exec", "tsc", "--noEmit", "--pretty", "false"],
       "exitCode": 0
     },
     {

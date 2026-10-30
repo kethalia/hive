@@ -1,0 +1,42 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+stderr | src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, reports and applies accepted source before continuation through signed services
+Retained local factory fixture: /tmp/hive-delivery-installed-3alBrH; groupsGone=true; categories=["applyReserve:Error: guardian_controller_authority_rejected\n    at check (/home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:30:17)\n    at applicationEvidence (/home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:804:5)\n    at application (/home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:1053:20)\n    at /home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:1327:43\n    at /home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:432:14"]
+
+ × src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, reports and applies accepted source before continuation through signed services 6223ms
+   → expected [ Array(1) ] to deeply equal []
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, reports and applies accepted source before continuation through signed services
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "applyReserve:Error: guardian_controller_authority_rejected
++     at check (/home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:30:17)
++     at applicationEvidence (/home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:804:5)
++     at application (/home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:1053:20)
++     at /home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:1327:43
++     at /home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs:432:14",
++ ]
+
+ ❯ src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts:321:22
+    319|       while (!host.continuations.length && !host.entry.executionRevoke…
+    320|         await new Promise((done) => setTimeout(done, 20));
+    321|       expect(errors).toEqual([]);
+       |                      ^
+    322|       expect(host.entry.executionRevoked).toBeUndefined();
+    323|       expect(host.continuations).toHaveLength(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  03:06:07
+   Duration  6.84s (transform 353ms, setup 0ms, collect 480ms, tests 6.22s, environment 0ms, prepare 40ms)
