@@ -25,12 +25,14 @@ export function getTokenRotationQueue(): Queue<TokenRotationJobData> {
 }
 
 export async function processTokenRotation(_job: Job<TokenRotationJobData>): Promise<void> {
+  if (process.env.HIVE_DISABLE_TOKEN_ROTATION_WORKER === "true") return;
   if (!process.env.ENCRYPTION_KEY) {
     console.log("[token-rotation] ENCRYPTION_KEY not set, skipping");
     return;
   }
   let afterId: string | undefined;
   do {
+    if (process.env.HIVE_DISABLE_TOKEN_ROTATION_WORKER === "true") return;
     const result = await rotateCoderCredentials({
       afterId,
       thresholdFraction: TOKEN_ROTATION_THRESHOLD,
@@ -57,6 +59,7 @@ export function createTokenRotationWorker(): Worker<TokenRotationJobData> {
 }
 
 export async function scheduleTokenRotation(): Promise<void> {
+  if (process.env.HIVE_DISABLE_TOKEN_ROTATION_WORKER === "true") return;
   const q = getTokenRotationQueue();
   await q.upsertJobScheduler(
     "token-rotation-scheduler",
