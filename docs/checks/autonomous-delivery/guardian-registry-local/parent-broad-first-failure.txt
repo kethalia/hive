@@ -30,7 +30,7 @@
  ✓ src/__tests__/lib/delivery/outbox.integration.test.ts (7 tests) 330ms
  ❯ src/__tests__/lib/projects/task-intents.integration.test.ts (8 tests | 1 failed) 258ms
    × durable project preparation > atomically deduplicates concurrent accepted intents and encrypts their prompts 51ms
-     → 
+     →
 Invalid `this.db.projectTaskIntent.upsert()` invocation in
 /tmp/hive-guardian-source-check-ukdokdv5/src/lib/projects/task-intents.server.ts:79:49
 
@@ -51,7 +51,7 @@ Unique constraint failed on the fields: (`id`)
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
 
  FAIL  src/__tests__/lib/projects/task-intents.integration.test.ts > durable project preparation > atomically deduplicates concurrent accepted intents and encrypts their prompts
-PrismaClientKnownRequestError: 
+PrismaClientKnownRequestError:
 Invalid `this.db.projectTaskIntent.upsert()` invocation in
 /tmp/hive-guardian-source-check-ukdokdv5/src/lib/projects/task-intents.server.ts:79:49
 
@@ -80,4 +80,3 @@ Unique constraint failed on the fields: (`id`)
       Tests  1 failed | 183 passed (184)
    Start at  00:02:08
    Duration  27.34s (transform 522ms, setup 0ms, collect 1.57s, tests 23.69s, environment 2ms, prepare 658ms)
-
