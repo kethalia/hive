@@ -1,7 +1,13 @@
 # Workspace dock experiment
 
-A standalone shadcn/Base UI component experiment for a future main-page navigation refactor. The
-application does not import it. Keep the tracking PR in draft until the larger refactor is ready.
+A standalone shadcn/Base UI dock experiment inside Hive's actual main-screen layout. The application
+has no imports of the experiment. Keep the tracking PR in draft until the larger refactor is ready.
+
+The preview reuses the existing `WindowCanvas`, `TerminalSessionFrame`, `WorkspaceBoardBar`,
+`WorkspaceSearchButton`, `WindowLayoutControls`, window manager and layout helpers, Fira Code fonts,
+CRT background classes, and unmodified `src/app/globals.css`. Its empty-state copy and dashboard
+wrappers follow `GeneralWorkspace.tsx` and the dashboard layout. The prototype adapter supplies
+local board/window state; it does not load the production page or call live services.
 
 ## Run the playground
 
@@ -19,22 +25,35 @@ through Coder still requires the workspace owner's Coder sign-in.
 
 ## Try it
 
-- **Apps:** opens a launcher for Terminal, Files, Browser, and Editor previews.
-- **Workspaces:** replaces the four home buttons with Back, +, and numbered workspaces. New
-  workspaces become active. Each workspace retains its simulated terminal input and output.
-- **Extra keyboard:** replaces the home buttons with Back and all current mobile terminal controls:
-  Ctrl, Alt, Shift, Enter, Tab, Esc, Backspace, Up, Down, Left, Right, Space, Copy, Paste, Upload,
-  Decrease font size, and Increase font size. Scroll horizontally on narrow screens. Back stays
-  outside the scrolling options.
-- **Keybinds:** opens instructions for the prototype's actual keyboard controls.
-- Toggle theme, desktop/mobile preview, backdrop, and dock density. Reset restores the initial
-  workspaces, terminal sessions, selected app, font size, and local clipboard.
+The screen starts with Hive's original **Your workspace** empty state and **Add window** button.
+There is no marketing page, wallpaper, decorative Mac window, or new application theme.
 
-The terminal is a local simulation. Type `help`, `ls`, `pwd`, `whoami`, `echo <text>`, or `clear`.
-Ctrl/Alt combinations and Up/Down are demonstrated in the interaction log. Modifier toggles apply
-to the next dock key, then reset. Copy/Paste use a playground-only clipboard. Upload opens a native
-file picker and displays filenames; file contents are not read or sent anywhere. Files and Browser
-are visual previews; Editor is an editable scratchpad. Refresh resets all playground state.
+- **Apps / Add window:** opens Search Hive with Terminal, Files, VS Code, Desktop, built-in Hive tool
+  previews, and window layout actions. Terminal uses the same xterm renderer, theme, and font as
+  Hive. Files is a local file-list fixture, VS Code is an editable scratchpad, and remaining tools
+  show their native pane frame with a disconnected-service placeholder.
+- **Workspaces:** replaces the four home buttons with Back, +, and numbered workspaces. New
+  workspaces become active and start empty, matching Hive. Boards preserve their panes and terminal
+  buffers. The maximum is Hive's existing nine-board limit.
+- **Extra keyboard:** replaces home buttons with Back and every current mobile terminal control:
+  Ctrl, Alt, Shift, Enter, Tab, Esc, Backspace, Up, Down, Left, Right, Space, Copy, Paste, Upload,
+  Decrease font size, and Increase font size. Focus a terminal to use terminal actions. Scroll
+  horizontally on narrow screens; Back stays outside the scrolling options.
+- **Keybinds:** opens prototype keyboard help and working layout action buttons.
+- **Playground:** a small utility button below the canvas opens controls for comparing the dock
+  with the **actual current Hive navbar**, switching the native dark/light theme, changing dock
+  density, adding a terminal, and resetting the preview. It does not cover pane-header controls.
+
+Drag pane title bars and resize their divider grips using Hive's real canvas. Use the pane actions
+menu or Search Hive to switch Strip/Grid, cycle width, maximize, float, or equalize windows. Close
+buttons remove panes. The native navbar comparison includes the original search, layout, numbered
+workspace buttons, and workspace deletion behavior.
+
+The terminal shell is local. Type `help`, `ls`, `pwd`, `whoami`, `echo <text>`, or `clear`. Cursor
+arrows, history arrows, Backspace, Tab, Enter, Escape, Ctrl+C, and Ctrl+L work. Other modifier
+combinations appear in the status line. Dock modifiers reset after the next key. Copy/Paste use a
+preview-only clipboard. Upload opens a native file picker and displays filenames; contents are not
+read or sent anywhere. Refresh resets all local state. No shell command runs on Coder.
 
 ## Component contract
 
@@ -88,7 +107,8 @@ node examples/dock-playground/validate.browser.mjs
 
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,
-density, reset, 320px/390px layouts with 15 workspaces, and reduced motion. It saves screenshots and
+density, reset, native navbar comparison, real canvas Strip/Grid layouts and resizing,
+320px/390px layouts with nine workspaces, and reduced motion. It saves screenshots and
 `results.json`. It uses `@playwright/test` from the repository's pinned dependencies and installed
 Chrome; it does not install a browser.
 

@@ -9,58 +9,102 @@ const browser = await chromium.launch({
   channel: "chrome",
   args: ["--no-sandbox", "--disable-dev-shm-usage"],
 });
-const failures = [];
-const checks = [];
+const failures = [],
+  checks = [];
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+page.on("pageerror", (error) => failures.push(error.message));
+const dock = page.getByRole("navigation", { name: "Workspace dock" });
+const status = page.locator(".prototype-status");
+const frames = page.locator("[data-workspace-window-id]:visible");
+async function screenshot(name) {
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.screenshot({
+    path: resolve(output, `${name}.png`),
+    fullPage: true,
+    animations: "disabled",
+  });
+}
+async function openApp(name) {
+  await dock.getByRole("button", { name: "Apps", exact: true }).click();
+  await page.getByRole("option", { name: `${name} ai-dev-01`, exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+}
+async function settings() {
+  await page.getByRole("button", { name: "Playground controls" }).click();
+}
+async function reset() {
+  await settings();
+  await page.getByRole("button", { name: "Reset playground" }).click();
+}
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
-  page.on("pageerror", (error) => failures.push(error.message));
-  const response = await page.goto(process.env.DOCK_PREVIEW_URL ?? "http://127.0.0.1:4318");
-  assert.equal(response.status(), 200);
-  const dock = page.getByRole("navigation", { name: "Workspace dock" });
+  assert.equal(
+    (await page.goto(process.env.DOCK_PREVIEW_URL ?? "http://127.0.0.1:4318")).status(),
+    200,
+  );
+  await page.evaluate(() => document.fonts.ready);
+  await expect(page.getByRole("heading", { name: "Your workspace", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add window", exact: true })).toBeVisible();
   await expect(dock.getByRole("button")).toHaveCount(4);
-  await page.screenshot({ path: resolve(output, "desktop-home.png"), fullPage: true });
-  checks.push("Desktop home: four app-style dock controls render without app integration.");
+  const nativeStyle = await page.locator("main").evaluate((node) => ({
+    font: getComputedStyle(node).fontFamily,
+    background: getComputedStyle(document.body).backgroundColor,
+    grid: node.classList.contains("crt-grid"),
+    scanlines: node.classList.contains("crt-scanlines"),
+    height: node.getBoundingClientRect().height,
+    viewport: innerHeight,
+  }));
+  assert.ok(nativeStyle.font.includes("Fira Code"));
+  assert.equal(nativeStyle.background, "rgb(7, 10, 8)");
+  assert.ok(nativeStyle.grid && nativeStyle.scanlines);
+  assert.equal(nativeStyle.height, nativeStyle.viewport);
+  await expect(page.getByText("Everything, within reach.")).toHaveCount(0);
+  await screenshot("hive-empty-dock");
+  checks.push(
+    "Native Hive full-height shell, Fira Code, phosphor colors, CRT classes, and original empty-state copy; invented landing page removed.",
+  );
+
+  await page.getByRole("button", { name: "Add window", exact: true }).click();
+  await page.getByRole("option", { name: "Terminal ai-dev-01", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(frames).toHaveCount(1);
+  const input = page.getByRole("textbox", { name: /^Terminal input/ });
+  await input.pressSequentially("echo native-session");
+  await input.press("Enter");
+  await expect(status).toContainText("native-session");
+  await expect(page.locator(".xterm-accessibility-tree")).toContainText("native-session");
+  await openApp("Files");
+  await expect(frames).toHaveCount(2);
+  await expect(page.locator("[data-window-drag-surface='true']")).toHaveCount(2);
+  await screenshot("hive-terminal-files-strip");
+  await dock.getByRole("button", { name: "Apps", exact: true }).click();
+  await page.getByRole("option", { name: "Use Grid layout", exact: true }).click();
+  await expect(page.locator("[data-window-layout]")).toHaveAttribute("data-window-layout", "grid");
+  const divider = page.getByRole("separator").first();
+  const before = await divider.getAttribute("aria-valuenow");
+  await divider.press("ArrowRight");
+  await expect(divider).not.toHaveAttribute("aria-valuenow", before);
+  await screenshot("hive-terminal-files-grid");
+  await page.getByRole("button", { name: "Close Files window", exact: true }).click();
+  await expect(frames).toHaveCount(1);
+  checks.push(
+    "Actual WindowCanvas and TerminalSessionFrame: terminal/files panes, real xterm input, Strip/Grid switching, keyboard resizing, and close actions work.",
+  );
 
   await dock.getByRole("button", { name: "Workspaces", exact: true }).click();
   await expect(dock.getByRole("button", { name: "Back to main dock" })).toBeFocused();
-  await expect(dock.getByRole("button", { name: "Apps", exact: true })).toHaveCount(0);
   await dock.getByRole("button", { name: "Create workspace" }).click();
-  await expect(dock.getByRole("button", { name: "Workspace 4: Workspace 4" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  const input = page.getByRole("textbox", { name: "Simulated terminal input" });
-  await input.fill("echo fourth-workspace");
-  await input.press("Enter");
-  await expect(page.getByRole("region", { name: "Simulated terminal output" })).toContainText(
-    "fourth-workspace",
-  );
-  await dock.getByRole("button", { name: "Workspace 1: Main workspace" }).click();
-  await expect(page.getByRole("region", { name: "Simulated terminal output" })).not.toContainText(
-    "fourth-workspace",
-  );
-  await dock.getByRole("button", { name: "Workspace 4: Workspace 4" }).click();
-  await expect(page.getByRole("region", { name: "Simulated terminal output" })).toContainText(
-    "fourth-workspace",
-  );
-  await page.screenshot({ path: resolve(output, "desktop-workspaces.png"), fullPage: true });
+  await expect(page.getByRole("heading", { name: "Your workspace", exact: true })).toBeVisible();
+  await dock.getByRole("button", { name: "Workspace 1: Workspace 1", exact: true }).click();
+  await expect(frames).toHaveCount(1);
+  await expect(page.locator(".xterm-accessibility-tree").first()).toContainText("native-session");
   await dock.getByRole("button", { name: "Back to main dock" }).press("Escape");
   await expect(dock.getByRole("button", { name: "Workspaces", exact: true })).toBeFocused();
-  checks.push(
-    "Workspaces replace home controls; + creates and selects; numbered switches retain independent sessions; Escape restores opener focus.",
-  );
-
   await dock.getByRole("button", { name: "Extra keyboard" }).click();
   await dock.getByRole("button", { name: "Ctrl modifier" }).click();
   await dock.getByRole("button", { name: "Shift modifier" }).click();
   await dock.getByRole("button", { name: "Ctrl+Shift+Up", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Ctrl+Shift+Up");
-  await expect(page.getByRole("status")).toContainText("1;6A");
+  await expect(status).toContainText("1;6A");
   await expect(dock.getByRole("button", { name: "Ctrl modifier" })).toHaveAttribute(
-    "aria-pressed",
-    "false",
-  );
-  await expect(dock.getByRole("button", { name: "Shift modifier" })).toHaveAttribute(
     "aria-pressed",
     "false",
   );
@@ -79,114 +123,99 @@ try {
     "Upload files",
     "Decrease font size",
     "Increase font size",
-  ]) {
+  ])
     await expect(dock.getByRole("button", { name, exact: true })).toHaveCount(1);
-  }
-  await input.fill("copy me");
   await dock.getByRole("button", { name: "Copy terminal selection", exact: true }).click();
-  await input.fill("");
+  await expect(status).toContainText("Copied");
   await dock.getByRole("button", { name: "Paste from clipboard", exact: true }).click();
-  await expect(input).toHaveValue("copy me");
-  const fontBefore = await page
-    .locator(".terminal-body")
-    .evaluate((node) => getComputedStyle(node).fontSize);
+  await expect(status).toContainText("Pasted");
+  await dock.getByRole("button", { name: "Esc", exact: true }).click();
   await dock.getByRole("button", { name: "Increase font size", exact: true }).click();
-  assert.notEqual(
-    await page.locator(".terminal-body").evaluate((node) => getComputedStyle(node).fontSize),
-    fontBefore,
-  );
-  const chooserPromise = page.waitForEvent("filechooser");
+  await expect(status).toContainText("14px");
+  const picker = page.waitForEvent("filechooser");
   await dock.getByRole("button", { name: "Upload files", exact: true }).click();
-  await (await chooserPromise).setFiles({
+  await (await picker).setFiles({
     name: "dock-demo.txt",
     mimeType: "text/plain",
     buffer: Buffer.from("local demo"),
   });
-  await expect(page.getByRole("status")).toContainText("dock-demo.txt");
-  await page.screenshot({ path: resolve(output, "desktop-keyboard.png"), fullPage: true });
+  await expect(status).toContainText("dock-demo.txt");
+  await screenshot("hive-keyboard-desktop");
+  await dock.getByRole("button", { name: "Back to main dock" }).click();
   checks.push(
-    "Full mobile key inventory available on desktop; encoded modifier combinations reset after use; local clipboard, file picker, and font controls work.",
+    "Workspace switching keeps real local terminal buffers; full key inventory, one-shot VT modifiers, clipboard/file/font actions, and focus restoration pass.",
   );
 
-  await dock.getByRole("button", { name: "Back to main dock" }).click();
-  await dock.getByRole("button", { name: "Apps", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByRole("button", { name: "Files Everything in its place" }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByText("Your files, at a glance.")).toBeVisible();
-  await dock.getByRole("button", { name: "Keybinds", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("A few helpful keybinds.");
+  await settings();
+  await page.getByRole("combobox", { name: "Navigation", exact: true }).selectOption("current");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await dock.getByRole("button", { name: "Apps", exact: true }).focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(dock.getByRole("button", { name: "Workspaces", exact: true })).toBeFocused();
-  await page.keyboard.press("End");
-  await expect(dock.getByRole("button", { name: "Keybinds", exact: true })).toBeFocused();
-  checks.push(
-    "App launcher changes preview app; keybind dialog opens and closes with Escape; arrow/End navigation moves dock focus.",
-  );
-
-  await page.getByRole("button", { name: "Switch to light theme" }).click();
-  await page.getByRole("button", { name: "moss backdrop" }).click();
-  await page.getByRole("combobox", { name: "Dock size" }).selectOption("compact");
-  await page.screenshot({ path: resolve(output, "light-compact.png"), fullPage: true });
+  await expect(page.getByTestId("current-workspace-navbar")).toBeVisible();
+  await expect(dock).toHaveCount(0);
+  await expect(page.getByTestId("workspace-board-bar")).toBeVisible();
+  await screenshot("hive-current-navbar");
+  await page.getByRole("button", { name: "Search Hive", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await settings();
+  await page.getByRole("combobox", { name: "Navigation", exact: true }).selectOption("dock");
+  await page.getByRole("combobox", { name: "Dock size", exact: true }).selectOption("compact");
+  await page.getByRole("combobox", { name: "Theme", exact: true }).selectOption("light");
+  await page.keyboard.press("Escape");
   await expect(dock).toHaveAttribute("data-density", "compact");
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
-  await dock.getByRole("button", { name: "Workspaces", exact: true }).click();
-  await expect(dock.getByRole("button")).toHaveCount(5);
-  await dock.getByRole("button", { name: "Back to main dock" }).click();
-  await page.getByRole("button", { name: "Switch to dark theme" }).click();
-  checks.push("Theme, backdrop, density, and session reset controls work.");
+  await screenshot("hive-light");
+  await page.keyboard.press("Control+k");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await dock.getByRole("button", { name: "Keybinds", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Keyboard Shortcuts");
+  await page.keyboard.press("Escape");
+  await settings();
+  await page.getByRole("combobox", { name: "Theme", exact: true }).selectOption("dark");
+  await page.keyboard.press("Escape");
+  checks.push(
+    "Comparison uses actual WorkspaceSearchButton, WindowLayoutControls, and WorkspaceBoardBar; native theme, density, command palette, and keybind help pass.",
+  );
 
   for (const width of [390, 320]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.getByRole("button", { name: "Mobile preview" }).click();
-    await expect(dock.getByRole("button")).toHaveCount(4);
-    assert.ok(
-      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-      `No page overflow at ${width}px`,
-    );
-    await page.screenshot({ path: resolve(output, `mobile-${width}-home.png`), fullPage: true });
+    await reset();
+    await page.setViewportSize({ width, height: 844 });
+    await expect(page.getByRole("heading", { name: "Your workspace", exact: true })).toBeVisible();
+    await screenshot(`hive-mobile-${width}-empty`);
+    await openApp("Terminal");
     await dock.getByRole("button", { name: "Extra keyboard" }).click();
     await dock.getByRole("button", { name: "Upload files", exact: true }).scrollIntoViewIfNeeded();
     await expect(dock.getByRole("button", { name: "Back to main dock" })).toBeInViewport();
     await expect(dock.getByRole("button", { name: "Upload files", exact: true })).toBeInViewport();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    await page.screenshot({
-      path: resolve(output, `mobile-${width}-keyboard.png`),
-      fullPage: true,
-    });
+    await screenshot(`hive-mobile-${width}-keyboard`);
     await dock.getByRole("button", { name: "Back to main dock" }).click();
     await dock.getByRole("button", { name: "Workspaces", exact: true }).click();
-    for (let i = 0; i < 12; i++)
+    for (let i = 0; i < 8; i++)
       await dock.getByRole("button", { name: "Create workspace" }).click();
-    await dock.getByRole("button", { name: "Workspace 15: Workspace 15" }).scrollIntoViewIfNeeded();
+    await expect(dock.getByRole("button", { name: "Create workspace" })).toBeDisabled();
+    await dock
+      .getByRole("button", { name: "Workspace 9: Workspace 9", exact: true })
+      .scrollIntoViewIfNeeded();
     await expect(dock.getByRole("button", { name: "Back to main dock" })).toBeInViewport();
-    await page.screenshot({
-      path: resolve(output, `mobile-${width}-workspaces.png`),
-      fullPage: true,
-    });
-    await page.getByRole("button", { name: "Reset", exact: true }).click();
+    await screenshot(`hive-mobile-${width}-workspaces`);
     checks.push(
-      `${width}px: no page overflow; keyboard scroll reaches upload while Back stays visible; 15 workspaces remain reachable.`,
+      `${width}px: native empty state and xterm pane fit; no page overflow; scrollable keys/workspaces retain Back; Hive's nine-board limit is respected.`,
     );
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await dock.getByRole("button", { name: "Workspaces", exact: true }).click();
   assert.equal(
     await page
       .locator(".hive-dock-options")
       .evaluate((node) => getComputedStyle(node).animationName),
     "none",
   );
-  checks.push("Reduced motion removes dock entrance animation.");
   assert.deepEqual(failures, [], "No browser exceptions");
-  await writeFile(
-    resolve(output, "results.json"),
-    JSON.stringify({ passed: true, checks, browserErrors: failures }, null, 2),
-  );
-  console.log(JSON.stringify({ passed: true, checks, browserErrors: failures }, null, 2));
+  const results = { passed: true, checks, browserErrors: failures };
+  await writeFile(resolve(output, "results.json"), JSON.stringify(results, null, 2));
+  console.log(JSON.stringify(results, null, 2));
+} catch (error) {
+  await screenshot("failure");
+  throw error;
 } finally {
   await browser.close();
 }

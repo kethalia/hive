@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
@@ -12,6 +12,10 @@ const { build } = createRequire(require.resolve("tsx"))("esbuild");
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const output = resolve(root, ".artifacts/dock-playground");
 await mkdir(output, { recursive: true });
+await mkdir(resolve(output, "fonts"), { recursive: true });
+for (const font of ["FiraCode-Regular.ttf", "FiraCode-Medium.ttf"]) {
+  await copyFile(resolve(root, "public/fonts", font), resolve(output, "fonts", font));
+}
 await build({
   absWorkingDir: root,
   entryPoints: ["examples/dock-playground/main.tsx"],
@@ -34,7 +38,7 @@ await writeFile(
 );
 await writeFile(
   resolve(output, "index.html"),
-  '<!doctype html><html lang="en" class="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#151519"><title>Hive · Dock playground</title><link rel="stylesheet" href="./style.css"></head><body><div id="root"></div><script type="module" src="./bundle.js"></script></body></html>',
+  '<!doctype html><html lang="en" class="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#070a08"><title>Hive · Workspace dock preview</title><link rel="stylesheet" href="./style.css"></head><body class="font-sans antialiased"><div id="root"></div><script type="module" src="./bundle.js"></script></body></html>',
 );
 
 if (!process.argv.includes("--build-only")) {
@@ -43,6 +47,8 @@ if (!process.argv.includes("--build-only")) {
     "/index.html": ["index.html", "text/html; charset=utf-8"],
     "/bundle.js": ["bundle.js", "text/javascript; charset=utf-8"],
     "/style.css": ["style.css", "text/css; charset=utf-8"],
+    "/fonts/FiraCode-Regular.ttf": ["fonts/FiraCode-Regular.ttf", "font/ttf"],
+    "/fonts/FiraCode-Medium.ttf": ["fonts/FiraCode-Medium.ttf", "font/ttf"],
   };
   const port = Number(process.env.PORT ?? 4317);
   const server = createServer(async (request, response) => {
