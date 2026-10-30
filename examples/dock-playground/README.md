@@ -33,14 +33,17 @@ windows without reserving footer space, and keeps launcher/help dialogs above th
 expanded and auto-minimises after 2.5 seconds away. Hover, keycap/grip focus, dragging, and an open
 playground dialog suspend the timer. Manual expansion resumes auto-minimise; there is no pin mode.
 
-The top-right minus minimises the dock into one 48px expand button. The existing shell changes
+Two 26px square badges with 4px corners sit at the dock's top-right corner, matching the count
+badge's dark background and subtle green border. The selected-space remove button uses this style too:
+Minimise on the left and Move on the right. They overlay the corner without a title-bar row.
+Minimise reduces the dock to one 48px expand button. The existing shell changes
 width and height: controls fade out (120ms), the shell shrinks (340ms), and the expand icon arrives
 as it settles. Expansion grows the shell (380ms), then the keycaps appear in a stagger (300ms per
 cap, up to 240ms total stagger). The layout stays mounted so the selected view and modifiers survive.
 Overlapping navigation/space mutations finish before a pending minimise. Reduced motion finishes
 immediately. Hidden controls are inert and excluded from the accessibility tree.
 
-Drag the grip at the top of the expanded dock, its unused background, or the collapsed button.
+Drag the right-hand Move badge, the dock's unused background, or the collapsed button.
 Release attaches it to the nearest screen edge with a 12px/safe-area inset; centre drops cannot
 leave it floating in the canvas. The edge and position along it are shared between both shapes,
 including while changing views or resizing the visual viewport. Touch drags use the grip/button,
@@ -81,7 +84,7 @@ queue a return while they finish. Reduced-motion mutations finish immediately.
 - **Workspaces:** replaces the four home buttons with Back, +, and numbered workspaces. New
   workspaces become active and start empty, matching Hive. Boards preserve their panes and terminal
   buffers. The maximum is Hive's existing nine-board limit.
-  Back and + stay fixed while the numbered spaces scroll. The selected space has a round × to
+  Back and + stay fixed while the numbered spaces scroll. The selected space has a square badge × to
   remove it; after removal the remaining selection receives focus. The last space cannot be removed.
 - **Extra keyboard:** replaces home buttons with Back and every current mobile terminal control:
   Ctrl, Alt, Shift, Enter, Tab, Esc, Backspace, Up, Down, Left, Right, Space, Copy, Paste, Upload,
@@ -177,7 +180,7 @@ Removal checks cover first/middle/last caps, shared resize/movement progress, an
 boundary, including frames after playback to catch any final position snap.
 
 Run `validate-visibility.browser.mjs` for shell morph frame samples, staged cap appearance,
-top-right minimise placement, collapsed-only accessibility, keyboard toggling/focus, auto-minimise,
+square corner control placement/order, absence of a title bar, collapsed-only accessibility, keyboard toggling/focus, auto-minimise,
 dialog holds, dragging both forms to every edge, centre-drop snapping, keyboard placement, Escape
 cancellation, real touch dragging, viewport resizing, full-height canvas geometry, and reduced motion.
 

@@ -89,18 +89,6 @@ export function WorkspaceDockOverlay({
         >
           <div className="hive-dock-chrome">
             <Button
-              type="button"
-              variant="ghost"
-              className="hive-dock-grip"
-              data-dock-drag-handle
-              aria-label="Move dock"
-              aria-describedby={`${id}-help`}
-              title="Drag to an edge. Arrow keys move; Shift+Arrow chooses an edge."
-              onKeyDown={placement.key}
-            >
-              <GripHorizontal aria-hidden="true" />
-            </Button>
-            <Button
               ref={minimise}
               type="button"
               variant="ghost"
@@ -114,6 +102,18 @@ export function WorkspaceDockOverlay({
               onClick={() => morph.change(false)}
             >
               <Minus aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="hive-dock-grip"
+              data-dock-drag-handle
+              aria-label="Move dock"
+              aria-describedby={`${id}-help`}
+              title="Drag to an edge. Arrow keys move; Shift+Arrow chooses an edge."
+              onKeyDown={placement.key}
+            >
+              <GripHorizontal aria-hidden="true" />
             </Button>
           </div>
           <div ref={content} id={id} className="hive-dock-overlay-content">
@@ -143,9 +143,10 @@ export function WorkspaceDockOverlay({
         </Button>
       </div>
       <span id={`${id}-help`} className="sr-only">
-        Drag the dock grip or expand button; release to attach to the nearest screen edge. Arrow
-        keys move along an edge; Shift+Arrow chooses an edge. Home/End move to corners. Escape
-        cancels a drag. Alt+Shift+D expands or minimises. The dock minimises after 2.5 seconds away.
+        Drag the top-right move button or expand button; release to attach to the nearest screen
+        edge. Arrow keys move along an edge; Shift+Arrow chooses an edge. Home/End move to corners.
+        Escape cancels a drag. Alt+Shift+D expands or minimises. The dock minimises after 2.5
+        seconds away.
       </span>
       <span className="sr-only" role="status">
         Dock attached to the {placement.edge} edge.

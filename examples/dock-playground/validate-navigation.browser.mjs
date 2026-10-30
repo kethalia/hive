@@ -97,6 +97,10 @@ try {
   await selected.hover();
   await expect.poll(() => offset(selected)).toEqual([-3, 4]);
   await expect(dock.getByRole("button", { name: /^Remove workspace/ })).toHaveCount(1);
+  const removeBadge = dock.getByRole("button", { name: /^Remove workspace/ });
+  await expect(removeBadge).toHaveCSS("border-radius", "4px");
+  await expect(removeBadge).toHaveCSS("width", "26px");
+  await expect(removeBadge).toHaveCSS("height", "26px");
   await dock.screenshot({ path: resolve(output, "selected-space-remove.png") });
   await dock.getByRole("button", { name: "Remove workspace 2", exact: true }).click();
   await expect(dock.locator(".hive-dock-space")).toHaveCount(2);
@@ -107,7 +111,7 @@ try {
   await expect(dock.locator(".hive-dock-space")).toHaveCount(1);
   await expect(dock.getByRole("button", { name: /^Remove workspace/ })).toHaveCount(0);
   checks.push(
-    "Only the selected space has a round removal control; selection stays depressed; removing it updates boards and restores focus; the last space remains.",
+    "Only the selected space has a square badge removal control matching the dock corner controls; selection stays depressed; removal updates boards and restores focus; the last space remains.",
   );
 
   await page.setViewportSize({ width: 320, height: 844 });

@@ -241,19 +241,19 @@
   z-index: 1;
   top: -6px;
   right: -6px;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border: 1px solid var(--primary);
-  border-radius: 50%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
   color: var(--primary);
   background: var(--background);
   box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
   transform: translate(-3px, 4px);
 }
 .hive-dock .hive-dock-remove svg {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 .hive-dock .hive-dock-remove:hover {
   color: var(--primary-foreground);

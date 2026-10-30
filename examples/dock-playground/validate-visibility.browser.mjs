@@ -99,10 +99,24 @@ try {
   await edge();
   assert.equal((await page.getByTestId("workspace-canvas").boundingBox()).height, 900);
   const before = await surface.boundingBox(),
-    minimiseBox = await minimise.boundingBox();
+    minimiseBox = await minimise.boundingBox(),
+    moveBox = await grip.boundingBox();
   assert.ok(
-    minimiseBox.x > before.x + before.width - 34 && minimiseBox.y < before.y + 4,
-    "Minimise is in the top-right corner",
+    minimiseBox.x < moveBox.x &&
+      moveBox.x + moveBox.width > before.x + before.width &&
+      minimiseBox.y === moveBox.y &&
+      minimiseBox.y < before.y,
+    "The top-right badges place Minimise on the left and Move on the right",
+  );
+  for (const control of [minimise, grip]) {
+    const box = await control.boundingBox();
+    assert.equal(box.width, 26);
+    assert.equal(box.height, 26);
+    await expect(control).toHaveCSS("border-radius", "4px");
+  }
+  assert.ok(
+    Math.abs(before.height - (await dock.boundingBox()).height - 2) < 1,
+    "Corner controls reserve no title-bar row",
   );
   await page.screenshot({ path: resolve(output, "expanded.png") });
   const closing = await morph(minimise, "minimise", "collapsed");
@@ -124,6 +138,8 @@ try {
     "Caps arrive in a slow stagger",
   );
   await expect(minimise).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(grip).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(dock.getByRole("button", { name: "Apps", exact: true })).toBeFocused();
   checks.push(
