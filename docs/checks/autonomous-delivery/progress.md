@@ -995,3 +995,8 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 - D10 review: the first20-test foundation passed, but independent review found an integrity
   snapshot race and receipt-expiry window. Corrections and actual Prisma lock interoperability
   are in progress. This is not a completed migration/backfill acceptance gate.
+
+- Agent bridge application build: exact committed24a454c Cloudflare build and full local-workerd
+  auth/app/callback/portable-action proof passed against the isolated Neon runtime role, including
+  fixture cleanup. No real Coder mutation or cloud deployment is represented by this test.
+  Evidence: [application proof](cloudflare-auth-agent-bridge.json).
