@@ -523,3 +523,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   using remote R2. Actual workerd execution follows this commit; no deployed flag changed.
   CI for a1b8b06 passed197 database checks but failed the installed fixture shutdown; that
   separate failure is under investigation, with image/native-guardian builds successful.
+
+- Preview schema reconciliation: completed, moderate difficulty. The actual Cloudflare build
+  passed, then workerd exposed the isolated preview's older19-migration schema (P2022).
+  The failed proof is retained. The existing migration runner applied the five already reviewed
+  committed migrations through24 using the direct preview owner connection. Before/after
+  checks preserve all existing history/checksums and data counts. The restricted runtime role
+  received SELECT/INSERT/UPDATE on six new tables, with no DELETE or DDL grant. No production
+  database or deployment changed. The next workerd proof uses this matching schema.
+  Evidence: [migration](neon-source-guardian-migration.json).
