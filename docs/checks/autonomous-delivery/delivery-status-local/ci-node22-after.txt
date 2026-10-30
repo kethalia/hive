@@ -1,0 +1,310 @@
+TAP version 13
+# Subtest: installed read_status uses only empty current-claim scope and never treats missing policy as evidence
+ok 1 - installed read_status uses only empty current-claim scope and never treats missing policy as evidence
+  ---
+  duration_ms: 39.95237
+  type: 'test'
+  ...
+# Subtest: status schedules one bounded refresh per minute without waiting for collector and stops on pause
+ok 2 - status schedules one bounded refresh per minute without waiting for collector and stops on pause
+  ---
+  duration_ms: 70.363692
+  type: 'test'
+  ...
+# Subtest: registration loss during status rejects late signed facts
+ok 3 - registration loss during status rejects late signed facts
+  ---
+  duration_ms: 19.427661
+  type: 'test'
+  ...
+# Subtest: explicit delivery capability cannot be inferred from legacy manager-only config
+ok 4 - explicit delivery capability cannot be inferred from legacy manager-only config
+  ---
+  duration_ms: 0.338942
+  type: 'test'
+  ...
+# Subtest: factory fails before constructing effects without all installed prerequisites
+ok 5 - factory fails before constructing effects without all installed prerequisites
+  ---
+  duration_ms: 0.196872
+  type: 'test'
+  ...
+# Subtest: actual installed adapter exposes source protocol and signs immutable physical task context
+ok 6 - actual installed adapter exposes source protocol and signs immutable physical task context
+  ---
+  duration_ms: 17.180142
+  type: 'test'
+  ...
+# Subtest: foreign manager cannot select a checkout or mint a signed call
+ok 7 - foreign manager cannot select a checkout or mint a signed call
+  ---
+  duration_ms: 3.583042
+  type: 'test'
+  ...
+# Subtest: changed native lifetime stops signed effects and trusted status
+ok 8 - changed native lifetime stops signed effects and trusted status
+  ---
+  duration_ms: 3.516861
+  type: 'test'
+  ...
+# Subtest: recorded child completion preserves rejected_policy authority boundary
+ok 9 - recorded child completion preserves rejected_policy authority boundary
+  ---
+  duration_ms: 55.517952
+  type: 'test'
+  ...
+# Subtest: recorded child completion preserves revoked_metadata authority boundary
+ok 10 - recorded child completion preserves revoked_metadata authority boundary
+  ---
+  duration_ms: 52.540341
+  type: 'test'
+  ...
+# Subtest: in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+ok 11 - in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 7.803507
+  type: 'test'
+  ...
+# Subtest: in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+ok 12 - in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 6.111414
+  type: 'test'
+  ...
+# Subtest: in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+ok 13 - in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 6.691655
+  type: 'test'
+  ...
+# Subtest: native delegation reducer matches exact parent/turn/call and never persists prompt text
+ok 14 - native delegation reducer matches exact parent/turn/call and never persists prompt text
+  ---
+  duration_ms: 1.230097
+  type: 'test'
+  ...
+# Subtest: default disabled, fixed configured HTTPS endpoint and exact registered native thread
+ok 15 - default disabled, fixed configured HTTPS endpoint and exact registered native thread
+  ---
+  duration_ms: 3.410925
+  type: 'test'
+  ...
+# Subtest: informational report uses the signed manager path without creating execution or evidence authority
+ok 16 - informational report uses the signed manager path without creating execution or evidence authority
+  ---
+  duration_ms: 11.485491
+  type: 'test'
+  ...
+# Subtest: signed native-call journal survives adapter restart and changed-body replay conflicts
+ok 17 - signed native-call journal survives adapter restart and changed-body replay conflicts
+  ---
+  duration_ms: 5.416282
+  type: 'test'
+  ...
+# Subtest: ambiguous response may replay only the same event; redirects and excessive response fail closed
+ok 18 - ambiguous response may replay only the same event; redirects and excessive response fail closed
+  ---
+  duration_ms: 5.010165
+  type: 'test'
+  ...
+# Subtest: protocol one advances via signed host-only boundary without resetting its native sequence or physical anchor
+ok 19 - protocol one advances via signed host-only boundary without resetting its native sequence or physical anchor
+  ---
+  duration_ms: 42.456217
+  type: 'test'
+  ...
+# Subtest: completion drains child observations before HTTP and retries lost ACK with immutable call/event/content identity
+ok 20 - completion drains child observations before HTTP and retries lost ACK with immutable call/event/content identity
+  ---
+  duration_ms: 36.070674
+  type: 'test'
+  ...
+# Subtest: unknown continuation outcome retains a durable hold
+ok 21 - unknown continuation outcome retains a durable hold
+  ---
+  duration_ms: 16.561073
+  type: 'test'
+  ...
+# Subtest: controller policy rejection is never an automatic completion retry
+ok 22 - controller policy rejection is never an automatic completion retry
+  ---
+  duration_ms: 27.553206
+  type: 'test'
+  ...
+# Subtest: concurrent different manager calls hold the root even if the first reservation response arrives late
+ok 23 - concurrent different manager calls hold the root even if the first reservation response arrives late
+  ---
+  duration_ms: 15.990121
+  type: 'test'
+  ...
+# Subtest: automatic continuation rejects stale expiry before requesting another native turn
+ok 24 - automatic continuation rejects stale expiry before requesting another native turn
+  ---
+  duration_ms: 21.031254
+  type: 'test'
+  ...
+# Subtest: automatic continuation rejects stale registration before requesting another native turn
+ok 25 - automatic continuation rejects stale registration before requesting another native turn
+  ---
+  duration_ms: 30.197668
+  type: 'test'
+  ...
+# Subtest: automatic continuation rejects stale context before requesting another native turn
+ok 26 - automatic continuation rejects stale context before requesting another native turn
+  ---
+  duration_ms: 24.869746
+  type: 'test'
+  ...
+# Subtest: a delayed positive claim ACK across expiry is journaled as uncertain, never returned as authority
+ok 27 - a delayed positive claim ACK across expiry is journaled as uncertain, never returned as authority
+  ---
+  duration_ms: 15.04154
+  type: 'test'
+  ...
+# Subtest: a delayed positive claim ACK across registration is journaled as uncertain, never returned as authority
+ok 28 - a delayed positive claim ACK across registration is journaled as uncertain, never returned as authority
+  ---
+  duration_ms: 15.287795
+  type: 'test'
+  ...
+# Subtest: a delayed positive claim ACK across context is journaled as uncertain, never returned as authority
+ok 29 - a delayed positive claim ACK across context is journaled as uncertain, never returned as authority
+  ---
+  duration_ms: 12.537897
+  type: 'test'
+  ...
+# Subtest: a delayed positive claim ACK across lifetime is journaled as uncertain, never returned as authority
+ok 30 - a delayed positive claim ACK across lifetime is journaled as uncertain, never returned as authority
+  ---
+  duration_ms: 8.873158
+  type: 'test'
+  ...
+# Subtest: delayed positive report_step ACK after expiry stays historical and cannot schedule continuation
+ok 31 - delayed positive report_step ACK after expiry stays historical and cannot schedule continuation
+  ---
+  duration_ms: 21.941659
+  type: 'test'
+  ...
+# Subtest: delayed positive complete_step ACK after expiry stays historical and cannot schedule continuation
+ok 32 - delayed positive complete_step ACK after expiry stays historical and cannot schedule continuation
+  ---
+  duration_ms: 32.778663
+  type: 'test'
+  ...
+# Subtest: installed native 0.165 emits a real dynamic tool call and consumes its result using only a local Responses fixture
+ok 33 - installed native 0.165 emits a real dynamic tool call and consumes its result using only a local Responses fixture # SKIP
+  ---
+  duration_ms: 0.09833
+  type: 'test'
+  ...
+# Subtest: source protocol completes acceptedB while localA then applies only at terminal before continuation and next inputB
+ok 34 - source protocol completes acceptedB while localA then applies only at terminal before continuation and next inputB
+  ---
+  duration_ms: 84.037465
+  type: 'test'
+  ...
+# Subtest: unexpected post-publication root command holds before apply/continuation
+ok 35 - unexpected post-publication root command holds before apply/continuation
+  ---
+  duration_ms: 43.496035
+  type: 'test'
+  ...
+# Subtest: unexpected post-publication root spawn holds before apply/continuation
+ok 36 - unexpected post-publication root spawn holds before apply/continuation
+  ---
+  duration_ms: 46.854842
+  type: 'test'
+  ...
+# Subtest: failed source apply retains the original writer and prevents new root admission
+ok 37 - failed source apply retains the original writer and prevents new root admission
+  ---
+  duration_ms: 42.605095
+  type: 'test'
+  ...
+# Subtest: final source output applies at terminal without inventing another root turn
+ok 38 - final source output applies at terminal without inventing another root turn
+  ---
+  duration_ms: 47.157516
+  type: 'test'
+  ...
+# Subtest: novel child command after publication holds while original facts retain input source
+ok 39 - novel child command after publication holds while original facts retain input source
+  ---
+  duration_ms: 38.28742
+  type: 'test'
+  ...
+# Subtest: persisted source protocol cannot be silently downgraded and accepted output stays informational
+ok 40 - persisted source protocol cannot be silently downgraded and accepted output stays informational
+  ---
+  duration_ms: 31.636834
+  type: 'test'
+  ...
+# Subtest: a successful boolean from apply callback cannot replace verified local source agreement
+ok 41 - a successful boolean from apply callback cannot replace verified local source agreement
+  ---
+  duration_ms: 46.990403
+  type: 'test'
+  ...
+# Subtest: accepted output cannot be completed against old input source or model-provided source context
+ok 42 - accepted output cannot be completed against old input source or model-provided source context
+  ---
+  duration_ms: 33.9049
+  type: 'test'
+  ...
+# Subtest: stale source facts at terminal hold rather than invoke apply or root continuation
+ok 43 - stale source facts at terminal hold rather than invoke apply or root continuation
+  ---
+  duration_ms: 41.670599
+  type: 'test'
+  ...
+# Subtest: bounded supervisor-busy retry starts after source apply rather than consuming its budget
+ok 44 - bounded supervisor-busy retry starts after source apply rather than consuming its budget
+  ---
+  duration_ms: 78.094257
+  type: 'test'
+  ...
+# Subtest: source application snapshot rejects pre-terminal and substituted claim scope without authority
+ok 45 - source application snapshot rejects pre-terminal and substituted claim scope without authority
+  ---
+  duration_ms: 56.822499
+  type: 'test'
+  ...
+# Subtest: default-off fixed factual status request derives claim and validates full producer scope
+ok 46 - default-off fixed factual status request derives claim and validates full producer scope
+  ---
+  duration_ms: 24.934884
+  type: 'test'
+  ...
+# Subtest: wrong owner/current claim/source/admission and positive permission responses reject
+ok 47 - wrong owner/current claim/source/admission and positive permission responses reject
+  ---
+  duration_ms: 9.669319
+  type: 'test'
+  ...
+# Subtest: post-response context/metadata changes and replaced checkout are rejected
+ok 48 - post-response context/metadata changes and replaced checkout are rejected
+  ---
+  duration_ms: 4.51377
+  type: 'test'
+  ...
+# Subtest: bounds redirects, oversized responses, stalled bodies and ignored abort callbacks
+ok 49 - bounds redirects, oversized responses, stalled bodies and ignored abort callbacks
+  ---
+  duration_ms: 93.043514
+  type: 'test'
+  ...
+# Subtest: close fences delayed guardian replies and waits bounded outstanding reads
+ok 50 - close fences delayed guardian replies and waits bounded outstanding reads
+  ---
+  duration_ms: 1.640326
+  type: 'test'
+  ...
+1..50
+# tests 50
+# suites 0
+# pass 49
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 997.728744

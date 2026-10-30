@@ -19,6 +19,11 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 ## Work queue
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
+Current implementation checkpoint (2026-10-30): installed source application and fresh manager
+status have local composed proofs; Cloudflare/Neon schema28 application checks and five-profile
+Terraform validation pass. Repository-policy enrollment, baseline service migration and live
+project/session/browser pilots remain in progress. No production cutover has occurred.
+
 Current step reports and blockers: [execution ledger](checks/autonomous-delivery/progress.md). Each task follows Understand → Implement → Review →
 Validate, adding Release/Observe when it changes deployed behavior. Record attempts, issues,
 difficulty with rationale, evidence, and next action on every completed step. Implement small

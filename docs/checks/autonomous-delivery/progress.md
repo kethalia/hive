@@ -762,3 +762,29 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   validator was corrected and the reviewed migration/verification passed. No production access
   or cron activation. Schema28 CI and all image/native builds pass5c7ea17. Evidence:
   [Neon verification](neon-template-creation-migration.json).
+
+- Full Cloudflare application regression: completed, moderate difficulty. Committed2294726
+  passes the auth/task/portable-action proof against Neon28 and all ten enabled callback
+  transport rejection checks. This does not activate workspace-read/status or establish live
+  Coder acceptance. Evidence: [assembled application](cloudflare-auth-workspace-read-status.json).
+
+- Terraform specialist validation: completed, low difficulty. A task-created disposable
+  Infrastructure workspace validated the exact committed template snapshot with Terraform1.15.8
+  and pinned providers. All five profiles pass with zero errors/warnings. Formatting found two
+  alignment differences in the shared read bootstrap; the corrected generated copies and
+  artifact manifest are synchronized. The primary independently compared every returned source
+  hash before completion. No plan/apply or production credentials were used. Evidence:
+  [specialist validation](template-infrastructure-validation/validation.json),
+  [primary completion](template-infrastructure-validation/completion.json).
+
+- Node22 CI regression: completed, moderate difficulty. The status fixture waited on an
+  intentionally unreferenced background timer without a real host listener. A bounded test
+  observation deadline fixes the fixture lifetime without changing production behavior.
+  Node22.23.4 and Node24 each pass49 cases plus one existing native skip; compiled factory
+  proofs pass13 nested cases each. The original failure is preserved alongside the fix.
+  Evidence: [CI reproduction](delivery-status-local/ci-node22.json).
+
+- Infrastructure validation cleanup: completed. The installed receipt-based helper stopped
+  the disposable and its reaper requested deletion; a fresh Coder read returns410 Gone.
+  Preserved completion evidence is unchanged. No raw deletion or unrelated workspace action.
+  Evidence: [cleanup verification](template-infrastructure-validation/cleanup.json).

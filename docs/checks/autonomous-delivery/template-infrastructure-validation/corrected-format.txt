@@ -1,0 +1,5 @@
+templates/ai-dev-k8s/hive-read.tf
+templates/browser-testing/hive-read.tf
+templates/electronics/hive-read.tf
+templates/game-dev/hive-read.tf
+templates/infrastructure/hive-read.tf
