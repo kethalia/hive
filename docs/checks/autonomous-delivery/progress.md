@@ -635,3 +635,11 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   harness invocation omitted its required `--callbacks` option and stopped before startup;
   the corrected run passes. This is local workerd, with no deployed flag or Coder mutation.
   Evidence: [assembled workerd](cloudflare-auth-source-input.json).
+
+- Nested source-recovery CI fixture: corrected, low difficulty. CI1a7fea2 passed96 of97
+  template checks, but the Node→Python→Node recovery fixture inherited the parent runner's
+  private IPC context and returned no report. The parent reproduced the failure, removed
+  only that inherited runner context and required explicit TAP output. The nested check
+  now passes on Node24 and CI's22.23.4; its strict pass-count assertion remains. Migration
+  integration and app/native image builds already passed. Runtime code was unchanged.
+  Evidence: [CI fixture correction](source-input-local/nested-runner-ci.json).

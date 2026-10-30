@@ -153,9 +153,12 @@ class PublishedObjectTests(unittest.TestCase):
                                     "serverInstanceId": f.scope["serverInstanceId"], "parentTurnId": "fixture-turn", "cursorVersion": 1}}
             fixture_path = Path(f.temp.name) / "coordinator-fixture.json"
             fixture_path.write_text(json.dumps(material))
-            result = subprocess.run(["node", "--test", "--test-name-pattern", "actual private FD3 coordinator retry",
+            # This is an independent runner, including when Python was launched
+            # by node:test. Do not inherit its private child-runner IPC context.
+            node_env = {k: v for k, v in os.environ.items() if k != "NODE_TEST_CONTEXT"}
+            result = subprocess.run(["node", "--test", "--test-reporter=tap", "--test-name-pattern", "actual private FD3 coordinator retry",
                                      str(Path(__file__).resolve().parents[1] / "verify-codex-source-application.test.mjs")],
-                                    env={**os.environ, "HIVE_SOURCE_APPLY_REPLAY_FIXTURE": str(fixture_path)},
+                                    env={**node_env, "HIVE_SOURCE_APPLY_REPLAY_FIXTURE": str(fixture_path)},
                                     capture_output=True, timeout=20)
             self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
             self.assertIn(b"pass 1", result.stdout)
