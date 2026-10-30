@@ -967,12 +967,21 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 - Isolated Neon repair migration: complete. Committed9db3f5f applies repair33 after the31
   already applied migrations (32 entries total; uncommitted release migrations are excluded).
   All45 prior table hashes and31 migration checksums are preserved; the runtime still cannot
-  create schema. The clean Cloudflare build and assembled app/auth local-workerd proof pass
-  against that database. Evidence: [migration](neon-repair-migration.json),
-  [application proof](cloudflare-auth-repair-completion.json).
+  create schema. The clean Cloudflare build and auth-only local-workerd check pass against
+  that database. The first evidence copy mistakenly selected an old full-app report; it is
+  retained as cloudflare-auth-repair-stale-selection.json and is not evidence for9db3f5f.
+  The explicit full-app/portable-actions/callback run reached its route assertions but failed
+  fixture cleanup due to a database connection timeout. The failed report is retained;
+  the unchanged committed9db3f5f retry passed, including fixture cleanup.
+  Evidence: [full app proof](cloudflare-auth-repair-completion.json),
+  [initial cleanup timeout](cloudflare-auth-repair-cleanup-failure.json).
+  Evidence: [migration](neon-repair-migration.json).
 - CI correction: the PostgreSQL job passed at9db3f5f; broad CI found a missing Prisma export in
   one guardian-test mock and an older evidence JSON formatting discrepancy. fe62afb fixes both,
   with6 focused checks passing. New CI is pending. The preview image built and passed its normal
   CLI smoke, then failed the new public-bootstrap integrity check before publication.494cf3e
   adds bounded diagnostic output without relaxing any ownership or digest check; its image
-  workflow is rerunning. No failed image was installed or published.
+  workflow also failed: the runtime archive was inaccessible to the image user.
+  781bb9d explicitly restores directory traversal while keeping files read-only and adds
+  directory-search permission validation; image verification is pending.
+  No failed image was installed or published.
