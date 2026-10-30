@@ -6,6 +6,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
+import { captureDockPose, type DockPoint, dockSpring, rotateDock } from "./dock-flight";
 
 type Edge = "top" | "right" | "bottom" | "left";
 type Anchor = { edge: Edge; ratio: number };
@@ -17,6 +19,9 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
   const anchor = useRef<Anchor>({ edge: "bottom", ratio: 0.5 });
   const [edge, setEdge] = useState<Edge>("bottom");
   const [dragging, setDragging] = useState(false);
+  const [settling, setSettling] = useState(false);
+  const coast = useRef<number | null>(null);
+  const motionTicket = useRef(0);
   const drag = useRef<{
     id: number;
     x: number;
@@ -27,9 +32,32 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     anchor: Anchor;
     tap: HTMLButtonElement | null;
     movable: boolean;
+    vx: number;
+    vy: number;
+    lastX: number;
+    lastY: number;
+    lastTime: number;
   } | null>(null);
   const suppressClick = useRef(false);
-  const snap = useRef<Animation | null>(null);
+  const rotation = useRef<Animation[]>([]);
+
+  function stopMotion(freeze = false) {
+    motionTicket.current++;
+    if (coast.current !== null) cancelAnimationFrame(coast.current);
+    coast.current = null;
+    for (const animation of rotation.current) {
+      if (freeze) {
+        const time = animation.currentTime;
+        animation.pause();
+        animation.currentTime = time;
+      } else animation.cancel();
+    }
+    if (!freeze) {
+      rotation.current = [];
+      surface.current?.style.removeProperty("scale");
+    }
+    setSettling(false);
+  }
 
   function bounds() {
     const viewport = window.visualViewport;
@@ -66,23 +94,161 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     root.current.style.left = `${x}px`;
     root.current.style.top = `${y}px`;
   }
-  function attach(next: Anchor, animate = true) {
-    const previous = root.current?.getBoundingClientRect();
-    snap.current?.cancel();
-    anchor.current = next;
-    setEdge(next.edge);
-    const target = point(next);
-    write(target.x, target.y);
-    if (animate && previous && !matchMedia("(prefers-reduced-motion: reduce)").matches)
-      snap.current =
-        root.current?.animate(
-          [
-            { transform: `translate(${previous.left - target.x}px, ${previous.top - target.y}px)` },
-            { transform: "translate(0, 0)" },
-          ],
-          { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" },
-        ) ?? null;
+  function constrain() {
+    const shell = surface.current,
+      host = root.current;
+    if (!shell || !host) return;
+    const area = bounds();
+    shell.style.removeProperty("scale");
+    let box = shell.getBoundingClientRect();
+    if (box.width > area.width + 0.1 || box.height > area.height + 0.1) {
+      shell.style.scale = String(Math.min(area.width / box.width, area.height / box.height));
+      box = shell.getBoundingClientRect();
+    }
+    const dx =
+      box.left < area.left ? area.left - box.left : Math.min(0, area.left + area.width - box.right);
+    const dy =
+      box.top < area.top ? area.top - box.top : Math.min(0, area.top + area.height - box.bottom);
+    if (dx || dy)
+      write(Number.parseFloat(host.style.left) + dx, Number.parseFloat(host.style.top) + dy);
   }
+
+  function fly(
+    next: Anchor,
+    velocity: DockPoint = { x: 0, y: 0 },
+    animate = true,
+    projected?: DockPoint,
+  ) {
+    const host = root.current,
+      shell = surface.current;
+    if (!host || !shell) return;
+    const pose = captureDockPose(host, shell);
+    stopMotion();
+    coast.current = 0; // Suppress observer anchoring while React resolves the new axis.
+    anchor.current = next;
+    const area = bounds();
+    host.style.setProperty("--dock-available-width", `${area.width}px`);
+    host.style.setProperty("--dock-available-height", `${area.height}px`);
+    // Child layout effects settle scrolling/overflow before target geometry is read.
+    flushSync(() => {
+      setEdge(next.edge);
+      setSettling(true);
+    });
+    host.dataset.orientation =
+      next.edge === "left" || next.edge === "right" ? "vertical" : "horizontal";
+    const width = shell.offsetWidth,
+      height = shell.offsetHeight;
+    if (projected) {
+      const horizontal = next.edge === "top" || next.edge === "bottom";
+      const span = horizontal ? width : height;
+      const range = (horizontal ? area.width : area.height) - span;
+      const value = horizontal ? projected.x - area.left : projected.y - area.top;
+      anchor.current = {
+        edge: next.edge,
+        ratio: range > 0 ? clamp((value - span / 2) / range) : 0.5,
+      };
+    }
+    const target = point();
+    write(target.x, target.y);
+    if (!animate || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      coast.current = null;
+      setSettling(false);
+      return;
+    }
+    const from = {
+      x: pose.bounds.left + pose.bounds.width / 2,
+      y: pose.bounds.top + pose.bounds.height / 2,
+    };
+    const to = { x: target.x + width / 2, y: target.y + height / 2 };
+    const spring = dockSpring(from, to, velocity);
+    const rotationDuration = 320;
+    rotation.current = rotateDock(pose, host, shell, rotationDuration);
+    for (const animation of rotation.current) animation.currentTime = 0;
+    write(from.x - width / 2, from.y - height / 2);
+    constrain();
+    const generation = motionTicket.current,
+      start = performance.now();
+    const step = (now: number) => {
+      if (generation !== motionTicket.current) return;
+      const elapsed = now - start;
+      for (const animation of rotation.current)
+        animation.currentTime = Math.min(elapsed, rotationDuration);
+      const centre = spring(elapsed);
+      write(centre.x - width / 2, centre.y - height / 2);
+      constrain();
+      const actual = shell.getBoundingClientRect();
+      const landed =
+        Math.hypot(actual.left + actual.width / 2 - to.x, actual.top + actual.height / 2 - to.y) <
+        0.1;
+      const ready = rotation.current.length === 0 || elapsed >= rotationDuration;
+      if ((ready && landed) || elapsed >= 1200) {
+        coast.current = null;
+        for (const animation of rotation.current) animation.cancel();
+        rotation.current = [];
+        shell.style.removeProperty("scale");
+        const end = point();
+        write(end.x, end.y);
+        setSettling(false);
+      } else coast.current = requestAnimationFrame(step);
+    };
+    coast.current = requestAnimationFrame(step);
+  }
+  function attach(next: Anchor, animate = true) {
+    fly(next, { x: 0, y: 0 }, animate);
+  }
+
+  function nearest() {
+    const area = bounds(),
+      box = surface.current?.getBoundingClientRect();
+    if (!box) return anchor.current;
+    const distances: Record<Edge, number> = {
+      top: box.top - area.top,
+      bottom: area.top + area.height - box.bottom,
+      left: box.left - area.left,
+      right: area.left + area.width - box.right,
+    };
+    const centres: Record<Edge, number> = {
+      top: box.top + box.height / 2 - area.top,
+      bottom: area.top + area.height - box.top - box.height / 2,
+      left: box.left + box.width / 2 - area.left,
+      right: area.left + area.width - box.left - box.width / 2,
+    };
+    // Prefer the centre's nearest edge when a long strip touches several edges.
+    const next = (Object.keys(distances) as Edge[]).sort((a, b) =>
+      Math.abs(distances[a] - distances[b]) > 1
+        ? distances[a] - distances[b]
+        : centres[a] - centres[b],
+    )[0];
+    const horizontal = next === "top" || next === "bottom";
+    const range = horizontal ? area.width - box.width : area.height - box.height;
+    const offset = horizontal ? box.left - area.left : box.top - area.top;
+    return { edge: next, ratio: range > 0 ? clamp(offset / range) : 0.5 };
+  }
+  function releaseMomentum(vx: number, vy: number) {
+    const shell = surface.current;
+    if (!shell) return;
+    const speed = Math.hypot(vx, vy);
+    if (speed < 0.05) {
+      attach(nearest());
+      return;
+    }
+    const box = shell.getBoundingClientRect(),
+      area = bounds();
+    const projected = {
+      x: area.left + clamp(box.left + box.width / 2 + vx * 220 - area.left, area.width),
+      y: area.top + clamp(box.top + box.height / 2 + vy * 220 - area.top, area.height),
+    };
+    const distances: Record<Edge, number> = {
+      left: (projected.x - area.left) / area.width,
+      right: (area.left + area.width - projected.x) / area.width,
+      top: (projected.y - area.top) / area.height,
+      bottom: (area.top + area.height - projected.y) / area.height,
+    };
+    const choices = Object.keys(distances) as Edge[];
+    const edge = choices.sort((a, b) => distances[a] - distances[b])[0];
+    fly({ edge, ratio: 0.5 }, { x: vx, y: vy }, true, projected);
+  }
+
   function cancel() {
     const previous = drag.current;
     if (!previous) return;
@@ -91,8 +257,22 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     setDragging(false);
     attach(previous.anchor);
   }
+  function finishMovement() {
+    drag.current = null;
+    setDragging(false);
+    stopMotion();
+    const end = point();
+    write(end.x, end.y);
+  }
   function down(event: PointerEvent<HTMLDivElement>) {
-    if (disabled || event.button !== 0 || !event.isPrimary || drag.current) return;
+    if (
+      disabled ||
+      event.button !== 0 ||
+      !event.isPrimary ||
+      drag.current ||
+      surface.current?.querySelector('nav[aria-busy="true"]')
+    )
+      return;
     suppressClick.current = false;
     const target = event.target as Element;
     const handle = target.closest("[data-dock-drag-handle], [data-dock-expand]");
@@ -102,11 +282,19 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
       event.pointerType === "touch"
         ? target.closest<HTMLButtonElement>("[data-dock-expand], [data-dock-minimise]")
         : null;
-    if (!handle && !background && !tap) return;
+    const control = target.closest("[data-dock-minimise]");
+    if (!handle && !background && !tap && !control) return;
     const box = root.current?.getBoundingClientRect();
     if (!box) return;
-    snap.current?.cancel();
-    write(box.left, box.top);
+    const movable = !!handle || background;
+    stopMotion(movable);
+    if (movable) write(box.left, box.top);
+    else {
+      const end = point();
+      write(end.x, end.y);
+    }
+    constrain();
+    const origin = root.current?.getBoundingClientRect() ?? box;
     suppressClick.current = false;
     // Handle a touch tap on the draggable button at pointer-up. Browsers can
     // suppress the compatibility click following a drag; keyboard clicks stay native.
@@ -118,16 +306,21 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
       id: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      left: box.left,
-      top: box.top,
+      left: origin.left,
+      top: origin.top,
       moved: false,
       anchor: { ...anchor.current },
       tap,
-      movable: !!handle || background,
+      movable,
+      vx: 0,
+      vy: 0,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      lastTime: performance.now(),
     };
     // Touch has implicit capture; mouse drags need explicit capture outside the handle.
     if (event.pointerType !== "touch")
-      (handle ?? event.currentTarget).setPointerCapture(event.pointerId);
+      (handle ?? control ?? event.currentTarget).setPointerCapture(event.pointerId);
     setDragging(true);
   }
   function move(event: PointerEvent<HTMLDivElement>) {
@@ -135,16 +328,29 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     if (!start || start.id !== event.pointerId) return;
     const dx = event.clientX - start.x,
       dy = event.clientY - start.y;
+    const now = performance.now(),
+      dt = Math.max(8, now - start.lastTime);
+    const retain = Math.exp(-dt / 20);
+    start.vx =
+      start.vx * retain +
+      Math.max(-6, Math.min(6, (event.clientX - start.lastX) / dt)) * (1 - retain);
+    start.vy =
+      start.vy * retain +
+      Math.max(-6, Math.min(6, (event.clientY - start.lastY) / dt)) * (1 - retain);
+    start.lastX = event.clientX;
+    start.lastY = event.clientY;
+    start.lastTime = now;
     if (!start.moved && Math.hypot(dx, dy) < 6) return;
     start.moved = true;
     event.preventDefault();
     if (!start.movable) return;
-    const area = bounds(),
-      box = surface.current?.getBoundingClientRect();
-    write(
-      area.left + clamp(start.left + dx - area.left, Math.max(0, area.width - (box?.width ?? 48))),
-      area.top + clamp(start.top + dy - area.top, Math.max(0, area.height - (box?.height ?? 48))),
-    );
+    const wantedX = start.left + dx,
+      wantedY = start.top + dy;
+    write(wantedX, wantedY);
+    constrain();
+    // A screen boundary absorbs velocity normal to it instead of inventing momentum.
+    if (Math.abs(Number.parseFloat(root.current?.style.left ?? "0") - wantedX) > 0.5) start.vx = 0;
+    if (Math.abs(Number.parseFloat(root.current?.style.top ?? "0") - wantedY) > 0.5) start.vy = 0;
   }
   function up(event: PointerEvent<HTMLDivElement>) {
     const start = drag.current;
@@ -160,26 +366,14 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
       return;
     }
     if (!start.movable) return;
-    const area = bounds(),
-      box = surface.current?.getBoundingClientRect();
-    if (!box) return;
-    const distances: Record<Edge, number> = {
-      top: box.top - area.top,
-      bottom: area.top + area.height - box.bottom,
-      left: box.left - area.left,
-      right: area.left + area.width - box.right,
-    };
-    const nearest = (Object.keys(distances) as Edge[]).sort(
-      (a, b) => distances[a] - distances[b],
-    )[0];
-    const horizontal = nearest === "top" || nearest === "bottom";
-    const range = horizontal ? area.width - box.width : area.height - box.height;
-    const offset = horizontal ? box.left - area.left : box.top - area.top;
-    attach({ edge: nearest, ratio: range > 0 ? clamp(offset / range) : 0.5 });
+    const decay = Math.exp(-(performance.now() - start.lastTime) / 80);
+    releaseMomentum(start.vx * decay, start.vy * decay);
   }
   function key(event: KeyboardEvent<HTMLButtonElement>) {
     if (
       disabled ||
+      drag.current ||
+      surface.current?.querySelector('nav[aria-busy="true"]') ||
       !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
     )
       return;
@@ -211,13 +405,14 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     } else attach({ edge: nextEdge, ratio: 0.5 });
   }
 
-  const latest = useRef({ bounds, point, write, cancel });
-  latest.current = { bounds, point, write, cancel };
+  const latest = useRef({ bounds, point, write, cancel, stopMotion });
+  latest.current = { bounds, point, write, cancel, stopMotion };
   useLayoutEffect(() => {
     const update = () => {
       const area = latest.current.bounds();
       root.current?.style.setProperty("--dock-available-width", `${area.width}px`);
-      if (!drag.current) {
+      root.current?.style.setProperty("--dock-available-height", `${area.height}px`);
+      if (!drag.current && coast.current === null) {
         const next = latest.current.point();
         latest.current.write(next.x, next.y);
       }
@@ -225,8 +420,12 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     update();
     const observer = new ResizeObserver(update);
     if (surface.current) observer.observe(surface.current);
-    window.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("resize", update);
+    const resize = () => {
+      latest.current.stopMotion();
+      update();
+    };
+    window.addEventListener("resize", resize);
+    window.visualViewport?.addEventListener("resize", resize);
     window.visualViewport?.addEventListener("scroll", update);
     const cancelOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape" && drag.current) {
@@ -238,9 +437,11 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     window.addEventListener("keydown", cancelOnEscape, true);
     return () => {
       observer.disconnect();
-      snap.current?.cancel();
-      window.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("resize", update);
+      motionTicket.current++;
+      if (coast.current !== null) cancelAnimationFrame(coast.current);
+      for (const animation of rotation.current) animation.cancel();
+      window.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("resize", resize);
       window.visualViewport?.removeEventListener("scroll", update);
       window.removeEventListener("keydown", cancelOnEscape, true);
     };
@@ -250,6 +451,9 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     root,
     edge,
     dragging,
+    settling,
+    moving: dragging || settling,
+    finishMovement,
     key,
     handlers: {
       onPointerDown: down,

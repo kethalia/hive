@@ -33,9 +33,10 @@ windows without reserving footer space, and keeps launcher/help dialogs above th
 expanded and auto-minimises after 2.5 seconds away. Hover, keycap/grip focus, dragging, and an open
 playground dialog suspend the timer. Manual expansion resumes auto-minimise; there is no pin mode.
 
-Two 26px square badges with 4px corners sit at the dock's top-right corner, matching the count
-badge's dark background and subtle green border. The selected-space remove button uses this style too:
-Minimise on the left and Move on the right. They overlay the corner without a title-bar row.
+Two 26px square badges with 4px corners match the count badge's dark background and subtle green
+border; the selected-space remove button uses the same style. On top/bottom edges the controls
+form a centred column to the right (Minimise above Move). On left/right edges they form a centred
+row above the dock (Minimise left, Move right), without a draggable bar.
 Minimise reduces the dock to one 48px expand button. The existing shell changes
 width and height: controls fade out (120ms), the shell shrinks (340ms), and the expand icon arrives
 as it settles. Expansion grows the shell (380ms), then the keycaps appear in a stagger (300ms per
@@ -43,8 +44,11 @@ cap, up to 240ms total stagger). The layout stays mounted so the selected view a
 Overlapping navigation/space mutations finish before a pending minimise. Reduced motion finishes
 immediately. Hidden controls are inert and excluded from the accessibility tree.
 
-Drag the right-hand Move badge, the dock's unused background, or the collapsed button.
-Release attaches it to the nearest screen edge with a 12px/safe-area inset; centre drops cannot
+Drag the Move badge, the dock's unused background, or the collapsed button. Release velocity predicts a resting point and feeds a single damped spring to an edge.
+Gentle releases return to the nearby edge; strong flicks can carry the dock across the screen.
+There is no separate coast/snap handoff. A new drag interrupts the motion. Reduced motion attaches
+immediately. Switching between horizontal and vertical layouts rotates the frame through a quarter
+turn while counter-transforming the keycaps to keep their labels upright. It uses a 12px/safe-area inset; centre drops cannot
 leave it floating in the canvas. The edge and position along it are shared between both shapes,
 including while changing views or resizing the visual viewport. Touch drags use the grip/button,
 while native key-strip swipes remain available. Dragging the button never activates expansion.
@@ -53,6 +57,12 @@ Enter/Space activates Minimise/Expand; **Alt+Shift+D** toggles outside dialogs a
 revealed controls or returns focus to Expand. On the grip or collapsed button, arrows move along
 the current edge, Shift+Arrow chooses an edge, and Home/End move to corners. Escape cancels a
 drag. The expanded form has no additional control underneath. Window geometry stays full-screen.
+
+Left/right edges stack upright keycaps from top to bottom; top/bottom edges use a horizontal row.
+Expanded spaces and keyboard controls follow that axis too. Side strips use vertical swipes, wheel
+scrolling, Up/Down scroll controls, and Up/Down focus navigation. Back and + remain pinned outside
+the scroll area. View transitions and numbered-space animations allocate height for a vertical dock
+and width for a horizontal dock, then reveal the new controls.
 
 Keycaps keep their solid shadow anchored at the bottom-left. On hover a key lifts up/right and its
 shadow grows; pressing moves it down/left and collapses the shadow. The press is quick (65ms) and
@@ -180,9 +190,14 @@ Removal checks cover first/middle/last caps, shared resize/movement progress, an
 boundary, including frames after playback to catch any final position snap.
 
 Run `validate-visibility.browser.mjs` for shell morph frame samples, staged cap appearance,
-square corner control placement/order, absence of a title bar, collapsed-only accessibility, keyboard toggling/focus, auto-minimise,
+square control placement in a right column or top row, absence of a title bar, collapsed-only accessibility, keyboard toggling/focus, auto-minimise,
 dialog holds, dragging both forms to every edge, centre-drop snapping, keyboard placement, Escape
 cancellation, real touch dragging, viewport resizing, full-height canvas geometry, and reduced motion.
+
+Run `validate-axis.browser.mjs` for vertical home/spaces/keys layouts, control placement on each axis,
+vertical creation/removal/reveal and scrolling, latched modifiers across morphs, full-height strip
+edge selection, sampled spring motion, gentle returns versus strong flicks from the same position,
+interrupting motion, upright labels and viewport bounds during rotation, and immediate reduced-motion drops.
 
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,

@@ -22,6 +22,7 @@ const grip = page.getByRole("button", { name: "Move dock", exact: true });
 const dock = page.getByRole("navigation", { name: "Workspace dock" });
 const phase = (name) => expect(overlay).toHaveAttribute("data-phase", name);
 async function edge(target = page) {
+  await expect(target.locator(".hive-dock-overlay")).toHaveAttribute("data-settling", "false");
   await expect
     .poll(async () => {
       const box = await target.locator(".hive-dock-surface").boundingBox();
@@ -89,6 +90,8 @@ async function drag(handle, x, y) {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(x, y, { steps: 12 });
+  // Test stationary edge placement here; velocity-dependent flicks have their own suite.
+  await page.waitForTimeout(300);
   await page.mouse.up();
   await edge();
 }
@@ -102,11 +105,12 @@ try {
     minimiseBox = await minimise.boundingBox(),
     moveBox = await grip.boundingBox();
   assert.ok(
-    minimiseBox.x < moveBox.x &&
-      moveBox.x + moveBox.width > before.x + before.width &&
-      minimiseBox.y === moveBox.y &&
-      minimiseBox.y < before.y,
-    "The top-right badges place Minimise on the left and Move on the right",
+    minimiseBox.x === moveBox.x &&
+      minimiseBox.y < moveBox.y &&
+      minimiseBox.x > (await dock.boundingBox()).x + (await dock.boundingBox()).width &&
+      Math.abs((minimiseBox.y + moveBox.y + moveBox.height) / 2 - (before.y + before.height / 2)) <
+        1,
+    "The horizontal dock places Minimise and Move in a centred right-hand column",
   );
   for (const control of [minimise, grip]) {
     const box = await control.boundingBox();
@@ -116,7 +120,7 @@ try {
   }
   assert.ok(
     Math.abs(before.height - (await dock.boundingBox()).height - 2) < 1,
-    "Corner controls reserve no title-bar row",
+    "Side controls reserve no title-bar row",
   );
   await page.screenshot({ path: resolve(output, "expanded.png") });
   const closing = await morph(minimise, "minimise", "collapsed");
@@ -143,7 +147,7 @@ try {
   await page.keyboard.press("Tab");
   await expect(dock.getByRole("button", { name: "Apps", exact: true })).toBeFocused();
   checks.push(
-    "A top-right minimise control morphs the dock into one 48px expand button; expansion grows the same shell before staggered caps appear. Focus and hidden-control accessibility are preserved.",
+    "A square minimise control morphs the dock into one 48px expand button; expansion grows the same shell before staggered caps appear. Focus and hidden-control accessibility are preserved.",
   );
 
   for (const [name, x, y] of [

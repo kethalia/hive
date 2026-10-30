@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useDockAxis } from "./dock-axis";
 
 type View = "home" | "workspaces" | "keyboard";
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** Exit, resize the tray, then reveal the next row without accepting overlapping actions. */
 export function useDockView() {
+  const axis = useDockAxis();
+  const previousAxis = useRef(axis);
   const [view, setView] = useState<View>("home");
   const [busy, setBusy] = useState(false);
   const navRef = useRef<HTMLElement>(null);
@@ -16,47 +19,53 @@ export function useDockView() {
   const animations = useRef<Animation[]>([]);
   const generation = useRef(0);
   const focusPending = useRef(false);
-  const plan = useRef<{ width: number; reverse: boolean; animate: boolean; ticket: number } | null>(
-    null,
-  );
+  const plan = useRef<{
+    bounds: DOMRect;
+    reverse: boolean;
+    animate: boolean;
+    ticket: number;
+  } | null>(null);
 
-  const changeView = useCallback((next: View) => {
-    if (running.current) {
-      queued.current = next;
-      return;
-    }
-    if (next === current.current) return;
-    const nav = navRef.current,
-      panel = panelRef.current;
-    if (!nav || !panel) return;
-    if (next !== "home") opener.current = next;
-    running.current = true;
-    const ticket = ++generation.current;
-    const width = nav.getBoundingClientRect().width;
-    const animate = !reducedMotion();
-    setBusy(true);
-    nav.focus({ preventScroll: true });
-    const swap = () => {
-      if (ticket !== generation.current) return;
-      plan.current = { width, reverse: next === "home", animate, ticket };
-      current.current = next;
-      nav.style.width = `${width}px`;
-      setView(next);
-    };
-    if (!animate) {
-      swap();
-      return;
-    }
-    const exit = panel.animate(
-      [
-        { opacity: 1, transform: "translateX(0)" },
-        { opacity: 0, transform: `translateX(${next === "home" ? 10 : -10}px)` },
-      ],
-      { duration: 160, easing: "cubic-bezier(.55, 0, 1, .45)", fill: "forwards" },
-    );
-    animations.current = [exit];
-    void exit.finished.then(swap).catch(() => {});
-  }, []);
+  const changeView = useCallback(
+    (next: View) => {
+      if (running.current) {
+        queued.current = next;
+        return;
+      }
+      if (next === current.current) return;
+      const nav = navRef.current,
+        panel = panelRef.current;
+      if (!nav || !panel) return;
+      if (next !== "home") opener.current = next;
+      running.current = true;
+      const ticket = ++generation.current;
+      const bounds = nav.getBoundingClientRect();
+      const animate = !reducedMotion();
+      setBusy(true);
+      nav.focus({ preventScroll: true });
+      const swap = () => {
+        if (ticket !== generation.current) return;
+        plan.current = { bounds, reverse: next === "home", animate, ticket };
+        current.current = next;
+        nav.style[axis.size] = `${bounds[axis.size]}px`;
+        setView(next);
+      };
+      if (!animate) {
+        swap();
+        return;
+      }
+      const exit = panel.animate(
+        [
+          { opacity: 1, transform: `${axis.translate}(0)` },
+          { opacity: 0, transform: `${axis.translate}(${next === "home" ? 10 : -10}px)` },
+        ],
+        { duration: 160, easing: "cubic-bezier(.55, 0, 1, .45)", fill: "forwards" },
+      );
+      animations.current = [exit];
+      void exit.finished.then(swap).catch(() => {});
+    },
+    [axis],
+  );
 
   useLayoutEffect(() => {
     const next = plan.current,
@@ -65,13 +74,14 @@ export function useDockView() {
     if (!next || !nav || !panel || current.current !== view) return;
     plan.current = null;
     nav.dataset.measuring = "true";
-    nav.style.width = "max-content";
-    const width = nav.getBoundingClientRect().width;
+    nav.style[axis.size] = "max-content";
+    const size = nav.getBoundingClientRect()[axis.size];
     delete nav.dataset.measuring;
-    nav.style.width = `${width}px`;
+    nav.style[axis.size] = `${size}px`;
     const finish = () => {
       if (generation.current !== next.ticket) return;
       nav.style.width = "";
+      nav.style.height = "";
       animations.current = [];
       running.current = false;
       focusPending.current = true;
@@ -81,14 +91,17 @@ export function useDockView() {
       finish();
       return;
     }
-    const resize = nav.animate([{ width: `${next.width}px` }, { width: `${width}px` }], {
-      duration: 560,
-      easing: "cubic-bezier(.66, 0, .32, 1)",
-    });
+    const resize = nav.animate(
+      [{ [axis.size]: `${next.bounds[axis.size]}px` }, { [axis.size]: `${size}px` }],
+      {
+        duration: 560,
+        easing: "cubic-bezier(.66, 0, .32, 1)",
+      },
+    );
     const enter = panel.animate(
       [
-        { opacity: 0, transform: `translateX(${next.reverse ? -12 : 12}px)` },
-        { opacity: 1, transform: "translateX(0)" },
+        { opacity: 0, transform: `${axis.translate}(${next.reverse ? -12 : 12}px)` },
+        { opacity: 1, transform: `${axis.translate}(0)` },
       ],
       { duration: 360, delay: 180, easing: "cubic-bezier(.5, 0, .2, 1)", fill: "backwards" },
     );
@@ -96,7 +109,17 @@ export function useDockView() {
     void Promise.all([resize.finished, enter.finished])
       .then(finish)
       .catch(() => {});
-  }, [view]);
+  }, [view, axis]);
+
+  useLayoutEffect(() => {
+    if (previousAxis.current === axis) return;
+    previousAxis.current = axis;
+    for (const animation of animations.current) animation.finish();
+    if (navRef.current) {
+      navRef.current.style.width = "";
+      navRef.current.style.height = "";
+    }
+  }, [axis]);
 
   useLayoutEffect(() => {
     if (busy || !focusPending.current) return;

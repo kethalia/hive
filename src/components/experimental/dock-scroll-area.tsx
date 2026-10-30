@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
+import { useDockAxis } from "./dock-axis";
 
 export function DockScrollArea({
   children,
@@ -21,6 +22,9 @@ export function DockScrollArea({
   activeItem?: string;
   suspendLayout?: boolean;
 }) {
+  const axis = useDockAxis();
+  const Previous = axis.vertical ? ChevronUp : ChevronLeft;
+  const Next = axis.vertical ? ChevronDown : ChevronRight;
   const id = useId();
   const frame = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -33,9 +37,9 @@ export function DockScrollArea({
       shell = frame.current;
     if (!node || !shell) return;
     const next = {
-      overflow: node.scrollWidth > shell.clientWidth + 1,
-      left: node.scrollLeft > 1,
-      right: node.scrollLeft + node.clientWidth < node.scrollWidth - 1,
+      overflow: node[axis.total] > shell[axis.client] + 1,
+      left: node[axis.scroll] > 1,
+      right: node[axis.scroll] + node[axis.client] < node[axis.total] - 1,
     };
     setEdges((current) =>
       current.overflow === next.overflow &&
@@ -44,7 +48,7 @@ export function DockScrollArea({
         ? current
         : next,
     );
-  }, [suspendLayout]);
+  }, [suspendLayout, axis]);
   const reveal = useCallback(() => {
     const node = viewport.current;
     if (!node || suspendLayout) return;
@@ -54,12 +58,13 @@ export function DockScrollArea({
     if (selected) {
       const item = selected.getBoundingClientRect(),
         bounds = node.getBoundingClientRect();
-      const padding = Math.max(0, Math.min(10, (bounds.width - item.width) / 2));
-      if (item.left < bounds.left + padding) node.scrollLeft -= bounds.left + padding - item.left;
-      else if (item.right > bounds.right - padding)
-        node.scrollLeft += item.right - bounds.right + padding;
+      const padding = Math.max(0, Math.min(10, (bounds[axis.size] - item[axis.size]) / 2));
+      if (item[axis.start] < bounds[axis.start] + padding)
+        node[axis.scroll] -= bounds[axis.start] + padding - item[axis.start];
+      else if (item[axis.end] > bounds[axis.end] - padding)
+        node[axis.scroll] += item[axis.end] - bounds[axis.end] + padding;
     }
-  }, [activeItem, suspendLayout]);
+  }, [activeItem, suspendLayout, axis]);
   useLayoutEffect(() => {
     const update = () => {
       reveal();
@@ -75,6 +80,7 @@ export function DockScrollArea({
     measure();
   });
   useEffect(() => {
+    if (axis.vertical) return;
     const node = viewport.current;
     if (!node) return;
     const wheel = (event: WheelEvent) => {
@@ -91,12 +97,12 @@ export function DockScrollArea({
     };
     node.addEventListener("wheel", wheel, { passive: false });
     return () => node.removeEventListener("wheel", wheel);
-  }, []);
+  }, [axis]);
   function scroll(direction: number) {
     const node = viewport.current;
     if (!node) return;
     node.scrollBy({
-      left: direction * Math.max(56, node.clientWidth - 60),
+      [axis.scrollTo]: direction * Math.max(56, node[axis.client] - 60),
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
     });
   }
@@ -114,12 +120,12 @@ export function DockScrollArea({
           variant="ghost"
           className="hive-dock-scroll-control"
           data-dock-scroll-control
-          aria-label={`Scroll ${label} left`}
+          aria-label={`Scroll ${label} ${axis.vertical ? "up" : "left"}`}
           aria-controls={id}
           disabled={!edges.left}
           onClick={() => scroll(-1)}
         >
-          <ChevronLeft aria-hidden="true" />
+          <Previous aria-hidden="true" />
         </Button>
       ) : null}
       <div ref={viewport} id={id} className="hive-dock-options" onScroll={measure}>
@@ -131,12 +137,12 @@ export function DockScrollArea({
           variant="ghost"
           className="hive-dock-scroll-control"
           data-dock-scroll-control
-          aria-label={`Scroll ${label} right`}
+          aria-label={`Scroll ${label} ${axis.vertical ? "down" : "right"}`}
           aria-controls={id}
           disabled={!edges.right}
           onClick={() => scroll(1)}
         >
-          <ChevronRight aria-hidden="true" />
+          <Next aria-hidden="true" />
         </Button>
       ) : null}
     </div>

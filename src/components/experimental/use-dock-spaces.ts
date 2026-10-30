@@ -1,7 +1,10 @@
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useDockAxis } from "./dock-axis";
 
 interface Snapshot {
   width: number;
+  height: number;
+  vertical: boolean;
   positions: Map<string, number>;
 }
 
@@ -23,6 +26,8 @@ export function useDockSpaces({
   onCreate: () => void;
   onRemove?: (id: string) => void;
 }) {
+  const axis = useDockAxis();
+  const previousAxis = useRef(axis);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const alive = useRef(true);
@@ -40,10 +45,12 @@ export function useDockSpaces({
     const bounds = nav.getBoundingClientRect();
     return {
       width: bounds.width,
+      height: bounds.height,
+      vertical: axis.vertical,
       positions: new Map(
         Array.from(nav.querySelectorAll<HTMLElement>("[data-dock-space]")).map((node) => [
           node.dataset.dockSpace ?? "",
-          node.getBoundingClientRect().left - bounds.left,
+          node.getBoundingClientRect()[axis.start] - bounds[axis.start],
         ]),
       ),
     };
@@ -54,6 +61,7 @@ export function useDockSpaces({
     for (const animation of animations.current) animation.cancel();
     animations.current = [];
     if (navRef.current) navRef.current.style.width = "";
+    if (navRef.current) navRef.current.style.height = "";
     running.current = false;
     setBusy(false);
   }
@@ -114,21 +122,21 @@ export function useDockSpaces({
     const before = snapshot.current,
       nav = navRef.current;
     snapshot.current = null;
-    if (!before || !nav || !visible || viewBusy || reduced()) {
+    if (!before || !nav || !visible || viewBusy || before.vertical !== axis.vertical || reduced()) {
       release();
       return;
     }
     running.current = true;
     setBusy(true);
     nav.dataset.measuring = "true";
-    nav.style.width = "max-content";
+    nav.style[axis.size] = "max-content";
     const bounds = nav.getBoundingClientRect();
-    nav.style.width = `${bounds.width}px`;
+    nav.style[axis.size] = `${bounds[axis.size]}px`;
     const options = nav.querySelector<HTMLElement>(".hive-dock-options");
     const frame = nav.querySelector<HTMLElement>(".hive-dock-scroll-frame");
     // If the final row fits, keep its old arrows hidden throughout playback.
     // Removing them only after playback would shift every cap by an arrow's width.
-    if (!options || !frame || options.scrollWidth > frame.clientWidth + 1)
+    if (!options || !frame || options[axis.total] > frame[axis.client] + 1)
       delete nav.dataset.measuring;
     const selected = Array.from(nav.querySelectorAll<HTMLElement>("[data-dock-space]")).find(
       (node) => node.dataset.dockSpace === activeId,
@@ -136,14 +144,15 @@ export function useDockSpaces({
     if (options && selected) {
       const item = selected.getBoundingClientRect(),
         area = options.getBoundingClientRect();
-      const padding = Math.max(0, Math.min(10, (area.width - item.width) / 2));
-      if (item.left < area.left + padding) options.scrollLeft -= area.left + padding - item.left;
-      else if (item.right > area.right - padding)
-        options.scrollLeft += item.right - area.right + padding;
+      const padding = Math.max(0, Math.min(10, (area[axis.size] - item[axis.size]) / 2));
+      if (item[axis.start] < area[axis.start] + padding)
+        options[axis.scroll] -= area[axis.start] + padding - item[axis.start];
+      else if (item[axis.end] > area[axis.end] - padding)
+        options[axis.scroll] += item[axis.end] - area[axis.end] + padding;
     }
     const adding = ids.some((id) => !before.positions.has(id));
     const resizeDuration = adding ? 280 : 440;
-    const entryDelay = Math.abs(bounds.width - before.width) > 0.5 ? resizeDuration : 0;
+    const entryDelay = Math.abs(bounds[axis.size] - before[axis.size]) > 0.5 ? resizeDuration : 0;
     // Read every destination before animating width: a centered tray moves as it
     // resizes, so measuring against the final bounds after playback starts adds
     // half the width change to each cap's movement.
@@ -152,14 +161,19 @@ export function useDockSpaces({
       return {
         node,
         delta:
-          old === undefined ? undefined : old - (node.getBoundingClientRect().left - bounds.left),
+          old === undefined
+            ? undefined
+            : old - (node.getBoundingClientRect()[axis.start] - bounds[axis.start]),
       };
     });
     const next: Animation[] = [
-      nav.animate([{ width: `${before.width}px` }, { width: `${bounds.width}px` }], {
-        duration: resizeDuration,
-        easing: "cubic-bezier(.25, .8, .25, 1)",
-      }),
+      nav.animate(
+        [{ [axis.size]: `${before[axis.size]}px` }, { [axis.size]: `${bounds[axis.size]}px` }],
+        {
+          duration: resizeDuration,
+          easing: "cubic-bezier(.25, .8, .25, 1)",
+        },
+      ),
     ];
     for (const { node, delta } of caps) {
       if (delta === undefined)
@@ -181,7 +195,10 @@ export function useDockSpaces({
         if (Math.abs(delta) > 0.5)
           next.push(
             node.animate(
-              [{ transform: `translateX(${delta}px)` }, { transform: "translateX(0)" }],
+              [
+                { transform: `${axis.translate}(${delta}px)` },
+                { transform: `${axis.translate}(0)` },
+              ],
               { duration: resizeDuration, easing: "cubic-bezier(.25, .8, .25, 1)" },
             ),
           );
@@ -212,6 +229,12 @@ export function useDockSpaces({
       media.removeEventListener("change", finish);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (previousAxis.current === axis) return;
+    previousAxis.current = axis;
+    for (const animation of animations.current) animation.finish();
+  }, [axis]);
 
   return { busy, create, remove };
 }

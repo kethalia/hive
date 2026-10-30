@@ -2,6 +2,7 @@
 import { Grid2X2, GripHorizontal, Minus } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DockVerticalContext } from "./dock-axis";
 import { useDockMorph } from "./use-dock-morph";
 import { useDockPlacement } from "./use-dock-placement";
 import "./workspace-dock-overlay.css";
@@ -22,6 +23,7 @@ export function WorkspaceDockOverlay({
     [focused, setFocused] = useState(false);
   const morph = useDockMorph({ surface, layout, content, expand, minimise, blocked });
   const placement = useDockPlacement(surface, blocked || morph.busy);
+  const vertical = placement.edge === "left" || placement.edge === "right";
   const id = useId();
   useEffect(() => {
     if (morph.phase === "collapsed") {
@@ -30,12 +32,12 @@ export function WorkspaceDockOverlay({
     }
   }, [morph.phase]);
   useEffect(() => {
-    if (morph.phase !== "expanded" || hovered || focused || blocked || placement.dragging) return;
+    if (morph.phase !== "expanded" || hovered || focused || blocked || placement.moving) return;
     const timer = window.setTimeout(() => {
       if (!content.current?.contains(document.activeElement)) morph.change(false);
     }, 2500);
     return () => window.clearTimeout(timer);
-  }, [morph.phase, hovered, focused, blocked, placement.dragging, morph.change]);
+  }, [morph.phase, hovered, focused, blocked, placement.moving, morph.change]);
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if (
@@ -52,6 +54,7 @@ export function WorkspaceDockOverlay({
         return;
       event.preventDefault();
       event.stopPropagation();
+      placement.finishMovement();
       morph.change(!morph.expanded, true);
     };
     window.addEventListener("keydown", shortcut, true);
@@ -64,7 +67,9 @@ export function WorkspaceDockOverlay({
       data-dock-visible={morph.expanded}
       data-phase={morph.phase}
       data-edge={placement.edge}
+      data-orientation={vertical ? "vertical" : "horizontal"}
       data-dragging={placement.dragging}
+      data-settling={placement.settling}
       {...placement.handlers}
     >
       <div ref={surface} className="hive-dock-surface" aria-busy={morph.busy}>
@@ -99,7 +104,10 @@ export function WorkspaceDockOverlay({
               aria-controls={id}
               aria-keyshortcuts="Alt+Shift+D"
               title="Minimise dock (Alt+Shift+D)"
-              onClick={() => morph.change(false)}
+              onClick={() => {
+                placement.finishMovement();
+                morph.change(false);
+              }}
             >
               <Minus aria-hidden="true" />
             </Button>
@@ -116,8 +124,13 @@ export function WorkspaceDockOverlay({
               <GripHorizontal aria-hidden="true" />
             </Button>
           </div>
-          <div ref={content} id={id} className="hive-dock-overlay-content">
-            {children}
+          <div
+            ref={content}
+            id={id}
+            className="hive-dock-overlay-content"
+            inert={placement.settling}
+          >
+            <DockVerticalContext value={vertical}>{children}</DockVerticalContext>
           </div>
         </div>
         <Button
@@ -137,16 +150,18 @@ export function WorkspaceDockOverlay({
           tabIndex={morph.phase === "expanded" ? -1 : 0}
           title="Expand dock. Drag to move (Alt+Shift+D)"
           onKeyDown={placement.key}
-          onClick={() => morph.change(true)}
+          onClick={() => {
+            placement.finishMovement();
+            morph.change(true);
+          }}
         >
           <Grid2X2 aria-hidden="true" />
         </Button>
       </div>
       <span id={`${id}-help`} className="sr-only">
-        Drag the top-right move button or expand button; release to attach to the nearest screen
-        edge. Arrow keys move along an edge; Shift+Arrow chooses an edge. Home/End move to corners.
-        Escape cancels a drag. Alt+Shift+D expands or minimises. The dock minimises after 2.5
-        seconds away.
+        Drag the Move button or expand button; release to attach to the nearest screen edge. Arrow
+        keys move along an edge; Shift+Arrow chooses an edge. Home/End move to corners. Escape
+        cancels a drag. Alt+Shift+D expands or minimises. The dock minimises after 2.5 seconds away.
       </span>
       <span className="sr-only" role="status">
         Dock attached to the {placement.edge} edge.

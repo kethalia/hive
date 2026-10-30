@@ -515,8 +515,9 @@ function Playground() {
                 Tab / Shift+Tab move through controls. Arrow keys, Home, and End navigate the dock.
                 Enter/Space activate. Escape returns from an expanded dock. Ctrl/Cmd+K opens Search
                 Hive. Ctrl/Cmd+/ opens this help. Alt+Shift+D expands/minimises the dock. Use the
-                left corner badge to minimise, or Enter/Space on the single button to expand. Drag
-                the right corner badge or collapsed button to a screen edge. On either drag control,
+                Minimise badge, or Enter/Space on the single button to expand. Drag the Move badge
+                or collapsed button to an edge; gentle releases return locally, while strong flicks
+                carry farther. Left/right edges stack controls vertically. On either drag control,
                 arrows move along the edge, Shift+Arrow chooses an edge, and Home/End move to
                 corners. Escape cancels dragging. Auto-minimise resumes after 2.5 seconds away.
               </p>

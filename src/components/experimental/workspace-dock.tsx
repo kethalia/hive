@@ -23,6 +23,7 @@ import { MOBILE_SMART_KEYS } from "@/lib/terminal/mobile-smart-keys";
 import { encodeTerminalShortcut, type TerminalKeyModifiers } from "@/lib/terminal/shortcut-keys";
 import { cn } from "@/lib/utils";
 import "./workspace-dock.css";
+import { useDockAxis } from "./dock-axis";
 import { DockScrollArea } from "./dock-scroll-area";
 import { useDockSpaces } from "./use-dock-spaces";
 import { useDockView } from "./use-dock-view";
@@ -152,6 +153,7 @@ export function WorkspaceDock({
   density = "comfortable",
   className,
 }: WorkspaceDockProps) {
+  const axis = useDockAxis();
   const { view, busy: viewBusy, navRef, panelRef, changeView } = useDockView();
   const spaces = useDockSpaces({
     ids: workspaces.map((workspace) => workspace.id),
@@ -206,7 +208,9 @@ export function WorkspaceDock({
       return;
     }
     if (busy) return;
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    const previousKey = axis.vertical ? "ArrowUp" : "ArrowLeft";
+    const nextKey = axis.vertical ? "ArrowDown" : "ArrowRight";
+    if (![previousKey, nextKey, "Home", "End"].includes(event.key)) return;
     const buttons = Array.from(
       event.currentTarget.querySelectorAll<HTMLButtonElement>(
         "button:not(:disabled):not([data-dock-scroll-control])",
@@ -220,15 +224,17 @@ export function WorkspaceDock({
         ? 0
         : event.key === "End"
           ? buttons.length - 1
-          : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+          : (index + (event.key === nextKey ? 1 : -1) + buttons.length) % buttons.length;
     buttons[next]?.focus({ preventScroll: true });
     const button = buttons[next];
     const options = navRef.current?.querySelector<HTMLElement>(".hive-dock-options");
     if (button && options?.contains(button)) {
       const item = button.getBoundingClientRect();
       const viewport = options.getBoundingClientRect();
-      if (item.left < viewport.left) options.scrollLeft -= viewport.left - item.left + 3;
-      else if (item.right > viewport.right) options.scrollLeft += item.right - viewport.right + 3;
+      if (item[axis.start] < viewport[axis.start])
+        options[axis.scroll] -= viewport[axis.start] - item[axis.start] + 3;
+      else if (item[axis.end] > viewport[axis.end])
+        options[axis.scroll] += item[axis.end] - viewport[axis.end] + 3;
     }
   }
 
@@ -241,6 +247,7 @@ export function WorkspaceDock({
         aria-label="Workspace dock"
         className={cn("hive-dock", className)}
         data-view={view}
+        data-orientation={axis.vertical ? "vertical" : "horizontal"}
         data-density={density}
         data-transitioning={viewBusy}
         data-spaces-changing={spaces.busy}
