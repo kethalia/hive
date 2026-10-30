@@ -35,5 +35,10 @@ def fixture_stat(path, *args, **kwargs):
 spec = importlib.util.spec_from_file_location("read_installer_under_test", "/opt/hive-read-installer.py")
 installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
+# Explicit fixture-only identity, independently covered by SDK/live proofs.
+# Functions must retain their imports in one shared execution namespace.
+import runpy
+fixture = runpy.run_path("/opt/hive-identity-fixture.py", run_name="fixture_identity")
+installer.normalize_agent_config = fixture["fixture_normalize"]
 Path.stat = fixture_stat
 installer.main()

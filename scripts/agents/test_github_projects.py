@@ -53,6 +53,26 @@ class ProjectsTests(unittest.TestCase):
         self.assertEqual([call.args[0].full_url for call in opener.open.call_args_list],["https://api.github.com/user","https://api.github.com/repositories/42","https://api.github.com/repos/kethalia/hive/commits/main"])
         self.assertNotIn("private-test-token",json.dumps(result))
 
+    def test_exact_branch_ref_uses_heads_and_rejects_matching_refs_tags_and_expressions(self):
+        request = {"schemaVersion": 1, "operation": "resolve_ref", "repositoryId": "42", "expectedAccountId": "123", "branch": "codex/epic"}
+        good = {"ref": "refs/heads/codex/epic", "object": {"type": "commit", "sha": "b" * 40}}
+        for record in [good, [good], {**good, "ref": "refs/tags/codex/epic"}, {**good, "ref": "refs/heads/codex/epic-other"}, {**good, "object": {"type": "tag", "sha": "b" * 40}}]:
+            opener = unittest.mock.Mock()
+            opener.open.side_effect = [Response({"id": 123}), Response(repo(clone_url="https://github.com/kethalia/hive.git")), Response(record)]
+            with patch.object(discovery, "external_token", return_value="private-test-token"), patch.object(discovery.urllib.request, "build_opener", return_value=opener):
+                if record == good:
+                    result = discovery.resolve_repository(request)
+                    self.assertEqual(result["revision"], "b" * 40)
+                    self.assertEqual(result["branch"], "codex/epic")
+                    self.assertNotIn("defaultRevision", result)
+                else:
+                    with self.assertRaises(discovery.DiscoveryError): discovery.resolve_repository(request)
+            self.assertEqual(opener.open.call_args_list[-1].args[0].full_url, "https://api.github.com/repos/kethalia/hive/git/ref/heads/codex/epic")
+        for branch in ["../main", "main^", "main~1", "main?x=1", "main%2Fbad", "a/.hidden", "a.lock/b", "a//b", "a/", "a."]:
+            with patch.object(discovery, "external_token") as token:
+                with self.assertRaises(discovery.DiscoveryError): discovery.resolve_repository({**request, "branch": branch})
+                token.assert_not_called()
+
     def test_resolve_rejects_account_switch_stable_id_change_and_clone_url_substitution(self):
         request={"schemaVersion":1,"operation":"resolve","repositoryId":"42","expectedAccountId":"123"}
         for identity, record in [({"id":999},repo()),({"id":123},repo(identifier=43)),({"id":123},repo(clone_url="https://attacker.invalid/repo.git"))]:

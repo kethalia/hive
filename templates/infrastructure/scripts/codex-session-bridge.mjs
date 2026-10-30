@@ -475,9 +475,11 @@ export async function startBridge(rawConfig, registeredHost) {
       [
         "/projects/discover",
         "/projects/resolve",
+        "/projects/resolve-ref",
         "/projects/open",
         "/projects/tasks/start",
         "/projects/tasks/status",
+        "/projects/tasks/retry",
       ].includes(request.url) &&
       registeredHost?.handleProjects
     ) {

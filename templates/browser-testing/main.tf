@@ -79,6 +79,7 @@ resource "coder_agent" "main" {
     GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL         = data.coder_workspace_owner.me.email
     EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+    HIVE_RUNTIME_BUILD_ID       = local.hive_host_enabled ? data.external.hive_build_identity[0].result.build_id : (local.hive_read_enabled ? data.external.hive_read_build_identity[0].result.build_id : "")
     HIVE_PROJECTS_ROOT          = "/home/coder"
     HIVE_WORKSPACE_PROFILE      = local.profile.id
     HIVE_MANAGED_PROJECTS       = tostring(local.hive_host_enabled)

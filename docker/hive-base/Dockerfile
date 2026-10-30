@@ -1,4 +1,23 @@
+# syntax=docker/dockerfile:1
+# Official SDK/toolchain build lives outside all five runtime image variants.
+# The named source context is explicit in build-base-image.yml.
+FROM debian:trixie AS workspace-identity-build
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates curl python3 \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+        https://go.dev/dl/go1.26.10.linux-amd64.tar.gz -o /tmp/go.tar.gz \
+    && echo 'ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5  /tmp/go.tar.gz' | sha256sum --check --status \
+    && mkdir /opt/go \
+    && tar -xzf /tmp/go.tar.gz --strip-components=1 -C /opt/go \
+    && rm /tmp/go.tar.gz
+WORKDIR /src
+COPY --from=workspace-identity . /src/
+RUN python3 /src/build-image.py
+
 FROM debian:trixie
+COPY --from=workspace-identity-build --chmod=0755 /out/hive-workspace-identity /usr/local/libexec/hive-workspace-identity
+COPY --from=workspace-identity-build --chmod=0644 /out/hive-workspace-identity.json /usr/local/libexec/hive-workspace-identity.json
 
 ARG WORKSPACE_VARIANT=cli
 

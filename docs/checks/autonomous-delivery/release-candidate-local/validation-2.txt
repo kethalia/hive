@@ -1,0 +1,16 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/release-candidate.integration.test.ts (7 tests) 6119ms
+   ✓ read-only release candidate assembled persistence > reuses real policy/source/GitHub provenance but never promotes pending semantic acceptance  534ms
+   ✓ read-only release candidate assembled persistence > missing independent review and absent provider factory remain explicit blockers  369ms
+   ✓ read-only release candidate assembled persistence > rejects wrong head/base/rules/tested-run evidence without changing the source  672ms
+   ✓ read-only release candidate assembled persistence > foreign owners, stale caller source, disabled and revoked policies cannot become candidates  415ms
+   ✓ read-only release candidate assembled persistence > revalidates concurrent revocation after the remote read rather than using the initial policy  451ms
+   ✓ read-only release candidate assembled persistence > bounds a stalled remote read, aborts its signal and returns no raw failure data  3309ms
+   ✓ read-only release candidate assembled persistence > incomplete effective rules are unknown rather than inferred from passing checks  367ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  05:20:22
+   Duration  6.70s (transform 330ms, setup 0ms, collect 436ms, tests 6.12s, environment 0ms, prepare 40ms)

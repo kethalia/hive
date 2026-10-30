@@ -1,0 +1,11 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/projects/open.test.ts (10 tests) 9ms
+ ✓ src/__tests__/lib/projects/source-base.test.ts (11 tests) 29ms
+
+ Test Files  2 passed (2)
+      Tests  21 passed (21)
+   Start at  05:18:33
+   Duration  346ms (transform 120ms, setup 0ms, collect 228ms, tests 39ms, environment 0ms, prepare 104ms)
+

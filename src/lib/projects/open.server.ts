@@ -1,5 +1,6 @@
 import { getDb } from "@hive/db";
 import { DeliveryRepository } from "@/lib/delivery/repository";
+import { DeliveryConflict } from "@/lib/delivery/state";
 import { ProjectDiscoveryError } from "./errors";
 import { type ProjectPrincipal, signedHostProjectRequest } from "./host.server";
 import {
@@ -7,6 +8,7 @@ import {
   projectOpenRequestSchema,
   resolvedRepositorySchema,
 } from "./session-contracts";
+import { resolveProjectSourceBase } from "./source-base.server";
 
 /** Repository identity and authorization come from the fixed authenticated helper,
  * never a browser-supplied name, clone URL, local path or cached discovery page. */
@@ -59,5 +61,14 @@ export async function openProject(user: ProjectPrincipal, value: unknown) {
       providerAccountId: input.providerAccountId,
       fullName: opened.data.repository.fullName,
     });
-  return { ...opened.data, workspaceId: input.workspaceId };
+  // Existing conversations remain readable while delivery policy/ref resolution
+  // needs attention. A new task still reauthorizes its source independently.
+  try {
+    const sourceBase = await resolveProjectSourceBase(user, input.workspaceId, opened.data);
+    return { ...opened.data, workspaceId: input.workspaceId, sourceBase };
+  } catch (error) {
+    if (!(error instanceof DeliveryConflict) && !(error instanceof ProjectDiscoveryError))
+      throw error;
+    return { ...opened.data, workspaceId: input.workspaceId, sourceBaseUnavailable: true };
+  }
 }

@@ -1,0 +1,13 @@
+✔ workspace read Python boundary: test_workspace_read.py (2511.209791ms)
+✔ workspace read Python boundary: test_workspace_read_install.py (113.58819ms)
+✔ workspace read Python boundary: test_workspace_read_bootstrap.py (34.566913ms)
+✔ workspace read Python boundary: test_workspace_identity_install.py (85.228494ms)
+✔ workspace read Python boundary: test_workspace_image_preview.py (74.644096ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2881.49109

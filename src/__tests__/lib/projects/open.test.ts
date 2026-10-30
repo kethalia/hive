@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mock = vi.hoisted(() => ({ host: vi.fn(), bind: vi.fn(), db: vi.fn() }));
 vi.mock("@hive/db", () => ({ getDb: mock.db }));
@@ -53,7 +53,20 @@ beforeEach(() => {
         },
   );
 });
+afterEach(() => vi.unstubAllEnvs());
 describe("verified project enrollment", () => {
+  it.each([
+    "[]",
+    "{",
+    '[{"unexpected":true}]',
+  ])("retains access to the project while delivery enrollment is unavailable: %s", async (catalog) => {
+    vi.stubEnv("HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED", "true");
+    vi.stubEnv("HIVE_DELIVERY_REPOSITORY_POLICIES_JSON", catalog);
+    await expect(openProject(user, input)).resolves.toMatchObject({
+      projectId,
+      sourceBaseUnavailable: true,
+    });
+  });
   it("resolves current access before binding the canonical project and enrolling without task execution", async () => {
     const result = await openProject(user, input);
     expect(result).toMatchObject({

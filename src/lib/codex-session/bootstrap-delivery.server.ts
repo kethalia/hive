@@ -66,6 +66,7 @@ export type HostProjectPath =
   | "/guardian/bootstrap"
   | "/projects/discover"
   | "/projects/resolve"
+  | "/projects/resolve-ref"
   | "/projects/open"
   | "/projects/tasks/start"
   | "/projects/tasks/status"
@@ -187,6 +188,7 @@ export async function postToVerifiedWorkspaceApp(
       "/guardian/bootstrap",
       "/projects/discover",
       "/projects/resolve",
+      "/projects/resolve-ref",
       "/projects/open",
       "/projects/tasks/start",
       "/projects/tasks/status",

@@ -32,14 +32,14 @@ signal.signal(signal.SIGCHLD,signal.SIG_DFL)
 home=Path('/home/coder'); root=Path('/fixture')
 assert os.getuid()==0 and pwd.getpwuid(os.getuid()).pw_dir==str(home)
 spec=importlib.util.spec_from_file_location('installed',root/'install-codex-host.py'); installed=importlib.util.module_from_spec(spec);spec.loader.exec_module(installed)
-result={'schemaVersion':1,'namespaceUid':os.getuid(),'networkNamespaceIsolated':True,'accountInference':False,'cleanupAuthorized':False}
+result={'manifestIdentitySynthetic':True,'schemaVersion':1,'namespaceUid':os.getuid(),'networkNamespaceIsolated':True,'accountInference':False,'cleanupAuthorized':False}
 env={'PATH':'/usr/bin:/bin','HOME':str(home),'USER':'coder','LANG':'C.UTF-8','HIVE_WORKSPACE_PROFILE':'software'}
 receipt_path=home/'.local/state/hive/codex-host-install/process.json'
 receipt=None; stage='start'; failed=False
 operation_deadline=time.monotonic()+30
 def invoke(value):
  remaining=operation_deadline-time.monotonic();assert remaining>0
- p=subprocess.run(['/usr/bin/python3','-B','-I',str(root/'install-codex-host.py')],input=json.dumps(value).encode(),env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=min(8,remaining))
+ p=subprocess.run(['/usr/bin/python3','-B','-I',str(root/'identity-fixture.py'),str(root/'install-codex-host.py')],input=json.dumps(value).encode(),env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=min(8,remaining))
  if p.returncode!=0: raise RuntimeError('installer_rejected')
  return json.loads(p.stdout)
 def rejected(call):
@@ -151,6 +151,7 @@ test("fixed Python installer and guarded outer attest exact worker readiness and
   const artifact = validateGuardianArtifact(root, artifactDirectory);
   const sourcePaths = [
     "scripts/verify-codex-guarded-install.test.mjs",
+    "scripts/fixtures/workspace-identity-install.py",
     "scripts/build-codex-host-bundle.mjs",
     "scripts/build-native-guardian.mjs",
     ...[
@@ -218,6 +219,10 @@ test("fixed Python installer and guarded outer attest exact worker readiness and
       constants.COPYFILE_FICLONE,
     );
     chmodSync(join(directory, "node"), 0o500);
+    copyFileSync(
+      "scripts/fixtures/workspace-identity-install.py",
+      join(directory, "identity-fixture.py"),
+    );
     copyFileSync(
       "templates/ai-dev-k8s/scripts/install-codex-host.py",
       join(directory, "install-codex-host.py"),

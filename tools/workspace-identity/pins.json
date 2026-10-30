@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "go": {
+    "version": "1.26.10",
+    "url": "https://go.dev/dl/go1.26.10.linux-amd64.tar.gz",
+    "sha256": "ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5",
+    "bytes": 66936659
+  },
+  "sdk": {
+    "module": "github.com/coder/coder/v2",
+    "version": "v2.38.4",
+    "sum": "h1:PQe6D5raQ2OofvKF3vnbhRu8aEXGz85zUwm5z3u9Fbw=",
+    "goModSum": "h1:tZjPPuDO0k49evt9UCf0RlJLiIyuyM78Lp3Y+5WORK8=",
+    "replacements": "exact upstream go.mod replace directives"
+  },
+  "target": {
+    "GOOS": "linux",
+    "GOARCH": "amd64",
+    "GOAMD64": "v1",
+    "CGO_ENABLED": "0"
+  },
+  "buildFlags": [
+    "-mod=readonly",
+    "-p=2",
+    "-trimpath",
+    "-buildvcs=false",
+    "-ldflags=-s -w -buildid="
+  ]
+}

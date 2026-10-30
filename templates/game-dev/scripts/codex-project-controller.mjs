@@ -35,11 +35,23 @@ const digest = (v) => createHash("sha256").update(JSON.stringify(v)).digest("hex
 export const projectScopes = Object.freeze({
   "/projects/discover": "projects:discover",
   "/projects/resolve": "projects:resolve",
+  "/projects/resolve-ref": "projects:resolve-ref",
   "/projects/open": "projects:open",
   "/projects/tasks/start": "projects:task:start",
   "/projects/tasks/status": "projects:task:read",
   "/projects/tasks/retry": "projects:task:retry",
 });
+export function validProjectBranch(v) {
+  return (
+    typeof v === "string" &&
+    /^[A-Za-z0-9][A-Za-z0-9._/-]{0,150}$/.test(v) &&
+    !v.includes("..") &&
+    !v.includes("//") &&
+    !v.endsWith("/") &&
+    !v.endsWith(".") &&
+    v.split("/").every((part) => !part.startsWith(".") && !part.endsWith(".lock"))
+  );
+}
 export function validateProjectOperation(path, r) {
   const common = ["schemaVersion"];
   if (path === "/projects/discover")
@@ -52,6 +64,14 @@ export function validateProjectOperation(path, r) {
         Number.isInteger(r.perPage) &&
         r.perPage >= 1 &&
         r.perPage <= 100,
+    );
+  else if (path === "/projects/resolve-ref")
+    check(
+      exact(r, [...common, "repositoryId", "expectedAccountId", "branch"]) &&
+        r.schemaVersion === 1 &&
+        number(r.repositoryId) &&
+        number(r.expectedAccountId) &&
+        validProjectBranch(r.branch),
     );
   else if (path === "/projects/resolve")
     check(
@@ -386,7 +406,8 @@ export function createProjectController(config, deps) {
     assertOpen();
     const result = await deps.resolveRepository({
       schemaVersion: 1,
-      operation: "resolve",
+      operation: r.branch === undefined ? "resolve" : "resolve_ref",
+      ...(r.branch === undefined ? {} : { branch: r.branch }),
       repositoryId: r.repositoryId,
       expectedAccountId: r.expectedAccountId,
     });
@@ -401,7 +422,9 @@ export function createProjectController(config, deps) {
       result?.schemaVersion === 1 &&
         result.providerAccountId === r.expectedAccountId &&
         result.repository?.providerRepositoryId === r.repositoryId &&
-        /^[a-f0-9]{40}$/.test(result.defaultRevision),
+        (r.branch === undefined
+          ? /^[a-f0-9]{40}$/.test(result.defaultRevision)
+          : result.branch === r.branch && /^[a-f0-9]{40}$/.test(result.revision)),
       "repository_identity_changed",
     );
     return result;
@@ -683,7 +706,7 @@ export function createProjectController(config, deps) {
     async handle(path, r) {
       assertOpen();
       validateProjectOperation(path, r);
-      if (path === "/projects/resolve") return resolve(r);
+      if (["/projects/resolve", "/projects/resolve-ref"].includes(path)) return resolve(r);
       if (path === "/projects/open") {
         const verified = await resolve(r);
         let p = state.projects[r.projectId];

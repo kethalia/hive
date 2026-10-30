@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T04:47:42.010723+00:00",
+  "baseRevisionAtEvidenceWrite": "9ea8aca80e408eb859dd8dc5c5f12f3913a14e5c",
+  "readOnlyDiagnostic": true,
+  "serviceSourceRevisionFromParentRecord": "9ea8aca80e408eb859dd8dc5c5f12f3913a14e5c",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "buildId": "52e45775-5965-447e-9313-3c937a9f89d8",
+  "templateVersionId": "5c1cf6a3-af5f-4099-a2e7-6d1318b7d5f6",
+  "checks": {
+    "signature": true,
+    "keyId": true,
+    "issuer": true,
+    "audience": true,
+    "profile": true,
+    "scope": true,
+    "timeValid": true,
+    "secondsSinceIssue": 0,
+    "bindingMismatches": ["agentId"],
+    "extraBindingKeys": ["hiveUserId"],
+    "installedAgentMatchesBootstrap": true,
+    "installedBuildMatchesBootstrap": true,
+    "shellAgentEnvPresent": false,
+    "shellAgentEnvMatchesAPI": false,
+    "shellAgentEnvMatchesInstalled": false,
+    "agentTokenWorkspaceStatus": 401,
+    "health": 200,
+    "freshLoopbackPost": 403
+  },
+  "coderVersion": "v2.38.4+d16b1ca",
+  "scope": {
+    "freshIndependentCoderBinding": true,
+    "freshNonceAndTicket": true,
+    "loopbackOnlyServiceRead": true,
+    "installedPackageChanged": false,
+    "credentialsOutput": false,
+    "hostValidationChanged": false
+  },
+  "diagnosticSourceSha256": "d328d0684d0e998afad7a175e46c455447861074c1f6d990913bdeb9e840a7e3",
+  "officialSource": "https://github.com/coder/coder/blob/v2.38.4/coderd/provisionerdserver/provisionerdserver.go#L2116",
+  "finding": "Terraform bootstrap agent UUID differs from current Coder runtime agent UUID; all other compared bindings and signature/time checks match."
+}

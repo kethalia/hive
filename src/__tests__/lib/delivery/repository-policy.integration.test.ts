@@ -227,6 +227,34 @@ async function fixture() {
 }
 
 describe.skipIf(!url)("immutable repository policy enrollment on local PostgreSQL", () => {
+  it("pins a verified nondefault policy branch and refuses a stale or wrong branch proof", async () => {
+    const f = await fixture();
+    f.policy.source.baseBranch = "codex/epic";
+    f.setObservation({
+      ...f.verified,
+      defaultRevision: "b".repeat(40),
+      resolvedBase: { branch: "codex/epic", revision: base },
+    });
+    const selected = await f.select();
+    const pinned = await f.intent(selected);
+    expect(pinned.repositoryPolicyVersionId).toBe(selected.versionId);
+    await expect(
+      f.intent({
+        ...selected,
+        verified: { ...selected.verified, resolvedBase: { branch: "main", revision: base } },
+      }),
+    ).rejects.toThrow("repository_policy_ref_resolution_pending");
+    await expect(
+      f.intent({
+        ...selected,
+        verified: {
+          ...selected.verified,
+          resolvedBase: { branch: "codex/epic", revision: "c".repeat(40) },
+        },
+      }),
+    ).rejects.toThrow("repository_policy_source_changed");
+  });
+
   it("pins verified stable identity before intent and atomically binds model task without task UUID policy maps", async () => {
     const f = await fixture(),
       task = await f.task(),

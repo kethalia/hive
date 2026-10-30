@@ -90,6 +90,10 @@ jobs:
         run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/repository-policy-contracts.test.ts src/__tests__/lib/delivery/repository-policy.integration.test.ts src/__tests__/lib/delivery/repository-policy-manager.integration.test.ts
         env:
           HIVE_REPOSITORY_POLICY_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_delivery_test
+      - name: Validate read-only release candidate observations
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/release-candidate.integration.test.ts
+        env:
+          HIVE_RELEASE_CANDIDATE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_delivery_test
       - name: Prepare isolated credential rotation database
         run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_rotation_test
       - name: Apply credential rotation schema
