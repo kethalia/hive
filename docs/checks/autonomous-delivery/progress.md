@@ -588,3 +588,12 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   cutover and cron activation remain gates. No cloud resource or credential was changed.
   Evidence: [rotation design](token-rotation-scheduling.md),
   [parent validation](token-rotation-local/parent-result.json).
+
+- Portable workspace actions: actual Cloudflare runtime checkpoint passed, moderate difficulty.
+  The committed9a0a556 full Next build runs against isolated Neon through the auth service
+  binding. The real reviewed action reaches argument validation; unknown action IDs, headerless
+  form posts and cross-origin submissions are rejected, and anonymous actions/discovery require
+  authentication. Auth, task ownership, transactions, logout and expiry checks also pass.
+  This run performs no Coder lifecycle mutation; account-backed lifecycle and browser acceptance
+  remain. CI, image builds and native guardian build all pass for pushed9807fbc.
+  Evidence: [workerd actions](cloudflare-auth-portable-actions.json).
