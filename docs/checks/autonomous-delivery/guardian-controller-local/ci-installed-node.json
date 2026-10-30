@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T01:20:39.683739+00:00",
+  "baseRevision": "d6f9e9f20fe1f32e44e4a0e2af9f0c69f8bac5f9",
+  "sourceDigests": {
+    "src/__tests__/lib/codex-session/guardian-installed.integration.test.ts": "2bbe8e719d840c4f19d3a158a0c1f4dd35b8c6c97c88b7e04da7aa7bee3fad44",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "731228834e262f4bfe930c3fa8a711d3b7ae2e2fc55d93f658b76dbff5648537",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "497dceb31328e2ca9ded537a91178308081051bedb0aae30eaff1a8f56d4e71e",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "26240d048b1faca6226519576f00dc8df5548467a455d885824408ed7b39546f",
+    "templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs": "bed0eca53e7ec9db442b22b147f9d757f89df738d5dc0cef25408f3bd30b7e78",
+    "templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs": "f5cc40737bd7497fc18f9001ab63117b2a8a5c5175ab7a84ee4b1948e31bba04",
+    "templates/ai-dev-k8s/scripts/codex-process-identity.mjs": "c93b5845f0d4b9eb0c98177ed0746f86a521332f0568403082d6aed5fd6da24c",
+    "src/lib/codex-session/guardian-service.server.ts": "fb64d877d8055f63a7e8ac251251a264878138193f90919e66bbb9b62c558f7d",
+    "src/lib/codex-session/guardian-store.server.ts": "ded348821f34819c688c729ce6020f46c4e626ef194df564dc7224f4ecdb0369",
+    "src/lib/codex-session/guardian-transport-contracts.ts": "c4712eb7c0256df1f75c420dfe2959acd5d0e5175feac23f6b794e3a25a21bf0"
+  },
+  "sourceStable": true,
+  "passed": true,
+  "originalFailure": {
+    "runId": 40983476540,
+    "jobId": 123828855563,
+    "commit": "a1b8b06",
+    "maskedPrimaryError": true,
+    "reported": "Fixture shutdown uncertain"
+  },
+  "ciLikeReproduction": {
+    "nodeVersion": "v22.23.4",
+    "archiveUrl": "https://nodejs.org/dist/v22.23.4/node-v22.23.4-linux-x64.tar.xz",
+    "archiveSha256": "1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce",
+    "nodeSha256": "94efd062ed066c1a0b332e18249859c905e920eeada5df55d24c99b919629a90",
+    "parentCacheMode": "775",
+    "unmaskedPreCopyError": "guardian_contract_rejected",
+    "pinRefusalObserved": true,
+    "originalAndCleanupErrorsBothVisible": true,
+    "failedScratchRetained": true,
+    "privateReadonlySameVersionCopyPassed": true
+  },
+  "localNode24Passed": true,
+  "limitations": [
+    "Original hosted cache UID/mode was not logged; the cache-like reproduction demonstrates the failing pin condition rather than asserting the exact original file mode.",
+    "CI rerun remains required; no production Node policy or executable pin was weakened."
+  ],
+  "cloudMutations": false,
+  "accountInference": false
+}
