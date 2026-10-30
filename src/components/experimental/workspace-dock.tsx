@@ -331,7 +331,7 @@ export function WorkspaceDock({
               <DockScrollArea
                 label={view === "workspaces" ? "spaces" : "keys"}
                 activeItem={view === "workspaces" ? activeWorkspaceId : undefined}
-                suspendReveal={spaces.busy}
+                suspendLayout={spaces.busy}
               >
                 {view === "workspaces" ? (
                   workspaces.map((workspace, index) => (

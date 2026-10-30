@@ -40,7 +40,10 @@ next row during that resize. The slow lead-in accelerates into the resize before
 are inert while moving, Escape can queue a return, and focus moves only after the animation ends.
 Reduced-motion view changes are immediate.
 
-Creating a space grows the tray while the new cap fades/scales into its slot. Removing a space
+Creating a space first expands the tray (280ms), then fades/scales the new cap into its allocated
+slot (260ms). Overflow controls retain their settled state until the layout finishes, avoiding
+temporary scroll arrows while the tray makes room. At the viewport limit, real overflow controls
+update after the mutation. Removing a space
 first fades/scales its cap out (180ms), then resizes the tray and slides surviving caps into their
 new positions (440ms). Mutations are coordinated so repeated actions cannot overlap; Back can
 queue a return while they finish. Reduced-motion mutations finish immediately.
@@ -135,8 +138,9 @@ wheel/arrow scrolling, pinned Back/+ at 320px, selected-space removal and focus,
 reduced motion. It records frame-by-frame tray widths and saves screenshots of the new controls.
 
 Run `validate-spaces.browser.mjs` for cap entry/exit, surviving-cap movement, tray resizing, focus,
-mobile overflow, queued Back, and reduced-motion mutations. It records per-frame cap opacity,
-position, and tray width.
+mobile overflow, queued Back, and reduced-motion mutations. It observes DOM insertions to catch
+transient scroll arrows and verifies that the tray finishes expanding before a new cap appears.
+It records per-frame cap opacity, position, tray width, and scroll-control presence.
 
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,

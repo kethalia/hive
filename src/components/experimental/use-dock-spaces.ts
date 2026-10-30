@@ -135,9 +135,12 @@ export function useDockSpaces({
       if (item.left < area.left + 10) options.scrollLeft -= area.left + 10 - item.left;
       else if (item.right > area.right - 12) options.scrollLeft += item.right - area.right + 12;
     }
+    const adding = ids.some((id) => !before.positions.has(id));
+    const resizeDuration = adding ? 280 : 440;
+    const entryDelay = Math.abs(bounds.width - before.width) > 0.5 ? resizeDuration : 0;
     const next: Animation[] = [
       nav.animate([{ width: `${before.width}px` }, { width: `${bounds.width}px` }], {
-        duration: 440,
+        duration: resizeDuration,
         easing: "cubic-bezier(.25, .8, .25, 1)",
       }),
     ];
@@ -151,7 +154,12 @@ export function useDockSpaces({
               { opacity: 0, transform: "translateY(10px) scale(.8)" },
               { opacity: 1, transform: "translateY(0) scale(1)" },
             ],
-            { duration: 360, delay: 80, easing: "cubic-bezier(.2, .8, .2, 1)", fill: "backwards" },
+            {
+              duration: 260,
+              delay: entryDelay,
+              easing: "cubic-bezier(.2, .8, .2, 1)",
+              fill: "backwards",
+            },
           ),
         );
       else {
@@ -160,7 +168,7 @@ export function useDockSpaces({
           next.push(
             node.animate(
               [{ transform: `translateX(${delta}px)` }, { transform: "translateX(0)" }],
-              { duration: 440, easing: "cubic-bezier(.25, .8, .25, 1)" },
+              { duration: resizeDuration, easing: "cubic-bezier(.25, .8, .25, 1)" },
             ),
           );
       }

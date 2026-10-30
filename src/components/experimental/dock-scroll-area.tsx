@@ -14,18 +14,21 @@ export function DockScrollArea({
   children,
   label,
   activeItem,
-  suspendReveal = false,
+  suspendLayout = false,
 }: {
   children: ReactNode;
   label: "keys" | "spaces";
   activeItem?: string;
-  suspendReveal?: boolean;
+  suspendLayout?: boolean;
 }) {
   const id = useId();
   const frame = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ overflow: false, left: false, right: false });
   const measure = useCallback(() => {
+    // A cap is already in the DOM while its tray makes room. Preserve the settled
+    // overflow controls instead of treating that temporary width as real overflow.
+    if (suspendLayout) return;
     const node = viewport.current,
       shell = frame.current;
     if (!node || !shell) return;
@@ -41,10 +44,10 @@ export function DockScrollArea({
         ? current
         : next,
     );
-  }, []);
+  }, [suspendLayout]);
   const reveal = useCallback(() => {
     const node = viewport.current;
-    if (!node || suspendReveal) return;
+    if (!node || suspendLayout) return;
     const selected = Array.from(node.querySelectorAll<HTMLElement>("[data-dock-space]")).find(
       (item) => item.dataset.dockSpace === activeItem,
     );
@@ -54,7 +57,7 @@ export function DockScrollArea({
       if (item.left < bounds.left + 10) node.scrollLeft -= bounds.left + 10 - item.left;
       else if (item.right > bounds.right - 12) node.scrollLeft += item.right - bounds.right + 12;
     }
-  }, [activeItem, suspendReveal]);
+  }, [activeItem, suspendLayout]);
   useLayoutEffect(() => {
     const update = () => {
       reveal();
