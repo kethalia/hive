@@ -28,6 +28,23 @@ through Coder still requires the workspace owner's Coder sign-in.
 The screen starts with Hive's original **Your workspace** empty state and **Add window** button.
 There is no marketing page, wallpaper, decorative Mac window, or new application theme.
 
+Use the style buttons below the canvas to switch instantly, or **Compare** to see all five side by
+side. The active style is stored in the URL (`?dock=phosphor`, `?dock=outline`, `?dock=keycaps`,
+`?dock=console`, or `?dock=glass`), so links can be shared and refreshed. Switching styles preserves
+the dock's expanded view, workspace state, and terminal sessions.
+
+| Style | Treatment |
+| --- | --- |
+| Phosphor (default) | Flat panel, muted labels, app colors and borders. |
+| Outline | Separate square buttons, fine outlines, transparent tray. |
+| Keycaps | Raised keyboard keys with monospace legends. |
+| Console | A slim text-first command bar. |
+| Glass | The original colorful macOS-style treatment. |
+
+The four native variants use Hive's CSS tokens in both dark and light themes. All variants support
+the same workspace/keyboard expansions, focus behavior, and compact size. Comparison samples are
+inert illustrations; **Try** applies a style to the real playground controls.
+
 - **Apps / Add window:** opens Search Hive with Terminal, Files, VS Code, Desktop, built-in Hive tool
   previews, and window layout actions. Terminal uses the same xterm renderer, theme, and font as
   Hive. Files is a local file-list fixture, VS Code is an editable scratchpad, and remaining tools
@@ -77,7 +94,7 @@ import { WorkspaceDock } from "@/components/experimental/workspace-dock";
 ```
 
 The component owns its current view and one-shot modifiers. Consumers own workspace data and all
-effects. Optional `density`, `canCreateWorkspace`, `disabledActions`, and `className` props control
+effects. Optional `variant`, `density`, `canCreateWorkspace`, `disabledActions`, and `className` props control
 presentation and capabilities. `onKeyPress` receives the base key, modifier snapshot, and encoded VT
 sequence using Hive's existing encoder. `onAction` receives `copy`, `paste`, `upload`,
 `font-decrease`, or `font-increase`. Wire those to real selected-terminal capabilities only during
@@ -104,6 +121,10 @@ DOCK_PREVIEW_URL=http://127.0.0.1:4317 \
 DOCK_EVIDENCE_DIR=/tmp/dock-evidence \
 node examples/dock-playground/validate.browser.mjs
 ```
+
+Run `validate-variants.browser.mjs` with the same environment to check all five styles in every dock
+view at desktop, 390px, and 320px widths, plus light/compact styles, URL reload, style switching
+without resetting the view, and comparison selection/focus. It also saves the comparison image.
 
 The browser script checks workspace session isolation, one-shot encoded modifiers, every mobile
 control, clipboard/file/font interactions, launcher and keybind dialogs, keyboard focus, theme,

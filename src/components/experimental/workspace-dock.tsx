@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import "./workspace-dock.css";
 
 export type DockView = "home" | "workspaces" | "keyboard";
+export type DockVariant = "phosphor" | "outline" | "keycaps" | "console" | "glass";
 export type DockAction = "copy" | "paste" | "upload" | "font-decrease" | "font-increase";
 export interface DockWorkspace {
   id: string;
@@ -48,6 +49,7 @@ export interface WorkspaceDockProps {
   disabledActions?: Partial<Record<DockAction, string>>;
   canCreateWorkspace?: boolean;
   density?: "comfortable" | "compact";
+  variant?: DockVariant;
   className?: string;
 }
 
@@ -102,6 +104,7 @@ export function WorkspaceDock({
   disabledActions,
   canCreateWorkspace = true,
   density = "comfortable",
+  variant = "phosphor",
   className,
 }: WorkspaceDockProps) {
   const [view, setView] = useState<DockView>("home");
@@ -171,6 +174,7 @@ export function WorkspaceDock({
         className={cn("hive-dock", className)}
         data-view={view}
         data-density={density}
+        data-variant={variant}
         onKeyDown={navigate}
       >
         <span className="sr-only" aria-live="polite">
@@ -189,6 +193,9 @@ export function WorkspaceDock({
               aria-haspopup="dialog"
             >
               <Grid2X2 aria-hidden="true" />
+              <span className="hive-dock-caption" aria-hidden="true">
+                Apps
+              </span>
             </DockButton>
             <DockButton
               label="Workspaces"
@@ -198,6 +205,9 @@ export function WorkspaceDock({
               aria-expanded={false}
             >
               <Layers aria-hidden="true" />
+              <span className="hive-dock-caption" aria-hidden="true">
+                Spaces
+              </span>
               <span className="hive-dock-count">{workspaces.length}</span>
             </DockButton>
             <DockButton
@@ -208,6 +218,9 @@ export function WorkspaceDock({
               aria-expanded={false}
             >
               <Keyboard aria-hidden="true" />
+              <span className="hive-dock-caption" aria-hidden="true">
+                Keys
+              </span>
             </DockButton>
             <span className="hive-dock-divider" />
             <DockButton
@@ -217,6 +230,9 @@ export function WorkspaceDock({
               aria-haspopup="dialog"
             >
               <Command aria-hidden="true" />
+              <span className="hive-dock-caption" aria-hidden="true">
+                Binds
+              </span>
             </DockButton>
           </div>
         ) : (

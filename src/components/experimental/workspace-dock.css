@@ -33,6 +33,9 @@
   gap: 9px;
   min-width: 0;
 }
+.hive-dock-caption {
+  display: none;
+}
 .hive-dock-options {
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -157,12 +160,12 @@
 .hive-dock-tooltip {
   width: auto;
   max-width: min(280px, calc(100vw - 24px));
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-mono);
   border-radius: 8px;
   padding: 6px 10px;
-  background: #23232d;
-  color: #f5f4fa;
-  border-color: #555460;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-color: var(--border);
   font-size: 12px;
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
@@ -185,5 +188,219 @@
   .hive-dock *::after {
     animation: none;
     transition: none;
+  }
+}
+
+/* Native variants share the app's tokens. Glass keeps the original treatment above. */
+.hive-dock:not([data-variant="glass"]) {
+  --dock-ink: var(--foreground);
+  --dock-muted: var(--muted-foreground);
+  font-family: var(--font-mono);
+  background: var(--background);
+  border-color: var(--border);
+  border-radius: 8px;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-button {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  color: var(--foreground);
+  box-shadow: none;
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-button:hover {
+  background: var(--accent);
+  border-color: var(--border);
+  transform: none;
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-button:focus-visible {
+  outline-color: var(--ring);
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-app svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.6;
+  filter: none;
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-divider {
+  background: var(--border);
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-count {
+  color: var(--primary);
+  background: var(--background);
+  border-color: var(--border);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 9px;
+  top: 0;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 2px;
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-create {
+  border-color: var(--border);
+  border-style: dashed;
+  color: var(--primary);
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-workspace[aria-current="page"],
+.hive-dock:not([data-variant="glass"]) .hive-dock-key[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  box-shadow: none;
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-workspace[aria-current="page"]::after {
+  background: var(--primary-foreground);
+}
+.hive-dock:not([data-variant="glass"]) .hive-dock-options {
+  scrollbar-color: var(--border) transparent;
+}
+
+/* 01 — a flat, labeled rail matching Hive's existing panels. */
+.hive-dock[data-variant="phosphor"] {
+  gap: 6px;
+  padding: 7px;
+  border-radius: 6px;
+  box-shadow: 0 4px 0 rgb(0 0 0 / 15%);
+}
+.hive-dock[data-variant="phosphor"] .hive-dock-home {
+  gap: 4px;
+}
+.hive-dock[data-variant="phosphor"] .hive-dock-app {
+  flex-direction: column;
+  gap: 5px;
+  width: calc(var(--dock-size) + 4px);
+}
+.hive-dock[data-variant="phosphor"] .hive-dock-caption {
+  display: block;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--muted-foreground);
+}
+.hive-dock[data-variant="phosphor"] .hive-dock-launcher {
+  background: var(--secondary);
+  color: var(--primary);
+}
+
+/* 02 — separate square outlines, with the canvas visible between controls. */
+.hive-dock[data-variant="outline"] {
+  padding: 4px;
+  border-color: transparent;
+  background: transparent;
+}
+.hive-dock[data-variant="outline"] .hive-dock-button {
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--background);
+}
+.hive-dock[data-variant="outline"] .hive-dock-button:hover {
+  border-color: var(--primary);
+}
+.hive-dock[data-variant="outline"] .hive-dock-count {
+  top: -4px;
+  right: -4px;
+}
+.hive-dock[data-variant="outline"] .hive-dock-divider {
+  width: 5px;
+  flex-basis: 5px;
+  background: transparent;
+  margin: 0;
+}
+
+/* 03 — keyboard-like caps, with a restrained physical edge. */
+.hive-dock[data-variant="keycaps"] {
+  gap: 7px;
+  padding: 9px 9px 12px;
+  border-radius: 9px;
+  background: var(--card);
+}
+.hive-dock[data-variant="keycaps"] .hive-dock-button {
+  border: 1px solid var(--input);
+  border-radius: 5px;
+  background: var(--secondary);
+  box-shadow:
+    0 3px 0 var(--border),
+    inset 0 1px 0 var(--border);
+}
+.hive-dock[data-variant="keycaps"] .hive-dock-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--border);
+}
+.hive-dock[data-variant="keycaps"] .hive-dock-app {
+  flex-direction: column;
+  gap: 4px;
+}
+.hive-dock[data-variant="keycaps"] .hive-dock-app svg {
+  width: 20px;
+  height: 20px;
+}
+.hive-dock[data-variant="keycaps"] .hive-dock-caption {
+  display: block;
+  font-size: 9px;
+  line-height: 1;
+}
+.hive-dock[data-variant="keycaps"] .hive-dock-count {
+  top: -4px;
+  right: -4px;
+}
+
+/* 04 — a text-first command line. */
+.hive-dock[data-variant="console"] {
+  --dock-size: 44px;
+  gap: 3px;
+  padding: 4px 7px;
+  border-radius: 2px;
+  border-top-color: var(--primary);
+}
+.hive-dock[data-variant="console"] .hive-dock-home {
+  gap: 2px;
+}
+.hive-dock[data-variant="console"] .hive-dock-app {
+  width: auto;
+  min-width: 0;
+  gap: 7px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+.hive-dock[data-variant="console"] .hive-dock-caption {
+  display: inline;
+  font-size: 11px;
+}
+.hive-dock[data-variant="console"] .hive-dock-app svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted-foreground);
+}
+.hive-dock[data-variant="console"] .hive-dock-count {
+  position: static;
+  border: 0;
+  background: transparent;
+  min-width: 0;
+  padding: 0;
+}
+.hive-dock[data-variant="console"] .hive-dock-divider {
+  height: 18px;
+  margin: 0 2px;
+}
+.hive-dock[data-variant="console"] .hive-dock-key,
+.hive-dock[data-variant="console"] .hive-dock-workspace {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+@media (max-width: 700px) {
+  .hive-dock[data-variant="console"] .hive-dock-app {
+    gap: 4px;
+    padding: 0 6px;
+  }
+  .hive-dock[data-variant="console"] .hive-dock-caption {
+    font-size: 10px;
+  }
+  .hive-dock[data-variant="console"] .hive-dock-app svg {
+    width: 13px;
+    height: 13px;
   }
 }

@@ -1,10 +1,19 @@
-import { Code2, FileText, Folder, Monitor, Settings2, Terminal } from "lucide-react";
+import {
+  Code2,
+  FileText,
+  Folder,
+  GalleryHorizontalEnd,
+  Monitor,
+  Settings2,
+  Terminal,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AppViewportSize } from "@/components/app-viewport-size";
 import {
   type DockAction,
   type DockKeyPress,
+  type DockVariant,
   WorkspaceDock,
 } from "@/components/experimental/workspace-dock";
 import { Button } from "@/components/ui/button";
@@ -50,6 +59,8 @@ import {
   windowGeometry,
 } from "@/lib/workspaces/window-manager";
 import { reconcileWorkspaceWindowLayout } from "@/lib/workspaces/workspace-window-layout";
+import { DockStyleComparison } from "./dock-style-comparison";
+import { DOCK_VARIANTS } from "./dock-variants";
 import { SandboxTerminal, type SandboxTerminalController } from "./sandbox-terminal";
 
 const ROOT = document.getElementById("root");
@@ -66,9 +77,17 @@ const LAYOUT_ACTIONS = WINDOW_ACTIONS.filter((action) =>
 
 function Playground() {
   const [state, setState] = useState(emptyGeneralWorkspace);
-  const [panel, setPanel] = useState<"apps" | "keybinds" | "controls" | "pane" | null>(null);
+  const [panel, setPanel] = useState<"apps" | "keybinds" | "controls" | "pane" | "styles" | null>(
+    null,
+  );
   const [theme, setTheme] = useState("dark");
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
+  const [variant, setVariant] = useState<DockVariant>(
+    () =>
+      DOCK_VARIANTS.find(
+        (item) => item.id === new URLSearchParams(window.location.search).get("dock"),
+      )?.id ?? "phosphor",
+  );
   const [navbar, setNavbar] = useState<"dock" | "current">("dock");
   const [event, setEvent] = useState("Local preview · disconnected from your Hive account");
   const [fontSize, setFontSize] = useState(13);
@@ -107,6 +126,11 @@ function Playground() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("dock", variant);
+    window.history.replaceState(null, "", url);
+  }, [variant]);
   useEffect(() => {
     const open = () => setPanel("apps");
     const shortcut = (event: KeyboardEvent) => {
@@ -429,9 +453,37 @@ function Playground() {
                 </div>
                 <footer className="prototype-dock-area">
                   {navbar === "dock" ? (
+                    <fieldset className="prototype-style-picker" aria-label="Dock style">
+                      <legend className="sr-only">Dock style</legend>
+                      {DOCK_VARIANTS.map((item) => (
+                        <Button
+                          key={item.id}
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          aria-pressed={variant === item.id}
+                          onClick={() => setVariant(item.id)}
+                        >
+                          {item.name}
+                        </Button>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        aria-label="Compare dock styles"
+                        onClick={() => setPanel("styles")}
+                      >
+                        <GalleryHorizontalEnd className="size-3" />
+                        Compare
+                      </Button>
+                    </fieldset>
+                  ) : null}
+                  {navbar === "dock" ? (
                     <WorkspaceDock
                       key={dockVersion}
                       density={density}
+                      variant={variant}
                       workspaces={state.boards.map((item, index) => ({
                         id: item.key,
                         name: `Workspace ${index + 1}`,
@@ -483,6 +535,17 @@ function Playground() {
           </div>
         </main>
       </div>
+      <DockStyleComparison
+        open={panel === "styles"}
+        onOpenChange={(open) => {
+          if (!open) setPanel(null);
+        }}
+        selected={variant}
+        onSelect={(next) => {
+          setVariant(next);
+          setPanel(null);
+        }}
+      />
       <CommandDialog
         open={panel === "apps"}
         onOpenChange={(open) => {
@@ -555,6 +618,20 @@ function Playground() {
           </DialogHeader>
           {panel === "controls" ? (
             <div className="space-y-5 text-sm">
+              <label className="prototype-setting">
+                Dock style
+                <select
+                  aria-label="Dock style"
+                  value={variant}
+                  onChange={(event) => setVariant(event.target.value as DockVariant)}
+                >
+                  {DOCK_VARIANTS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="prototype-setting">
                 Navigation
                 <select
