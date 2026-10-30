@@ -10,13 +10,15 @@ const names = [
 ];
 const key = (index) => index.toString(16).padStart(42, "0");
 function fixture() {
+  const agentNames = ["configureAgentToolsAction", "resumeAgentSessionAction"];
   return {
     encryptionKey: "synthetic-build-secret",
     node: Object.fromEntries(
-      names.map((exportedName, index) => [
+      [...names, ...agentNames].map((exportedName, index) => [
         key(index),
         {
-          filename: "lib/actions/workspaces.ts",
+          filename:
+            index < names.length ? "lib/actions/workspaces.ts" : "lib/actions/agent-tools.ts",
           exportedName,
           workers: { "app/(dashboard)/workspaces/page": { moduleId: "synthetic", async: false } },
         },
@@ -30,7 +32,7 @@ test("only reviewed exact exports from the built workspace page become portable"
   input.node[key(10)] = { ...input.node[key(0)], exportedName: "createSessionAction" };
   input.node[key(11)] = { ...input.node[key(0)], filename: "other/workspaces.ts" };
   const output = portableActionManifest(input);
-  assert.equal(Object.keys(output.actions).length, 5);
+  assert.equal(Object.keys(output.actions).length, 7);
   assert.equal(output.actions[key(10)].exportedName, "createSessionAction");
   assert.deepEqual(output.actions[key(0)].paths, ["/workspaces"]);
   assert.equal(output.actions[key(0)].maxBodyBytes, 65536);
@@ -60,7 +62,7 @@ test("reviewed read actions are portable while terminal mutation stays excluded"
   for (const [i, exportedName] of [...reads, "renameSessionAction", "killSessionAction"].entries())
     input.node[key(20 + i)] = { ...input.node[key(0)], exportedName };
   const output = portableActionManifest(input);
-  assert.equal(Object.keys(output.actions).length, 7);
+  assert.equal(Object.keys(output.actions).length, 9);
   for (const name of reads)
     assert.ok(Object.values(output.actions).some((v) => v.exportedName === name));
   for (const action of Object.values(output.actions))
@@ -73,4 +75,22 @@ test("reviewed read actions are portable while terminal mutation stays excluded"
       (v) => v.exportedName === "killSessionAction" || v.exportedName === "renameSessionAction",
     ),
   );
+});
+
+test("only the two reviewed agent mutation actions become portable", () => {
+  const input = fixture();
+  for (const [index, name] of [
+    "configureAgentToolsAction",
+    "resumeAgentSessionAction",
+    "unreviewedAgentAction",
+  ].entries())
+    input.node[key(30 + index)] = {
+      ...input.node[key(0)],
+      filename: "lib/actions/agent-tools.ts",
+      exportedName: name,
+    };
+  const output = portableActionManifest(input);
+  assert.equal(output.actions[key(30)].exportedName, "configureAgentToolsAction");
+  assert.equal(output.actions[key(31)].exportedName, "resumeAgentSessionAction");
+  assert.equal(output.actions[key(32)], undefined);
 });

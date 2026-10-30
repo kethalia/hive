@@ -244,6 +244,9 @@ test("profile synchronization detects and removes obsolete shared scripts", (t) 
   cpSync(join(repositoryRoot, "scripts/voice"), join(fixtureRoot, "scripts/voice"), {
     recursive: true,
   });
+  cpSync(join(repositoryRoot, "scripts/agent-bridge"), join(fixtureRoot, "scripts/agent-bridge"), {
+    recursive: true,
+  });
   symlinkSync(join(repositoryRoot, "node_modules"), join(fixtureRoot, "node_modules"), "dir");
   writeFileSync(join(canonical, "WORKSPACE_ROUTING.md"), "# Canonical routing\n");
 

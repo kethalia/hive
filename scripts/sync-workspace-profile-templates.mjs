@@ -1,6 +1,7 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Every path is derived from repository-owned template roots. */
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { syncAgentPackage } from "./agent-bridge/build-package.mjs";
 import { syncHostArchive } from "./build-codex-host-archive.mjs";
 import { buildTemplateArtifacts } from "./build-template-artifacts.mjs";
 import { syncWorkspaceReadPackage } from "./build-workspace-read-package.mjs";
@@ -18,6 +19,7 @@ const checkOnly = process.argv.includes("--check");
 await syncHostArchive(repositoryRoot, checkOnly);
 await syncWorkspaceReadPackage(repositoryRoot, checkOnly);
 await syncVoicePackage(repositoryRoot, checkOnly);
+await syncAgentPackage(repositoryRoot, checkOnly);
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -46,6 +48,11 @@ const sharedRelativePaths = [
   "hive-host.tf",
   "hive-read.tf",
   "hive-voice.tf",
+  "hive-agent.tf",
+  "assets/agent-bridge.tar.gz",
+  "assets/agent-bridge.tar.sha256",
+  "assets/agent-bridge.manifest.sha256",
+  "assets/agent-bridge.helper.sha256",
   "assets/voice.tar.gz",
   "assets/voice.tar.sha256",
   "assets/voice.manifest.sha256",

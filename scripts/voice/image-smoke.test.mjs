@@ -24,7 +24,7 @@ except m.SmokeFailure as e:
  assert e.details=={'code':'file_rejected','path':'/usr/local/libexec/hive-template-runtime/voice.tar.gz','uid':1000,'mode':'0o666','nlink':1,'size':123}
 else:raise AssertionError('untrusted file accepted')
 `;
-test("built-image smoke proof compares all seven source hashes and rejects mismatches", () => {
+test("built-image smoke proof compares all nine source hashes and rejects mismatches", () => {
   const result = spawnSync("python3", ["-I", "-B", "-c", driver], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
 });

@@ -80,7 +80,8 @@ async function exchangeAppCookie(
     | "/terminal"
     | "/workspace/read"
     | "/voice"
-    | "/voice/identity",
+    | "/voice/identity"
+    | "/agent/operation",
   expiresAt: number,
   fetchApp: typeof fetch,
 ) {
@@ -251,6 +252,45 @@ export async function postToVerifiedWorkspaceApp(
     if (request.signal) void response.body?.cancel().catch(() => {});
     else await response.body?.cancel().catch(() => {});
   }
+}
+/** Fixed agent service endpoint. Its response is consumed by the bounded,
+ * signature-verifying agent client; app cookies remain request-local. */
+export async function requestVerifiedWorkspaceAgent(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  request: { ticket: string; expiresAt: number; signal: AbortSignal },
+  fetchApp: typeof fetch = fetch,
+): Promise<Response> {
+  const body = JSON.stringify({ ticket: request.ticket });
+  if (Buffer.byteLength(body, "utf8") > 16384) reject();
+  request.signal.throwIfAborted();
+  const scopedFetch: typeof fetch = (input, init) =>
+    fetchApp(input, {
+      ...init,
+      signal: AbortSignal.any([request.signal, ...(init?.signal ? [init.signal] : [])]),
+    });
+  const { cookie, url } = await exchangeAppCookie(
+    coder,
+    binding,
+    "/agent/operation",
+    request.expiresAt,
+    scopedFetch,
+  );
+  request.signal.throwIfAborted();
+  const response = await scopedFetch(url, {
+    method: "POST",
+    redirect: "manual",
+    credentials: "omit",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body,
+  });
+  try {
+    boundedHeaders(response);
+  } catch (error) {
+    void response.body?.cancel().catch(() => {});
+    throw error;
+  }
+  return response;
 }
 /** Independent read service only. Fixed path, request-local app cookie, bounded
  * stream lifetime. This does not add an operation to the project dispatcher. */

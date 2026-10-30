@@ -73,6 +73,8 @@ func (r request) app() (slug, target string, err error) {
 	switch r.Kind {
 	case "workspace-read":
 		return "hive-read", "http://127.0.0.1:13342", nil
+	case "agent-tools":
+		return "hive-agent", "http://127.0.0.1:13344", nil
 	case "voice":
 		return "hive-voice", "http://127.0.0.1:13343", nil
 	case "project-host":

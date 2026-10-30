@@ -79,7 +79,7 @@ resource "coder_agent" "main" {
     GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL         = data.coder_workspace_owner.me.email
     EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
-    HIVE_RUNTIME_BUILD_ID       = local.hive_host_enabled ? data.external.hive_build_identity[0].result.build_id : (local.hive_read_enabled ? data.external.hive_read_build_identity[0].result.build_id : (local.hive_voice_enabled ? data.external.hive_voice_build_identity[0].result.build_id : ""))
+    HIVE_RUNTIME_BUILD_ID       = local.hive_host_enabled ? data.external.hive_build_identity[0].result.build_id : (local.hive_read_enabled ? data.external.hive_read_build_identity[0].result.build_id : (local.hive_voice_enabled ? data.external.hive_voice_build_identity[0].result.build_id : (local.hive_agent_enabled ? data.external.hive_agent_build_identity[0].result.build_id : "")))
     HIVE_PROJECTS_ROOT          = "/home/coder"
     HIVE_WORKSPACE_PROFILE      = local.profile.id
     HIVE_MANAGED_PROJECTS       = tostring(local.hive_host_enabled)
@@ -631,7 +631,7 @@ resource "kubernetes_deployment_v1" "workspace" {
         # Verify this compatibility annotation against deployed k3s before rollout.
         # Opt in only after the named policy is loaded on eligible nodes.
         # The seed-home container continues using the runtime's default policy.
-        annotations = merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data, local.hive_voice_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+        annotations = merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data, local.hive_voice_bootstrap_data, local.hive_agent_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
           "container.apparmor.security.beta.kubernetes.io/dev" = "localhost/${local.profile.codex_sandbox_apparmor_profile}"
         })
 
@@ -796,6 +796,15 @@ resource "kubernetes_deployment_v1" "workspace" {
             }
           }
 
+          dynamic "volume_mount" {
+            for_each = local.hive_agent_enabled ? [true] : []
+            content {
+              name       = "hive-agent-bootstrap"
+              mount_path = "/opt/hive-agent-template"
+              read_only  = true
+            }
+          }
+
         }
 
         dynamic "volume" {
@@ -840,6 +849,22 @@ resource "kubernetes_deployment_v1" "workspace" {
                 path = "request.json"
                 field_ref {
                   field_path = "metadata.annotations['hive.kethalia.com/voice-request']"
+                }
+              }
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_agent_enabled ? [true] : []
+          content {
+            name = "hive-agent-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/agent-request']"
                 }
               }
             }

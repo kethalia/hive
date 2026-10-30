@@ -3,12 +3,12 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { syncVoicePackage } from "./build-package.mjs";
 
-test("all three pinned bootstrap requests use bounded Downward API mounts", async () => {
+test("all four pinned bootstrap requests use bounded Downward API mounts", async () => {
   await syncVoicePackage(process.cwd(), true);
   const root = "templates/ai-dev-k8s",
     main = await readFile(`${root}/main.tf`, "utf8");
   assert.doesNotMatch(main, /kubernetes_config_map_v1/);
-  for (const kind of ["host", "read", "voice"]) {
+  for (const kind of ["host", "read", "voice", "agent"]) {
     const tf = await readFile(`${root}/hive-${kind}.tf`, "utf8");
     assert.match(tf, /imageArchiveSha256\s*=\s*filesha256/);
     assert.match(tf, /imageInstallerSha256\s*=\s*filesha256/);

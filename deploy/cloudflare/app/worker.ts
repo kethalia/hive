@@ -47,6 +47,8 @@ type Environment = ProjectRelayEnvironment &
     HIVE_TEMPLATE_PUBLICATION_ENABLED?: string;
     HIVE_TEMPLATE_LOG_VIEW_ENABLED?: string;
     HIVE_PROJECT_DISCOVERY_ENABLED?: string;
+    HIVE_AGENT_TOOLS_ENABLED?: string;
+    HIVE_AGENT_TOOLS_TRANSPORT?: string;
     HIVE_RELEASE_HEALTH_ENABLED?: string;
     HIVE_RELEASE_PROBE_SECRET?: string;
     HIVE_RELEASE_SOURCE_SHA?: string;
@@ -118,7 +120,12 @@ export default {
           env.HIVE_TEMPLATE_PUBLICATION_ENABLED,
           env.HIVE_TEMPLATE_LOG_VIEW_ENABLED,
         )) ||
-      (pathname.startsWith("/api/discovery/") && !isPortableDiscovery(request)) ||
+      (pathname.startsWith("/api/discovery/") &&
+        !isPortableDiscovery(
+          request,
+          env.HIVE_AGENT_TOOLS_ENABLED === "true" &&
+            env.HIVE_AGENT_TOOLS_TRANSPORT === "workspace-app",
+        )) ||
       (pathname === "/api/projects" &&
         !(
           request.method === "GET" &&

@@ -15,6 +15,7 @@ ASSETS = {
     'host': ('install-codex-host.py', 'codex-host.tar.xz', {'schemaVersion', 'archiveEncoding', 'archiveSha256', 'config'}, 180000),
     'read': ('install-workspace-read.py', 'workspace-read.tar.gz', {'schemaVersion', 'archiveSha256', 'manifestSha256', 'config'}, 65536),
     'voice': ('install-voice.py', 'voice.tar.gz', {'schemaVersion', 'archiveSha256', 'manifestSha256', 'config'}, 131072),
+    'agent': ('install-agent-bridge.py', 'agent-bridge.tar.gz', {'schemaVersion', 'archiveSha256', 'manifestSha256', 'config'}, 65536),
 }
 
 def require(value):

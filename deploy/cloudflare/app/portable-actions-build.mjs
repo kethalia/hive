@@ -23,6 +23,10 @@ const reviewed = new Map([
     ]),
   ],
   ["lib/actions/templates.ts", new Set(["listTemplateStatusesAction"])],
+  [
+    "lib/actions/agent-tools.ts",
+    new Set(["configureAgentToolsAction", "resumeAgentSessionAction"]),
+  ],
 ]);
 export const PORTABLE_ACTION_FILE = ".open-next/cloudflare/hive-portable-actions.mjs";
 
@@ -46,6 +50,8 @@ export function portableActionManifest(manifest) {
     "startWorkspaceAction",
     "stopWorkspaceAction",
     "deleteWorkspaceAction",
+    "configureAgentToolsAction",
+    "resumeAgentSessionAction",
   ])
     assert.ok(
       Object.values(actions).some((entry) => entry.exportedName === name),
