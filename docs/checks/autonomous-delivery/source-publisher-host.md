@@ -1,0 +1,25 @@
+# Inert protected-host source publisher
+
+The new `delivery-source-publisher.mjs` and `delivery-source-publisher-journal.mjs` compose the fixed Python FD3 worker with the source server protocol. No default host/controller factory, native dynamic tool, package activation or production flag enables them. The model can propose only operationId, paths/deletions and conventional commit/PR messages. No live GitHub writes or credential access occur in these tests.
+
+## Trusted composition
+
+`createDeliverySourcePublisher` requires explicit `enabled:true`, a fixed HTTPS Hive origin and private host key, private stateDirectory, trusted `currentContext(threadId)` and `authorizeMetadata(frozenContext)` callbacks. Optional fetch/worker substitutions are trusted test composition, not model arguments. The default worker path and `/usr/bin/python3 -I` command are fixed. No source or credentials go on argv, stdin, stdout or stderr.
+
+Current context contains ownerId (Hive), managerBindingId, registration `{id,serverInstanceId,expiresAt}`, immutable six-field checkoutBinding, task/step/attempt IDs, attemptLeaseGeneration, sourceContext when advanced and the verified absolute checkoutPath. Physical checkout lease generation and logical attempt lease generation remain distinct.
+
+Metadata authorization must check current persisted finalized guardian authority and the installed namespace inventory. It returns the exact runtime/admission ID/generation/producerDigest/incarnation/barrier tuple plus metadataPins, metadataPinsDigest, metadataPolicyDigest and namespaceReceiptDigest. The adapter independently checks actual checkout/Git inode pins using BigInt decimal strings and compares the complete frozen metadata record on later callbacks. Before each provider effect, it re-POSTs the stored original challenge and requires its identical live grant and exact admission tuple. First-native reservation, inode equality and a local HMAC journal establish no independent producer authority.
+
+## Recovery and lifecycle
+
+The adapter reads controller-owned source/author/base/path policy before sealing. It persists the signed challenge bytes before POST, persists the returned exact grant before replying to the worker, and persists final signed publication bytes before POST. Retries never reseal or change these bytes. If final bytes exist, the adapter bypasses the worker and asks the server again; it returns no cached success. Historical receipt retries can tolerate later task/attempt/source advancement while retaining the exact owner, manager binding, registration/server, physical checkout and proposal identity. The server still checks live authorization and original wire/grant expiry. An expired accepted result requires the separately designed read-only source state endpoint; it does not create new publication authority.
+
+The private HMAC journal uses create-only temporary files, fsync, atomic rename, parent-directory fsync and an inherited-FD flock. MAC failures, hardlinks, nonregular/unknown files and capacity exhaustion hold and retain state. The bounded preview journal retains all 32 operation records; it never deletes an unresolved operation based on expiry. Continuous publication and journal retirement are unimplemented.
+
+FD3 is a private Unix socket with peer credentials checked by Python. Frames, totals, counts and sequence are bounded, and callbacks are serialized. A maximum 120-second whole-operation budget aborts pending callbacks and kills the fixed worker process group. A signal is sent only while the child handle still owns a live/unreaped leader. After close, the adapter only probes group absence; it never signals a recycled numeric group ID. Resolution waits for worker close and group absence. An unresolved group keeps the publisher held and its flock open; only outer guardian/process recovery can resolve that hold. This establishes no native/global quiescence or checkout cleanup permission. Python production Git plumbing stays in the worker process group; fixture plumbing keeps its separate test behavior.
+
+## Evidence and remaining gates
+
+`source-publisher-local/tests.txt` records 15 Node tests. Positive provider/publication callbacks are explicit test doubles. Two tests execute the actual fixed FD3 Python worker with real local Git: denied-grant preparation and a stalled metadata callback deadline. Both stop before provider credential access or HTTP effects. Three `source-publisher-protocol.test.ts` checks compare host signing/digest bytes directly to server helpers, including Unicode. The source server/real guardian persistence proof is recorded separately in `source-transport-local`.
+
+Still required: independently approved installed bootstrap/namespace metadata factory, actual protected broker/provider transport proof, reviewed outer preview-path exception and deployment package/policy allowlist, accepted-head application to protected Git/index/current-source journals, and native admission held until local/current server source agree. Publication acceptance alone enables no progression, release, deployment or cleanup. No cloud resources or production database were changed.

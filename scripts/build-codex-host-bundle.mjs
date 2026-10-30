@@ -52,6 +52,8 @@ const modules = [
   "delivery-native-spool.mjs",
   "delivery-github-collector.mjs",
   "delivery-github-journal.mjs",
+  "delivery-source-publisher.mjs",
+  "delivery-source-publisher-journal.mjs",
 ];
 const assets = [
   "managed-projects.py",

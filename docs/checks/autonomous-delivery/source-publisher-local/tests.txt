@@ -1,0 +1,23 @@
+✔ default disabled creates no state or authority callbacks (1.671939ms)
+✔ seals scope and exact challenge/grant/final bytes before effects and accepts only server receipt (61.505056ms)
+✔ lost final ACK restarts from exact wire despite source/task/attempt advancement, without worker or cached success (27.035351ms)
+✔ changed operation replay or stable writer identity never reuses old authority (25.189278ms)
+✔ fresh effects reject changed admission tuple and unverified metadata (11.337649ms)
+✔ model cannot override authority or propose protected paths (2.851262ms)
+✔ server policy scope mismatch fails before private worker (7.307571ms)
+✔ journal serializes publishers and rejects hardlinked recovery files (6.103095ms)
+✔ fixed FD3 worker uses real Git preparation, then server denial kills/reaps without provider credential access (116.525877ms)
+✔ actual worker deadline cancels hung parent metadata exchange and reaps before close (318.119107ms)
+✔ journal MAC/unknown file/capacity failures retain original unresolved bytes (75.449686ms)
+✔ untrusted HTTP redirect/large/empty-chunk responses fail closed with bounded sanitized errors (30.95439ms)
+✔ a second active call cannot bypass serialized effect callbacks (3.204864ms)
+✔ post-close unknown process group is never signaled after leader reap (1036.79044ms)
+✔ unresolved helper group keeps publisher flock for outer guardian recovery (19.918732ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1796.503084

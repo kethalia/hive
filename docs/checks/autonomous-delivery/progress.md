@@ -462,3 +462,10 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   requests converge; foreign-owner task-ID collisions reject without changing retained data.
   Parent9 focused and185 clean-export database checks pass, with typecheck and separate review.
   Previous failing evidence remains. CI/images/guardian were green at fe396ff.
+
+- Fixed host publisher: reviewed and packaged inertly, high difficulty. The private helper
+  now journals exact signed requests before transmission and checks independent metadata/grant
+  authority around publication. Review fixed a post-reap process-group signaling risk; unknown
+  remaining descendants retain the lock for outer recovery. Parent15 runtime/3 cross-server
+  protocol checks and35 clean-export packaging/runtime checks pass. Installed composition
+  and live provider validation remain; no publication flag was enabled.
