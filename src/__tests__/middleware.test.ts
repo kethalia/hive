@@ -16,6 +16,38 @@ afterEach(() => {
 });
 
 describe("proxy", () => {
+  it("routes enabled host delivery callbacks to signature authentication without browser authority", () => {
+    for (const name of [
+      "HIVE_CODEX_GATEWAY_ENABLED",
+      "HIVE_GUARDIAN_ENABLED",
+      "HIVE_DELIVERY_MANAGER_ENABLED",
+      "HIVE_DELIVERY_NATIVE_ENABLED",
+      "HIVE_DELIVERY_GITHUB_SOURCE_ENABLED",
+      "HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED",
+    ])
+      vi.stubEnv(name, "true");
+    const origin = "https://hive.example";
+    for (const path of [
+      "/api/codex-host/guardians",
+      "/api/delivery/host",
+      "/api/delivery/native",
+      "/api/delivery/github-source",
+      "/api/delivery/source-publication/state",
+    ]) {
+      const request = (suffix = "", headers = {}) =>
+        new NextRequest(`${origin}${path}${suffix}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+        });
+      expect(proxy(request()).headers.get("x-middleware-next")).toBe("1");
+      expect(proxy(request("", { Origin: origin })).headers.get("location")).toBe(
+        `${origin}/login`,
+      );
+      expect(proxy(request("?unexpected=1")).headers.get("location")).toBe(`${origin}/login`);
+      expect(proxy(request("/extra")).headers.get("location")).toBe(`${origin}/login`);
+    }
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+  });
   it("routes only exact delivery reads and pause POSTs to their session handlers", () => {
     const origin = "https://hive.example";
     const task = "/api/delivery/tasks/22222222-2222-4222-8222-222222222222";

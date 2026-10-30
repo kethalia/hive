@@ -37,7 +37,7 @@ export function proxy(request: NextRequest) {
   if (
     // These exact native transports authenticate their issuer/host signatures
     // in the route. Browser cookies cannot replace that separate authority.
-    isHostCallbackTransport(request, process.env.HIVE_CODEX_GATEWAY_ENABLED) ||
+    isHostCallbackTransport(request, process.env.HIVE_CODEX_GATEWAY_ENABLED, process.env) ||
     // Discovery authenticates in its route and must return JSON 401, not login HTML.
     pathname.startsWith("/api/discovery/") ||
     // This exact read endpoint authenticates its session in the route and

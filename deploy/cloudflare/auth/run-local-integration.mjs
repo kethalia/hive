@@ -8,7 +8,20 @@ import { assertBuildReady } from "../app/build-integrity.mjs";
 const root = process.cwd();
 const appMode = process.argv.includes("--app");
 const callbacks = process.argv.includes("--callbacks");
+const deliveryCallbacks = process.argv.includes("--delivery-callbacks");
 if (callbacks && !appMode) throw new Error("Callback proof requires actual app mode");
+if (deliveryCallbacks && !callbacks) throw new Error("Delivery callback proof requires callbacks");
+const deliveryCallbackPaths = [
+  "/api/codex-host/guardians",
+  "/api/delivery/host",
+  "/api/delivery/native",
+  "/api/delivery/github-source/challenge",
+  "/api/delivery/github-source",
+  "/api/delivery/source-publication/policy",
+  "/api/delivery/source-publication/challenge",
+  "/api/delivery/source-publication",
+  "/api/delivery/source-publication/state",
+];
 const callbackIssuer = callbacks ? generateKeyPairSync("ed25519") : null;
 if (appMode) await assertBuildReady();
 const sourcePaths = [
@@ -105,7 +118,36 @@ if (appMode) {
             HIVE_CODEX_SESSION_TRANSPORT: "relay",
           }
         : {}),
+      ...(deliveryCallbacks && service === "app"
+        ? {
+            HIVE_GUARDIAN_ENABLED: "true",
+            HIVE_DELIVERY_MANAGER_ENABLED: "true",
+            HIVE_DELIVERY_NATIVE_ENABLED: "true",
+            HIVE_DELIVERY_GITHUB_SOURCE_ENABLED: "true",
+            HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED: "true",
+            // Constructor-only fixture pins. No host is enrolled or authorized.
+            HIVE_GUARDIAN_APPROVED_PACKAGES_JSON: JSON.stringify([
+              {
+                packageManifestSha256: "1".repeat(64),
+                guardianElfSha256: "2".repeat(64),
+                nodeSha256: "3".repeat(64),
+                protocol: "guardian-v1",
+                policyDigest: "4".repeat(64),
+                metadataPolicyDigest:
+                  "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b",
+              },
+            ]),
+          }
+        : {}),
     };
+    if (deliveryCallbacks && service === "app")
+      next.r2_buckets = [
+        {
+          binding: "HIVE_DELIVERY_EVIDENCE",
+          bucket_name: "hive-local-callback-proof",
+          remote: false,
+        },
+      ];
     if (next.assets) next.assets.directory = resolve(".open-next/assets");
     const path = join(privateDirectory, `${service}.json`);
     await writeFile(path, JSON.stringify(next), { mode: 0o600 });
@@ -310,6 +352,34 @@ try {
         if (heartbeat.status !== 403 || (await heartbeat.json()).error !== "registration_rejected")
           throw new Error("Native heartbeat transport did not enforce registered authority");
         appChecks.nativeHeartbeatRejectsUnknownRegistration = true;
+        for (const path of deliveryCallbackPaths) {
+          const invalid = await request(path, {
+            method: "POST",
+            headers: callbackHeaders,
+            body: "{}",
+          });
+          const expectedStatus = deliveryCallbacks ? 400 : 401;
+          if (invalid.status !== expectedStatus)
+            throw new Error(
+              `Native delivery callback ${path} returned ${invalid.status}; expected ${expectedStatus}`,
+            );
+          if (deliveryCallbacks && (await invalid.json()).error !== "invalid_request")
+            throw new Error(`Native delivery callback ${path} did not reject the invalid envelope`);
+          await invalid.body?.cancel().catch(() => {});
+          for (const suffix of ["?invalid=1", "/extra"]) {
+            const ordinary = await request(path + suffix, {
+              method: "POST",
+              headers: callbackHeaders,
+              body: "{}",
+            });
+            if (ordinary.status !== 401)
+              throw new Error("Callback exception widened the private gate");
+            await ordinary.body?.cancel();
+          }
+        }
+        appChecks.deliveryCallbackTransport = deliveryCallbacks
+          ? "nine enabled routes reject malformed envelopes; no host authority established"
+          : "all nine disabled routes retain the private preview gate";
         for (const [path, init] of [
           ["/api/codex-host/registrations", { method: "GET" }],
           [
@@ -335,7 +405,7 @@ try {
       result.appChecks = appChecks;
       const message = failure instanceof Error ? failure.message : "";
       result.appFailure =
-        /^(Actual app|Authenticated app|App owner|Cross-site app|Revoked app|Local synthetic|Native registration transport|Native heartbeat transport|Callback exception)/.test(
+        /^(Actual app|Authenticated app|App owner|Cross-site app|Revoked app|Local synthetic|Native registration transport|Native heartbeat transport|Native delivery callback|Callback exception)/.test(
           message,
         )
           ? message
@@ -381,7 +451,7 @@ try {
         }
       : {}),
   };
-  const evidencePath = `docs/checks/autonomous-delivery/cloudflare-auth-${appMode ? "app" : "local"}.json`;
+  const evidencePath = `docs/checks/autonomous-delivery/cloudflare-auth-${deliveryCallbacks ? "delivery-callbacks" : appMode ? "app" : "local"}.json`;
   await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
   execFileSync("pnpm", ["exec", "biome", "format", "--write", evidencePath], { stdio: "ignore" });
   console.log(JSON.stringify({ httpStatus: response.status, ...result }));
@@ -391,15 +461,33 @@ try {
   process.exitCode = 1;
 } finally {
   await writeFile("/tmp/hive-auth-workerd-private.log", logs, { mode: 0o600 });
+  const running = () => child.exitCode === null && child.signalCode === null;
+  const waitForExit = async () => {
+    if (!running()) return;
+    await Promise.race([
+      new Promise((resolve) => child.once("exit", resolve)),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
+  };
+  // Never signal a numeric process group after its leader has been reaped.
+  for (const signal of ["SIGTERM", "SIGKILL"]) {
+    if (!running()) break;
+    try {
+      process.kill(-child.pid, signal);
+    } catch {}
+    await waitForExit();
+  }
+  let groupGone = false;
   try {
-    process.kill(-child.pid, "SIGTERM");
-  } catch {}
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    new Promise((resolve) => setTimeout(resolve, 3000)),
-  ]);
-  try {
-    process.kill(-child.pid, "SIGKILL");
-  } catch {}
-  await rm(privateDirectory, { recursive: true, force: true });
+    process.kill(-child.pid, 0);
+  } catch (error) {
+    groupGone = error.code === "ESRCH";
+  }
+  if (!running() && groupGone) await rm(privateDirectory, { recursive: true, force: true });
+  else {
+    // A surviving descendant or unknown identity is not permission to signal
+    // a possibly reused group or remove its private runtime configuration.
+    console.error("Local runtime shutdown uncertain; private fixture retained for inspection");
+    process.exitCode = 1;
+  }
 }
