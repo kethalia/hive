@@ -57,10 +57,10 @@ describe("clone-tree contract helpers", () => {
   });
 
   it("derives display segments with Git as the root and home as the first child", () => {
-    expect(deriveCloneDisplaySegments(["phlox-labs", "hive"])).toEqual([
+    expect(deriveCloneDisplaySegments(["sample-labs", "hive"])).toEqual([
       "Git",
       "home",
-      "phlox-labs",
+      "sample-labs",
       "hive",
     ]);
 

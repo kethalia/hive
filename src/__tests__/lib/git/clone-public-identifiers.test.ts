@@ -7,8 +7,8 @@ import {
 describe("getCloneDisplayLabel", () => {
   it("removes the conventional projects container from repository labels", () => {
     expect(getCloneDisplayLabel("projects/kethalia/hive")).toBe("kethalia/hive");
-    expect(getCloneDisplayLabel("Git/projects/phlox-labs/platform/orchard")).toBe(
-      "phlox-labs/platform/orchard",
+    expect(getCloneDisplayLabel("Git/projects/sample-labs/platform/orchard")).toBe(
+      "sample-labs/platform/orchard",
     );
   });
 

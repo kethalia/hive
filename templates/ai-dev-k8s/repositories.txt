@@ -13,5 +13,3 @@ kethalia/marketing|kethalia/marketing
 kethalia/second-brain|kethalia/second-brain
 kethalia/top-decor|kethalia/top-decor
 kethalia/workflows|kethalia/workflows
-phlox-labs/contracts|phlox-labs/contracts
-phlox-labs/service-routing-api|phlox-labs/service-routing-api
