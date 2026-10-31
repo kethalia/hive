@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.32.1
+
+### Patch Changes
+
+- 9ca7efc: Adopt the official Codex 5.5.0 registry module in all workspace templates while preserving Hive's CLI updater and user-managed Codex configuration and authentication.
+
 ## 2.32.0
 
 ### Minor Changes
