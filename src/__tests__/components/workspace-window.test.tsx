@@ -84,10 +84,16 @@ describe("WorkspaceWindowDropPlaceholder", () => {
     );
 
     const placeholder = screen.getByTestId("workspace-window-drop-placeholder");
-    expect(placeholder).toHaveClass("absolute", "p-0.5", "pointer-events-none");
+    expect(placeholder).toHaveClass("absolute", "pointer-events-none");
     expect(placeholder).toHaveAttribute("data-workspace-window-drop-kind", "destination");
     expect(placeholder).toHaveAttribute("data-workspace-window-drop-position", "left");
-    expect(placeholder).toHaveStyle({ left: "50%", top: "50%", width: "25%", height: "50%" });
+    expect(placeholder).toHaveStyle({
+      left: "50%",
+      top: "50%",
+      width: "25%",
+      height: "50%",
+      padding: "2px",
+    });
     expect(placeholder).not.toHaveAttribute("data-workspace-window-id");
     expect(placeholder.firstElementChild).toHaveClass(
       "h-full",

@@ -1,0 +1,199 @@
+.hive-dock-overlay {
+  position: fixed;
+  transition: none;
+  z-index: 40;
+  scroll-padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  box-sizing: content-box;
+  max-width: var(--dock-available-width, calc(100vw - 24px));
+  max-height: var(--dock-available-height, calc(100dvh - 24px));
+  pointer-events: none;
+}
+.hive-dock-surface {
+  position: relative;
+  transition: none;
+  width: max-content;
+  max-width: var(--dock-available-width, calc(100vw - 24px));
+  max-height: var(--dock-available-height, calc(100dvh - 24px));
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 5px 20px rgb(0 0 0 / 20%);
+  pointer-events: auto;
+}
+.hive-dock-layout {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(var(--dock-available-width, 100vw - 24px) - 2px);
+  max-height: calc(var(--dock-available-height, 100dvh - 24px) - 2px);
+}
+.hive-dock-chrome {
+  order: 2;
+  flex: 0 0 26px;
+  margin-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hive-dock-overlay-content {
+  order: 1;
+  min-width: 0;
+  max-width: calc(100% - 38px);
+}
+.hive-dock-overlay .hive-dock-grip,
+.hive-dock-overlay .hive-dock-minimise {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+}
+.hive-dock-overlay .hive-dock-grip {
+  cursor: grab;
+  touch-action: none;
+}
+.hive-dock-overlay .hive-dock-chrome button:hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.hive-dock-overlay .hive-dock-chrome svg {
+  width: 14px;
+  height: 14px;
+}
+.hive-dock-overlay .hive-dock {
+  border: 0;
+  background: transparent;
+  padding-top: 12px;
+}
+.hive-dock-overlay .hive-dock-expand {
+  position: absolute;
+  inset: 0;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  color: var(--primary);
+  touch-action: none;
+  cursor: grab;
+}
+.hive-dock-overlay .hive-dock-expand svg {
+  width: 20px;
+  height: 20px;
+}
+.hive-dock-overlay[data-phase="expanded"] .hive-dock-expand {
+  visibility: hidden;
+}
+.hive-dock-overlay:not([data-phase="expanded"]) .hive-dock-layout {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.hive-dock-overlay:not([data-phase="expanded"]) .hive-dock-surface {
+  width: 48px;
+  height: 48px;
+}
+.hive-dock-overlay[data-phase="collapsed"] .hive-dock-layout {
+  visibility: hidden;
+}
+.hive-dock-overlay[data-phase="collapsed"] .hive-dock-surface {
+  border-radius: 12px;
+}
+.hive-dock-overlay[data-dragging="true"] {
+  user-select: none;
+}
+.hive-dock-overlay[data-dragging="true"] .hive-dock-grip,
+.hive-dock-overlay[data-dragging="true"] .hive-dock-expand {
+  cursor: grabbing;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hive-dock-overlay * {
+    transition: none;
+  }
+}
+
+.hive-dock-overlay[data-settling="true"] .hive-dock-chrome button {
+  scale: 1;
+  transition: none;
+}
+.hive-dock-overlay[data-settling="true"] .hive-dock-options {
+  scroll-snap-type: none;
+  overflow-anchor: none;
+}
+
+.hive-dock-overlay[data-orientation="vertical"] .hive-dock-layout {
+  flex-direction: column;
+}
+.hive-dock-overlay[data-orientation="vertical"] .hive-dock-chrome {
+  order: 0;
+  flex-direction: row;
+  margin: 6px 0 0;
+}
+.hive-dock-overlay[data-orientation="vertical"] .hive-dock-overlay-content {
+  min-height: 0;
+  max-width: 100%;
+  max-height: calc(var(--dock-available-height, 100dvh - 24px) - 40px);
+}
+.hive-dock-overlay[data-orientation="vertical"] .hive-dock {
+  flex-direction: column;
+  width: max-content;
+  height: max-content;
+  min-height: 0;
+  max-height: calc(var(--dock-available-height, 100dvh - 24px) - 40px);
+  padding: 12px 10px 15px 14px;
+}
+.hive-dock-overlay[data-orientation="vertical"]
+  :is(.hive-dock-panel, .hive-dock-home, .hive-dock-scroll-frame, .hive-dock-options) {
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+}
+.hive-dock-overlay[data-orientation="vertical"] .hive-dock-divider {
+  width: 30px;
+  height: 1px;
+  margin: 3px 0;
+}
+.hive-dock-overlay[data-orientation="vertical"] .hive-dock-options {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  margin: 0 -10px;
+  scroll-padding: 12px 0;
+  scroll-snap-type: y proximity;
+  touch-action: pan-y;
+}
+.hive-dock-overlay[data-orientation="vertical"] .hive-dock-scroll-control {
+  flex: 0 0 28px;
+  width: var(--dock-size);
+  height: 28px;
+  min-height: 28px;
+}
+.hive-dock-overlay[data-orientation="vertical"]
+  .hive-dock-scroll-frame[data-can-left="true"]
+  .hive-dock-options {
+  mask-image: linear-gradient(to bottom, transparent, #000 12px);
+}
+.hive-dock-overlay[data-orientation="vertical"]
+  .hive-dock-scroll-frame[data-can-right="true"]
+  .hive-dock-options {
+  mask-image: linear-gradient(to top, transparent, #000 12px);
+}
+.hive-dock-overlay[data-orientation="vertical"]
+  .hive-dock-scroll-frame[data-can-left="true"][data-can-right="true"]
+  .hive-dock-options {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 12px,
+    #000 calc(100% - 12px),
+    transparent
+  );
+}

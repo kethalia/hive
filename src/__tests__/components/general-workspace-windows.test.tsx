@@ -90,7 +90,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal(
     "matchMedia",
-    vi.fn(() => ({ matches: false })),
+    vi.fn((query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      addEventListener() {},
+      removeEventListener() {},
+    })),
   );
   vi.stubGlobal(
     "ResizeObserver",
@@ -126,6 +130,22 @@ describe("workspace navigation commands", () => {
         <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
       </KeybindingProvider>,
     );
+  it("connects dock spaces to saved boards without remounting existing terminal panes", async () => {
+    mountWorkspace();
+    const input = await screen.findByRole("textbox", { name: "Terminal input" });
+    const workspace = screen.getByTestId("general-workspace");
+    expect(workspace.querySelector("header")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Workspaces" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+    await waitFor(() => expect(saved().boards).toHaveLength(2));
+    expect(saved().activeBoardKey).not.toBe("board-1");
+    fireEvent.click(screen.getByRole("button", { name: "Remove workspace 2" }));
+    await waitFor(() => expect(saved().boards).toHaveLength(1));
+    expect(saved().activeBoardKey).toBe("board-1");
+    expect(screen.getByRole("textbox", { name: "Terminal input" })).toBe(input);
+    expect(screen.queryByRole("button", { name: "Remove workspace 1" })).toBeNull();
+    expect(loading.hide).not.toHaveBeenCalled();
+  });
   it.each([
     "Macintosh",
     "Windows",

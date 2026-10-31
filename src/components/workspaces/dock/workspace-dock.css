@@ -1,0 +1,289 @@
+/* Keycaps: the shadow stays anchored as a cap lifts or sinks into its base. */
+.hive-dock {
+  --dock-size: 54px;
+  --dock-ink: var(--foreground);
+  --dock-muted: var(--muted-foreground);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: max-content;
+  max-width: 100%;
+  padding: 12px 10px 15px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--dock-ink);
+  background: var(--card);
+  font-family: var(--font-mono);
+}
+.hive-dock[data-density="compact"] {
+  --dock-size: 44px;
+}
+.hive-dock-home,
+.hive-dock-options {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.hive-dock .hive-dock-button {
+  --key-side: color-mix(in srgb, var(--primary) 34%, var(--background));
+  --key-shadow:
+    -1px 1px 0 var(--key-side), -2px 3px 0 var(--key-side), -4px 5px 0 var(--key-side),
+    -5px 8px 10px rgb(0 0 0 / 22%), inset 0 1px 0 var(--border);
+  position: relative;
+  width: var(--dock-size);
+  height: var(--dock-size);
+  min-width: var(--dock-size);
+  padding: 0;
+  border: 1px solid var(--input);
+  border-radius: 5px;
+  color: var(--foreground);
+  background: var(--secondary);
+  box-shadow: var(--key-shadow);
+  font-size: 18px;
+  font-weight: 500;
+  transform: translate(0, 0);
+  scale: 1;
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+.hive-dock .hive-dock-button:hover {
+  background: var(--accent);
+  border-color: var(--border);
+}
+.hive-dock .hive-dock-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.hive-dock .hive-dock-button:disabled {
+  opacity: 0.35;
+}
+.hive-dock .hive-dock-app {
+  flex-direction: column;
+  gap: 4px;
+}
+.hive-dock .hive-dock-app svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.6;
+}
+.hive-dock-caption {
+  display: block;
+  font-size: 9px;
+  line-height: 1;
+}
+.hive-dock-divider {
+  flex: 0 0 1px;
+  height: 30px;
+  margin: 0 3px;
+  background: var(--border);
+}
+.hive-dock-count {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--primary);
+  background: var(--background);
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 9px;
+}
+.hive-dock .hive-dock-create {
+  color: var(--primary);
+}
+.hive-dock .hive-dock-key {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+.hive-dock .hive-dock-button:is([aria-pressed="true"], [aria-current="page"]) {
+  --key-shadow:
+    0 0.5px 0 var(--key-side), -0.5px 0.75px 0 var(--key-side), -1px 1px 0 var(--key-side),
+    -1px 2px 3px rgb(0 0 0 / 18%), inset 0 1px 2px rgb(0 0 0 / 12%);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+  box-shadow: var(--key-shadow);
+  transform: translate(-3px, 4px);
+}
+.hive-dock .hive-dock-workspace[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--primary-foreground);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .hive-dock
+    .hive-dock-button:hover:where(
+      :not(
+        :disabled,
+        [aria-pressed="true"],
+        [aria-current="page"],
+        [data-depressed="true"],
+        :active
+      )
+    ) {
+    --key-shadow:
+      -2px 2px 0 var(--key-side), -4px 5px 0 var(--key-side), -6px 8px 0 var(--key-side),
+      -7px 12px 14px rgb(0 0 0 / 25%), inset 0 1px 0 var(--border);
+    transform: translate(2px, -3px);
+    border-color: var(--primary);
+  }
+}
+.hive-dock .hive-dock-button:is(:active, [data-depressed="true"]):not(:disabled) {
+  --key-shadow:
+    0 0.5px 0 var(--key-side), -0.5px 0.75px 0 var(--key-side), -1px 1px 0 var(--key-side),
+    -1px 2px 3px rgb(0 0 0 / 18%), inset 0 1px 2px rgb(0 0 0 / 12%);
+  transform: translate(-3px, 4px);
+  transition-duration: 65ms, 65ms, 100ms, 100ms;
+  transition-timing-function: ease-out;
+}
+.hive-dock-tooltip {
+  width: auto;
+  max-width: min(280px, calc(100vw - 24px));
+  font-family: var(--font-mono);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-color: var(--border);
+  font-size: 12px;
+}
+.hive-dock-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: inherit;
+  min-width: 0;
+  max-width: 100%;
+}
+.hive-dock[data-transitioning="true"] {
+  overflow: clip;
+}
+.hive-dock-scroll-frame {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 4px;
+  min-width: 0;
+}
+.hive-dock-options {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 12px 10px;
+  margin: -12px 0;
+  scroll-padding-inline: 12px;
+  scroll-snap-type: x proximity;
+  touch-action: pan-x;
+}
+.hive-dock-options::-webkit-scrollbar {
+  display: none;
+}
+.hive-dock-options > button,
+.hive-dock-space {
+  scroll-snap-align: start;
+}
+.hive-dock-scroll-frame[data-can-left="true"] .hive-dock-options {
+  mask-image: linear-gradient(to right, transparent, #000 12px);
+}
+.hive-dock-scroll-frame[data-can-right="true"] .hive-dock-options {
+  mask-image: linear-gradient(to left, transparent, #000 12px);
+}
+.hive-dock-scroll-frame[data-can-left="true"][data-can-right="true"] .hive-dock-options {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 12px,
+    #000 calc(100% - 12px),
+    transparent
+  );
+}
+.hive-dock .hive-dock-scroll-control {
+  flex: 0 0 28px;
+  width: 28px;
+  height: var(--dock-size);
+  min-height: 44px;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--dock-muted);
+  background: transparent;
+  box-shadow: none;
+}
+.hive-dock .hive-dock-scroll-control:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--primary);
+}
+.hive-dock .hive-dock-scroll-control:disabled {
+  opacity: 0.25;
+}
+.hive-dock-space {
+  position: relative;
+  flex: 0 0 auto;
+}
+.hive-dock .hive-dock-remove {
+  position: absolute;
+  z-index: 1;
+  top: -6px;
+  right: -6px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--primary);
+  background: var(--background);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+  transform: translate(-3px, 4px);
+}
+.hive-dock .hive-dock-remove svg {
+  width: 14px;
+  height: 14px;
+}
+.hive-dock .hive-dock-remove:hover {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+.hive-dock[data-measuring="true"] .hive-dock-scroll-control {
+  display: none;
+}
+@media (max-width: 700px) {
+  .hive-dock {
+    --dock-size: 46px;
+  }
+  .hive-dock-home,
+  .hive-dock-options {
+    gap: 7px;
+  }
+}
+@media (max-width: 360px) {
+  .hive-dock {
+    --dock-size: 42px;
+  }
+  .hive-dock-home {
+    gap: 6px;
+  }
+  .hive-dock-divider {
+    margin: 0 1px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hive-dock .hive-dock-button {
+    transition: none;
+  }
+}

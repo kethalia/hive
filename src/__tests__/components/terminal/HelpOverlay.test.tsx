@@ -90,6 +90,7 @@ vi.mock("lucide-react", () => ({
 }));
 
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
+import { OPEN_KEYBINDING_HELP_EVENT } from "@/lib/terminal/help-overlay";
 
 const testEntries = [
   {
@@ -304,5 +305,11 @@ describe("HelpOverlay", () => {
     renderOpenOverlay();
     const headings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
     expect(headings[0]).toBe("general");
+  });
+  it("opens the live shortcut registry from the dock event", () => {
+    mockGetAll.mockReturnValue(testEntries);
+    render(<HelpOverlay />);
+    act(() => window.dispatchEvent(new Event(OPEN_KEYBINDING_HELP_EVENT)));
+    expect(screen.getByText("Keyboard Shortcuts")).toBeVisible();
   });
 });

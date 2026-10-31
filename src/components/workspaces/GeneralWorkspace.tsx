@@ -5,10 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
-import { GeneralWorkspaceMobileControls } from "@/components/workspaces/GeneralWorkspaceMobileControls";
+import { GeneralWorkspaceDock } from "@/components/workspaces/GeneralWorkspaceDock";
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
-import { WorkspaceBoardBar } from "@/components/workspaces/WorkspaceBoardBar";
-import { WorkspaceSearchButton } from "@/components/workspaces/WorkspaceHeaderButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePwaMode } from "@/hooks/use-pwa-mode";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
@@ -55,10 +53,10 @@ import {
   type WindowManager,
   windowGeometry,
 } from "@/lib/workspaces/window-manager";
+import { WORKSPACE_WINDOW_INSET } from "@/lib/workspaces/window-spacing";
 import { reconcileWorkspaceWindowLayout } from "@/lib/workspaces/workspace-window-layout";
 import { HiveWorkspacePane } from "./HiveWorkspacePane";
 import { WindowCanvas } from "./WindowCanvas";
-import { WindowLayoutControls } from "./WindowLayoutControls";
 import { WindowShortcutHelp } from "./WindowShortcutHelp";
 
 const labels = { files: "Files", code: "VS Code", desktop: "Desktop" };
@@ -550,41 +548,23 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const content = (
     <section
       className="flex h-full min-h-0 flex-col overflow-hidden"
-      // Terminal controls own the bottom inset while present; other windows need it here.
-      style={
-        mobile && active?.kind !== "terminal"
-          ? {
-              paddingBottom: isKeyboardVisible
-                ? "0.5rem"
-                : "max(0.5rem, var(--safe-area-inset-bottom))",
-            }
-          : undefined
-      }
+      style={{
+        padding: WORKSPACE_WINDOW_INSET,
+        paddingLeft: `max(${WORKSPACE_WINDOW_INSET}px, var(--safe-area-inset-left))`,
+        paddingRight: `max(${WORKSPACE_WINDOW_INSET}px, var(--safe-area-inset-right))`,
+        paddingBottom: isKeyboardVisible
+          ? WORKSPACE_WINDOW_INSET
+          : `max(${WORKSPACE_WINDOW_INSET}px, var(--safe-area-inset-bottom))`,
+        // Installed iOS status-bar blur can extend beyond its reported safe area.
+        paddingTop:
+          mobile && pwaMode === "standalone"
+            ? "calc(var(--safe-area-inset-top) + 1rem)"
+            : `max(${WORKSPACE_WINDOW_INSET}px, var(--safe-area-inset-top))`,
+      }}
       data-dashboard-full-bleed=""
       data-testid="general-workspace"
     >
       <WindowShortcutHelp shortcuts={manager.shortcuts} onChange={changeShortcuts} />
-      <header
-        className="relative isolate flex shrink-0 items-center justify-start gap-1 border-b bg-background pb-2 pl-[max(0.5rem,var(--safe-area-inset-left))] pr-[max(0.5rem,var(--safe-area-inset-right))] pt-[calc(var(--safe-area-inset-top)+0.5rem)]"
-        // Installed iOS apps can draw a status-bar blur past the reported safe area.
-        // Keep controls clear of that edge on phones and touch tablets, even with a zero inset.
-        style={
-          mobile && pwaMode === "standalone"
-            ? { paddingTop: "calc(var(--safe-area-inset-top) + 1.5rem)" }
-            : undefined
-        }
-      >
-        <WorkspaceSearchButton />
-        <WindowLayoutControls manager={manager} onAction={runWindowAction} />
-        <WorkspaceBoardBar
-          boards={state.boards}
-          activeBoardKey={board.key}
-          onCreate={createBoard}
-          onDelete={deleteBoard}
-          onSelect={(key) => update((current) => ({ ...current, activeBoardKey: key }))}
-          touchOptimized={mobile}
-        />
-      </header>
       {notification.opening ? (
         <p role="status" className="px-3 py-2 text-sm">
           Opening notification window…
@@ -734,16 +714,23 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           }}
         />
       </div>
-      {mobile && active?.kind === "terminal" ? (
-        <GeneralWorkspaceMobileControls
-          workspaceId={active.workspaceId}
-          isKeyboardVisible={isKeyboardVisible}
-          sessionName={
-            entries.current.get(terminalPaneViewKey("general", active.id))?.sessionName ??
-            active.sessionName
-          }
-        />
-      ) : null}
+      <GeneralWorkspaceDock
+        boards={state.boards}
+        activeBoardKey={board.key}
+        onCreate={createBoard}
+        onRemove={deleteBoard}
+        onSelect={(key) => update((current) => ({ ...current, activeBoardKey: key }))}
+        terminal={
+          active?.kind === "terminal"
+            ? {
+                workspaceId: active.workspaceId,
+                sessionName:
+                  entries.current.get(terminalPaneViewKey("general", active.id))?.sessionName ??
+                  active.sessionName,
+              }
+            : undefined
+        }
+      />
     </section>
   );
   return mobile ? (

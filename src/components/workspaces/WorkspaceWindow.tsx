@@ -4,6 +4,7 @@ import { type DraggableSyntheticListeners, useDraggable, useDroppable } from "@d
 import { CSS } from "@dnd-kit/utilities";
 import { type CSSProperties, type ReactNode, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { WORKSPACE_WINDOW_INSET } from "@/lib/workspaces/window-spacing";
 import type { WorkspaceWindowDropPosition } from "@/lib/workspaces/workspace-window-layout";
 
 interface WorkspaceWindowRenderState {
@@ -42,7 +43,7 @@ export function WorkspaceWindow({ children, id, previewStyle, style }: Workspace
     <div
       ref={setNodeRef}
       className={cn(
-        "absolute min-h-0 min-w-0 overflow-hidden p-0.5 transition-[left,top,width,height,opacity] duration-150 ease-out motion-reduce:transition-none",
+        "absolute min-h-0 min-w-0 overflow-hidden transition-[left,top,width,height,opacity] duration-150 ease-out motion-reduce:transition-none",
         isDragging && "pointer-events-none opacity-60",
       )}
       data-workspace-window-id={id}
@@ -50,6 +51,7 @@ export function WorkspaceWindow({ children, id, previewStyle, style }: Workspace
       data-workspace-window-previewing={previewStyle && !isDragging ? "true" : "false"}
       style={{
         ...(isDragging ? style : (previewStyle ?? style)),
+        padding: WORKSPACE_WINDOW_INSET,
         transform: transform ? CSS.Translate.toString(transform) : undefined,
         zIndex: isDragging ? 60 : style.zIndex,
       }}
@@ -76,12 +78,12 @@ export function WorkspaceWindowDropPlaceholder({
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute z-10 min-h-0 min-w-0 p-0.5 transition-[left,top,width,height] duration-150 ease-out motion-reduce:transition-none"
+      className="pointer-events-none absolute z-10 min-h-0 min-w-0 transition-[left,top,width,height] duration-150 ease-out motion-reduce:transition-none"
       data-workspace-window-drop-kind={kind}
       data-workspace-window-drop-placeholder="true"
       data-workspace-window-drop-position={position}
       data-testid="workspace-window-drop-placeholder"
-      style={style}
+      style={{ ...style, padding: WORKSPACE_WINDOW_INSET }}
     >
       <div className="h-full w-full rounded-md border-2 border-primary/80 bg-primary/10 shadow-[0_0_24px_rgb(141_255_157/0.18)]" />
     </div>
