@@ -1,0 +1,41 @@
+✔ Coder shell startup loads a large host package from a mounted file, outside argv (60.359904ms)
+✔ host archive has the same digest across checkouts sharing a dependency store (598.080261ms)
+✔ standard XZ encoding is repeatable and preserves exact archive bytes (135.489753ms)
+✔ build codec rejects compressed and expanded limits before artifact publication (57.488277ms)
+✔ installed read_status uses only empty current-claim scope and never treats missing policy as evidence (36.748753ms)
+✔ status schedules one bounded refresh per minute without waiting for collector and stops on pause (75.295972ms)
+✔ registration loss during status rejects late signed facts (24.755809ms)
+✔ explicit delivery capability cannot be inferred from legacy manager-only config (0.660442ms)
+✔ factory fails before constructing effects without all installed prerequisites (0.376717ms)
+✔ actual installed adapter exposes source protocol and signs immutable physical task context (20.740478ms)
+✔ foreign manager cannot select a checkout or mint a signed call (5.709606ms)
+✔ changed native lifetime stops signed effects and trusted status (5.016124ms)
+✔ recorded child completion preserves rejected_policy authority boundary (50.220983ms)
+✔ recorded child completion preserves revoked_metadata authority boundary (39.579409ms)
+✔ in-flight native revocation aborts even an uncooperative transport and rejects late ACK (6.110735ms)
+✔ in-flight registration revocation aborts even an uncooperative transport and rejects late ACK (5.423289ms)
+✔ in-flight close revocation aborts even an uncooperative transport and rejects late ACK (4.959391ms)
+✔ default-off fixed factual status request derives claim and validates full producer scope (30.345719ms)
+✔ wrong owner/current claim/source/admission and positive permission responses reject (8.804709ms)
+✔ post-response context/metadata changes and replaced checkout are rejected (4.34013ms)
+✔ bounds redirects, oversized responses, stalled bodies and ignored abort callbacks (93.551045ms)
+✔ close fences delayed guardian replies and waits bounded outstanding reads (1.142011ms)
+✔ every Coder script has a supported execution trigger (3.302547ms)
+✔ every workspace profile is a directly deployable Kubernetes Coder template (1.912302ms)
+✔ profile configuration defines exact image, resources, and runtime capabilities (1.47966ms)
+✔ canonical Terraform gates every optional workspace surface (0.609605ms)
+✔ specialist templates stay synchronized with the canonical Kubernetes scaffold (617.239282ms)
+✔ profile synchronization detects and removes obsolete shared scripts (1717.048188ms)
+✔ repository manifests remain narrow and parseable (0.848569ms)
+✔ profile guidance encodes the intended interactive and capability boundaries (0.314574ms)
+✔ every profile receives the same workspace routing and interactive handoff contract (0.704438ms)
+✔ specialist cleanup authority comes from primary creation evidence (0.303233ms)
+✔ Turborepo cache cleanup preserves project data (381.435436ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2785.395771

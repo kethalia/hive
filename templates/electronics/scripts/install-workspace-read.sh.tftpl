@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+set +x
+exec /usr/bin/python3 -I -B /usr/local/libexec/hive-template-bootstrap read < /opt/hive-workspace-read-template/request.json

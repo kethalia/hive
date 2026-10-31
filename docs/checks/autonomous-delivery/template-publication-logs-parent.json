@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T04:45:52.996691+00:00",
+  "baseRevision": "9ea8aca80e408eb859dd8dc5c5f12f3913a14e5c",
+  "testedSourcesCommitted": false,
+  "exportMethod": "git checkout-index from reviewed stage; isolated schema29-generated clients; existing pinned dependencies linked, never copied",
+  "schemaMigrationCount": 29,
+  "excludedWorkingPolicyMigration": "20261029190000_delivery_repository_policy",
+  "checks": {
+    "focusedCasesDeduplicated": 82,
+    "realPostgresCases": 42,
+    "typecheck": true,
+    "actualWorkerdReconciliation": true,
+    "defaultNativeInstallerTestSkipped": true,
+    "explicitNativeInstallerProofPassed": true
+  },
+  "sourceDigests": {
+    "deploy/cloudflare/jobs/worker.ts": "79101050cb003f6467a1618b2394f65a5a99b8788f9cd55f8447af2f203d5f07",
+    "deploy/cloudflare/app/worker.ts": "13c06d7e11d5e08d17b4bbfc3b37712361eb4bcfdfc2e744288bfa7638b1eb0e",
+    "deploy/cloudflare/app/template-publications.ts": "57381f281569f57c869d99ffc9678a68d3a636b86c5c28aa67688ed9d7e4347e",
+    "packages/db/prisma/schema.prisma": "44ec6ee8ef6dbaeca1f68f5dae2233510a8364f64a6bd03d7c5ba5b673f509a9",
+    "packages/db/prisma/migrations/20261029180000_template_publication_notices/migration.sql": "a590d0839853d4c554168cc5c21dd02231b090dd78a6bb6976902c1d972e0e91",
+    "src/lib/templates/publication-notices.ts": "0cb738b85562f83a026af74534245b3f85b0c6656d285f89aaa40800bdd87764",
+    "src/lib/projects/reconcile-transport.ts": "8eec861056578092295f87a5fe8338d45d5543ad978a7ed3b5e34fe748bc1d95",
+    "src/lib/projects/reconcile-route.server.ts": "f6146470ef9e48b3f6a85c8029968223ae3ea013b8b72c93cb222edc748eade3",
+    "packages/db/src/cloudflare.ts": "426b81cbb9d6e26e91fa4ed80b7e509d126f044589cec8daa1eb7b5b37131623"
+  },
+  "limitations": [
+    "Provider requests in local workerd are controlled fixtures, not live delivery.",
+    "Generic read-service live agent identity mismatch remains under investigation.",
+    "Detailed logs and notification flags remain off.",
+    "Remote Neon remains schema28 pending the committed migration29 rehearsal."
+  ],
+  "harnessCorrections": [
+    "Offline dependency install failed on a missing cached tarball; reused pinned dependencies with isolated generated clients.",
+    "Clean export has no Git metadata; read-only GIT_DIR and GIT_WORK_TREE supplied for base revision attribution.",
+    "First workerd checks passed but final formatter ignored /tmp report; repeated with repository-local report path and complete command passed."
+  ],
+  "productionChanged": false
+}

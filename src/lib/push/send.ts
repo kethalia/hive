@@ -1,6 +1,7 @@
 import { getDb } from "@hive/db";
 import webpush from "web-push";
 import { getVapidKeys } from "@/lib/push/vapid";
+import { sendFetchPush } from "./fetch-transport";
 import { notificationPreferencesSchema, type PushPayload } from "./types";
 
 export async function sendPushToUser(
@@ -10,12 +11,14 @@ export async function sendPushToUser(
   endpoint?: string,
 ): Promise<{ sent: number; cleaned: number; error?: string }> {
   let keys: { publicKey: string; privateKey: string };
+  let subject: string;
   try {
     keys = await getVapidKeys();
     // Apple rejects local-only VAPID subjects such as noreply@hive.local.
-    const subject = process.env.VAPID_SUBJECT?.trim() || process.env.HIVE_PUBLIC_ORIGIN?.trim();
+    subject = process.env.VAPID_SUBJECT?.trim() || process.env.HIVE_PUBLIC_ORIGIN?.trim() || "";
     if (!subject) throw new Error("Set HIVE_PUBLIC_ORIGIN or VAPID_SUBJECT for push delivery");
-    webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
+    if (process.env.HIVE_RUNTIME_TARGET !== "cloudflare")
+      webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
   } catch (err) {
     console.error(
       `[push] Failed to configure delivery: ${err instanceof Error ? err.message : String(err)}`,
@@ -44,7 +47,16 @@ export async function sendPushToUser(
     const preferences = notificationPreferencesSchema.parse(sub.preferences ?? {});
     if (payload.kind && !preferences[payload.kind]) continue;
     try {
-      await webpush.sendNotification(
+      const send =
+        process.env.HIVE_RUNTIME_TARGET === "cloudflare"
+          ? (
+              subscription: Parameters<typeof webpush.sendNotification>[0],
+              body: string,
+              options: Parameters<typeof webpush.sendNotification>[2],
+            ) =>
+              sendFetchPush(subscription, body, { ...options, vapidDetails: { subject, ...keys } })
+          : webpush.sendNotification.bind(webpush);
+      await send(
         {
           endpoint: sub.endpoint,
           keys: { p256dh: sub.p256dh, auth: sub.auth },
@@ -52,7 +64,9 @@ export async function sendPushToUser(
         JSON.stringify(payload),
         {
           TTL: 3600,
-          urgency: payload.kind === "ready" || payload.kind === "template" ? "normal" : "high",
+          urgency: ["ready", "template", "delivery"].includes(payload.kind ?? "")
+            ? "normal"
+            : "high",
           timeout: 10_000,
         },
       );

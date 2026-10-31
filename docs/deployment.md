@@ -44,6 +44,33 @@ The following exceptions are intentional and should be revisited only when the m
 
 ## Auth-service caller authentication
 
+### One configured Coder deployment
+
+Set `CODER_URL` to the same origin in the web, auth, and terminal-proxy
+environments. This deployment uses `https://coder.kethalia.com`; the value is
+server configuration, not a library default. HTTPS is required in production.
+Development may configure a local HTTP origin. Paths, query strings, fragments,
+and embedded credentials are rejected. `CODER_AGENT_URL` and the retired
+`ALLOWED_CODER_URLS` setting do not select the login host.
+
+Login accepts only email and password. Requests supplying `coderUrl` are rejected
+before credentials are forwarded. Coder login requests reject redirects. Deploy
+the web and auth changes together: old clients that still submit a URL must
+refresh, and the old service request contract is incompatible with this release.
+Verify the configured origin in isolated preview before promotion.
+
+Existing user and session rows remain intact. Sessions bound to a different origin
+are treated as unauthenticated, and stored credentials for another origin cannot
+be used for workspace operations or token rotation. A host change requires users
+to sign in again; it does not transfer accounts, rewrite origin bindings, or
+authorize sending old credentials to the new host. User ownership and session
+expiry/revocation checks remain in force. Confirm matching-origin existing
+sessions and new login, wrong-origin rejection, logout, and terminal reconnect
+during preview and cutover. This login flow uses Coder password authentication;
+it does not add an SSO flow.
+
+### Internal service credential
+
 `AUTH_SERVICE_SECRET` is required in the web, auth, and terminal-proxy environments.
 Use the same value in all three services: 32 random bytes encoded as exactly 64 hex
 characters, generated independently of `COOKIE_SECRET` and `ENCRYPTION_KEY`.

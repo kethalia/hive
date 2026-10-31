@@ -84,5 +84,12 @@ if [ "$HIVE_WORKSPACE_PROFILE" = "software" ]; then
   chmod 755 "$workspace_helper"
   mv -fT -- "$workspace_helper" "$HOME/.local/bin/hive-workspace"
 fi
-export GH_TOKEN="${github_token}"
-"$HOME/clone-repositories.sh"
+# Resolve GitHub authentication at execution time through the existing helper.
+# Never embed the provider access token in Coder's readable startup metadata.
+# Managed projects prepare one repository on demand. Retain existing clones and
+# the user-owned manifest, while keeping manual bootstrap available.
+if [ "$HIVE_MANAGED_PROJECTS" = "true" ]; then
+  printf '[ok] managed projects defer repository checkout until a task starts\n'
+else
+  "$HOME/clone-repositories.sh"
+fi

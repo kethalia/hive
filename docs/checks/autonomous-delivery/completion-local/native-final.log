@@ -1,0 +1,11 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/acceptance-repair-native.integration.test.ts (1 test) 5503ms
+   ✓ actual native repair and independent re-review with signed PostgreSQL services > failed exact B becomes same-step repair on B, publishes C and obtains fresh independent review without weakening criteria  5500ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  08:45:30
+   Duration  6.28s (transform 489ms, setup 0ms, collect 632ms, tests 5.50s, environment 0ms, prepare 42ms)
+

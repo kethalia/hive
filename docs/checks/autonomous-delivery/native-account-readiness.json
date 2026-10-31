@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "inference": false,
+  "steps": [
+    {
+      "method": "initialize",
+      "passed": true
+    },
+    {
+      "method": "configRequirements/read",
+      "passed": true
+    },
+    {
+      "method": "command/exec",
+      "passed": false,
+      "error": {
+        "code": -32600,
+        "categories": ["permission", "invalid", "read", "profile"]
+      },
+      "privateErrorFile": "diagnostic-error-3.json",
+      "cwdCategory": "managedRoot"
+    },
+    {
+      "method": "command/exec",
+      "passed": false,
+      "error": {
+        "code": -32600,
+        "categories": ["permission", "invalid", "read", "profile"]
+      },
+      "privateErrorFile": "diagnostic-error-4.json",
+      "cwdCategory": "fixtureCheckout"
+    },
+    {
+      "method": "command/exec",
+      "passed": false,
+      "error": {
+        "code": -32600,
+        "categories": ["permission", "invalid", "read", "profile"]
+      },
+      "privateErrorFile": "diagnostic-error-5.json"
+    }
+  ],
+  "profile": "software",
+  "apparmor": "hive-codex-v1 (enforce)",
+  "runtimeVersion": "0.165.0",
+  "requirements": {
+    "defaultPermissions": "hive-native-isolated",
+    "allowedPermissionProfiles": {
+      "hive-native-isolated": true
+    },
+    "allowedApprovalPolicies": ["never"],
+    "allowedSandboxModes": ["read-only", "workspace-write"]
+  },
+  "diagnosis": {
+    "failingMethod": "command/exec",
+    "errorCode": -32600,
+    "constraint": "permissions.filesystem must satisfy all managed deny_read restrictions",
+    "conflictingRuntimeAlias": "<nativeRoot>/codex/tmp/arg0-linux/codex-arg0<random>",
+    "primaryFixtureDifference": "Codex refuses helper alias creation when CODEX_HOME is under /tmp; real home permits alias creation",
+    "profileBroadened": false,
+    "installedBundleModified": false
+  }
+}

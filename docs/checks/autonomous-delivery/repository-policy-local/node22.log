@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: installed read_status uses only empty current-claim scope and never treats missing policy as evidence
+ok 1 - installed read_status uses only empty current-claim scope and never treats missing policy as evidence
+  ---
+  duration_ms: 37.261483
+  type: 'test'
+  ...
+# Subtest: status schedules one bounded refresh per minute without waiting for collector and stops on pause
+ok 2 - status schedules one bounded refresh per minute without waiting for collector and stops on pause
+  ---
+  duration_ms: 68.635587
+  type: 'test'
+  ...
+# Subtest: registration loss during status rejects late signed facts
+ok 3 - registration loss during status rejects late signed facts
+  ---
+  duration_ms: 17.863692
+  type: 'test'
+  ...
+# Subtest: explicit delivery capability cannot be inferred from legacy manager-only config
+ok 4 - explicit delivery capability cannot be inferred from legacy manager-only config
+  ---
+  duration_ms: 0.364825
+  type: 'test'
+  ...
+# Subtest: factory fails before constructing effects without all installed prerequisites
+ok 5 - factory fails before constructing effects without all installed prerequisites
+  ---
+  duration_ms: 0.212424
+  type: 'test'
+  ...
+# Subtest: actual installed adapter exposes source protocol and signs immutable physical task context
+ok 6 - actual installed adapter exposes source protocol and signs immutable physical task context
+  ---
+  duration_ms: 16.380982
+  type: 'test'
+  ...
+# Subtest: foreign manager cannot select a checkout or mint a signed call
+ok 7 - foreign manager cannot select a checkout or mint a signed call
+  ---
+  duration_ms: 4.224182
+  type: 'test'
+  ...
+# Subtest: changed native lifetime stops signed effects and trusted status
+ok 8 - changed native lifetime stops signed effects and trusted status
+  ---
+  duration_ms: 3.845488
+  type: 'test'
+  ...
+# Subtest: recorded child completion preserves rejected_policy authority boundary
+ok 9 - recorded child completion preserves rejected_policy authority boundary
+  ---
+  duration_ms: 51.533658
+  type: 'test'
+  ...
+# Subtest: recorded child completion preserves revoked_metadata authority boundary
+ok 10 - recorded child completion preserves revoked_metadata authority boundary
+  ---
+  duration_ms: 42.652579
+  type: 'test'
+  ...
+# Subtest: in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+ok 11 - in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 6.928856
+  type: 'test'
+  ...
+# Subtest: in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+ok 12 - in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 6.81192
+  type: 'test'
+  ...
+# Subtest: in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+ok 13 - in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 6.573213
+  type: 'test'
+  ...
+# Subtest: default-off fixed factual status request derives claim and validates full producer scope
+ok 14 - default-off fixed factual status request derives claim and validates full producer scope
+  ---
+  duration_ms: 24.205931
+  type: 'test'
+  ...
+# Subtest: wrong owner/current claim/source/admission and positive permission responses reject
+ok 15 - wrong owner/current claim/source/admission and positive permission responses reject
+  ---
+  duration_ms: 12.518291
+  type: 'test'
+  ...
+# Subtest: post-response context/metadata changes and replaced checkout are rejected
+ok 16 - post-response context/metadata changes and replaced checkout are rejected
+  ---
+  duration_ms: 4.427301
+  type: 'test'
+  ...
+# Subtest: bounds redirects, oversized responses, stalled bodies and ignored abort callbacks
+ok 17 - bounds redirects, oversized responses, stalled bodies and ignored abort callbacks
+  ---
+  duration_ms: 92.708633
+  type: 'test'
+  ...
+# Subtest: close fences delayed guardian replies and waits bounded outstanding reads
+ok 18 - close fences delayed guardian replies and waits bounded outstanding reads
+  ---
+  duration_ms: 1.247797
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 342.35033

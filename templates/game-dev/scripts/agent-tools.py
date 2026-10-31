@@ -435,10 +435,19 @@ def resume(key):
             return {"sessionName": name}
         command = [agent, "resume" if agent == "codex" else "--resume", record["id"]]
         environment = []
+        unset = []
+        for variable in ("CODEX_HOME", "CLAUDE_CONFIG_DIR"):
+            if variable in os.environ:
+                environment += ["-e", variable + "=" + os.environ[variable]]
+            else:
+                # An existing tmux server may have inherited an obsolete value.
+                unset += ["-u", variable]
         if shutil.which("hive-audio"):
             code, pulse = run(["hive-audio", "prepare", "--", name], timeout=5)
             if code == 0 and pulse.strip().startswith("unix:") and "\n" not in pulse.strip():
-                environment = ["-e", "PULSE_SERVER=" + pulse.strip()]
+                environment += ["-e", "PULSE_SERVER=" + pulse.strip()]
+        if unset:
+            command = ["/usr/bin/env", *unset, *command]
         code, _ = run(["tmux", "-L", "web", "new-session", "-d", "-s", name,
                        "-c", str(cwd), *environment, *command])
         if code:

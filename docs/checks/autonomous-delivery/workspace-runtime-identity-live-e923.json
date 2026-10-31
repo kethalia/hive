@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "stage": "complete",
+  "scope": {
+    "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+    "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+    "templateVersionId": "f77f7373-8083-444d-8f48-c05e9a29bc20",
+    "buildId": "e8086875-3cf6-43ee-868e-57be6d5dfd56",
+    "imageDigest": "sha256:eab0d69ad7e50a53b3f6f48f1a5d8915e91c70acd0f616f48d48126408e51962",
+    "imageSourceSha": "e9230f136939e0749e0c77f85d62d91b53adae67"
+  },
+  "limits": {
+    "http": 80,
+    "milliseconds": 90000,
+    "ssh": 1
+  },
+  "checks": {
+    "freshOwnerBuildAgentApp": true,
+    "signedReadIdentityVerified": true,
+    "signedSessionsVerified": true,
+    "signedCwdVerified": true,
+    "signedPathsVerified": true,
+    "outsideRootExplicit": true,
+    "projectDiscoveryVerified": true,
+    "projectResolveVerified": true,
+    "exactEpicRefVerified": true,
+    "ownerBuildStableAfterInspection": true
+  },
+  "counts": {
+    "total": 55,
+    "blocked": 0,
+    "ssh": 1
+  },
+  "statuses": {
+    "coderRead:200": 28,
+    "coderRead:303": 9,
+    "appCookieExchange:303": 9,
+    "readPost:200": 6,
+    "projectPost:200": 3
+  },
+  "scratch": "/tmp/hive-runtime-read-acceptance-Jl9Fey",
+  "workspaceOrTemplateMutations": false,
+  "projectOrTmuxCreation": false,
+  "githubWrites": false,
+  "authorizationBookkeepingMayAdvance": true,
+  "accountInference": false,
+  "runtime": {
+    "helperRootPinMatches": true,
+    "host": {
+      "agentNormalized": true,
+      "bootstrapConfigSha256": "85211442b02d6e6d237ad8d3866385af319ea99904d6ede7c57c0a36911efeab",
+      "effectiveConfigSha256": "600dc0e7868825a849b7016d64af5967a6aa5f720b6dc48c203891857483ca50",
+      "manifestBindingSha256": "315d7bc08396804fc1e077bb544bac06e248ae8fa343e184123797abd68ceb40"
+    },
+    "hostManagerDisabled": true,
+    "hostOuterNoOwnerCredential": true,
+    "hostPackageFilesVerified": true,
+    "manifestBuildEnvironmentMatches": true,
+    "passed": true,
+    "read": {
+      "agentNormalized": true,
+      "bootstrapConfigSha256": "4700c5f4c270408ee469ed9c1def93f9180e96c7eb559da5c33b13e0dbca4e1c",
+      "effectiveConfigSha256": "1b6b3a7071774c2ac66ed3e4f31fbed8c82d8bad1b29cca65b28b5760c9dd535",
+      "manifestBindingSha256": "ff4b03fa1d4201e901211344db786133236ae4961a560ad28b592b014b00417d"
+    },
+    "readPackageFilesVerified": true,
+    "readProcessIdentityVerified": true,
+    "readReceiptHmacVerified": true,
+    "readServiceNoAgentOrOwnerCredential": true,
+    "sameRuntimeAgentAcrossApps": true,
+    "schemaVersion": 1
+  },
+  "limitations": [
+    "Whole image digest comes from the parent-reviewed deployment record; runtime helper/component hashes are independently observed.",
+    "The80-request counter covers direct fetches. One SSH session has a separate15s client deadline; its protocol traffic is not included in that counter.",
+    "No workspace/template configuration changes, tmux creation, project enrollment, native inference or GitHub writes are performed. Scoped app authentication and replay ledgers may advance.",
+    "Transport abort/SSH client termination is not evidence of kernel quiescence; all operations are bounded reads."
+  ],
+  "createdAt": "2026-10-30T06:36:23.943Z",
+  "sourceDigests": {
+    "scripts/probe-workspace-runtime-identity.mjs": "785d7fb83405c4730c0299748e122dd9a45f68ca6a54e0730eb2097eb52417b1",
+    "scripts/probe-workspace-runtime-identity.py": "e505e537d2756972a869cbe1b35a588b07167026baa6c20dee1fb962228c5dc2",
+    "src/lib/coder/client.ts": "b163082ea75bbb88cf94489e41fba31b965ea30b4c5c4c69046e941b329d2222",
+    "src/lib/coder/fetch.ts": "b3d3bf2eb986dbee72dd0868381f3029705df1c8b7464efcf32cb285f9077cac",
+    "src/lib/codex-session/registration.server.ts": "a29e1cf84b8c9f25e47c999eec94681c06bd316e1507694978ddcdc350a61d90",
+    "src/lib/codex-session/bootstrap-delivery.server.ts": "8c6c143e693945e564b48141c27844d299345193f868288f780da50c542e878a",
+    "src/lib/workspaces/read-client.server.ts": "000a5b3d0be5c6fa7a64328bb48006c236d288b6be599a4c709b5dcea86886f9",
+    "src/lib/workspaces/read-contracts.ts": "f535415f6423beecc530107290a01a7972a64a0cbeb2a1ad314a003ea90dbbc1",
+    "src/lib/projects/contracts.ts": "7fa5117b604564ab51227371ba9870e9d1d7877a05971b93b7310576faf0122e",
+    "src/lib/security/workspace-app-isolation.ts": "b8f4930119a0be2647827b3a707eb2510a5ac800eb8d191a67a0d2b541cf5535",
+    "pnpm-lock.yaml": "2dbea9462ec46bc954241f01f89afd57923cea602ddf3d631d7e0bfc67212df3"
+  },
+  "sourceStable": true
+}

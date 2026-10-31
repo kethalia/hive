@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "106721df264ae25e860229efb43362d7d77d23b2",
+  "observedAt": "2026-10-29T21:00:00Z",
+  "observedAtPrecision": "minute; before browser activation window",
+  "method": "Independent connected Cloudflare API GET metadata and multipart deployed-content SHA-256; no Worker HTTP requests or mutations.",
+  "preparedManifest": "/tmp/hive-epic-coder-auth/app-preview-4ca691cd-f406-4fc7-8890-26ac5ceb1cbd/prepared-deployment.json",
+  "metadata": {
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "targets": [
+      {
+        "name": "hive-auth-compatibility-preview",
+        "tag": "731fb2f125fb472e8682ea6ed4d1f53d",
+        "createdOn": "2026-10-29T19:13:42.822748Z",
+        "deploymentId": "f19897d0-4c64-47be-9b65-2f65958da125",
+        "versions": [
+          {
+            "version_id": "31f32411-94f1-438e-87dc-40280749910c",
+            "percentage": 100
+          }
+        ],
+        "publicState": {
+          "enabled": false,
+          "previews_enabled": false
+        },
+        "limits": {
+          "cpu_ms": 100
+        },
+        "routes": null,
+        "logpush": false,
+        "sourceRevisionMatches": true,
+        "publicIssuerContainsPrivateMaterial": false,
+        "vars": {
+          "HIVE_RUNTIME_TARGET": "cloudflare"
+        },
+        "bindings": [
+          {
+            "type": "secret_text",
+            "name": "AUTH_SERVICE_SECRET"
+          },
+          {
+            "type": "plain_text",
+            "name": "CODER_URL"
+          },
+          {
+            "type": "secret_text",
+            "name": "DATABASE_URL"
+          },
+          {
+            "type": "secret_text",
+            "name": "ENCRYPTION_KEY"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_RUNTIME_TARGET"
+          },
+          {
+            "type": "plain_text",
+            "name": "SOURCE_REVISION"
+          }
+        ]
+      },
+      {
+        "name": "hive-app-compatibility-preview",
+        "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+        "createdOn": "2026-10-29T19:15:01.671691Z",
+        "deploymentId": "9f4480f3-9598-4577-bc19-22d8cc5b7900",
+        "versions": [
+          {
+            "version_id": "9dd91379-967f-47b8-85e1-67c82dcd73b9",
+            "percentage": 100
+          }
+        ],
+        "publicState": {
+          "enabled": false,
+          "previews_enabled": false
+        },
+        "limits": {
+          "cpu_ms": 100
+        },
+        "routes": null,
+        "logpush": false,
+        "sourceRevisionMatches": true,
+        "publicIssuerContainsPrivateMaterial": false,
+        "vars": {
+          "HIVE_CODEX_GATEWAY_ENABLED": "false",
+          "HIVE_DISABLE_BACKGROUND_WORKERS": "true",
+          "HIVE_RUNTIME_TARGET": "cloudflare"
+        },
+        "bindings": [
+          {
+            "type": "assets",
+            "name": "ASSETS"
+          },
+          {
+            "type": "service",
+            "name": "AUTH_SERVICE",
+            "service": "hive-auth-compatibility-preview"
+          },
+          {
+            "type": "secret_text",
+            "name": "AUTH_SERVICE_SECRET"
+          },
+          {
+            "type": "plain_text",
+            "name": "CODER_URL"
+          },
+          {
+            "type": "secret_text",
+            "name": "COOKIE_SECRET"
+          },
+          {
+            "type": "secret_text",
+            "name": "DATABASE_URL"
+          },
+          {
+            "type": "secret_text",
+            "name": "ENCRYPTION_KEY"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_CODEX_APP_SLUG"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_CODEX_GATEWAY_ENABLED"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_CODEX_GATEWAY_PORT"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_CODEX_HIVE_ORIGIN"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_CODEX_ISSUER_KEY_ID"
+          },
+          {
+            "type": "secret_text",
+            "name": "HIVE_CODEX_ISSUER_PRIVATE_KEY"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_CODEX_ISSUER_PUBLIC_KEY"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_CODEX_SESSION_TRANSPORT"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_CODEX_SOFTWARE_TEMPLATE_IDS"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_DELIVERY_ENABLED"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_DISABLE_BACKGROUND_WORKERS"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_PREVIEW_ORIGIN"
+          },
+          {
+            "type": "plain_text",
+            "name": "HIVE_RUNTIME_TARGET"
+          },
+          {
+            "type": "secret_text",
+            "name": "PREVIEW_BEARER"
+          },
+          {
+            "type": "secret_text",
+            "name": "PREVIEW_COOKIE_SECRET"
+          },
+          {
+            "type": "plain_text",
+            "name": "SOURCE_REVISION"
+          }
+        ]
+      }
+    ]
+  },
+  "content": [
+    {
+      "worker": "hive-auth-compatibility-preview",
+      "success": true,
+      "totalResponseBytes": 7367945,
+      "parts": [
+        {
+          "name": "worker.js",
+          "bytes": 1760980,
+          "sha256": "62dd84d3095fdebbe7585652b9470cbecbb2d89ffb4b8225120c3ccb3b21d0b1"
+        },
+        {
+          "name": "worker.js.map",
+          "bytes": 3655975,
+          "sha256": "60cf05337c14c4ecdbd2587c14f59106bbf7db9a2522dbab3c7794a601bfec66"
+        },
+        {
+          "name": "./b5eac128f9b2a7b2146c1e479f7284d9f4137e45-query_compiler_bg.wasm",
+          "bytes": 1950269,
+          "sha256": "8ad65dab5c22d8ce70db4bcb6c8c0a5069feb9841d9154cfb59f2003c2bd0236"
+        }
+      ]
+    },
+    {
+      "worker": "hive-app-compatibility-preview",
+      "success": true,
+      "totalResponseBytes": 56340794,
+      "parts": [
+        {
+          "name": "worker.js.map",
+          "bytes": 32660267,
+          "sha256": "96ddcd367582046a028e1f5af16ade0311736a55574902a5e0a8ebf966d5bbb3"
+        },
+        {
+          "name": "./b5eac128f9b2a7b2146c1e479f7284d9f4137e45-query_compiler_bg.wasm",
+          "bytes": 1950269,
+          "sha256": "8ad65dab5c22d8ce70db4bcb6c8c0a5069feb9841d9154cfb59f2003c2bd0236"
+        },
+        {
+          "name": "worker.js",
+          "bytes": 21729537,
+          "sha256": "6cdafc64fee0c267559769b5d1af9bc5b3153f094bd16bbea623fd41b230fddc"
+        }
+      ]
+    }
+  ],
+  "comparison": {
+    "localUploadedJavaScriptAndWasmMatch": true,
+    "sourceMaps": "Remote digests recorded separately; upload rewrites source-map paths/formatting, so raw local source-map digest equality is not claimed.",
+    "publicState": "Both URLs disabled at independent audit. Parent subsequently enabled app for bounded browser smoke and disabled it again at 21:02:23; this artifact does not claim a later independent settings read.",
+    "limits": "CPU100ms; no routes, cron, DNS, add-ons or background jobs enabled; app native gateway disabled."
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-29T23:18:20.542Z",
+  "sourceRevision": "92f7b2523687f90dde779177b2f1f3927b37f62d",
+  "sourceStable": true,
+  "sourceSha256": {
+    "src/lib/delivery/source-transport.server.ts": "236df39f3bc2db428190eff04891a8510f4e8b4bd1df3c2440aea7dfa42d86ea",
+    "src/lib/delivery/source-transport-contracts.ts": "ecfcd398d428b28179ea20f3a1f289ad9340226eaf266946d702da6d67f9ecf9",
+    "src/lib/delivery/source-publication.server.ts": "5a74fa62cc0589f019a6de32abea32a109292c62723e8a8e33a2d1da6fe267a0",
+    "src/lib/delivery/github-artifacts.server.ts": "12fb25eaf47a7215bc847ef3ad47e0d9c86d9689acaf4899ad26f2469b8549ea",
+    "src/__tests__/lib/delivery/source-transport.integration.test.ts": "17beb8c0d33dfbb82c5e84380e8887bc9ad4acb6e6e9745868d8ac6b7ba47e64",
+    "deploy/cloudflare/evidence/local-r2-fixture.ts": "14ef86c691bd80f68b46acf2f76c30fbe31426656841098c3d0a59578c861df6",
+    "scripts/probe-source-publication-r2.mjs": "a2fc0cc118af2fbc2f6696bf8cc7ab802369e9e579d75717ae9cf8860b02a3a2"
+  },
+  "checks": [
+    "unauthenticated loopback denied",
+    "real local R2 conditional create+SHA256+streamed readback",
+    "eight concurrent exact replays retain one object",
+    "workerd restart preserves object",
+    "same-key corrupted bytes rejected and preserved"
+  ],
+  "remoteWrites": false,
+  "liveR2Proof": false,
+  "installedBundleProof": false,
+  "realGuardianProof": false,
+  "realProviderProof": false,
+  "postgresIntegration": "passed: signed source issuer/publication protocol + injected admission + real PG + actual local workerd R2 binding",
+  "scope": "Actual local workerd R2 emulator only; no Cloudflare bucket or billing change; retention lock/IAM requires separate deployment review."
+}

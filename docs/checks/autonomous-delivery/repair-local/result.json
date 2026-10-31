@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "baseRevisionAtEvidenceWrite": "4207534a82e48329e9ead79b58926fa7c1070f28",
+  "testedSourcesCommitted": false,
+  "sourceStable": true,
+  "sourceHashAuthority": {
+    "packages/db/prisma/migrations/20261030210000_delivery_acceptance_repair/migration.sql": "47238bc340a09d272787ea6c2ee41853dbad32e2dc4d5443fa68536e24ecfabe",
+    "src/lib/delivery/acceptance-repair-contracts.ts": "6a5bca45ef47f0c3b1c72b3db38fc95a8b1942b2d3e190d91b5ddf4e2b720b18",
+    "src/lib/delivery/acceptance-repair.server.ts": "b662a8cc4679b24b0dbe28d1f0be5f6bc2b02efd753e1b99bb0bb5f2da1480a0",
+    "src/lib/delivery/acceptance-contracts.ts": "1cdd51aecac9fb81ce74b10624938fca4522e39c780247a89e2e9538ac1136a3",
+    "src/lib/delivery/acceptance-factory.server.ts": "645842830b4a79f4a28b0efa56100bdad171a73fb83cf3705adf30ee3bdab594",
+    "src/lib/delivery/acceptance-material.server.ts": "7a95b5999b2cb6dd10549876ae63a43099cf3128ba963447944b76b7509eeb14",
+    "src/lib/delivery/acceptance-route.server.ts": "de0a62d42773f47250a9514ecfbfb06f6c2cba4377b61f4604d3b9622d947608",
+    "src/lib/delivery/acceptance-service.server.ts": "ef3c9cc9adfa8d3aa9dc25556f3aed518e00649105886cb05a62f202ed681132",
+    "src/lib/delivery/manager.server.ts": "dba0ba20fb9f5895c0116d55b66d50370fcecc1076b1bbeb0c6a2ed7dac2034e",
+    "src/lib/delivery/progression.server.ts": "4668e80ae530642432f1e41fea555f70055db6eb9dded3e600caa30049784c48",
+    "src/lib/delivery/repository-policy.server.ts": "68e353e812316d786a97abe91fcb64689e3c95adae3404ebc06a809ec603afba",
+    "src/lib/delivery/repository.ts": "0ffe7e0e53c4877c297ad34af106f28e35ff1e146a3436ad4e9f98249ec2a4a2",
+    "src/lib/codex-session/guardian-application-store.server.ts": "d4fee8ab1e9fac4e0a2ea5adca25f7ab2fe00ed24fa7ed86a8e27751a7de53e1",
+    "src/__tests__/lib/delivery/acceptance-candidate-fixture.ts": "2b9e2c4ec9b78a3d0161e9759d4cf5b8a877dbff6109bb706e7616f5ee526708",
+    "src/__tests__/lib/delivery/acceptance-repair-fixture.ts": "6ff7da2bffff84e73bad3dc82f8ce576181b686f76de4c4e1d80fe540127c6a5",
+    "src/__tests__/lib/delivery/acceptance-repair.integration.test.ts": "0ad83302ad6bb445f5015146ed5863fa2f1c64cd35b35a60b01a74d4c9810f7a",
+    "src/__tests__/lib/delivery/acceptance-repair-native.integration.test.ts": "523ce0bd836190bce8cf77e21bacae9e90135431db7ce210f7ae2a1bc9132f45",
+    "src/__tests__/lib/delivery/acceptance-review.integration.test.ts": "bb68fbc9f4d85ef152c0d065ec025649379a2989594864256a0a3efa5bed1760",
+    "src/__tests__/lib/delivery/acceptance-guardian-fixture.ts": "8373ef1d91effbd9cdaa8c0eb66df49b2d4f2fcf94d6385f6811ffbe733bffa1",
+    "src/__tests__/lib/delivery/native-fixture.ts": "cfbbff341aafc315a11055fbc19c42165fba9f78d4e2fc7b845b1f0b996ba99a",
+    "src/__tests__/lib/delivery/progression.integration.test.ts": "90a7b8e1c23c458a43edd050c7ef695bab230c85cd07011b6722e374533d4ac3",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "e3e1b3fb0de8e073bcfaf36befd4b1cea7e391f5a2b0707523aee2d92c85f18b",
+    "scripts/verify-delivery-manager-adapter.test.mjs": "fd63cec5e01c6475d5f10bb76bfd1895ff21de829d3619fb0014292ab70dd7f0",
+    "templates/ai-dev-k8s/scripts/delivery-acceptance-client.mjs": "8d075ead3208ecf634a50a670606b26e61010cf3b7765b763cea04506df78502",
+    "templates/ai-dev-k8s/scripts/codex-acceptance-runtime.mjs": "02662d73f68ba975ccf7890442948bf45edfa398264972f556a43a56bf919611",
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": "b87b36c8ece40db9bc5eaf25edb99abacf6a7b0c274eb4c8c8cba9f20b0d59f1",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "44fb8a16b55fdae43c05306c11afd49cd3a66e4bdaead7c1805a27705ba25760",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "856ac1e6f03e454fa3a7e4c150a178fd6ce814413051fefb72e564c13c635d2d",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "2662764d823808526643a4b6361747dacbaae337278d036f4fdec8950ca4f424"
+  },
+  "tests": {
+    "runtimeActualNative": {
+      "pass": 149,
+      "skip": 1
+    },
+    "adapterWithRestart": {
+      "pass": 37,
+      "skip": 1
+    },
+    "postgresRegression": {
+      "pass": 76
+    },
+    "actualNativeSignedRepair": {
+      "pass": 1
+    },
+    "typecheck": true
+  },
+  "migration": {
+    "fresh": 33,
+    "upgrade": "31 through frozen32 to33",
+    "oldTablesUnchanged": 45,
+    "populatedTablesUnchanged": 27,
+    "oldMigrationChecksumsUnchanged": 31,
+    "newTablesFrom32": 5,
+    "newTablesFrom33": 0,
+    "schema32Sha256": "181dd5a458c89bbd90fb109fc534448f8741a05a6f27c05efcf8fc053ccb2183"
+  },
+  "limitations": [
+    "Local canned model, no account inference or provider writes",
+    "Initial enrollment, provider publication, child facts and input-barrier receipt in new native proof are explicit fixture doubles",
+    "Actual evaluator turns, history seal, manager repair turn and signed service/PostgreSQL writes are real",
+    "Independent CI remains pending at final semantic pass; no production task completion or quiescence claim",
+    "Controller-derived completion for terminal success without a prior manager report is the approved next slice"
+  ],
+  "artifacts": {
+    "docs/checks/autonomous-delivery/repair-local/adapter-restart.txt": "5544ff029485d09e06b9569d618cc005e153257fc52681a34575f40bf61e1eaa",
+    "docs/checks/autonomous-delivery/repair-local/biome.txt": "9416a4b429634bd83c32e4c5e0e11c9c125c102c429cd5c65bffa843776bc13d",
+    "docs/checks/autonomous-delivery/repair-local/concurrency-first-failure.txt": "7341111154bffc6ba66d681de70309c992f3666edb55f9adffa53c7693be85cc",
+    "docs/checks/autonomous-delivery/repair-local/fixture-cleanup.json": "8bbdc0be560868be8fcb4a62445bab57a28746c881b87df14b131e163ab11ab0",
+    "docs/checks/autonomous-delivery/repair-local/fresh-migration.txt": "e2030ec70ce637a75d08d2a3c9860fec22bdde72d12d91a64f8a9308831d6d41",
+    "docs/checks/autonomous-delivery/repair-local/native-first-failure.txt": "06545935eebbbe478cefbcc236e58a102872afb3b9c42f7a28f1d8a201c7ce4e",
+    "docs/checks/autonomous-delivery/repair-local/native-pg.json": "b0e1bfb7d17db9d4276181fb0cff2da3b62e2730e9834dc364bdaa5923ae5e15",
+    "docs/checks/autonomous-delivery/repair-local/native-pg.txt": "02b77eaadc706bd3d23a473a38ecf079759fd2d64b97cfcccad9137a31245d1f",
+    "docs/checks/autonomous-delivery/repair-local/native-second-failure.txt": "55818cbf9a60e790879927744fde4e1fd3c320f904b5713fec1298ab789cc69f",
+    "docs/checks/autonomous-delivery/repair-local/pg.txt": "dd4b4982058065d81b96d5fb8f859842809990bbde4d7c3e96d38fb0024635ce",
+    "docs/checks/autonomous-delivery/repair-local/runtime.txt": "3adb10bd732b57884b413cc8f5a5b0700be57d484a66a1565353a98e28bee0b5",
+    "docs/checks/autonomous-delivery/repair-local/sql-fence-first-failure.txt": "ff26dddcfbc672c01915a58bb3bfe68c61a72704d5e7fde1d531fad8809145dc",
+    "docs/checks/autonomous-delivery/repair-local/types.txt": "9344edc6b9ad85444ca57c97babcb46b86992e2fb841abebf3ebdd1d5d5b8932",
+    "docs/checks/autonomous-delivery/repair-local/upgrade-after.json": "36ad6e4d4a0aeebd520827e005ecf1d1bf048748174c5ecaacbcdc1bbdcd73dc",
+    "docs/checks/autonomous-delivery/repair-local/upgrade-before.json": "31244964c62c03a94dd1857801509513c861f9b1efb9df0677d6fe743fcc3481",
+    "docs/checks/autonomous-delivery/repair-local/upgrade-migration.txt": "edf6c781a82c69bf6130b6f6388dfa1404e097dd67ce4faea85c91901e235a99",
+    "docs/checks/autonomous-delivery/acceptance-repair.md": "3ab2e65775e9a8b608f62556ee12f9e98c0d5495a419ef0d4eb6d9c08ae1d0da"
+  }
+}

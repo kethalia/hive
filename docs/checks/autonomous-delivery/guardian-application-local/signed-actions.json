@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "runtime": {
+    "node": "v24.21.0",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "observedAt": "2026-10-30T02:19:12.957Z",
+  "mode": "signed-service",
+  "baseRevision": "d4a19433187f15c0fe4c9657ff8c3b848637eb3d",
+  "endingBaseRevision": "d4a19433187f15c0fe4c9657ff8c3b848637eb3d",
+  "sourceDigests": {
+    "packages/db/prisma/schema.prisma": "9fbb9ff0d35decc24bea832aea2453b216394d79c2a356d7a3d1483864b91c61",
+    "src/lib/codex-session/guardian-service.server.ts": "b37837f1be5f88e1d2eef4f5f279f44b8ddbdb9125fca9e961721577d441a544",
+    "src/lib/codex-session/guardian-route.server.ts": "3a2631b276f57f1b4e3d735b55488dd7bc7018f2024b0d8b73a7b8d04fba3676",
+    "src/lib/codex-session/guardian-transport-contracts.ts": "66a4e6c1ef10d86441328a7aff0cadd31d5ebaffc3e447bda4932f741ba44ca3",
+    "src/lib/codex-session/guardian-application-contracts.ts": "e5bc1899a8abd138e197fe232366ad3506ad336f4bb1675201b39a9f27147c51",
+    "src/lib/codex-session/guardian-application-store.server.ts": "73a53a705e0b4c429110b78c3470d9b56ec0863bcc70519d459893f1780f63dd",
+    "src/lib/codex-session/guardian-store.server.ts": "ded348821f34819c688c729ce6020f46c4e626ef194df564dc7224f4ecdb0369",
+    "src/lib/codex-session/guardian-contracts.ts": "dd70d737646619019180949d05c00513155d0261bd7e4b3daaf660d7073cbbc4",
+    "src/lib/codex-session/guardian-config.server.ts": "54739cad4db53fadc297a9d8fa1387718f055fa302e1ca1edda4b1f2163251ed",
+    "src/lib/codex-session/registration-store.server.ts": "a4daed37b02986afff80ae6c9257da6029b5190840e9e9bf7edb817b6d4debbd",
+    "src/lib/delivery/manager.server.ts": "b5298a3a2727255bfff72d499f2aa88dc0cdea51b18dc7f4429f06f50bc65508",
+    "src/lib/delivery/native.server.ts": "1c36c5f74e0d021571f3f84c91b5e350628b5be0d1b24a4d4df5ba3a38a918b2",
+    "src/lib/delivery/native-contracts.ts": "0ea0b6da8bf14b85d1008f8a38bc796aeb29a4c98f5ce173964d2269c5b30c0b",
+    "src/lib/delivery/source-publication.server.ts": "831ff7261f407b489f3ec2a553b9f00795ca05b64d3d6eab813c3c946827925b",
+    "src/lib/delivery/source-transport.server.ts": "f2993b7101d2349f07c0c72abffd994ae0e0dbc89e5db649bcc4d6792878f3f9",
+    "src/lib/delivery/source-resolver.server.ts": "bb60c7cc8f1172608475a9ba7dbde6cff73bc09deb9e3fbc570a4ce2432bdf27",
+    "src/lib/delivery/repository.ts": "68c180b718d82f2115f5e99996e51c591fc58973d2f6f49bdce559f540f704d9",
+    "src/lib/delivery/manager-binding.server.ts": "b3c844855de4042acd170bf152dbaf400c3569e8a76d17b33409112c1de78e84",
+    "src/lib/delivery/source-transport-contracts.ts": "ecfcd398d428b28179ea20f3a1f289ad9340226eaf266946d702da6d67f9ecf9",
+    "src/lib/codex-session/guardian-application-gate.server.ts": "9c2018ba9c9c838a075af4ec658fa7163851512b3c5770e82a6b82bb7eb8d498",
+    "src/lib/codex-session/route.server.ts": "768010897b4b36573287bf39e6ca4d8cfb2ae2661c60716b6c7d2f8f11c3b528",
+    "src/lib/projects/task-intents.server.ts": "59d64a961112178c2b5e06b191b8f6a51cd29d22ce16325d44d4df063917cd0b",
+    "src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts": "9f2c340f02d78319a8e36fc81e6ed98b499bda9c39e3ccb925204a50b6786867",
+    "src/__tests__/lib/codex-session/guardian-application-fixture.ts": "ca361590abe7ec1f1750ef6e6c17e2ec3cdfda0fadb09bb952bc9e2f4372c368",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "2019b0bd997d830a00ac0bd1a2eb18985c29e4744109eb4a2ed91452b7e2f7d4",
+    "src/__tests__/lib/delivery/native-fixture.ts": "001cb38a748cb21005a2468e8c9c4c48ccbe8fbc5c6e7324d55ca925a7dd7d52",
+    "scripts/probe-guardian-application-actions.mjs": "92749460dec77850945b780339ded61cd5804db90d411031a4ef04a5d5cbf8c8"
+  },
+  "sourceStable": true,
+  "testedSourcesCommitted": false,
+  "passed": true,
+  "tests": {
+    "passed": 7,
+    "failed": 0
+  },
+  "database": {
+    "host": "loopback",
+    "port": 35235,
+    "name": "hive_delivery_test",
+    "minimumSchema": 25
+  },
+  "checks": [
+    "Real Ed25519 signed fixed route crosses strict positive scoped-authority schema.",
+    "Default-off, forged proof and foreign project/application/policy input reject.",
+    "Observed PostgreSQL PgSleep proves signed authorization expiry and abort during UPDATE roll the transaction back.",
+    "Wrong signed generation and concurrent persisted generation change cannot receive current-generation authority."
+  ],
+  "limitations": [
+    "Actual PostgreSQL/signing/transaction behavior uses fixture owner/package authority and synthetic completed native facts.",
+    "A live request may mint a distinct <=30-second application grant bounded by runtime/registration; frame must remain live through commit."
+  ],
+  "inputBarrierIsKernelQuiescence": false,
+  "physicalWriterReleased": false,
+  "deployedActivation": false,
+  "cloudMutations": false,
+  "accountInference": false
+}

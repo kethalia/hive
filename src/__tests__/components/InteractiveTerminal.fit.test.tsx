@@ -40,6 +40,11 @@ vi.mock("@/components/terminal/TerminalAudioBridge", () => ({
   ),
 }));
 
+// Next replaces server actions with client proxies; jsdom needs the same boundary.
+vi.mock("@/lib/actions/workspaces", () => ({
+  getExistingTerminalPathsAction: vi.fn().mockResolvedValue({ data: [] }),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));

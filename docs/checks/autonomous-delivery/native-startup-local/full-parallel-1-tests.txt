@@ -1,0 +1,98 @@
+(node:626604) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./")); register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ metadata mode requires exact first-native authority, policy and checkout identity (38.680657ms)
+✔ metadata pinning rejects symlink before launch (14.719182ms)
+✔ metadata pinning rejects metadata-symlink before launch (16.189158ms)
+✔ metadata pinning rejects gitfile before launch (13.1294ms)
+✔ metadata pinning rejects hardlink before launch (12.486071ms)
+✔ metadata pinning rejects alternates before launch (14.01724ms)
+✔ metadata pinning rejects commondir before launch (11.409533ms)
+✔ metadata pinning rejects worktrees before launch (12.110407ms)
+✔ metadata pinning rejects identity before launch (11.83605ms)
+✔ metadata pinning rejects oversize before launch (11.889523ms)
+✔ metadata pinning rejects entry-limit before launch (267.760446ms)
+✔ pinned descriptor mount resists checkout path replacement and consumes inherited handles (54.004343ms)
+✖ actual native root, child, CLI and resumed thread retain read-only Git metadata with live host refs (15408.084962ms)
+(node:626605) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./")); register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ isolated execution is an explicit configuration mode (1.064346ms)
+✖ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (14164.353539ms)
+✔ actual wrapper, monitor and host crashes terminate pinned native and release inherited lock (3890.852773ms)
+(node:626606) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./")); register("./scripts/probe-native-startup-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ one durable creation intent, actual first input once, persisted same-thread attach (36.170958ms)
+✔ ambiguous create survives restart and never creates a second thread (26.567673ms)
+✔ one workspace lifetime authorizes only each independently registered project's exact thread (41.248483ms)
+✔ lease expiry denies execution while durable read binding remains available (25.326893ms)
+✔ checkout absence retains durable reads while input and attach stay denied (27.079351ms)
+✔ failed helper provenance cannot authorize execution even with an otherwise current lease (17.062793ms)
+✔ ambiguous first prompt is durable, replay cannot repeat inference (20.678659ms)
+✔ native lifetime loss revokes all bindings and restart requires explicit same-thread rejoin (33.583604ms)
+✔ OS lock rejects another supervisor and private registry forgery cannot reopen (14.65685ms)
+✔ unpersisted rejoin failure is explicit and never substitutes a new thread (28.266619ms)
+✔ unknown caller fields, project substitutions, lease changes and path escapes are denied (12.570356ms)
+✔ unsupported profile/version and mismatched native thread metadata fail closed (22.224359ms)
+✔ SIGKILL releases process lock but preserves uncertain creation intent (70.686541ms)
+✔ installed native 0.165 rejects remote CLI attachment of an empty loaded thread (2779.315321ms)
+✔ actual native first text persists through local mock provider then same-thread CLI attaches (4388.117021ms)
+✔ SIGKILL supervisor terminates its actual native child and permits a fresh lifetime (853.39813ms)
+✔ registered empty thread supports first-turn manager enrollment but no premature history attach (23.740838ms)
+✔ native tool router separates request IDs and never answers approvals or arbitrary tools (9.862737ms)
+✔ router drain tracks detached observers and excludes read responses from its notification fence (10.824213ms)
+✔ a claim handler can drain others without awaiting itself or excluding a foreign same-named call (10.976495ms)
+✔ protocol one journals one private continuation and revalidates the exact claim without opening CLI admission (37.928004ms)
+✔ an ambiguous continuation start stays journaled and never sends a second native start (29.180148ms)
+✔ parallel native input and work before claim receipt retain the continuation hold (36.478121ms)
+✔ protocol-one boundary refuses unknown inventory and inconsistent full-item history (28.208623ms)
+✔ router timeout keeps the actual handler tracked until its underlying work settles (1.532276ms)
+✔ continuation rechecks registration after awaited history and again after durable start intent (59.882848ms)
+✔ registration cannot adopt an empty thread after a failed new-lifetime rejoin (36.87208ms)
+✔ installed manager observer receives exact notification methods, never approval requests (0.198249ms)
+✔ renewal failure durably fences execution, interrupts exact turn and preserves reads and other project (55.110735ms)
+✔ uncertain turn interruption stays durably revoked for review (33.766076ms)
+✔ revocation retains review hold for unknown-active native inventory (31.879856ms)
+✔ revocation retains review hold for truncated native inventory (33.841793ms)
+✔ revocation retains review hold for missing-root native inventory (33.597794ms)
+✔ pre-execution proof requires exact creation intent, loaded empty history and no first prompt (27.240148ms)
+✔ pre-execution proof cannot reinterpret uncertain creation (17.659725ms)
+✔ installed child mapping gates notifications and history by exact parent/spawn/lifetime (25.714751ms)
+✔ late mapped child after revocation is interrupted and failures retain review hold (32.533225ms)
+✔ supervisor holds process lock and native lifetime until installed observer close drains (26.419877ms)
+✔ guardian closure while a native response is pending keeps the durable creation intent uncertain (20.320365ms)
+✔ guardian close barrier revokes input before awaiting fixed owned CLI cleanup (30.7832ms)
+✔ positive manager receipt arriving after guardian closure cannot be returned to the native model (21.726415ms)
+ℹ tests 57
+ℹ suites 0
+ℹ pass 55
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18463.363974
+
+✖ failing tests:
+
+test at scripts/verify-codex-git-metadata.test.mjs:263:1
+✖ actual native root, child, CLI and resumed thread retain read-only Git metadata with live host refs (15408.084962ms)
+  Error: native_start_timeout
+      at check (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:35:17)
+      at launchNative (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:1695:5)
+      at async runtimeFactory (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-git-metadata.test.mjs:420:16)
+      at async openSupervisor (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:267:15)
+      at async TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-git-metadata.test.mjs:413:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at scripts/verify-codex-native-namespace.test.mjs:69:1
+✖ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (14164.353539ms)
+  Error: native_start_timeout
+      at check (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:35:17)
+      at launchNative (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:1695:5)
+      at async runtimeFactory (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-native-namespace.test.mjs:212:16)
+      at async openSupervisor (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:267:15)
+      at async TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-native-namespace.test.mjs:234:16)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)

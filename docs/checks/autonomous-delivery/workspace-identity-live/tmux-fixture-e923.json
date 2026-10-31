@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:36:12.431719+00:00",
+  "scope": {
+    "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+    "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "buildId": "e8086875-3cf6-43ee-868e-57be6d5dfd56",
+    "templateVersionId": "f77f7373-8083-444d-8f48-c05e9a29bc20"
+  },
+  "session": "hive-identity-proof",
+  "fixedSocket": "web",
+  "created": false,
+  "reused": true,
+  "cwdVerified": true,
+  "modelInvoked": false,
+  "otherSessionChanged": false,
+  "freshOwnerBuildReadyVerified": true,
+  "dedicatedTestSessionOnly": true,
+  "isolatedCliConfig": true,
+  "workspaceLifecycleChanged": false,
+  "diagnosticCorrection": "Temporary setup asserted PVC-root UID ownership before any tmux call. Actual shared home root is2775 and owned separately; no permission/config changes were made. Existing fixed session was verified read-only and reused.",
+  "priorSetupAttempts": {
+    "failedBeforeTmux": 2,
+    "createdAnySession": false
+  },
+  "sshReadOnlyControlSucceeded": true
+}

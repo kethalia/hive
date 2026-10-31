@@ -1,0 +1,82 @@
+{
+  "observedAt": "2026-10-29T19:34:32.002436+00:00",
+  "gitHeadAtValidation": "a6c8f77d5f8286133bef564a335dfff8b23611c9",
+  "vitest": {
+    "files": 18,
+    "tests": 180,
+    "nativeRuntimeAndPostgresIncluded": true,
+    "fileParallelism": false
+  },
+  "hostAdapterAndSpool": {
+    "tests": 14,
+    "actualNativeToolFixtureIncluded": true
+  },
+  "typecheck": "passed",
+  "nativeVersion": "0.165.0",
+  "runtime": {
+    "node": "v24.21.0",
+    "postgres": "postgres (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)"
+  },
+  "migration": {
+    "observedAt": "2026-10-29T19:34:10.428117+00:00",
+    "freshDatabase": "hive_native_fresh_29b3703c",
+    "upgradeDatabase": "hive_native_upgrade_29b3703c",
+    "migrationCount": 19,
+    "checksumMatch": true,
+    "schemaDrift": "unchanged from committed pre-binding baseline",
+    "baselineDrift": "[*] Changed the `codex_host_slots` table\n  [-] Removed foreign key on columns (owner_id, id, active_registration_id)\n\n[*] Changed the `project_task_intents` table\n  [*] Renamed the foreign key \"project_task_intents_project_fkey\" to \"project_task_intents_owner_id_project_id_fkey\"",
+    "preBindingLegacyUserSessionCiphertextAndActiveDeliveryAttemptPreserved": true,
+    "newBindingFieldsRemainNullForLegacyRows": true,
+    "postgres": "17.11",
+    "scope": "isolated primary local cluster only; no remote migration",
+    "formatOnlyNormalization": "Removed final blank EOF before commit as requested by coordinator; new fresh/upgrade databases prove normalizedSQL. Previously applied local fixtures retain original checksums; no applied history row rewritten."
+  },
+  "sourceSha256": {
+    "packages/db/prisma/schema.prisma": "3da782da16ea06c90d968bf57e312fd040db2a28b2375bc4853c30545a7b3f12",
+    "packages/db/prisma/migrations/20261029090000_delivery_manager_binding/migration.sql": "a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2",
+    "src/lib/delivery/contracts.ts": "c2ffcd7224f9bbbee73b2d351651343abe1e2bbff373a174ee4e59c03d268204",
+    "src/lib/delivery/repository.ts": "32ec4fb40b16f1e17de7c9ca5da9926341e70ab55e67de19ade9f3f70f006e6b",
+    "src/lib/delivery/manager-contracts.ts": "823fd23851cc7cc1e394a489b438b8812056680c8618b6e32593c948178ec603",
+    "src/lib/delivery/manager.server.ts": "7d6990788c973cb35771d62402ce59bdf7b3fc89e5db77d15335f3da4213b2d8",
+    "src/lib/delivery/manager-binding.server.ts": "84c237b6e9fd17313f845327ed06e43c59d1da73d94819d9abf96dbe77253140",
+    "src/lib/delivery/native-contracts.ts": "927e35b12c8ef790285b94dfdc21bc57de84edbab52b20d1767af93483b8ef47",
+    "src/lib/delivery/native.server.ts": "14d8f348f7f33b8a950c8cfa28b04c5f61b09662b0ea60cb076470d43ead4509",
+    "src/app/api/delivery/host/route.ts": "0ec6537d41cc909de498c9f1fb37fc01d34022085a84f9d65228bcd5a37ab3bf",
+    "src/app/api/delivery/native/route.ts": "7cfda73154c1d61caec8234dd88a45e306f01a42234b04c6c510901b9ba47757",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "e5bb35b9cbfa488f0f4d05a9ef596d49f2a26ec54e15d80a921a46adcbeb2713",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "a60da937aaf20859164b1c02781f90f5911d9b206429e4223931482b820859f7",
+    "scripts/verify-delivery-manager-adapter.test.mjs": "c4702a1db6c9698020af0401fb32e2e6eab8513590667568ce40a1e6cd46397f",
+    "scripts/verify-delivery-native-spool.test.mjs": "c70ab72a24450647550e6543a8f972ccbfdeeae20909fd5d5bb9e559096d5f94",
+    "src/__tests__/lib/delivery/manager.integration.test.ts": "a31e91a21aa1f9b01959298312ae897b61129466cdddc37759a46392a3d3c857",
+    "src/__tests__/lib/delivery/database-errors.test.ts": "afa97fa6a2e566fb8188d3ffeeb4a2364edcc0a40af6ac369eaaf945dc834fdb",
+    "src/__tests__/lib/delivery/native-fixture.ts": "8a6d472484d3d67252b2a51d9c32f0216e71fbb7d813a14d990488a919dee2b2",
+    "src/__tests__/lib/delivery/native-source.integration.test.ts": "d2d1ac5934272cde197f8a4d293e54043ec485b6580e3e1a30a009315964b1e3",
+    "src/__tests__/lib/delivery/native-runtime.integration.test.ts": "f8b6b018f06a9a7a9354b99a55c9ccabf99adb22efb3e3a65c3b4c0fcadf154f",
+    "src/__tests__/lib/delivery/native-route.test.ts": "2794bfa1ecbe727972ef90c8028f09e2d73c2aad50ead23483fd9590726cb0f2"
+  },
+  "scope": "Primary software workspace; synthetic Coder authority and fixture acceptance producer, actual local native app-server using local mocked Responses, real isolated PostgreSQL. No account inference, paid service, production or Neon mutation.",
+  "initialAmbientNativeProfile": {
+    "result": "failed",
+    "observedCommandError": "bwrap: Can't bind mount /oldroot/ on /newroot/: Unable to mount source on destination: Permission denied",
+    "correction": "explicit minimal permission profile, fixture directory and exact native ELF; actual child command exit0 and native source persistence then passed",
+    "productionIsolationProven": false
+  },
+  "productionFlags": {
+    "HIVE_DELIVERY_MANAGER_ENABLED": false,
+    "HIVE_DELIVERY_NATIVE_ENABLED": false,
+    "releaseMode": "disabled"
+  },
+  "remainingGates": [
+    "Native command/signer and supervisor authority isolation, including resumed and spawned processes",
+    "Live Coder authority and authenticated external GitHub source target/nonce provenance with immutable artifact preservation",
+    "Trusted background/external operations quiescence and reviewed retirement of old writer slot",
+    "Explicit reviewed source rebinding, attempt lease renewal and manager retry/reopen integration",
+    "Account-backed bounded pilot, end-to-end preview acceptance and owner production approval"
+  ],
+  "localCluster": {
+    "path": "/tmp/hive-delivery-pg-5gcusk89",
+    "port": 36229,
+    "running": true,
+    "retainedFor": "Coordinator and other agents; do not stop before parent confirmation"
+  }
+}

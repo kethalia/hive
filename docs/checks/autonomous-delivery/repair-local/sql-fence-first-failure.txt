@@ -1,0 +1,43 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+·x··
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/delivery/acceptance-repair.integration.test.ts > controller-owned same-step repair reservations > applies the exact failed candidate, consumes one same-step repair claim and retains the original physical writer
+PrismaClientUnknownRequestError: 
+Invalid `tx.deliveryManagerBinding.updateMany()` invocation in
+/home/coder/projects/kethalia/hive/src/lib/delivery/manager.server.ts:388:59
+
+  385 )
+  386   throw new DeliveryConflict("invalid_continuation");
+  387 const continuation = input.continuation;
+→ 388 const changed = await tx.deliveryManagerBinding.updateMany(
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "P0001", message: "Previous logical attempt must be terminal in the same task/source", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })
+ ❯ Wn.handleRequestError node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13
+ ❯ Wn.handleAndLogRequestError node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12
+ ❯ Wn.request node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12
+ ❯ a node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24
+ ❯ DeliveryRepository.afterAttemptClaimed src/lib/delivery/manager.server.ts:388:27
+    386|             throw new DeliveryConflict("invalid_continuation");
+    387|           const continuation = input.continuation;
+    388|           const changed = await tx.deliveryManagerBinding.updateMany({
+       |                           ^
+    389|             where: {
+    390|               ownerId,
+ ❯ src/lib/delivery/repository.ts:562:7
+ ❯ Proxy._transactionWithCallback node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:722:18
+ ❯ DeliveryRepository.transaction src/lib/delivery/repository.ts:194:16
+ ❯ DeliveryManagerService.execute src/lib/delivery/manager.server.ts:507:15
+ ❯ src/__tests__/lib/delivery/acceptance-repair.integration.test.ts:156:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed (4)
+   Start at  07:43:50
+   Duration  3.53s (transform 386ms, setup 0ms, collect 520ms, tests 2.88s, environment 0ms, prepare 44ms)
+

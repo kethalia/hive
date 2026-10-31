@@ -1,4 +1,29 @@
+# syntax=docker/dockerfile:1
+# Official SDK/toolchain build lives outside all five runtime image variants.
+# The named source context is explicit in build-base-image.yml.
+FROM debian:trixie AS workspace-identity-build
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates curl python3 \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+        https://go.dev/dl/go1.26.10.linux-amd64.tar.gz -o /tmp/go.tar.gz \
+    && echo 'ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5  /tmp/go.tar.gz' | sha256sum --check --status \
+    && mkdir /opt/go \
+    && tar -xzf /tmp/go.tar.gz --strip-components=1 -C /opt/go \
+    && rm /tmp/go.tar.gz
+WORKDIR /src
+COPY --from=workspace-identity . /src/
+RUN python3 /src/build-image.py
+
 FROM debian:trixie
+COPY --from=workspace-identity-build --chmod=0755 /out/hive-workspace-identity /usr/local/libexec/hive-workspace-identity
+COPY --from=workspace-identity-build --chmod=0644 /out/hive-workspace-identity.json /usr/local/libexec/hive-workspace-identity.json
+COPY --chmod=0555 hive-template-bootstrap.py /usr/local/libexec/hive-template-bootstrap
+COPY --from=template-runtime --chmod=0444 assets/codex-host.tar.xz assets/workspace-read.tar.gz assets/voice.tar.gz assets/agent-bridge.tar.gz /usr/local/libexec/hive-template-runtime/
+COPY --from=template-runtime --chmod=0444 scripts/install-codex-host.py scripts/install-workspace-read.py scripts/install-voice.py scripts/install-agent-bridge.py /usr/local/libexec/hive-template-runtime/
+
+# COPY --chmod protects file contents; the unprivileged runtime must traverse the asset directory.
+RUN chmod 0555 /usr/local/libexec/hive-template-runtime
 
 ARG WORKSPACE_VARIANT=cli
 
@@ -77,6 +102,9 @@ RUN apt-get update \
         zsh \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
+
+# Managed host bootstraps decode bounded XZ archives with the standard library.
+RUN python3 -c "import lzma"
 
 # notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
 RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \

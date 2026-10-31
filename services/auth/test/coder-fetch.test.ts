@@ -28,6 +28,17 @@ describe("auth-service fetchCoderApi", () => {
     vi.unstubAllEnvs();
   });
 
+  it("rejects redirect responses and closes the private-CA dispatcher", async () => {
+    mockUndiciFetch.mockResolvedValue(
+      new Response("redirect", { status: 302, headers: { Location: "https://other.example" } }),
+    );
+    const { fetchCoderApi } = await import("../src/auth/coder-fetch.js");
+    await expect(fetchCoderApi("https://coder.example.com/api/v2/users/me")).rejects.toThrow(
+      "Coder API redirect rejected",
+    );
+    expect(mockAgentClose).toHaveBeenCalledOnce();
+  });
+
   it("uses and closes a verified private-CA dispatcher", async () => {
     const { fetchCoderApi } = await import("../src/auth/coder-fetch.js");
 
@@ -55,5 +66,24 @@ describe("auth-service fetchCoderApi", () => {
     expect(response.status).toBe(204);
     expect(response.body).toBeNull();
     expect(mockAgentClose).toHaveBeenCalledOnce();
+  });
+
+  it("disables credential redirects for the default transport", async () => {
+    vi.stubEnv("CODER_CA_CERT", "");
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", mockFetch);
+    try {
+      const { fetchCoderApi } = await import("../src/auth/coder-fetch.js");
+      await fetchCoderApi("https://coder.example.com/api/v2/users/login", {
+        method: "POST",
+        redirect: "follow",
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ redirect: "manual" }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

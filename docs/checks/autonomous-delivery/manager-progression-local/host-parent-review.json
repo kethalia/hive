@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-10-29T22:31:34.165151+00:00",
+  "scope": "Local opt-in protocol-one host progression with retained physical writer; no installed activation",
+  "review": {
+    "initialFindings": [
+      "Expired registration could start a continuation",
+      "Registration expiry during claim HTTP await could return model success"
+    ],
+    "status": "Both closed by independent reviewer; original repro now holds without new turn or success; no additional blocking finding",
+    "nativeAuthority": "Exact registration/lifetime/context checked after history and durable journal, after HTTP and receipt handling; stale positive ACK preserved under original identity"
+  },
+  "validation": {
+    "parentRuntimeTestsPassed": 76,
+    "parentNativeOptionalTestsSkipped": 0,
+    "parentRuntimeLog": "host-parent-tests.txt",
+    "parentNativePostgres": "host-native-pg-parent-post-review.json",
+    "postgresMigrationCount": 23,
+    "sourceStableDuringProof": true,
+    "simulated": "Model Responses, check evidence and signed controller transport; no account inference or real CI acceptance"
+  },
+  "remaining": [
+    "Runnable restart recovery and multi-project/large-epic history bounds",
+    "CLI and terminal composition",
+    "Guardian and external writer quiescence",
+    "Source publication and accepted-output host wiring",
+    "Installed test-workspace and deployed browser acceptance"
+  ]
+}

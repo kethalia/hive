@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "baseRevisionAtStart": null,
+  "baseRevisionAtEnd": null,
+  "testedSourcesCommitted": false,
+  "sourceStable": true,
+  "sources": {
+    "src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts": "e06d31e92b3a41e78b37d2d4152f65b0f175ec1806780afb6163f37ec113e746",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "8ef5b1ec7b73791fa73611c9c70446b3ca4fa8f5f6dc0404296c7bd4862326ad",
+    "src/__tests__/lib/delivery/native-fixture.ts": "001cb38a748cb21005a2468e8c9c4c48ccbe8fbc5c6e7324d55ca925a7dd7d52",
+    "scripts/fixtures/installed-delivery-material.py": "741fca71b7b843a8c19ee9cff2597798fba0b43b7b77c9c4829b5e118df88ced",
+    "scripts/fixtures/installed-delivery-host.mjs": "a1c43fa1051724f4d72156c8d9066c893d844f1462b4a30ec7b73ebe5fa8f592",
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": "0c87624ea170e859dae7f859efd529e704b3bbd980dc9acb244ea61a7774abd2",
+    "templates/ai-dev-k8s/scripts/codex-source-application.mjs": "5f1e4dd0bbce8be7a8c9dcdc3d0dfe64dec086aec68cd718a4e97adf0e8c67bc",
+    "templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs": "a9d7d205bcc1bcc1d22441e713700fddea71d023d5ff566283faa7f791359a82",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "45751a56b5e9322ce42d280047bd0a2fef010eb3d0e05d90a214301b6fd2af7e",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "5a669d54b9a80b43babac5abad10378f7aeb9fa0282c320e339f91e5ebd4cb15",
+    "templates/ai-dev-k8s/scripts/delivery-source-publisher.mjs": "1500e602ff0f34bc6c7a82b0f7543b2cddc61b71e5950db06a8768751a190f00",
+    "templates/ai-dev-k8s/scripts/delivery-source-state-client.mjs": "4b6124ed687d65a6dc9785d6964ed37eb466ecadbe924b9be569f34ef663dc4b",
+    "templates/ai-dev-k8s/scripts/delivery-status-client.mjs": "5ce1575a181c55ff73161fa8c6c03084e2e088631270ef48c1685d0a8a821a12",
+    "templates/ai-dev-k8s/scripts/delivery-source-worker.py": "25d707e7873f71e515fbf6820e8a9c36a19951a99b465a51c7ee9239f0a5d419",
+    "templates/ai-dev-k8s/scripts/delivery-source-runtime.py": "fe6bd196e98030449897ce5076ccc2688d48af127c5c9f68e0525212c8c926ef",
+    "templates/ai-dev-k8s/scripts/delivery-source-broker.py": "a1046b274d4947924c5b10ba02b509982d629b8c332c6ac075aaf3f39638ba70",
+    "templates/ai-dev-k8s/scripts/delivery-source-provider.py": "cf737991ab5606b85e468a5872b72a4d3a0cd5dbdf8ff926189c470aff9b0b3b",
+    "templates/ai-dev-k8s/scripts/delivery-source-apply-client.mjs": "713652184803209d3e12cd3598403eead1e3065cc45e6d7660f352061aad2daa",
+    "templates/ai-dev-k8s/scripts/delivery-source-apply-worker.py": "7e6764b83332e9295fc3ad9b1bff8fb4290bfc429805f51cb2eb07a0337f612b",
+    "templates/ai-dev-k8s/scripts/managed-source-apply.py": "7e894b75fad56b92886b1c4e47098806952deabc097ea9d7f32d895280512660",
+    "templates/ai-dev-k8s/scripts/managed-projects.py": "7e2ff9eeb57b34fcf1f29308de0d463fd5b3b7b6e26ab7968e252fba2979f6d1",
+    "src/lib/codex-session/guardian-service.server.ts": "b37837f1be5f88e1d2eef4f5f279f44b8ddbdb9125fca9e961721577d441a544",
+    "src/lib/codex-session/guardian-store.server.ts": "ded348821f34819c688c729ce6020f46c4e626ef194df564dc7224f4ecdb0369",
+    "src/lib/codex-session/guardian-application-store.server.ts": "73a53a705e0b4c429110b78c3470d9b56ec0863bcc70519d459893f1780f63dd",
+    "src/lib/codex-session/guardian-config.server.ts": "8ee28598bfb2855684c1e5c8fd09a040f1ed9d19374f5e15bd22280b820693b8",
+    "src/lib/delivery/manager.server.ts": "b5298a3a2727255bfff72d499f2aa88dc0cdea51b18dc7f4429f06f50bc65508",
+    "src/lib/delivery/native.server.ts": "1c36c5f74e0d021571f3f84c91b5e350628b5be0d1b24a4d4df5ba3a38a918b2",
+    "src/lib/delivery/source-transport.server.ts": "f2993b7101d2349f07c0c72abffd994ae0e0dbc89e5db649bcc4d6792878f3f9",
+    "src/lib/delivery/source-state.server.ts": "f39acefe87445d85a72a225f144e538fef592efa554cfd2b32886eb138774526",
+    "src/lib/delivery/status.server.ts": "959bbf97c301a706ab6f6b9900a2ea33254d3be87847b8f19ea2530b6f73feb0",
+    "src/lib/delivery/status-contracts.ts": "06813397d6adbdc1380045f4be00f5fe3ce1f2536e73c5a9a8a2d260c4295f22",
+    "src/lib/delivery/source-publication.server.ts": "831ff7261f407b489f3ec2a553b9f00795ca05b64d3d6eab813c3c946827925b",
+    "src/lib/delivery/repository.ts": "68c180b718d82f2115f5e99996e51c591fc58973d2f6f49bdce559f540f704d9"
+  },
+  "requestCounts": {
+    "/api/delivery/host": 3,
+    "/api/codex-host/guardians": 219,
+    "/api/delivery/host/status": 3,
+    "/api/delivery/native": 2,
+    "/api/delivery/source-publication/policy": 1,
+    "/api/delivery/source-publication/challenge": 64,
+    "/api/delivery/source-publication": 1,
+    "/api/delivery/source-publication/state": 18
+  },
+  "source": {
+    "physicalBase": "e8a3cc14a9fac9cd9354a9cf8f302f1dc7689dd7",
+    "accepted": {
+      "revisionId": "0a933b27-a217-460c-9b16-ecdc3ef2934d",
+      "version": 1,
+      "headSha": "8efd601f7ad5781f3b495724b708dcd5488c784b"
+    },
+    "locallyApplied": {
+      "headSha": "8efd601f7ad5781f3b495724b708dcd5488c784b",
+      "revisionId": "0a933b27-a217-460c-9b16-ecdc3ef2934d",
+      "version": 1
+    }
+  },
+  "sourceApplicationPhase": "released",
+  "continuationReceipts": 1,
+  "physicalWriterHeld": true,
+  "kernelQuiescenceClaimed": false,
+  "worktreeAndStagedBytesRetained": true,
+  "actual": [
+    "installed factory",
+    "manager/native/source spool",
+    "signed PostgreSQL services",
+    "outer HMAC readers/application authority",
+    "Python publisher/apply FD channels",
+    "protected Git/managed receipts"
+  ],
+  "fixtureDoubles": [
+    "initial guardian enrollment/kernel identity",
+    "native history/root/cohort/input inventory",
+    "GitHub HTTP",
+    "CI evidence producer/artifact storage",
+    "next-root execution receipt"
+  ],
+  "cloudRequests": 0,
+  "accountInference": false,
+  "provider": {
+    "requests": 31,
+    "writes": 6,
+    "pullRequests": 1
+  }
+}

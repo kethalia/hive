@@ -1,0 +1,14 @@
+{
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "6d3dc416-95ff-4f5e-9a8d-a4dfccd36cb6",
+  "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+  "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+  "createdAt": "2026-10-29T16:36:18.027395Z",
+  "name": "hive-delivery-browser",
+  "task": "hive-delivery-browser",
+  "designation": "task-created-disposable",
+  "recordSource": "primary hive-workspace create response",
+  "cleanupAuthority": "installed helper private HMAC-signed receipt; this copy is informational",
+  "purpose": "bounded epic UI browser validation, synthetic data only",
+  "existingWorkspaceDecision": "creator-direction-upgrade serves another project; retained unchanged"
+}

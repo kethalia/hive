@@ -1,0 +1,81 @@
+{
+  "observedAt": "2026-10-29T18:30:45.178961+00:00",
+  "gitHeadAtValidation": "e2f4ee65927dc69e7318f46cc74690b372151189",
+  "checks": {
+    "pythonHelperTests": 8,
+    "adapterDomainTests": 24,
+    "actualPostgresTests": 12,
+    "typecheck": "passed",
+    "scopedBiome": "passed"
+  },
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/github-evidence.py": "5e7dbcfa8286b4c955aa7b56b569c4566285911c84fa25f22d6ccf2dbbd3e136",
+    "scripts/agents/test_github_evidence.py": "a646c8f2115b2a299b69cc257e93fa5a53ed60c27ee4d8deb7940b0675fca5b5",
+    "src/lib/delivery/github-contracts.ts": "7ac0236ce7cf0e051dcba41c5c04706df58f2ecc467cc88fae2dcd7fd65da666",
+    "src/lib/delivery/github-evidence.server.ts": "9202fb3ce4a2ce6be1e958a18ccc8d92163d3ef55932251d986aa4cb2649adb9",
+    "src/lib/delivery/github-persistence.server.ts": "5a78cb4d6210ab9d88a7d5386d5cbfe5eae5286115746b63dacec7a1f1088c2c",
+    "src/__tests__/lib/delivery/github-fixture.ts": "43ae413b4b94065f75f3ae5b141b63cdd701f2f66a26af8bdcb4d0efd433664e",
+    "src/__tests__/lib/delivery/github-evidence.test.ts": "792b9823dad623fe40c75cc2409a756941aa261fc899a9a2b5fe50bc1c88a0b9",
+    "src/__tests__/lib/delivery/github-persistence.integration.test.ts": "bd8c05fc32c0055434c345bfb4c94a9214eeb65e1bd6684963af12a276b36ede",
+    "docs/checks/autonomous-delivery/github-evidence.md": "5ebd5718d29a3d6c2cee8f828621d5d4ba9bfde3cdb7c4291e4a29cf68e8689a"
+  },
+  "liveReadOnlyCompatibility": {
+    "context": "Primary software workspace agent external-auth GitHub connection; not test-account or signed-source-channel acceptance",
+    "target": {
+      "schemaVersion": 1,
+      "providerRepositoryId": "1183966024",
+      "providerAccountId": "62855857",
+      "fullName": "kethalia/hive",
+      "pullNumber": 402,
+      "expectedHeadSha": "b0e278c0ec40490c3a5a9a2cce258d27c9ef5bf1"
+    },
+    "sourceDigest": "13b0bd52795ac9cb329ae46f94370f8d828c73593de75f37bff1b400e000a10d",
+    "observedAt": "2026-10-29T18:12:56.475531+00:00",
+    "workflowCount": 3,
+    "checkCount": 27,
+    "reviewSummaryCount": 1,
+    "threadCount": 0,
+    "eligible": false,
+    "blockers": [
+      "check-not-passed:Build / Lint / Test / Build",
+      "check-not-passed:Build / Lint / Test / Format",
+      "review-missing",
+      "review-producer-missing:github-codex-review:1183966024:user:199175422:app:1144995",
+      "pull-draft"
+    ]
+  },
+  "postgresProof": [
+    "Owner and mandatory same-transaction source authority",
+    "Verified immutable source-object digest/size required",
+    "Concurrent exact replay creates one batch/event",
+    "Newer same-SHA pending run invalidates earlier passed evidence",
+    "Delayed old success cannot restore pass",
+    "Equal-version contradictions publish unknown",
+    "Accepted report and original outbox preserved while task pauses and references invalidate",
+    "All configured checks aggregate per criterion, preventing cherry-pick",
+    "Atomic rollback of evidence invalidation, new records and audit/state on fault",
+    "Source revision changes during object write rejected",
+    "Fresh identical source preserves unchanged historical references",
+    "PR admission draft change uses independent remote watermark",
+    "Full canonical policy digest binds producer/event/watermarks; removed requirement under reused version invalidates prior references and pauses",
+    "Exact replay rejects missing persisted evidence references"
+  ],
+  "artifacts": "Real R2 adapter absent; unit/integration tests use explicitly injected synthetic immutable artifact store. No production artifact preservation claimed.",
+  "authority": "No source API or deployment source-connection factory installed. Raw manager JSON cannot invoke publishing; signed target/nonce host source channel remains required before activation.",
+  "credentials": "Agent token stayed private inside helper; no copied personal credential, token return/log, clone or remote mutation.",
+  "releaseMode": "disabled",
+  "remainingGates": [
+    "Signed controller-nonce/target/registered-host source response channel and transaction authority",
+    "Real immutable R2 write/readback adapter",
+    "Actual workerd source-publication concurrency and raw SQL40001 shape",
+    "Test-account Cloudflare/browser acceptance and account-backed native pilot",
+    "Continuous source revalidation and expiry handling before any release",
+    "Owner main merge, cutover and production pilots"
+  ],
+  "localDatabase": {
+    "path": "/tmp/hive-delivery-pg-5gcusk89",
+    "port": 36229,
+    "running": true,
+    "retainedFor": "Coordinator-requested integration and upcoming task preparation review"
+  }
+}

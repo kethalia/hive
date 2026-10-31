@@ -1,0 +1,13 @@
+
+ RUN  v3.2.4 /tmp/hive-rotation-parent-o1kr9pqo
+
+ ✓ src/__tests__/lib/delivery/jobs-worker.test.ts (6 tests) 11ms
+ ✓ src/__tests__/auth/rotation-notices.test.ts (3 tests) 7ms
+ ✓ src/__tests__/lib/db/rotation-worker.test.ts (2 tests) 5ms
+ ✓ src/__tests__/auth/rotation-scheduler.integration.test.ts (11 tests) 1131ms
+   ✓ auth rotation durable scheduler, dedicated local PostgreSQL > persists the fair scan cursor across process replacement and stops at the row and mint budgets  352ms
+
+ Test Files  4 passed (4)
+      Tests  22 passed (22)
+   Start at  01:47:57
+   Duration  1.97s (transform 573ms, setup 0ms, collect 1.18s, tests 1.15s, environment 1ms, prepare 663ms)

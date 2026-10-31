@@ -20,17 +20,13 @@ export async function handleLogin(req: IncomingMessage, res: ServerResponse): Pr
     return;
   }
 
-  const { coderUrl, email, password } = body as {
-    coderUrl?: string;
-    email?: string;
-    password?: string;
-  };
-
-  if (!coderUrl || !email || !password) {
-    const missing = [!coderUrl && "coderUrl", !email && "email", !password && "password"].filter(
-      Boolean,
-    );
-    sendError(res, 400, `Missing required fields: ${missing.join(", ")}`, ErrorCode.BAD_REQUEST);
+  if ("coderUrl" in body) {
+    sendError(res, 400, "Coder origin is configured by the server", ErrorCode.BAD_REQUEST);
+    return;
+  }
+  const { email, password } = body;
+  if (typeof email !== "string" || !email || typeof password !== "string" || !password) {
+    sendError(res, 400, "Valid email and password are required", ErrorCode.BAD_REQUEST);
     return;
   }
 
@@ -47,7 +43,7 @@ export async function handleLogin(req: IncomingMessage, res: ServerResponse): Pr
   }
 
   try {
-    const result = await performLogin(coderUrl, email, password);
+    const result = await performLogin(email, password);
     console.log(`[auth-service] POST /login → 200 user=${result.user.id}`);
     sendJson(res, 200, {
       sessionId: result.sessionId,

@@ -1,0 +1,22 @@
+{
+  "observedAt": "2026-10-29T23:51:37.905172+00:00",
+  "reviewer": "primary independent source review and execution",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "1ec12e83d733442b55a4897e645455dbd36fa406f73011e5aec6a65ba6e6eac1",
+    "scripts/probe-native-startup-loader.mjs": "99e45fdaf2960d4b47469303f3ef977f2089a658ceef5688199b671fb2b40b89",
+    "scripts/probe-native-startup-observer.mjs": "5be6705abd1f3e39a3db4298e35399342b554df08dac4ce4fcb6a8910ed1f77c",
+    "scripts/probe-native-startup.test.mjs": "341ed20fbc1d2f17a446fedda6867f0b8d70b2515675546ec6b29d8247789e7a",
+    "scripts/verify-codex-native-startup.test.mjs": "a5b74106e8decf823f570277e27aa2c310f3c90ab6e258513ef14be35cdb43e8"
+  },
+  "focusedTests": 9,
+  "actualParallelNativeTests": 57,
+  "actualParallelDurationMs": 13538,
+  "blockingFindings": [],
+  "limits": [
+    "20s bounds one child listener readiness, not kernel completion of uninterruptible IO or final process drain",
+    "No isolation, credential, metadata, identity or durability exceptions",
+    "Actual native uses canned local provider; installed account pilot remains"
+  ],
+  "cleanExportPackagingTests": 20,
+  "hostArchiveGzipBytes": 141525
+}

@@ -14,6 +14,8 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM ${NODE_IMAGE} AS builder
 ARG PNPM_VERSION
+# Build-time bounded XZ decoding verifies the template-owned host archive.
+RUN apk add --no-cache python3 && python3 -c "import lzma"
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules

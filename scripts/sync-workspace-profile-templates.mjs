@@ -1,6 +1,11 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Every path is derived from repository-owned template roots. */
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { syncAgentPackage } from "./agent-bridge/build-package.mjs";
+import { syncHostArchive } from "./build-codex-host-archive.mjs";
+import { buildTemplateArtifacts } from "./build-template-artifacts.mjs";
+import { syncWorkspaceReadPackage } from "./build-workspace-read-package.mjs";
+import { syncVoicePackage } from "./voice/build-package.mjs";
 
 const repositoryRoot = process.cwd();
 const canonicalRoot = join(repositoryRoot, "templates", "ai-dev-k8s");
@@ -11,12 +16,17 @@ const targetRoots = [
   join(repositoryRoot, "templates", "infrastructure"),
 ];
 const checkOnly = process.argv.includes("--check");
+await syncHostArchive(repositoryRoot, checkOnly);
+await syncWorkspaceReadPackage(repositoryRoot, checkOnly);
+await syncVoicePackage(repositoryRoot, checkOnly);
+await syncAgentPackage(repositoryRoot, checkOnly);
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
 
   for (const entry of entries) {
+    if (entry.name === "__pycache__" && entry.isDirectory()) continue;
     const absolutePath = join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...(await collectFiles(absolutePath)));
@@ -35,6 +45,26 @@ const canonicalScriptRelativePaths = new Set(
 const sharedRelativePaths = [
   ".terraform.lock.hcl",
   "main.tf",
+  "hive-host.tf",
+  "hive-read.tf",
+  "hive-voice.tf",
+  "hive-agent.tf",
+  "assets/agent-bridge.tar.gz",
+  "assets/agent-bridge.tar.sha256",
+  "assets/agent-bridge.manifest.sha256",
+  "assets/agent-bridge.helper.sha256",
+  "assets/voice.tar.gz",
+  "assets/voice.tar.sha256",
+  "assets/voice.manifest.sha256",
+  "assets/voice-installer.py.gz",
+  "assets/voice-installer.sha256",
+  "assets/codex-host.tar.sha256",
+  "assets/codex-host.tar.xz",
+  "assets/workspace-read.tar.gz",
+  "assets/workspace-read-installer.py.gz",
+  "assets/workspace-read-installer.sha256",
+  "assets/workspace-read.tar.sha256",
+  "assets/workspace-read.manifest.sha256",
   "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
 ].sort();
@@ -42,6 +72,15 @@ const drift = [];
 let removedScripts = 0;
 
 for (const targetRoot of targetRoots) {
+  for (const obsolete of ["assets/codex-host.tar", "assets/codex-host.tar.gz"]) {
+    try {
+      await readFile(join(targetRoot, obsolete));
+      if (checkOnly) drift.push(relative(repositoryRoot, join(targetRoot, obsolete)));
+      else await rm(join(targetRoot, obsolete));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
   const targetScripts = await collectFiles(join(targetRoot, "scripts"));
   const obsoleteScripts = targetScripts
     .map((file) => relative(targetRoot, file))
@@ -91,3 +130,6 @@ if (checkOnly && drift.length > 0) {
   const cleanup = removedScripts > 0 ? `; removed ${removedScripts} obsolete scripts` : "";
   console.log(`Synchronized ${targetRoots.length} workspace profile scaffolds${cleanup}.`);
 }
+
+if (!process.exitCode)
+  await buildTemplateArtifacts(repositoryRoot, checkOnly ? "check" : "manifest");

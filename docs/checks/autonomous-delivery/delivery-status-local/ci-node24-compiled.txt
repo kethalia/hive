@@ -1,0 +1,97 @@
+✔ compiled delivery factory preserves opt-in authority and revocation (498.06887ms)
+ℹ TAP version 13
+# Subtest: installed read_status uses only empty current-claim scope and never treats missing policy as evidence
+ok 1 - installed read_status uses only empty current-claim scope and never treats missing policy as evidence
+  ---
+  duration_ms: 33.004719
+  type: 'test'
+  ...
+# Subtest: status schedules one bounded refresh per minute without waiting for collector and stops on pause
+ok 2 - status schedules one bounded refresh per minute without waiting for collector and stops on pause
+  ---
+  duration_ms: 62.332618
+  type: 'test'
+  ...
+# Subtest: registration loss during status rejects late signed facts
+ok 3 - registration loss during status rejects late signed facts
+  ---
+  duration_ms: 21.105452
+  type: 'test'
+  ...
+# Subtest: explicit delivery capability cannot be inferred from legacy manager-only config
+ok 4 - explicit delivery capability cannot be inferred from legacy manager-only config
+  ---
+  duration_ms: 0.326196
+  type: 'test'
+  ...
+# Subtest: factory fails before constructing effects without all installed prerequisites
+ok 5 - factory fails before constructing effects without all installed prerequisites
+  ---
+  duration_ms: 0.171917
+  type: 'test'
+  ...
+# Subtest: actual installed adapter exposes source protocol and signs immutable physical task context
+ok 6 - actual installed adapter exposes source protocol and signs immutable physical task context
+  ---
+  duration_ms: 14.260098
+  type: 'test'
+  ...
+# Subtest: foreign manager cannot select a checkout or mint a signed call
+ok 7 - foreign manager cannot select a checkout or mint a signed call
+  ---
+  duration_ms: 3.554722
+  type: 'test'
+  ...
+# Subtest: changed native lifetime stops signed effects and trusted status
+ok 8 - changed native lifetime stops signed effects and trusted status
+  ---
+  duration_ms: 3.141135
+  type: 'test'
+  ...
+# Subtest: recorded child completion preserves rejected_policy authority boundary
+ok 9 - recorded child completion preserves rejected_policy authority boundary
+  ---
+  duration_ms: 42.146178
+  type: 'test'
+  ...
+# Subtest: recorded child completion preserves revoked_metadata authority boundary
+ok 10 - recorded child completion preserves revoked_metadata authority boundary
+  ---
+  duration_ms: 36.256993
+  type: 'test'
+  ...
+# Subtest: in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+ok 11 - in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 7.583201
+  type: 'test'
+  ...
+# Subtest: in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+ok 12 - in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 5.38889
+  type: 'test'
+  ...
+# Subtest: in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+ok 13 - in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 6.686401
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 349.223546
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 541.361752

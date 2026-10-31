@@ -20,6 +20,19 @@ describe("runtime-config", () => {
   });
 
   describe("getServerRuntimeConfig", () => {
+    it("exposes repository discovery only through the explicit server flag", () => {
+      vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "false");
+      expect(getServerRuntimeConfig().projectDiscoveryEnabled).toBeUndefined();
+      vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "true");
+      const config = getServerRuntimeConfig();
+      expect(parseRuntimeConfig(serializeRuntimeConfig(config))?.projectDiscoveryEnabled).toBe(
+        true,
+      );
+      expect(
+        parseRuntimeConfig('{"terminalWsUrl":"","projectDiscoveryEnabled":"true"}')
+          ?.projectDiscoveryEnabled,
+      ).toBeUndefined();
+    });
     it("exposes voice only when explicitly enabled and preserves it through serialization", () => {
       vi.stubEnv("HIVE_CODEX_VOICE_ENABLED", "true");
       const config = getServerRuntimeConfig();
@@ -160,4 +173,18 @@ describe("runtime-config", () => {
       expect(resolveTerminalWsUrl("/")).toBe("");
     });
   });
+});
+
+it("only exposes delivery when explicitly enabled by the server", () => {
+  vi.stubEnv("HIVE_DELIVERY_ENABLED", "false");
+  expect(getServerRuntimeConfig().deliveryEnabled).toBeUndefined();
+  vi.stubEnv("HIVE_DELIVERY_ENABLED", "true");
+  expect(getServerRuntimeConfig().deliveryEnabled).toBe(true);
+  expect(parseRuntimeConfig('{"terminalWsUrl":"","deliveryEnabled":true}')?.deliveryEnabled).toBe(
+    true,
+  );
+  expect(
+    parseRuntimeConfig('{"terminalWsUrl":"","deliveryEnabled":"true"}')?.deliveryEnabled,
+  ).toBeUndefined();
+  vi.unstubAllEnvs();
 });

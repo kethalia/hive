@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "e9230f136939e0749e0c77f85d62d91b53adae67",
+  "preparedManifestPath": "/tmp/hive-epic-coder-auth/app-preview-b557367b-3f91-49b7-b58b-3d9b37ec29f2/prepared-deployment.json",
+  "preparationRunId": "b557367b-3f91-49b7-b58b-3d9b37ec29f2",
+  "previewIdentityId": "0d4d2304-ed4e-4224-939d-e363c5833811",
+  "nativeIssuer": {
+    "keyId": "hive-preview-8af375a9-984b-497b-a56e-24a9947e0436",
+    "publicKeySHA256": "7d4c23f5009924eec357fef5e7da0bd2cf5538992df89d0ebabf1678efab534a",
+    "scope": {
+      "hiveOrigin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+      "coderOrigin": "https://coder.kethalia.com",
+      "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42"
+    }
+  },
+  "workspaceProjectsCandidate": {
+    "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+    "profile": "software",
+    "manifestSha256": "d44457b7751cfab4a2119841f14bb00aab19500ff44716e4a54c49be60345d48"
+  },
+  "configDigests": {
+    "app": "c28a96f563195618e14bae479fd0670065fdf82a533a401738dcea5fd79334f0",
+    "auth": "3e90b48f0a5e0fb2072ccc6771ede7d3e32cb46e87c15194e33484075875016c"
+  },
+  "metadata": {
+    "observedAt": "2026-10-30T06:17:39.814Z",
+    "workers": {
+      "app": {
+        "name": "hive-app-compatibility-preview",
+        "deployment": {
+          "id": "b3aaf772-45df-4e84-98f3-30461c517b60",
+          "source": "wrangler",
+          "strategy": "percentage",
+          "versions": [
+            {
+              "version_id": "a46f94fe-407b-482b-8f40-5dabacd386bb",
+              "percentage": 100
+            }
+          ],
+          "created_on": "2026-10-30T06:14:15.468909Z"
+        },
+        "publicState": {
+          "enabled": false,
+          "previews_enabled": false
+        },
+        "limits": {
+          "cpu_ms": 100
+        },
+        "bindings": [
+          {
+            "name": "ASSETS",
+            "type": "assets"
+          },
+          {
+            "name": "AUTH_SERVICE",
+            "type": "service",
+            "service": "hive-auth-compatibility-preview"
+          },
+          {
+            "name": "AUTH_SERVICE_SECRET",
+            "type": "secret_text"
+          },
+          {
+            "name": "CODER_URL",
+            "type": "plain_text",
+            "value": "https://coder.kethalia.com"
+          },
+          {
+            "name": "COOKIE_SECRET",
+            "type": "secret_text"
+          },
+          {
+            "name": "DATABASE_URL",
+            "type": "secret_text"
+          },
+          {
+            "name": "ENCRYPTION_KEY",
+            "type": "secret_text"
+          },
+          {
+            "name": "HIVE_CODEX_APP_SLUG",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_CODEX_GATEWAY_ENABLED",
+            "type": "plain_text",
+            "value": "true"
+          },
+          {
+            "name": "HIVE_CODEX_GATEWAY_PORT",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_CODEX_HIVE_ORIGIN",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_CODEX_ISSUER_KEY_ID",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_CODEX_ISSUER_PRIVATE_KEY",
+            "type": "secret_text"
+          },
+          {
+            "name": "HIVE_CODEX_ISSUER_PUBLIC_KEY",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_CODEX_SESSION_TRANSPORT",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_CODEX_SOFTWARE_TEMPLATE_IDS",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_DELIVERY_ENABLED",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_DISABLE_BACKGROUND_WORKERS",
+            "type": "plain_text",
+            "value": "true"
+          },
+          {
+            "name": "HIVE_PREVIEW_ORIGIN",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_PROJECT_DISCOVERY_ENABLED",
+            "type": "plain_text",
+            "value": "true"
+          },
+          {
+            "name": "HIVE_PROJECT_TASKS_ENABLED",
+            "type": "plain_text",
+            "value": "false"
+          },
+          {
+            "name": "HIVE_RUNTIME_TARGET",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_TEMPLATE_LOG_VIEW_ENABLED",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_WORKSPACE_READ_ENABLED",
+            "type": "plain_text",
+            "value": "true"
+          },
+          {
+            "name": "HIVE_WORKSPACE_READ_HIVE_ORIGIN",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_WORKSPACE_READ_ISSUER_KEY_ID",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY",
+            "type": "secret_text"
+          },
+          {
+            "name": "HIVE_WORKSPACE_READ_PROFILES_JSON",
+            "type": "plain_text",
+            "value": "[{\"templateId\":\"06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42\",\"profile\":\"software\",\"manifestSha256\":\"d44457b7751cfab4a2119841f14bb00aab19500ff44716e4a54c49be60345d48\"}]"
+          },
+          {
+            "name": "PREVIEW_BEARER",
+            "type": "secret_text"
+          },
+          {
+            "name": "PREVIEW_COOKIE_SECRET",
+            "type": "secret_text"
+          },
+          {
+            "name": "SOURCE_REVISION",
+            "type": "plain_text",
+            "value": "e9230f136939e0749e0c77f85d62d91b53adae67"
+          }
+        ]
+      },
+      "auth": {
+        "name": "hive-auth-compatibility-preview",
+        "deployment": {
+          "id": "9bb9fa5a-0b4d-4060-bcb8-c7d2a93fb73e",
+          "source": "wrangler",
+          "strategy": "percentage",
+          "versions": [
+            {
+              "version_id": "af1ed0e4-7b63-4053-8619-6f0387f49282",
+              "percentage": 100
+            }
+          ],
+          "created_on": "2026-10-30T06:13:27.472678Z"
+        },
+        "publicState": {
+          "enabled": false,
+          "previews_enabled": false
+        },
+        "limits": {
+          "cpu_ms": 100
+        },
+        "bindings": [
+          {
+            "name": "AUTH_SERVICE_SECRET",
+            "type": "secret_text"
+          },
+          {
+            "name": "CODER_URL",
+            "type": "plain_text",
+            "value": "https://coder.kethalia.com"
+          },
+          {
+            "name": "DATABASE_URL",
+            "type": "secret_text"
+          },
+          {
+            "name": "ENCRYPTION_KEY",
+            "type": "secret_text"
+          },
+          {
+            "name": "HIVE_RUNTIME_TARGET",
+            "type": "plain_text"
+          },
+          {
+            "name": "HIVE_TOKEN_ROTATION_ENABLED",
+            "type": "plain_text"
+          },
+          {
+            "name": "SOURCE_REVISION",
+            "type": "plain_text",
+            "value": "e9230f136939e0749e0c77f85d62d91b53adae67"
+          }
+        ]
+      }
+    }
+  },
+  "localArtifactVerified": true,
+  "remoteBindingsMatch": true,
+  "liveHttpAcceptancePending": true,
+  "publicUrlsEnabled": false,
+  "productionChanges": false,
+  "additionalPaidProducts": false
+}

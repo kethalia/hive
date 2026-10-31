@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-30T05:46:34.509879+00:00",
+  "baseRevisionAtEvidenceWrite": "014d08e33ce4091a739715a284b1b7fb504e465b",
+  "testedSourcesCommitted": false,
+  "sourceDigests": {
+    "scripts/probe-workspace-runtime-identity.mjs": "785d7fb83405c4730c0299748e122dd9a45f68ca6a54e0730eb2097eb52417b1",
+    "scripts/probe-workspace-runtime-identity.py": "e505e537d2756972a869cbe1b35a588b07167026baa6c20dee1fb962228c5dc2",
+    "scripts/probe-workspace-runtime-identity.test.mjs": "7abb90fa24cb665e0fbb505560524374830b082dbdbfe0b62f02fb014ff36729",
+    "scripts/agents/test_workspace_runtime_identity_probe.py": "fcfc167f0435d19b2984173b1157fd88dec4b0c075f02e3639d7400ba84e1f0d",
+    "docs/checks/autonomous-delivery/workspace-runtime-identity-probe.md": "4db5186ae3001a7106cd5c61779617ed4c6cb6b5a7dcf87b2e61fdeeb909ebb6"
+  },
+  "tests": {
+    "node": 5,
+    "python": 4,
+    "localActualNodeProcIdentity": true
+  },
+  "liveAcceptanceExecuted": false,
+  "preparedOnly": true,
+  "networkCalls": 0,
+  "workspaceMutations": false,
+  "limits": {
+    "directFetches": 80,
+    "networkStageMillis": 90000,
+    "sshSessions": 1,
+    "sshClientMillis": 15000
+  },
+  "limitations": [
+    "No image/template/build acceptance claimed; parent must provide the exact reviewed new deployment plan and authorize the run.",
+    "Runtime whole-image digest is parent deployment evidence; component hashes are inspected independently.",
+    "The direct fetch counter excludes SSH protocol traffic and bounded server-side GitHub helper traffic."
+  ]
+}

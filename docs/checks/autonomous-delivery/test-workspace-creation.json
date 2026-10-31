@@ -1,0 +1,13 @@
+{
+  "id": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "name": "hive-epic-test",
+  "owner_id": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "template_id": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "created_at": "2026-10-29T17:13:32.271538Z",
+  "ttl_ms": 7200000,
+  "owner_name": "codex",
+  "deployment": "https://coder.kethalia.com",
+  "status": "persistent epic validation; created by primary for authorized task",
+  "task": "autonomous-delivery-epic",
+  "disposable": false
+}

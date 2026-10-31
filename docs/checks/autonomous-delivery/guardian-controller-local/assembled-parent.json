@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T01:02:23.076719+00:00",
+  "scope": "frozen guardian20-path controller, existing-open liveness, queued task enrollment and package; excludes source application25 and manager/collector WIP",
+  "postgres": {
+    "passed": 198,
+    "skipped": 1,
+    "schema": 24
+  },
+  "packageTests": {
+    "passed": 14,
+    "skipped": 1,
+    "compiledBehavioralTests": 52
+  },
+  "actualCompiledFixedInstaller": "passed",
+  "typecheck": "passed",
+  "defaultPackageGzipBytes": 137623,
+  "logs": {
+    "docs/checks/autonomous-delivery/guardian-controller-local/assembled-parent-package.txt": "c223a963f3d1bd313d4eb59e21e4336b4c4d4bd66e729bddc10854e96c1a1b2d",
+    "docs/checks/autonomous-delivery/guardian-controller-local/assembled-parent-postgres.txt": "5a7ff11fdc2822850f410d9ada08db272cce388b4c337e55e5f595e3f47f1e4c",
+    "docs/checks/autonomous-delivery/guardian-controller-local/assembled-parent-installer.txt": "25be7bd1a0e6ca0dd222c6fa93391445a6ef51bf3c2502acfbee620c7f749a45",
+    "docs/checks/autonomous-delivery/guardian-controller-local/assembled-parent-types.txt": "60b846b88bd3bfa7075b84d79ecfae35f3eedf20ac4105f14c57cda4d8fbb1aa"
+  },
+  "productionActivation": false
+}

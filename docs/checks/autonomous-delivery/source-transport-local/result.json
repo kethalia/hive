@@ -1,0 +1,44 @@
+{
+  "observedAt": "2026-10-30T00:03:06.522737+00:00",
+  "sourceRevision": "dc7211a692ab47e2a59400943235af3391fd7e40",
+  "sourceSha256": {
+    "src/lib/delivery/source-transport-contracts.ts": "ecfcd398d428b28179ea20f3a1f289ad9340226eaf266946d702da6d67f9ecf9",
+    "src/lib/delivery/source-transport.server.ts": "236df39f3bc2db428190eff04891a8510f4e8b4bd1df3c2440aea7dfa42d86ea",
+    "src/lib/delivery/source-policy.server.ts": "f9d2c72aefb9723bee6e655770b778b94f54ffedd5028d2adc963d64d19921eb",
+    "src/lib/delivery/source-transport-route.server.ts": "db5b5701a31564f765c14352a93535c1cf51437da6e6d549677ba4df0aae378d",
+    "src/lib/delivery/source-publication.server.ts": "5a74fa62cc0589f019a6de32abea32a109292c62723e8a8e33a2d1da6fe267a0",
+    "src/app/api/delivery/source-publication/route.ts": "156574666b7205a0ff78ed5ecf010ebb1bebd71fded0171eb60f5ba08fdfb8a9",
+    "src/app/api/delivery/source-publication/policy/route.ts": "e78c4c4407f2e41c01409e1288c541fec082d0d260334ed68b35f30223f47226",
+    "src/app/api/delivery/source-publication/challenge/route.ts": "e050f7b1b3542792184358f1262d61032505a8755847ee61e0568a0d05fa759b",
+    "src/__tests__/lib/delivery/source-transport.integration.test.ts": "17beb8c0d33dfbb82c5e84380e8887bc9ad4acb6e6e9745868d8ac6b7ba47e64",
+    "src/__tests__/lib/delivery/source-transport-route.test.ts": "8d4513459602e5156c37100405ee724a00cc00485009bc67dca6bd2830c47e4e",
+    "src/__tests__/lib/delivery/source-policy.test.ts": "eac976433e33ecfa3d2213f4bd54a95780f1337e3af6d67ea1d371df6b89bee3",
+    "scripts/probe-source-publication-r2.mjs": "a2fc0cc118af2fbc2f6696bf8cc7ab802369e9e579d75717ae9cf8860b02a3a2",
+    "src/__tests__/lib/delivery/native-fixture.ts": "4c0685ae172ceee60a8a82a3c22ab0f726eb2d0caec6e3b6e983e435323ceff8",
+    "src/__tests__/lib/delivery/source-guardian.integration.test.ts": "fd5d4402f9e22af6ac87c2a19bd038586067aa2a2d7a847dc35baa1533e13af8"
+  },
+  "checks": {
+    "focusedPostgresAndUnit": 48,
+    "actualLocalWorkerdR2ProtocolTests": 12,
+    "biome": "passed",
+    "typecheck": "passed",
+    "focusedSchema24PostgresAndUnit": 61
+  },
+  "schema": "existing isolated schema23 unchanged; no migration in this slice",
+  "realGuardianLifecycleProof": false,
+  "realProviderProof": false,
+  "installedHostProof": false,
+  "remoteWrites": false,
+  "activation": false,
+  "remainingGates": [
+    "Installed/cryptographic guardian bootstrap and namespace composition; storage lifecycle now tested",
+    "Protected broker/outer signing adapter composition",
+    "Deployment-owned package/policy allowlist and source task policy",
+    "Separately reviewed preview gate exception; no activation in this slice"
+  ],
+  "limitations": [
+    "Protocol12 PG tests explicitly inject admission. Additional3 PG cases drive the real staged guardian store with explicit local authorization/package/native/provider fixtures; production route uses real default-off store.",
+    "In-flight R2 writes can leave retained orphan objects; durable unverified reservations preserve planned key/digest/size, never mark verification success."
+  ],
+  "realGuardianStorageLifecycleProof": true
+}

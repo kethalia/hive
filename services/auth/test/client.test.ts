@@ -72,7 +72,7 @@ describe("AuthServiceClient", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const request =
       operation === "login"
-        ? client.login({ coderUrl: "https://coder.test", email: "user@test", password: "password" })
+        ? client.login({ email: "user@test", password: "password" })
         : client[operation]("sess-1");
     await expect(request).rejects.toThrow("AUTH_SERVICE_SECRET must be exactly 64 hex characters");
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -97,7 +97,6 @@ describe("AuthServiceClient", () => {
       };
 
       const result = await client.login({
-        coderUrl: "https://coder.test",
         email: "alice@test.com",
         password: "pass",
       });
@@ -111,9 +110,9 @@ describe("AuthServiceClient", () => {
         sendJson(res, 401, { error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
       };
 
-      await expect(
-        client.login({ coderUrl: "https://coder.test", email: "a@b.com", password: "wrong" }),
-      ).rejects.toThrow("Invalid credentials");
+      await expect(client.login({ email: "a@b.com", password: "wrong" })).rejects.toThrow(
+        "Invalid credentials",
+      );
     });
   });
 

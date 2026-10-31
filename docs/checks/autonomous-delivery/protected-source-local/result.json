@@ -1,0 +1,29 @@
+{
+  "observedAt": "2026-10-29T23:24:47.126515+00:00",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/delivery-source-broker.py": "ffcea58423285761490b8d6f038ccb5ce05fcf0b80689fe42bfee31cfd412539",
+    "templates/ai-dev-k8s/scripts/delivery-source-provider.py": "cf737991ab5606b85e468a5872b72a4d3a0cd5dbdf8ff926189c470aff9b0b3b",
+    "templates/ai-dev-k8s/scripts/delivery-source-runtime.py": "5074a9c0e22ec7058e435a2ac2e896d6fda593be5aa6d0869a026f60533ced68",
+    "templates/ai-dev-k8s/scripts/delivery-source-worker.py": "25d707e7873f71e515fbf6820e8a9c36a19951a99b465a51c7ee9239f0a5d419",
+    "scripts/agents/test_delivery_source_broker.py": "84c85eb425e53b680fffe8469265cb658a9fe7071c95184330ded895662c9e54",
+    "scripts/agents/test_delivery_source_runtime.py": "55c29a3d21b85a283252bbc32dca4fbf17eb18edcf85c229f88675729330f9a4",
+    "scripts/agents/test_delivery_source_worker.py": "ba616f5add8887c4e1f6bca4b5ed71bec4a1aac1b8d522e2401971508227d814"
+  },
+  "sourceStable": true,
+  "tests": 40,
+  "exitCode": 0,
+  "realGitPlumbing": true,
+  "actualFd3Worker": true,
+  "providerTransport": "synthetic HTTP only",
+  "metadataAuthority": "injected fixture; real persisted authority integration pending",
+  "liveCredentialOrProviderAccess": false,
+  "installedActivation": false,
+  "review": "Independent Dgate broker review and Astra worker review passed; account-switch and attempt-vs-physical lease findings fixed; parent deadline/server composition remain explicit gates",
+  "independentWorkerTests": 7,
+  "cleanExportValidation": {
+    "templateTests": 89,
+    "hostPackageTests": 4,
+    "archiveBytes": 136957,
+    "archiveSha256": "02eca9d64feaaf520dcb1746a261738bec1d85f6b7ded17bdbb2e2c5003219d0"
+  }
+}

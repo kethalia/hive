@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-10-29T16:21:33.982Z",
+  "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+  "runId": "388514fa-0c06-45df-ab15-3b7ba573bbe6",
+  "precedingWorkerRequests": 8,
+  "probeRequests": 1,
+  "status": 200,
+  "body": {
+    "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+    "coder": {
+      "authenticated": true,
+      "userId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401"
+    }
+  }
+}

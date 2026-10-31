@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T16:21:06.340Z",
+  "runtime": "local-workerd-real-neon",
+  "sourceBaseRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+  "testedSourceCommitted": true,
+  "sourceRevisionResponseMeaning": "committed source revision",
+  "fileDigests": {
+    "worker.mjs": "24ab19a6449237f89b48da7ca316ecb1c7877a7e1679578540e91b7ef4d0919d",
+    "worker-core.mjs": "f851806fa5c450df774ecf63441382c4038ab0ad8730ddcbae097c9faff00e34",
+    "prisma-probe.mjs": "69c49217eff62dcc0cac9bb54fdb8bbcff94e5dc5c896c26ddee39097c220fb9",
+    "prisma/schema.prisma": "385066490aeb0183f79651c0e203fe74c9822f79bf33cf0400650e1dcae48b2a",
+    "package.json": "13a0f41ee15b1703cd1ac697e163f5dcd6a8808ee5cf9bf1de8aa0c0b24233b1",
+    "pnpm-lock.yaml": "0a578c1bf01a29201c675deaa4a18a9d0c2cb59fd927611252e58f4820730325",
+    "wrangler.jsonc": "378deb91356d140a82cb8c38a542bb00a1bf870bbb22652605aba4d11d5373d3",
+    "run-local-proof.mjs": "fa17ba75b188d3d5e7bca908442fb488e2255f11a24f8eac10b161d8392a89c6"
+  },
+  "sourceSetDigest": "372a6080cd089ceb5bdba4c8b757b1d91f5c52f173b264e15aa79d7e8cf64ca1",
+  "projectId": "purple-math-59583745",
+  "branchId": "br-ancient-violet-b7pcun87",
+  "runId": "f90422ee-8c7d-4f8a-88d5-efb347054aa8",
+  "databaseCredential": "restricted-runtime-role, owner URL unused",
+  "requests": [
+    {
+      "status": 200,
+      "elapsedMs": 2558,
+      "body": {
+        "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+        "runId": "f90422ee-8c7d-4f8a-88d5-efb347054aa8",
+        "prisma": {
+          "prismaVersion": "6.19.3",
+          "generatorRuntime": "workerd",
+          "engine": "client",
+          "transport": "neon-websocket",
+          "transactionKind": "interactive-callback",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": true,
+          "retainedRowsForRun": 1,
+          "uuidAndJsonRoundTrip": true,
+          "timestampRoundTrip": true,
+          "runtimeRoleRestricted": true,
+          "fullHiveSchemaVerified": false,
+          "frameworkVerified": false
+        }
+      }
+    },
+    {
+      "status": 200,
+      "elapsedMs": 2350,
+      "body": {
+        "sourceRevision": "e7110466dbe693a5501b5ef9e1738aa59f46b4b8",
+        "runId": "f90422ee-8c7d-4f8a-88d5-efb347054aa8",
+        "prisma": {
+          "prismaVersion": "6.19.3",
+          "generatorRuntime": "workerd",
+          "engine": "client",
+          "transport": "neon-websocket",
+          "transactionKind": "interactive-callback",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": false,
+          "retainedRowsForRun": 1,
+          "uuidAndJsonRoundTrip": true,
+          "timestampRoundTrip": true,
+          "runtimeRoleRestricted": true,
+          "fullHiveSchemaVerified": false,
+          "frameworkVerified": false
+        }
+      }
+    }
+  ],
+  "cloudflareDeployed": false,
+  "f02Complete": false,
+  "limitations": [
+    "fixture schema only",
+    "full Hive schema not verified",
+    "framework and Hive auth not verified",
+    "not Cloudflare network execution"
+  ]
+}

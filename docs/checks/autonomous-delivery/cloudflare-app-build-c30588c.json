@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T18:07:38.399Z",
+  "testedRevision": "c30588c8e8ff8527ec194f6531ceb8a60b70eb82",
+  "buildSucceeded": false,
+  "stage": "Next webpack compile",
+  "failure": "Node ESM .js imports from shared services/auth TypeScript sources were not resolved by webpack",
+  "sourceEdited": false,
+  "plannedCorrection": "Cloudflare webpack resolve.extensionAlias .js=[.ts,.tsx,.js]; verify normal Node build separately",
+  "vendorReference": "https://webpack.js.org/configuration/resolve/#resolveextensionalias",
+  "cloudResourceMutations": 0
+}

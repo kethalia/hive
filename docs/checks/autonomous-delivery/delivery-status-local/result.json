@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "passed": true,
+  "sourceStable": true,
+  "testedSourcesCommitted": false,
+  "baseRevisionAtEvidenceWrite": "5c7ea179518c09feba6263fa70a0080e055263c6",
+  "sources": {
+    "src/lib/delivery/status-contracts.ts": "06813397d6adbdc1380045f4be00f5fe3ce1f2536e73c5a9a8a2d260c4295f22",
+    "src/lib/delivery/status.server.ts": "959bbf97c301a706ab6f6b9900a2ea33254d3be87847b8f19ea2530b6f73feb0",
+    "src/lib/delivery/status-route.server.ts": "9a7000f260bf119afce6db663d9f8026432c02bcbb25175cba9bd18f0e28c379",
+    "src/app/api/delivery/host/status/route.ts": "ed27b69708a8e5e688199eaffa888297384fd05d45f4eef5130d99ddb38f9e2c",
+    "src/__tests__/lib/delivery/status.integration.test.ts": "4ed09a29fe7e382dc1634245df688e29089f4396feb16b317e79603b56312a13",
+    "src/__tests__/lib/delivery/status-route.test.ts": "95b0cc4f477262058f6df8d86dfa6b74d540e2d097743d605da37214eb3665aa",
+    "src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts": "e06d31e92b3a41e78b37d2d4152f65b0f175ec1806780afb6163f37ec113e746",
+    "scripts/fixtures/delivery-status-response.mjs": "090c70e46c4ec19a63f0f87bd5cbbbf7313151574aa98af0ae6b27538ac451ca",
+    "scripts/verify-delivery-status-client.test.mjs": "480c55d5842022d5cddb0fc8365bd2602d1e649269415b3d69e6479ea701b075",
+    "scripts/verify-codex-delivery-runtime.test.mjs": "f881e1453525a5d17ed10356745ecb89955bfd1cc4207fd3c17c44fdc46c0909",
+    "templates/ai-dev-k8s/scripts/delivery-status-client.mjs": "5ce1575a181c55ff73161fa8c6c03084e2e088631270ef48c1685d0a8a821a12",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "45751a56b5e9322ce42d280047bd0a2fef010eb3d0e05d90a214301b6fd2af7e",
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": "0c87624ea170e859dae7f859efd529e704b3bbd980dc9acb244ea61a7774abd2"
+  },
+  "checks": {
+    "postgresAndComposed": {
+      "passed": 9,
+      "failed": 0
+    },
+    "routes": {
+      "passed": 5,
+      "failed": 0
+    },
+    "node": {
+      "passed": 49,
+      "skippedOptionalNative": 1,
+      "failed": 0
+    },
+    "typecheck": {
+      "passed": true
+    }
+  },
+  "effects": {
+    "accountInference": false,
+    "cloudRequests": false,
+    "externalProviderWrites": false,
+    "productionActivated": false,
+    "quiescenceOrCleanupAuthority": false
+  },
+  "artifacts": {
+    "types.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests-node.txt": "7ef160751bea193d0ca19ac6efcfd0d0238aea6c5a5c35fd812141012019a54c",
+    "tests-pg.txt": "54a76d4db356f144f979d163e31bc39741aa27f23c967aade3c89add7659ba27",
+    "first-composed-failure.txt": "efd096ad49f70b9838bc84321fba465ee1faf9208d2d328aa1334430a65bb7e1",
+    "composed.json": "8925bc6f826338ce1ebed4853db3945527910e6273da6e7611f5403f272b3410"
+  },
+  "failedFixtureCleanup": {
+    "exactTrackedHome": "/tmp/hive-delivery-installed-tgyk5N",
+    "recordedParentAbsent": true,
+    "allTrackedHelperGroupsGone": true,
+    "removed": true
+  }
+}

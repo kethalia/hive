@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "includesGuardianController": true,
+  "includesReviewedGuardianElf": true,
+  "hostGzipBytes": 151578,
+  "hostTarSha256": "5d0d5aabb56315b230ebd12000cfa6dca6d90337083f69d4a4080b770daf1cc4",
+  "hostGzipSha256": "96595daefafceae80417ab6fe91a8cfd218794f8f506290f20f7ef4f32cafc6d",
+  "templates": {
+    "ai-dev-k8s": {
+      "contentHash": "bfd40e1d060442fef0e5f0b5b021739fd0c957f2322464c5bb28fe8d015fe938",
+      "archiveDigest": "ff8bec7e54a447bcad435608694acb8bea0c6068e86323197cf05048a2163278",
+      "archiveBytes": 949760,
+      "fileCount": 69
+    },
+    "browser-testing": {
+      "contentHash": "d8f7c5e5d6783756fabdf48710f96ec8aa69ac836b3d9004ce41635c5795721a",
+      "archiveDigest": "0e525e791e413d46d0dcbb4e2886bcfb49740a031d521833401bf2e5af4d1c67",
+      "archiveBytes": 945152,
+      "fileCount": 69
+    },
+    "game-dev": {
+      "contentHash": "40ac6ecdbe9cd13b3129efda783db343ecdd47b5afb8a8b3ec4de95e72b73da1",
+      "archiveDigest": "b4e57a74b25a452e299439262f2580426f5e94747839cc3273f4e9d9914aadc1",
+      "archiveBytes": 946176,
+      "fileCount": 69
+    },
+    "electronics": {
+      "contentHash": "1c6e160aa6515215fe5999ad30d4f668a79a3919e90a92136bf5024d1666c51e",
+      "archiveDigest": "60a238a0842e3a9f492b6968100d9db4f216ae6ae711ac9bc63d857e99d7333f",
+      "archiveBytes": 945664,
+      "fileCount": 69
+    },
+    "infrastructure": {
+      "contentHash": "878f69db9ec03247dc161e8705e6ce41dd662c93c79ef4bd226432093f9a0a47",
+      "archiveDigest": "2fcb96bdede250f608f26f9aee28f9cc23d35b09d5b5daf2641632e383133363",
+      "archiveBytes": 946176,
+      "fileCount": 69
+    }
+  }
+}

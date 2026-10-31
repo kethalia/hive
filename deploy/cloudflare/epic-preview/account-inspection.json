@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "observedDate": "2026-10-29",
+  "mode": "read-only-connected-tools",
+  "cloudflare": {
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "accountType": "standard",
+    "workersSubdomain": "b00ste",
+    "existingWorkerCount": 8,
+    "previewWorkerNameAbsent": true,
+    "subscriptionInspection": {
+      "status": 403,
+      "reason": "OAuth has no scope for billing subscriptions; Billing Read API token required",
+      "plan": "paid-user-confirmed",
+      "planSource": "User confirmation relayed by primary agent on 2026-10-29; not billing API proof",
+      "resourceWritesPermittedByThisEvidence": false
+    },
+    "usageInspection": {
+      "observedAt": "2026-10-29T15:58:24Z",
+      "publishedIncludedRequestsPerMonth": 10000000,
+      "publishedIncludedCpuMillisecondsPerMonth": 30000000,
+      "remainingHeadroom": "substantial apparent headroom in subsequent adaptive overview query; see cloudflare-usage.json",
+      "billingUsageStatus": 403,
+      "billingUsageReason": "OAuth cannot cover Billing Read",
+      "analyticsGraphqlStatus": "subsequently-succeeded",
+      "analyticsGraphqlReason": "Initial request was rate-limited; account-wide overview query succeeded after cooldown",
+      "workersAccountDefaultUsageModel": "standard",
+      "additionalCostsAuthorized": false
+    },
+    "resourceMutations": "Created and updated only task Worker; no routes/DNS/add-ons/plan changes",
+    "currentDeploymentEvidence": "deployment-evidence.json"
+  },
+  "neon": {
+    "organizationId": "org-winter-salad-90993453",
+    "organizationName": "kethalia",
+    "plan": "free",
+    "existingProjectId": "shiny-term-87528496",
+    "existingProjectName": "hive",
+    "region": "aws-us-east-1",
+    "postgresVersion": 18,
+    "effectiveBranchLogicalSizeLimitBytes": 536870912,
+    "existingBranchCount": 1,
+    "defaultBranchId": "br-nameless-sunset-b742162p",
+    "defaultBranchName": "production",
+    "endpointState": "idle",
+    "mcpCreateBranchCopiesParentData": true,
+    "mcpCreateBranchSchemaOnlyOption": false,
+    "selectedPreviewProject": {
+      "id": "purple-math-59583745",
+      "name": "hive-epic-preview",
+      "branchId": "br-ancient-violet-b7pcun87",
+      "endpointId": "ep-jolly-sky-b7fhirib",
+      "provenance": "Primary agent created a clean separate Free test project; no production data copied",
+      "creationEvidence": "../../../docs/checks/autonomous-delivery/neon-preview.json"
+    },
+    "resourceMutations": 0
+  },
+  "deploymentStatus": "bounded-probe-passed-public-serving-disabled"
+}

@@ -7,6 +7,7 @@ export const notificationKindSchema = z.enum([
   "failure",
   "token",
   "template",
+  "delivery",
 ]);
 export type NotificationKind = z.infer<typeof notificationKindSchema>;
 export const notificationPreferencesSchema = z.object({
@@ -16,6 +17,7 @@ export const notificationPreferencesSchema = z.object({
   failure: z.boolean().default(true),
   token: z.boolean().default(true),
   template: z.boolean().default(true),
+  delivery: z.boolean().default(true),
 });
 export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
 export const notificationLabels: Record<NotificationKind, string> = {
@@ -25,6 +27,7 @@ export const notificationLabels: Record<NotificationKind, string> = {
   failure: "Agent failed (Claude Code)",
   token: "Token expiring",
   template: "Template push result",
+  delivery: "Delivery step reports",
 };
 export interface PushPayload {
   title: string;

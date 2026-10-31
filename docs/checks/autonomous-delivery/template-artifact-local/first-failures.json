@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "acceptedAsRuntimeProof": false,
+  "initialCases": [
+    {
+      "category": "nested_test_runner_empty_output",
+      "resolution": "Removed inherited NODE_TEST_CONTEXT; require positive test count and observed compiled module mapping."
+    },
+    {
+      "category": "real_home_fixture_rejected_tmp",
+      "logSha256": "58960dcb0dca02ced178c3c8390ca30af39518baf4d1550f28f6f844f9d562ef",
+      "resolution": "Same clean export moved to a real-home task path."
+    },
+    {
+      "category": "deep_real_home_fixture_tmux_socket_length",
+      "logSha256": "878e91282317f422c0d86fea1697db7cf2d4d886b9010d2eae2b28c8db0148a0",
+      "resolution": "Same export moved to independently created short task path; no runtime timeouts or process policy changed."
+    },
+    {
+      "category": "gzip_budget_exceeded",
+      "bound": 160000,
+      "config": "Frozen guardian controller + apply + state client + reviewed guardian ELF, before ws compaction",
+      "resolution": "Whitespace then identifier compaction measured and validated, bounds unchanged."
+    }
+  ],
+  "intermediateWhitespaceOnly": {
+    "hostGzipBytesWithElf": 158729,
+    "templateTarBytesWithElf": 956928
+  },
+  "measurementOnlyUnreviewedWip": {
+    "hostGzipBytes": 154127,
+    "includes": [
+      "delivery-manager-adapter.mjs",
+      "delivery-native-spool.mjs",
+      "delivery-github-collector.mjs"
+    ],
+    "semanticValidation": false
+  }
+}

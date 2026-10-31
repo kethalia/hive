@@ -4,15 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "workerd": "./src/workerd.ts",
+      "default": "./src/index.ts"
+    },
+    "./cloudflare": "./src/cloudflare.ts"
   },
   "files": [
     "src",
-    "prisma"
+    "prisma",
+    "scripts/generate-cloudflare.mjs"
   ],
   "scripts": {
-    "postinstall": "prisma generate --schema prisma/schema.prisma",
-    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "postinstall": "pnpm run db:generate",
+    "db:generate": "prisma generate --schema prisma/schema.prisma && node scripts/generate-cloudflare.mjs",
+    "db:generate:cloudflare": "node scripts/generate-cloudflare.mjs",
     "db:studio": "prisma studio --schema prisma/schema.prisma",
     "db:push": "prisma db push --schema prisma/schema.prisma",
     "migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
@@ -20,8 +26,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3",
-    "prisma": "^6.19.3"
+    "@neondatabase/serverless": "1.2.0",
+    "@prisma/adapter-neon": "6.19.3",
+    "@prisma/client": "6.19.3",
+    "prisma": "6.19.3"
   },
   "devDependencies": {
     "@types/node": "^22",

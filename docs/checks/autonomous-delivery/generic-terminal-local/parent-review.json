@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:02:35.044732+00:00",
+  "reviewed": true,
+  "blockingFindings": [],
+  "focusedTestsPassed": 32,
+  "actualWorkerdSourceHashesIndependentlyMatched": true,
+  "actualWorkerdChecks": 12,
+  "workerdEvidenceSHA256": "06de4b4ad5fb98709386987e6d9fd7adf3fdf21d06925ff3026ae1aedb750f52",
+  "cloudMutation": false,
+  "liveCoderBrowserAcceptance": false
+}

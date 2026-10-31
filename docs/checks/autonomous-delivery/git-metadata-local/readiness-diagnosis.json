@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual pinned native command/exec; no model inference",
+  "managedRoot": {
+    "exitCode": 1,
+    "category": "sandbox_setup_cannot_create_codex_in_read_only_cwd"
+  },
+  "approvedCheckout": {
+    "exitCode": 0
+  },
+  "fix": "Metadata mode readiness uses first exact pinned checkout cwd; managed root remains read-only",
+  "initialStartupTimeoutCause": "unresolved",
+  "timeoutOrPrivilegeChange": false
+}

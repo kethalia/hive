@@ -1,0 +1,14 @@
+{
+  "buildId": "ebafefde-23d7-46cb-948f-865a7c0fb464",
+  "archive": "94a6c97e26238cfb6904cdfca699863e22e472014dd296d6cef6fc3eeae0f2d8",
+  "manifestFileCount": 21,
+  "healthStatus": 200,
+  "nativeIsolationEnabled": true,
+  "managerEnabled": false,
+  "primaryReadOnlyRecheck": true,
+  "schemaVersion": 1,
+  "sourceRevision": "576b889",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "templateVersionId": "ea2ea27d-ebdd-4a31-99ab-1e792670a567",
+  "productionChanged": false
+}

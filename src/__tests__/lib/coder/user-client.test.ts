@@ -56,14 +56,30 @@ describe("getCoderClientForUser", () => {
   };
 
   beforeEach(() => {
+    vi.stubEnv("CODER_URL", "https://coder.example.com");
     vi.mocked(getDb).mockReturnValue(mockDb as never);
     process.env.ENCRYPTION_KEY = "a".repeat(64);
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     delete process.env.ENCRYPTION_KEY;
+  });
+
+  it("does not continue credential lookup or create a client after lifetime cancellation", async () => {
+    vi.clearAllMocks();
+    const controller = new AbortController();
+    mockDb.coderToken.findFirst.mockImplementationOnce(async () => {
+      controller.abort();
+      return null;
+    });
+    await expect(
+      getCoderClientForUser(MOCK_USER_ID, { signal: controller.signal }),
+    ).rejects.toThrow();
+    expect(mockDb.user.findUnique).not.toHaveBeenCalled();
+    expect(CoderClient).not.toHaveBeenCalled();
   });
 
   it("returns a CoderClient when user and token exist", async () => {
@@ -104,6 +120,21 @@ describe("getCoderClientForUser", () => {
       orderBy: { createdAt: "desc" },
       include: { user: true },
     });
+  });
+
+  it("rejects credentials bound to another origin before decryption or network setup", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(
+      mockToken({
+        user: mockUser({ coderUrl: "https://old-coder.example.com" }),
+      }),
+    );
+    vi.mocked(tryDecrypt).mockClear();
+    vi.mocked(CoderClient).mockClear();
+    await expect(getCoderClientForUser(MOCK_USER_ID)).rejects.toMatchObject({
+      code: UserClientError.ORIGIN_MISMATCH,
+    });
+    expect(tryDecrypt).not.toHaveBeenCalled();
+    expect(CoderClient).not.toHaveBeenCalled();
   });
 
   it("throws USER_NOT_FOUND when user does not exist", async () => {

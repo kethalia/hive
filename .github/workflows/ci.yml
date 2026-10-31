@@ -3,7 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   pull_request:
-    branches: [main]
+    branches: [main, codex/delivery-system-design]
   push:
     branches: [main]
 
@@ -71,9 +71,66 @@ jobs:
           node-version: '22.23.4'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Validate private migration capture boundaries
+        run: python3 -B -m unittest discover -s scripts/checks/data-migration -p 'test_*.py'
       - run: node --test services/migrate/test/migrate.integration.test.mjs
         env:
           MIGRATION_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_migrate_test
+      - name: Prepare restricted application role for migration grant checks
+        run: docker exec "${{ job.services.postgres.id }}" psql -U hive -d hive_migrate_test -v ON_ERROR_STOP=1 -c 'CREATE ROLE hive_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;'
+      - name: Prepare isolated delivery database
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_delivery_test
+      - name: Apply delivery schema
+        run: pnpm --filter @hive/db migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_delivery_test
+      - name: Validate delivery transactions and ownership
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/state.test.ts src/__tests__/lib/delivery/repository.integration.test.ts src/__tests__/lib/delivery/recovery.integration.test.ts src/__tests__/lib/delivery/outbox.integration.test.ts src/__tests__/lib/delivery/manager.integration.test.ts src/__tests__/lib/delivery/manager-policy.integration.test.ts src/__tests__/lib/delivery/informational-report.integration.test.ts src/__tests__/lib/delivery/progression.integration.test.ts src/__tests__/lib/delivery/source-publication.integration.test.ts src/__tests__/lib/codex-session/guardian-store.integration.test.ts src/__tests__/lib/codex-session/guardian-application.integration.test.ts src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts src/__tests__/lib/codex-session/guardian-application-installed.integration.test.ts src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts src/__tests__/lib/codex-session/guardian-service.integration.test.ts src/__tests__/lib/codex-session/guardian-installed.integration.test.ts src/__tests__/lib/delivery/source-transport.integration.test.ts src/__tests__/lib/delivery/source-guardian.integration.test.ts src/__tests__/lib/delivery/source-state.integration.test.ts src/__tests__/lib/codex-session/registration-store.integration.test.ts src/__tests__/lib/projects/task-intents.integration.test.ts src/__tests__/lib/delivery/github-persistence.integration.test.ts src/__tests__/lib/delivery/native-source.integration.test.ts src/__tests__/lib/delivery/github-transport.integration.test.ts src/__tests__/lib/delivery/status.integration.test.ts
+        env:
+          HIVE_DELIVERY_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_delivery_test
+      - name: Validate repository policy enrollment and independent acceptance holds
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/repository-policy-contracts.test.ts src/__tests__/lib/delivery/repository-policy.integration.test.ts src/__tests__/lib/delivery/repository-policy-manager.integration.test.ts
+        env:
+          HIVE_REPOSITORY_POLICY_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_delivery_test
+      - name: Prepare isolated acceptance database
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_acceptance_test
+      - name: Apply acceptance schema
+        run: pnpm --filter @hive/db migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_acceptance_test
+      - name: Validate independent intent-aware acceptance
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/acceptance-config.test.ts src/__tests__/lib/delivery/acceptance-contracts.test.ts src/__tests__/lib/delivery/acceptance-store.integration.test.ts src/__tests__/lib/delivery/acceptance-service.integration.test.ts src/__tests__/lib/delivery/acceptance-review.integration.test.ts src/__tests__/lib/delivery/acceptance-native.integration.test.ts src/__tests__/lib/delivery/acceptance-repair.integration.test.ts src/__tests__/lib/delivery/acceptance-completion.integration.test.ts
+        env:
+          HIVE_ACCEPTANCE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_acceptance_test
+      - name: Validate read-only release candidate observations
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/release-candidate.integration.test.ts
+        env:
+          HIVE_RELEASE_CANDIDATE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_delivery_test
+      - name: Prepare isolated credential rotation database
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_rotation_test
+      - name: Apply credential rotation schema
+        run: pnpm --filter @hive/db migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_rotation_test
+      - name: Validate credential rotation ownership and recovery
+        run: pnpm exec vitest run src/__tests__/auth/rotation-scheduler.integration.test.ts
+        env:
+          HIVE_ROTATION_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_rotation_test
+      - name: Prepare isolated template publication database
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_template_test
+      - name: Apply template publication schema
+        run: pnpm --filter @hive/db migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_template_test
+      - name: Validate template publication ownership and recovery
+        run: pnpm exec vitest run src/__tests__/lib/templates/publication.integration.test.ts
+        env:
+          HIVE_TEMPLATE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_template_test
+          CODER_URL: https://coder.kethalia.com
+      - name: Validate template log ownership and durable notification recovery
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/templates/publication-notices.integration.test.ts src/__tests__/lib/templates/publication-log-service.integration.test.ts
+        env:
+          HIVE_TEMPLATE_NOTICE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_template_test
 
   quality:
     name: Quality

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "failures": [
+    {
+      "passed": false,
+      "cause": "Unprivileged user namespace maps the real root-owned Node inode to UID65534; product UID0 pin rejected before service launch.",
+      "log": "initial-owner-check.txt",
+      "logSha256": "a74a2a43b51c670152bf79b5e4db02614b39d5a95bf6f9daf5e69d30d0be7219",
+      "retainedScratch": "/tmp/hive-read-install-actual-OSXLmW"
+    },
+    {
+      "passed": false,
+      "cause": "Fixture attempted a plain bind after verified shutdown; TIME_WAIT requires normal SO_REUSEADDR restart semantics without SO_REUSEPORT.",
+      "log": "initial-time-wait.txt",
+      "logSha256": "a70fbdc3db5c5ab11c5e5df65dd6d8fc438717fbcf3b011e933ae9ea3988c2d6",
+      "retainedScratch": "/tmp/hive-read-install-actual-NfzVpL"
+    }
+  ],
+  "finalProof": "result.json"
+}

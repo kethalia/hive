@@ -1,0 +1,57 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/acceptance-review.integration.test.ts (3 tests) 1598ms
+   ✓ independent acceptance candidate review > binds exact accepted blob bytes and records only independent review evidence  691ms
+   ✓ independent acceptance candidate review > prepares a real accepted zero-byte blob without inventing source content  453ms
+   ✓ independent acceptance candidate review > rejects modified content, omitted files and host-selected replacement manifest  452ms
+ ❯ src/__tests__/lib/delivery/acceptance-repair.integration.test.ts (3 tests | 1 failed) 2090ms
+   × controller-owned same-step repair reservations > records immutable failure feedback once, retains writer and cannot ready unapplied source 778ms
+     → 
+Invalid `tx.deliveryEvent.create()` invocation in
+/home/coder/projects/kethalia/hive/src/lib/delivery/acceptance-repair.server.ts:312:28
+
+  309 });
+  310 const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
+  311 check(attempt.leaseExpiresAt > now, "acceptance_repair_lease_expired");
+→ 312 await tx.deliveryEvent.create(
+Unique constraint failed on the fields: (`owner_id`,`aggregate_key`,`aggregate_version`)
+   ✓ controller-owned same-step repair reservations > insufficient context holds instead of creating code-churn retries  699ms
+   ✓ controller-owned same-step repair reservations > cannot exceed the original attempt budget or reinterpret a changed candidate  611ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/delivery/acceptance-repair.integration.test.ts > controller-owned same-step repair reservations > records immutable failure feedback once, retains writer and cannot ready unapplied source
+PrismaClientKnownRequestError: 
+Invalid `tx.deliveryEvent.create()` invocation in
+/home/coder/projects/kethalia/hive/src/lib/delivery/acceptance-repair.server.ts:312:28
+
+  309 });
+  310 const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
+  311 check(attempt.leaseExpiresAt > now, "acceptance_repair_lease_expired");
+→ 312 await tx.deliveryEvent.create(
+Unique constraint failed on the fields: (`owner_id`,`aggregate_key`,`aggregate_version`)
+ ❯ Wn.handleRequestError node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13
+ ❯ Wn.handleAndLogRequestError node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12
+ ❯ Wn.request node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12
+ ❯ a node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24
+ ❯ AcceptanceRepairController.prepare src/lib/delivery/acceptance-repair.server.ts:312:5
+    310|     const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_time…
+    311|     check(attempt.leaseExpiresAt > now, "acceptance_repair_lease_expir…
+    312|     await tx.deliveryEvent.create({
+       |     ^
+    313|       data: {
+    314|         id: value.repairId,
+ ❯ db.$transaction.isolationLevel src/lib/delivery/acceptance-service.server.ts:142:21
+ ❯ Proxy._transactionWithCallback node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:722:18
+ ❯ DeliveryAcceptanceService.dispatch src/lib/delivery/acceptance-service.server.ts:54:16
+ ❯ src/__tests__/lib/delivery/acceptance-repair.integration.test.ts:49:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 5 passed (6)
+   Start at  07:23:50
+   Duration  4.54s (transform 384ms, setup 0ms, collect 594ms, tests 3.69s, environment 0ms, prepare 80ms)
+

@@ -1,0 +1,14 @@
+{
+  "observedAt": "2026-10-30T00:06:03.864922+00:00",
+  "sourceSha256": {
+    "src/lib/projects/task-intents.server.ts": "59d64a961112178c2b5e06b191b8f6a51cd29d22ce16325d44d4df063917cd0b",
+    "src/__tests__/lib/projects/task-intents.integration.test.ts": "b70245c21e60319cd333f66b07073ab5e98064f0edc3457eb9904298bf74a632"
+  },
+  "focusedPostgres": 9,
+  "independentConcurrentAndOwnerCollision": 2,
+  "cleanExportPostgres": 185,
+  "cleanExportTypecheck": "pass",
+  "firstFailure": "parent-broad-first-failure.txt",
+  "change": "Database conflict handling with exact owner/project/request validation; no mutation on duplicate/conflict",
+  "remoteChanges": false
+}

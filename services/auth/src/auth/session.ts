@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type { SessionData } from "@hive/auth";
-import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
-import { getDb } from "@hive/db";
+import { isConfiguredCoderUrl, SESSION_MAX_AGE_SECONDS } from "@hive/auth";
+import { getDb, type PrismaClient } from "@hive/db";
 
 export type { SessionData };
 
-export async function createSession(userId: string): Promise<string> {
+export async function createSession(
+  userId: string,
+  db: Pick<PrismaClient, "session"> = getDb(),
+): Promise<string> {
   const sessionId = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
 
-  await getDb().session.create({
+  await db.session.create({
     data: {
       sessionId,
       userId,
@@ -34,6 +37,11 @@ export async function getSessionById(sessionId: string): Promise<SessionData | n
   if (session.expiresAt < new Date()) {
     console.log(`[auth-service] Session expired for user=${session.userId}, cleaning up`);
     await getDb().session.delete({ where: { sessionId } });
+    return null;
+  }
+
+  if (!isConfiguredCoderUrl(session.user.coderUrl)) {
+    console.log("[auth-service] Session belongs to a different Coder deployment");
     return null;
   }
 

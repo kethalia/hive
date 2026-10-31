@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "reservedClassA": 11,
+  "reservedClassB": 19,
+  "additionalPreflightListReads": 1,
+  "peakActualStoredBytes": 117,
+  "finalStoredBytes": 0,
+  "operations": [
+    {
+      "id": 1,
+      "action": "create-bucket",
+      "class": "A",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:09:32.097344+00:00"
+    },
+    {
+      "id": 2,
+      "action": "set-retention-lock",
+      "class": "A",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:10:30.841876+00:00"
+    },
+    {
+      "id": 3,
+      "action": "set-backup-lifecycle",
+      "class": "A",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:10:43.233730+00:00"
+    },
+    {
+      "id": 4,
+      "action": "read-bucket-identity",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:11:01.573840+00:00"
+    },
+    {
+      "id": 5,
+      "action": "read-retention-lock",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:11:01.593064+00:00"
+    },
+    {
+      "id": 6,
+      "action": "read-backup-lifecycle",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:11:01.612662+00:00"
+    },
+    {
+      "id": 7,
+      "action": "read-managed-domain",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:11:01.632202+00:00"
+    },
+    {
+      "id": 8,
+      "action": "read-custom-domains",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:11:01.651726+00:00"
+    },
+    {
+      "id": 9,
+      "action": "upload-test-object",
+      "class": "A",
+      "potentialBytes": 117,
+      "reservedAt": "2026-10-29T20:12:41.674005+00:00"
+    },
+    {
+      "id": 10,
+      "action": "read-initial-object",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:12:58.439500+00:00"
+    },
+    {
+      "id": 11,
+      "action": "retry-identical-object",
+      "class": "A",
+      "potentialBytes": 117,
+      "reservedAt": "2026-10-29T20:13:14.216336+00:00"
+    },
+    {
+      "id": 12,
+      "action": "reject-changed-overwrite",
+      "class": "A",
+      "potentialBytes": 7,
+      "reservedAt": "2026-10-29T20:13:34.899105+00:00"
+    },
+    {
+      "id": 13,
+      "action": "reject-locked-delete",
+      "class": "A",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:13:34.917106+00:00"
+    },
+    {
+      "id": 14,
+      "action": "read-retained-object",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:13:36.315068+00:00"
+    },
+    {
+      "id": 15,
+      "action": "cleanup-bucket-identity",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:29.151048+00:00"
+    },
+    {
+      "id": 16,
+      "action": "cleanup-lock-rules",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:29.172175+00:00"
+    },
+    {
+      "id": 17,
+      "action": "cleanup-lifecycle",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:29.190949+00:00"
+    },
+    {
+      "id": 18,
+      "action": "cleanup-managed-domain",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:29.209185+00:00"
+    },
+    {
+      "id": 19,
+      "action": "cleanup-custom-domains",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:29.227339+00:00"
+    },
+    {
+      "id": 20,
+      "action": "cleanup-object-inventory",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:29.247939+00:00"
+    },
+    {
+      "id": 21,
+      "action": "cleanup-object-full-read",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:29.271559+00:00"
+    },
+    {
+      "id": 22,
+      "action": "cleanup-delete-recorded-object",
+      "class": "A",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:44.139110+00:00"
+    },
+    {
+      "id": 23,
+      "action": "cleanup-verify-empty",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:39:49.854362+00:00"
+    },
+    {
+      "id": 24,
+      "action": "cleanup-recheck-expired-lock",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:40:01.305452+00:00"
+    },
+    {
+      "id": 25,
+      "action": "cleanup-remove-recorded-expired-lock",
+      "class": "A",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:40:12.617953+00:00"
+    },
+    {
+      "id": 26,
+      "action": "cleanup-delete-recorded-object-after-rule-expiry",
+      "class": "A",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:40:24.869041+00:00"
+    },
+    {
+      "id": 27,
+      "action": "cleanup-empty-after-delete",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:40:27.074407+00:00"
+    },
+    {
+      "id": 28,
+      "action": "cleanup-final-bucket-identity",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:40:35.028654+00:00"
+    },
+    {
+      "id": 29,
+      "action": "cleanup-delete-empty-task-bucket",
+      "class": "A",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:40:41.159260+00:00"
+    },
+    {
+      "id": 30,
+      "action": "cleanup-confirm-bucket-absence",
+      "class": "B",
+      "potentialBytes": 0,
+      "reservedAt": "2026-10-29T20:40:42.403997+00:00"
+    }
+  ]
+}

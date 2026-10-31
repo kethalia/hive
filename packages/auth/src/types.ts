@@ -64,7 +64,6 @@ export interface CredentialResponse {
 }
 
 export interface LoginRequest {
-  coderUrl: string;
   email: string;
   password: string;
 }

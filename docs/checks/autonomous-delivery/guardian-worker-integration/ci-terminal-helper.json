@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "status": "corrected_fixture_passed_ci",
+  "originalFailure": {
+    "revision": "e53f561",
+    "runId": "40965738403",
+    "jobId": "123769812505",
+    "url": "https://github.com/kethalia/hive/actions/runs/40965738403/job/123769812505",
+    "test": "a completed terminal helper does not revoke another active root",
+    "observedPhase": "indeterminate",
+    "expectedPhase": "open",
+    "durationMs": 134.239095,
+    "waitMs": 100,
+    "missingDiagnostics": [
+      "guardian exit code/signal",
+      "client failure reason",
+      "indeterminate journal reason"
+    ]
+  },
+  "focusedReproduction": {
+    "sourceRevision": "e53f561",
+    "node24": {
+      "version": "v24.21.0",
+      "iterations": 150,
+      "failures": 0,
+      "elapsedMs": 17377
+    },
+    "node22": {
+      "version": "v22.23.4",
+      "iterations": 150,
+      "failures": 0,
+      "elapsedMs": 17340
+    },
+    "node22Provenance": {
+      "origin": "https://nodejs.org/dist/v22.23.4/",
+      "archive": "node-v22.23.4-linux-x64.tar.xz",
+      "sha256": "1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce",
+      "binarySha256": "94efd062ed066c1a0b332e18249859c905e920eeada5df55d24c99b919629a90"
+    },
+    "onlyReproductionClientChange": "sanitized failure reason and guardian exit fields exposed in state getter"
+  },
+  "parallelRuntime": {
+    "node24": {
+      "tests": 248,
+      "pass": 241,
+      "skip": 7,
+      "fail": 0,
+      "elapsedMs": 7064.234832
+    },
+    "node22": {
+      "tests": 248,
+      "pass": 241,
+      "skip": 7,
+      "fail": 0,
+      "elapsedMs": 7238.735057
+    },
+    "node22ConcurrentWithFocusedLoop": true
+  },
+  "changes": "Keep sanitized diagnostics and unchanged100ms assertion. Use the already-pinned Python executable for long-lived and normal-exit fixtures, including raw wire replay; no production behavior change.",
+  "noInference": true,
+  "noInfrastructureMutation": true,
+  "repeatFailure": {
+    "revision": "ea8bfd7",
+    "runId": "40966779593",
+    "jobId": "123773320307",
+    "runner": "ubuntu-26.04 20261025.179.1",
+    "durationMs": 134.648588
+  },
+  "hypothesis": {
+    "description": "The general CI runner uses Ubuntu 26.04 uutils; pinning realpath(sleep) and passing resolved argv[0] can lose multicall dispatch. Local Debian13 and dedicated Ubuntu24.04 use other providers. Exact failing runner applet resolution was not recorded, so this is a supported explanation, not a reproduced root cause.",
+    "officialReference": "https://ubuntu.com/server/docs/reference/other-tools/sudo-rs/"
+  },
+  "confirmation": {
+    "revision": "17dbf25",
+    "runId": "40968234668",
+    "jobId": "123778257764",
+    "terminalHelper": "passed",
+    "newFailures": "Three outer-worker tests reject CI toolcache Node executable ownership/mode before spawning. Corrected test setup copies exact Node bytes into a private0500 executable; production policy unchanged.",
+    "parentOuterTestsPassed": 5
+  },
+  "fullCiConfirmation": {
+    "revision": "c63506ebdc1c4abef3fb511821064629ec37cfbe",
+    "ciRunId": 40969074192,
+    "ci": "success",
+    "imageRunId": 40969074618,
+    "images": "success",
+    "guardianRunId": 40969073898,
+    "guardian": "success",
+    "scope": "Includes both test fixture corrections and schema23 source-revision slice; next host startup checkpoint is separately validated locally."
+  }
+}

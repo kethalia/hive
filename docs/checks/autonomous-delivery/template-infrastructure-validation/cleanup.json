@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "191f77c9-dadd-4cb5-abdb-7f94eb893c0f",
+  "task": "hive-epic-template-validation",
+  "receiptStatus": "deleting",
+  "checkedAt": "2026-10-30T04:20:43.027570+00:00",
+  "evidenceUnchanged": true,
+  "manualDeleteUsed": false,
+  "getStatus": 410,
+  "note": "The installed helper requested stop; its completed-receipt reaper requested deletion. A later cleanup call refused because the receipt was already deleting. No raw deletion fallback was used."
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "requestedAt": "2026-10-30T06:26:07.014818+00:00",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "workspaceCreatedAt": "2026-10-29T17:13:32.271538Z",
+  "previousBuildId": "6b246479-8f34-4c1c-b91f-9cf016d70e4c",
+  "buildId": "e8086875-3cf6-43ee-868e-57be6d5dfd56",
+  "templateVersionId": "f77f7373-8083-444d-8f48-c05e9a29bc20",
+  "sourceRevision": "e9230f136939e0749e0c77f85d62d91b53adae67",
+  "status": "pending",
+  "image": "ghcr.io/kethalia/hive-base@sha256:eab0d69ad7e50a53b3f6f48f1a5d8915e91c70acd0f616f48d48126408e51962",
+  "reusedPersistent": true,
+  "managerEnabled": false,
+  "workspaceReadEnabled": true,
+  "managedProjectsEnabled": true,
+  "activeTemplateVersionChanged": false
+}

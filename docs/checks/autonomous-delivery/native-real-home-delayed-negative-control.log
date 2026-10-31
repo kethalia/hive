@@ -1,0 +1,51 @@
+✖ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (2585.958986ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3947.116664
+
+✖ failing tests:
+
+test at scripts/verify-codex-native-namespace.test.mjs:69:1
+✖ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (2585.958986ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /NAMESPACE_LOCAL_REPLY/. Input:
+  
+  '\n' +
+    '  >_ OpenAI Codex (v0.165.0)\n' +
+    '     /home/coder/projects/kethalia/hive/.nh-4iYj5a/projects/…/123/checkout\n' +
+    '\n' +
+    '  To get started, describe a task or try one of these commands:\n' +
+    '\n' +
+    '  /init - create an AGENTS.md file with instructions for Codex\n' +
+    '  /status - show current session configuration\n' +
+    '  /permissions - choose what Codex is allowed to do\n' +
+    '  /model - choose what model and reasoning effort to use\n' +
+    '  /review - review any changes and find issues\n' +
+    '\n' +
+    '\n' +
+    '› Actual local mock fixture only\n' +
+    '\n' +
+    '\n' +
+    '\n' +
+    '• Working (1s • esc to interrupt)\n' +
+    '\n' +
+    '\n' +
+    '› Ask Codex to do anything\n' +
+    '\n' +
+    '  GPT-6.1-Sol low · /home/coder/projects/kethalia/hive/.nh-4iYj5a/projects/.hiv…\n' +
+    '  ? for shortcuts                                     ⚠ 2 warnings · f2 to view\n'
+  
+      at TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-native-namespace.test.mjs:288:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '\n  >_ OpenAI Codex (v0.165.0)\n     /home/coder/projects/kethalia/hive/.nh-4iYj5a/projects/…/123/checkout\n\n  To get started, describe a task or try one of these commands:\n\n  /init - create an AGENTS.md file with instructions for Codex\n  /status - show current session configuration\n  /permissions - choose what Codex is allowed to do\n  /model - choose what model and reasoning effort to use\n  /review - review any changes and find issues\n\n\n› Actual local mock fixture only\n\n\n\n• Working (1s • esc to interrupt)\n\n\n› Ask Codex to do anything\n\n  GPT-6.1-Sol low · /home/coder/projects/kethalia/hive/.nh-4iYj5a/projects/.hiv…\n  ? for shortcuts                                     ⚠ 2 warnings · f2 to view\n',
+    expected: /NAMESPACE_LOCAL_REPLY/,
+    operator: 'match',
+    diff: 'simple'
+  }

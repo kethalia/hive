@@ -1,0 +1,29 @@
+{
+  "observedAt": "2026-10-30T05:18:09.551Z",
+  "passed": true,
+  "checks": {
+    "manifestIdentitySynthetic": true,
+    "bootstrapAndEffectiveIdentityRecorded": true,
+    "actualNodeRepeatedVerifiedIdentity": true,
+    "existingConfigParentsUnchanged": true,
+    "changedLiveRequestRejectedWithoutRestart": true,
+    "samePidSameStartChangedExecutableHeld": true,
+    "unknownListenerNeverKilledOrAdopted": true,
+    "provedAbsentProcessCanRestartOnFreePort": true,
+    "reusedPidDoesNotKillUnrelatedLiveProcess": true,
+    "priorBootAbsenceCanRestartOnFreePort": true,
+    "actualUncertainStartupRetainedAndNotRetried": true,
+    "historyAndPriorBuildStatePreserved": true
+  },
+  "networkNamespace": "net:[4026534824]",
+  "homeInode": "86544835",
+  "syntheticNodeRootOwnershipObservation": true,
+  "nodePin": {
+    "uid": 0,
+    "device": "109",
+    "inode": "76286448",
+    "size": 126595440,
+    "sha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+    "version": "v24.21.0"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "workspaceId": "191f77c9-dadd-4cb5-abdb-7f94eb893c0f",
+  "task": "hive-epic-template-validation",
+  "independentlyVerifiedInPrimary": true,
+  "allFiveProfilesMatchPrimarySourceHashes": true,
+  "terraformValid": true,
+  "errors": 0,
+  "warnings": 0,
+  "noPlanOrApply": true,
+  "noOtherTaskAssigned": true,
+  "allTaskSSHCommandsExited": true,
+  "evidence": [
+    "creation.json",
+    "input.json",
+    "validation.json",
+    "initial-format.txt",
+    "corrected-format.txt",
+    "software-init-validation.txt"
+  ]
+}

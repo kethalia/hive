@@ -1,0 +1,82 @@
+
+ RUN  v3.2.4 /tmp/hive-guardian-source-check-ukdokdv5
+
+ ✓ src/__tests__/lib/delivery/source-transport.integration.test.ts (12 tests) 4545ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > retains immutable signed proof and atomically consumes publication; exact lost-ACK replay preserves receipt  328ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > rejects wrong PR branch/account and expired grant before upload  852ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > serializes concurrent exact grant and publication retries  415ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > allows exact consumed receipt replay after original provider-readback freshness without new authority  1428ms
+ ✓ src/__tests__/lib/delivery/source-publication.integration.test.ts (16 tests) 5211ms
+   ✓ internal source revision acceptance, synthetic independent producer > accepts output under the same writer, verifies output evidence and advances a second immutable source link  879ms
+   ✓ internal source revision acceptance, synthetic independent producer > serializes duplicate and competing publications with exact lost-ACK replay only  481ms
+   ✓ internal source revision acceptance, synthetic independent producer > rejects unactivated fixture receipts, model booleans, bad signatures and binding/producer scope swaps  442ms
+   ✓ internal source revision acceptance, synthetic independent producer > checks revocation/expiry/pause inside mutation and never consumes a source version on rejection  515ms
+   ✓ internal source revision acceptance, synthetic independent producer > protects append-only chain/input/output and cross-owner/cross-attempt pointers in PostgreSQL  454ms
+ ✓ src/__tests__/lib/delivery/progression.integration.test.ts (12 tests) 2321ms
+   ✓ protocol-one server progression (synthetic signed host, not native ordering proof) > advances analysis then two delegated attempts at one source while preserving the physical writer and immutable receipts  482ms
+ ✓ src/__tests__/lib/delivery/manager-policy.integration.test.ts (12 tests) 2165ms
+   ✓ manager completion with independently sourced controller policy > registration revocation or source changes after policy selection cannot commit a report  312ms
+ ✓ src/__tests__/lib/codex-session/guardian-store.integration.test.ts (10 tests) 1316ms
+ ✓ src/__tests__/lib/delivery/informational-report.integration.test.ts (10 tests) 1192ms
+ ✓ src/__tests__/lib/delivery/github-transport.integration.test.ts (9 tests) 992ms
+ ✓ src/__tests__/lib/delivery/native-source.integration.test.ts (10 tests) 1068ms
+ ✓ src/__tests__/lib/delivery/source-guardian.integration.test.ts (3 tests) 890ms
+   ✓ source issuer with real staged guardian store (local authorization/pin fixtures, synthetic native/provider) > publishes only under finalized persisted runtime/admission and preserves exact replay  493ms
+ ✓ src/__tests__/lib/delivery/recovery.integration.test.ts (12 tests) 762ms
+ ✓ src/__tests__/lib/delivery/manager.integration.test.ts (9 tests) 806ms
+ ✓ src/__tests__/lib/delivery/repository.integration.test.ts (19 tests) 698ms
+ ✓ src/__tests__/lib/delivery/github-persistence.integration.test.ts (12 tests) 518ms
+ ✓ src/__tests__/lib/codex-session/registration-store.integration.test.ts (10 tests) 615ms
+ ✓ src/__tests__/lib/delivery/outbox.integration.test.ts (7 tests) 330ms
+ ❯ src/__tests__/lib/projects/task-intents.integration.test.ts (8 tests | 1 failed) 258ms
+   × durable project preparation > atomically deduplicates concurrent accepted intents and encrypts their prompts 51ms
+     →
+Invalid `this.db.projectTaskIntent.upsert()` invocation in
+/tmp/hive-guardian-source-check-ukdokdv5/src/lib/projects/task-intents.server.ts:79:49
+
+  76 async enqueue(value: TaskIntentPayload) {
+  77   const input = taskIntentPayloadSchema.parse(value);
+  78   const encrypted = encrypt(JSON.stringify(input), this.encryptionKey);
+→ 79   const row = await this.db.projectTaskIntent.upsert(
+Unique constraint failed on the fields: (`id`)
+   ✓ durable project preparation > isolates simultaneous claims and fences an expired worker acknowledgement 21ms
+   ✓ durable project preparation > resumes an accepted request after process/browser loss and removes payload after the host is running 24ms
+   ✓ durable project preparation > fails boundedly without recording credential-bearing errors or replacing task identity 34ms
+   ✓ durable project preparation > counts abandoned leases against the retry budget before another external action 25ms
+   ✓ durable project preparation > fences explicit recovery against a changed blocked state and never replaces the original intent 15ms
+   ✓ durable project preparation > bounds unchanged preparation polling without timing out a running native task 28ms
+   ✓ durable project preparation > rejects cross-row ciphertext substitution and partial encrypted payload columns 13ms
+ ✓ src/__tests__/lib/delivery/state.test.ts (13 tests) 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/projects/task-intents.integration.test.ts > durable project preparation > atomically deduplicates concurrent accepted intents and encrypts their prompts
+PrismaClientKnownRequestError:
+Invalid `this.db.projectTaskIntent.upsert()` invocation in
+/tmp/hive-guardian-source-check-ukdokdv5/src/lib/projects/task-intents.server.ts:79:49
+
+  76 async enqueue(value: TaskIntentPayload) {
+  77   const input = taskIntentPayloadSchema.parse(value);
+  78   const encrypted = encrypt(JSON.stringify(input), this.encryptionKey);
+→ 79   const row = await this.db.projectTaskIntent.upsert(
+Unique constraint failed on the fields: (`id`)
+ ❯ Wn.handleRequestError ../../home/coder/projects/kethalia/hive/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13
+ ❯ Wn.handleAndLogRequestError ../../home/coder/projects/kethalia/hive/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12
+ ❯ Wn.request ../../home/coder/projects/kethalia/hive/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12
+ ❯ a ../../home/coder/projects/kethalia/hive/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24
+ ❯ ProjectTaskIntents.enqueue src/lib/projects/task-intents.server.ts:79:17
+     77|     const input = taskIntentPayloadSchema.parse(value);
+     78|     const encrypted = encrypt(JSON.stringify(input), this.encryptionKe…
+     79|     const row = await this.db.projectTaskIntent.upsert({
+       |                 ^
+     80|       where: {
+     81|         ownerId_projectId_requestId: {
+ ❯ src/__tests__/lib/projects/task-intents.integration.test.ts:102:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 16 passed (17)
+      Tests  1 failed | 183 passed (184)
+   Start at  00:02:08
+   Duration  27.34s (transform 522ms, setup 0ms, collect 1.57s, tests 23.69s, environment 2ms, prepare 658ms)

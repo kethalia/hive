@@ -25,14 +25,127 @@ model User {
   updatedAt                    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   terminalControlsBeyondMobile Boolean  @default(false) @map("terminal_controls_beyond_mobile")
 
+  templatePublications TemplatePublicationJob[]
+
   coderTokens         CoderToken[]
   sessions            Session[]
   pushSubscriptions   PushSubscription[]
   notificationSources NotificationSource[]
   navigationFavorites NavigationFavorite[]
+  deliveryProjects    DeliveryProject[]
+  codexHostSlots      CodexHostSlot[]
 
   @@unique([coderUrl, coderUserId])
   @@map("users")
+}
+
+model TemplatePublicationTarget {
+  id               String                   @id @default(uuid()) @db.Uuid
+  configuredOrigin String                   @map("configured_origin")
+  organizationId   String                   @map("organization_id") @db.Uuid
+  organizationName String                   @map("organization_name")
+  templateId       String?                  @map("template_id") @db.Uuid
+  templateName     String                   @map("template_name")
+  currentJobId     String?                  @map("current_job_id") @db.Uuid
+  generation       Int                      @default(0)
+  heldReason       String?                  @map("held_reason")
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  jobs             TemplatePublicationJob[] @relation("PublicationJobs")
+  currentJob       TemplatePublicationJob?  @relation("PublicationCurrent", fields: [id, currentJobId], references: [targetId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([configuredOrigin, organizationId, templateId])
+  @@unique([configuredOrigin, organizationId, templateName], map: "template_publication_target_name_key")
+  @@map("template_publication_targets")
+}
+
+model TemplatePublicationJob {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  ownerId                 String                      @map("owner_id") @db.Uuid
+  actorSessionId          String                      @map("actor_session_id") @db.Uuid
+  actorCoderUserId        String                      @map("actor_coder_user_id") @db.Uuid
+  targetId                String                      @map("target_id") @db.Uuid
+  targetGeneration        Int                         @map("target_generation")
+  requestId               String                      @map("request_id") @db.Uuid
+  requestDigest           String                      @map("request_digest")
+  templateName            String                      @map("template_name")
+  contentHash             String                      @map("content_hash")
+  archiveDigest           String                      @map("archive_digest")
+  archiveBytes            Int                         @map("archive_bytes")
+  manifestDigest          String                      @map("manifest_digest")
+  versionName             String                      @map("version_name")
+  expectedActiveVersionId String?                     @map("expected_active_version_id") @db.Uuid
+  operationMode           String                      @default("update") @map("operation_mode")
+  provisionerTagsDigest   String?                     @map("provisioner_tags_digest")
+  stage                   String                      @default("queued")
+  effectState             String                      @default("clear") @map("effect_state")
+  effectDigest            String?                     @map("effect_digest")
+  fileId                  String?                     @map("file_id") @db.Uuid
+  versionId               String?                     @map("version_id") @db.Uuid
+  importJobId             String?                     @map("import_job_id") @db.Uuid
+  remoteStatus            String?                     @map("remote_status")
+  remoteLogAfter          BigInt                      @default(0) @map("remote_log_after")
+  logsOverflowed          Boolean                     @default(false) @map("logs_overflowed")
+  leaseHolder             String?                     @map("lease_holder") @db.Uuid
+  leaseGeneration         Int                         @default(0) @map("lease_generation")
+  leaseUntil              DateTime?                   @map("lease_until") @db.Timestamptz
+  nextAttemptAt           DateTime                    @default(now()) @map("next_attempt_at") @db.Timestamptz
+  retries                 Int                         @default(0)
+  eventSequence           Int                         @default(0) @map("event_sequence")
+  heldReason              String?                     @map("held_reason")
+  createdAt               DateTime                    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime                    @default(now()) @map("updated_at") @db.Timestamptz
+  finishedAt              DateTime?                   @map("finished_at") @db.Timestamptz
+  owner                   User                        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  target                  TemplatePublicationTarget   @relation("PublicationJobs", fields: [targetId], references: [id], onDelete: Restrict)
+  currentFor              TemplatePublicationTarget[] @relation("PublicationCurrent")
+  events                  TemplatePublicationEvent[]
+  notice                  TemplatePublicationNotice?
+
+  @@unique([ownerId, id])
+  @@unique([targetId, id])
+  @@unique([ownerId, requestId])
+  @@index([stage, nextAttemptAt])
+  @@map("template_publication_jobs")
+}
+
+model TemplatePublicationEvent {
+  id        String                 @id @default(uuid()) @db.Uuid
+  ownerId   String                 @map("owner_id") @db.Uuid
+  jobId     String                 @map("job_id") @db.Uuid
+  sequence  Int
+  key       String
+  code      String
+  data      Json
+  digest    String
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  job       TemplatePublicationJob @relation(fields: [ownerId, jobId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction)
+  notice    TemplatePublicationNotice?
+
+  @@unique([ownerId,jobId,id], map:"template_publication_event_notice_key")
+  @@unique([jobId, sequence])
+  @@unique([jobId, key])
+  @@map("template_publication_events")
+}
+
+model TemplatePublicationNotice {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  jobId String @unique @map("job_id") @db.Uuid
+  eventId String @unique @map("event_id") @db.Uuid
+  status String @default("pending")
+  attempts Int @default(0)
+  leaseHolder String? @map("lease_holder") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  lastReason String? @map("last_reason")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz
+  job TemplatePublicationJob @relation(fields:[ownerId,jobId], references:[ownerId,id],onDelete:Restrict,onUpdate:NoAction)
+  event TemplatePublicationEvent @relation(fields:[ownerId,jobId,eventId],references:[ownerId,jobId,id],onDelete:Restrict,onUpdate:NoAction)
+  @@unique([ownerId,jobId])
+  @@unique([ownerId,jobId,eventId])
+  @@index([status,nextAttemptAt])
+  @@map("template_publication_notices")
 }
 
 model CoderToken {
@@ -43,13 +156,70 @@ model CoderToken {
   authTag    Bytes    @map("auth_tag")
   version    Int       @default(1)
   expiresAt  DateTime? @map("expires_at") @db.Timestamptz
+  // Only a positively identified key created by Hive; legacy credentials stay null.
+  remoteKeyId String? @map("remote_key_id")
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id])
+  rotationOperations CredentialRotationOperation[]
+  expiryNotices CredentialExpiryNotice[]
 
   @@unique([userId])
+  @@unique([userId, id])
   @@map("coder_tokens")
+}
+
+model CredentialRotationSchedule {
+  id String @id @default(uuid()) @db.Uuid
+  configuredOrigin String @unique @map("configured_origin")
+  afterId String? @map("after_id") @db.Uuid
+  holder String? @db.Uuid
+  generation Int @default(0)
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  nextRunAt DateTime @default(now()) @map("next_run_at") @db.Timestamptz
+  sweepStartedAt DateTime? @map("sweep_started_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  operations CredentialRotationOperation[]
+  @@map("credential_rotation_schedules")
+}
+
+model CredentialRotationOperation {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  tokenId String @map("token_id") @db.Uuid
+  tokenVersion Int @map("token_version")
+  coderUserId String @map("coder_user_id") @db.Uuid
+  configuredOrigin String @map("configured_origin")
+  holder String @db.Uuid
+  scheduleGeneration Int @map("schedule_generation")
+  phase String @default("minting")
+  remoteKeyId String? @map("remote_key_id")
+  reason String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz
+  token CoderToken @relation(fields:[ownerId,tokenId],references:[userId,id],onDelete:Restrict,onUpdate:NoAction)
+  schedule CredentialRotationSchedule @relation(fields:[configuredOrigin],references:[configuredOrigin],onDelete:Restrict,onUpdate:NoAction)
+  @@unique([tokenId,tokenVersion])
+  @@index([phase,createdAt])
+  @@map("credential_rotation_operations")
+}
+
+model CredentialExpiryNotice {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  tokenId String @map("token_id") @db.Uuid
+  tokenVersion Int @map("token_version")
+  configuredOrigin String @map("configured_origin")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  token CoderToken @relation(fields:[ownerId,tokenId],references:[userId,id],onDelete:Restrict,onUpdate:NoAction)
+  @@unique([tokenId,tokenVersion])
+  @@index([configuredOrigin,status,nextAttemptAt])
+  @@map("credential_expiry_notices")
 }
 
 model Session {
@@ -119,4 +289,827 @@ model NotificationSource {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([userId, workspaceId])
   @@map("notification_sources")
+}
+
+// Delivery is additive and separate from the retired task runner. Every child
+// relation carries ownerId; repository methods additionally enforce owner access.
+model DeliveryProject {
+  id                   String @id @default(uuid()) @db.Uuid
+  ownerId              String @map("owner_id") @db.Uuid
+  provider             String
+  providerRepositoryId String @map("provider_repository_id")
+  providerAccountId    String @map("provider_account_id")
+  fullName             String @map("full_name")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  owner                User @relation(fields: [ownerId], references: [id])
+  repositoryPolicy DeliveryRepositoryPolicy?
+  conversations        DeliveryConversation[]
+  registeredThreads    CodexRegisteredThread[]
+  taskIntents          ProjectTaskIntent[]
+  epics                DeliveryEpic[]
+  tasks                DeliveryTask[]
+  managerBindings      DeliveryManagerBinding[]
+  guardianAdmissions CodexGuardianAdmission[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, provider, providerRepositoryId])
+  @@map("delivery_projects")
+}
+
+model DeliveryConversation {
+  id            String @id @default(uuid()) @db.Uuid
+  ownerId       String @map("owner_id") @db.Uuid
+  projectId     String @map("project_id") @db.Uuid
+  workspaceId   String @map("workspace_id") @db.Uuid
+  nativeThreadId String @map("native_thread_id")
+  buildId       String @map("build_id") @db.Uuid
+  serverInstanceId String @map("server_instance_id")
+  nativePath    String? @map("native_path")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  project       DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  tasks         DeliveryTask[]
+  managerBindings DeliveryManagerBinding[]
+  registeredThreads CodexRegisteredThread[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id])
+  @@unique([ownerId, workspaceId, nativeThreadId])
+  @@map("delivery_conversations")
+}
+
+model DeliveryEpic {
+  id          String @id @default(uuid()) @db.Uuid
+  ownerId     String @map("owner_id") @db.Uuid
+  projectId   String @map("project_id") @db.Uuid
+  outcome     String
+  criteria    Json
+  state       String @default("pending")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  project     DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  tasks       DeliveryTask[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id])
+  @@map("delivery_epics")
+}
+
+model DeliveryTask {
+  id               String @id @default(uuid()) @db.Uuid
+  ownerId          String @map("owner_id") @db.Uuid
+  projectId        String @map("project_id") @db.Uuid
+  epicId           String? @map("epic_id") @db.Uuid
+  conversationId   String? @map("conversation_id") @db.Uuid
+  managerBindingId String? @map("manager_binding_id") @db.Uuid
+  outcome          String
+  sourceSha        String @map("source_sha")
+  sourceRevisionId String? @map("source_revision_id") @db.Uuid
+  sourceVersion    Int @default(0) @map("source_version")
+  branch           String
+  version          Int @default(0)
+  pauseRequested   Boolean @default(false) @map("pause_requested")
+  schedulingPaused Boolean @default(false) @map("scheduling_paused")
+  releaseMode      String @default("disabled") @map("release_mode")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  project          DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  epic             DeliveryEpic? @relation(fields: [ownerId, projectId, epicId], references: [ownerId, projectId, id], onDelete: Restrict)
+  conversation     DeliveryConversation? @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id], onDelete: Restrict)
+  managerBinding   DeliveryManagerBinding? @relation(fields: [ownerId, projectId, managerBindingId], references: [ownerId, projectId, id], onDelete: Restrict)
+  repositoryPolicyBindings DeliveryTaskPolicyBinding[]
+  acceptanceJobs DeliveryAcceptanceJob[]
+  steps            DeliveryStep[]
+  events           DeliveryEvent[]
+  sourceRevisions DeliverySourceRevision[] @relation("TaskSourceRevisions")
+  sourceApplications DeliverySourceApplication[]
+  currentSourceRevision DeliverySourceRevision? @relation("CurrentTaskSourceRevision", fields: [ownerId, id, sourceRevisionId], references: [ownerId, taskId, id], onDelete: Restrict)
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id], map: "delivery_task_repository_policy_project_key")
+  @@unique([ownerId, id, managerBindingId])
+  @@map("delivery_tasks")
+}
+
+model DeliveryStep {
+  id                    String @id @default(uuid()) @db.Uuid
+  ownerId               String @map("owner_id") @db.Uuid
+  taskId                String @map("task_id") @db.Uuid
+  kind                  String
+  acceptancePhase       String @default("implementation_preview") @map("acceptance_phase")
+  state                 String @default("pending")
+  waitingReason         String? @map("waiting_reason")
+  version               Int @default(0)
+  reopenGeneration      Int @default(0) @map("reopen_generation")
+  leaseGeneration       Int @default(0) @map("lease_generation")
+  attemptCount          Int @default(0) @map("attempt_count")
+  attemptBudget         Int @default(3) @map("attempt_budget")
+  criterionIds          String[] @map("criterion_ids")
+  requiredEvidenceKinds String[] @map("required_evidence_kinds")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  task                  DeliveryTask @relation(fields: [ownerId, taskId], references: [ownerId, id])
+  attempts              DeliveryAttempt[]
+  evidence              DeliveryEvidence[]
+  reports               DeliveryStepReport[]
+  events                DeliveryEvent[]
+  sourceRevisions       DeliverySourceRevision[]
+  dependencies          DeliveryStepDependency[] @relation("StepDependencies")
+  dependents            DeliveryStepDependency[] @relation("StepDependents")
+  @@unique([ownerId, id])
+  @@unique([ownerId, taskId, id])
+  @@index([ownerId, taskId, state])
+  @@map("delivery_steps")
+}
+
+model DeliveryStepDependency {
+  ownerId         String @map("owner_id") @db.Uuid
+  taskId          String @map("task_id") @db.Uuid
+  stepId          String @map("step_id") @db.Uuid
+  dependsOnStepId String @map("depends_on_step_id") @db.Uuid
+  step            DeliveryStep @relation("StepDependencies", fields: [ownerId, taskId, stepId], references: [ownerId, taskId, id], onDelete: Restrict)
+  dependsOn       DeliveryStep @relation("StepDependents", fields: [ownerId, taskId, dependsOnStepId], references: [ownerId, taskId, id], onDelete: Restrict)
+  @@id([ownerId, taskId, stepId, dependsOnStepId])
+  @@map("delivery_step_dependencies")
+}
+
+model DeliveryAttempt {
+  id               String @id @default(uuid()) @db.Uuid
+  ownerId          String @map("owner_id") @db.Uuid
+  stepId           String @map("step_id") @db.Uuid
+  managerBindingId String? @map("manager_binding_id") @db.Uuid
+  leaseGeneration  Int @map("lease_generation")
+  leaseHolder      String @map("lease_holder")
+  leaseExpiresAt   DateTime @map("lease_expires_at") @db.Timestamptz
+  sourceSha        String @map("source_sha")
+  outputRevisionId String? @map("output_revision_id") @db.Uuid
+  requestedModel   String? @map("requested_model")
+  effectiveModel   String? @map("effective_model")
+  requestedEffort  String? @map("requested_effort")
+  effectiveEffort  String? @map("effective_effort")
+  outcome          String @default("running")
+  runtimeBinding   Json? @map("runtime_binding")
+  runtimeBindingDigest String? @map("runtime_binding_digest")
+  runtimeVersion   Int @default(0) @map("runtime_version")
+  quiescedAt       DateTime? @map("quiesced_at") @db.Timestamptz
+  startedAt        DateTime @default(now()) @map("started_at") @db.Timestamptz
+  finishedAt       DateTime? @map("finished_at") @db.Timestamptz
+  step             DeliveryStep @relation(fields: [ownerId, stepId], references: [ownerId, id])
+  reports          DeliveryStepReport[]
+  events           DeliveryEvent[]
+  managerBinding   DeliveryManagerBinding? @relation("ManagerAttempt", fields: [ownerId, managerBindingId], references: [ownerId, id], onDelete: Restrict)
+  activeForBindings DeliveryManagerBinding[] @relation("ActiveManagerAttempt")
+  currentForBindings DeliveryManagerBinding[] @relation("CurrentManagerAttempt")
+  producedRevision DeliverySourceRevision? @relation("ProducedSourceRevision")
+  outputRevision DeliverySourceRevision? @relation("AttemptOutputRevision", fields: [ownerId, stepId, id, outputRevisionId], references: [ownerId, stepId, producingAttemptId, id], onDelete: Restrict)
+  @@unique([ownerId, id])
+  @@unique([ownerId, stepId, id])
+  @@unique([ownerId, managerBindingId, id])
+  @@unique([ownerId, stepId, leaseGeneration])
+  @@map("delivery_attempts")
+}
+
+model DeliveryEvidence {
+  id             String @id @default(uuid()) @db.Uuid
+  ownerId        String @map("owner_id") @db.Uuid
+  stepId         String @map("step_id") @db.Uuid
+  producer       String
+  policyVersion  String @map("policy_version")
+  remoteId       String @map("remote_id")
+  kind           String
+  status         String
+  verificationMode String @map("verification_mode")
+  environment    String
+  sourceSha      String @map("source_sha")
+  artifactDigest String? @map("artifact_digest")
+  criterionIds   String[] @map("criterion_ids")
+  objectKey      String @map("object_key")
+  contentDigest  String @map("content_digest")
+  requestDigest  String @map("request_digest")
+  observedAt     DateTime @map("observed_at") @db.Timestamptz
+  invalidatedAt  DateTime? @map("invalidated_at") @db.Timestamptz
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  step           DeliveryStep @relation(fields: [ownerId, stepId], references: [ownerId, id])
+  reports        DeliveryReportEvidence[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, stepId, id])
+  @@unique([ownerId, stepId, producer, remoteId])
+  @@map("delivery_evidence")
+}
+
+model DeliveryEvent {
+  id               String @id @db.Uuid
+  ownerId          String @map("owner_id") @db.Uuid
+  taskId           String @map("task_id") @db.Uuid
+  stepId           String? @map("step_id") @db.Uuid
+  attemptId        String? @map("attempt_id") @db.Uuid
+  aggregateKey     String @map("aggregate_key")
+  aggregateVersion Int @map("aggregate_version")
+  schemaVersion    Int @default(1) @map("schema_version")
+  policyVersion    String @default("disabled-v1") @map("policy_version")
+  type             String
+  requestDigest    String @map("request_digest")
+  payload          Json?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  task             DeliveryTask @relation(fields: [ownerId, taskId], references: [ownerId, id])
+  step             DeliveryStep? @relation(fields: [ownerId, taskId, stepId], references: [ownerId, taskId, id], onDelete: Restrict)
+  attempt          DeliveryAttempt? @relation(fields: [ownerId, stepId, attemptId], references: [ownerId, stepId, id], onDelete: Restrict)
+  report           DeliveryStepReport?
+  outbox           DeliveryOutbox[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, stepId, id])
+  @@unique([ownerId, aggregateKey, aggregateVersion])
+  @@index([ownerId, taskId, attemptId, aggregateVersion], map: "delivery_runtime_events_lookup")
+  @@map("delivery_events")
+}
+
+model DeliveryStepReport {
+  id                   String @id @default(uuid()) @db.Uuid
+  ownerId              String @map("owner_id") @db.Uuid
+  stepId               String @map("step_id") @db.Uuid
+  attemptId            String @map("attempt_id") @db.Uuid
+  eventId              String @unique @map("event_id") @db.Uuid
+  summary              String
+  difficulty           String
+  difficultyReason     String @map("difficulty_reason")
+  issues               Json
+  remainingUncertainty String @map("remaining_uncertainty")
+  nextAction           String @map("next_action")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  step                 DeliveryStep @relation(fields: [ownerId, stepId], references: [ownerId, id])
+  attempt              DeliveryAttempt @relation(fields: [ownerId, stepId, attemptId], references: [ownerId, stepId, id], onDelete: Restrict)
+  event                DeliveryEvent @relation(fields: [ownerId, stepId, eventId], references: [ownerId, stepId, id], onDelete: Restrict)
+  evidence             DeliveryReportEvidence[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, stepId, id])
+  @@unique([ownerId, eventId])
+  @@unique([ownerId, stepId, eventId])
+  @@map("delivery_step_reports")
+}
+
+model DeliveryReportEvidence {
+  ownerId    String @map("owner_id") @db.Uuid
+  stepId     String @map("step_id") @db.Uuid
+  reportId   String @map("report_id") @db.Uuid
+  evidenceId String @map("evidence_id") @db.Uuid
+  report     DeliveryStepReport @relation(fields: [ownerId, stepId, reportId], references: [ownerId, stepId, id], onDelete: Restrict)
+  evidence   DeliveryEvidence @relation(fields: [ownerId, stepId, evidenceId], references: [ownerId, stepId, id], onDelete: Restrict)
+  @@id([ownerId, reportId, evidenceId])
+  @@map("delivery_report_evidence")
+}
+
+model DeliveryOutbox {
+  id            String @id @default(uuid()) @db.Uuid
+  ownerId       String @map("owner_id") @db.Uuid
+  eventId       String @map("event_id") @db.Uuid
+  channel       String @default("push")
+  status        String @default("pending")
+  attempts      Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  event         DeliveryEvent @relation(fields: [ownerId, eventId], references: [ownerId, id])
+  @@unique([ownerId, id])
+  @@unique([ownerId, eventId, channel])
+  @@index([status, nextAttemptAt])
+  @@map("delivery_outbox")
+}
+
+// Registration authority only. All host rows are tenant-bound; grants store digests,
+// never signed bearer grants. A slot serializes every lifetime transition.
+model CodexHostSlot {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  coderOrigin String @map("coder_origin")
+  coderOwnerId String @map("coder_owner_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  agentId String @map("agent_id") @db.Uuid
+  generation Int @default(0)
+  activeRegistrationId String? @map("active_registration_id") @db.Uuid
+  owner User @relation(fields: [ownerId], references: [id])
+  grants CodexRegistrationGrant[]
+  registrations CodexHostRegistration[]
+  guardianRuntimes CodexGuardianRuntime[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, coderOrigin, workspaceId, agentId])
+  @@map("codex_host_slots")
+}
+
+model CodexRegistrationGrant {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  slotId String @map("slot_id") @db.Uuid
+  generation Int
+  binding Json
+  bindingDigest String @map("binding_digest")
+  tokenDigest String? @unique @map("token_digest")
+  issuedAt DateTime @default(now()) @map("issued_at") @db.Timestamptz
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id])
+  @@unique([slotId, generation])
+  @@map("codex_registration_grants")
+}
+
+model CodexHostRegistration {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  slotId String @map("slot_id") @db.Uuid
+  generation Int
+  binding Json
+  buildId String @map("build_id") @db.Uuid
+  templateId String @map("template_id") @db.Uuid
+  appId String @map("app_id") @db.Uuid
+  appOrigin String @map("app_origin")
+  serverInstanceId String @map("server_instance_id")
+  protocolVersion String @map("protocol_version")
+  hostPublicKeyPem String @map("host_public_key_pem")
+  hostKeyFingerprint String @map("host_key_fingerprint")
+  registeredAt DateTime @map("registered_at") @db.Timestamptz
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  heartbeatSequence Int @default(0) @map("heartbeat_sequence")
+  heartbeatNonce String @map("heartbeat_nonce") @db.Uuid
+  heartbeatRequestDigest String? @map("heartbeat_request_digest")
+  slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id])
+  threads CodexRegisteredThread[]
+  guardianAdmissions CodexGuardianAdmission[]
+  sourceApplications DeliverySourceApplication[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, slotId, id])
+  @@unique([slotId, generation])
+  @@map("codex_host_registrations")
+}
+
+model CodexRegisteredThread {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  registrationId String @map("registration_id") @db.Uuid
+  nativeThreadId String @map("native_thread_id")
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  conversation DeliveryConversation @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id])
+  registration CodexHostRegistration @relation(fields: [ownerId, registrationId], references: [ownerId, id])
+  @@unique([registrationId, projectId])
+  @@unique([registrationId, nativeThreadId])
+  @@index([ownerId, projectId])
+  @@map("codex_registered_threads")
+}
+
+
+// Durable preparation survives browser/request loss. Prompt payload is encrypted;
+// each external action uses a stable task/request identity and a fenced DB lease.
+model ProjectTaskIntent {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  requestDigest String @map("request_digest")
+  repositoryId String @map("repository_id")
+  providerAccountId String @map("provider_account_id")
+  sourceSha String @map("source_sha")
+  repositoryPolicyVersionId String? @map("repository_policy_version_id") @db.Uuid
+  repositoryPolicyDigest String? @map("repository_policy_digest")
+  intentTextDigest String? @map("intent_text_digest")
+  repositoryPolicyVersion DeliveryRepositoryPolicyVersion? @relation(fields: [ownerId, projectId, repositoryPolicyVersionId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "project_task_intent_repository_policy_fkey")
+  taskPolicyBindings DeliveryTaskPolicyBinding[]
+  acceptanceIntent DeliveryAcceptanceIntent?
+  phase String @default("queued")
+  ciphertext Bytes?
+  iv Bytes?
+  authTag Bytes? @map("auth_tag")
+  status Json?
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  failureCount Int @default(0) @map("failure_count")
+  progressAt DateTime @default(now()) @map("progress_at") @db.Timestamptz
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  managerBindings DeliveryManagerBinding[]
+  guardianAdmissions CodexGuardianAdmission[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id])
+  @@unique([ownerId, projectId, requestId])
+  @@index([phase, nextAttemptAt])
+  @@map("project_task_intents")
+}
+
+// Immutable native checkout identity, independent of manager-selected task IDs
+// and short-lived host registration credentials. The intent row serializes all
+// lifetimes before one native writer can claim this checkout.
+model DeliveryManagerBinding {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  preparationIntentId String @map("preparation_intent_id") @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+  buildId String @map("build_id") @db.Uuid
+  serverInstanceId String @map("server_instance_id")
+  nativeThreadId String @map("native_thread_id")
+  repositoryId String @map("repository_id")
+  sourceSha String @map("source_sha")
+  leaseId String @map("lease_id") @db.Uuid
+  leaseGeneration Int @map("lease_generation")
+  bindingDigest String @map("binding_digest")
+  activeAttemptId String? @map("active_attempt_id") @db.Uuid
+  currentAttemptId String? @map("current_attempt_id") @db.Uuid
+  cursorVersion Int @default(0) @map("cursor_version")
+  progressionProtocol Int @default(0) @map("progression_protocol")
+  nativeSequence Int @default(0) @map("native_sequence")
+  blockedReason String? @map("blocked_reason")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id])
+  preparationIntent ProjectTaskIntent @relation(fields: [ownerId, projectId, preparationIntentId], references: [ownerId, projectId, id], onDelete: Restrict)
+  conversation DeliveryConversation @relation(fields: [ownerId, projectId, conversationId], references: [ownerId, projectId, id], onDelete: Restrict)
+  activeAttempt DeliveryAttempt? @relation("ActiveManagerAttempt", fields: [ownerId, id, activeAttemptId], references: [ownerId, managerBindingId, id], onDelete: Restrict)
+  currentAttempt DeliveryAttempt? @relation("CurrentManagerAttempt", fields: [ownerId, id, currentAttemptId], references: [ownerId, managerBindingId, id], onDelete: Restrict, map: "delivery_manager_current_attempt_fkey")
+  attempts DeliveryAttempt[] @relation("ManagerAttempt")
+  tasks DeliveryTask[]
+  sourceRevisions DeliverySourceRevision[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id])
+  @@unique([ownerId, bindingDigest])
+  @@index([ownerId, preparationIntentId])
+  @@map("delivery_manager_bindings")
+}
+
+model DeliverySourceRevision {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  managerBindingId String @map("manager_binding_id") @db.Uuid
+  stepId String @map("step_id") @db.Uuid
+  producingAttemptId String @map("producing_attempt_id") @db.Uuid
+  previousRevisionId String? @map("previous_revision_id") @db.Uuid
+  version Int
+  inputSha String @map("input_sha")
+  headSha String @map("head_sha")
+  treeSha String @map("tree_sha")
+  manifestDigest String @map("manifest_digest")
+  operationId String @map("operation_id") @db.Uuid
+  requestDigest String @map("request_digest")
+  producer String
+  proofDigest String @map("proof_digest")
+  repositoryId String @map("repository_id")
+  providerAccountId String @map("provider_account_id")
+  fullName String @map("full_name")
+  branch String
+  baseBranch String @map("base_branch")
+  pullRequestId String @map("pull_request_id")
+  pullNumber Int @map("pull_number")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  task DeliveryTask @relation("TaskSourceRevisions", fields: [ownerId, taskId, managerBindingId], references: [ownerId, id, managerBindingId], onDelete: Restrict)
+  step DeliveryStep @relation(fields: [ownerId, taskId, stepId], references: [ownerId, taskId, id], onDelete: Restrict)
+  binding DeliveryManagerBinding @relation(fields: [ownerId, managerBindingId], references: [ownerId, id], onDelete: Restrict)
+  producingAttempt DeliveryAttempt @relation("ProducedSourceRevision", fields: [ownerId, stepId, producingAttemptId], references: [ownerId, stepId, id], onDelete: Restrict)
+  previousRevision DeliverySourceRevision? @relation("SourceRevisionChain", fields: [ownerId, taskId, previousRevisionId], references: [ownerId, taskId, id], onDelete: Restrict)
+  nextRevisions DeliverySourceRevision[] @relation("SourceRevisionChain")
+  currentForTasks DeliveryTask[] @relation("CurrentTaskSourceRevision")
+  outputForAttempts DeliveryAttempt[] @relation("AttemptOutputRevision")
+  applications DeliverySourceApplication[] @relation("ApplicationTarget")
+  applicationTaskScopes DeliverySourceApplication[] @relation("ApplicationTargetTask")
+  previouslyAppliedIn DeliverySourceApplication[] @relation("ApplicationPredecessor")
+  @@unique([ownerId, id])
+  @@unique([ownerId, taskId, id])
+  @@unique([ownerId, stepId, producingAttemptId], map: "delivery_source_revision_attempt_key")
+  @@unique([ownerId, stepId, producingAttemptId, id], map: "delivery_source_revision_output_key")
+  @@unique([ownerId, managerBindingId, operationId])
+  @@unique([ownerId, taskId, version])
+  @@map("delivery_source_revisions")
+}
+
+
+// Explicit guardian enrollment is independent of native registration: preparation
+// precedes root creation. All runtime authority is server-persisted and tenant-bound.
+model CodexGuardianRuntime {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  slotId String @map("slot_id") @db.Uuid
+  lifetimeId String @map("lifetime_id") @db.Uuid
+  bindingDigest String @map("binding_digest")
+  outerPublicKeyPem String @map("outer_public_key_pem")
+  outerKeyFingerprint String @map("outer_key_fingerprint")
+  binding Json
+  packageManifestSha256 String @map("package_manifest_sha256")
+  guardianElfSha256 String @map("guardian_elf_sha256")
+  nodeSha256 String @map("node_sha256")
+  policyDigest String @map("policy_digest")
+  metadataPolicyDigest String @map("metadata_policy_digest")
+  configSha256 String @map("config_sha256")
+  workspaceId String @map("workspace_id") @db.Uuid
+  buildId String @map("build_id") @db.Uuid
+  phase String @default("reserved")
+  generation Int @default(1)
+  producerApproved Boolean @default(false) @map("producer_approved")
+  serverInstanceId String? @map("server_instance_id")
+  hostKeyFingerprint String? @map("host_key_fingerprint")
+  nativeLaunchId String? @map("native_launch_id") @db.Uuid
+  nativeLaunchDigest String? @map("native_launch_digest")
+  nativeLaunchAt DateTime? @map("native_launch_at") @db.Timestamptz
+  authorityUntil DateTime @map("authority_until") @db.Timestamptz
+  closedBarrierId String? @map("closed_barrier_id") @db.Uuid
+  enrolledAt DateTime? @map("enrolled_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id], onDelete: Restrict)
+  grants CodexGuardianEnrollmentGrant[]
+  admissions CodexGuardianAdmission[]
+  barriers CodexGuardianBarrier[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, slotId, lifetimeId])
+  @@unique([ownerId, outerKeyFingerprint, lifetimeId])
+  @@map("codex_guardian_runtimes")
+}
+
+model CodexGuardianEnrollmentGrant {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  tokenDigest String @unique @map("token_digest")
+  bindingDigest String @map("binding_digest")
+  issuedAt DateTime @map("issued_at") @db.Timestamptz
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  consumptionDigest String? @map("consumption_digest")
+  runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict)
+  @@unique([ownerId, id])
+  @@map("codex_guardian_enrollment_grants")
+}
+
+model CodexGuardianAdmission {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  preparationIntentId String @map("preparation_intent_id") @db.Uuid
+  preparationDigest String @map("preparation_digest")
+  preparation Json
+  intentRequestDigest String @map("intent_request_digest")
+  phase String @default("preparation")
+  generation Int @default(1)
+  checkoutBinding Json? @map("checkout_binding")
+  checkoutBindingDigest String? @map("checkout_binding_digest")
+  checkoutIncarnation String? @map("checkout_incarnation") @db.Uuid
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseGeneration Int? @map("lease_generation")
+  registrationId String? @map("registration_id") @db.Uuid
+  nativeThreadId String? @map("native_thread_id")
+  producerDigest String? @map("producer_digest")
+  metadataPins Json? @map("metadata_pins")
+  metadataPinsDigest String? @map("metadata_pins_digest")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  checkoutBoundAt DateTime? @map("checkout_bound_at") @db.Timestamptz
+  nativeBoundAt DateTime? @map("native_bound_at") @db.Timestamptz
+  runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict)
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id], onDelete: Restrict)
+  intent ProjectTaskIntent @relation(fields: [ownerId, projectId, preparationIntentId], references: [ownerId, projectId, id], onDelete: Restrict)
+  registration CodexHostRegistration? @relation(fields: [ownerId, registrationId], references: [ownerId, id], onDelete: Restrict)
+  decisions CodexGuardianStopDecision[]
+  sourceApplications DeliverySourceApplication[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, runtimeId, id])
+  @@unique([ownerId, runtimeId, projectId])
+  @@map("codex_guardian_admissions")
+}
+
+model CodexGuardianBarrier {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  generation Int
+  ownershipDigest String @map("ownership_digest")
+  requestDigest String @map("request_digest")
+  closedAt DateTime @map("closed_at") @db.Timestamptz
+  runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict)
+  decisions CodexGuardianStopDecision[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, runtimeId, id])
+  @@unique([ownerId, runtimeId, generation])
+  @@map("codex_guardian_barriers")
+}
+
+model CodexGuardianStopDecision {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  barrierId String @map("barrier_id") @db.Uuid
+  admissionId String @map("admission_id") @db.Uuid
+  admissionGeneration Int @map("admission_generation")
+  stateDigest String @map("state_digest")
+  state Json
+  decidedAt DateTime @map("decided_at") @db.Timestamptz
+  barrier CodexGuardianBarrier @relation(fields: [ownerId, runtimeId, barrierId], references: [ownerId, runtimeId, id], onDelete: Restrict)
+  admission CodexGuardianAdmission @relation(fields: [ownerId, runtimeId, admissionId], references: [ownerId, runtimeId, id], onDelete: Restrict)
+  @@unique([ownerId, id])
+  @@unique([ownerId, barrierId, admissionId])
+  @@map("codex_guardian_stop_decisions")
+}
+
+// A logical accepted source is not a physical metadata-application acknowledgement.
+// Pending survives expiry, failure and restart; only the same protected operation
+// may complete. This ledger never releases the physical writer anchor.
+model DeliverySourceApplication {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  runtimeGeneration Int @map("runtime_generation")
+  admissionId String @map("admission_id") @db.Uuid
+  admissionGeneration Int @map("admission_generation")
+  producerDigest String @map("producer_digest")
+  registrationId String @map("registration_id") @db.Uuid
+  serverInstanceId String @map("server_instance_id")
+  managerThreadId String @map("manager_thread_id")
+  managerBindingId String @map("manager_binding_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  stepId String @map("step_id") @db.Uuid
+  producingAttemptId String @map("producing_attempt_id") @db.Uuid
+  publicationOperationId String @map("publication_operation_id") @db.Uuid
+  targetRevisionId String @map("target_revision_id") @db.Uuid
+  previousAppliedRevisionId String? @map("previous_applied_revision_id") @db.Uuid
+  previousApplicationId String? @map("previous_application_id") @db.Uuid
+  applicationVersion Int @map("application_version")
+  predecessorHeadSha String @map("predecessor_head_sha")
+  targetHeadSha String @map("target_head_sha")
+  metadataPinsDigest String @map("metadata_pins_digest")
+  namespaceReceiptDigest String @map("namespace_receipt_digest")
+  cursorVersion Int @map("cursor_version")
+  nativeSequence Int @map("native_sequence")
+  idleSnapshotDigest String @map("idle_snapshot_digest")
+  idleSnapshot Json @map("idle_snapshot")
+  inputBarrierId String @map("input_barrier_id") @db.Uuid
+  inputBarrierDigest String @map("input_barrier_digest")
+  inputBarrier Json @map("input_barrier")
+  requestDigest String @map("request_digest")
+  phase String @default("pending")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  appliedAt DateTime? @map("applied_at") @db.Timestamptz
+  appliedReceiptDigest String? @map("applied_receipt_digest")
+  appliedEvidence Json? @map("applied_evidence")
+  admission CodexGuardianAdmission @relation(fields: [ownerId, runtimeId, admissionId], references: [ownerId, runtimeId, id], onDelete: Restrict)
+  registration CodexHostRegistration @relation(fields: [ownerId, registrationId], references: [ownerId, id], onDelete: Restrict)
+  task DeliveryTask @relation(fields: [ownerId, taskId, managerBindingId], references: [ownerId, id, managerBindingId], onDelete: Restrict)
+  targetRevision DeliverySourceRevision @relation("ApplicationTarget", fields: [ownerId, stepId, producingAttemptId, targetRevisionId], references: [ownerId, stepId, producingAttemptId, id], onDelete: Restrict)
+  targetTaskRevision DeliverySourceRevision @relation("ApplicationTargetTask", fields: [ownerId, taskId, targetRevisionId], references: [ownerId, taskId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_source_application_target_task_fkey")
+  previousAppliedRevision DeliverySourceRevision? @relation("ApplicationPredecessor", fields: [ownerId, previousAppliedRevisionId], references: [ownerId, id], onDelete: Restrict)
+  previousApplication DeliverySourceApplication? @relation("ApplicationChain", fields: [ownerId, admissionId, previousApplicationId], references: [ownerId, admissionId, id], onDelete: Restrict)
+  nextApplications DeliverySourceApplication[] @relation("ApplicationChain")
+  @@unique([ownerId, id])
+  @@unique([ownerId, admissionId, id])
+  @@unique([ownerId, admissionId, applicationVersion])
+  @@unique([ownerId, admissionId, targetRevisionId])
+  @@unique([ownerId, admissionId, publicationOperationId])
+  @@index([ownerId, admissionId, phase])
+  @@map("delivery_source_applications")
+}
+
+
+// Deployment-owned repository policy, never selected by manager task metadata.
+model DeliveryRepositoryPolicy {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  provider String
+  repositoryId String @map("repository_id")
+  providerAccountId String @map("provider_account_id")
+  fullName String @map("full_name")
+  activeVersionId String? @map("active_version_id") @db.Uuid
+  generation Int @default(1)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  project DeliveryProject @relation(fields: [ownerId, projectId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_repository_policy_project_fkey")
+  versions DeliveryRepositoryPolicyVersion[] @relation("RepositoryPolicyVersions")
+  activeVersion DeliveryRepositoryPolicyVersion? @relation("ActiveRepositoryPolicy", fields: [ownerId, projectId, id, activeVersionId], references: [ownerId, projectId, policyId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_repository_policy_active_fkey")
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId])
+  @@unique([ownerId, projectId, id])
+  @@map("delivery_repository_policies")
+}
+
+model DeliveryRepositoryPolicyVersion {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  policyId String @map("policy_id") @db.Uuid
+  version Int
+  policyDigest String @map("policy_digest")
+  catalogDigest String @map("catalog_digest")
+  sourcePolicy Json @map("source_policy")
+  evidenceGates Json @map("evidence_gates")
+  acceptanceContracts Json @map("acceptance_contracts")
+  verifiedIdentity Json @map("verified_identity")
+  verifiedIdentityDigest String @map("verified_identity_digest")
+  createdBy String @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  parent DeliveryRepositoryPolicy @relation("RepositoryPolicyVersions", fields: [ownerId, projectId, policyId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_repository_policy_version_parent_fkey")
+  activeFor DeliveryRepositoryPolicy[] @relation("ActiveRepositoryPolicy")
+  intents ProjectTaskIntent[]
+  taskBindings DeliveryTaskPolicyBinding[]
+  @@unique([ownerId, id])
+  @@unique([ownerId, projectId, id])
+  @@unique([ownerId, policyId, version], map: "delivery_repository_policy_versi_owner_id_policy_id_version_key")
+  @@unique([ownerId, projectId, policyId, id], map: "delivery_repository_policy_ve_owner_id_project_id_policy_id_key")
+  @@map("delivery_repository_policy_versions")
+  acceptanceIntents DeliveryAcceptanceIntent[]
+}
+
+model DeliveryTaskPolicyBinding {
+  ownerId String @map("owner_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  intentId String @map("intent_id") @db.Uuid
+  policyVersionId String @map("policy_version_id") @db.Uuid
+  policyDigest String @map("policy_digest")
+  bindingDigest String @map("binding_digest")
+  intentTextDigest String @map("intent_text_digest")
+  outcomeDigest String @map("outcome_digest")
+  sourceBase String @map("source_base")
+  compiledEvidencePolicy Json @map("compiled_evidence_policy")
+  criterionCoverage Json @map("criterion_coverage")
+  pendingRequirements Json @map("pending_requirements")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  task DeliveryTask @relation(fields: [ownerId, projectId, taskId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_task_policy_task_fkey")
+  intent ProjectTaskIntent @relation(fields: [ownerId, projectId, intentId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_task_policy_intent_fkey")
+  version DeliveryRepositoryPolicyVersion @relation(fields: [ownerId, projectId, policyVersionId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "delivery_task_policy_version_fkey")
+  @@id([ownerId, taskId])
+  @@map("delivery_task_policy_bindings")
+}
+
+
+// Separate purpose-bound original intent survives preparation ciphertext clearing.
+model DeliveryAcceptanceIntent {
+  ownerId String @map("owner_id") @db.Uuid
+  intentId String @map("intent_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  policyVersionId String @map("policy_version_id") @db.Uuid
+  policyDigest String @map("policy_digest")
+  intentDigest String @map("intent_digest")
+  requestDigest String @map("request_digest")
+  ciphertext Bytes
+  iv Bytes
+  authTag Bytes @map("auth_tag")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  intent ProjectTaskIntent @relation(fields: [ownerId, projectId, intentId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_intent_owner_fkey")
+  policy DeliveryRepositoryPolicyVersion @relation(fields: [ownerId, projectId, policyVersionId], references: [ownerId, projectId, id], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_intent_policy_fkey")
+  jobs DeliveryAcceptanceJob[]
+  plans DeliveryAcceptancePlan[]
+  @@id([ownerId,intentId])
+  @@unique([ownerId,projectId,intentId])
+  @@map("delivery_acceptance_intents")
+}
+
+model DeliveryAcceptanceJob {
+  material Json?
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  intentId String @map("intent_id") @db.Uuid
+  taskId String? @map("task_id") @db.Uuid
+  kind String
+  scope Json
+  requestDigest String @map("request_digest")
+  producer Json
+  producerDigest String @map("producer_digest")
+  phase String @default("queued")
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseGeneration Int @default(0) @map("lease_generation")
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  registrationId String? @map("registration_id") @db.Uuid
+  serverInstanceId String? @map("server_instance_id")
+  managerThreadId String? @map("manager_thread_id")
+  evaluatorThreadId String? @map("evaluator_thread_id")
+  evaluatorTurnId String? @map("evaluator_turn_id")
+  authority Json?
+  inputDigest String? @map("input_digest")
+  result Json?
+  resultDigest String? @map("result_digest")
+  receipt Json?
+  heldReason String? @map("held_reason")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  completedAt DateTime? @map("completed_at") @db.Timestamptz
+  intent DeliveryAcceptanceIntent @relation(fields: [ownerId,projectId,intentId], references: [ownerId,projectId,intentId], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_job_intent_fkey")
+  task DeliveryTask? @relation(fields: [ownerId,projectId,taskId], references: [ownerId,projectId,id], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_job_task_fkey")
+  plans DeliveryAcceptancePlan[]
+  @@unique([ownerId,id])
+  @@unique([ownerId,intentId,requestDigest])
+  @@index([ownerId,intentId,phase,createdAt], map: "delivery_acceptance_jobs_queue")
+  @@map("delivery_acceptance_jobs")
+}
+
+model DeliveryAcceptancePlan {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  intentId String @map("intent_id") @db.Uuid
+  sourceJobId String @map("source_job_id") @db.Uuid
+  producerDigest String @map("producer_digest")
+  intentDigest String @map("intent_digest")
+  planDigest String @map("plan_digest")
+  content Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  intent DeliveryAcceptanceIntent @relation(fields: [ownerId,projectId,intentId], references: [ownerId,projectId,intentId], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_plan_intent_fkey")
+  sourceJob DeliveryAcceptanceJob @relation(fields: [ownerId,sourceJobId], references: [ownerId,id], onDelete: Restrict, onUpdate: NoAction, map: "acceptance_plan_job_fkey")
+  @@unique([ownerId,id])
+  @@unique([ownerId,intentId,producerDigest])
+  @@unique([ownerId,sourceJobId])
+  @@map("delivery_acceptance_plans")
 }

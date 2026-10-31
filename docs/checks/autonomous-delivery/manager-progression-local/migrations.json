@@ -1,0 +1,112 @@
+{
+  "scope": "isolated PostgreSQL17 only; no cloud apply or applied-history-row changes",
+  "freshMigrations": 22,
+  "upgradeFrom": 21,
+  "upgradeTo": 22,
+  "priorTablesPreserved": true,
+  "tableDigests": {
+    "coder_tokens": {
+      "count": 1,
+      "sha256": "73e34d2b7754e3bfd8f8e511323be6c3f8d189b7957fc65ab1e35fee48ee3224"
+    },
+    "codex_host_registrations": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "codex_host_slots": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "codex_registered_threads": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "codex_registration_grants": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "delivery_attempts": {
+      "count": 3,
+      "sha256": "be92d881a53875cb3ad1e9bf66f3df8a6f424934a11702ba6c12fa98286aff98"
+    },
+    "delivery_conversations": {
+      "count": 1,
+      "sha256": "2c3685aa98f4b07829f219da6b664be79d5f4c1215ab7c29d7dce9566611839d"
+    },
+    "delivery_epics": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "delivery_events": {
+      "count": 1,
+      "sha256": "c44fad28a9116761cb09cad3e4db567745505e7d4c75eb9d53b4fc4f3c6cec50"
+    },
+    "delivery_evidence": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "delivery_manager_bindings": {
+      "count": 1,
+      "sha256": "54cf9f9be6eacdde58d45ed800260a8e106d742cbe159c20e948a1dd370e047e"
+    },
+    "delivery_outbox": {
+      "count": 1,
+      "sha256": "c031661d17579b14b85e78b5c5a693710100970cc80ce0297a3470894c50ba44"
+    },
+    "delivery_projects": {
+      "count": 2,
+      "sha256": "0522e071ed54a2fdd28f7e768c01d18da946db25f7f5894173728a75c1851055"
+    },
+    "delivery_report_evidence": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "delivery_step_dependencies": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "delivery_step_reports": {
+      "count": 1,
+      "sha256": "c3cb10926afebe43325b4df6464e0dfb772d8dc4b1bc72dc7f70f322cd3dd27d"
+    },
+    "delivery_steps": {
+      "count": 3,
+      "sha256": "0eaa97a4120c7477ed38292dc9a0a3085bc05e9e41b3fc570a3e1f018e8c9c8a"
+    },
+    "delivery_tasks": {
+      "count": 2,
+      "sha256": "970549fd2f32a184f2be1aafd91ea83a31b0f7843cf8cdd194cbd0988dfca104"
+    },
+    "navigation_favorites": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "notification_sources": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "project_task_intents": {
+      "count": 1,
+      "sha256": "6c5cbf00e683509b0f946228147f8144558585294a5ad8e2d153d355f0ee0f07"
+    },
+    "push_subscriptions": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "sessions": {
+      "count": 1,
+      "sha256": "615407bf53d1452830f793673d88cb5c411b9d20ceb81f59affb8bd6f96f796d"
+    },
+    "users": {
+      "count": 2,
+      "sha256": "4c272b637f495632265dd3e5584894e4286cb1ed1204411014e81daaf3069c58"
+    },
+    "vapid_keys": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "legacyHeldAnchors": 1,
+  "migrationSha256": "4fcff3d44749f4af283860f299a930da227cb20fcb8b57be9109f6d52d1086df",
+  "sharedEarlierDraft": "Earlier local shared test DB applied a pre-final draft of this new uncommitted migration. Its history was not rewritten. Final proof uses a separate new cluster and an unchanged21-migration fixture dump."
+}

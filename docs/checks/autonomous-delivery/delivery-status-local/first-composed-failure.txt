@@ -1,0 +1,32 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+stderr | src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, completes and applies accepted source before continuation through signed services
+Retained local factory fixture: /tmp/hive-delivery-installed-tgyk5N; groupsGone=true; categories=[]
+
+ × src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, completes and applies accepted source before continuation through signed services 555ms
+   → delivery_status_scope_changed
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, completes and applies accepted source before continuation through signed services
+Error: delivery_status_scope_changed
+ ❯ check templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs:21:21
+     19|
+     20| const check = (value, reason) => {
+     21|   if (!value) throw new Error(reason);
+       |                     ^
+     22| };
+     23| const id = (value) => typeof value === "string" && /^[A-Za-z0-9_.:-]{1…
+ ❯ Object.handleToolCall templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs:734:11
+ ❯ Object.adapter.handleToolCall templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs:425:22
+ ❯ call src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts:299:24
+ ❯ src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts:336:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  03:45:17
+   Duration  1.24s (transform 398ms, setup 0ms, collect 547ms, tests 557ms, environment 0ms, prepare 39ms)

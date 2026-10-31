@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T19:53:48.355Z",
+  "testedRevision": "06e00daeace25d4c058c920d7d76785f743ece45",
+  "testedSourceCommitted": false,
+  "sourceStable": true,
+  "sourceDigests": {
+    "deploy/cloudflare/app/local-database-bounds.ts": "7e2db9a65be145386a763d7c5a9d50bf4530c4dac3a7f27d59926d7ee133614c",
+    "deploy/cloudflare/app/run-local-database-bounds.mjs": "5026c43c99190d14dce1d1b2091a4e5d23595bd259d14960d20c7301fecb8771",
+    "deploy/cloudflare/app/deployment-plan.mjs": "331a6c416b510b63c5c062a69b63138100d311cf1b017e4eb7dab1d78f9ce0cd",
+    "packages/db/src/cloudflare.ts": "17dfe24fa8c076329099a1e428dd3579f6fc1d2c820a2eca06046203e15f323f",
+    "packages/db/src/request-scope.ts": "bf61a6ae3b04b33f7eaf29261cde262b5d12723bd10fa43280fecb5dca80b43a",
+    "packages/db/src/generated/prisma-workerd/client.ts": "179ee6cf16476b0fe55543cf8ab0165b9e37b4557f539582eab6b0279e7d4712",
+    "packages/db/src/generated/prisma-workerd/internal/class.ts": "0730a08908ba418088b5b490398097247b18fce2ecf6a599b9295aca03b6b89d",
+    "packages/db/prisma/schema.prisma": "3da782da16ea06c90d968bf57e312fd040db2a28b2375bc4853c30545a7b3f12",
+    "packages/db/package.json": "549f879af85ca17963ee9598b76dd315cba79eaf219311334d3b6f68aa980d8f",
+    "pnpm-lock.yaml": "2dbea9462ec46bc954241f01f89afd57923cea602ddf3d631d7e0bfc67212df3"
+  },
+  "scope": "actual local workerd + restricted isolated Neon runtime role, fixed read-only SQL",
+  "ok": true,
+  "result": {
+    "rejected": true,
+    "kind": "query_read_timeout",
+    "rejectedAtMilliseconds": 1016,
+    "closedAtMilliseconds": 1017,
+    "closeCompleted": true,
+    "queryTimeoutMillis": 500,
+    "transactionTimeoutMillis": 1000,
+    "connectionTimeoutMillis": 10000,
+    "sqlReadOnly": true,
+    "databaseDml": false
+  },
+  "cloudWorkerRequests": 0,
+  "databaseDml": false,
+  "limitation": "Driver query timeout is not proof of instantaneous PostgreSQL cancellation; actual disconnect/drain timing is recorded separately."
+}

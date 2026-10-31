@@ -4,6 +4,7 @@ import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { Suspense, useId } from "react";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -12,11 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getSettingsWindowAction } from "@/lib/actions/settings-window";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { fetchSettingsWindow } from "@/lib/settings/window-client";
 import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
+const DeliveryPanel = dynamic(() =>
+  import("@/components/delivery/DeliveryPanel").then((m) => m.DeliveryPanel),
+);
+const ProjectWorkspacePanel = dynamic(() =>
+  import("@/components/projects/ProjectWorkspacePanel").then((m) => m.ProjectWorkspacePanel),
+);
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -36,12 +43,9 @@ const TemplatesWindow = dynamic(() => import("./TemplatesWindow").then((m) => m.
 function SettingsWindow({ userId }: { userId: string }) {
   const query = useQuery({
     queryKey: ["settings-window", userId],
-    queryFn: async () => {
-      const result = await getSettingsWindowAction();
-      if (!result?.data) throw new Error(result?.serverError ?? "Could not load settings.");
-      return result.data;
-    },
+    queryFn: ({ signal }) => fetchSettingsWindow(signal),
     staleTime: 30_000,
+    retry: false,
   });
   if (query.isPending)
     return (
@@ -49,7 +53,7 @@ function SettingsWindow({ userId }: { userId: string }) {
         Loading settings…
       </p>
     );
-  if (!query.data)
+  if (query.isError || !query.data)
     return (
       <div className="space-y-3 p-4">
         <p role="alert">Settings are unavailable.</p>
@@ -89,6 +93,7 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
+  const { projectDiscoveryEnabled, projectTasksEnabled, deliveryEnabled } = useRuntimeConfig();
   const workspace =
     workspaces.find((w) => w.id === pane.workspaceId) ??
     workspaces.find((w) => w.latest_build.status === "running") ??
@@ -120,7 +125,16 @@ export function HiveWorkspacePane({
           </p>
         }
       >
-        {pane.tool === "agents" ? (
+        {pane.tool === "delivery" ? (
+          <DeliveryPanel
+            key={userId}
+            userId={userId}
+            enabled={Boolean(deliveryEnabled)}
+            visible={visible}
+            taskId={pane.taskId}
+            reportId={pane.reportId}
+          />
+        ) : pane.tool === "agents" || pane.tool === "projects" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
             <div className="space-y-2 text-sm">
               <label htmlFor={workspaceSelectId} className="block">
@@ -139,7 +153,7 @@ export function HiveWorkspacePane({
               >
                 <SelectTrigger
                   id={workspaceSelectId}
-                  aria-label="Agent workspace"
+                  aria-label={pane.tool === "projects" ? "Project workspace" : "Agent workspace"}
                   className="w-full"
                 >
                   <SelectValue placeholder="No workspaces available" />
@@ -154,16 +168,28 @@ export function HiveWorkspacePane({
               </Select>
             </div>
             {workspace?.latest_build.status === "running" ? (
-              <AgentToolsPanel
-                key={`${workspace.id}:${workspace.latest_build.id}`}
-                workspaceId={workspace.id}
-                buildId={workspace.latest_build.id}
-                open={visible}
-                onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
-              />
+              pane.tool === "projects" ? (
+                <ProjectWorkspacePanel
+                  key={workspace.id}
+                  workspaceId={workspace.id}
+                  enabled={Boolean(projectDiscoveryEnabled)}
+                  tasksEnabled={Boolean(projectTasksEnabled)}
+                  visible={visible}
+                />
+              ) : (
+                <AgentToolsPanel
+                  key={`${workspace.id}:${workspace.latest_build.id}`}
+                  workspaceId={workspace.id}
+                  buildId={workspace.latest_build.id}
+                  open={visible}
+                  onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
+                />
+              )
             ) : (
               <p className="text-sm text-muted-foreground">
-                Start a Coder workspace to view its agent conversations.
+                {pane.tool === "projects"
+                  ? "Start a Coder workspace to browse connected repositories."
+                  : "Start a Coder workspace to view its agent conversations."}
               </p>
             )}
           </div>

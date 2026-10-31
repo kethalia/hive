@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-29T17:26:46.354570+00:00",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "appId": "892fda82-09de-4185-a6f2-d9dcf5ca7333",
+  "origin": "https://code-server--main--hive-epic-test--codex.kethalia.com",
+  "path": "/healthz",
+  "unauthenticatedStatus": 303,
+  "authRedirectStatus": 303,
+  "cookieExchangeStatus": 303,
+  "authenticatedStatus": 200,
+  "cookieName": "coder_subdomain_app_session_token_ff7652081e4dc9da7f53d3ea26e61de9",
+  "cookieDomain": "kethalia.com",
+  "httpOnly": true,
+  "secure": true,
+  "ownerTokenSentOnlyToCoderAPI": true,
+  "responseBodyRecorded": false,
+  "cookieValueRecorded": false,
+  "encryptedRedirectRecorded": false,
+  "changes": "One Coder application-connect scoped session created by official auth redirect; no workspace change."
+}

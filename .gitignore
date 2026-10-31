@@ -10,6 +10,9 @@
 
 # next.js
 /.next/
+/.open-next/
+/.next-cloudflare/
+/.wrangler/
 /out/
 
 # production
@@ -110,3 +113,6 @@ com[1-9]
 com[1-9].*
 lpt[1-9]
 lpt[1-9].*
+
+# Build-owned, content-addressed template archives
+/public/hive-template-artifacts/

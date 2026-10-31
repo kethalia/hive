@@ -7,7 +7,9 @@ import {
   type GeneralPane,
   generalWorkspaceHref,
   generalWorkspaceStorageKey,
+  hiveWindowHref,
   importLegacyWorkspaceBoards,
+  openHiveWindow,
   parseGeneralWorkspace,
   removeGeneralWindow,
 } from "@/lib/workspaces/general-workspace";
@@ -301,5 +303,25 @@ describe("closing workspace windows", () => {
     reordered.manager!.columns[1].pin = "left";
     reordered.activeWindowId = "second";
     expect(removeGeneralWindow(reordered, "second").activeWindowId).toBe("third");
+  });
+});
+
+describe("delivery report window links", () => {
+  it("retains a single delivery window and existing terminal while selecting another report", () => {
+    const taskId = "11111111-1111-4111-8111-111111111111";
+    const reportId = "22222222-2222-4222-8222-222222222222";
+    let state = addGeneralWindow(emptyGeneralWorkspace(), terminal("one"), "terminal");
+    state = openHiveWindow(state, { tool: "delivery" }, "delivery");
+    state = openHiveWindow(state, { tool: "delivery", taskId, reportId }, "unused");
+    expect(state.boards[0].windows).toHaveLength(2);
+    expect(state.boards[0].windows[0]).toEqual({ ...terminal("one"), id: "terminal" });
+    expect(state.boards[0].windows[1]).toMatchObject({ id: "delivery", taskId, reportId });
+    expect(parseGeneralWorkspace(JSON.stringify(state))?.boards[0].windows[1]).toMatchObject({
+      taskId,
+      reportId,
+    });
+    expect(hiveWindowHref({ tool: "delivery", taskId, reportId })).toBe(
+      `/workspaces?panel=delivery&task=${taskId}&report=${reportId}`,
+    );
   });
 });

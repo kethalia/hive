@@ -1,0 +1,17 @@
+{
+  "observedAt": "2026-10-30T00:10:18.762108+00:00",
+  "sourceSha256": {
+    "src/lib/delivery/source-state-contracts.ts": "0d306efad0afc4a7af938ca91c6575ea6fcfa594915f4e900dd64ebbf909f06b",
+    "src/lib/delivery/source-state.server.ts": "f39acefe87445d85a72a225f144e538fef592efa554cfd2b32886eb138774526",
+    "src/lib/delivery/source-state-route.server.ts": "9aaa1b56f7ba9def586338c0404e91f954ce376a3f2ce20e17a3e251b0baf068",
+    "src/app/api/delivery/source-publication/state/route.ts": "f486e0d03206ee6778fc0fb52846719e0c0923d577a7bd0f4937e15bcfb25547",
+    "src/__tests__/lib/delivery/source-state.integration.test.ts": "f35e75d93e8323d7c9a3bf6203ee4c4e4a174b174b61f2e562e0916bbe9766da",
+    "src/__tests__/lib/delivery/source-state-route.test.ts": "af572ccb3dd3d819ddeeffb55634ad2edb29e1856c8e244974f7bade8e3e5167"
+  },
+  "independentReview": "No blocking finding; read-only current authority and exact historical/current distinction verified",
+  "cleanExportPostgresAndRoutePassed": 10,
+  "optionalRealClockTestSkippedByParent": 1,
+  "producerRealClock61SecondsPassed": 6,
+  "cleanExportTypecheck": "passed",
+  "publicationOrExecutionPermission": false
+}

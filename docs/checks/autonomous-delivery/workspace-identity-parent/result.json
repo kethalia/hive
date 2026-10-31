@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T05:31:47.331805+00:00",
+  "parentPythonPassed": 30,
+  "parentNodePassed": 5,
+  "allTemplateChecksPassed": 102,
+  "terraformProfilesPassed": 5,
+  "independentReview": "No remaining blocker after literal-key and documentation corrections",
+  "firstFailure": "Old workflow assertion did not account for explicit opt-in preview job; updated assertion now also verifies preview cannot update aliases/profiles",
+  "imageBuildOrPublication": false
+}

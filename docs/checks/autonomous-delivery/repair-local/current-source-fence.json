@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "reason": "Independent review current task source fence",
+  "testsPassed": 12,
+  "database": "hive_acceptance_test_fence33",
+  "migration": "New clone of final31; frozen32 and corrected33 deployed once. Earlier draft DBs and evidence remain unchanged.",
+  "directSqlProof": "Positive control has exact reservation/ready/claimed/consumed rows and rolls back after successful cursor transition. Changing only task current source SHA rejects the same transition.",
+  "sourceHashes": {
+    "packages/db/prisma/migrations/20261030210000_delivery_acceptance_repair/migration.sql": "be770a78bd89e488f00d56e881b50e7006eb23e61e595574706f240e7ebc98ea",
+    "src/__tests__/lib/delivery/acceptance-repair.integration.test.ts": "d6050d9a48cbcf17c4ac22f4a2b93cdd7f4bf35e10b05a0fe3ccb96fe02e610a"
+  }
+}

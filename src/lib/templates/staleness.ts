@@ -5,6 +5,7 @@ import extract from "tar-stream";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { cachedDiscovery, discoveryCacheKey } from "@/lib/discovery/server-cache";
 import { KNOWN_TEMPLATES, type KnownTemplate } from "@/lib/templates/catalog";
+import artifactManifest from "./artifact-manifest.json";
 
 /** Deployable templates maintained by Hive. */
 export { KNOWN_TEMPLATES, type KnownTemplate };
@@ -51,10 +52,21 @@ async function collectFiles(dir: string, base: string = dir): Promise<string[]> 
 }
 
 /**
- * Hash all files under `templates/<name>/` using sha256.
- * Sorted paths + contents are fed into the hash deterministically.
+ * Maintained templates use the build-verified distribution identity on every runtime.
+ * Ad-hoc Node-only templates retain the legacy sorted-path/content hash.
  */
 export async function hashLocalTemplate(name: string): Promise<string> {
+  if (
+    (KNOWN_TEMPLATES as readonly string[]).includes(name) ||
+    process.env.HIVE_RUNTIME_TARGET === "cloudflare"
+  ) {
+    if (!(KNOWN_TEMPLATES as readonly string[]).includes(name))
+      throw new Error("Unknown template artifact");
+    const entry = artifactManifest.templates[name as KnownTemplate];
+    if (artifactManifest.schemaVersion !== 1 || !entry || !/^[a-f0-9]{64}$/.test(entry.contentHash))
+      throw new Error("Template artifact manifest is unavailable");
+    return entry.contentHash;
+  }
   const templateDir = join(process.cwd(), "templates", name);
   const hash = createHash("sha256");
 

@@ -1,0 +1,508 @@
+{
+  "schemaVersion": 1,
+  "scope": "Primary local pinned Codex 0.165, canned local Responses only; no account/cloud inference",
+  "nodeVersion": "24.21.0",
+  "productionChanges": false,
+  "readinessBoundsUnchanged": true,
+  "runs": [
+    {
+      "name": "parallel-3",
+      "passes": 2,
+      "failures": 0,
+      "durationMs": 8814.82161,
+      "startups": [
+        {
+          "hostPid": 622909,
+          "sequence": 1,
+          "metadata": true,
+          "spawnMs": 651.357,
+          "ready": true,
+          "spawnToPollCompleteMs": 309.607
+        },
+        {
+          "hostPid": 622910,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 657.537,
+          "ready": true,
+          "spawnToPollCompleteMs": 309.363
+        },
+        {
+          "hostPid": 622910,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 718.8,
+          "ready": true,
+          "spawnToPollCompleteMs": 101.72
+        }
+      ]
+    },
+    {
+      "name": "sequential-1",
+      "passes": 2,
+      "failures": 0,
+      "durationMs": 13262.202798,
+      "startups": [
+        {
+          "hostPid": 625111,
+          "sequence": 1,
+          "metadata": true,
+          "spawnMs": 694.506,
+          "ready": true,
+          "spawnToPollCompleteMs": 310.862
+        },
+        {
+          "hostPid": 625700,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 629.627,
+          "ready": true,
+          "spawnToPollCompleteMs": 311.503
+        },
+        {
+          "hostPid": 625700,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 617.705,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.075
+        }
+      ]
+    },
+    {
+      "name": "full-parallel-1",
+      "passes": 55,
+      "failures": 2,
+      "durationMs": 18463.363974,
+      "startups": [
+        {
+          "hostPid": 626604,
+          "sequence": 1,
+          "metadata": true,
+          "spawnMs": 4518.042,
+          "ready": false,
+          "spawnToPollCompleteMs": 4051.076
+        },
+        {
+          "hostPid": 626605,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 5825.309,
+          "ready": false,
+          "spawnToPollCompleteMs": 4054.362
+        },
+        {
+          "hostPid": 626605,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 661.331,
+          "ready": true,
+          "spawnToPollCompleteMs": 205.75
+        },
+        {
+          "hostPid": 626605,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 693.276,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.257
+        },
+        {
+          "hostPid": 626605,
+          "sequence": 4,
+          "metadata": false,
+          "spawnMs": 704.809,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.071
+        },
+        {
+          "hostPid": 626606,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 304.633,
+          "ready": true,
+          "spawnToPollCompleteMs": 207.46
+        },
+        {
+          "hostPid": 626606,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 280.378,
+          "ready": true,
+          "spawnToPollCompleteMs": 204.899
+        },
+        {
+          "hostPid": 626606,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 286.082,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.495
+        }
+      ]
+    },
+    {
+      "name": "full-parallel-2",
+      "passes": 57,
+      "failures": 0,
+      "durationMs": 18345.01017,
+      "startups": [
+        {
+          "hostPid": 630691,
+          "sequence": 1,
+          "metadata": true,
+          "spawnMs": 1439.468,
+          "ready": true,
+          "spawnToPollCompleteMs": 1327.52
+        },
+        {
+          "hostPid": 630697,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 2951.181,
+          "ready": true,
+          "spawnToPollCompleteMs": 3557.426
+        },
+        {
+          "hostPid": 630697,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 670.59,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.921
+        },
+        {
+          "hostPid": 630697,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 675.373,
+          "ready": true,
+          "spawnToPollCompleteMs": 203.691
+        },
+        {
+          "hostPid": 630697,
+          "sequence": 4,
+          "metadata": false,
+          "spawnMs": 667.336,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.333
+        },
+        {
+          "hostPid": 630697,
+          "sequence": 5,
+          "metadata": false,
+          "spawnMs": 654.548,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.027
+        },
+        {
+          "hostPid": 630698,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 309.813,
+          "ready": true,
+          "spawnToPollCompleteMs": 209.335
+        },
+        {
+          "hostPid": 630698,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 303.729,
+          "ready": true,
+          "spawnToPollCompleteMs": 204.368
+        },
+        {
+          "hostPid": 630698,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 292.033,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.061
+        }
+      ]
+    },
+    {
+      "name": "full-parallel-3",
+      "passes": 57,
+      "failures": 0,
+      "durationMs": 24446.215356,
+      "startups": [
+        {
+          "hostPid": 633527,
+          "sequence": 1,
+          "metadata": true,
+          "spawnMs": 1585.572,
+          "ready": true,
+          "spawnToPollCompleteMs": 824.158
+        },
+        {
+          "hostPid": 633528,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 2045.397,
+          "ready": true,
+          "spawnToPollCompleteMs": 2133.989
+        },
+        {
+          "hostPid": 633528,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 657.218,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.276
+        },
+        {
+          "hostPid": 633528,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 667.562,
+          "ready": true,
+          "spawnToPollCompleteMs": 205.459
+        },
+        {
+          "hostPid": 633528,
+          "sequence": 4,
+          "metadata": false,
+          "spawnMs": 666.001,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.168
+        },
+        {
+          "hostPid": 633528,
+          "sequence": 5,
+          "metadata": false,
+          "spawnMs": 690.914,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.954
+        },
+        {
+          "hostPid": 633530,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 288.273,
+          "ready": true,
+          "spawnToPollCompleteMs": 211.689
+        },
+        {
+          "hostPid": 633530,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 316.377,
+          "ready": true,
+          "spawnToPollCompleteMs": 205.942
+        },
+        {
+          "hostPid": 633530,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 320.34,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.753
+        }
+      ]
+    },
+    {
+      "name": "full-parallel-4",
+      "passes": 57,
+      "failures": 0,
+      "durationMs": 19690.633163,
+      "startups": [
+        {
+          "hostPid": 636382,
+          "sequence": 1,
+          "metadata": true,
+          "spawnMs": 663.661,
+          "ready": true,
+          "spawnToPollCompleteMs": 313.905
+        },
+        {
+          "hostPid": 636384,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 638.169,
+          "ready": true,
+          "spawnToPollCompleteMs": 309.365
+        },
+        {
+          "hostPid": 636384,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 1708.104,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.256
+        },
+        {
+          "hostPid": 636384,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 678.452,
+          "ready": true,
+          "spawnToPollCompleteMs": 204.104
+        },
+        {
+          "hostPid": 636384,
+          "sequence": 4,
+          "metadata": false,
+          "spawnMs": 687.058,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.62
+        },
+        {
+          "hostPid": 636384,
+          "sequence": 5,
+          "metadata": false,
+          "spawnMs": 676.657,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.444
+        },
+        {
+          "hostPid": 636389,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 309.014,
+          "ready": true,
+          "spawnToPollCompleteMs": 208.785
+        },
+        {
+          "hostPid": 636389,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 291.997,
+          "ready": true,
+          "spawnToPollCompleteMs": 204.58
+        },
+        {
+          "hostPid": 636389,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 302.902,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.913
+        }
+      ]
+    },
+    {
+      "name": "full-sequential-1",
+      "passes": 57,
+      "failures": 0,
+      "durationMs": 27119.876399,
+      "startups": [
+        {
+          "hostPid": 639036,
+          "sequence": 1,
+          "metadata": true,
+          "spawnMs": 678.723,
+          "ready": true,
+          "spawnToPollCompleteMs": 313.114
+        },
+        {
+          "hostPid": 639684,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 653.477,
+          "ready": true,
+          "spawnToPollCompleteMs": 314.1
+        },
+        {
+          "hostPid": 639684,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 670.729,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.408
+        },
+        {
+          "hostPid": 639684,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 681.172,
+          "ready": true,
+          "spawnToPollCompleteMs": 205.777
+        },
+        {
+          "hostPid": 639684,
+          "sequence": 4,
+          "metadata": false,
+          "spawnMs": 689.732,
+          "ready": true,
+          "spawnToPollCompleteMs": 103.588
+        },
+        {
+          "hostPid": 639684,
+          "sequence": 5,
+          "metadata": false,
+          "spawnMs": 643.023,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.91
+        },
+        {
+          "hostPid": 641129,
+          "sequence": 1,
+          "metadata": false,
+          "spawnMs": 338.297,
+          "ready": true,
+          "spawnToPollCompleteMs": 208.896
+        },
+        {
+          "hostPid": 641129,
+          "sequence": 2,
+          "metadata": false,
+          "spawnMs": 348.355,
+          "ready": true,
+          "spawnToPollCompleteMs": 203.879
+        },
+        {
+          "hostPid": 641129,
+          "sequence": 3,
+          "metadata": false,
+          "spawnMs": 311.793,
+          "ready": true,
+          "spawnToPollCompleteMs": 102.387
+        }
+      ]
+    }
+  ],
+  "sources": {
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": {
+      "before": "57310557a01a82e1c6a5a2a34a2faeb4fa3bd9bee0055c1c5f0ff9ae2ff2a6a9",
+      "after": "57310557a01a82e1c6a5a2a34a2faeb4fa3bd9bee0055c1c5f0ff9ae2ff2a6a9",
+      "stable": true
+    },
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": {
+      "before": "33550f4d7ac4e3c5532429d7a71d57c8cec285bec3c3423a7803b79d5695b8d7",
+      "after": "33550f4d7ac4e3c5532429d7a71d57c8cec285bec3c3423a7803b79d5695b8d7",
+      "stable": true
+    },
+    "scripts/verify-codex-git-metadata.test.mjs": {
+      "before": "3d67a3d0120e7fdcee6de7e5f7441dd2bb6e77791ed0a459cc2ccd99bbaac10a",
+      "after": "3d67a3d0120e7fdcee6de7e5f7441dd2bb6e77791ed0a459cc2ccd99bbaac10a",
+      "stable": true
+    },
+    "scripts/verify-codex-native-namespace.test.mjs": {
+      "before": "6b14b99f8de09c30e9d7d170fe57369ab692f8da1b51df43d24f2f5dd3ebd034",
+      "after": "6b14b99f8de09c30e9d7d170fe57369ab692f8da1b51df43d24f2f5dd3ebd034",
+      "stable": true
+    }
+  },
+  "diagnosticSources": {
+    "scripts/probe-native-startup-loader.mjs": "59eca56705e9dc3a7b9fc946882aaea0ecb157c205229ef8ffa768fc3786ab1c",
+    "scripts/probe-native-startup.test.mjs": "ff9895aecc93b6b77594b4cd4b4e76b603c1998c82b92d6e44a01fae753b7ddb",
+    "scripts/probe-native-startup-observer.mjs": "5be6705abd1f3e39a3db4298e35399342b554df08dac4ce4fcb6a8910ed1f77c"
+  },
+  "cleanup": {
+    "exactKernelIdentitiesChecked": 120,
+    "remaining": []
+  },
+  "filesystem": {
+    "realHome": {
+      "type": "ext4",
+      "device": "8:80"
+    },
+    "temporaryFixtures": {
+      "type": "overlayfs",
+      "device": "0:109"
+    }
+  },
+  "cause": "Observed delayed startup includes native fsync(2) and jbd2_log_wait_commit. Exact timeout first reproduction had no per-thread syscall snapshot; causation for every original failure not established.",
+  "gate": "Parallel native startup availability remains unresolved; no production timeout/durability/isolation fix claimed."
+}

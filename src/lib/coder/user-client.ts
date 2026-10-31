@@ -1,4 +1,4 @@
-import { tryDecrypt } from "@hive/auth";
+import { getConfiguredCoderUrl, isConfiguredCoderUrl, tryDecrypt } from "@hive/auth";
 import { getDb } from "@hive/db";
 import { CoderClient } from "./client";
 
@@ -7,6 +7,7 @@ export enum UserClientError {
   DECRYPT_FAILED = "DECRYPT_FAILED",
   KEY_MISMATCH = "KEY_MISMATCH",
   USER_NOT_FOUND = "USER_NOT_FOUND",
+  ORIGIN_MISMATCH = "ORIGIN_MISMATCH",
 }
 
 export class UserClientException extends Error {
@@ -20,7 +21,11 @@ export class UserClientException extends Error {
   }
 }
 
-export async function getCoderClientForUser(userId: string): Promise<CoderClient> {
+export async function getCoderClientForUser(
+  userId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<CoderClient> {
+  options.signal?.throwIfAborted();
   const db = getDb();
 
   const token = await db.coderToken.findFirst({
@@ -28,6 +33,7 @@ export async function getCoderClientForUser(userId: string): Promise<CoderClient
     orderBy: { createdAt: "desc" },
     include: { user: true },
   });
+  options.signal?.throwIfAborted();
   if (!token) {
     const userExists = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
     if (!userExists) {
@@ -42,6 +48,12 @@ export async function getCoderClientForUser(userId: string): Promise<CoderClient
   }
 
   const user = token.user;
+  if (!isConfiguredCoderUrl(user.coderUrl)) {
+    throw new UserClientException(
+      UserClientError.ORIGIN_MISMATCH,
+      "Stored credentials belong to a different Coder deployment; sign in again",
+    );
+  }
 
   const encryptionKey = process.env.ENCRYPTION_KEY;
   if (!encryptionKey) {
@@ -81,7 +93,8 @@ export async function getCoderClientForUser(userId: string): Promise<CoderClient
   const decryptedToken = decryptResult.plaintext;
 
   return new CoderClient({
-    baseUrl: user.coderUrl,
+    baseUrl: getConfiguredCoderUrl(),
     sessionToken: decryptedToken,
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 }

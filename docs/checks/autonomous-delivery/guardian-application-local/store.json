@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T01:23:30.333Z",
+  "baseRevision": "1e2c1d121b6b5c2696465f42ad545629ab693d36",
+  "endingBaseRevision": "1e2c1d121b6b5c2696465f42ad545629ab693d36",
+  "sourceDigests": {
+    "packages/db/prisma/schema.prisma": "aa9a8123efd4d094d2154a5e3bea916b549408139b32714f0b3d73fabf90471a",
+    "packages/db/prisma/migrations/20261029140000_delivery_source_application/migration.sql": "7a06ad285de5ef6cf47c51b796a0ca15d8a2ec503104c61764caafcbd73b1909",
+    "src/lib/codex-session/guardian-application-contracts.ts": "e5bc1899a8abd138e197fe232366ad3506ad336f4bb1675201b39a9f27147c51",
+    "src/lib/codex-session/guardian-application-store.server.ts": "da2c1fcc2997fd613aee1e70844a6c3139857426d5319b03934c2eeabd901464",
+    "src/lib/codex-session/guardian-application-gate.server.ts": "9c2018ba9c9c838a075af4ec658fa7163851512b3c5770e82a6b82bb7eb8d498",
+    "src/lib/codex-session/guardian-store.server.ts": "ded348821f34819c688c729ce6020f46c4e626ef194df564dc7224f4ecdb0369",
+    "src/lib/codex-session/guardian-contracts.ts": "dd70d737646619019180949d05c00513155d0261bd7e4b3daaf660d7073cbbc4",
+    "src/lib/codex-session/registration-store.server.ts": "a4daed37b02986afff80ae6c9257da6029b5190840e9e9bf7edb817b6d4debbd",
+    "src/lib/delivery/manager.server.ts": "b5298a3a2727255bfff72d499f2aa88dc0cdea51b18dc7f4429f06f50bc65508",
+    "src/lib/delivery/native.server.ts": "1c36c5f74e0d021571f3f84c91b5e350628b5be0d1b24a4d4df5ba3a38a918b2",
+    "src/lib/delivery/native-contracts.ts": "0ea0b6da8bf14b85d1008f8a38bc796aeb29a4c98f5ce173964d2269c5b30c0b",
+    "src/lib/delivery/source-publication.server.ts": "831ff7261f407b489f3ec2a553b9f00795ca05b64d3d6eab813c3c946827925b",
+    "src/lib/delivery/source-transport.server.ts": "f2993b7101d2349f07c0c72abffd994ae0e0dbc89e5db649bcc4d6792878f3f9",
+    "src/lib/delivery/source-transport-contracts.ts": "ecfcd398d428b28179ea20f3a1f289ad9340226eaf266946d702da6d67f9ecf9",
+    "src/lib/delivery/source-resolver.server.ts": "bb60c7cc8f1172608475a9ba7dbde6cff73bc09deb9e3fbc570a4ce2432bdf27",
+    "src/lib/delivery/repository.ts": "68c180b718d82f2115f5e99996e51c591fc58973d2f6f49bdce559f540f704d9",
+    "src/lib/delivery/manager-binding.server.ts": "b3c844855de4042acd170bf152dbaf400c3569e8a76d17b33409112c1de78e84",
+    "src/__tests__/lib/codex-session/guardian-application-fixture.ts": "9e556fec59367f74a5258b94bb07e3911739f7dfa45eafe85eb0f99b641afd76",
+    "src/__tests__/lib/codex-session/guardian-application.integration.test.ts": "dcc131e2f8c312d26d1c7f67f554d87e1c6879c7affbbd5cba2c46d20ef9989c",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "d4beeca91654185ee880fe4348148d08fb6e05c2f20ee1a9e51a98f208a48aa4",
+    "src/__tests__/lib/delivery/native-fixture.ts": "4c0685ae172ceee60a8a82a3c22ab0f726eb2d0caec6e3b6e983e435323ceff8",
+    "scripts/probe-guardian-application.mjs": "1d8dc09101c122735b9723c6021ca3a641a26d4617978ddf7812ca34351133bd"
+  },
+  "testedSourcesCommitted": false,
+  "sourceStable": true,
+  "passed": true,
+  "database": {
+    "host": "loopback",
+    "port": 35235,
+    "name": "hive_delivery_test",
+    "schema": 25
+  },
+  "tests": {
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0
+  },
+  "checks": {
+    "pendingExclusiveBeforeAndAfterReservation": true,
+    "originalProducingRootCompletionAllowed": true,
+    "acceptedAppliedGapBlocksExecutionBoundaryPublication": true,
+    "sameOperationFreshProtectedReceiptRequired": true,
+    "logicalLeaseExpiryDoesNotReleasePhysicalWriter": true,
+    "producerRevocationAndLateNativeFactsHold": true,
+    "concurrentDifferentReservationsExclusive": true,
+    "immutableDatabaseRecords": true,
+    "lostCommitAckAfterFiveSecondsUsesVerifyNotTimestampRewrite": true,
+    "strictPositiveAuthoritySchema": true,
+    "noQuiescenceOrPhysicalAnchorRelease": true
+  },
+  "limitations": [
+    "Actual PostgreSQL guardian/registration/native-observation/manager/source state is exercised with explicit local owner/package and synthetic native facts.",
+    "Publication verification and outer protected-journal attestations are trusted injected fixtures, not live GitHub/provider/native/host attestation.",
+    "Signed guardian application actions, approved outer fixed-journal reader, FD3 apply methods, local input barrier and Python apply remain following composed gates; no installed factory is enabled.",
+    "The input barrier proves only accounted native input/tool/child/CLI facts; no absence of background kernel writers or tree quiescence is claimed."
+  ],
+  "cloudMutations": false,
+  "accountInference": false
+}

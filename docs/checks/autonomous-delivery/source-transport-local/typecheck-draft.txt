@@ -1,0 +1,3 @@
+src/__tests__/lib/codex-session/guardian-fixture.ts(36,85): error TS2322: Type '{ packageManifestSha256: string; guardianElfSha256: string; nodeSha256: string; protocol: "guardian-v1"; policyDigest: string; metadataPolicyDigest: string; }' is not assignable to type '{ packageManifestSha256: string; guardianElfSha256: string; nodeSha256: string; protocol: "guardian-v1"; policyDigest: string; metadataPolicyDigest: "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b"; }'.
+  Types of property 'metadataPolicyDigest' are incompatible.
+    Type 'string' is not assignable to type '"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b"'.
