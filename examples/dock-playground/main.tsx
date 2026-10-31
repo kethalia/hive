@@ -2,12 +2,9 @@ import { Code2, FileText, Folder, Monitor, Terminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AppViewportSize } from "@/components/app-viewport-size";
-import {
-  type DockAction,
-  type DockKeyPress,
-  WorkspaceDock,
-} from "@/components/experimental/workspace-dock";
-import { WorkspaceDockOverlay } from "@/components/experimental/workspace-dock-overlay";
+import { HelpOverlay } from "@/components/terminal/HelpOverlay";
+import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
+import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -25,9 +22,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  type DockAction,
+  type DockKeyPress,
+  WorkspaceDock,
+} from "@/components/workspaces/dock/workspace-dock";
+import { WorkspaceDockOverlay } from "@/components/workspaces/dock/workspace-dock-overlay";
+import { GeneralWorkspaceDock } from "@/components/workspaces/GeneralWorkspaceDock";
 import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
 import { WindowCanvas } from "@/components/workspaces/WindowCanvas";
+import { WindowShortcutHelp } from "@/components/workspaces/WindowShortcutHelp";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useKeybindings } from "@/hooks/useKeybindings";
+import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
+import { terminalFontSizeScope } from "@/lib/terminal/font-size";
 import { OPEN_GLOBAL_COMMAND_PALETTE_EVENT } from "@/lib/terminal/global-command-palette";
 import {
   addGeneralWindow,
@@ -47,9 +55,11 @@ import {
   revealWindow,
   windowGeometry,
 } from "@/lib/workspaces/window-manager";
+import { WORKSPACE_WINDOW_INSET } from "@/lib/workspaces/window-spacing";
 import { reconcileWorkspaceWindowLayout } from "@/lib/workspaces/workspace-window-layout";
 import { SandboxTerminal, type SandboxTerminalController } from "./sandbox-terminal";
 
+const INTEGRATION = new URLSearchParams(location.search).has("integration");
 const ROOT = document.getElementById("root");
 if (!ROOT) throw new Error("Missing playground root");
 const TOOLS = [
@@ -76,9 +86,17 @@ function Playground() {
   const [, refreshTerminals] = useState(0);
   const upload = useRef<HTMLInputElement>(null);
   const mobile = useIsMobile();
+  const { setActiveTerminal } = useKeybindings();
   const board = state.boards.find((item) => item.key === state.activeBoardKey) ?? state.boards[0];
   const active = board.windows.find((item) => item.id === board.activeWindowId);
+  const manager = reconcileWindowManager(
+    board.manager,
+    board.windows.map((window) => window.id),
+  );
   const terminal = active?.kind === "terminal" ? controllers.current.get(active.id) : undefined;
+  useEffect(() => {
+    if (INTEGRATION) setActiveTerminal(terminal?.term ?? null, terminal?.send ?? null);
+  }, [terminal, setActiveTerminal]);
   const register = useCallback((id: string, controller: SandboxTerminalController | null) => {
     if (controller) controllers.current.set(id, controller);
     else controllers.current.delete(id);
@@ -101,7 +119,7 @@ function Playground() {
         event.preventDefault();
         setPanel("apps");
       }
-      if ((event.ctrlKey || event.metaKey) && event.key === "/") {
+      if (!INTEGRATION && (event.ctrlKey || event.metaKey) && event.key === "/") {
         event.preventDefault();
         setPanel("keybinds");
       }
@@ -267,7 +285,13 @@ function Playground() {
           id={pane.id}
           register={register}
           onEvent={setEvent}
+          onActivate={() => activate(board.key, pane.id)}
           fontSize={fontSize}
+          fontSizeScope={
+            INTEGRATION && pane.kind === "terminal"
+              ? terminalFontSizeScope(pane.workspaceId, pane.sessionName)
+              : undefined
+          }
           visible={visible}
         />
       );
@@ -311,7 +335,13 @@ function Playground() {
   return (
     <TooltipProvider>
       <AppViewportSize />
-      <div className="h-[var(--app-window-inner-height)] min-h-0 overflow-hidden">
+      <div
+        className={
+          INTEGRATION
+            ? "h-full min-h-0 overflow-hidden"
+            : "h-[var(--app-window-inner-height)] min-h-0 overflow-hidden"
+        }
+      >
         <main
           id="main-content"
           className="crt-grid crt-scanlines flex h-full min-h-0 flex-1 overflow-hidden"
@@ -328,6 +358,7 @@ function Playground() {
               <section
                 className="flex h-full min-h-0 flex-col overflow-hidden"
                 data-dashboard-full-bleed=""
+                style={INTEGRATION ? { padding: WORKSPACE_WINDOW_INSET } : undefined}
                 data-testid="general-workspace"
               >
                 <div
@@ -389,39 +420,66 @@ function Playground() {
                     )}
                   />
                 </div>
-                <WorkspaceDockOverlay blocked={panel !== null}>
-                  <WorkspaceDock
-                    workspaces={state.boards.map((item, index) => ({
-                      id: item.key,
-                      name: `Workspace ${index + 1}`,
-                    }))}
-                    activeWorkspaceId={board.key}
-                    onWorkspaceSelect={selectBoard}
-                    onWorkspaceCreate={createBoard}
-                    onWorkspaceRemove={deleteBoard}
-                    canCreateWorkspace={state.boards.length < MAX_GENERAL_BOARDS}
-                    onAppsOpen={() => setPanel("apps")}
-                    onKeybindsOpen={() => setPanel("keybinds")}
-                    onKeyPress={pressKey}
-                    onAction={terminalAction}
-                    disabledActions={
-                      terminal
-                        ? {
-                            "font-decrease":
-                              fontSize <= 8 ? "Minimum font size reached" : undefined,
-                            "font-increase":
-                              fontSize >= 28 ? "Maximum font size reached" : undefined,
-                          }
-                        : {
-                            copy: "Focus a terminal to copy",
-                            paste: "Focus a terminal to paste",
-                            upload: "Focus a terminal to upload",
-                            "font-decrease": "Focus a terminal to change font size",
-                            "font-increase": "Focus a terminal to change font size",
-                          }
-                    }
-                  />
-                </WorkspaceDockOverlay>
+                {INTEGRATION ? (
+                  <>
+                    <GeneralWorkspaceDock
+                      boards={state.boards}
+                      activeBoardKey={board.key}
+                      onSelect={selectBoard}
+                      onCreate={createBoard}
+                      onRemove={deleteBoard}
+                      terminal={
+                        active?.kind === "terminal"
+                          ? { workspaceId: active.workspaceId, sessionName: active.sessionName }
+                          : undefined
+                      }
+                    />
+                    <WindowShortcutHelp
+                      shortcuts={manager.shortcuts}
+                      onChange={(shortcuts) =>
+                        changeBoard(board.key, (current) => ({
+                          ...current,
+                          manager: { ...manager, shortcuts },
+                        }))
+                      }
+                    />
+                    <HelpOverlay />
+                  </>
+                ) : (
+                  <WorkspaceDockOverlay blocked={panel !== null}>
+                    <WorkspaceDock
+                      workspaces={state.boards.map((item, index) => ({
+                        id: item.key,
+                        name: `Workspace ${index + 1}`,
+                      }))}
+                      activeWorkspaceId={board.key}
+                      onWorkspaceSelect={selectBoard}
+                      onWorkspaceCreate={createBoard}
+                      onWorkspaceRemove={deleteBoard}
+                      canCreateWorkspace={state.boards.length < MAX_GENERAL_BOARDS}
+                      onAppsOpen={() => setPanel("apps")}
+                      onKeybindsOpen={() => setPanel("keybinds")}
+                      onKeyPress={pressKey}
+                      onAction={terminalAction}
+                      disabledActions={
+                        terminal
+                          ? {
+                              "font-decrease":
+                                fontSize <= 8 ? "Minimum font size reached" : undefined,
+                              "font-increase":
+                                fontSize >= 28 ? "Maximum font size reached" : undefined,
+                            }
+                          : {
+                              copy: "Focus a terminal to copy",
+                              paste: "Focus a terminal to paste",
+                              upload: "Focus a terminal to upload",
+                              "font-decrease": "Focus a terminal to change font size",
+                              "font-increase": "Focus a terminal to change font size",
+                            }
+                      }
+                    />
+                  </WorkspaceDockOverlay>
+                )}
                 <span role="status" className="sr-only" data-dock-feedback>
                   {event}
                 </span>
@@ -562,4 +620,26 @@ function Playground() {
   );
 }
 
-createRoot(ROOT).render(<Playground />);
+function PreviewFrame({ children }: { children: React.ReactNode }) {
+  const mobile = useIsMobile();
+  const { isKeyboardVisible } = useVisualViewportKeyboardOffset();
+  return INTEGRATION && mobile ? (
+    <MobileTerminalShell
+      isKeyboardVisible={isKeyboardVisible}
+      reserveDashboardTrigger={false}
+      stopKeyboardPropagation={false}
+    >
+      {children}
+    </MobileTerminalShell>
+  ) : (
+    children
+  );
+}
+
+createRoot(ROOT).render(
+  <KeybindingProvider>
+    <PreviewFrame>
+      <Playground />
+    </PreviewFrame>
+  </KeybindingProvider>,
+);

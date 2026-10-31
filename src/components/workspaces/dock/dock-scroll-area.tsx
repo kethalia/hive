@@ -128,7 +128,13 @@ export function DockScrollArea({
           <Previous aria-hidden="true" />
         </Button>
       ) : null}
-      <div ref={viewport} id={id} className="hive-dock-options" onScroll={measure}>
+      <div
+        ref={viewport}
+        id={id}
+        className="hive-dock-options"
+        data-mobile-scroll-allow="true"
+        onScroll={measure}
+      >
         {children}
       </div>
       {edges.overflow ? (

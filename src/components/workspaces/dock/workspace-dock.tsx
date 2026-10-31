@@ -12,6 +12,7 @@ import {
   Grid2X2,
   Keyboard,
   Layers,
+  Loader2,
   Minus,
   Plus,
   X,
@@ -52,6 +53,12 @@ export interface WorkspaceDockProps {
   onAction: (action: DockAction) => void;
   /** Supply disabled reasons when the selected terminal cannot perform an action. */
   disabledActions?: Partial<Record<DockAction, string>>;
+  /** Share latched modifiers with xterm's native input handling. */
+  modifiers?: TerminalKeyModifiers;
+  onModifiersChange?: (modifiers: TerminalKeyModifiers) => void;
+  keysDisabled?: boolean;
+  preserveTerminalFocus?: boolean;
+  busyActions?: readonly DockAction[];
   canCreateWorkspace?: boolean;
   density?: "comfortable" | "compact";
   className?: string;
@@ -69,6 +76,7 @@ const ACTIONS = [
 
 function DockButton({
   label,
+  description,
   children,
   className,
   onKeyDown,
@@ -80,7 +88,7 @@ function DockButton({
   onPointerLeave,
   onLostPointerCapture,
   ...props
-}: ComponentProps<typeof Button> & { label: string }) {
+}: ComponentProps<typeof Button> & { label: string; description?: string }) {
   const [pressed, setPressed] = useState(false);
   return (
     <Tooltip>
@@ -131,13 +139,13 @@ function DockButton({
         {children}
       </TooltipTrigger>
       <TooltipContent className="hive-dock-tooltip" sideOffset={14}>
-        {label}
+        {description ?? label}
       </TooltipContent>
     </Tooltip>
   );
 }
 
-/** Standalone prototype: consumers own all workspace and terminal effects. */
+/** Consumers own workspace lifecycle and terminal effects. */
 export function WorkspaceDock({
   workspaces,
   activeWorkspaceId,
@@ -149,12 +157,17 @@ export function WorkspaceDock({
   onKeyPress,
   onAction,
   disabledActions,
+  modifiers: controlledModifiers,
+  onModifiersChange,
+  keysDisabled = false,
+  preserveTerminalFocus = false,
+  busyActions,
   canCreateWorkspace = true,
   density = "comfortable",
   className,
 }: WorkspaceDockProps) {
   const axis = useDockAxis();
-  const { view, busy: viewBusy, navRef, panelRef, changeView } = useDockView();
+  const { view, busy: viewBusy, navRef, panelRef, changeView } = useDockView(preserveTerminalFocus);
   const spaces = useDockSpaces({
     ids: workspaces.map((workspace) => workspace.id),
     activeId: activeWorkspaceId,
@@ -165,7 +178,20 @@ export function WorkspaceDock({
     onRemove: onWorkspaceRemove,
   });
   const busy = viewBusy || spaces.busy;
-  const [modifiers, setModifiers] = useState(NO_MODIFIERS);
+  const [localModifiers, setLocalModifiers] = useState(NO_MODIFIERS);
+  const modifiers = controlledModifiers ?? localModifiers;
+  function setModifiers(next: TerminalKeyModifiers) {
+    setLocalModifiers(next);
+    onModifiersChange?.(next);
+  }
+  const terminalButtonProps = {
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (preserveTerminalFocus) event.preventDefault();
+    },
+    onMouseDown: (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (preserveTerminalFocus) event.preventDefault();
+    },
+  };
   const focusAfterRemoval = useRef(false);
   const queuedBack = useRef(false);
   useLayoutEffect(() => {
@@ -290,6 +316,7 @@ export function WorkspaceDock({
                 <span className="hive-dock-count">{workspaces.length}</span>
               </DockButton>
               <DockButton
+                {...terminalButtonProps}
                 label="Extra keyboard"
                 className="hive-dock-app"
                 data-dock-opener="keyboard"
@@ -317,6 +344,7 @@ export function WorkspaceDock({
           ) : (
             <>
               <DockButton
+                {...terminalButtonProps}
                 label="Back to main dock"
                 className="hive-dock-back"
                 data-dock-back
@@ -384,12 +412,11 @@ export function WorkspaceDock({
                         key={modifier}
                         label={`${modifier === "ctrl" ? "Ctrl" : modifier === "alt" ? "Alt" : "Shift"} modifier`}
                         className="hive-dock-key"
+                        {...terminalButtonProps}
+                        disabled={keysDisabled}
                         aria-pressed={modifiers[modifier]}
                         onClick={() =>
-                          setModifiers((current) => ({
-                            ...current,
-                            [modifier]: !current[modifier],
-                          }))
+                          setModifiers({ ...modifiers, [modifier]: !modifiers[modifier] })
                         }
                       >
                         {modifier === "ctrl" ? "Ctrl" : modifier === "alt" ? "Alt" : "Shift"}
@@ -402,6 +429,8 @@ export function WorkspaceDock({
                         <DockButton
                           key={label}
                           label={`${prefix}${label}`}
+                          {...terminalButtonProps}
+                          disabled={keysDisabled}
                           className="hive-dock-key"
                           onClick={() => {
                             onKeyPress({
@@ -430,12 +459,20 @@ export function WorkspaceDock({
                     {ACTIONS.map(({ id, label, Icon }) => (
                       <DockButton
                         key={id}
-                        label={disabledActions?.[id] ?? label}
+                        label={label}
+                        description={disabledActions?.[id]}
+                        {...terminalButtonProps}
+                        data-terminal-selection-copy={id === "copy" ? "true" : undefined}
+                        aria-busy={busyActions?.includes(id) || undefined}
                         className="hive-dock-key"
                         disabled={Boolean(disabledActions?.[id])}
                         onClick={() => onAction(id)}
                       >
-                        <Icon aria-hidden="true" />
+                        {busyActions?.includes(id) ? (
+                          <Loader2 aria-hidden="true" className="animate-spin" />
+                        ) : (
+                          <Icon aria-hidden="true" />
+                        )}
                       </DockButton>
                     ))}
                   </>

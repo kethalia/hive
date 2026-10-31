@@ -20,11 +20,15 @@ export function WorkspaceDockOverlay({
   const expand = useRef<HTMLButtonElement>(null),
     minimise = useRef<HTMLButtonElement>(null);
   const [hovered, setHovered] = useState(false),
-    [focused, setFocused] = useState(false);
+    [focused, setFocused] = useState(false),
+    [interacting, setInteracting] = useState(false),
+    [touching, setTouching] = useState(false),
+    [activity, setActivity] = useState(0);
   const morph = useDockMorph({ surface, layout, content, expand, minimise, blocked });
   const placement = useDockPlacement(surface, blocked || morph.busy);
   const vertical = placement.edge === "left" || placement.edge === "right";
   const id = useId();
+  const latestActivity = useRef(0);
   useEffect(() => {
     if (morph.phase === "collapsed") {
       setHovered(false);
@@ -32,12 +36,32 @@ export function WorkspaceDockOverlay({
     }
   }, [morph.phase]);
   useEffect(() => {
-    if (morph.phase !== "expanded" || hovered || focused || blocked || placement.moving) return;
+    if (
+      morph.phase !== "expanded" ||
+      hovered ||
+      focused ||
+      interacting ||
+      touching ||
+      blocked ||
+      placement.moving
+    )
+      return;
     const timer = window.setTimeout(() => {
-      if (!content.current?.contains(document.activeElement)) morph.change(false);
+      if (activity === latestActivity.current && !content.current?.contains(document.activeElement))
+        morph.change(false);
     }, 2500);
     return () => window.clearTimeout(timer);
-  }, [morph.phase, hovered, focused, blocked, placement.moving, morph.change]);
+  }, [
+    morph.phase,
+    hovered,
+    focused,
+    interacting,
+    touching,
+    activity,
+    blocked,
+    placement.moving,
+    morph.change,
+  ]);
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if (
@@ -64,6 +88,7 @@ export function WorkspaceDockOverlay({
     <div
       ref={placement.root}
       className="hive-dock-overlay"
+      data-launcher-gesture-ignore="true"
       data-dock-visible={morph.expanded}
       data-phase={morph.phase}
       data-edge={placement.edge}
@@ -71,6 +96,18 @@ export function WorkspaceDockOverlay({
       data-dragging={placement.dragging}
       data-settling={placement.settling}
       {...placement.handlers}
+      onPointerDownCapture={() => {
+        setActivity(++latestActivity.current);
+        setInteracting(true);
+      }}
+      onTouchStartCapture={() => setTouching(true)}
+      onTouchEndCapture={(event) => {
+        if (!event.touches.length) setTouching(false);
+      }}
+      onTouchCancelCapture={() => setTouching(false)}
+      onPointerUpCapture={() => setInteracting(false)}
+      onPointerCancelCapture={() => setInteracting(false)}
+      onLostPointerCaptureCapture={() => setInteracting(false)}
     >
       <div ref={surface} className="hive-dock-surface" aria-busy={morph.busy}>
         <div

@@ -3,8 +3,11 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { loadTerminalFont, TERMINAL_FONT_FAMILY, TERMINAL_THEME } from "@/lib/terminal/config";
 import "@/styles/xterm.css";
+import { getTerminalFontSize, subscribeTerminalFontSize } from "@/lib/terminal/font-size";
+import { applyMobileModifiers } from "@/lib/terminal/mobile-modifiers";
 
 export interface SandboxTerminalController {
+  term: Terminal;
   send: (sequence: string) => void;
   copy: () => string;
   focus: () => void;
@@ -15,21 +18,25 @@ export function SandboxTerminal({
   id,
   visible,
   fontSize,
+  fontSizeScope,
   register,
   onEvent,
+  onActivate,
 }: {
   id: string;
   visible: boolean;
   fontSize: number;
+  fontSizeScope?: string;
   register: (id: string, controller: SandboxTerminalController | null) => void;
   onEvent: (message: string) => void;
+  onActivate?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const eventRef = useRef(onEvent);
   eventRef.current = onEvent;
-  const initialFontSize = useRef(fontSize);
+  const initialFontSize = useRef(fontSizeScope ? getTerminalFontSize(fontSizeScope) : fontSize);
   useEffect(() => {
     if (!host.current) return;
     const term = new Terminal({
@@ -149,11 +156,12 @@ export function SandboxTerminal({
       cursor += text.length;
       redraw();
     }
-    const listener = term.onData(send);
+    const listener = term.onData((data) => send(applyMobileModifiers(term, data)));
     term.writeln("\x1b[32mcoder\x1b[0m ~/projects/kethalia/hive");
     term.writeln("Local terminal preview. Type help to explore.\r\n");
     prompt();
     register(id, {
+      term,
       send,
       focus: () => term.focus(),
       copy: () =>
@@ -176,12 +184,20 @@ export function SandboxTerminal({
     };
   }, [id, register]);
   useEffect(() => {
-    if (termRef.current) termRef.current.options.fontSize = fontSize;
+    if (termRef.current && !fontSizeScope) termRef.current.options.fontSize = fontSize;
     if (visible && host.current?.clientWidth && host.current?.clientHeight) fitRef.current?.fit();
-  }, [fontSize, visible]);
+  }, [fontSize, visible, fontSizeScope]);
+  useEffect(() => {
+    if (!fontSizeScope) return;
+    return subscribeTerminalFontSize(fontSizeScope, (size) => {
+      if (termRef.current) termRef.current.options.fontSize = size;
+      if (visible && host.current?.clientWidth && host.current?.clientHeight) fitRef.current?.fit();
+    });
+  }, [fontSizeScope, visible]);
   return (
     <div
       ref={host}
+      onFocus={onActivate}
       className="sandbox-terminal"
       data-terminal-surface="true"
       data-mobile-scroll-allow="true"

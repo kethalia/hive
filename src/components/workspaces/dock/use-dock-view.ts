@@ -5,7 +5,7 @@ type View = "home" | "workspaces" | "keyboard";
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** Exit, resize the tray, then reveal the next row without accepting overlapping actions. */
-export function useDockView() {
+export function useDockView(preserveTerminalFocus = false) {
   const axis = useDockAxis();
   const previousAxis = useRef(axis);
   const [view, setView] = useState<View>("home");
@@ -42,7 +42,8 @@ export function useDockView() {
       const bounds = nav.getBoundingClientRect();
       const animate = !reducedMotion();
       setBusy(true);
-      nav.focus({ preventScroll: true });
+      const terminalFocused = document.activeElement?.classList.contains("xterm-helper-textarea");
+      if (!preserveTerminalFocus || !terminalFocused) nav.focus({ preventScroll: true });
       const swap = () => {
         if (ticket !== generation.current) return;
         plan.current = { bounds, reverse: next === "home", animate, ticket };
@@ -64,7 +65,7 @@ export function useDockView() {
       animations.current = [exit];
       void exit.finished.then(swap).catch(() => {});
     },
-    [axis],
+    [axis, preserveTerminalFocus],
   );
 
   useLayoutEffect(() => {

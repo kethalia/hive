@@ -16,6 +16,7 @@ import {
   useRegisterKeybinding,
 } from "@/hooks/useKeybindings";
 import { formatShortcut, isApplePlatform } from "@/lib/keyboard-shortcuts";
+import { OPEN_KEYBINDING_HELP_EVENT } from "@/lib/terminal/help-overlay";
 import { usePwaStandalone } from "@/lib/terminal/pwa";
 
 const NUDGE_DISMISSED_KEY = "hive:help-nudge-dismissed";
@@ -47,6 +48,12 @@ export function HelpOverlay() {
     } catch {
       setNudgeDismissed(true);
     }
+  }, []);
+
+  React.useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_KEYBINDING_HELP_EVENT, show);
+    return () => window.removeEventListener(OPEN_KEYBINDING_HELP_EVENT, show);
   }, []);
 
   useRegisterKeybinding({

@@ -1,8 +1,9 @@
-# Workspace dock experiment
+# Workspace dock
 
-A standalone Keycaps-only shadcn/Base UI dock experiment inside Hive's actual main-screen layout.
-The application has no imports of the experiment. Keep the tracking PR in draft until the larger
-refactor is ready.
+The Keycaps shadcn/Base UI dock replaces the PWA workspace header and mobile terminal strip.
+`GeneralWorkspaceDock` connects the reusable dock/overlay to saved boards, the global Hive launcher,
+live shortcut help, active xterm input, clipboard/uploads, and session-scoped font controls.
+This directory retains the local fixture used to develop and validate the component.
 
 The preview reuses the existing `WindowCanvas`, `TerminalSessionFrame`, window manager and layout
 helpers, Fira Code fonts, CRT background classes, and unmodified `src/app/globals.css`. Its empty-state copy and dashboard
@@ -119,13 +120,13 @@ settings panel, or visible interaction/status log. Action feedback remains avail
 
 ## Component contract
 
-`src/components/experimental/workspace-dock.tsx` uses the repository's existing shadcn `Button` and
+`src/components/workspaces/dock/workspace-dock.tsx` uses the repository's existing shadcn `Button` and
 `Tooltip` components. It imports only its own scoped CSS, pure key data/encoding, and UI primitives.
 The playground owns app launcher and keybind dialogs using shadcn `Dialog`.
 
 ```tsx
-import { WorkspaceDock } from "@/components/experimental/workspace-dock";
-import { WorkspaceDockOverlay } from "@/components/experimental/workspace-dock-overlay";
+import { WorkspaceDock } from "@/components/workspaces/dock/workspace-dock";
+import { WorkspaceDockOverlay } from "@/components/workspaces/dock/workspace-dock-overlay";
 
 <WorkspaceDockOverlay blocked={dialogOpen}>
   <WorkspaceDock
@@ -148,6 +149,8 @@ presentation and capabilities. `onKeyPress` receives the base key, modifier snap
 sequence using Hive's existing encoder. `onAction` receives `copy`, `paste`, `upload`,
 `font-decrease`, or `font-increase`. Wire those to real selected-terminal capabilities only during
 the later integration. Workspaces are numbered by their array order and identified by stable IDs.
+Controlled `modifiers`/`onModifiersChange` share xterm’s one-shot modifier store in the PWA;
+`keysDisabled`, `preserveTerminalFocus`, and `busyActions` control terminal capabilities and feedback.
 The optional overlay owns visibility and placement; `blocked` suspends its timer while a consuming
 dialog or picker is open. The base dock can still be rendered without the overlay.
 
@@ -161,7 +164,7 @@ animations. Dialog focus management comes from Base UI.
 ## Validate
 
 ```sh
-pnpm exec biome check src/components/experimental examples/dock-playground
+pnpm exec biome check src/components/workspaces/dock examples/dock-playground
 pnpm exec tsc --project examples/dock-playground/tsconfig.json --noEmit
 node examples/dock-playground/serve.mjs --build-only
 ```
@@ -206,9 +209,29 @@ page reload/reset, real canvas Strip/Grid layouts and resizing,
 `results.json`. It uses `@playwright/test` from the repository's pinned dependencies and installed
 Chrome; it does not install a browser.
 
-## Deferred integration
+## PWA integration
 
-After the main refactor, validate the overlay and handle with the native mobile keyboard open, preserve
-xterm focus/selection during terminal actions, wire the real app registry and workspace lifecycle,
-use the real keybinding registry, and connect actual clipboard/upload capability and busy states.
-The preview deliberately has no imports in application routes, layouts, providers, or navigation.
+`GeneralWorkspace` owns board persistence and session teardown as before. Its header and duplicate
+mobile-only key strip are replaced with `GeneralWorkspaceDock`. The dock overlays the full canvas;
+it reserves no footer height. Each window contributes a shared 2px inset and the canvas adds another
+2px around its edges, matching the 4px gap between adjacent window borders even at full width or
+when maximized. Mobile safe areas and the installed iOS status-bar clearance remain in effect.
+
+The adapter shares the existing per-terminal modifier store with native xterm input, preserves terminal
+focus for pointer-operated keys (including opening/closing Keys), disables actions without the active
+terminal/capability, and uses the existing selection, clipboard, upload, feedback, and font APIs.
+Switching terminals clears latched modifiers. Clipboard/file operations and any open modal hold the
+dock open. Touch interaction suspends auto-hide and restarts the timer at release. The strip is marked
+as scrollable inside `MobileTerminalShell` so its global page-scroll lock does not swallow dock gestures.
+
+Append `?integration=1` to the local fixture URL to exercise the production adapter, real shortcut help,
+shared modifiers, and PWA mobile shell. Its xterm transport remains the local shell; no command runs on
+Coder. Browser clipboard actions are real in this mode; asset upload requires the actual PWA endpoint.
+The default fixture retains its preview-only clipboard and local file-picker behavior.
+
+Run `validate-integration.browser.mjs` in Browser Testing for matching outer/inter-window gaps,
+full-width/maximized padding, native xterm focus and modifier reset, font settings, scrolling under
+the mobile page lock, modal holds, and board creation/removal. The component tests also cover saved
+board persistence, stale-terminal guards, clipboard/upload routing, capability checks, and the live
+help event. Live backend login and physical iOS keyboard behavior need the configured application
+environment; the browser fixture supplies no authentication bypass.
