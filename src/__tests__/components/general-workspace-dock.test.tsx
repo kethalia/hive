@@ -173,6 +173,47 @@ describe("live workspace dock", () => {
     expect(screen.getByRole("button", { name: "Minimise dock" })).toHaveFocus();
   });
 
+  it("preserves terminal focus for Keys scroll arrows without changing workspace or keyboard focus", () => {
+    const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1000);
+    const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+    try {
+      const { term } = terminal();
+      render(tree(term));
+      const input = screen.getByRole("textbox");
+      input.focus();
+      openKeys();
+      const options = document.querySelector<HTMLElement>(".hive-dock-options")!;
+      options.scrollBy = vi.fn((value) => {
+        options.scrollLeft += (value as ScrollToOptions).left ?? 0;
+        fireEvent.scroll(options);
+      });
+      const right = screen.getByRole("button", { name: "Scroll keys right" });
+      expect(fireEvent.pointerDown(right, { button: 0 })).toBe(false);
+      expect(fireEvent.mouseDown(right, { button: 0 })).toBe(false);
+      fireEvent.click(right);
+      expect(options.scrollLeft).toBeGreaterThan(0);
+      expect(input).toHaveFocus();
+      const left = screen.getByRole("button", { name: "Scroll keys left" });
+      expect(fireEvent.pointerDown(left, { button: 0 })).toBe(false);
+      expect(fireEvent.mouseDown(left, { button: 0 })).toBe(false);
+      fireEvent.click(left);
+      expect(options.scrollLeft).toBe(0);
+      expect(input).toHaveFocus();
+      right.focus();
+      fireEvent.click(right, { detail: 0 });
+      expect(right).toHaveFocus();
+      expect(options.scrollLeft).toBeGreaterThan(0);
+      fireEvent.click(screen.getByRole("button", { name: "Back to main dock" }));
+      fireEvent.click(screen.getByRole("button", { name: "Workspaces" }));
+      const workspaceArrow = screen.getByRole("button", { name: "Scroll spaces right" });
+      expect(fireEvent.pointerDown(workspaceArrow, { button: 0 })).toBe(true);
+      expect(fireEvent.mouseDown(workspaceArrow, { button: 0 })).toBe(true);
+    } finally {
+      scrollWidth.mockRestore();
+      clientWidth.mockRestore();
+    }
+  });
+
   it("clears modifiers on terminal changes and prevents sends to an inactive terminal", () => {
     const a = terminal(),
       b = terminal(),

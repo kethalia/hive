@@ -368,6 +368,7 @@ export function WorkspaceDock({
                 label={view === "workspaces" ? "spaces" : "keys"}
                 activeItem={view === "workspaces" ? activeWorkspaceId : undefined}
                 suspendLayout={spaces.busy}
+                scrollButtonProps={view === "keyboard" ? terminalButtonProps : undefined}
               >
                 {view === "workspaces" ? (
                   workspaces.map((workspace, index) => (

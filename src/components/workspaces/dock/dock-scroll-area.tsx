@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import {
+  type ComponentProps,
   type ReactNode,
   useCallback,
   useEffect,
@@ -16,11 +17,13 @@ export function DockScrollArea({
   label,
   activeItem,
   suspendLayout = false,
+  scrollButtonProps,
 }: {
   children: ReactNode;
   label: "keys" | "spaces";
   activeItem?: string;
   suspendLayout?: boolean;
+  scrollButtonProps?: Pick<ComponentProps<typeof Button>, "onPointerDown" | "onMouseDown">;
 }) {
   const axis = useDockAxis();
   const Previous = axis.vertical ? ChevronUp : ChevronLeft;
@@ -120,6 +123,7 @@ export function DockScrollArea({
           variant="ghost"
           className="hive-dock-scroll-control"
           data-dock-scroll-control
+          {...scrollButtonProps}
           aria-label={`Scroll ${label} ${axis.vertical ? "up" : "left"}`}
           aria-controls={id}
           disabled={!edges.left}
@@ -143,6 +147,7 @@ export function DockScrollArea({
           variant="ghost"
           className="hive-dock-scroll-control"
           data-dock-scroll-control
+          {...scrollButtonProps}
           aria-label={`Scroll ${label} ${axis.vertical ? "down" : "right"}`}
           aria-controls={id}
           disabled={!edges.right}
