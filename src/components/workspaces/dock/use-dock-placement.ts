@@ -7,11 +7,19 @@ import {
   useState,
 } from "react";
 import { flushSync } from "react-dom";
+import { isTerminalHelperTextAreaTarget } from "@/lib/keyboard-event-targets";
 import { captureDockPose, type DockPoint, dockSpring, rotateDock } from "./dock-flight";
 
 type Edge = "top" | "right" | "bottom" | "left";
 type Anchor = { edge: Edge; ratio: number };
 const clamp = (n: number, max = 1) => Math.max(0, Math.min(max, n));
+function keepsTerminalFocus(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    !!target.closest("[data-dock-expand], [data-dock-minimise]") &&
+    isTerminalHelperTextAreaTarget(document.activeElement)
+  );
+}
 
 /** Store an edge and a fraction along it, so resizing never strands the dock in the canvas. */
 export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disabled: boolean) {
@@ -39,6 +47,7 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     lastTime: number;
   } | null>(null);
   const suppressClick = useRef(false);
+  const tapFrame = useRef<number | null>(null);
   const rotation = useRef<Animation[]>([]);
 
   function stopMotion(freeze = false) {
@@ -264,7 +273,14 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     const end = point();
     write(end.x, end.y);
   }
+  function cancelTap() {
+    if (tapFrame.current !== null) cancelAnimationFrame(tapFrame.current);
+    tapFrame.current = null;
+  }
   function down(event: PointerEvent<HTMLDivElement>) {
+    cancelTap();
+    const preserveFocus = event.button === 0 && keepsTerminalFocus(event.target);
+    if (preserveFocus) event.preventDefault();
     if (
       disabled ||
       event.button !== 0 ||
@@ -300,7 +316,7 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     // suppress the compatibility click following a drag; keyboard clicks stay native.
     if (tap) {
       event.preventDefault();
-      tap.focus({ preventScroll: true });
+      if (!preserveFocus) tap.focus({ preventScroll: true });
     }
     drag.current = {
       id: event.pointerId,
@@ -361,7 +377,13 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     if (!start.moved) {
       if (start.tap) {
         event.preventDefault();
-        start.tap.click();
+        // Prefer the native click before changing geometry. Otherwise an instant
+        // morph can retarget that click to a window underneath. Some browsers
+        // suppress clicks after dragging, so retain a next-frame fallback.
+        tapFrame.current = requestAnimationFrame(() => {
+          tapFrame.current = null;
+          start.tap?.click();
+        });
       }
       return;
     }
@@ -437,6 +459,7 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     window.addEventListener("keydown", cancelOnEscape, true);
     return () => {
       observer.disconnect();
+      if (tapFrame.current !== null) cancelAnimationFrame(tapFrame.current);
       motionTicket.current++;
       if (coast.current !== null) cancelAnimationFrame(coast.current);
       for (const animation of rotation.current) animation.cancel();
@@ -457,11 +480,15 @@ export function useDockPlacement(surface: RefObject<HTMLDivElement | null>, disa
     key,
     handlers: {
       onPointerDown: down,
+      onMouseDown: (event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.button === 0 && keepsTerminalFocus(event.target)) event.preventDefault();
+      },
       onPointerMove: move,
       onPointerUp: up,
       onPointerCancel: cancel,
       onLostPointerCapture: cancel,
       onClickCapture: (event: React.MouseEvent<HTMLDivElement>) => {
+        cancelTap();
         if (suppressClick.current && event.detail > 0) {
           event.preventDefault();
           event.stopPropagation();

@@ -76,6 +76,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   localStorage.clear();
 });
@@ -122,6 +123,54 @@ describe("live workspace dock", () => {
     expect(send).toHaveBeenCalledWith("\x1b[1;5A");
     expect(ctrl).toHaveAttribute("aria-pressed", "false");
     expect(input).toHaveFocus();
+  });
+
+  it("keeps terminal focus through touch expansion/minimisation after auto-hide", () => {
+    vi.useFakeTimers();
+    const { term } = terminal();
+    render(tree(term));
+    const input = screen.getByRole("textbox");
+    input.focus();
+    act(() => vi.advanceTimersByTime(2500));
+    const tap = (button: HTMLElement) => {
+      for (const type of ["pointerdown", "pointerup"]) {
+        const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 });
+        Object.defineProperties(event, {
+          pointerType: { value: "touch" },
+          pointerId: { value: 1 },
+          isPrimary: { value: true },
+        });
+        fireEvent(button, event);
+      }
+      act(() => vi.advanceTimersToNextFrame());
+    };
+    tap(screen.getByRole("button", { name: "Expand dock" }));
+    expect(input).toHaveFocus();
+    openKeys();
+    fireEvent.click(screen.getByRole("button", { name: "Ctrl modifier" }));
+    tap(screen.getByRole("button", { name: "Minimise dock" }));
+    expect(input).toHaveFocus();
+    tap(screen.getByRole("button", { name: "Expand dock" }));
+    expect(input).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Ctrl modifier" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    act(() => {
+      applyMobileModifiers(term, "c");
+    });
+    expect(screen.getByRole("button", { name: "Ctrl modifier" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    const minimise = screen.getByRole("button", { name: "Minimise dock" });
+    minimise.focus();
+    fireEvent.click(minimise);
+    const expand = screen.getByRole("button", { name: "Expand dock" });
+    expect(expand).toHaveFocus();
+    fireEvent.click(expand);
+    act(() => vi.advanceTimersToNextFrame());
+    expect(screen.getByRole("button", { name: "Minimise dock" })).toHaveFocus();
   });
 
   it("clears modifiers on terminal changes and prevents sends to an inactive terminal", () => {

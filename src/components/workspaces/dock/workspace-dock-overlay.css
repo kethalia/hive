@@ -115,7 +115,7 @@
   cursor: grabbing;
 }
 @media (prefers-reduced-motion: reduce) {
-  .hive-dock-overlay button {
+  .hive-dock-overlay * {
     transition: none;
   }
 }

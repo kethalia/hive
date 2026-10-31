@@ -27,22 +27,20 @@ async function edge(target = page) {
     .poll(async () => {
       const box = await target.locator(".hive-dock-surface").boundingBox();
       const size = target.viewportSize();
-      return Math.min(
-        Math.abs(box.x - 12),
-        Math.abs(box.y - 12),
-        Math.abs(size.width - box.x - box.width - 12),
-        Math.abs(size.height - box.y - box.height - 12),
+      return (
+        Math.min(
+          Math.abs(box.x - 12),
+          Math.abs(box.y - 12),
+          Math.abs(size.width - box.x - box.width - 12),
+          Math.abs(size.height - box.y - box.height - 12),
+        ) < 1 &&
+        box.x >= 11 &&
+        box.y >= 11 &&
+        box.x + box.width <= size.width - 11 &&
+        box.y + box.height <= size.height - 11
       );
     })
-    .toBeLessThan(1);
-  const box = await target.locator(".hive-dock-surface").boundingBox(),
-    size = target.viewportSize();
-  assert.ok(
-    box.x >= 11 &&
-      box.y >= 11 &&
-      box.x + box.width <= size.width - 11 &&
-      box.y + box.height <= size.height - 11,
-  );
+    .toBe(true);
 }
 async function morph(button, name, destination) {
   await button.click();

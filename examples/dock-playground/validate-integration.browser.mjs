@@ -165,8 +165,51 @@ async function checkPage(page, mobile) {
   await input.focus();
   await page.mouse.move(screen.width / 2, screen.height / 2);
   await expect(overlay).toHaveAttribute("data-phase", "collapsed");
+  // Pointer-operated morphs keep xterm focused, including after auto-hide.
+  // Keyboard activation must still transfer focus to visible dock controls.
+  for (const reduced of [false, true]) {
+    await page.emulateMedia({ reducedMotion: reduced ? "reduce" : "no-preference" });
+    const expand = page.getByRole("button", { name: "Expand dock", exact: true });
+    const minimise = page.getByRole("button", { name: "Minimise dock", exact: true });
+    const pointerPress = async (button) => (mobile ? button.tap() : button.click());
+    await expect(input).toBeFocused();
+    await pointerPress(expand);
+    await expect(overlay).toHaveAttribute("data-phase", "expanded");
+    await expect(input).toBeFocused();
+    const keys = dock.getByRole("button", { name: "Extra keyboard", exact: true });
+    if (await keys.count()) await pointerPress(keys);
+    await ready();
+    const ctrl = dock.getByRole("button", { name: "Ctrl modifier" });
+    await pointerPress(ctrl);
+    await expect(ctrl).toHaveAttribute("aria-pressed", "true");
+    await pointerPress(minimise);
+    await expect(overlay).toHaveAttribute("data-phase", "collapsed");
+    await expect(input).toBeFocused();
+    await pointerPress(expand);
+    await expect(overlay).toHaveAttribute("data-phase", "expanded");
+    await expect(input).toBeFocused();
+    await expect(ctrl).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.type("c");
+    await expect(ctrl).toHaveAttribute("aria-pressed", "false");
+    await expect(input).toBeFocused();
+    await minimise.press("Space");
+    await expect(overlay).toHaveAttribute("data-phase", "collapsed");
+    await expect(expand).toBeFocused();
+    await expand.press("Enter");
+    await expect(overlay).toHaveAttribute("data-phase", "expanded");
+    await expect(minimise).toBeFocused();
+    await input.focus();
+    await pointerPress(minimise);
+    await expect(overlay).toHaveAttribute("data-phase", "collapsed");
+    await expect(input).toBeFocused();
+  }
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  checks.push(
+    `${mobile ? "Touch" : "Mouse"}: expansion/minimisation preserves terminal focus and latched/native modifiers after auto-hide; Enter/Space retain keyboard focus transfer in normal and reduced motion.`,
+  );
   await page.keyboard.press("Alt+Shift+KeyD");
   await expect(overlay).toHaveAttribute("data-phase", "expanded");
+  await home();
   await dock.getByRole("button", { name: "Workspaces", exact: true }).click();
   await ready();
   await dock.getByRole("button", { name: "Create workspace" }).click();
