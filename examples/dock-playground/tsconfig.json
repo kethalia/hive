@@ -1,6 +1,0 @@
-{
-  "extends": "../../tsconfig.json",
-  "compilerOptions": { "incremental": false, "plugins": [] },
-  "include": ["main.tsx", "../../src/components/workspaces/dock/workspace-dock.tsx"],
-  "exclude": ["node_modules"]
-}
