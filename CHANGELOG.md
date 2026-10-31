@@ -1,5 +1,11 @@
 # hive-orchestrator
 
+## 2.32.2
+
+### Patch Changes
+
+- f676b68: Remove private team repositories from newly seeded workspace manifests and use generic organization names in clone test fixtures.
+
 ## 2.32.1
 
 ### Patch Changes
