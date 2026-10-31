@@ -972,7 +972,7 @@ function verifyGithubHelpers() {
 
 function verifyRepositoryManifest() {
   const entries = readTemplateFile("repositories.txt").trim().split("\n");
-  const allowedOwners = new Set(["chillwhales", "kethalia", "phlox-labs"]);
+  const allowedOwners = new Set(["chillwhales", "kethalia"]);
 
   assert.ok(entries.length > 0);
   for (const entry of entries) {
@@ -988,7 +988,6 @@ function verifyRepositoryManifest() {
       `${destination} must use an approved destination organization`,
     );
   }
-  assert.ok(entries.includes("phlox-labs/service-routing-api|phlox-labs/service-routing-api"));
   assert.ok(entries.includes("kethalia/k8s-cluster|kethalia/k8s-cluster"));
   assert.ok(entries.includes("kethalia/workflows|kethalia/workflows"));
   assert.ok(!entries.includes("chillwhales/realm-of-chill|chillwhales/realm-of-chill"));

@@ -20,7 +20,7 @@ describe("discoverProjectCloneTree", () => {
   it("discovers Git clones into the Git -> home hierarchy without reading file contents", async () => {
     await makeGitRepository(tempDir, "kethalia/hive");
     await makeGitRepository(tempDir, "chillwhales/reef", "file");
-    await makeGitRepository(tempDir, "phlox-labs/platform/orchard");
+    await makeGitRepository(tempDir, "sample-labs/platform/orchard");
     await mkdir(join(tempDir, "kethalia", "scratch"), { recursive: true });
     await writeFile(
       join(tempDir, "kethalia", "hive", "README.md"),
@@ -45,7 +45,7 @@ describe("discoverProjectCloneTree", () => {
     expect(result.nodes.map((node) => `${node.kind}:${node.relativePath}`)).toEqual([
       "directory:chillwhales",
       "directory:kethalia",
-      "directory:phlox-labs",
+      "directory:sample-labs",
     ]);
 
     expect(
@@ -69,10 +69,10 @@ describe("discoverProjectCloneTree", () => {
         cloneSessionKey: "git-clone:kethalia/hive",
       },
       {
-        id: "git-repository:Git/home/phlox-labs/platform/orchard",
-        relativePath: "phlox-labs/platform/orchard",
-        displaySegments: ["Git", "home", "phlox-labs", "platform", "orchard"],
-        cloneSessionKey: "git-clone:phlox-labs/platform/orchard",
+        id: "git-repository:Git/home/sample-labs/platform/orchard",
+        relativePath: "sample-labs/platform/orchard",
+        displaySegments: ["Git", "home", "sample-labs", "platform", "orchard"],
+        cloneSessionKey: "git-clone:sample-labs/platform/orchard",
       },
     ]);
     expect(JSON.stringify(result.nodes)).not.toContain(tempDir);
@@ -105,11 +105,11 @@ describe("discoverProjectCloneTree", () => {
     await makeGitRepository(tempDir, ".ssh/private-repo");
     await makeGitRepository(tempDir, ".hidden-worktrees/internal-repo");
     await makeGitRepository(tempDir, "chillwhales/build/output-repo");
-    await mkdir(join(tempDir, "phlox-labs"), { recursive: true });
+    await mkdir(join(tempDir, "sample-labs"), { recursive: true });
 
     let symlinkCreated = false;
     try {
-      await symlink(tempDir, join(tempDir, "phlox-labs", "loop"), "dir");
+      await symlink(tempDir, join(tempDir, "sample-labs", "loop"), "dir");
       symlinkCreated = true;
     } catch {
       symlinkCreated = false;
@@ -133,7 +133,7 @@ describe("discoverProjectCloneTree", () => {
 
     if (symlinkCreated) {
       expect(result.diagnostics.skippedPaths).toEqual(
-        expect.arrayContaining([{ relativePath: "phlox-labs/loop", reason: "invalid-path" }]),
+        expect.arrayContaining([{ relativePath: "sample-labs/loop", reason: "invalid-path" }]),
       );
     }
   });
@@ -157,7 +157,7 @@ describe("discoverProjectCloneTree", () => {
   it("enforces max repository count and returns the deterministic prefix of the scan", async () => {
     await makeGitRepository(tempDir, "kethalia/hive");
     await makeGitRepository(tempDir, "chillwhales/reef");
-    await makeGitRepository(tempDir, "phlox-labs/orchard");
+    await makeGitRepository(tempDir, "sample-labs/orchard");
 
     const result = await discoverProjectCloneTree(tempDir, { maxRepositories: 2 });
 
