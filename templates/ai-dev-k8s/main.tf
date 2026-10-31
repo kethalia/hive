@@ -1,4 +1,6 @@
 terraform {
+  required_version = ">= 1.9"
+
   required_providers {
     coder = {
       source  = "coder/coder"
@@ -435,6 +437,16 @@ module "git-config" {
 # =============================================================================
 # Native CLI modules and launchers (no agentapi/Tasks server)
 # =============================================================================
+
+# Hive owns CLI updates; config and authentication stay user-managed.
+module "codex" {
+  count         = data.coder_workspace.me.start_count
+  source        = "registry.coder.com/coder-labs/codex/coder"
+  version       = "5.5.0"
+  agent_id      = coder_agent.main.id
+  install_codex = false
+  manage_config = false
+}
 
 module "claude-code" {
   count               = data.coder_workspace.me.start_count

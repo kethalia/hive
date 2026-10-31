@@ -31,11 +31,14 @@ change should carry a short handoff with the branch, current state, and next act
 - Claude Code uses the official registry module 5.5.2 with installation disabled;
   the existing bounded startup updater owns CLI installation. The v5 module removes
   the old Tasks/agentapi server; a native terminal launcher replaces its app.
-- Codex keeps the existing updater and user-owned config/auth with a native launcher.
-  Registry module 5.4.2 writes `config.toml` on first use, even when installation is
-  disabled. Adopt it only after the proposed `manage_config = false` option is
-  released ([upstream PR](https://github.com/coder/registry/pull/1208)); do not point
-  production templates at an unreleased fork.
+- Codex uses the official `coder-labs/codex` registry module
+  [5.5.0](https://github.com/coder/registry/releases/tag/release/coder-labs/codex/v5.5.0)
+  across all five templates, with `install_codex = false` and `manage_config = false`.
+  Hive keeps its bounded startup updater and native terminal launcher. The module
+  leaves `config.toml` untouched, including when no config exists. No API-key or
+  configuration inputs are passed, so existing user authentication is retained.
+  This release requires Terraform 1.9 or newer. Existing workspaces adopt it only
+  at a deliberate template update/rebuild.
 - OpenCode is opt-in through the **OpenCode CLI** workspace parameter. Its official
   npm package is pinned to 1.19.4 for first installation; an existing installation
   is retained. The current coder-labs OpenCode module 0.1.3 still brings agentapi/
