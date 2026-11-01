@@ -262,6 +262,7 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   mkdirSync(join(canonical, "scripts"), { recursive: true });
   writeFileSync(join(canonical, ".terraform.lock.hcl"), "canonical lock\n");
   writeFileSync(join(canonical, "main.tf"), "# canonical Terraform\n");
+  writeFileSync(join(canonical, "docker.tf"), "# canonical Docker engine\n");
   writeFileSync(join(canonical, "WORKSPACE_ROUTING.md"), "# Canonical routing\n");
   writeFileSync(join(canonical, "scripts", "init.sh"), "#!/bin/sh\n");
 
@@ -325,6 +326,54 @@ test("repository manifests remain narrow and parseable", () => {
   assert.match(readTemplateFile("infrastructure", "repositories.txt"), /kethalia\/k8s-cluster/);
   assert.match(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/k8s-cluster/);
   assert.match(readTemplateFile("ai-dev-k8s", "repositories.txt"), /kethalia\/workflows/);
+});
+
+test("Docker engine has no agent credential, host access or TCP API and mounts only its workspace", () => {
+  const source = readTemplateFile("ai-dev-k8s", "scripts/docker-engine.json.tftpl");
+  const substitutions = {
+    name: "coder-fixture-docker",
+    workspace_id: "fixture",
+    home_claim: "coder-fixture-home",
+    docker_claim: "coder-fixture-docker",
+    image: `docker:fixture@sha256:${"a".repeat(64)}`,
+    script_b64: Buffer.from(readTemplateFile("ai-dev-k8s", "scripts/docker-engine.sh")).toString(
+      "base64",
+    ),
+    node_selector: JSON.stringify({ "hive.kethalia.com/sysbox-stage": "canary" }),
+    labels: JSON.stringify({ "app.kubernetes.io/instance": "coder-fixture-docker" }),
+  };
+  const manifest = JSON.parse(
+    source.replace(/\$\{([a-z_]+)\}/g, (_, key) => {
+      assert.ok(Object.hasOwn(substitutions, key), key);
+      return substitutions[key];
+    }),
+  );
+  const pod = manifest.spec.template.spec;
+  assert.equal(pod.runtimeClassName, "sysbox-runc");
+  assert.equal(pod.hostUsers, false);
+  assert.equal(pod.enableServiceLinks, false);
+  assert.equal(pod.automountServiceAccountToken, false);
+  assert.equal(pod.containers.length, 1);
+  assert.equal(pod.containers[0].securityContext.privileged, false);
+  assert.equal(pod.containers[0].env, undefined);
+  for (const key of ["hostNetwork", "hostPID", "hostIPC", "shareProcessNamespace"]) {
+    assert.notEqual(pod[key], true, key);
+  }
+  assert.deepEqual(pod.volumes.map((volume) => volume.persistentVolumeClaim.claimName).sort(), [
+    "coder-fixture-docker",
+    "coder-fixture-home",
+  ]);
+  assert.deepEqual(
+    pod.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector
+      .matchLabels,
+    { "app.kubernetes.io/name": "coder-workspace", "app.kubernetes.io/instance": "coder-fixture" },
+  );
+  const script = readTemplateFile("ai-dev-k8s", "scripts/docker-engine.sh");
+  assert.equal(spawnSync("sh", ["-n"], { input: script }).status, 0);
+  assert.match(script, /--host=unix:\/\/\/run\/hive-docker\/docker.sock/);
+  assert.doesNotMatch(script, /tcp:\/\/|2375|2376|\/sys\/class\/net/);
+  assert.match(script, /ip link show dev/);
+  assert.match(script, /--default-network-opt=/);
 });
 
 test("profile guidance encodes the intended interactive and capability boundaries", () => {

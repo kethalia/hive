@@ -35,6 +35,7 @@ const canonicalScriptRelativePaths = new Set(
 const sharedRelativePaths = [
   ".terraform.lock.hcl",
   "main.tf",
+  "docker.tf",
   "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
 ].sort();
