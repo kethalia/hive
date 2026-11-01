@@ -1,0 +1,63 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {"name": "${name}", "namespace": "coder", "labels": ${labels}},
+  "spec": {
+    "replicas": 1,
+    "strategy": {"type": "Recreate"},
+    "selector": {"matchLabels": ${labels}},
+    "template": {
+      "metadata": {"labels": ${labels}},
+      "spec": {
+        "runtimeClassName": "sysbox-runc",
+        "hostUsers": false,
+        "enableServiceLinks": false,
+        "automountServiceAccountToken": false,
+        "nodeSelector": ${node_selector},
+        "affinity": {
+          "podAffinity": {
+            "requiredDuringSchedulingIgnoredDuringExecution": [{
+              "labelSelector": {"matchLabels": {
+                "app.kubernetes.io/name": "coder-workspace",
+                "app.kubernetes.io/instance": "coder-${workspace_id}"
+              }},
+              "topologyKey": "kubernetes.io/hostname"
+            }]
+          }
+        },
+        "containers": [{
+          "name": "docker",
+          "image": "${image}",
+          "command": ["sh", "-c", "printf %s '${script_b64}' | base64 -d > /run/engine.sh && exec sh /run/engine.sh"],
+          "securityContext": {
+            "runAsUser": 0,
+            "privileged": false,
+            "appArmorProfile": {"type": "Unconfined"},
+            "seccompProfile": {"type": "Unconfined"}
+          },
+          "resources": {
+            "requests": {"cpu": "250m", "memory": "256Mi"},
+            "limits": {"cpu": "2", "memory": "2Gi"}
+          },
+          "startupProbe": {
+            "exec": {"command": ["docker", "--host=unix:///run/hive-docker/docker.sock", "info"]},
+            "periodSeconds": 3, "timeoutSeconds": 2, "failureThreshold": 60
+          },
+          "readinessProbe": {
+            "exec": {"command": ["docker", "--host=unix:///run/hive-docker/docker.sock", "info"]},
+            "periodSeconds": 5, "timeoutSeconds": 2
+          },
+          "volumeMounts": [
+            {"name": "docker", "mountPath": "/var/lib/docker", "subPath": "data"},
+            {"name": "docker", "mountPath": "/run/hive-docker", "subPath": "run"},
+            {"name": "home", "mountPath": "/home/coder"}
+          ]
+        }],
+        "volumes": [
+          {"name": "docker", "persistentVolumeClaim": {"claimName": "${docker_claim}"}},
+          {"name": "home", "persistentVolumeClaim": {"claimName": "${home_claim}"}}
+        ]
+      }
+    }
+  }
+}

@@ -71,7 +71,7 @@ resource "coder_agent" "main" {
     workspace_readme_content = file("${path.module}/WORKSPACE.md")
   })
 
-  env = {
+  env = merge({
     GIT_AUTHOR_NAME             = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_AUTHOR_EMAIL            = data.coder_workspace_owner.me.email
     GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
@@ -82,7 +82,10 @@ resource "coder_agent" "main" {
     HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
     HIVE_DESKTOP_ENABLED        = tostring(local.profile.capabilities.desktop)
     HIVE_BROWSER_ENABLED        = tostring(local.profile.capabilities.browser)
-  }
+    }, local.docker_enabled ? {
+    DOCKER_HOST          = "unix:///run/hive-docker/docker.sock"
+    HIVE_DOCKER_HOSTNAME = "coder-${data.coder_workspace.me.id}-docker.coder.svc.cluster.local"
+  } : {})
 
   metadata {
     display_name = "CPU Usage"
@@ -653,9 +656,9 @@ resource "kubernetes_deployment_v1" "workspace" {
       spec {
         automount_service_account_token = false
         hostname                        = local.workspace_hostname
-        node_selector = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+        node_selector = merge(try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
           "hive.kethalia.com/codex-sandbox" = local.profile.codex_sandbox_apparmor_profile
-        }
+        }, local.docker_enabled ? local.docker_node_selector : {})
 
         security_context {
           run_as_non_root        = true
@@ -692,7 +695,7 @@ resource "kubernetes_deployment_v1" "workspace" {
           command = [
             "sh",
             "-c",
-            "if [ ! -e /target/.hive-image-seeded ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/ && touch /target/.hive-image-seeded; fi",
+            "${local.docker_enabled ? "mkdir -p /docker-bootstrap/run && chmod 0750 /docker-bootstrap/run && " : ""}if [ ! -e /target/.hive-image-seeded ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/ && touch /target/.hive-image-seeded; fi",
           ]
 
           security_context {
@@ -719,6 +722,14 @@ resource "kubernetes_deployment_v1" "workspace" {
           volume_mount {
             name       = "home"
             mount_path = "/target"
+          }
+
+          dynamic "volume_mount" {
+            for_each = local.docker_enabled ? [1] : []
+            content {
+              name       = "docker"
+              mount_path = "/docker-bootstrap"
+            }
           }
         }
 
@@ -758,6 +769,14 @@ resource "kubernetes_deployment_v1" "workspace" {
             value = "/home/coder"
           }
 
+          dynamic "env" {
+            for_each = local.docker_enabled ? [1] : []
+            content {
+              name  = "DOCKER_HOST"
+              value = "unix:///run/hive-docker/docker.sock"
+            }
+          }
+
           resources {
             requests = {
               cpu    = local.profile.resources.cpu_request
@@ -773,6 +792,15 @@ resource "kubernetes_deployment_v1" "workspace" {
             name       = "home"
             mount_path = "/home/coder"
           }
+
+          dynamic "volume_mount" {
+            for_each = local.docker_enabled ? [1] : []
+            content {
+              name       = "docker"
+              mount_path = "/run/hive-docker"
+              sub_path   = "run"
+            }
+          }
         }
 
         volume {
@@ -780,6 +808,16 @@ resource "kubernetes_deployment_v1" "workspace" {
 
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.home.metadata[0].name
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.docker_enabled ? [1] : []
+          content {
+            name = "docker"
+            persistent_volume_claim {
+              claim_name = kubernetes_persistent_volume_claim_v1.docker[0].metadata[0].name
+            }
           }
         }
       }
