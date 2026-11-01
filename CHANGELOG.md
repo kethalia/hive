@@ -1,5 +1,15 @@
 # hive-orchestrator
 
+## 2.33.0
+
+### Minor Changes
+
+- c3d2792: Add an opt-in private Sysbox Docker engine to Software and Infrastructure workspace templates, preserving the agent sandbox and workspace storage across stop/start.
+
+### Patch Changes
+
+- f676b68: Remove private team repositories from newly seeded workspace manifests and use generic organization names in clone test fixtures.
+
 ## 2.32.1
 
 ### Patch Changes
