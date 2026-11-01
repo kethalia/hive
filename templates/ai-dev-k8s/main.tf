@@ -695,7 +695,7 @@ resource "kubernetes_deployment_v1" "workspace" {
           command = [
             "sh",
             "-c",
-            "${local.docker_enabled ? "mkdir -p /docker-bootstrap/run && chmod 0750 /docker-bootstrap/run && " : ""}if [ ! -e /target/.hive-image-seeded ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/ && touch /target/.hive-image-seeded; fi",
+            "if [ ! -e /target/.hive-image-seeded ]; then cp -R --no-preserve=ownership,timestamps /home/coder/. /target/ && touch /target/.hive-image-seeded; fi",
           ]
 
           security_context {
@@ -722,14 +722,6 @@ resource "kubernetes_deployment_v1" "workspace" {
           volume_mount {
             name       = "home"
             mount_path = "/target"
-          }
-
-          dynamic "volume_mount" {
-            for_each = local.docker_enabled ? [1] : []
-            content {
-              name       = "docker"
-              mount_path = "/docker-bootstrap"
-            }
           }
         }
 

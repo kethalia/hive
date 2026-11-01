@@ -58,7 +58,7 @@ resource "kubernetes_manifest" "docker" {
     node_selector = jsonencode(local.docker_node_selector)
     labels        = jsonencode(local.docker_labels)
   }))
-  # The agent pod seeds the socket directory and chooses the node first.
+  # The agent pod chooses the node first; kubelet creates the socket subpath.
   depends_on = [kubernetes_deployment_v1.workspace, kubernetes_network_policy_v1.docker]
 }
 
