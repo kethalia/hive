@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Live acceptance for a disposable, Docker-enabled Coder workspace (no credentials)."""
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 
 IMAGE = 'node:22-alpine@sha256:025b8e975a61d94e33abeafaad1255ef44e4898cf1a1b6446860009c72e6d284'
 
@@ -19,7 +21,7 @@ def run(*command, cwd=None, timeout=300):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('stage', choices=['produce', 'recover', 'isolate'])
+    parser.add_argument('stage', choices=['produce', 'recover', 'isolate', 'sandbox'])
     parser.add_argument('--revision', required=True)
     args = parser.parse_args()
     if not args.revision.isalnum() or len(args.revision) > 20:
@@ -34,7 +36,29 @@ def main():
     root = Path.home() / '.cache/hive/docker-acceptance' / args.revision
     tag = 'hive-acceptance:' + args.revision
     volume = 'hive-acceptance-' + args.revision
-    if args.stage == 'produce':
+    if args.stage == 'sandbox':
+        native = Path.home()/'.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex'
+        assert native.read_bytes()[:4] == b'\x7fELF', 'Installed native Codex executable required'
+        probe = '''import errno,json,socket
+try:
+ s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);s.settimeout(3);s.connect('/run/hive-docker/docker.sock')
+ s.sendall(b'GET /_ping HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n');r=s.recv(4096)
+ assert b'200 OK' in r
+ print(json.dumps({'connected':True}))
+except OSError as e:print(json.dumps({'connected':False,'errno':e.errno}))
+'''
+        assert json.loads(run('/usr/bin/python3','-I','-c',probe)) == {'connected':True}, 'Socket positive control failed'
+        with tempfile.TemporaryDirectory(prefix='.hive-docker-sandbox-',dir=Path.home()) as temporary:
+            private = Path(temporary);project=private/'project';project.mkdir()
+            home=private/'home';home.mkdir();empty=home/'empty';empty.mkdir()
+            env={'PATH':str(empty),'HOME':str(home),'CODEX_HOME':str(home),'LANG':'C.UTF-8'}
+            profile='permissions.hive-docker={filesystem={":minimal"="read",'+json.dumps(str(project))+'="write",'+json.dumps(str(native))+'="read"},network={enabled=false}}'
+            result=subprocess.run([str(native),'sandbox','-P','hive-docker','-c',profile,'-C',str(project),'--','/usr/bin/python3','-I','-c',probe],
+                                  env=env,cwd=project,text=True,capture_output=True,timeout=30)
+            assert result.returncode == 0, result.stderr
+            evidence=json.loads(result.stdout)
+            assert evidence.get('connected') is False and evidence.get('errno') in [errno.EACCES,errno.EPERM,errno.ENOENT], evidence
+    elif args.stage == 'produce':
         assert not root.exists(), 'Choose a fresh revision'
         root.mkdir(parents=True)
         (root / 'owned').mkdir()
