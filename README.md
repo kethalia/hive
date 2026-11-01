@@ -1,5 +1,8 @@
 # Hive
 
+[Website](https://hive.kethalia.com/) · [User guide](docs/features.md) ·
+[Deployment](docs/deployment.md)
+
 Hive brings terminals, Files, VS Code and desktop apps from your Coder environments into one
 persistent workspace. Arrange windows in resizable Grid or Strip layouts, keep multiple boards,
 and find sessions, repositories, apps and commands with Cmd/Ctrl+K.
