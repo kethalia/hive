@@ -1,5 +1,9 @@
 # Isolated delivery capability probe
 
+The capability-probe Worker described below was retired; the setup and deploy
+instructions are historical evidence and must not be used to recreate it. The
+canonical deployment is the [single Hive Worker](../environments.md).
+
 This is an F02 networking/transaction probe, separate from Hive's production edge proxy.
 It runs a plain Worker with the Neon HTTP driver and a Prisma 6.19 fixture client. Real local
 workerd has passed Prisma interactive callback transactions against the isolated Neon database.
@@ -10,7 +14,7 @@ On 2026-10-29, committed revision `e7110466dbe693a5501b5ef9e1738aa59f46b4b8` pas
 the bounded **Cloudflare network → Coder + Neon** checks. See [live results](live-evidence.json)
 and [deployment/version identity](deployment-evidence.json). Sixteen scripted Worker requests
 were used across initial diagnosis and final validation, within the authorized maximum of 20.
-The task Worker is retained with public `workers.dev` and version preview URLs **disabled**.
+The task Worker was later retired after public `workers.dev` and version preview URLs were disabled.
 The clean Neon test project is retained. No production routes, DNS, paid add-ons or plans changed.
 
 The probe has no production routes or `HIVE_ORIGIN`. Its Coder operation is fixed to

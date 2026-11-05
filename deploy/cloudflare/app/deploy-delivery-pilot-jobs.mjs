@@ -11,6 +11,12 @@ import { readJobsLocalProof } from "./jobs-local-proof.mjs";
 import { assertJobsTransition, PILOT_JOBS_CRON } from "./jobs-transition-policy.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
+if (process.argv.includes("--deploy")) {
+  console.error(
+    "Retired compatibility Workers cannot be deployed; use the native Hive Preview workflow.",
+  );
+  process.exit(1);
+}
 try {
   const [manifestPath, action, ...flags] = process.argv.slice(2);
   assert.ok(["create", "enable", "disable"].includes(action));

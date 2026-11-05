@@ -1,5 +1,10 @@
 # Actual Hive application compatibility build
 
+The separately named compatibility Workers described in this historical checkpoint
+were retired. Live uploads through `deploy-prepared.mjs` and the compatibility jobs
+helper are disabled; use the [single-Worker environments](../environments.md).
+Local build, dry-run and proof commands remain available.
+
 This builds the existing Hive Next.js application with the vendor OpenNext adapter. It is
 separate from the small `epic-preview` fixture and the production edge proxy. No cloud deployment
 or resource mutation has been performed for this slice. Public Workers URLs are disabled in the

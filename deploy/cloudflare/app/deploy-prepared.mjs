@@ -19,6 +19,12 @@ import { assertWorkspaceProjectsCandidate } from "./workspace-projects-candidate
 // Local artifact guard. The primary also rechecks connected-API ownership
 // immediately before an authorized upload. Default invocation is a dry run.
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+if (process.argv.includes("--deploy")) {
+  console.error(
+    "Retired compatibility Workers cannot be deployed; use the native Hive Preview workflow.",
+  );
+  process.exit(1);
+}
 try {
   const [manifestPath, kind] = process.argv.slice(2);
   assert.ok(["app", "auth"].includes(kind));

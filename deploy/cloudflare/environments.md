@@ -33,11 +33,15 @@ task-start checks are recorded in [pilot progress](../../docs/checks/autonomous-
 Full native host and browser acceptance remains pending. A merge alone cannot enable
 the production runtime, secrets or data cutover.
 
-The old app/auth/jobs compatibility Workers remain private and unscheduled while the
-native replacement is validated. Their historical [prepared-artifact workflow](app/README.md)
-and [deployment evidence](../../docs/checks/autonomous-delivery/cloudflare-app-deployment.json)
-are retained, not the canonical new deployment layout. Their existing data and secret
-identities must not be overwritten during migration.
+The old app/auth/jobs compatibility Workers and the earlier capability-probe Worker
+were retired at the user's direction. The [retirement receipt](../../docs/checks/autonomous-delivery/cloudflare-single-worker-retirement.json)
+records exact identities, deletion and the remaining native Preview; Neon databases
+and R2 storage were retained. Provider code and settings were privately archived,
+but Cloudflare's write-only retired secret values were not exported. They may not be
+recoverable, so retained compatibility data is not guaranteed to be decryptable.
+The historical [prepared-artifact workflow](app/README.md) and
+[deployment evidence](../../docs/checks/autonomous-delivery/cloudflare-app-deployment.json)
+remain for reference; the compatibility deployment helpers now refuse live uploads.
 
 Browser validation still runs in Browser Testing; Coder development workspaces remain
 on Kubernetes. Existing production remains on Kubernetes until the user approves the

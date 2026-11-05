@@ -1131,7 +1131,8 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   native branch Previews and in-process app/auth/jobs composition. Read-only references were
   Creative Studio's integration worktree and Top Decor Ledger; neither was changed. The three
   task-created inert production reservations were verified and retired, with receipts retained.
-  Old compatibility pilot Workers remain private and unscheduled while the replacement is validated.
+  The compatibility pilot Workers were initially retained private and unscheduled; their later
+  user-directed retirement is recorded below.
 - Implementation/review: native composition, exact-origin configuration and deployment guards
   are committed at `feecfcb7`. Scheduled failures now wait for sibling handlers to settle;
   source readiness includes native/jobs handlers and is enforced before publication. Sixteen
@@ -1260,3 +1261,17 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Native browser continuity, actual manager/subagent/publication and pre-admission recovery
   remain open gates. Replacing an independently verified unexecuted test request is not proof
   that the ordinary task-retry path recovers a request that never reached the host.
+
+### Retired compatibility Workers
+
+The user directed removal of the four obsolete Workers. Fresh provider identity
+checks matched each recorded name, tag and creation time; the jobs, app, auth and
+capability Workers were removed without force in dependency order. Readback found
+only the `hive` parent and retained native branch Preview; its production deployment
+was unchanged. The [retirement receipt](cloudflare-single-worker-retirement.json)
+records the identities and results. The Neon databases and R2 bucket remain intact.
+Code and provider settings were privately archived, but write-only Worker secret
+values could not be exported; retained compatibility data may therefore depend on
+unrecoverable retired keys. This retirement does not prove native manager/browser
+acceptance or authorize production cutover. Compatibility upload helpers refuse
+live deployment; local build and proof workflows remain available.
