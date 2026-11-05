@@ -98,9 +98,10 @@ export async function writeEpicPlan(
       epicDigest(previous.criteria) !== epicDigest(plan.criteria)
     )
       throw new DeliveryConflict("epic_criteria_immutable");
-    const started = await tx.$queryRaw<
-      { intent_id: string }[]
-    >`SELECT intent_id FROM delivery_epic_writer_reservations WHERE owner_id=${ownerId}::uuid AND epic_id=${epic.id}::uuid UNION SELECT intent_id FROM delivery_epic_start_intents WHERE owner_id=${ownerId}::uuid AND epic_id=${epic.id}::uuid UNION SELECT i.id AS intent_id FROM project_task_intents i WHERE i.owner_id=${ownerId}::uuid AND i.project_id=${epic.projectId}::uuid AND i.id IN (${Prisma.join(previous.tasks.map((t) => Prisma.sql`${t.intentId}::uuid`))})`;
+    // Normalize joined fragments before the query reaches the Workerd Prisma client.
+    const started = await tx.$queryRaw<{ intent_id: string }[]>(
+      Prisma.sql`SELECT intent_id FROM delivery_epic_writer_reservations WHERE owner_id=${ownerId}::uuid AND epic_id=${epic.id}::uuid UNION SELECT intent_id FROM delivery_epic_start_intents WHERE owner_id=${ownerId}::uuid AND epic_id=${epic.id}::uuid UNION SELECT i.id AS intent_id FROM project_task_intents i WHERE i.owner_id=${ownerId}::uuid AND i.project_id=${epic.projectId}::uuid AND i.id IN (${Prisma.join(previous.tasks.map((t) => Prisma.sql`${t.intentId}::uuid`))})`,
+    );
     for (const row of started) {
       const a = previous.tasks.find((t) => t.intentId === row.intent_id),
         b = plan.tasks.find((t) => t.intentId === row.intent_id);

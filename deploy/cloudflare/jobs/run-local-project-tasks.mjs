@@ -28,6 +28,8 @@ const sourcePaths = [
   "src/lib/projects/reconcile-route.server.ts",
   "src/lib/projects/task.server.ts",
   "src/lib/projects/task-intents.server.ts",
+  "src/lib/delivery/repository-policy-store.server.ts",
+  "src/lib/delivery/repository-policy-contracts.ts",
   "src/lib/projects/host.server.ts",
   "src/lib/coder/user-client.ts",
   "src/lib/coder/client.ts",
@@ -280,11 +282,40 @@ try {
       platform: "node",
       conditions: ["workerd", "worker", "browser"],
       target: "es2022",
+      define: { "import.meta.url": '"file:///tmp/hive-policy-fixture.mjs"' },
       banner: {
         js: 'import {createRequire as fixtureRequire} from "node:module";const require=fixtureRequire("/");',
       },
       external: ["node:*", "cloudflare:*"],
       plugins: [
+        {
+          name: "node-prisma-for-policy-fixture",
+          setup(b) {
+            if (process.env.HIVE_POLICY_TEST_OLD_QUERY === "1") {
+              b.onLoad({ filter: /repository-policy-store\.server\.ts$/ }, async (args) => {
+                const original = await readFile(args.path, "utf8");
+                const pattern =
+                  /await tx\.\$queryRaw<PolicyRow\[\]>\(\s*Prisma\.sql`(SELECT \$\{policyColumns\}[^`]+)`[,]?\s*\)/;
+                const modified = original.replace(pattern, "await tx.$queryRaw<PolicyRow[]>`$1`");
+                assert.notEqual(modified, original, "The pre-fix regression must be injected");
+                return { contents: modified, loader: "ts", resolveDir: dirname(args.path) };
+              });
+            }
+            b.onResolve({ filter: /^@hive\/db$/ }, (args) =>
+              args.importer.endsWith("repository-policy-store.server.ts") ||
+              args.importer.endsWith("local-project-tasks.worker.ts")
+                ? { path: "policy-node-prisma", namespace: "policy-prisma" }
+                : undefined,
+            );
+            b.onLoad({ filter: /.*/, namespace: "policy-prisma" }, () => ({
+              contents: `import { sqltag, join } from "@prisma/client/runtime/library";
+                export { getDb } from "@hive/db";
+                export const Prisma = { sql: sqltag, join, TransactionIsolationLevel: { Serializable: "Serializable" } };`,
+              resolveDir: resolve("packages/db"),
+              loader: "js",
+            }));
+          },
+        },
         {
           name: "wasm",
           setup(b) {
@@ -373,6 +404,65 @@ try {
     appService = await mf.getWorker("app"),
     provider = await mf.getWorker("coder");
   const stats = async () => await (await provider.fetch("https://fixture.invalid/__stats")).json();
+  const policyFixture = {
+    schemaVersion: 1,
+    source: {
+      version: "local-v1",
+      authorName: "Hive fixture",
+      authorEmail: "fixture@example.invalid",
+      baseBranch: "main",
+      allowedPrefixes: ["docs"],
+      maxFiles: 2,
+      maxFileBytes: 1000,
+      maxBytes: 2000,
+    },
+    evidenceGates: {
+      version: "local-v1",
+      maxAgeMs: 60000,
+      checks: [
+        {
+          name: "Test",
+          workflowId: "61",
+          appId: "81",
+          appSlug: "github-actions",
+          events: ["pull_request"],
+          criterionIds: ["repo:ci"],
+        },
+      ],
+      codexReview: { userId: "10", appId: "11", criterionIds: ["repo:review"] },
+      formalReviewers: [],
+    },
+    acceptanceContracts: [],
+  };
+  const policyProject = await db.deliveryProject.create({
+    data: {
+      ownerId,
+      provider: "github",
+      providerRepositoryId: "789",
+      providerAccountId: "456",
+      fullName: "synthetic/policy",
+    },
+  });
+  const policyResponse = await appService.fetch("https://fixture.invalid/__policy-enrollment", {
+    method: "POST",
+    body: JSON.stringify({
+      ownerId,
+      projectId: policyProject.id,
+      catalog: [
+        {
+          ownerId,
+          repositoryId: "789",
+          providerAccountId: "456",
+          fullName: "synthetic/policy",
+          policy: policyFixture,
+        },
+      ],
+    }),
+  });
+  assert.equal(policyResponse.status, 200);
+  assert.deepEqual(await policyResponse.json(), { enrolled: true, epicJoin: true });
+  checks.actualWorkerdPolicyEnrollmentAndReplay = true;
+  checks.actualWorkerdEpicJoin = true;
   const timeout = await (await appService.fetch("https://fixture.invalid/__pg-timeout")).json();
   observations.statementTimeout = timeout;
   assert.equal(timeout.sqlstate, "57014");

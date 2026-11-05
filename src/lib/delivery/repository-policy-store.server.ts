@@ -73,6 +73,7 @@ type BindingRow = {
   criterionCoverage: unknown;
   pendingRequirements: unknown;
 };
+// Build complete queries in this Prisma namespace before the Workerd client receives them.
 const policyColumns = Prisma.sql`id,owner_id AS "ownerId",project_id AS "projectId",repository_id AS "repositoryId",provider_account_id AS "providerAccountId",full_name AS "fullName",active_version_id AS "activeVersionId",generation,revoked_at AS "revokedAt"`;
 const versionColumns = Prisma.sql`id,owner_id AS "ownerId",project_id AS "projectId",policy_id AS "policyId",version,policy_digest AS "policyDigest",catalog_digest AS "catalogDigest",source_policy AS "sourcePolicy",evidence_gates AS "evidenceGates",acceptance_contracts AS "acceptanceContracts",verified_identity AS "verifiedIdentity",verified_identity_digest AS "verifiedIdentityDigest",revoked_at AS "revokedAt"`;
 const bindingColumns = Prisma.sql`owner_id AS "ownerId",task_id AS "taskId",project_id AS "projectId",intent_id AS "intentId",policy_version_id AS "policyVersionId",policy_digest AS "policyDigest",binding_digest AS "bindingDigest",intent_text_digest AS "intentTextDigest",outcome_digest AS "outcomeDigest",source_base AS "sourceBase",compiled_evidence_policy AS "compiledEvidencePolicy",criterion_coverage AS "criterionCoverage",pending_requirements AS "pendingRequirements"`;
@@ -175,9 +176,9 @@ export class RepositoryPolicyStore {
         reject("repository_policy_identity_changed");
       await tx.$executeRaw`INSERT INTO delivery_repository_policies(id,owner_id,project_id,provider,repository_id,provider_account_id,full_name) VALUES(${randomUUID()}::uuid,${ownerId}::uuid,${projectId}::uuid,'github',${verified.repositoryId},${verified.providerAccountId},${verified.fullName}) ON CONFLICT(owner_id,project_id) DO NOTHING`;
       const p = (
-        await tx.$queryRaw<
-          PolicyRow[]
-        >`SELECT ${policyColumns} FROM delivery_repository_policies WHERE owner_id=${ownerId}::uuid AND project_id=${projectId}::uuid FOR UPDATE`
+        await tx.$queryRaw<PolicyRow[]>(
+          Prisma.sql`SELECT ${policyColumns} FROM delivery_repository_policies WHERE owner_id=${ownerId}::uuid AND project_id=${projectId}::uuid FOR UPDATE`,
+        )
       )[0];
       if (
         !p ||
@@ -189,9 +190,9 @@ export class RepositoryPolicyStore {
         reject("repository_policy_enrollment_revoked");
       const old = p.activeVersionId
         ? (
-            await tx.$queryRaw<
-              VersionRow[]
-            >`SELECT ${versionColumns} FROM delivery_repository_policy_versions WHERE owner_id=${ownerId}::uuid AND id=${p.activeVersionId}::uuid FOR UPDATE`
+            await tx.$queryRaw<VersionRow[]>(
+              Prisma.sql`SELECT ${versionColumns} FROM delivery_repository_policy_versions WHERE owner_id=${ownerId}::uuid AND id=${p.activeVersionId}::uuid FOR UPDATE`,
+            )
           )[0]
         : undefined;
       // A revoked active version cannot be resurrected by the next ordinary
@@ -254,14 +255,14 @@ export class RepositoryPolicyStore {
     // Global order is project -> policy -> version, including importer/revoker.
     await tx.$queryRaw`SELECT id FROM delivery_projects WHERE owner_id=${ownerId}::uuid AND id=${projectId}::uuid FOR SHARE`;
     const parent = (
-      await tx.$queryRaw<
-        PolicyRow[]
-      >`SELECT ${policyColumns} FROM delivery_repository_policies WHERE owner_id=${ownerId}::uuid AND project_id=${projectId}::uuid FOR UPDATE`
+      await tx.$queryRaw<PolicyRow[]>(
+        Prisma.sql`SELECT ${policyColumns} FROM delivery_repository_policies WHERE owner_id=${ownerId}::uuid AND project_id=${projectId}::uuid FOR UPDATE`,
+      )
     )[0];
     const version = (
-      await tx.$queryRaw<
-        VersionRow[]
-      >`SELECT ${versionColumns} FROM delivery_repository_policy_versions WHERE owner_id=${ownerId}::uuid AND project_id=${projectId}::uuid AND id=${versionId}::uuid FOR UPDATE`
+      await tx.$queryRaw<VersionRow[]>(
+        Prisma.sql`SELECT ${versionColumns} FROM delivery_repository_policy_versions WHERE owner_id=${ownerId}::uuid AND project_id=${projectId}::uuid AND id=${versionId}::uuid FOR UPDATE`,
+      )
     )[0];
     if (
       !parent ||
@@ -381,9 +382,9 @@ export class RepositoryPolicyStore {
     const bindingDigest = githubSourceDigest(binding);
     await tx.$executeRaw`INSERT INTO delivery_task_policy_bindings(owner_id,task_id,project_id,intent_id,policy_version_id,policy_digest,binding_digest,intent_text_digest,outcome_digest,source_base,compiled_evidence_policy,criterion_coverage,pending_requirements) VALUES(${ownerId}::uuid,${taskId}::uuid,${task.projectId}::uuid,${intentId}::uuid,${intent.versionId}::uuid,${intent.policyDigest},${bindingDigest},${intent.textDigest},${projection.outcomeDigest},${intent.sourceSha},${JSON.stringify(projection.compiledEvidencePolicy)}::jsonb,${JSON.stringify(projection.criterionCoverage)}::jsonb,${JSON.stringify(projection.pendingRequirements)}::jsonb) ON CONFLICT(owner_id,task_id) DO NOTHING`;
     const saved = (
-      await tx.$queryRaw<
-        BindingRow[]
-      >`SELECT ${bindingColumns} FROM delivery_task_policy_bindings WHERE owner_id=${ownerId}::uuid AND task_id=${taskId}::uuid`
+      await tx.$queryRaw<BindingRow[]>(
+        Prisma.sql`SELECT ${bindingColumns} FROM delivery_task_policy_bindings WHERE owner_id=${ownerId}::uuid AND task_id=${taskId}::uuid`,
+      )
     )[0];
     if (!saved || saved.bindingDigest !== bindingDigest)
       reject("repository_policy_binding_conflict");
@@ -393,9 +394,9 @@ export class RepositoryPolicyStore {
    * never regain weaker legacy map policy by disabling the rollout flag. */
   async resolveTask(tx: Tx, ownerId: string, taskId: string) {
     const binding = (
-      await tx.$queryRaw<
-        BindingRow[]
-      >`SELECT ${bindingColumns} FROM delivery_task_policy_bindings WHERE owner_id=${ownerId}::uuid AND task_id=${taskId}::uuid`
+      await tx.$queryRaw<BindingRow[]>(
+        Prisma.sql`SELECT ${bindingColumns} FROM delivery_task_policy_bindings WHERE owner_id=${ownerId}::uuid AND task_id=${taskId}::uuid`,
+      )
     )[0];
     if (!binding) {
       const task = await tx.deliveryTask.findUnique({

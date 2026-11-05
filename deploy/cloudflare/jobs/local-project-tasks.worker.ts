@@ -1,8 +1,9 @@
 // LOCAL PROOF ONLY: production private app lifetime + route, without a Next build.
 
-import { getDb } from "@hive/db";
+import { getDb, Prisma } from "@hive/db";
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
 import { neonConfig } from "../../../packages/db/node_modules/@neondatabase/serverless/index.mjs";
+import { RepositoryPolicyStore } from "../../../src/lib/delivery/repository-policy-store.server";
 import { projectReconcileRoute } from "../../../src/lib/projects/reconcile-route.server";
 import {
   PROJECT_RECONCILE_DEADLINE,
@@ -85,6 +86,46 @@ export default {
     neonConfig.useSecureWebSocket = false;
     neonConfig.pipelineConnect = false;
     neonConfig.pipelineTLS = false;
+    if (new URL(request.url).pathname === "/__policy-enrollment") {
+      const fixture = (await request.json()) as {
+        ownerId: string;
+        projectId: string;
+        catalog: unknown;
+      };
+      const database = createCloudflareDatabaseRequest(env.DATABASE_URL, {
+        queryTimeoutMillis: 5000,
+        transactionTimeoutMillis: 10000,
+      });
+      return database.run(async () => {
+        try {
+          const store = new RepositoryPolicyStore(getDb(), {
+            enabled: true,
+            readCatalog: () => fixture.catalog,
+            verifyRepository: async () => ({
+              repositoryId: "789",
+              providerAccountId: "456",
+              fullName: "synthetic/policy",
+              defaultBranch: "main",
+              defaultRevision: "a".repeat(40),
+              archived: false,
+              permissions: { pull: true, push: true },
+            }),
+          });
+          const first = await store.enroll(fixture.ownerId, fixture.projectId);
+          const second = await store.enroll(fixture.ownerId, fixture.projectId);
+          const intent = "11111111-1111-4111-8111-111111111111";
+          const rows = await getDb().$queryRaw<{ id: string }[]>(
+            Prisma.sql`SELECT id FROM (VALUES (${intent}::uuid)) AS fixture(id) WHERE id IN (${Prisma.join([Prisma.sql`${intent}::uuid`])})`,
+          );
+          return Response.json({
+            enrolled: first.versionId === second.versionId,
+            epicJoin: rows.length === 1 && rows[0].id === intent,
+          });
+        } finally {
+          await database.close();
+        }
+      });
+    }
     if (new URL(request.url).pathname === "/__pg-timeout") {
       const database = createCloudflareDatabaseRequest(env.DATABASE_URL, {
         queryTimeoutMillis: 1000,
