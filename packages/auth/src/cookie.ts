@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { HEX_64_RE } from "./constants";
 
 // Invalidate previously shared cookies even if a stolen value is renamed to
 // __Host-hive-session by a non-browser client during the migration.
@@ -23,7 +24,9 @@ export function verifyCookie(
   if (parts.length !== 3) return null;
 
   const [sessionId, timestampStr, providedHmac] = parts;
-  if (!sessionId || !timestampStr || !providedHmac) return null;
+  // Buffer's hex decoder silently truncates malformed or odd-length suffixes.
+  // Validate the complete signature before decoding it for comparison.
+  if (!sessionId || !timestampStr || !HEX_64_RE.test(providedHmac)) return null;
 
   const timestamp = Number(timestampStr);
   if (!Number.isFinite(timestamp)) return null;
