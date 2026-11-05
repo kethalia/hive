@@ -84,14 +84,24 @@ export async function releaseAuthReadiness(
 ): Promise<unknown> {
   return withReleaseDeadline(
     async (signal) => {
-      const response = await fetcher(
-        new Request(`https://auth.internal${RELEASE_HEALTH_PATH}`, {
-          signal,
-          headers: { "X-Hive-Release-Probe": secret },
-        }),
-      );
-      if (!response.ok) throw new Error("auth unavailable");
-      return boundedReleaseJson(response, 4096, signal);
+      const request = new Request(`https://auth.internal${RELEASE_HEALTH_PATH}`, {
+        signal,
+        headers: { "X-Hive-Release-Probe": secret },
+      });
+      // Node's Request finalizer can detach its dependent signal even while a
+      // caller retains that signal. Keep the Request reachable until the body
+      // is read/canceled so deadline abort reaches the transport as well.
+      const retainRequest = () => {
+        void request.signal;
+      };
+      signal.addEventListener("abort", retainRequest, { once: true });
+      try {
+        const response = await fetcher(request);
+        if (!response.ok) throw new Error("auth unavailable");
+        return await boundedReleaseJson(response, 4096, signal);
+      } finally {
+        signal.removeEventListener("abort", retainRequest);
+      }
     },
     parent,
     timeoutMs,
