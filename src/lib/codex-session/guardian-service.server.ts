@@ -37,6 +37,20 @@ import { RegistrationRejected } from "./registration-store.server";
 const requireGuardian: (value: unknown) => asserts value = (value) => {
   if (!value) throw new RegistrationRejected();
 };
+const waitForClock = (delay: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, delay);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 const fingerprint = (pem: string) =>
   createHash("sha256")
@@ -74,6 +88,7 @@ export interface GuardianServiceDependencies {
   transport?: GuardianOwnerTransport;
   signal?: AbortSignal;
   now?: () => number;
+  clockWait?: (delay: number, signal?: AbortSignal) => Promise<void>;
   env?: Record<string, string | undefined>;
   onProvisionStage?: (stage: GuardianProvisionStage) => void;
 }
@@ -236,8 +251,21 @@ export class GuardianService {
       nonce = randomBytes(32).toString("hex");
     this.dependencies.onProvisionStage?.("guardian_identity_transport");
     const identity = await transport.identity(binding, nonce);
+    this.dependencies.onProvisionStage?.("guardian_identity_schema");
+    const parsedIdentity = guardianIdentityResponseSchema.parse(identity);
+    this.active();
+    if (parsedIdentity.issuedAt > this.now()) {
+      const wait = this.dependencies.clockWait ?? waitForClock;
+      await wait(0, this.dependencies.signal);
+      this.active();
+      const remaining = parsedIdentity.issuedAt - this.now();
+      if (remaining > 0 && remaining <= 1000) {
+        await wait(remaining + 1, this.dependencies.signal);
+        this.active();
+      }
+    }
     this.dependencies.onProvisionStage?.("guardian_identity_validation");
-    const packet = this.verifyIdentity(binding, identity, nonce);
+    const packet = this.verifyIdentity(binding, parsedIdentity, nonce);
     this.active();
     this.dependencies.onProvisionStage?.("guardian_runtime_reservation");
     const existing = await this.db.codexGuardianRuntime.findFirst({

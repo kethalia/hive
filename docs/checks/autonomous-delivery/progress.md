@@ -1262,6 +1262,17 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   remain open gates. Replacing an independently verified unexecuted test request is not proof
   that the ordinary task-retry path recovers a request that never reached the host.
 
+- The live granular check subsequently recorded `guardian_identity_future`: the received
+  issuance time was later than the verifier's sampled clock. Cloudflare's
+  [timer contract](https://developers.cloudflare.com/workers/runtime-apis/performance/)
+  explains that time advances after I/O; the precise offset was not measured. The implementation
+  now resamples through an abortable timer and may wait at most about one second for a small
+  remaining difference. It never clamps time or accepts a timestamp still in the future.
+  Original expiry, signed duration, nonce, signature, pins and process checks remain in place.
+  Focused PostgreSQL tests cover frozen clocks, bounded waiting, continued-future rejection,
+  invalid identity and cancellation, and independent review found no remaining issue.
+  Actual remote enrollment after this fix remains to be validated.
+
 ### Retired compatibility Workers
 
 The user directed removal of the four obsolete Workers. Fresh provider identity

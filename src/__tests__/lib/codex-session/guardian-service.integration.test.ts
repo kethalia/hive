@@ -40,7 +40,13 @@ async function fixture(
   onProvisionStage?: (
     stage: import("@/lib/codex-session/guardian-service.server").GuardianProvisionStage,
   ) => void,
-  options?: { now?: number; corruptProof?: boolean },
+  options?: {
+    now?: number;
+    nowFn?: () => number;
+    clockWait?: (delay: number, signal?: AbortSignal) => Promise<void>;
+    signal?: AbortSignal;
+    corruptProof?: boolean;
+  },
 ) {
   const issuer = generateKeyPairSync("ed25519"),
     outer = generateKeyPairSync("ed25519");
@@ -125,7 +131,9 @@ async function fixture(
   service = new GuardianService(db, config, policy, "19".repeat(32), {
     env,
     onProvisionStage,
-    now: options?.now === undefined ? undefined : () => options.now!,
+    now: options?.nowFn ?? (options?.now === undefined ? undefined : () => options.now!),
+    clockWait: options?.clockWait,
+    signal: options?.signal,
     resolveWorkspace: async (p) => {
       resolutions++;
       expect(p).toEqual(principal);
@@ -338,6 +346,93 @@ describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQ
         RegistrationRejected,
       );
       expect(stages.at(-1)).toBe(`guardian_identity_${item.stage}`);
+    }
+  });
+  it("resamples the clock without accepting future identities or bypassing cancellation", async () => {
+    const base = 1_800_000_000_000;
+    for (const scenario of [
+      "refresh",
+      "wait",
+      "too_far",
+      "frozen",
+      "cancel",
+      "expired",
+      "nonce",
+      "signature",
+    ] as const) {
+      let current = base;
+      const waits: number[] = [];
+      const stages: string[] = [];
+      const controller = new AbortController();
+      const f = await fixture(
+        (p) => {
+          p.issuedAt = base + (scenario === "too_far" ? 1001 : 100);
+          p.expiresAt = base + (scenario === "expired" ? 100 : 30000);
+          if (scenario === "nonce") p.nonce = "0".repeat(64);
+        },
+        undefined,
+        (stage) => stages.push(stage),
+        {
+          nowFn: () => current,
+          signal: controller.signal,
+          corruptProof: scenario === "signature",
+          clockWait: async (delay) => {
+            waits.push(delay);
+            if (["refresh", "expired", "nonce", "signature"].includes(scenario))
+              current = base + 100;
+            if (scenario === "wait" && delay > 0) current = base + 101;
+            if (scenario === "cancel") controller.abort(new Error("cancelled"));
+          },
+        },
+      );
+      const reserve = vi
+        .spyOn(GuardianAdmissionStore.prototype, "reserveRuntime")
+        .mockRejectedValueOnce(new RegistrationRejected());
+      try {
+        const result = f.service.provision(f.principal, f.binding.workspaceId);
+        if (scenario === "cancel") await expect(result).rejects.toThrow("cancelled");
+        else await expect(result).rejects.toBeInstanceOf(RegistrationRejected);
+        expect(waits).toEqual(scenario === "wait" || scenario === "frozen" ? [0, 101] : [0]);
+        if (scenario === "refresh" || scenario === "wait") {
+          expect(stages.at(-1)).toBe("guardian_runtime_reservation");
+          expect(reserve).toHaveBeenCalledOnce();
+        } else {
+          expect(reserve).not.toHaveBeenCalled();
+          expect(f.grant).toBe("");
+          if (scenario === "too_far" || scenario === "frozen")
+            expect(stages.at(-1)).toBe("guardian_identity_future");
+          if (["expired", "nonce", "signature"].includes(scenario))
+            expect(stages.at(-1)).toBe(`guardian_identity_${scenario}`);
+        }
+      } finally {
+        reserve.mockRestore();
+      }
+    }
+  });
+  it("interrupts the real clock timer on cancellation before reservation", async () => {
+    const base = 1_800_000_000_000;
+    const controller = new AbortController();
+    const f = await fixture(
+      (p) => {
+        p.issuedAt = base + 500;
+        p.expiresAt = base + 30000;
+      },
+      undefined,
+      (stage) => {
+        if (stage === "guardian_identity_schema")
+          setTimeout(() => controller.abort(new Error("cancelled")), 0);
+      },
+      { now: base, signal: controller.signal },
+    );
+    const reserve = vi.spyOn(GuardianAdmissionStore.prototype, "reserveRuntime");
+    try {
+      await expect(f.service.provision(f.principal, f.binding.workspaceId)).rejects.toThrow(
+        "cancelled",
+      );
+      expect(reserve).not.toHaveBeenCalled();
+      expect(f.grant).toBe("");
+    } finally {
+      reserve.mockRestore();
     }
   });
   it("fresh owner-app identity issues a one-use key/lifetime grant and records real enrollment", async () => {

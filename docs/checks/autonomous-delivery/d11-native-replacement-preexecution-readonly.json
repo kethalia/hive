@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T22:17:27.695761+00:00",
+  "purpose": "Read-only pre-execution evidence; not an operator enrollment or proof of live kernel quiescence",
+  "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "buildId": "0a6d2566-432d-481b-b962-5d071681b54b",
+  "workspaceBuildOwnerTemplateMatches": true,
+  "agent": "connected and ready",
+  "recordedWorkerIdentityAndGuardedPathVerified": true,
+  "guardianJournalHmacValid": true,
+  "guardianJournalPhase": "startupReady",
+  "guardianAdmissionEventCount": 0,
+  "guardianControllerFilePresent": false,
+  "projectJournalHmacValid": true,
+  "projectJournalProjectCount": 1,
+  "projectJournalTaskCount": 0,
+  "supervisorRegistryFilePresent": false,
+  "supervisorTmuxSocketPresent": false,
+  "managedCodexExecutableProcessCount": 0,
+  "tmuxExecutableProcessCount": 0,
+  "procUnreadableOrExitedCount": 1,
+  "databaseSnapshot": {
+    "oldIntentId": "3f7b4ce4-eb01-52aa-adbb-f7d031e87206",
+    "phaseAtRead": "queued",
+    "failureCount": 2,
+    "failureStage": "guardian",
+    "hadLeaseAtRead": false,
+    "pastPreparationTimeout": true,
+    "guardians": 0,
+    "admissionsForOldIntent": 0,
+    "registrations": 0,
+    "deliveryTasks": 0
+  },
+  "limits": [
+    "A process and authenticated journal snapshot cannot establish the live guardian in-memory inventory or exclude a process hidden by a racing/unreadable proc entry.",
+    "Database observations predate the subsequent owner-controlled timeout reconciliation and are not a current lease assertion.",
+    "No identity-only request was made because it can create controller state; no host or database writes were made."
+  ],
+  "operatorEnrollmentGranted": false
+}
