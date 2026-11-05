@@ -6,6 +6,15 @@ Native Previews use the `previews` block and the exact Git branch as the Preview
 
 Branch Previews share the dedicated synthetic preview database; they do not isolate data from each other. No R2 bucket or service binding is configured. Discovery, task execution, delivery, host gateway, dispatch and token rotation start disabled. Preview schedules remain disabled. Delivery-enabled acceptance requires a separately reviewed branch and matching host issuer and enrollment.
 
+Production has no cron configured yet. The reviewed dispatcher routes the exact
+`* * * * *` event to jobs and the exact `*/5 * * * *` event to app release and
+auth rotation. Both events can occur at the same minute without invoking jobs
+twice. Provider scheduling is not a deadline guarantee; guardian authority and
+durable retry/hold rules remain authoritative. The older compatibility pilot's
+`HIVE_DELIVERY_PILOT_MODE` and `HIVE_DELIVERY_PILOT_SCHEDULE_ENABLED` flags
+restrict jobs to the five-minute pilot schedule and must remain off for this
+production cadence.
+
 Only trusted same-repository branch code may use this shared Preview Base. Preview code can read its Base secrets and directly access its database even when application features are disabled. Do not enable automatic builds for untrusted forks or arbitrary PR code; use independently provisioned branch resources and secrets before relaxing that restriction. Base configuration may also add provider-managed bindings, so inspect it before enabling builds and verify each deployed Preview's effective bindings.
 
 Before connecting Workers Builds, provision the parent Worker and configure its Previews Base with **preview-only** values for `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET`, `AUTH_SERVICE_SECRET`, `PREVIEW_BEARER`, and `PREVIEW_COOKIE_SECRET`. The database must be the isolated preview database with its restricted runtime role. Existing encryption/session/issuer keys must be retained where existing preview data or issued tokens depend on them. Do not put secret values into Git, config, build variables, or arguments. Base secrets apply to newly created Previews; updating an existing Preview requires the separate native Preview secret command. Missing secrets leave the Preview unavailable. Preview URLs are publicly reachable, and the app's preview bearer/cookie gate must be configured and verified before use.
@@ -26,6 +35,8 @@ WORKERS_CI_BRANCH=main node deploy/cloudflare/native/deploy.mjs production --che
 node --test deploy/cloudflare/native/deploy.test.mjs
 ```
 
-The dry run compiles equivalent Preview-safe bindings with a local-only placeholder origin using `wrangler deploy --dry-run`; native `wrangler preview` itself has no dry-run option. Run `pnpm build:cloudflare` first so the generated app and portable-action artifacts exist. Neither `--check` nor `--dry-run` contacts the provider or determines a real Preview origin. Neither validates remote Base secrets, provider routing, Neon identity, PR integration, or deployed behavior. Keep existing pilot Workers and data until the replacement is independently validated.
+The dry run compiles equivalent Preview-safe bindings with a local-only placeholder origin using `wrangler deploy --dry-run`; native `wrangler preview` itself has no dry-run option. Run `pnpm build:cloudflare` first so the generated app and portable-action artifacts exist. Neither `--check` nor `--dry-run` contacts the provider or determines a real Preview origin. Neither validates remote Base secrets, provider routing, Neon identity, PR integration, or deployed behavior. Keep the retained native Preview and its required data while acceptance remains in progress; the obsolete compatibility Workers have been retired.
 
 References: [Cloudflare Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/) and [Preview resource isolation](https://developers.cloudflare.com/workers/previews/resources/).
+
+First-production preparation is available through the [offline cutover helper](production-preparation.md). It emits a bounded application configuration and separately validates operator approval before returning publication arguments; it performs no provider operations and does not enable the normal production deployment command.

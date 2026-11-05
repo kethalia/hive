@@ -35,8 +35,11 @@ the production runtime, secrets or data cutover.
 
 The old app/auth/jobs compatibility Workers and the earlier capability-probe Worker
 were retired at the user's direction. The [retirement receipt](../../docs/checks/autonomous-delivery/cloudflare-single-worker-retirement.json)
-records exact identities, deletion and the remaining native Preview; Neon databases
-and R2 storage were retained. Provider code and settings were privately archived,
+records exact identities, deletion and the remaining native Preview. Three completed
+test databases were subsequently backed up privately and removed; the current native
+Preview, local regression database and active R2 bucket remain. The
+[database cleanup receipt](../../docs/checks/autonomous-delivery/retired-test-database-cleanup.json)
+records that separate action. Provider code and settings were privately archived,
 but Cloudflare's write-only retired secret values were not exported. They may not be
 recoverable, so retained compatibility data is not guaranteed to be decryptable.
 The historical [prepared-artifact workflow](app/README.md) and
@@ -80,7 +83,13 @@ An application or route rollback does not undo database migrations, external
 provider effects, or R2 writes. If the schema is no longer compatible with the
 retained release, hold traffic or use a reviewed forward recovery rather than
 blindly restoring it. Coordinate scheduler ownership and resolve in-flight work
-before enabling the native five-minute dispatch; the existing
+before enabling native scheduled dispatch. The planned exact cron expressions are
+`* * * * *` for jobs and `*/5 * * * *` for release and credential rotation;
+each expression invokes only its assigned handlers, including when the times
+coincide. Both remain unconfigured until activation. A one-minute wake improves
+the chance of reconciling an enrolled guardian before its three-minute authority
+expires, but provider delays, retry backoff or a backlog can still require a hold
+and recovery; it is not a deadline guarantee. The existing
 [rotation cutover notes](../../docs/checks/autonomous-delivery/token-rotation-scheduling.md)
 describe why stopping an old process alone does not undo an in-flight provider call.
 
