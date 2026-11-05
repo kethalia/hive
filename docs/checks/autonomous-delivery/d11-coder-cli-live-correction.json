@@ -1,0 +1,13 @@
+{
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "buildId": "570c514a-cbf7-4cd2-b39e-c7cc6c4c7bb3",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "observedStatus": "running",
+  "destination": "/usr/bin/coder",
+  "destinationAbsent": true,
+  "temporaryDestinationAbsent": true,
+  "installation": "held_no_new_privileges",
+  "providerHelperInvoked": false,
+  "guardianRestarted": false
+}

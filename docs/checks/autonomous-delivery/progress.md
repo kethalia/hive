@@ -1084,3 +1084,16 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Worker's network path. Difficulty: integration diagnosis; fixed-stage, credential-free
   diagnostics are the next step. App public URL was disabled afterward; jobs remains unscheduled.
   See [bounded live evidence](cloudflare-live-project-pilot-6dc61a50.json).
+- Follow-up `3f5b203c`: CI, the rebuilt app/auth integration and actual scheduled-handler
+  proof passed. A two-request live diagnostic reused the existing session and identified a
+  `403` at the signed host response, after app-cookie exchange. The filtered temporary tail
+  was removed and the app URL closed; no task was enqueued. The scoped Neon enrollment
+  reader now works without the private compatibility wrapper.
+- Workspace integration correction `6ea9a500`: the guarded worker's fixed `/usr/bin:/bin`
+  path had no Coder CLI, while the installed GitHub helper invokes `coder`. A matching
+  vendor-pinned CLI is now installed by the image at `/usr/bin/coder`, with archive ownership
+  discarded; independent review and eight actual-install-command fixtures passed. The
+  existing test workspace disallows privilege elevation, so no in-place binary change was
+  made. A fresh test image/workspace is required to prove the live repair; existing guarded
+  hosts and their journals remain intact. Difficulty: integration issue exposed by live
+  validation, not established by the earlier mock-provider tests.
