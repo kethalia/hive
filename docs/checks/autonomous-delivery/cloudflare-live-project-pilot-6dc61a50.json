@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T17:58:52.649073+00:00",
+  "sourceRevision": "6dc61a5056708592fb5d77226f221c8897f6936a",
+  "result": "held_before_task_enqueue",
+  "projectId": "47509698-91da-48dc-bd9f-90e03a2cf4d1",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "workspaceBuildId": "570c514a-cbf7-4cd2-b39e-c7cc6c4c7bb3",
+  "checks": {
+    "unauthenticatedAppGuard": 401,
+    "previewBootstrap": 204,
+    "coderLogin": 200,
+    "scopedWorkspaceAgentRead": 200,
+    "expectedAgentMatched": true,
+    "projectOpenRetry": {
+      "status": 502,
+      "error": "discovery_unavailable"
+    },
+    "installedHostBindingAndPublicIssuerMatch": true,
+    "primaryRuntimeScopedAppCookieExchange": {
+      "requests": 3,
+      "redirectStatus": 303,
+      "cookieExchangeStatus": 303,
+      "cookieShapeValidated": true,
+      "provesWorkerNetworkPath": false
+    }
+  },
+  "limitations": [
+    "First project-open attempt failed without retaining HTTP status or individual assertion; later exact-scope retry returned 502.",
+    "Existing host project journal predates this attempt and does not prove either open request reached the host.",
+    "Generic discovery error does not identify the failed internal stage."
+  ],
+  "taskStartRequests": 0,
+  "taskStatusRequests": 0,
+  "taskEnqueued": false,
+  "nativeInferenceStarted": false,
+  "incrementalOuterHttpRequests": 10,
+  "previousBrowserRequestCount": 148,
+  "incrementalRequestCeiling": 200,
+  "finalAppSubdomain": {
+    "enabled": false,
+    "previews_enabled": false
+  },
+  "jobsSchedule": [],
+  "productionChanged": false
+}

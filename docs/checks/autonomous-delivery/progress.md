@@ -1072,3 +1072,15 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   worktree confirmed Coder authorization-code/PKCE plus encrypted refreshable credentials and
   a Codex device-code UI. Claude has no verified equivalent in that reference. F09/F10 capture
   the requested app-managed connections, storage investigation and separate acceptance gates.
+
+- Current revision `6dc61a50`: full CI passed; the actual app/auth Worker and scheduled-job
+  integration proofs passed using the same validation checkout and generated Prisma inputs.
+  Both preview Workers were deployed with existing secrets preserved. The jobs Worker was
+  created with no public URL and no schedule.
+- Live preview attempt: the guard, real Coder login and exact test-agent metadata read passed.
+  Project opening returned `502 discovery_unavailable` before any task-start request. The
+  existing host journal predates this attempt; it does not establish current request delivery.
+  The provider cookie exchange works from the primary runtime, but that does not prove the
+  Worker's network path. Difficulty: integration diagnosis; fixed-stage, credential-free
+  diagnostics are the next step. App public URL was disabled afterward; jobs remains unscheduled.
+  See [bounded live evidence](cloudflare-live-project-pilot-6dc61a50.json).
