@@ -49,6 +49,18 @@ expect_output "$claude_version (Claude Code)" claude --version
 expect_output 'notesmd-cli version v0.3.4' notesmd-cli --version
 expect_output 'act version 0.2.74' act --version
 expect_command node
+# Exercise the same restricted executable path used by the managed host.
+run env PATH=/usr/bin:/bin python3 -c '
+import os, stat, subprocess
+path = "/usr/bin/coder"
+metadata = os.lstat(path)
+assert os.path.realpath(path) == path and stat.S_ISREG(metadata.st_mode)
+assert metadata.st_uid == 0 and metadata.st_gid == 0 and metadata.st_nlink == 1
+assert stat.S_IMODE(metadata.st_mode) == 0o755
+version = subprocess.check_output(["coder", "version"], text=True, timeout=10)
+assert version.startswith("Coder v"), "Coder CLI smoke failed"
+print(version.strip())
+'
 docker run --rm -i "$image" python3 - < "$(dirname "$0")/test-workspace-identity.py"
 expect_command npx
 expect_command hive-audio
