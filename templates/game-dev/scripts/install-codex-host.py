@@ -4,6 +4,7 @@ import base64
 import fcntl
 import gzip
 import hashlib
+import hmac
 import io
 import json
 import lzma
@@ -170,6 +171,34 @@ def startup_reply(channel):
         require(len(data) <= 32768)
     require(data.endswith(b"\n") and data.count(b"\n") == 1)
     return json.loads(data)
+
+
+def current_guardian_startup(home, initial):
+    # The outer owns this HMAC journal. A receipt is usable only for the latest
+    # begun lifetime and cannot resurrect one already fenced or exited.
+    require(isinstance(initial, dict) and isinstance(initial.get("ready"), dict))
+    directory = home / ".local/state/hive/codex-host-guardian"
+    key = private_file(directory / "key", 32)
+    require(len(key) == 32)
+    saved = json.loads(private_file(directory / "lifetime.json", 2 * 1024 * 1024))
+    require(isinstance(saved, dict) and set(saved) == {"state", "signature"})
+    state = saved["state"]
+    encoded = json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode()
+    signature = saved["signature"]
+    require(isinstance(signature, str) and hmac.compare_digest(hmac.new(key, encoded, hashlib.sha256).hexdigest(), signature))
+    require(isinstance(state, dict) and state.get("schemaVersion") == 1 and state.get("bindingDigest") == initial["ready"].get("bindingDigest"))
+    events = state.get("events")
+    require(isinstance(events, list) and 0 < len(events) <= 1024)
+    require(isinstance(events[-1], dict) and state.get("phase") == events[-1].get("name"))
+    begins = [i for i, event in enumerate(events) if isinstance(event, dict) and event.get("name") == "begin"]
+    require(begins)
+    active = events[begins[-1]:]
+    require(not any(event.get("name") in ("closing", "workerClosed", "receipt", "treeExited", "closed", "indeterminate") for event in active))
+    ready = [event.get("value") for event in active if event.get("name") == "startupReady"]
+    require(len(ready) == 1 and isinstance(ready[0], dict))
+    begun = active[0].get("value")
+    require(isinstance(begun, dict) and ready[0].get("lifetimeId") == begun.get("lifetimeId") and ready[0].get("bindingDigest") == begun.get("bindingDigest"))
+    return {"start": initial["start"], "ready": ready[0]}
 
 
 def confirm_ready(identity, config, startup=None, target=None):
@@ -382,7 +411,13 @@ def install(request):
                 require(receipt.get("bootstrapConfigSha256") == bootstrap_sha)
                 require(receipt["archiveSha256"] == request["archiveSha256"] and receipt["configSha256"] == hashlib.sha256(encoded).hexdigest())
                 require(private_file(config_root / "codex-host.json", 16384) == encoded)
-                confirm_ready(receipt["process"], config, receipt.get("guardianStartup"), target)
+                startup = receipt.get("guardianStartup")
+                if config.get("guardianEnabled"):
+                    startup = current_guardian_startup(home, startup)
+                confirm_ready(receipt["process"], config, startup, target)
+                if startup != receipt.get("guardianStartup"):
+                    receipt["guardianStartup"] = startup
+                    atomic(receipt_path, (json.dumps(receipt) + "\n").encode())
                 return {"status": "already_running", "archiveSha256": request["archiveSha256"]}
         subprocess.run(["/usr/bin/python3", str(target / "install-codex-runtime.py")], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180, check=True)
         atomic(config_root / "codex-host.json", encoded)

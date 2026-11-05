@@ -1,4 +1,5 @@
 // Trusted installed outer only. Local journals are evidence; server receipts authorize.
+import { execFileSync } from "node:child_process";
 import {
   createHash,
   createHmac,
@@ -18,6 +19,7 @@ import {
   fsyncSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   readSync,
   realpathSync,
@@ -25,6 +27,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { archiveClosedProjectState } from "./codex-project-controller.mjs";
 
 const check = (v) => {
   if (!v) throw new Error("guardian_controller_authority_rejected");
@@ -343,6 +347,7 @@ export function openGuardianController({
   const publicPem = publicKey.export({ type: "spki", format: "pem" }).toString();
   let state,
     challenge,
+    drainStartup,
     deadline,
     queue = Promise.resolve();
   const startup = () => {
@@ -435,7 +440,16 @@ export function openGuardianController({
     return pending;
   };
   async function send(action, fields, accept, mode) {
-    initialize(mode === "factual" || mode === "readback");
+    if (mode === "closure") {
+      check(
+        state &&
+          drainStartup &&
+          !state.hold &&
+          !state.pending &&
+          state.lifetimeId === drainStartup.lifetimeId &&
+          state.identityDigest === digest(identity(drainStartup)),
+      );
+    } else initialize(mode === "factual" || mode === "readback");
     const previous = applicationUncertainty() ? structuredClone(state.pending) : null;
     if (previous) {
       const app = state.applications[previous.applicationId];
@@ -454,7 +468,7 @@ export function openGuardianController({
         runtimeId: fields.runtimeId ?? state.runtimeId,
         eventId: randomUUID(),
         issuedAt,
-        expiresAt: issuedAt + 3500,
+        expiresAt: issuedAt + (action.startsWith("epic_") ? 30500 : 3500),
         action,
         ...(action === "enroll" ? {} : { runtimeGeneration: state.generation }),
         ...fields,
@@ -489,7 +503,7 @@ export function openGuardianController({
       });
       const result = await boundedJson(response, abort.signal);
       check(Date.now() < body.expiresAt && !abort.signal.aborted);
-      startup();
+      if (mode !== "closure") startup();
       accept(result);
       state.chainDigest = digest({ previous: state.chainDigest, request: frame, response: result });
       state.pending = mode === "factual" ? previous : null;
@@ -505,6 +519,28 @@ export function openGuardianController({
     } finally {
       clearTimeout(timer);
       void response?.body?.cancel().catch(() => {});
+    }
+  }
+  async function sendClosure(action, fields, accept) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await send(action, fields, accept, "closure");
+      } catch (error) {
+        const pending = state?.pending;
+        if (
+          attempt >= 1 ||
+          !pending ||
+          pending.action !== action ||
+          pending.runtimeId !== state.runtimeId ||
+          Object.entries(fields).some(([key, value]) => !same(pending[key], value))
+        )
+          throw error;
+        // Only the same immutable closure operation may recover an uncertain ACK.
+        state.pending = null;
+        state.hold = false;
+        save();
+        deadline = Date.now() + (action.startsWith("epic_") ? 30000 : 3000);
+      }
     }
   }
   const acceptPair = (result, projectId) => {
@@ -1329,11 +1365,442 @@ export function openGuardianController({
     applyReserve: (value) => serial(() => application("reserve", value)),
     applyVerify: (value) => serial(() => application("verify", value)),
     applyCommit: (value) => serial(() => application("commit", value)),
-    // No inference from a local terminal flag: fresh completed-root snapshots and
-    // independently persisted closed-barrier authorization are a separate gate.
-    authorizeDrain() {
-      throw new Error("guardian_fresh_idle_snapshot_required");
-    },
+    drainReady: () =>
+      serial(async () => {
+        initialize();
+        const issuedAt = Date.now(),
+          body = {
+            schemaVersion: 1,
+            runtimeId: state.runtimeId,
+            eventId: randomUUID(),
+            issuedAt,
+            expiresAt: issuedAt + 3500,
+            action: "drain_ready",
+            runtimeGeneration: state.generation,
+          };
+        const frame = {
+          ...body,
+          proof: sign(
+            null,
+            Buffer.from(`hive-guardian-controller-v1\nPOST\n${PATH}\n${guardianCanonical(body)}`),
+            key,
+          ).toString("base64url"),
+        };
+        const signal = AbortSignal.timeout(3000);
+        const response = await fetchImpl(`${config.hiveOrigin}${PATH}`, {
+          method: "POST",
+          redirect: "manual",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(frame),
+          signal,
+        });
+        const result = await boundedJson(response, signal);
+        startup();
+        check(
+          Date.now() < body.expiresAt &&
+            result?.runtimeId === state.runtimeId &&
+            result.runtimeGeneration === state.generation &&
+            typeof result.ready === "boolean",
+        );
+        return result.ready;
+      }),
+    beginDrain: () =>
+      serial(() => {
+        drainStartup = structuredClone(initialize());
+      }),
+    authorizeDrain: (binding, barrier) =>
+      serial(async () => {
+        check(
+          drainStartup &&
+            barrier?.closed === true &&
+            barrier.lifetimeId === state.lifetimeId &&
+            barrier.ownershipDigest === binding.ownershipDigest &&
+            barrier.generation === state.generation &&
+            uuid(barrier.barrierId) &&
+            Array.isArray(barrier.snapshots) &&
+            barrier.snapshots.length === binding.projects.length,
+        );
+        const snapshots = binding.projects.map((p) => {
+          const item = barrier.snapshots.find((v) => v.projectId === p.projectId),
+            local = state.projects[p.projectId];
+          check(
+            item &&
+              local?.phase === "native" &&
+              local.preparationDigest === p.bindingDigest &&
+              item.observation?.managerThreadId &&
+              item.history?.observedAt,
+          );
+          const o = item.observation,
+            h = item.history;
+          return {
+            projectId: p.projectId,
+            admissionId: local.admissionId,
+            admissionGeneration: local.admissionGeneration,
+            managerBindingId: o.managerBindingId,
+            currentAttemptId: o.attemptId,
+            managerThreadId: o.managerThreadId,
+            parentTurnId: o.parentTurnId,
+            cursorVersion: o.cursorVersion,
+            nativeSequence: o.nativeSequence,
+            observedAt: h.observedAt,
+            historyDigest: h.historyDigest,
+            loadedInventoryDigest: h.loadedInventoryDigest,
+            fullHistory: true,
+            rootTurns: h.rootTurns,
+            historyBytes: h.historyBytes,
+            pendingHandlers: 0,
+            pendingObservers: 0,
+            unknownFacts: 0,
+            activeRoots: 0,
+          };
+        });
+        const result = await sendClosure(
+          "close",
+          {
+            barrierId: barrier.barrierId,
+            ownershipDigest: binding.ownershipDigest,
+            projectBindings: binding.projects,
+            snapshots,
+          },
+          (r) => {
+            check(
+              r?.runtimeId === state.runtimeId &&
+                r.runtimeGeneration === state.generation + 1 &&
+                r.barrierId === barrier.barrierId &&
+                r.ownershipDigest === binding.ownershipDigest &&
+                r.treeExited === false &&
+                r.cleanupAuthorized === false &&
+                Array.isArray(r.decisions) &&
+                r.decisions.length === binding.projects.length,
+            );
+            state.generation = r.runtimeGeneration;
+          },
+        );
+        return binding.projects.map((p) => {
+          const local = state.projects[p.projectId],
+            decision = result.decisions.find(
+              (d) =>
+                d.admissionId === local.admissionId &&
+                d.admissionGeneration === local.admissionGeneration,
+            );
+          check(decision && uuid(decision.decisionId));
+          return { ...p, decisionId: decision.decisionId };
+        });
+      }),
+    acceptTreeReceipt: (receipt) =>
+      serial(async () => {
+        check(
+          drainStartup &&
+            receipt?.guardianExited === true &&
+            receipt.workerBarrier?.barrierId &&
+            receipt.generation === state.generation,
+        );
+        return sendClosure(
+          "tree_closed",
+          { barrierId: receipt.workerBarrier.barrierId, receipt },
+          (r) =>
+            check(
+              r?.runtimeId === state.runtimeId &&
+                r.runtimeGeneration === state.generation &&
+                r.barrierId === receipt.workerBarrier.barrierId &&
+                r.treeExited === true &&
+                r.cleanupAuthorized === false,
+            ),
+        );
+      }),
+    recoverTreeReceipt: (receipt) =>
+      serial(async () => {
+        check(
+          receipt?.guardianExited === true &&
+            uuid(receipt.lifetimeId) &&
+            hex(receipt.bindingDigest) &&
+            receipt.packageManifestSha256 === packageManifestSha256 &&
+            receipt.guardianSha256 === guardianElfSha256 &&
+            receipt.nodeSha256 === nodeSha256 &&
+            uuid(receipt.workerBarrier?.barrierId),
+        );
+        const saved = JSON.parse(privateRead(statePath));
+        check(
+          verify(
+            null,
+            Buffer.from(guardianCanonical(saved.state)),
+            publicKey,
+            Buffer.from(saved.signature, "base64url"),
+          ),
+        );
+        state = saved.state;
+        drainStartup = { lifetimeId: receipt.lifetimeId, bindingDigest: receipt.bindingDigest };
+        check(
+          state.lifetimeId === receipt.lifetimeId &&
+            state.identityDigest === digest(identity(drainStartup)) &&
+            uuid(state.runtimeId) &&
+            state.generation === receipt.generation,
+        );
+        if (state.pending) {
+          check(
+            state.pending.runtimeId === state.runtimeId &&
+              state.pending.runtimeGeneration === state.generation &&
+              [
+                "tree_closed",
+                "epic_release_prepare",
+                "epic_release_submit",
+                "epic_archive_ack",
+              ].includes(state.pending.action),
+          );
+          if (state.pending.action === "tree_closed")
+            check(
+              same(state.pending.receipt, receipt) &&
+                state.pending.barrierId === receipt.workerBarrier.barrierId,
+            );
+          state.recoveredClosurePending = structuredClone(state.pending);
+          state.pending = null;
+          state.hold = false;
+          save();
+        } else check(!state.hold);
+        deadline = Date.now() + 30000;
+        const treeResult = await sendClosure(
+          "tree_closed",
+          { barrierId: receipt.workerBarrier.barrierId, receipt },
+          (r) =>
+            check(
+              r?.runtimeId === state.runtimeId &&
+                r.runtimeGeneration === state.generation &&
+                r.barrierId === receipt.workerBarrier.barrierId &&
+                r.treeExited === true &&
+                r.cleanupAuthorized === false,
+            ),
+        );
+        const pending = state.recoveredClosurePending;
+        if (pending && pending.action !== "tree_closed") {
+          const {
+            schemaVersion: _schemaVersion,
+            runtimeId: _runtimeId,
+            runtimeGeneration: _runtimeGeneration,
+            eventId: _eventId,
+            issuedAt: _issuedAt,
+            expiresAt: _expiresAt,
+            proof: _proof,
+            action,
+            ...fields
+          } = pending;
+          check(receipt.projects.some((project) => project.projectId === fields.projectId));
+          deadline = Date.now() + 30000;
+          await sendClosure(action, fields, () => {});
+        }
+        delete state.recoveredClosurePending;
+        save();
+        return treeResult;
+      }),
+    postTreeClosed: (receipt) =>
+      serial(async () => {
+        check(
+          receipt?.guardianExited === true &&
+            receipt.workerBarrier?.barrierId &&
+            receipt.generation === state.generation,
+        );
+        const projects = receipt.projects.map((p) => p.projectId);
+        const call = async (action, fields, accept = () => {}) => {
+          deadline = Date.now() + 30000;
+          return sendClosure(action, fields, accept);
+        };
+        const prepared = [];
+        let ineligible = 0;
+        const projectJournal = readEvidence(home, "codex-project-controller", "projects.key");
+        for (const projectId of projects) {
+          const result = await call("epic_release_prepare", { projectId });
+          if (result?.eligible === false) {
+            ineligible++;
+            continue;
+          }
+          const bound = state.projects[projectId],
+            checkout = bound?.checkout,
+            old = state.epicClosure?.projects?.[projectId]?.scope,
+            task = projectJournal.projects?.[projectId]?.task;
+          check(
+            result?.schemaVersion === 1 &&
+              result.ownerId === config.binding.ownerId &&
+              result.hiveUserId === config.binding.hiveUserId &&
+              result.workspaceId === config.binding.workspaceId &&
+              result.buildId === config.binding.buildId &&
+              result.projectId === projectId &&
+              result.barrierId === receipt.workerBarrier.barrierId &&
+              result.priorLifetimeId === receipt.lifetimeId &&
+              result.treeReceiptDigest === digest(receipt) &&
+              hex(result.preservationDigest) &&
+              checkout &&
+              result.taskId === checkout.preparationIntentId &&
+              result.repositoryId === checkout.repositoryId &&
+              result.leaseId === checkout.leaseId &&
+              result.leaseGeneration === checkout.leaseGeneration &&
+              result.checkoutIncarnation === checkout.checkoutIncarnation &&
+              ((task &&
+                result.requestId === task.request?.requestId &&
+                result.acceptedSourceSha ===
+                  (task.acceptedSource?.headSha ?? task.request?.revision)) ||
+                (!task && old && same(old, result))),
+          );
+          prepared.push(result);
+        }
+        check(!ineligible || !prepared.length);
+        if (!prepared.length) return { eligible: false };
+        const directory = dirname(fileURLToPath(import.meta.url));
+        const manifestBytes = readFileSync(join(directory, "package-manifest.json"));
+        check(sha(manifestBytes) === packageManifestSha256);
+        const manifest = JSON.parse(manifestBytes);
+        const runHelper = (name, body) => {
+          const path = join(directory, name);
+          check(
+            ["managed-projects.py", "managed-epic-archive.py"].includes(name) &&
+              sha(readFileSync(path)) === manifest.files?.[name],
+          );
+          const output = execFileSync("/usr/bin/python3", [path], {
+            input: JSON.stringify(body),
+            encoding: "utf8",
+            timeout: 30000,
+            maxBuffer: 65536,
+            env: { PATH: "/usr/bin:/bin", HOME: home, LANG: "C.UTF-8" },
+            stdio: ["pipe", "pipe", "ignore"],
+          });
+          return JSON.parse(output);
+        };
+        state.epicClosure ??= { barrierId: receipt.workerBarrier.barrierId, projects: {} };
+        check(state.epicClosure.barrierId === receipt.workerBarrier.barrierId);
+        for (const item of prepared) {
+          state.epicClosure.projects[item.projectId] ??= {};
+          const local = state.epicClosure.projects[item.projectId];
+          check(!local.scope || same(local.scope, item));
+          local.scope = structuredClone(item);
+        }
+        save();
+        const tokens = [];
+        for (const item of prepared) {
+          state.epicClosure.projects[item.projectId] ??= {};
+          const local = state.epicClosure.projects[item.projectId];
+          const release = runHelper("managed-projects.py", {
+            schemaVersion: 1,
+            operation: "releaseLease",
+            provider: "github",
+            repositoryId: item.repositoryId,
+            taskId: item.taskId,
+            leaseId: item.leaseId,
+            generation: item.leaseGeneration,
+            revision: item.acceptedSourceSha,
+          });
+          check(release?.ok === true && release.data?.releaseReceipt);
+          const reply = await call("epic_release_submit", {
+            projectId: item.projectId,
+            releaseReceipt: release.data.releaseReceipt,
+          });
+          check(typeof reply?.token === "string");
+          const source = runHelper("managed-epic-archive.py", { token: reply.token });
+          check(hex(source?.archiveDigest));
+          local.sourceArchiveDigest = source.archiveDigest;
+          local.token = reply.token;
+          save();
+          tokens.push(reply.token);
+        }
+        const archived = archiveClosedProjectState(
+          {
+            stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
+            ownerId: config.binding.ownerId,
+            workspaceId: config.binding.workspaceId,
+          },
+          tokens,
+          config.issuerPublicKeyPem,
+        );
+        state.epicClosure.archiveDigest = archived.archiveDigest;
+        save();
+        for (const item of prepared) {
+          const local = state.epicClosure.projects[item.projectId];
+          await call(
+            "epic_archive_ack",
+            {
+              projectId: item.projectId,
+              archiveDigest: archived.archiveDigest,
+              sourceArchiveDigest: local.sourceArchiveDigest,
+            },
+            (r) => check(r?.archived === true),
+          );
+          local.acknowledged = true;
+          save();
+        }
+        return { eligible: true, archived: true };
+      }),
+    archiveClosedController: (receipt) =>
+      serial(() => {
+        check(
+          receipt?.guardianExited === true &&
+            uuid(receipt.lifetimeId) &&
+            uuid(receipt.workerBarrier?.barrierId),
+        );
+        const validate = (encoded) => {
+          const saved = JSON.parse(encoded);
+          check(
+            verify(
+              null,
+              Buffer.from(guardianCanonical(saved.state)),
+              publicKey,
+              Buffer.from(saved.signature, "base64url"),
+            ),
+          );
+          const current = saved.state,
+            closure = current.epicClosure;
+          check(
+            current.lifetimeId === receipt.lifetimeId &&
+              current.generation === receipt.generation &&
+              current.identityDigest ===
+                digest(
+                  identity({
+                    lifetimeId: receipt.lifetimeId,
+                    bindingDigest: receipt.bindingDigest,
+                  }),
+                ) &&
+              !current.pending &&
+              !current.hold &&
+              closure?.barrierId === receipt.workerBarrier.barrierId &&
+              hex(closure.archiveDigest) &&
+              receipt.projects.length > 0 &&
+              Object.keys(closure.projects).length === receipt.projects.length &&
+              receipt.projects.every(
+                (project) => closure.projects?.[project.projectId]?.acknowledged === true,
+              ),
+          );
+        };
+        if (!existsSync(statePath)) {
+          const files = readdirSync(stateDirectory).filter((name) =>
+            /^controller-archive-[a-f0-9]{64}\.json$/.test(name),
+          );
+          check(files.length <= 256);
+          for (const name of files) {
+            try {
+              const encoded = privateRead(join(stateDirectory, name));
+              if (sha(encoded) !== name.slice(19, -5)) continue;
+              validate(encoded);
+              return { archived: true, digest: sha(encoded), replayed: true };
+            } catch {
+              /* A different historical archive cannot authorize this lifetime. */
+            }
+          }
+          check(false);
+        }
+        const encoded = privateRead(statePath);
+        validate(encoded);
+        const path = join(stateDirectory, `controller-archive-${sha(encoded)}.json`);
+        check(!existsSync(path));
+        renameSync(statePath, path);
+        const directory = openSync(
+          stateDirectory,
+          constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+        );
+        try {
+          fsyncSync(directory);
+        } finally {
+          closeSync(directory);
+        }
+        state = null;
+        drainStartup = undefined;
+        return { archived: true, digest: sha(encoded) };
+      }),
     get status() {
       return { enrolled: Boolean(state?.runtimeId), held: Boolean(state?.hold || state?.pending) };
     },

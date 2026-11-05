@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
 vi.mock("@hive/db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hive/db")>()),
   getDb: () => ({
+    $queryRaw: async () => [],
     user: { findUnique: mock.owner },
     deliveryProject: { findUnique: mock.project },
     projectTaskIntent: { findUnique: async () => null },

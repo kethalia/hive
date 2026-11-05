@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T15:37:46.356Z",
+  "purpose": "dedicated reusable test workspace readiness; no inference",
+  "deployment": "https://coder.kethalia.com",
+  "workspace": {
+    "id": "22c4f094-46f0-4a76-86ca-37ad74254872",
+    "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "ownerName": "codex",
+    "name": "hive-epic-test",
+    "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+    "createdAt": "2026-10-29T17:13:32.271538Z",
+    "classification": "reused persistent; retain",
+    "before": {
+      "buildId": "9a128c9a-70ca-4d79-971a-63968e1c2eae",
+      "status": "stopped"
+    },
+    "after": {
+      "buildId": "b4e2bc6c-315b-4d7d-8c16-5e47466feecf",
+      "buildNumber": 16,
+      "status": "running",
+      "agentId": "b4416746-1dc3-4bc8-a5f2-4183781eb8fb",
+      "agentStatus": "connected",
+      "agentLifecycle": "start_error",
+      "templateVersionId": "14ab2429-13dc-4de6-a6a1-cd215d6a9045",
+      "templateVersionName": "preview-24a454c-fixed",
+      "templateSourceRevision": "24a454c69610f46ddb7c7ed313a3e7a094c25253"
+    }
+  },
+  "activeTemplateVersionId": "8e86f61b-3c8e-4d6a-8d1f-c87696d42bfa",
+  "runtime": {
+    "profile": "software",
+    "hostConfigPresent": true,
+    "hostConfigMode": "0600",
+    "hostBindingMatchesCurrentBuild": true,
+    "hostEnabled": true,
+    "managerEnabled": false,
+    "nativeIsolationEnabled": true,
+    "hostHealthHttpStatus": 200,
+    "hostArchiveSha256": "0df6fe3e6570baa188ea0af292bad4ea6304fd3ecfcb476bac22af84dc9406ca",
+    "hostPackageManifestSha256": "08a1447d548d7fa5ec42e6ad55255be15a73dfa3c0d0617c2524ae3ac3eec0b3",
+    "nativeVersion": "0.165.0",
+    "nativeAuthFilePresent": true,
+    "nativeAuthMode": "0600",
+    "nativeLoginStatusExit": 0,
+    "nativeLoginStatusReportedLoggedIn": true,
+    "inferencePerformed": false
+  },
+  "agentLogMarkers": [
+    "agent_bridge_install_failed",
+    "voice_install_failed"
+  ],
+  "limitations": [
+    "manager disabled; no child or terminal pilot performed",
+    "agent startup failed; matching installation failure markers do not independently establish their causes",
+    "login status checks local status only; account-backed inference not verified",
+    "the installed archive is historical and is not the pending D11 build",
+    "image source digest for this build not independently queried"
+  ],
+  "authentication": "test-account token supplied through an isolated temporary CLI config; primary CLI authentication untouched",
+  "lifecycle": "started the existing persistent workspace with its last template version pinned; no deletion or package installation"
+}

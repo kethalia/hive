@@ -16,6 +16,10 @@ export async function startGuardedWorkspaceHost() {
       if (!host) throw new Error("guardian_worker_not_ready");
       return host.closeAdmission(barrier);
     },
+    onFinishClose: () => {
+      if (!host) throw new Error("guardian_worker_not_ready");
+      return host.finishClose();
+    },
     onLost: () => host?.loseAdmission(),
   });
   try {

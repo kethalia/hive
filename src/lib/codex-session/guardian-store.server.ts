@@ -1,6 +1,7 @@
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
 import { ProjectTaskIntents } from "@/lib/projects/task-intents.server";
+import { type GuardianTreeReceipt, guardianTreeReceiptSchema } from "./guardian-closure-contracts";
 import {
   type GuardianCheckout,
   type GuardianIdleSnapshot,
@@ -835,6 +836,154 @@ export class GuardianAdmissionStore {
       return { runtime: updated, admission };
     });
   }
+  /** Advisory preflight only. Actual closure still requires the fresh native
+   * snapshots and transactional closeBarrier checks after fencing inputs. */
+  async drainReady(input: { ownerId: string; runtimeId: string; runtimeGeneration: number }) {
+    return this.transaction(async (tx) => {
+      const { runtime, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(runtime.generation === input.runtimeGeneration);
+      const result = (ready: boolean) => ({
+        ready,
+        runtimeId: runtime.id,
+        runtimeGeneration: runtime.generation,
+      });
+      if (runtime.phase !== "open" || runtime.authorityUntil <= now) return result(false);
+      const admissions = await tx.codexGuardianAdmission.findMany({
+        where: { ownerId: input.ownerId, runtimeId: runtime.id },
+      });
+      if (!admissions.length || admissions.some((a) => a.phase !== "native")) return result(false);
+      for (const admission of admissions) {
+        const tasks = await tx.deliveryTask.findMany({
+          where: {
+            ownerId: input.ownerId,
+            managerBinding: { is: { preparationIntentId: admission.preparationIntentId } },
+          },
+          include: { steps: { include: { attempts: true } } },
+          take: 33,
+        });
+        if (!tasks.length || tasks.length > 32) return result(false);
+        for (const task of tasks) {
+          if (
+            task.pauseRequested ||
+            task.schedulingPaused ||
+            !task.sourceRevisionId ||
+            !task.steps.length ||
+            task.steps.some(
+              (step) =>
+                (step.state !== "succeeded" &&
+                  !(
+                    step.state === "reported" &&
+                    step.kind === "understand" &&
+                    step.requiredEvidenceKinds.length === 1 &&
+                    step.requiredEvidenceKinds[0] === "analysis"
+                  )) ||
+                step.attempts.some((a) => a.outcome === "running"),
+            )
+          )
+            return result(false);
+          const release = await tx.deliveryRelease.findFirst({
+            where: {
+              ownerId: input.ownerId,
+              taskId: task.id,
+              sourceRevisionId: task.sourceRevisionId,
+              phase: "healthy",
+            },
+            include: { actions: true },
+          });
+          if (
+            !release ||
+            release.actions.some((action) => !["observed", "canceled"].includes(action.phase))
+          )
+            return result(false);
+        }
+      }
+      return result(true);
+    });
+  }
+  async closeTree(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    barrierId: string;
+    receipt: GuardianTreeReceipt;
+  }) {
+    const receipt = guardianTreeReceiptSchema.parse(input.receipt);
+    const receiptDigest = guardianDigest(receipt);
+    return this.transaction(async (tx) => {
+      const { runtime } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(
+        ["barrier_closed", "tree_closed"].includes(runtime.phase) &&
+          runtime.closedBarrierId === input.barrierId &&
+          runtime.generation === input.runtimeGeneration &&
+          receipt.lifetimeId === runtime.lifetimeId &&
+          receipt.bindingDigest === runtime.bindingDigest &&
+          receipt.generation === runtime.generation &&
+          receipt.guardianSha256 === runtime.guardianElfSha256 &&
+          receipt.packageManifestSha256 === runtime.packageManifestSha256 &&
+          receipt.nodeSha256 === runtime.nodeSha256 &&
+          receipt.workerBarrier.lifetimeId === runtime.lifetimeId &&
+          receipt.workerBarrier.barrierId === input.barrierId &&
+          receipt.workerBarrier.generation + 1 === runtime.generation &&
+          receipt.workerBarrier.ownershipDigest === receipt.ownershipDigest &&
+          receipt.drainRequestId > receipt.closedRequestId,
+      );
+      const barrier = await tx.codexGuardianBarrier.findUniqueOrThrow({
+        where: { ownerId_id: { ownerId: input.ownerId, id: input.barrierId } },
+        include: { decisions: { include: { admission: true } } },
+      });
+      requireGuardian(
+        barrier.runtimeId === runtime.id &&
+          barrier.generation === runtime.generation &&
+          barrier.ownershipDigest === receipt.ownershipDigest &&
+          receipt.projects.length === barrier.decisions.length &&
+          receipt.decisions.length === barrier.decisions.length &&
+          new Set(receipt.projects.map((p) => p.projectId)).size === receipt.projects.length &&
+          new Set(receipt.decisions.map((p) => p.projectId)).size === receipt.decisions.length,
+      );
+      for (const d of barrier.decisions) {
+        requireGuardian(
+          receipt.projects.some(
+            (p) =>
+              p.projectId === d.admission.projectId &&
+              p.bindingDigest === d.admission.preparationDigest,
+          ) &&
+            receipt.decisions.some(
+              (p) =>
+                p.projectId === d.admission.projectId &&
+                p.bindingDigest === d.admission.preparationDigest &&
+                p.decisionId === d.id,
+            ),
+        );
+      }
+      const saved = await tx.$queryRaw<
+        { digest: string }[]
+      >`SELECT digest FROM codex_guardian_tree_receipts WHERE owner_id=${input.ownerId}::uuid AND runtime_id=${runtime.id}::uuid`;
+      if (saved.length)
+        requireGuardian(
+          saved.length === 1 &&
+            saved[0].digest === receiptDigest &&
+            runtime.phase === "tree_closed",
+        );
+      else {
+        requireGuardian(runtime.phase === "barrier_closed");
+        await tx.$executeRaw`INSERT INTO codex_guardian_tree_receipts(owner_id,runtime_id,barrier_id,receipt_id,digest,body) VALUES(${input.ownerId}::uuid,${runtime.id}::uuid,${input.barrierId}::uuid,${receipt.receiptId}::uuid,${receiptDigest},${JSON.stringify(receipt)}::jsonb)`;
+        await tx.codexGuardianRuntime.update({
+          where: { id: runtime.id },
+          data: { phase: "tree_closed", producerApproved: false },
+        });
+      }
+      return {
+        runtimeId: runtime.id,
+        runtimeGeneration: runtime.generation,
+        barrierId: input.barrierId,
+        receiptDigest,
+        treeExited: true,
+        cleanupAuthorized: false,
+      };
+    });
+  }
   async closeBarrier(input: {
     ownerId: string;
     runtimeId: string;
@@ -849,6 +998,37 @@ export class GuardianAdmissionStore {
     return this.transaction(async (tx) => {
       const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
       approvedRuntime(runtime, this.options.policy);
+      // A lost ACK must replay the exact committed barrier. Rechecking freshness
+      // here would turn a successfully closed input barrier into an unrecoverable
+      // timeout; no new authority or changed snapshot is accepted on this path.
+      if (["barrier_closed", "tree_closed"].includes(runtime.phase)) {
+        const saved = await tx.codexGuardianBarrier.findUnique({
+          where: { ownerId_id: { ownerId: input.ownerId, id: input.barrierId } },
+          include: { decisions: true },
+        });
+        requireGuardian(
+          saved &&
+            saved.runtimeId === runtime.id &&
+            runtime.closedBarrierId === saved.id &&
+            runtime.generation === input.runtimeGeneration + 1 &&
+            saved.generation === runtime.generation &&
+            saved.requestDigest === guardianDigest(input),
+        );
+        return {
+          runtimeId: runtime.id,
+          runtimeGeneration: saved.generation,
+          barrierId: saved.id,
+          ownershipDigest: saved.ownershipDigest,
+          decisions: saved.decisions.map((r) => ({
+            admissionId: r.admissionId,
+            admissionGeneration: r.admissionGeneration,
+            decisionId: r.id,
+            stateDigest: r.stateDigest,
+          })),
+          treeExited: false,
+          cleanupAuthorized: false,
+        };
+      }
       requireGuardian(
         runtime.phase === "open" &&
           !runtime.closedBarrierId &&

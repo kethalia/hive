@@ -14,6 +14,47 @@ const sha = (value) => createHash("sha256").update(value).digest("hex");
 const check = (value) => {
   if (!value) throw new Error("installed_guardian_startup_rejected");
 };
+/** Serializes lifetime replacement; uncertain drain or restart never opens a second worker. */
+export function createGuardedRollover(launch) {
+  let current,
+    pending = false,
+    held = false,
+    stopped = false;
+  return {
+    async start() {
+      check(!current && !held);
+      current = await launch(true);
+      return current.host;
+    },
+    async trigger(expected) {
+      if (pending || held || stopped || current?.host !== expected) return;
+      pending = true;
+      try {
+        const receipt = await expected.drain();
+        if (stopped) return;
+        if (!expected.state.rolloverEligible) {
+          held = true;
+          return;
+        }
+        await current.authority.archiveClosedController(receipt);
+        if (stopped) return;
+        current = await launch(false);
+        if (stopped) await current.host.abort();
+      } catch {
+        held = true;
+      } finally {
+        pending = false;
+      }
+    },
+    async abort() {
+      stopped = true;
+      if (current) return current.host.abort();
+    },
+    get state() {
+      return { held, pending, host: current?.host.state };
+    },
+  };
+}
 export async function startInstalledGuardedHost() {
   const channel = await readGuardianStart();
   let host;
@@ -48,48 +89,84 @@ export async function startInstalledGuardedHost() {
       challenge.packageManifestSha256,
       "codex-workspace-host-worker.mjs",
     );
-    const authority = openGuardianController({
-      config,
-      configSha256,
-      home,
-      stateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
-      packageManifestSha256: challenge.packageManifestSha256,
-      guardianElfSha256: files.sha256,
-      nodeSha256: challenge.nodeSha256,
-      startupAttestation: () => {
-        check(host);
-        return host.startupAttestation();
-      },
-    });
-    host = await openGuardedHost({
-      packageDirectory,
-      packageManifestSha256: challenge.packageManifestSha256,
-      workerName: "codex-workspace-host-worker.mjs",
-      nodeExecutable,
-      nodeSha256: challenge.nodeSha256,
-      workerCwd: home,
-      workerEnvironment,
-      stateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
-      bindingDigest: sha(
-        JSON.stringify({
-          schemaVersion: 1,
-          configSha256,
-          packageManifestSha256: challenge.packageManifestSha256,
-        }),
-      ),
-      startup: challenge,
-      authorizeAdmission: authority.authorizeAdmission,
-      authorizeDrain: authority.authorizeDrain,
-      controllerIdentity: authority.identity,
-      controllerBootstrap: authority.bootstrap,
-      controllerMetadata: authority.currentMetadata,
-      controllerApplyReserve: authority.applyReserve,
-      controllerApplyVerify: authority.applyVerify,
-      controllerApplyCommit: authority.applyCommit,
-      metadataAuthority: authority.metadataAuthority,
-    });
+    let authority;
+    const newAuthority = () =>
+      openGuardianController({
+        config,
+        configSha256,
+        home,
+        stateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
+        packageManifestSha256: challenge.packageManifestSha256,
+        guardianElfSha256: files.sha256,
+        nodeSha256: challenge.nodeSha256,
+        startupAttestation: () => {
+          check(host);
+          return host.startupAttestation();
+        },
+      });
+    const launch = async (recoverPrevious) => {
+      authority = newAuthority();
+      host = await openGuardedHost({
+        packageDirectory,
+        packageManifestSha256: challenge.packageManifestSha256,
+        workerName: "codex-workspace-host-worker.mjs",
+        nodeExecutable,
+        nodeSha256: challenge.nodeSha256,
+        workerCwd: home,
+        workerEnvironment,
+        stateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
+        bindingDigest: sha(
+          JSON.stringify({
+            schemaVersion: 1,
+            configSha256,
+            packageManifestSha256: challenge.packageManifestSha256,
+          }),
+        ),
+        startup: challenge,
+        authorizeAdmission: (...args) => authority.authorizeAdmission(...args),
+        authorizeDrain: (...args) => authority.authorizeDrain(...args),
+        beginDrain: (...args) => authority.beginDrain(...args),
+        acceptTreeReceipt: (...args) => authority.acceptTreeReceipt(...args),
+        recoverTreeReceipt: (...args) => authority.recoverTreeReceipt(...args),
+        postTreeClosed: (...args) => authority.postTreeClosed(...args),
+        prepareNextLifetime: recoverPrevious
+          ? async (receipt) => {
+              await authority.archiveClosedController(receipt);
+              authority = newAuthority();
+            }
+          : undefined,
+        requestDrain: async () => {
+          let ready = false;
+          try {
+            ready = await authority.drainReady();
+          } catch {
+            return false;
+          }
+          if (ready)
+            setTimeout(() => {
+              void rollover.trigger(host);
+            }, 50);
+          return ready;
+        },
+        controllerIdentity: (...args) => authority.identity(...args),
+        controllerBootstrap: (...args) => authority.bootstrap(...args),
+        controllerMetadata: (...args) => authority.currentMetadata(...args),
+        controllerApplyReserve: (...args) => authority.applyReserve(...args),
+        controllerApplyVerify: (...args) => authority.applyVerify(...args),
+        controllerApplyCommit: (...args) => authority.applyCommit(...args),
+        metadataAuthority: (...args) => authority.metadataAuthority(...args),
+      });
+      return { host, authority };
+    };
+    const rollover = createGuardedRollover(launch);
+    await rollover.start();
     await channel.ready(host.startupAttestation());
-    return host;
+    return {
+      abort: () => rollover.abort(),
+      get state() {
+        return rollover.state;
+      },
+    };
   } catch (error) {
     if (host) await host.abort();
     channel.close();

@@ -232,10 +232,22 @@ export function guardianWire(stream, handlers, onLost) {
   };
 }
 
-export async function connectGuardianWorker({ fd = 3, startup, onCloseAdmission, onLost }) {
-  check(fd === 3 && typeof onCloseAdmission === "function" && typeof onLost === "function");
+export async function connectGuardianWorker({
+  fd = 3,
+  startup,
+  onCloseAdmission,
+  onFinishClose,
+  onLost,
+}) {
+  check(
+    fd === 3 &&
+      typeof onCloseAdmission === "function" &&
+      typeof onFinishClose === "function" &&
+      typeof onLost === "function",
+  );
   const expectedStartup = startup === undefined ? undefined : guardianStartup(startup);
   let ready = false;
+  let closedBarrierId = null;
   let phase = "starting",
     binding,
     wire;
@@ -265,14 +277,27 @@ export async function connectGuardianWorker({ fd = 3, startup, onCloseAdmission,
         );
         // Synchronous fence comes BEFORE the durable inner barrier callback.
         phase = "closed";
-        await onCloseAdmission(structuredClone(value));
+        closedBarrierId = value.barrierId;
+        const result = await onCloseAdmission(structuredClone(value));
+        check(
+          result?.closed === true &&
+            result.barrierId === value.barrierId &&
+            Array.isArray(result.snapshots) &&
+            result.snapshots.length === value.projects.length,
+        );
         return {
           lifetimeId: value.lifetimeId,
           generation: value.generation,
           ownershipDigest: value.ownershipDigest,
           barrierId: value.barrierId,
           closed: true,
+          snapshots: result.snapshots,
         };
+      },
+      async finishClose(value) {
+        check(phase === "closed" && value?.barrierId && value.barrierId === closedBarrierId);
+        await onFinishClose();
+        return { closed: true, barrierId: closedBarrierId };
       },
     },
     lost,
@@ -325,6 +350,12 @@ export async function connectGuardianWorker({ fd = 3, startup, onCloseAdmission,
     },
     get state() {
       return structuredClone({ phase, ...binding, projects: [...projects.values()] });
+    },
+    async requestDrain() {
+      check(phase === "open");
+      const result = await wire.request("requestDrain", {});
+      check(phase === "open" && typeof result?.ready === "boolean");
+      return result.ready;
     },
     async identity(nonce) {
       check(phase === "open" && typeof nonce === "string" && digest.test(nonce));

@@ -232,6 +232,22 @@ export async function reconcileProjectTasks(
       if (phase === "queued" && !payload.hostRequest)
         throw new Error("Queued intent payload unavailable");
       if (payload.hostRequest) {
+        const reservations = await getDb().$queryRaw<
+          { workspace_id: string; build_id: string; phase: string; paused: boolean }[]
+        >`SELECT e.workspace_id,e.build_id,e.phase,(t.pause_requested OR t.scheduling_paused) AS paused
+          FROM delivery_epic_start_intents e
+          JOIN delivery_epic_plan_heads h ON h.owner_id=e.owner_id AND h.epic_id=e.epic_id
+          JOIN delivery_epic_plans p ON p.owner_id=h.owner_id AND p.epic_id=h.epic_id AND p.version=h.version
+          JOIN delivery_tasks t ON t.owner_id=p.owner_id AND t.id=p.authored_by_task_id
+          WHERE e.owner_id=${user.id}::uuid AND e.intent_id=${payload.taskId}::uuid`;
+        if (
+          reservations.length > 1 ||
+          (reservations.length === 1 &&
+            (reservations[0].phase !== "accepted" ||
+              reservations[0].paused ||
+              reservations[0].workspace_id !== payload.workspaceId))
+        )
+          throw new Error("Epic preparation reservation unavailable");
         // The durable intent exists before enrollment and preparation. This owner
         // exchange authenticates the installed outer; a host status or browser
         // request cannot substitute for the approved package/lifetime checks.
@@ -249,7 +265,11 @@ export async function reconcileProjectTasks(
             payload.workspaceId,
             "/projects/tasks/start",
             payload.hostRequest,
-            ...(options.signal ? [options] : []),
+            ...(reservations.length
+              ? [{ ...options, expectedBuildId: reservations[0].build_id }]
+              : options.signal
+                ? [options]
+                : []),
           ),
           payload.projectId,
           payload.taskId,

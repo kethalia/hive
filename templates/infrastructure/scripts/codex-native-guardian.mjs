@@ -440,23 +440,23 @@ export class NativeGuardian {
   drain() {
     return this.#serialized(async () => {
       check(this.#phase === "open");
-      const decisions = structuredClone(
-        await this.#options.authorizeDrain(structuredClone(this.#binding)),
-      );
-      check(Array.isArray(decisions) && decisions.length === this.#binding.projects.length);
-      this.#binding.projects.forEach((p, i) => {
-        check(
-          decisions[i]?.projectId === p.projectId &&
-            decisions[i]?.bindingDigest === p.bindingDigest &&
-            uuid.test(decisions[i]?.decisionId),
-        );
-      });
+      if (this.#options.prepareDrain) await this.#options.prepareDrain();
       this.#phase = "closing";
       try {
-        await this.#options.journal.closeIntent({
+        const barrier = await this.#options.journal.closeIntent({
           ...this.#binding,
           expectedGeneration: this.#generation,
-          decisions,
+        });
+        const decisions = structuredClone(
+          await this.#options.authorizeDrain(structuredClone(this.#binding), barrier),
+        );
+        check(Array.isArray(decisions) && decisions.length === this.#binding.projects.length);
+        this.#binding.projects.forEach((p, i) => {
+          check(
+            decisions[i]?.projectId === p.projectId &&
+              decisions[i]?.bindingDigest === p.bindingDigest &&
+              uuid.test(decisions[i]?.decisionId),
+          );
         });
         const payload = new Encoding()
           .u32(this.#generation)

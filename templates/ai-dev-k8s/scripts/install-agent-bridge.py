@@ -339,24 +339,34 @@ def same_build_identity(previous, identity, config_path):
     require(isinstance(prior, dict) and prior.get("manifestBindingSha256") == identity["manifestBindingSha256"] and prior.get("agentId") == identity["agentId"])
 
 
+_INSTALL_STAGE = "input"
+
+
 def install(request):
+    global _INSTALL_STAGE
+    _INSTALL_STAGE = "bootstrap_validation"
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
     files, target, bootstrap_encoded = validate(request, home, os.environ.get("HIVE_WORKSPACE_PROFILE"))
+    _INSTALL_STAGE = "agent_identity"
     effective, runtime_identity = normalize_agent_config(request["config"], "agent-tools")
     request = {**request, "config": effective}
+    _INSTALL_STAGE = "effective_validation"
     files, target, encoded = validate(request, home, os.environ.get("HIVE_WORKSPACE_PROFILE"))
+    _INSTALL_STAGE = "filesystem"
     bootstrap_sha = sha(bootstrap_encoded)
     for parent in (home / ".local", home / ".local/share", home / ".local/share/hive", home / ".local/state", home / ".local/state/hive", home / ".config", home / ".config/hive"):
         directory(parent, False)
     packages = directory(home / ".local/share/hive/agent-bridge")
     control = directory(home / ".local/state/hive/agent-bridge")
     history = directory(control / "history")
+    _INSTALL_STAGE = "installer_lock"
     fd = os.open(control / "installer.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     lock = os.fstat(fd)
     require(stat.S_ISREG(lock.st_mode) and lock.st_uid == os.getuid() and lock.st_nlink == 1 and not lock.st_mode & 0o077)
     fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     record_path, key_path = control / "service.json", control / "receipt-key"
     try:
+        _INSTALL_STAGE = "receipt"
         if not key_path.exists():
             require(not record_path.exists())
             atomic(key_path, os.urandom(32))
@@ -379,6 +389,7 @@ def install(request):
         previous = load()
         config_sha = sha(encoded)
         same = previous and previous.get("archiveSha256") == request["archiveSha256"] and previous.get("manifestSha256") == request["manifestSha256"] and previous.get("configSha256") == config_sha
+        _INSTALL_STAGE = "prior_process"
         if previous:
             same_build_identity(previous, runtime_identity, home / ".config/hive/agent-bridge.json")
             require(previous.get("phase") == "ready" and isinstance(previous.get("process"), dict))
@@ -390,14 +401,18 @@ def install(request):
                 return {"schemaVersion": 1, "ready": True, "reused": True, "lifetimeId": lifetime}
         else:
             require(not (home / ".config/hive/agent-bridge.json").exists())
+        _INSTALL_STAGE = "port"
         require(port_free())
+        _INSTALL_STAGE = "package"
         install_package(packages, target, files)
+        _INSTALL_STAGE = "node"
         node = Path("/usr/bin/node")
         require(node.resolve() == node and node.stat().st_uid == 0 and stat.S_ISREG(node.stat().st_mode) and not node.stat().st_mode & 0o022)
         version = subprocess.check_output([str(node), "--version"], env={"PATH": "/usr/bin:/bin"}, timeout=2).decode().strip()
         require(re.fullmatch(r"v24\.[0-9]+\.[0-9]+", version))
         node_sha = sha(node.read_bytes())
         record = {"schemaVersion": 1, "phase": "preparing", "launchId": str(uuid.uuid4()), "archiveSha256": request["archiveSha256"], "manifestSha256": request["manifestSha256"], "configSha256": config_sha, "bootstrapConfigSha256": bootstrap_sha, "runtimeIdentity": runtime_identity, "nodeSha256": node_sha, "process": None, "lifetimeId": None}
+        _INSTALL_STAGE = "record"
         save(record)
         atomic(home / ".config/hive/agent-bridge.json", encoded)
         log_path = control / ("service-" + record["launchId"] + ".log")
@@ -405,6 +420,7 @@ def install(request):
         record["phase"] = "starting"
         save(record)  # A crash after this point cannot silently retry/adopt a child.
         try:
+            _INSTALL_STAGE = "launch"
             child = subprocess.Popen([str(node), str(target / "agent-start.mjs")], stdin=subprocess.DEVNULL, stdout=log_fd, stderr=log_fd,
                                      env={"PATH": str(home / ".local/bin") + ":/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "USER": pwd.getpwuid(os.getuid()).pw_name, "LANG": "C.UTF-8"}, close_fds=True, start_new_session=True)
             record["attemptedPid"] = child.pid
@@ -413,6 +429,7 @@ def install(request):
             require(identity["executable"] == str(node) and identity["executableSha256"] == node_sha and identity["argv"] == [str(node), str(target / "agent-start.mjs")])
             record["process"] = identity
             save(record)
+            _INSTALL_STAGE = "health"
             deadline = time.monotonic() + 8
             while True:
                 try:
@@ -435,6 +452,8 @@ def install(request):
 
 
 def main():
+    global _INSTALL_STAGE
+    _INSTALL_STAGE = "input"
     try:
         require(len(sys.argv) == 1)
         raw = sys.stdin.buffer.read(262145)
@@ -442,7 +461,7 @@ def main():
         result = install(json.loads(raw))
         sys.stdout.write(json.dumps(result, separators=(",", ":")) + "\n")
     except Exception:
-        sys.stderr.write("agent_bridge_install_failed\n")
+        sys.stderr.write("agent_bridge_install_failed stage=" + _INSTALL_STAGE + "\n")
         sys.exit(1)
 
 

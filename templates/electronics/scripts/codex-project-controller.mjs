@@ -1,7 +1,15 @@
 // Installed local composition. HTTP callers reach this only after a signed,
 // independently bound project capability is verified by codex-project-discovery.
 import { execFileSync } from "node:child_process";
-import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  createPublicKey,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+  verify,
+} from "node:crypto";
 import {
   closeSync,
   constants,
@@ -10,6 +18,7 @@ import {
   fsyncSync,
   lstatSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -148,6 +157,202 @@ function writeAtomic(path, state) {
     closeSync(fd);
   }
   renameSync(tmp, path);
+}
+/** Called by the trusted bootstrap before opening a replacement guardian. Each
+ * signed token binds a preserved, released task and the prior tree-exit receipt.
+ * The old complete journal is durably archived before any task pointer resets. */
+export function archiveClosedProjectState(config, tokens, issuerPublicKeyPem) {
+  check(uuid(config.ownerId) && uuid(config.workspaceId) && Array.isArray(tokens));
+  privatePath(config.stateDirectory, true);
+  const lock = openSync(
+    join(config.stateDirectory, "controller.lock"),
+    constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    execFileSync("/usr/bin/flock", ["--exclusive", "--nonblock", "3"], {
+      stdio: ["ignore", "ignore", "ignore", lock],
+      env: { PATH: "/usr/bin:/bin" },
+      timeout: 2000,
+    });
+    const keyPath = join(config.stateDirectory, "projects.key"),
+      statePath = join(config.stateDirectory, "projects.json");
+    privatePath(keyPath);
+    privatePath(statePath);
+    check(lstatSync(statePath).size <= 4 * 1024 * 1024, "archive_state_invalid");
+    const key = readFileSync(keyPath),
+      saved = JSON.parse(readFileSync(statePath));
+    const signature = createHmac("sha256", key).update(JSON.stringify(saved.state)).digest("hex");
+    check(
+      key.length === 32 &&
+        typeof saved.signature === "string" &&
+        saved.signature.length === signature.length &&
+        timingSafeEqual(Buffer.from(saved.signature), Buffer.from(signature)),
+      "journal_signature_invalid",
+    );
+    const state = saved.state;
+    check(
+      state.schemaVersion === 1 &&
+        state.ownerId === config.ownerId &&
+        state.workspaceId === config.workspaceId,
+      "archive_state_invalid",
+    );
+    check(tokens.length > 0 && tokens.length <= 32, "archive_scope_invalid");
+    const issuer = createPublicKey(issuerPublicKeyPem);
+    check(issuer.asymmetricKeyType === "ed25519", "archive_issuer_invalid");
+    const claims = tokens.map((token) => {
+      check(typeof token === "string" && token.length <= 16384, "archive_token_invalid");
+      const parts = token.split(".");
+      check(
+        parts.length === 2 &&
+          /^[A-Za-z0-9_-]+$/.test(parts[0]) &&
+          /^[A-Za-z0-9_-]+$/.test(parts[1]) &&
+          verify(
+            null,
+            Buffer.from(`hive-project-archive-v1\n${parts[0]}`),
+            issuer,
+            Buffer.from(parts[1], "base64url"),
+          ),
+        "archive_token_invalid",
+      );
+      const c = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+      check(
+        exact(c, [
+          "schemaVersion",
+          "ownerId",
+          "hiveUserId",
+          "workspaceId",
+          "buildId",
+          "projectId",
+          "repositoryId",
+          "taskId",
+          "requestId",
+          "leaseId",
+          "leaseGeneration",
+          "checkoutIncarnation",
+          "acceptedSourceSha",
+          "priorLifetimeId",
+          "barrierId",
+          "treeReceiptDigest",
+          "preservationDigest",
+          "leaseReleaseDigest",
+          "expiresAt",
+        ]) &&
+          c.schemaVersion === 1 &&
+          [
+            c.ownerId,
+            c.hiveUserId,
+            c.workspaceId,
+            c.buildId,
+            c.projectId,
+            c.taskId,
+            c.requestId,
+            c.leaseId,
+            c.checkoutIncarnation,
+            c.priorLifetimeId,
+            c.barrierId,
+          ].every(uuid) &&
+          number(c.repositoryId) &&
+          Number.isSafeInteger(c.leaseGeneration) &&
+          c.leaseGeneration > 0 &&
+          /^[a-f0-9]{40}$/.test(c.acceptedSourceSha) &&
+          [c.treeReceiptDigest, c.preservationDigest, c.leaseReleaseDigest].every((d) =>
+            /^[a-f0-9]{64}$/.test(d),
+          ) &&
+          Number.isSafeInteger(c.expiresAt) &&
+          c.expiresAt > Date.now() &&
+          c.expiresAt <= Date.now() + 60000,
+        "archive_token_invalid",
+      );
+      return c;
+    });
+    check(new Set(claims.map((c) => c.projectId)).size === claims.length, "archive_scope_invalid");
+    if (!state.guardianBarrier && !state.guardianLifetimeId) {
+      const comparable = (items) =>
+        items
+          .map(({ expiresAt: _expiresAt, ...item }) => item)
+          .sort((a, b) => a.projectId.localeCompare(b.projectId));
+      const entries = readdirSync(config.stateDirectory).filter((name) =>
+        /^projects-archive-[a-f0-9]{64}\.json$/.test(name),
+      );
+      check(entries.length <= 256, "archive_scope_invalid");
+      for (const name of entries) {
+        const path = join(config.stateDirectory, name);
+        privatePath(path);
+        if (lstatSync(path).size > 5 * 1024 * 1024) continue;
+        const prior = JSON.parse(readFileSync(path));
+        const content = { state: prior.state, claims: prior.claims, tokens: prior.tokens };
+        const mac = createHmac("sha256", key).update(JSON.stringify(content)).digest("hex");
+        if (
+          typeof prior.signature !== "string" ||
+          prior.signature !== mac ||
+          digest(content) !== name.slice(17, -5)
+        )
+          continue;
+        if (
+          JSON.stringify(comparable(prior.claims)) === JSON.stringify(comparable(claims)) &&
+          claims.every((c) => state.projects[c.projectId]?.task === null)
+        )
+          return { archiveDigest: digest(content), taskCount: claims.length, replayed: true };
+      }
+      check(false, "archive_scope_invalid");
+    }
+    check(state.guardianBarrier && uuid(state.guardianBarrier.barrierId), "archive_state_invalid");
+    const active = Object.values(state.projects).filter((p) => p.task);
+    check(active.length === claims.length, "archive_scope_invalid");
+    for (const p of active) {
+      const t = p.task,
+        c = claims.find((item) => item.projectId === p.projectId);
+      check(
+        c &&
+          c.ownerId === state.ownerId &&
+          c.workspaceId === state.workspaceId &&
+          c.repositoryId === p.repositoryId &&
+          c.buildId === t.guardianPreparation?.buildId &&
+          c.taskId === t.taskId &&
+          c.requestId === t.request?.requestId &&
+          c.leaseId === t.prepared?.leaseId &&
+          c.leaseGeneration === t.prepared?.leaseGeneration &&
+          c.checkoutIncarnation === t.checkoutIncarnation &&
+          c.acceptedSourceSha === (t.acceptedSource?.headSha ?? t.request?.revision) &&
+          c.priorLifetimeId === state.guardianLifetimeId &&
+          c.barrierId === state.guardianBarrier.barrierId,
+        "archive_scope_invalid",
+      );
+    }
+    const archiveDigest = digest({ state, claims, tokens });
+    const archive = {
+      state,
+      claims,
+      tokens,
+      signature: createHmac("sha256", key)
+        .update(JSON.stringify({ state, claims, tokens }))
+        .digest("hex"),
+    };
+    writeAtomic(join(config.stateDirectory, `projects-archive-${archiveDigest}.json`), archive);
+    const dir = openSync(config.stateDirectory, constants.O_RDONLY | constants.O_DIRECTORY);
+    try {
+      fsyncSync(dir);
+    } finally {
+      closeSync(dir);
+    }
+    for (const p of active) p.task = null;
+    delete state.guardianBarrier;
+    delete state.guardianLifetimeId;
+    writeAtomic(statePath, {
+      state,
+      signature: createHmac("sha256", key).update(JSON.stringify(state)).digest("hex"),
+    });
+    const finalDir = openSync(config.stateDirectory, constants.O_RDONLY | constants.O_DIRECTORY);
+    try {
+      fsyncSync(finalDir);
+    } finally {
+      closeSync(finalDir);
+    }
+    return { archiveDigest, taskCount: active.length };
+  } finally {
+    closeSync(lock);
+  }
 }
 /** Dependencies are installed functions, never HTTP parameters. openRuntime must
  * return the ONE supervisor plus its registration authority for this host. */

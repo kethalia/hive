@@ -15,6 +15,13 @@ import {
 } from "../templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs";
 import { nativeSourceProofPayload } from "../templates/ai-dev-k8s/scripts/delivery-native-spool.mjs";
 
+test("epic planning commands expose bounded manager guidance", () => {
+  const operations = deliveryManagerToolSpec.inputSchema.properties.operation.enum;
+  assert(operations.includes("read_epic_context") && operations.includes("plan_epic"));
+  assert.match(deliveryManagerToolSpec.description, /expectedPlanVersion/);
+  assert.match(deliveryManagerToolSpec.description, /controller derives request IDs and digests/i);
+});
+
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), "hive-manager-adapter-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -1396,6 +1403,11 @@ test("source application snapshot rejects pre-terminal and substituted claim sco
   f.terminal();
   await new Promise((resolve) => setImmediate(resolve));
   const { request, snapshot } = f.applies[0];
+  const closed = f.adapter.closedBoundarySnapshot(f.request.threadId);
+  assert.deepEqual(closed.request, request);
+  assert.match(closed.snapshot.sourceJournalDigest, /^[a-f0-9]{64}$/);
+  assert.equal(closed.snapshot.attemptId, snapshot.attemptId);
+  assert.equal(closed.snapshot.quiescenceAuthority, false);
   assert.equal(snapshot.nativeSequence, 2);
   assert.equal(snapshot.inputSourceSha, "a".repeat(40));
   assert.deepEqual(snapshot.acceptedSourceContext, f.output.sourceContext);
@@ -1648,6 +1660,7 @@ test("verified terminal success records a controller receipt and applies final s
   });
   const claim = await f.begin(true);
   await f.publish();
+  assert.equal(f.adapter.locallyCompleted(f.request.threadId), false);
   f.terminal();
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(f.applies.length, 1);
@@ -1659,6 +1672,7 @@ test("verified terminal success records a controller receipt and applies final s
   assert.equal(raw.state.results[claim.attemptId].operation, "complete_step");
   assert.equal(raw.state.sourcePublications[claim.attemptId].applied, true);
   assert.equal(f.adapter.inspectNative().held, 1);
+  assert.equal(f.adapter.locallyCompleted(f.request.threadId), true);
 });
 
 test("changed verified completion receipt never authorizes source application", async (t) => {

@@ -13,6 +13,7 @@ import {
   acceptancePlanResultSchema,
   acceptanceProducerSchema,
   acceptanceReviewResultSchema,
+  inheritedAcceptanceCriteriaSchema,
   requireIntentDigest,
   validatePlan,
   validateReview,
@@ -24,6 +25,8 @@ import {
   acceptanceOutputSchemas,
   acceptancePrompts,
 } from "./acceptance-prompts";
+import { bindEpicAcceptance } from "./epic-acceptance";
+import { inheritedEpicCriteria } from "./epic-acceptance.server";
 import { canonicalGitHubSource } from "./github-evidence.server";
 import { DeliveryConflict } from "./state";
 
@@ -92,6 +95,13 @@ export class AcceptanceStore {
         row.requestDigest === input.requestDigest,
       "acceptance_intent_binding",
     );
+    const inheritedCriteria = await inheritedEpicCriteria(tx, {
+      ownerId: input.ownerId,
+      projectId: input.projectId,
+      intentId: input.taskId,
+      workspaceId: input.workspaceId,
+      text: input.hostRequest.text,
+    });
     const sealed = {
       purpose: "hive-independent-acceptance-v1",
       ownerId: row.ownerId,
@@ -102,6 +112,7 @@ export class AcceptanceStore {
       policyDigest: row.repositoryPolicyDigest,
       intentDigest,
       text: input.hostRequest.text,
+      ...(inheritedCriteria ? { inheritedCriteria } : {}),
     };
     const encrypted = encrypt(canonicalGitHubSource(sealed), this.options.encryptionKey);
     await tx.deliveryAcceptanceIntent.createMany({
@@ -158,6 +169,7 @@ export class AcceptanceStore {
         policyDigest: z.string(),
         intentDigest: z.string(),
         text: z.string().min(1).max(32768),
+        inheritedCriteria: inheritedAcceptanceCriteriaSchema.optional(),
       })
       .strict()
       .parse(
@@ -258,7 +270,14 @@ export class AcceptanceStore {
             },
           }
         : await this.options.materializeReview(tx, scope, job.material);
-    const payload = { ...material.payload, scope, originalIntent: original.sealed.text };
+    const payload = {
+      ...material.payload,
+      scope,
+      originalIntent: original.sealed.text,
+      ...(original.sealed.inheritedCriteria
+        ? { inheritedCriteria: original.sealed.inheritedCriteria }
+        : {}),
+    };
     requireValue(
       Buffer.byteLength(canonicalGitHubSource(payload)) <= this.producer.maxInputBytes,
       "acceptance_input_limit",
@@ -278,6 +297,7 @@ export class AcceptanceStore {
       evidencePolicyVersion: material.evidencePolicyVersion,
       inputDigest: acceptanceDigest(payload),
       original: original.sealed.text,
+      inherited: original.sealed.inheritedCriteria,
     };
   }
   private async locked(tx: Tx, authority: AcceptanceAuthority, id: string) {
@@ -493,6 +513,13 @@ export class AcceptanceStore {
             ...(material.review as NonNullable<typeof material.review>),
             inputDigest: material.inputDigest,
           });
+    if (job.kind === "plan") {
+      const plan = result as AcceptancePlanResult;
+      if (material.inherited && plan.outcome === "ready")
+        bindEpicAcceptance(material.inherited, plan);
+      if (!material.inherited && plan.inheritedMappings?.length)
+        throw new DeliveryConflict("epic_acceptance_unbound");
+    }
     const resultDigest = acceptanceDigest(result);
     const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
     requireValue(

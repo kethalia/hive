@@ -8,8 +8,22 @@ import {
   sourceContextSchema,
   taskDefinitionSchema,
 } from "./contracts";
+import { epicPlanInputSchema, managerEpicProposalSchema } from "./epic-contracts";
 
 const command = z.discriminatedUnion("operation", [
+  z
+    .object({
+      operation: z.literal("read_epic_context"),
+      payload: z.object({ taskId: z.string().uuid() }).strict(),
+    })
+    .strict(),
+  z.object({ operation: z.literal("plan_epic"), payload: managerEpicProposalSchema }).strict(),
+  z
+    .object({
+      operation: z.literal("write_epic_plan"),
+      payload: epicPlanInputSchema.extend({ taskId: z.string().uuid() }),
+    })
+    .strict(),
   z
     .object({
       operation: z.literal("report_step"),

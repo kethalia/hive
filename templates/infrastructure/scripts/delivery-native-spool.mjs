@@ -875,6 +875,38 @@ export function createDeliveryNativeSpool(options) {
       const claim = claimFor(managerThreadId);
       return claim ? structuredClone(claim) : null;
     },
+    locallyCompleted(managerThreadId) {
+      if (!progression || state.blocked[managerThreadId]) return false;
+      const claim = claimFor(managerThreadId),
+        cursor = state.cursors[managerThreadId],
+        root = claim && state.rootTurns[hash([managerThreadId, claim.parentTurnId])],
+        plan = claim && state.taskPlans[claim.taskId],
+        publication = claim && state.sourcePublications?.[claim.attemptId];
+      if (
+        !claim ||
+        !cursor ||
+        !plan?.stepIds?.length ||
+        root?.status !== "completed" ||
+        cursor.sequence !== cursor.acknowledgedSequence ||
+        state.events.some(
+          (event) => event.managerThreadId === managerThreadId && !event.acknowledged,
+        ) ||
+        Object.values(state.violations).some((item) => item.managerThreadId === managerThreadId) ||
+        ["reserved", "ready"].includes(state.repairDecisions[claim.attemptId]?.phase) ||
+        (publication && !publication.applied)
+      )
+        return false;
+      return plan.stepIds.every((stepId) =>
+        Object.values(state.attempts).some((attempt) => {
+          const result = state.results[attempt.attemptId];
+          return (
+            attempt.taskId === claim.taskId &&
+            attempt.stepId === stepId &&
+            ["complete_step", "report_step"].includes(result?.operation)
+          );
+        }),
+      );
+    },
     continuationCandidate(managerThreadId) {
       if (!progression || state.blocked[managerThreadId]) return null;
       const claim = claimFor(managerThreadId),

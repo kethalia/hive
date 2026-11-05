@@ -537,6 +537,14 @@ class ManagedProjects:
             project, receipt, record = self.load(repository_id)
             lease = record.get("lease")
             require(not record.get("sourceUpdating"), "source_update_pending")
+            previous = record.get("lastLeaseRelease")
+            if not lease and previous and (previous.get("taskId"), previous.get("leaseId"), previous.get("leaseGeneration"), previous.get("revision")) == (task_id, lease_id, generation, expected_revision):
+                require(previous.get("checkoutIncarnation") == record.get("checkoutIncarnation"), "stale_lease")
+                checkout = project / "checkout"
+                self.checkout_valid(checkout, record)
+                require(self.git(checkout, "rev-parse", "HEAD") == expected_revision, "release_revision_mismatch")
+                self.no_consumers(checkout)
+                return {**self.summary(project, record), "releaseReceipt": previous}
             require(type(generation) is int and lease and (lease["taskId"], lease["id"], lease["generation"]) == (task_id, lease_id, generation), "stale_lease")
             if record.get("checkoutIdentity"):
                 checkout = project / "checkout"
@@ -547,9 +555,70 @@ class ManagedProjects:
                 require(expected_revision == record["acceptedSource"]["headSha"], "release_revision_mismatch")
             else:
                 record["revision"] = expected_revision
+            released = {"schemaVersion": 1, "repositoryId": repository_id, "taskId": task_id,
+                        "leaseId": lease_id, "leaseGeneration": generation, "revision": expected_revision,
+                        "checkoutIncarnation": record.get("checkoutIncarnation"),
+                        "checkoutIdentity": {k: str(v) for k, v in record.get("checkoutIdentity", {}).items()}, "releasedAt": int(time.time() * 1000)}
+            require(identifier(released["checkoutIncarnation"]), "checkout_incarnation_missing")
+            # The outer guardian must attest this receipt after tree closure. The
+            # local signed journal alone does not establish kernel quiescence.
+            record["lastLeaseRelease"] = released
             record["lease"] = None
             self.write(receipt, record)
-            return self.summary(project, record)
+            return {**self.summary(project, record), "releaseReceipt": released}
+
+    def _archive_accepted_source(self, repository_id, task_id, signed_evidence, authority):
+        """Inert trusted-outer seam. No CLI caller or model-provided authority.
+
+        Only a verified server decision binding tree exit, retention and the
+        exact released lease may archive an accepted source and permit reuse.
+        """
+        with self.lock():
+            project, receipt, record = self.load(repository_id)
+            require(authority is not None and not record.get("lease") and not record.get("sourceUpdating"), "archive_authority_unavailable")
+            released, source = record.get("lastLeaseRelease"), record.get("acceptedSource")
+            previous = record.get("lastSourceArchive")
+            if released and not source and isinstance(previous, dict):
+                archived = self.read(project / "evidence" / f"source-{previous['digest']}.json")
+                expected = archived["binding"]
+                evidence = authority.verify(signed_evidence, expected)
+                require(task_id == expected["taskId"] and evidence == archived["evidence"] and released == archived["releaseReceipt"] and record.get("checkoutIncarnation") == expected["checkoutIncarnation"], "archive_scope_changed")
+                checkout = project / "checkout"
+                self.checkout_valid(checkout, record)
+                require(self.git(checkout, "rev-parse", "HEAD") == expected["revision"], "release_revision_mismatch")
+                self.no_consumers(checkout)
+                return {"archiveDigest": previous["digest"], "revision": expected["revision"], "checkoutRetained": True}
+            require(released and source and released.get("taskId") == task_id and released.get("checkoutIncarnation") == record.get("checkoutIncarnation") and released.get("revision") == source.get("headSha"), "archive_scope_changed")
+            expected = {"repositoryId": repository_id, "taskId": task_id,
+                        "leaseId": released["leaseId"], "leaseGeneration": released["leaseGeneration"],
+                        "checkoutIncarnation": released["checkoutIncarnation"], "revision": released["revision"],
+                        "acceptedSource": source}
+            evidence = authority.verify(signed_evidence, expected)
+            require(isinstance(evidence, dict) and evidence.get("binding") == expected
+                    and all(isinstance(evidence.get(k), str) and re.fullmatch(r"[0-9a-f]{64}", evidence[k])
+                            for k in ("treeReceiptDigest", "preservationDigest", "leaseReleaseDigest")), "archive_evidence_invalid")
+            require(evidence["leaseReleaseDigest"] == hashlib.sha256(json.dumps(released, sort_keys=True, separators=(",", ":")).encode()).hexdigest(), "archive_evidence_invalid")
+            checkout = project / "checkout"
+            self.checkout_valid(checkout, record)
+            require(self.git(checkout, "rev-parse", "HEAD") == released["revision"], "release_revision_mismatch")
+            self.clean(checkout)
+            self.no_consumers(checkout)
+            archive = {"schemaVersion": 1, "binding": expected, "evidence": evidence,
+                       "releaseReceipt": released, "sourceLastApplied": record.get("sourceLastApplied"),
+                       "sourceAppliedOperation": record.get("sourceAppliedOperation")}
+            digest = hashlib.sha256(json.dumps(archive, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            archive_dir = project / "evidence"
+            self.safe(archive_dir)
+            archive_dir.mkdir(mode=0o700, exist_ok=True)
+            self.private(archive_dir, directory=True)
+            self.write(archive_dir / f"source-{digest}.json", archive)
+            record["lastSourceArchive"] = {"digest": digest}
+            record["revision"] = released["revision"]
+            record.pop("acceptedSource", None)
+            record.pop("sourceLastApplied", None)
+            record.pop("sourceAppliedOperation", None)
+            self.write(receipt, record)
+            return {"archiveDigest": digest, "revision": record["revision"], "checkoutRetained": True}
 
     def request_cleanup(self, repository_id, task_id):
         require(identifier(task_id), "invalid_task")

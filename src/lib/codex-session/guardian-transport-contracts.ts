@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { epicLeaseReleaseSchema } from "@/lib/delivery/epic-closure-contracts";
 import { guardianApplicationActions } from "./guardian-application-contracts";
+import { guardianTreeReceiptSchema } from "./guardian-closure-contracts";
 import {
   guardianCanonical,
   guardianCheckoutSchema,
@@ -112,6 +114,43 @@ const common = {
 };
 const generation = { runtimeGeneration: z.number().int().positive() };
 export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("epic_release_prepare"),
+      projectId: uuid,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("epic_release_submit"),
+      projectId: uuid,
+      releaseReceipt: epicLeaseReleaseSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("epic_archive_ack"),
+      projectId: uuid,
+      archiveDigest: guardianDigestSchema,
+      sourceArchiveDigest: guardianDigestSchema,
+    })
+    .strict(),
+  z.object({ ...common, ...generation, action: z.literal("drain_ready") }).strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("tree_closed"),
+      barrierId: uuid,
+      receipt: guardianTreeReceiptSchema,
+    })
+    .strict(),
   guardianApplicationActions[0].extend({ ...common, ...generation }).strict(),
   guardianApplicationActions[1].extend({ ...common, ...generation }).strict(),
   guardianApplicationActions[2].extend({ ...common, ...generation }).strict(),

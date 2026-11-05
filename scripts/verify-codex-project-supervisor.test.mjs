@@ -1192,6 +1192,33 @@ test("protocol-one boundary refuses unknown inventory and inconsistent full-item
   await assert.rejects(f.supervisor.continueDeliveryRoot(f.request), /history_incomplete/);
   assert.equal(f.calls.filter((call) => call.method === "turn/start").length, 1);
 });
+test("closed admission permits only fenced read-only native boundary inspection", async (t) => {
+  const f = await progressionSupervisor(t);
+  const barrier = { barrierId: "fixture" },
+    methods = [];
+  f.supervisor.executionAuthority = {
+    assert: () => {
+      throw Error("input_closed");
+    },
+    assertClosed: (value) => assert.equal(value, barrier),
+  };
+  f.runtime.readClosureBoundary = async (value, method, params) => {
+    assert.equal(value, barrier);
+    assert(["thread/turns/list", "thread/items/list", "thread/loaded/list"].includes(method));
+    methods.push(method);
+    return f.runtime.call(method, params);
+  };
+  const result = await f.supervisor.readDeliveryBoundary(f.request, { closureBarrier: barrier });
+  assert.equal(result.rootTurns, 1);
+  assert(methods.includes("thread/turns/list") && methods.includes("thread/loaded/list"));
+  await assert.rejects(
+    f.supervisor.readDeliveryBoundary(f.request, {
+      closureBarrier: {},
+      nextParentTurnId: "another",
+    }),
+    /guardian_closure_read_denied/,
+  );
+});
 
 test("router timeout keeps the actual handler tracked until its underlying work settles", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });

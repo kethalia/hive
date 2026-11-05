@@ -2,6 +2,7 @@ import { getDb } from "@hive/db";
 import { ZodError } from "zod";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { boundedSessionJson, sessionService } from "@/lib/codex-session/route.server";
+import { epicConfig } from "@/lib/delivery/epic-config.server";
 import { DeliveryManagerService } from "@/lib/delivery/manager.server";
 import {
   repositoryPolicyAdapters,
@@ -27,20 +28,25 @@ export async function POST(request: Request) {
   try {
     const sessions = sessionService();
     const policies = repositoryPolicyAdapters(repositoryPolicyStore(getDb()));
+    const epic = epicConfig();
     const manager = new DeliveryManagerService(getDb(), {
       reauthorize: (binding) => sessions.authority.reauthorize(binding),
       resolveEvidencePolicy: policies.resolveEvidencePolicy,
       bindTaskPolicy: policies.bindCreatedTask,
       authorizeTaskPolicy: policies.authorizeTaskPolicy,
+      epicPlanEncryptionKey: epic?.encryptionKey,
+      epicIsolationPolicy: epic?.isolationPolicy,
+      epicModelTiers: epic?.modelTiers,
       allowedModelEfforts:
-        process.env.HIVE_CODEX_MANAGER_MODEL && process.env.HIVE_CODEX_MANAGER_EFFORT
+        epic?.modelTiers ??
+        (process.env.HIVE_CODEX_MANAGER_MODEL && process.env.HIVE_CODEX_MANAGER_EFFORT
           ? [
               {
                 model: process.env.HIVE_CODEX_MANAGER_MODEL,
                 effort: process.env.HIVE_CODEX_MANAGER_EFFORT,
               },
             ]
-          : [],
+          : []),
     });
     return Response.json(await manager.execute(value), {
       headers: { "Cache-Control": "private, no-store" },

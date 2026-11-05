@@ -1,11 +1,19 @@
 import { randomUUID } from "node:crypto";
+import { decrypt } from "@hive/auth";
 import { Prisma, type PrismaClient } from "@hive/db";
 import { requireAppliedSourceForAction } from "@/lib/codex-session/guardian-application-gate.server";
 import type { GuardianPolicy } from "@/lib/codex-session/guardian-contracts";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
+import { inheritedAcceptanceCriteriaSchema } from "./acceptance-contracts";
+import { acceptancePlanForIntent } from "./acceptance-policy.server";
 import { repairWriterHeld } from "./acceptance-repair.server";
 import type { SourceContext } from "./contracts";
+import { bindEpicAcceptance } from "./epic-acceptance";
+import { authorizeEpicClaim } from "./epic-claim.server";
+import { epicDigest, epicPlanSchema } from "./epic-contracts";
+import { writeEpicPlan } from "./epic-plan.server";
+import { compileManagerEpicProposal, managerEpicContext } from "./epic-planning.server";
 import { githubSourceDigest } from "./github-evidence.server";
 import { isGitHubSerializationConflict } from "./github-persistence.server";
 import {
@@ -42,10 +50,14 @@ export interface ManagerDependencies {
     operation: string,
   ): Promise<void>;
   allowedModelEfforts?: readonly { model: string; effort: string }[];
+  epicModelTiers?: readonly { tier: string; model: string; effort: string }[];
   // Test/explicit controller composition only. Routes/config do not opt in.
   progressionProtocol?: 1;
   // Trusted constructor only; production defaults to the deployment guardian gate.
   guardianPolicy?: GuardianPolicy;
+  epicPlanEncryptionKey?: string;
+  /** Deployment-owned, reviewed workspace/PVC enrollment; never from the host. */
+  epicIsolationPolicy?: unknown;
 }
 export interface ManagerPolicyScope {
   ownerId: string;
@@ -176,6 +188,110 @@ export class DeliveryManagerService {
       },
       input.checkoutBinding,
     );
+    if (
+      input.command.operation === "write_epic_plan" ||
+      input.command.operation === "read_epic_context" ||
+      input.command.operation === "plan_epic"
+    ) {
+      const command = input.command;
+      const key = this.dependencies.epicPlanEncryptionKey;
+      if (!key) throw new DeliveryConflict("epic_planning_disabled");
+      return this.db.$transaction(
+        async (tx) => {
+          const host = await lockManagerCheckout(tx, input, registered, {
+            guardianPolicy: this.dependencies.guardianPolicy,
+          });
+          if (host.binding.id !== expected.id) throw new RegistrationRejected();
+          const task = await tx.deliveryTask.findUnique({
+            where: { ownerId_id: { ownerId, id: command.payload.taskId } },
+          });
+          if (
+            !task ||
+            task.projectId !== host.thread.projectId ||
+            task.conversationId !== host.thread.conversationId ||
+            task.managerBindingId !== host.binding.id
+          )
+            throw new RegistrationRejected();
+          await resolveTaskSource(tx, ownerId, task.id, input.sourceContext, true);
+          await requireAppliedSourceForAction(tx, {
+            ownerId,
+            managerBindingId: host.binding.id,
+            taskId: task.id,
+            action: "execution",
+            parentTurnId: input.nativeTurnId,
+          });
+          if (command.operation === "write_epic_plan") {
+            const catalog =
+              this.dependencies.epicModelTiers ??
+              (this.dependencies.allowedModelEfforts ?? []).map((pair) => ({
+                tier: "default",
+                ...pair,
+              }));
+            if (
+              !catalog.length ||
+              command.payload.plan.tasks.some(
+                (node) =>
+                  !catalog.some(
+                    (tier) =>
+                      tier.tier === node.modelTier &&
+                      tier.model === node.model &&
+                      tier.effort === node.effort,
+                  ),
+              )
+            )
+              throw new DeliveryConflict("epic_model_policy_changed");
+            const { taskId: _taskId, ...planInput } = command.payload;
+            return writeEpicPlan(tx, ownerId, task.id, planInput, key);
+          }
+          if (!this.dependencies.epicIsolationPolicy)
+            throw new DeliveryConflict("epic_isolation_unverified");
+          const context = await managerEpicContext(
+            tx,
+            ownerId,
+            task.id,
+            this.dependencies.epicIsolationPolicy,
+            this.dependencies.epicModelTiers ??
+              (this.dependencies.allowedModelEfforts ?? []).map((pair) => ({
+                tier: "default",
+                ...pair,
+              })),
+            key,
+          );
+          if (command.operation === "read_epic_context")
+            return {
+              schemaVersion: 1,
+              replayed: false,
+              taskId: task.id,
+              epicId: context.task.epic?.id,
+              projectId: context.task.projectId,
+              outcome: context.task.epic?.outcome,
+              criteria: context.acceptance.plan.requirements.map((r) => ({
+                id: r.id,
+                meaning: r.meaning,
+                phase: r.phase,
+              })),
+              expectedPlanVersion: context.head?.version ?? 0,
+              expectedPlanDigest: context.head?.plan_digest ?? null,
+              currentPlan: context.head?.plan ?? null,
+              currentTasks: context.currentTasks,
+              workspaces: context.workspaces,
+              modelTiers: context.catalog,
+            };
+          return writeEpicPlan(
+            tx,
+            ownerId,
+            task.id,
+            compileManagerEpicProposal(ownerId, context, command.payload),
+            key,
+          );
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 10000,
+          timeout: 10000,
+        },
+      );
+    }
     const resultCommand =
       input.command.operation === "complete_step" ||
       (input.command.operation === "fail_attempt" && input.command.payload.evidenceIds.length > 0)
@@ -295,6 +411,32 @@ export class DeliveryManagerService {
           );
         }
         if (input.command.operation === "claim_step") {
+          const task = await tx.deliveryTask.findUniqueOrThrow({
+            where: { ownerId_id: { ownerId, id: input.command.payload.taskId } },
+          });
+          if (task.epicId) {
+            const heads = await tx.$queryRaw<{ authored_by_task_id: string }[]>`
+              SELECT p.authored_by_task_id FROM delivery_epic_plan_heads h
+              JOIN delivery_epic_plans p ON p.owner_id=h.owner_id AND p.epic_id=h.epic_id AND p.version=h.version
+              WHERE h.owner_id=${ownerId}::uuid AND h.epic_id=${task.epicId}::uuid`;
+            if (heads.length && heads[0].authored_by_task_id !== task.id) {
+              if (!this.dependencies.epicIsolationPolicy)
+                throw new DeliveryConflict("epic_isolation_unverified");
+              if (!input.command.payload.requestedModel || !input.command.payload.requestedEffort)
+                throw new DeliveryConflict("epic_model_policy_changed");
+              await authorizeEpicClaim(
+                tx,
+                ownerId,
+                task,
+                this.dependencies.epicIsolationPolicy,
+                this.db,
+                {
+                  model: input.command.payload.requestedModel,
+                  effort: input.command.payload.requestedEffort,
+                },
+              );
+            }
+          }
           const other = await tx.deliveryManagerBinding.findFirst({
             where: {
               ownerId,
@@ -474,6 +616,103 @@ export class DeliveryManagerService {
           await resolveAttemptSource(tx, ownerId, input.command.payload.taskId, attempt.id, false);
       },
       async (tx, task) => {
+        if (input.command.operation === "create_task" && input.command.payload.epicId) {
+          const epicId = input.command.payload.epicId;
+          const existing = await tx.deliveryTask.count({
+            where: { ownerId, epicId, id: { not: task.id } },
+          });
+          if (input.command.payload.initialEpic) {
+            if (existing !== 0) throw new DeliveryConflict("epic_author_unbound");
+          } else {
+            const heads = await tx.$queryRaw<
+              { plan: unknown; plan_digest: string; authored_by_task_id: string }[]
+            >`
+              SELECT p.plan,p.plan_digest,p.authored_by_task_id FROM delivery_epic_plan_heads h
+              JOIN delivery_epic_plans p ON p.owner_id=h.owner_id AND p.epic_id=h.epic_id AND p.version=h.version
+              WHERE h.owner_id=${ownerId}::uuid AND h.epic_id=${epicId}::uuid FOR UPDATE OF h`;
+            if (heads.length !== 1 || epicDigest(heads[0].plan) !== heads[0].plan_digest)
+              throw new DeliveryConflict("epic_plan_unavailable");
+            const plan = epicPlanSchema.parse(heads[0].plan);
+            const node = plan.tasks.find(
+              (item) => item.intentId === input.checkoutBinding.preparationIntentId,
+            );
+            const starts = await tx.$queryRaw<{ phase: string; plan_digest: string }[]>`
+              SELECT phase,plan_digest FROM delivery_epic_start_intents WHERE owner_id=${ownerId}::uuid
+              AND epic_id=${epicId}::uuid AND intent_id=${input.checkoutBinding.preparationIntentId}::uuid`;
+            if (!node || starts.length !== 1 || starts[0].phase !== "accepted")
+              throw new DeliveryConflict("epic_task_unbound");
+            const acceptance = await acceptancePlanForIntent(tx, ownerId, node.intentId);
+            const author = await tx.deliveryTask.findUnique({
+              where: { ownerId_id: { ownerId, id: heads[0].authored_by_task_id } },
+              include: { managerBinding: true },
+            });
+            if (!acceptance || !author?.managerBinding || author.epicId !== epicId)
+              throw new DeliveryConflict("epic_acceptance_unbound");
+            const root = await acceptancePlanForIntent(
+              tx,
+              ownerId,
+              author.managerBinding.preparationIntentId,
+            );
+            if (!root) throw new DeliveryConflict("epic_acceptance_unbound");
+            const requirements = node.criteria.map((id) => {
+              const matches = root.plan.requirements.filter((r) => r.id === id);
+              if (matches.length !== 1) throw new DeliveryConflict("epic_acceptance_unbound");
+              return { id, meaning: matches[0].meaning, phase: matches[0].phase };
+            });
+            const inherited = {
+              epicPlanDigest: starts[0].plan_digest,
+              ownerPlanDigest: root.row.planDigest,
+              requirements,
+            };
+            const captured = await tx.deliveryAcceptanceIntent.findUnique({
+              where: { ownerId_intentId: { ownerId, intentId: node.intentId } },
+            });
+            if (
+              !captured ||
+              !this.dependencies.epicPlanEncryptionKey ||
+              captured.intentDigest !== node.textDigest
+            )
+              throw new DeliveryConflict("epic_acceptance_unbound");
+            const sealed = JSON.parse(
+              decrypt(
+                {
+                  ciphertext: Buffer.from(captured.ciphertext),
+                  iv: Buffer.from(captured.iv),
+                  authTag: Buffer.from(captured.authTag),
+                },
+                this.dependencies.epicPlanEncryptionKey,
+              ),
+            );
+            const stored = inheritedAcceptanceCriteriaSchema.parse(sealed.inheritedCriteria);
+            if (
+              sealed.ownerId !== ownerId ||
+              sealed.projectId !== plan.projectId ||
+              sealed.intentId !== node.intentId ||
+              epicDigest(stored) !== epicDigest(inherited)
+            )
+              throw new DeliveryConflict("epic_acceptance_unbound");
+            const mapping = bindEpicAcceptance(inherited, acceptance.plan);
+            const binding = {
+              planDigest: heads[0].plan_digest,
+              ownerPlanDigest: root.row.planDigest,
+              childPlanDigest: acceptance.row.planDigest,
+              mapping,
+            };
+            await tx.deliveryEvent.create({
+              data: {
+                id: randomUUID(),
+                ownerId,
+                taskId: task.id,
+                aggregateKey: `epic-acceptance/${task.id}`,
+                aggregateVersion: 1,
+                type: "epic_acceptance_bound",
+                policyVersion: "epic-acceptance-v1",
+                requestDigest: epicDigest(binding),
+                payload: binding,
+              },
+            });
+          }
+        }
         await this.dependencies.bindTaskPolicy?.(
           tx,
           ownerId,

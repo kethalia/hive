@@ -33,6 +33,21 @@ export const acceptanceProducerSchema = z
   })
   .strict();
 export type AcceptanceProducer = z.infer<typeof acceptanceProducerSchema>;
+export const inheritedAcceptanceCriteriaSchema = z
+  .object({
+    epicPlanDigest: digest,
+    ownerPlanDigest: digest,
+    requirements: z
+      .array(z.object({ id: label, meaning: text(2000), phase }).strict())
+      .min(1)
+      .max(20),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (new Set(value.requirements.map((item) => item.id)).size !== value.requirements.length)
+      ctx.addIssue({ code: "custom", message: "Duplicate inherited criterion" });
+  });
+export type InheritedAcceptanceCriteria = z.infer<typeof inheritedAcceptanceCriteriaSchema>;
 
 export const acceptanceRequirementSchema = z
   .object({
@@ -58,6 +73,17 @@ export const acceptancePlanResultSchema = z
     intentDigest: digest,
     outcome: z.enum(["ready", "needs_clarification", "unsupported"]),
     requirements: z.array(acceptanceRequirementSchema).min(1).max(32),
+    inheritedMappings: z
+      .array(
+        z
+          .object({
+            ownerCriterionId: label,
+            childRequirementId: acceptanceRequirementSchema.shape.id,
+          })
+          .strict(),
+      )
+      .max(20)
+      .optional(),
     unresolved: z.array(text(2000)).max(16),
     rationale: text(4000),
   })
@@ -70,6 +96,18 @@ export const acceptancePlanResultSchema = z
       ctx.addIssue({ code: "custom", message: "Duplicate acceptance requirement" });
     if (value.outcome === "ready" && value.unresolved.length)
       ctx.addIssue({ code: "custom", message: "Unresolved acceptance plan" });
+    if (
+      value.inheritedMappings &&
+      (new Set(value.inheritedMappings.map((entry) => entry.ownerCriterionId)).size !==
+        value.inheritedMappings.length ||
+        new Set(value.inheritedMappings.map((entry) => entry.childRequirementId)).size !==
+          value.inheritedMappings.length ||
+        value.inheritedMappings.some(
+          (entry) =>
+            !value.requirements.some((requirement) => requirement.id === entry.childRequirementId),
+        ))
+    )
+      ctx.addIssue({ code: "custom", message: "Invalid inherited requirement mapping" });
   });
 
 export const acceptanceCitationSchema = z

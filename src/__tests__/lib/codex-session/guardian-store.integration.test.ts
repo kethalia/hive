@@ -289,6 +289,90 @@ describe.skipIf(!url)("independent guardian storage, actual local Postgres", () 
     await expect(
       db.codexGuardianBarrier.update({ where: { id: result.barrierId }, data: { generation: 4 } }),
     ).rejects.toThrow();
+    // Closing input is not tree exit: even direct SQL cannot skip the receipt.
+    await expect(
+      db.codexGuardianRuntime.update({
+        where: { id: f.guardian.runtime.id },
+        data: { phase: "tree_closed" },
+      }),
+    ).rejects.toThrow();
+    const receipt = {
+      schemaVersion: 1 as const,
+      scope: "managed_native_tree_only" as const,
+      cleanupAuthorized: false as const,
+      guardianExited: true as const,
+      receiptId: randomUUID(),
+      lifetimeId: f.guardian.runtime.lifetimeId,
+      bindingDigest: f.guardian.runtime.bindingDigest,
+      ownershipDigest: closeInput.ownershipDigest,
+      projects: closeInput.projectBindings,
+      launchSetDigest: "a".repeat(64),
+      guardianSha256: f.guardian.runtime.guardianElfSha256,
+      guardianIdentity: {
+        pid: 100,
+        startTime: "100",
+        bootId: randomUUID(),
+        executable: "/fixture/guardian",
+        device: "1",
+        inode: "2",
+      },
+      generation: result.runtimeGeneration,
+      closedRequestId: 3,
+      drainRequestId: 4,
+      finalWaitResult: "ECHILD" as const,
+      waitFlags: "__WALL" as const,
+      reaped: 2,
+      decisions: closeInput.projectBindings.map((p) => ({
+        ...p,
+        decisionId: result.decisions[0].decisionId,
+      })),
+      workerBarrier: {
+        closed: true as const,
+        lifetimeId: f.guardian.runtime.lifetimeId,
+        generation: closeInput.runtimeGeneration,
+        ownershipDigest: closeInput.ownershipDigest,
+        barrierId: result.barrierId,
+      },
+      workerPid: 101,
+      packageManifestSha256: f.guardian.runtime.packageManifestSha256,
+      workerSha256: "b".repeat(64),
+      nodeSha256: f.guardian.runtime.nodeSha256,
+    };
+    const closure = {
+      ownerId: f.user.id,
+      runtimeId: f.guardian.runtime.id,
+      runtimeGeneration: result.runtimeGeneration,
+      barrierId: result.barrierId,
+      receipt,
+    };
+    await expect(
+      f.guardian.store.closeTree({
+        ...closure,
+        receipt: { ...receipt, guardianExited: false as never },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      f.guardian.store.closeTree({
+        ...closure,
+        receipt: { ...receipt, decisions: [{ ...receipt.decisions[0], decisionId: randomUUID() }] },
+      }),
+    ).rejects.toThrow();
+    const closed = await f.guardian.store.closeTree(closure);
+    expect(closed).toMatchObject({
+      treeExited: true,
+      cleanupAuthorized: false,
+      receiptDigest: guardianDigest(receipt),
+    });
+    await expect(f.guardian.store.closeTree(closure)).resolves.toEqual(closed);
+    await expect(
+      f.guardian.store.closeTree({ ...closure, receipt: { ...receipt, receiptId: randomUUID() } }),
+    ).rejects.toThrow();
+    await expect(
+      db.$executeRaw`DELETE FROM codex_guardian_tree_receipts WHERE owner_id=${f.user.id}::uuid`,
+    ).rejects.toThrow();
+    await expect(
+      db.$transaction((tx) => lockProducerAdmission(tx, f.guardian.scope, f.guardian.policy)),
+    ).rejects.toThrow();
   });
   it("blocked original intent denies preparation replay, checkout replay and first-native reservation", async () => {
     let checks = 0;

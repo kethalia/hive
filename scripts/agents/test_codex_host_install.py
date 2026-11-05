@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import base64
 import gzip
 import importlib.util
@@ -36,6 +37,51 @@ def archive(entries):
 
 
 class HostInstallerTests(unittest.TestCase):
+    def test_guardian_rollover_receipt_requires_latest_unfenced_authenticated_lifetime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            path = home / ".local/state/hive/codex-host-guardian"
+            path.mkdir(parents=True, mode=0o700)
+            key = b"k" * 32
+            (path / "key").write_bytes(key)
+            os.chmod(path / "key", 0o600)
+            initial = {"start": {"nonce": "original"}, "ready": {"bindingDigest": "a" * 64}}
+            first = {"bindingDigest": "a" * 64, "lifetimeId": "first", "nonce": "original"}
+            second = {"bindingDigest": "a" * 64, "lifetimeId": "second", "nonce": "original"}
+            state = {"schemaVersion": 1, "bindingDigest": "a" * 64, "phase": "admissionAccepted", "events": [
+                {"name": "begin", "value": {"lifetimeId": "first", "bindingDigest": "a" * 64}}, {"name": "startupReady", "value": first},
+                {"name": "closed", "value": {}}, {"name": "begin", "value": {"lifetimeId": "second", "bindingDigest": "a" * 64}},
+                {"name": "startupReady", "value": second}, {"name": "admissionAccepted", "value": {}},
+            ]}
+            def save():
+                encoded = json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode()
+                saved = {"state": state, "signature": hmac.new(key, encoded, hashlib.sha256).hexdigest()}
+                (path / "lifetime.json").write_text(json.dumps(saved))
+                os.chmod(path / "lifetime.json", 0o600)
+            save()
+            self.assertEqual(installer.current_guardian_startup(home, initial)["ready"], second)
+            state["events"].append({"name": "closing", "value": {}})
+            state["phase"] = "closing"
+            save()
+            with self.assertRaises(RuntimeError): installer.current_guardian_startup(home, initial)
+            state["events"].pop()
+            state["phase"] = "admissionAccepted"
+            save()
+            saved = json.loads((path / "lifetime.json").read_text())
+            saved["state"]["events"][-2]["value"]["lifetimeId"] = "forged"
+            (path / "lifetime.json").write_text(json.dumps(saved))
+            with self.assertRaises(RuntimeError): installer.current_guardian_startup(home, initial)
+            save()
+            state["events"][-3]["value"]["lifetimeId"] = "mismatch"
+            save()
+            with self.assertRaises(RuntimeError): installer.current_guardian_startup(home, initial)
+            state["events"][-3]["value"]["lifetimeId"] = "second"
+            state["phase"] = "wrong"
+            save()
+            with self.assertRaises(RuntimeError): installer.current_guardian_startup(home, initial)
+            state["phase"] = "admissionAccepted"
+            save()
+            with self.assertRaises(RuntimeError): installer.current_guardian_startup(home, {"start": initial["start"], "ready": None})
     def test_compressed_bootstrap_decodes_with_strict_expansion_bounds(self):
         raw = b"template-owned fixture"
         request = {"archive": base64.b64encode(gzip.compress(raw, mtime=0)).decode(), "archiveEncoding": "gzip"}

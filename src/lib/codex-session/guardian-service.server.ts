@@ -374,6 +374,46 @@ export class GuardianService {
       requireGuardian(this.env.HIVE_GUARDIAN_SOURCE_APPLICATION_ENABLED === "true");
     const runtime = await this.runtime(input);
     this.active();
+    if (
+      input.action === "epic_release_prepare" ||
+      input.action === "epic_release_submit" ||
+      input.action === "epic_archive_ack"
+    ) {
+      requireGuardian(
+        runtime.phase === "tree_closed" && input.runtimeGeneration === runtime.generation,
+      );
+      if (input.action === "epic_release_prepare") {
+        const admission = await this.db.codexGuardianAdmission.findFirst({
+          where: { ownerId: runtime.ownerId, runtimeId: runtime.id, projectId: input.projectId },
+        });
+        requireGuardian(admission);
+        const starts = await this.db.$queryRaw<
+          { intent_id: string }[]
+        >`SELECT intent_id FROM delivery_epic_start_intents WHERE owner_id=${runtime.ownerId}::uuid AND intent_id=${admission.preparationIntentId}::uuid`;
+        if (starts.length === 0) return { eligible: false };
+        requireGuardian(starts.length === 1);
+      }
+      requireGuardian(this.env.HIVE_DELIVERY_EPICS_ENABLED === "true");
+      const lifecycle = await import("@/lib/delivery/epic-closure.server");
+      if (input.action === "epic_release_prepare")
+        return lifecycle.prepareEpicRelease(this.db, runtime, input.projectId);
+      if (input.action === "epic_release_submit")
+        return lifecycle.submitEpicRelease(
+          this.db,
+          runtime,
+          input.projectId,
+          input.releaseReceipt,
+          this.config.privateKeyPem,
+        );
+      if (input.action === "epic_archive_ack")
+        return lifecycle.acknowledgeEpicArchive(
+          this.db,
+          runtime,
+          input.projectId,
+          input.archiveDigest,
+          input.sourceArchiveDigest,
+        );
+    }
     const store = this.requestStore(input.expiresAt);
     if (input.action === "enroll") {
       const claims = this.claims(input.grant);
@@ -448,6 +488,9 @@ export class GuardianService {
       runtimeId: runtime.id,
       runtimeGeneration: input.runtimeGeneration,
     };
+    if (input.action === "drain_ready") return store.drainReady(common);
+    if (input.action === "tree_closed")
+      return store.closeTree({ ...common, barrierId: input.barrierId, receipt: input.receipt });
     if (input.action === "prepare")
       return store.prepare({
         ...common,

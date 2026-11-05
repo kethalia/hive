@@ -72,6 +72,7 @@ const modules = [
 ];
 const assets = [
   "managed-projects.py",
+  "managed-epic-archive.py",
   "managed-source-apply.py",
   "delivery-acceptance-material.py",
   "github-projects.py",

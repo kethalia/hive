@@ -36,13 +36,22 @@ export const deliveryManagerToolSpec = {
   type: "function",
   name: "hive_delivery",
   description:
-    "Record a delivery task, reserve a fenced step, submit an informational understand report, or complete a step referencing existing trusted evidence. Informational reports create no verification evidence. This tool grants no evidence-producer, release, deployment or native execution authority.",
+    "Record delivery progress or coordinate an epic. For an existing coordinating task, call read_epic_context with {taskId} to obtain the owner requirements, enrolled workspace IDs, current plan version/digest, original task text, task phases, verified completed merge revisions and supported model tiers. Then call plan_epic with {taskId, expectedPlanVersion, expectedPlanDigest, maxConcurrentTasks, tasks}. Each task is {key, workspaceId, expectedRevision, text, criteria, dependsOn, role, modelTier}: key is a stable short task name; dependsOn lists other keys; criteria lists IDs from context; role is implementation or integration; modelTier must be one of the context tiers. Exactly one integration task must follow all implementation tasks and cover all owner criteria. The controller derives request IDs and digests. Re-read context before replanning; copy started task text exactly, keep started tasks unchanged, and use verified merged revisions as dependency bases. It schedules eligible work without per-task approval. Informational reports create no verification evidence. This tool grants no evidence-producer, release, deployment or native execution authority.",
   inputSchema: {
     type: "object",
     properties: {
       operation: {
         type: "string",
-        enum: ["create_task", "claim_step", "complete_step", "report_step", "fail_attempt"],
+        enum: [
+          "create_task",
+          "claim_step",
+          "complete_step",
+          "report_step",
+          "fail_attempt",
+          "write_epic_plan",
+          "read_epic_context",
+          "plan_epic",
+        ],
       },
       payload: { type: "object" },
     },
@@ -592,6 +601,27 @@ export function createDeliveryManagerAdapter(options) {
       assertAuthority(request);
       return nativeSpool.sourceApplicationSnapshot(thread, request);
     },
+    // Trusted outer closure code may inspect the completed journal after input
+    // admission closes. This is factual observer data, never permission to run.
+    closedBoundarySnapshot(thread) {
+      check(sourceProtocol && progression, "source_protocol_disabled");
+      const claim = nativeSpool.currentClaim(thread);
+      check(claim, "native_claim_missing");
+      const request = continuationRequest(claim);
+      const snapshot = nativeSpool.sourceApplicationSnapshot(thread, request);
+      request.sourceContext = structuredClone(snapshot.acceptedSourceContext);
+      return { request, snapshot };
+    },
+    locallyCompleted(thread) {
+      return Boolean(
+        progression &&
+          !closed &&
+          !activeRoots.has(thread) &&
+          !continuationTasks.has(thread) &&
+          !repairTimers.has(thread) &&
+          nativeSpool.locallyCompleted(thread),
+      );
+    },
     async currentAcceptedSource({ managerThreadId, taskId, stepId, checkoutBinding }) {
       check(sourceProtocol, "source_protocol_disabled");
       const claim = nativeSpool.currentClaim(managerThreadId);
@@ -664,6 +694,9 @@ export function createDeliveryManagerAdapter(options) {
             "complete_step",
             "report_step",
             "fail_attempt",
+            "write_epic_plan",
+            "read_epic_context",
+            "plan_epic",
             ...(sourceProtocol ? ["publish_source"] : []),
             ...(typeof options.readStatus === "function" ? ["read_status"] : []),
             ...(typeof options.readAcceptancePlan === "function" ? ["read_acceptance_plan"] : []),

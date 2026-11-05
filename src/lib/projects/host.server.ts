@@ -24,7 +24,7 @@ export async function signedHostProjectRequest(
   workspaceId: string,
   path: keyof typeof endpoints,
   request: Record<string, unknown>,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; expectedBuildId?: string } = {},
 ) {
   try {
     options.signal?.throwIfAborted();
@@ -39,6 +39,8 @@ export async function signedHostProjectRequest(
       { hiveUserId: user.id, coderUserId: user.coderUserId },
       workspaceId,
     );
+    if (options.expectedBuildId && binding.buildId !== options.expectedBuildId)
+      throw new ProjectDiscoveryError("workspace_unavailable");
     options.signal?.throwIfAborted();
     const key = createPrivateKey(config.privateKeyPem);
     if (key.asymmetricKeyType !== "ed25519") throw new Error("Unsupported issuer key");

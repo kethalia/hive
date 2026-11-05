@@ -131,6 +131,7 @@ function installedFiles(directory, delivery = false) {
   );
   const required = [
     "managed-projects.py",
+    "managed-epic-archive.py",
     "github-projects.py",
     "codex-project-terminal.py",
     "codex-project-lease.py",
@@ -250,10 +251,17 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
     join(home, ".local/state/hive/codex-project-discovery"),
   );
   const bridgeDirectory = privateDirectory(join(home, ".local/state/hive/codex-session-bridge"));
+  let closureBarrier = null;
   const executionAuthority = guardian
     ? {
         assert: () => controller.assertRuntimeExecution(),
         fence: () => controller.fenceRuntimeExecution(),
+        assertClosed: (barrier) =>
+          check(
+            closureBarrier &&
+              JSON.stringify(barrier) === JSON.stringify(closureBarrier) &&
+              guardian.state.phase === "closed",
+          ),
       }
     : undefined;
   const managed = managedRunner(
@@ -448,6 +456,37 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
   }
   const tick = setInterval(() => controller.resumePending(), 5000);
   const renewal = setInterval(() => controller.renewLeases(), 60000);
+  let drainPolling = false;
+  const drainPoll = setInterval(() => {
+    if (
+      !guardian ||
+      !delivery?.adapter ||
+      !supervisor ||
+      admissionClosed ||
+      drainPolling ||
+      guardian.state.projects.length === 0
+    )
+      return;
+    try {
+      if (
+        !guardian.state.projects.every((p) => {
+          const thread = supervisor.state.projects[p.projectId]?.threadId;
+          return thread && delivery.adapter.locallyCompleted(thread);
+        })
+      )
+        return;
+      drainPolling = true;
+      void guardian
+        .requestDrain()
+        .catch(() => {})
+        .finally(() => {
+          drainPolling = false;
+        });
+    } catch {
+      /* Local uncertainty never triggers the advisory request. */
+    }
+  }, 5000);
+  drainPoll.unref();
   renewal.unref();
   tick.unref();
   controller.resumePending();
@@ -460,28 +499,47 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       admissionClosed = true;
       clearInterval(tick);
       clearInterval(renewal);
-      let receipt;
-      try {
-        receipt = controller.closeAdmission(barrier);
-      } finally {
-        const stopDelivery = delivery?.close();
-        void stopDelivery?.catch(() => {});
-        registration?.close();
-        discovery.close();
-        // Revoke browser/PTY input synchronously, then close fixed owned CLI
-        // sessions before acknowledging. Native descendants are still held;
-        // only the outer guardian may certify their eventual tree exit.
-        await supervisor?.closeAdmission(barrier);
-        await gateway.close();
-        await stopDelivery;
+      clearInterval(drainPoll);
+      const receipt = controller.closeAdmission(barrier);
+      closureBarrier = structuredClone(barrier);
+      await gateway.close();
+      check(
+        delivery?.adapter &&
+          supervisor &&
+          barrier.projects.length === supervisor.config.projects.length,
+      );
+      const snapshots = [];
+      for (const project of barrier.projects) {
+        const thread = supervisor.state.projects[project.projectId]?.threadId;
+        check(typeof thread === "string");
+        const before = delivery.adapter.closedBoundarySnapshot(thread);
+        const history = await supervisor.readDeliveryBoundary(before.request, { closureBarrier });
+        const after = delivery.adapter.closedBoundarySnapshot(thread);
+        check(JSON.stringify(before) === JSON.stringify(after));
+        snapshots.push({ projectId: project.projectId, observation: after.snapshot, history });
       }
+      receipt.snapshots = snapshots;
       return receipt;
+    },
+    async finishClose() {
+      check(guardian && admissionClosed && closureBarrier);
+      const stopDelivery = delivery?.close();
+      void stopDelivery?.catch(() => {});
+      registration?.close();
+      discovery.close();
+      // Revoke browser/PTY input synchronously, then close fixed owned CLI
+      // sessions before acknowledging. Native descendants are still held;
+      // only the outer guardian may certify their eventual tree exit.
+      await supervisor?.closeAdmission(closureBarrier);
+      await gateway.close();
+      await stopDelivery;
     },
     loseAdmission() {
       if (!guardian || admissionClosed) return;
       admissionClosed = true;
       clearInterval(tick);
       clearInterval(renewal);
+      clearInterval(drainPoll);
       controller.loseAdmission();
       void delivery?.close().catch(() => {});
       registration?.close();
@@ -494,6 +552,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       closed = true;
       clearInterval(tick);
       clearInterval(renewal);
+      clearInterval(drainPoll);
       const stopDelivery = delivery?.close();
       void stopDelivery?.catch(() => {});
       await controller.close();

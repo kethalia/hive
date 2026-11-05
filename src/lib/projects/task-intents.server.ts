@@ -219,6 +219,15 @@ export class ProjectTaskIntents {
       WITH candidate AS (
         SELECT id, (phase <> 'running' AND progress_at < clock_timestamp()-interval '30 minutes') AS timed_out FROM project_task_intents
         WHERE phase IN ('queued','preparing','running') AND next_attempt_at <= clock_timestamp()
+          AND NOT EXISTS (SELECT 1 FROM delivery_epic_start_intents e WHERE e.owner_id=project_task_intents.owner_id AND e.intent_id=project_task_intents.id AND e.phase='reserved')
+          AND NOT EXISTS (
+            SELECT 1 FROM delivery_epic_start_intents e
+            JOIN delivery_epic_plan_heads h ON h.owner_id=e.owner_id AND h.epic_id=e.epic_id
+            JOIN delivery_epic_plans p ON p.owner_id=h.owner_id AND p.epic_id=h.epic_id AND p.version=h.version
+            JOIN delivery_tasks t ON t.owner_id=p.owner_id AND t.id=p.authored_by_task_id
+            WHERE e.owner_id=project_task_intents.owner_id AND e.intent_id=project_task_intents.id
+              AND (t.pause_requested OR t.scheduling_paused)
+          )
           AND (lease_until IS NULL OR lease_until <= clock_timestamp())
           AND (${target?.ownerId ?? null}::uuid IS NULL OR owner_id=${target?.ownerId ?? null}::uuid)
           AND (${target?.taskId ?? null}::uuid IS NULL OR id=${target?.taskId ?? null}::uuid)

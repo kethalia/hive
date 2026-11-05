@@ -91,7 +91,8 @@ function fixture() {
     admission,
     metadata,
     applicationRequest,
-    applicationPhase = "pending";
+    applicationPhase = "pending",
+    closeReply;
   const options = {
     config,
     configSha256: startup.configSha256,
@@ -126,6 +127,35 @@ function fixture() {
         });
       if (body.action === "enroll")
         return Response.json({ accepted: true, runtimeId, runtimeGeneration: 1 });
+      if (body.action === "drain_ready")
+        return Response.json({ ready: false, runtimeId, runtimeGeneration: generation });
+      if (body.action === "close") {
+        closeReply ??= {
+          runtimeId,
+          runtimeGeneration: ++generation,
+          barrierId: body.barrierId,
+          ownershipDigest: body.ownershipDigest,
+          decisions: [
+            { admissionId, admissionGeneration: admission.generation, decisionId: randomUUID() },
+          ],
+          treeExited: false,
+          cleanupAuthorized: false,
+        };
+        if (mode === "closeLost") {
+          mode = "normal";
+          throw new Error("fixture_lost_ack");
+        }
+        return Response.json(closeReply);
+      }
+      if (body.action === "tree_closed")
+        return Response.json({
+          runtimeId,
+          runtimeGeneration: generation,
+          barrierId: body.barrierId,
+          treeExited: true,
+          cleanupAuthorized: false,
+        });
+      if (body.action === "epic_release_prepare") return Response.json({ eligible: false });
       if (body.action === "prepare") {
         generation = 2;
         admission = {
@@ -510,12 +540,24 @@ test("unknown commit or redirect durably holds, including reopen; never retries 
     }
   }
 });
-test("private signer permission changes and absent idle authority fail closed", () => {
+test("private signer permission changes and absent idle authority fail closed", async () => {
   const f = fixture();
   try {
-    assert.throws(() => f.client.authorizeDrain());
+    await assert.rejects(f.client.authorizeDrain());
     chmodSync(join(f.home, "outer/controller-key.pem"), 0o644);
     assert.throws(() => openGuardianController(f.options));
+  } finally {
+    f.close();
+  }
+});
+test("drain eligibility is a signed read-only advisory", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    assert.equal(await f.client.drainReady(), false);
+    assert.equal(f.calls.at(-1).action, "drain_ready");
+    assert.equal(f.client.status.held, false);
   } finally {
     f.close();
   }
@@ -541,6 +583,106 @@ test("registered native journal is freshly finalized and metadata revocation can
     native.save();
     await assert.rejects(f.client.currentMetadata(p.projectId));
     assert.equal(f.client.status.held, true);
+  } finally {
+    f.close();
+  }
+});
+test("closed worker snapshots produce a bound barrier and signed tree receipt", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const p = f.project(true),
+      target = { projectId: p.projectId, bindingDigest: p.bindingDigest };
+    await f.client.authorizeAdmission(target);
+    const approval = await f.client.metadataAuthority([{ projectId: p.projectId }]);
+    f.native(approval, p.projectId);
+    await f.client.currentMetadata(p.projectId);
+    await f.client.beginDrain();
+    const barrierId = randomUUID(),
+      generation = f.calls.at(-1).runtimeGeneration;
+    const binding = {
+      lifetimeId: f.startup.lifetimeId,
+      ownershipDigest: f.startup.ownershipDigest,
+      projects: [target],
+    };
+    const observation = {
+      managerBindingId: randomUUID(),
+      attemptId: randomUUID(),
+      managerThreadId: "fixture-native-root",
+      parentTurnId: "turn",
+      cursorVersion: 1,
+      nativeSequence: 1,
+    };
+    const history = {
+      observedAt: new Date().toISOString(),
+      historyDigest: "a".repeat(64),
+      loadedInventoryDigest: "b".repeat(64),
+      rootTurns: 1,
+      historyBytes: 10,
+    };
+    f.mode("closeLost");
+    const decisions = await f.client.authorizeDrain(binding, {
+      closed: true,
+      barrierId,
+      lifetimeId: binding.lifetimeId,
+      ownershipDigest: binding.ownershipDigest,
+      generation,
+      snapshots: [{ projectId: p.projectId, observation, history }],
+    });
+    assert.equal(decisions[0].projectId, p.projectId);
+    const receipt = {
+      guardianExited: true,
+      generation: generation + 1,
+      workerBarrier: { barrierId },
+      projects: [target],
+    };
+    await f.client.acceptTreeReceipt(receipt);
+    assert.deepEqual(await f.client.postTreeClosed(receipt), { eligible: false });
+    assert.deepEqual(
+      f.calls.slice(-4).map((c) => c.action),
+      ["close", "close", "tree_closed", "epic_release_prepare"],
+    );
+  } finally {
+    f.close();
+  }
+});
+
+test("closed controller archive is durable, scoped and replayable without active startup", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const projectId = randomUUID(),
+      barrierId = randomUUID();
+    const path = join(f.options.stateDirectory, "controller.json");
+    const saved = JSON.parse(readFileSync(path));
+    const receipt = {
+      guardianExited: true,
+      lifetimeId: f.startup.lifetimeId,
+      bindingDigest: f.startup.bindingDigest,
+      generation: saved.state.generation,
+      workerBarrier: { barrierId },
+      projects: [{ projectId }],
+    };
+    saved.state.epicClosure = {
+      barrierId,
+      archiveDigest: "a".repeat(64),
+      projects: { [projectId]: { acknowledged: true } },
+    };
+    saved.signature = sign(
+      null,
+      Buffer.from(canonical(saved.state)),
+      readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+    ).toString("base64url");
+    writeFileSync(path, JSON.stringify(saved), { mode: 0o600 });
+    await assert.rejects(
+      f.client.archiveClosedController({ ...receipt, workerBarrier: { barrierId: randomUUID() } }),
+    );
+    const result = await f.client.archiveClosedController(receipt);
+    assert.equal(result.archived, true);
+    const fresh = openGuardianController(f.options);
+    assert.deepEqual(await fresh.archiveClosedController(receipt), { ...result, replayed: true });
   } finally {
     f.close();
   }

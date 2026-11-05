@@ -514,6 +514,43 @@ class ManagedProjectsTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.ManagedError, "invalid_request"):
             MODULE.dispatch(self.manager, {"schemaVersion": 1, "provider": "github", "repositoryId": "123", "operation": "renewLease"})
 
+    def test_released_source_is_archived_only_with_exact_controller_evidence(self):
+        prepared = self.prepare()
+        source = {"headSha": self.sha, "version": 1}
+        with self.manager.lock():
+            _, path, record = self.manager.load("123")
+            record["acceptedSource"] = source
+            record["sourceLastApplied"] = {"fixture": "preserved"}
+            self.manager.write(path, record)
+        released = self.release(prepared)
+        replay = self.release(prepared)
+        self.assertEqual(replay["releaseReceipt"], released["releaseReceipt"])
+        with self.assertRaisesRegex(MODULE.ManagedError, "accepted_source_prepare_unavailable"):
+            self.manager.prepare("123", "task-two", self.sha)
+        class Authority:
+            def verify(inner, evidence, expected):
+                MODULE.require(evidence == "signed-controller-evidence", "controller_signature_invalid")
+                lease_digest = hashlib.sha256(json.dumps(released["releaseReceipt"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                return {"binding": expected, "treeReceiptDigest": "a" * 64,
+                        "preservationDigest": "b" * 64, "leaseReleaseDigest": lease_digest}
+        with self.assertRaisesRegex(MODULE.ManagedError, "controller_signature_invalid"):
+            self.manager._archive_accepted_source("123", "task-one", "forged", Authority())
+        class WrongReleaseAuthority:
+            def verify(inner, evidence, expected):
+                return {"binding": expected, "treeReceiptDigest": "a" * 64,
+                        "preservationDigest": "b" * 64, "leaseReleaseDigest": "c" * 64}
+        with self.assertRaisesRegex(MODULE.ManagedError, "archive_evidence_invalid"):
+            self.manager._archive_accepted_source("123", "task-one", "wrong-release", WrongReleaseAuthority())
+        result = self.manager._archive_accepted_source("123", "task-one", "signed-controller-evidence", Authority())
+        self.assertTrue(result["checkoutRetained"])
+        with self.manager.lock():
+            project, _, record = self.manager.load("123")
+            self.assertNotIn("acceptedSource", record)
+            archived = self.manager.read(project / "evidence" / f"source-{result['archiveDigest']}.json")
+            self.assertEqual(archived["binding"]["acceptedSource"], source)
+        second = self.manager.prepare("123", "task-two", self.sha)
+        self.assertEqual(second["lease"]["taskId"], "task-two")
+
     def test_renewal_never_revives_expired_or_released_leases_and_rejects_changed_incarnation(self):
         value = self.manager.prepare("123", "task", self.sha)
         authority = self.renewal_authority(value)

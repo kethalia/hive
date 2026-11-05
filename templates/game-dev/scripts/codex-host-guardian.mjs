@@ -129,7 +129,7 @@ function openJournal(directory, bindingDigest) {
       check(
         saved.state.schemaVersion === 1 &&
           saved.state.bindingDigest === bindingDigest &&
-          saved.state.phase === "closed" &&
+          ["closed", "treeExited"].includes(saved.state.phase) &&
           saved.state.receipts.length < 32,
       );
       state = saved.state;
@@ -210,6 +210,37 @@ export async function openGuardedHost(options) {
         startup.nodeSha256 === options.nodeSha256,
     );
   const journal = openJournal(options.stateDirectory, options.bindingDigest);
+  const recovered = journal.snapshot();
+  if (recovered.phase === "treeExited") {
+    try {
+      const exited = recovered.events.at(-1),
+        prior = recovered.receipts.at(-1);
+      check(exited?.name === "treeExited" && exited.value?.guardianExited === true && prior);
+      const { guardianExited: _ignored, ...preExit } = exited.value;
+      check(JSON.stringify(preExit) === JSON.stringify(prior));
+      check(typeof options.recoverTreeReceipt === "function");
+      await options.recoverTreeReceipt(structuredClone(exited.value));
+      if (options.postTreeClosed) await options.postTreeClosed(structuredClone(exited.value));
+      journal.record("closed", {
+        lifetimeId: exited.value.lifetimeId,
+        receiptId: exited.value.receiptId,
+      });
+    } catch (error) {
+      journal.close();
+      throw error;
+    }
+  }
+  const closedState = journal.snapshot();
+  if (closedState.phase === "closed" && options.prepareNextLifetime) {
+    try {
+      const exited = [...closedState.events].reverse().find((event) => event.name === "treeExited");
+      check(exited?.value?.guardianExited === true);
+      await options.prepareNextLifetime(structuredClone(exited.value));
+    } catch (error) {
+      journal.close();
+      throw error;
+    }
+  }
   let guardian,
     wire,
     phase = "starting",
@@ -218,7 +249,8 @@ export async function openGuardedHost(options) {
     startupReady = false,
     workerIdentity,
     closedBarrier,
-    acceptedReceipt;
+    acceptedReceipt,
+    rolloverEligible = false;
   let serial = Promise.resolve();
   let markLaunch, markReady;
   const launched = new Promise((resolve) => {
@@ -287,11 +319,16 @@ export async function openGuardedHost(options) {
           workerChannel: true,
         },
       ],
-      authorizeDrain: async (binding) => {
+      prepareDrain: options.beginDrain
+        ? () => boundedAuthority(() => options.beginDrain())
+        : undefined,
+      authorizeDrain: async (binding, barrier) => {
         const decisions = await boundedAuthority(() =>
-          options.authorizeDrain(structuredClone(binding)),
+          options.authorizeDrain(structuredClone(binding), structuredClone(barrier)),
         );
-        check(phase === "open");
+        check(phase === "draining");
+        const finished = await wire.request("finishClose", { barrierId: barrier.barrierId }, 10000);
+        check(finished?.closed === true && finished.barrierId === barrier.barrierId);
         return decisions;
       },
       journal: {
@@ -324,8 +361,15 @@ export async function openGuardedHost(options) {
               ack.barrierId === barrier.barrierId,
           );
           journal.record("workerClosed", ack);
-          closedBarrier = structuredClone(ack);
+          closedBarrier = {
+            lifetimeId: ack.lifetimeId,
+            generation: ack.generation,
+            ownershipDigest: ack.ownershipDigest,
+            barrierId: ack.barrierId,
+            closed: true,
+          };
           phase = "draining";
+          return { ...closedBarrier, snapshots: ack.snapshots };
         },
         acceptReceipt: (value) => {
           check(phase === "draining" && closedBarrier?.closed === true);
@@ -431,6 +475,19 @@ export async function openGuardedHost(options) {
             check(phase === "open");
             return result;
           }),
+        requestDrain: (value) =>
+          enqueue(async () => {
+            check(
+              phase === "open" &&
+                hello &&
+                startupReady &&
+                Object.keys(value ?? {}).length === 0 &&
+                typeof options.requestDrain === "function",
+            );
+            const ready = await options.requestDrain();
+            check(phase === "open" && typeof ready === "boolean");
+            return { ready };
+          }),
         bootstrap: (value) =>
           enqueue(async () => {
             check(
@@ -523,13 +580,29 @@ export async function openGuardedHost(options) {
     check(phase === "open");
     return {
       get state() {
-        return structuredClone({ phase, guardian: guardian.state, workerPid });
+        return structuredClone({ phase, guardian: guardian.state, workerPid, rolloverEligible });
       },
       startupAttestation,
       drain: () =>
         enqueue(async () => {
           check(phase === "open");
           const receipt = await guardian.drain();
+          // drain() returns only after the native guardian acknowledges ECHILD
+          // and exits successfully. A journaled pre-exit receipt is insufficient.
+          acceptedReceipt = { ...acceptedReceipt, guardianExited: true };
+          journal.record("treeExited", acceptedReceipt);
+          try {
+            if (options.acceptTreeReceipt)
+              await options.acceptTreeReceipt(structuredClone(acceptedReceipt));
+            if (options.postTreeClosed)
+              rolloverEligible =
+                (await options.postTreeClosed(structuredClone(acceptedReceipt)))?.archived === true;
+          } catch (error) {
+            phase = "indeterminate";
+            wire.close();
+            journal.close();
+            throw error;
+          }
           journal.record("closed", {
             lifetimeId: receipt.lifetimeId,
             receiptId: receipt.receiptId,

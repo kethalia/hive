@@ -61,3 +61,30 @@ test("voice installer accepts only its pinned archive and bound configuration", 
     0,
   );
 });
+
+test("installer reports only a fixed stage and never echoes rejected input", () => {
+  const run = (input) =>
+    spawnSync("python3", ["-I", "-B", "templates/ai-dev-k8s/scripts/install-voice.py"], {
+      input,
+      encoding: "utf8",
+    });
+  const malformed = run("not-json-sensitive-fixture");
+  assert.notEqual(malformed.status, 0);
+  assert.equal(malformed.stderr, "voice_install_failed stage=input\n");
+  const invalid = run(JSON.stringify({ marker: "sensitive-fixture" }));
+  assert.notEqual(invalid.status, 0);
+  assert.equal(invalid.stderr, "voice_install_failed stage=bootstrap_validation\n");
+  const simulated = `import importlib.util
+spec=importlib.util.spec_from_file_location('installer','templates/ai-dev-k8s/scripts/install-voice.py')
+m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+m.validate=lambda *_: ({},None,b'')
+def fail(*_): raise RuntimeError('sensitive-fixture')
+m.normalize_agent_config=fail
+m.main()`;
+  const identity = spawnSync("python3", ["-I", "-B", "-c", simulated], {
+    input: '{"config":{}}',
+    encoding: "utf8",
+  });
+  assert.notEqual(identity.status, 0);
+  assert.equal(identity.stderr, "voice_install_failed stage=agent_identity\n");
+});

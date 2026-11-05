@@ -1,4 +1,7 @@
+import { getDb } from "@hive/db";
 import { boundedSessionJson } from "@/lib/codex-session/route.server";
+import { epicConfig } from "@/lib/delivery/epic-config.server";
+import { reconcileEpicStart } from "@/lib/delivery/epic-scheduler.server";
 import {
   authorizeProjectReconcile,
   projectReconcileDeadline,
@@ -33,6 +36,17 @@ export async function projectReconcileRoute(request: Request) {
       body.schemaVersion !== 1
     )
       return projectReconcileFailure(400);
+    const epic = epicConfig();
+    if (epic)
+      await reconcileEpicStart(
+        getDb(),
+        epic.isolationPolicy,
+        epic.encryptionKey,
+        epic.lineageToken,
+        epic.modelTiers,
+        signal,
+      );
+    signal.throwIfAborted();
     const result = await reconcileProjectTasks(undefined, 1, { signal });
     signal.throwIfAborted();
     if (!result.enabled) return projectReconcileFailure(404);

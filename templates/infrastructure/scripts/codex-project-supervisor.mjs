@@ -297,6 +297,22 @@ export async function openSupervisor(raw, dependencies = {}) {
     runtime.setSourceReadAuthority?.((scope, method, params) =>
       supervisor.assertSourceApplicationRead(scope, method, params),
     );
+    runtime.setClosureReadAuthority?.((barrier, method, params) => {
+      supervisor.executionAuthority?.assertClosed(barrier);
+      check(
+        ["thread/turns/list", "thread/items/list", "thread/loaded/list"].includes(method),
+        "guardian_closure_read_denied",
+      );
+      if (method !== "thread/loaded/list")
+        check(
+          Object.values(supervisor.state.projects).some(
+            (entry) =>
+              entry.threadId === params.threadId ||
+              Object.hasOwn(entry.children ?? {}, params.threadId),
+          ),
+          "guardian_closure_read_denied",
+        );
+    });
     runtime.setSourceStopAuthority?.((scope, params) =>
       supervisor.assertSourceApplicationStop(scope, params),
     );
@@ -920,8 +936,14 @@ export class ProjectSupervisor {
   }
   // Installed protocol-one callbacks only. These are deliberately absent from
   // command(), the gateway and the browser/native read RPC allowlists.
-  deliveryProgressionProject(request, sourceScope) {
-    if (sourceScope) {
+  deliveryProgressionProject(request, sourceScope, closureBarrier) {
+    if (closureBarrier) {
+      check(
+        !sourceScope && typeof this.executionAuthority?.assertClosed === "function",
+        "guardian_closure_read_denied",
+      );
+      this.executionAuthority.assertClosed(closureBarrier);
+    } else if (sourceScope) {
       this.assertSourceApplicationRead(sourceScope, "thread/read", {
         threadId: request.managerThreadId,
         includeTurns: true,
@@ -932,7 +954,7 @@ export class ProjectSupervisor {
         "source_application_boundary_changed",
       );
     } else this.assertSourceInputOpen();
-    this.executionAuthority?.assert();
+    if (!closureBarrier) this.executionAuthority?.assert();
     check(
       this.managerAdapter?.progressionProtocol === 1 &&
         !this.closed &&
@@ -975,7 +997,7 @@ export class ProjectSupervisor {
         request.cohort.length <= 20,
       "invalid_manager_progression_request",
     );
-    if (!sourceScope) this.managerAdapter.assertProgressionAuthority(request);
+    if (!sourceScope && !closureBarrier) this.managerAdapter.assertProgressionAuthority(request);
     // A source-closed factual boundary is not a progression authorization. The
     // independent application authority must still authorize metadata mutation.
     return { project, entry };
@@ -1119,13 +1141,20 @@ export class ProjectSupervisor {
     this.save();
     return structuredClone(a);
   }
-  async readDeliveryBoundary(request, { nextParentTurnId, excludeCall, sourceScope } = {}) {
+  async readDeliveryBoundary(
+    request,
+    { nextParentTurnId, excludeCall, sourceScope, closureBarrier } = {},
+  ) {
     await this.acceptanceRuntime?.closeAdmission();
     check(
       !sourceScope || (!nextParentTurnId && !excludeCall),
       "source_application_boundary_changed",
     );
-    const { entry } = this.deliveryProgressionProject(request, sourceScope);
+    check(
+      !closureBarrier || (!nextParentTurnId && !excludeCall && !sourceScope),
+      "guardian_closure_read_denied",
+    );
+    const { entry } = this.deliveryProgressionProject(request, sourceScope, closureBarrier);
     check(
       typeof this.runtime.inspectManagerRouting === "function" &&
         typeof this.runtime.drainManagerRouting === "function",
@@ -1134,9 +1163,11 @@ export class ProjectSupervisor {
     const deadline = Date.now() + 10000;
     const read = async (method, params) => {
       check(Date.now() < deadline && this.runtime.alive(), "manager_boundary_deadline");
-      return sourceScope
-        ? this.readSourceApplication(sourceScope, method, params)
-        : this.runtime.call(method, params);
+      return closureBarrier
+        ? this.runtime.readClosureBoundary(closureBarrier, method, params)
+        : sourceScope
+          ? this.readSourceApplication(sourceScope, method, params)
+          : this.runtime.call(method, params);
     };
     const history = async (threadId) => {
       const result = [],
@@ -1353,7 +1384,7 @@ export class ProjectSupervisor {
       await this.runtime.drainManagerRouting({ excludeCall, timeoutMs: 5000 });
       if (sequence !== this.runtime.inspectManagerRouting({ excludeCall }).receiveSequence)
         continue;
-      this.deliveryProgressionProject(request, sourceScope); // Fresh lease/lifetime after all awaits.
+      this.deliveryProgressionProject(request, sourceScope, closureBarrier); // Fresh lease/lifetime after all awaits.
       return {
         observedAt: new Date().toISOString(),
         historyDigest: hash(JSON.stringify(root)),
@@ -2101,6 +2132,7 @@ export async function launchNative({
   let managerAdapter,
     sourceInputAuthority,
     sourceReadAuthority,
+    closureReadAuthority,
     sourceStopAuthority,
     acceptanceInterruptAuthority;
   const installedObservers = new Set();
@@ -2242,6 +2274,20 @@ export async function launchNative({
           "source_read_authority_invalid",
         );
         sourceReadAuthority = authorize;
+      },
+      setClosureReadAuthority: (authorize) => {
+        check(
+          !closureReadAuthority && typeof authorize === "function",
+          "guardian_closure_read_denied",
+        );
+        closureReadAuthority = authorize;
+      },
+      async readClosureBoundary(barrier, method, params) {
+        check(closureReadAuthority, "guardian_closure_read_denied");
+        closureReadAuthority(barrier, method, params);
+        const result = await requestNative(method, params);
+        closureReadAuthority(barrier, method, params);
+        return result;
       },
       setSourceStopAuthority: (authorize) => {
         check(

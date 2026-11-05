@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { duplexPair } from "node:stream";
@@ -25,6 +27,7 @@ import {
 } from "../templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs";
 import { openGuardedHost } from "../templates/ai-dev-k8s/scripts/codex-host-guardian.mjs";
 import { processParentPid } from "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs";
+import { createGuardedRollover } from "../templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs";
 import { buildNativeGuardian } from "./build-native-guardian.mjs";
 
 const hash = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
@@ -45,6 +48,7 @@ function fixture(
     mismatch = false,
     readyDelay = 0,
     applications = false,
+    installerConfig = null,
   } = {},
 ) {
   const directory = mkdtempSync(join(tmpdir(), "hive-host-guardian-")),
@@ -52,9 +56,17 @@ function fixture(
   const build = buildNativeGuardian(resolve("."), packageDirectory);
   // setup-node caches can be owned by another account or group writable.
   // Pin a private copy; never relax the production executable ownership policy.
-  const nodeExecutable = join(directory, "node");
-  copyFileSync(realpathSync(process.execPath), nodeExecutable);
-  chmodSync(nodeExecutable, 0o500);
+  const nodeExecutable = installerConfig ? realpathSync(process.execPath) : join(directory, "node");
+  if (!installerConfig) {
+    copyFileSync(realpathSync(process.execPath), nodeExecutable);
+    chmodSync(nodeExecutable, 0o500);
+  }
+  const configSha = installerConfig
+    ? createHash("sha256")
+        .update(`${JSON.stringify(installerConfig)}\n`)
+        .digest("hex")
+    : "c".repeat(64);
+  const listenPort = installerConfig?.port ?? 32123;
   copyFileSync(
     "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs",
     join(packageDirectory, "codex-guardian-worker.mjs"),
@@ -68,7 +80,8 @@ function fixture(
   const script = `import {connectGuardianWorker} from './codex-guardian-worker.mjs';
 import {spawn,execFileSync} from 'node:child_process';
 import {writeFileSync,existsSync} from 'node:fs';
-const guard=await connectGuardianWorker({${startup ? `startup:{configSha256:'${(mismatch ? "d" : "c").repeat(64)}',port:32123},` : ""}onLost:()=>{},onCloseAdmission:async value=>{let rejected=false;try{guard.assertAdmission(token)}catch{rejected=true};writeFileSync(${JSON.stringify(barrier)},JSON.stringify({...value,executionRejected:rejected}));${rejectBarrier ? "throw new Error('fixture_barrier_failure');" : ""}}});
+${installerConfig ? `import {createServer} from 'node:http'; const server=createServer((req,res)=>{res.writeHead(200);res.end('ok')});await new Promise(r=>server.listen(${listenPort},'127.0.0.1',r));` : ""}
+const guard=await connectGuardianWorker({${startup ? `startup:{configSha256:'${mismatch ? "d".repeat(64) : configSha}',port:${listenPort}},` : ""}onLost:()=>{},onFinishClose:async()=>{},onCloseAdmission:async value=>{let rejected=false;try{guard.assertAdmission(token)}catch{rejected=true};writeFileSync(${JSON.stringify(barrier)},JSON.stringify({...value,executionRejected:rejected}));${rejectBarrier ? "throw new Error('fixture_barrier_failure');" : ""}return {closed:true,barrierId:value.barrierId,snapshots:value.projects.map(p=>({projectId:p.projectId}))}}});
 let token=await guard.admit(${JSON.stringify(project)});token=await guard.executionFence(token);guard.assertAdmission(token);
 ${
   tmux
@@ -80,7 +93,7 @@ spawn('/usr/bin/python3',['-I','-c',${JSON.stringify(ptyScript)}],{env:{PATH:'/u
     : "const tmux={pid:null};"
 }
 writeFileSync(${JSON.stringify(marker)},JSON.stringify({pid:process.pid,tmuxPid:tmux.pid,token}));
-${startup ? `await new Promise(r=>setTimeout(r,${readyDelay}));await guard.ready({configSha256:'${"c".repeat(64)}',port:32123});` : ""}
+${startup ? `await new Promise(r=>setTimeout(r,${readyDelay}));await guard.ready({configSha256:'${configSha}',port:${listenPort}});` : ""}
 ${
   applications
     ? `const appId='${randomUUID()}',opId='${randomUUID()}',ctx={revisionId:'${randomUUID()}',version:1,headSha:'${"b".repeat(40)}'};
@@ -93,14 +106,21 @@ writeFileSync(${JSON.stringify(join(directory, "applications.json"))},JSON.strin
 }
 setInterval(()=>{},1000);`;
   writeFileSync(join(packageDirectory, "fixture-worker.mjs"), script, { mode: 0o600 });
+  if (installerConfig)
+    copyFileSync(
+      join(packageDirectory, "fixture-worker.mjs"),
+      join(packageDirectory, "codex-workspace-host-worker.mjs"),
+    );
   execFileSync(process.execPath, ["--check", join(packageDirectory, "fixture-worker.mjs")], {
     stdio: "pipe",
   });
   const files = Object.fromEntries(
-    ["codex-native-guardian", "codex-guardian-worker.mjs", "fixture-worker.mjs"].map((name) => [
-      name,
-      hash(join(packageDirectory, name)),
-    ]),
+    [
+      "codex-native-guardian",
+      "codex-guardian-worker.mjs",
+      "fixture-worker.mjs",
+      ...(installerConfig ? ["codex-workspace-host-worker.mjs"] : []),
+    ].map((name) => [name, hash(join(packageDirectory, name))]),
   );
   writeFileSync(
     join(packageDirectory, "package-manifest.json"),
@@ -125,7 +145,9 @@ setInterval(()=>{},1000);`;
     nodeExecutable,
     nodeSha256: hash(nodeExecutable),
     workerCwd: directory,
-    stateDirectory: join(directory, "outer"),
+    stateDirectory: installerConfig
+      ? join(directory, ".local/state/hive/codex-host-guardian")
+      : join(directory, "outer"),
     bindingDigest: "a".repeat(64),
     authorizeAdmission: async (value) => {
       assert.deepEqual(value, project);
@@ -141,8 +163,8 @@ setInterval(()=>{},1000);`;
       schemaVersion: 1,
       type: "start",
       nonce: Buffer.alloc(32, 1).toString("base64url"),
-      configSha256: "c".repeat(64),
-      port: 32123,
+      configSha256: configSha,
+      port: listenPort,
       nodeSha256: options.nodeSha256,
       packageManifestSha256: options.packageManifestSha256,
     };
@@ -185,9 +207,6 @@ test("outer worker barrier refuses active project then drains actual tmux descen
   assert.equal(processParentPid(pty.pid), worker.pid);
   assert.equal(processParentPid(pty.child), pty.pid);
   assert.deepEqual(host.state.guardian.projects, [f.project]);
-  await assert.rejects(host.drain(), /active project/);
-  assert.equal(host.state.phase, "open");
-  assert.equal(existsSync(`/proc/${worker.pid}`), true);
   const before = readFileSync(f.writer).length;
   await delay(40);
   assert.ok(readFileSync(f.writer).length > before);
@@ -209,6 +228,193 @@ test("outer worker barrier refuses active project then drains actual tmux descen
   assert.equal(journal.state.phase, "closed");
   assert.equal(journal.state.receipts.length, 1);
   assert.equal(journal.state.receipts[0].lifetimeId, receipt.lifetimeId);
+});
+test("an exited guardian receipt must replay before starting a replacement lifetime", async (t) => {
+  const f = fixture(t);
+  f.options.acceptTreeReceipt = async () => {
+    throw Error("lost_tree_ack");
+  };
+  const first = await f.open();
+  await until(() => existsSync(f.marker));
+  f.allow();
+  await assert.rejects(first.drain(), /lost_tree_ack/);
+  const journal = JSON.parse(readFileSync(join(f.options.stateDirectory, "lifetime.json")));
+  assert.equal(journal.state.phase, "treeExited");
+  let replayed;
+  f.options.recoverTreeReceipt = async (receipt) => {
+    replayed = receipt;
+  };
+  const second = await f.open();
+  assert.equal(replayed.guardianExited, true);
+  assert.notEqual(second.state.guardian.lifetimeId, replayed.lifetimeId);
+});
+test("rollover starts exactly one fresh worker only after durable closure and archive", async (t) => {
+  const f = fixture(t);
+  f.options.postTreeClosed = async () => ({ eligible: true, archived: true });
+  f.allow();
+  let launches = 0,
+    archived = 0;
+  const rollover = createGuardedRollover(async () => {
+    launches++;
+    return {
+      host: await f.open(),
+      authority: {
+        archiveClosedController: async () => {
+          assert.equal(
+            JSON.parse(readFileSync(join(f.options.stateDirectory, "lifetime.json"))).state.phase,
+            "closed",
+          );
+          archived++;
+        },
+      },
+    };
+  });
+  const first = await rollover.start();
+  const lifetime = first.state.guardian.lifetimeId;
+  await Promise.all([rollover.trigger(first), rollover.trigger(first)]);
+  assert.equal(launches, 2);
+  assert.equal(archived, 1);
+  assert.equal(rollover.state.held, false);
+  assert.notEqual(rollover.state.host.guardian.lifetimeId, lifetime);
+});
+test("rollover retains an ineligible or failed closure without starting a new worker", async () => {
+  for (const fails of [false, true]) {
+    let launches = 0;
+    const host = {
+      state: { rolloverEligible: false },
+      async drain() {
+        if (fails) throw Error("uncertain");
+        return {};
+      },
+    };
+    const rollover = createGuardedRollover(async () => {
+      launches++;
+      return {
+        host,
+        authority: {
+          archiveClosedController: async () => {
+            throw Error("unexpected");
+          },
+        },
+      };
+    });
+    await rollover.start();
+    await rollover.trigger(host);
+    assert.equal(launches, 1);
+    assert.equal(rollover.state.held, true);
+  }
+});
+test("installer re-entry recognizes the current worker after two real guardian lifetimes", async (t) => {
+  const probe = createServer();
+  await new Promise((resolve, reject) => {
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", resolve);
+  });
+  const port = probe.address().port;
+  await new Promise((resolve, reject) =>
+    probe.close((error) => (error ? reject(error) : resolve())),
+  );
+  const config = {
+    binding: { appOrigin: `http://127.0.0.1:${port}` },
+    guardianEnabled: true,
+    port,
+  };
+  const f = fixture(t, { startup: true, installerConfig: config });
+  f.options.postTreeClosed = async () => ({ eligible: true, archived: true });
+  f.allow();
+  let archives = 0;
+  const rollover = createGuardedRollover(async () => ({
+    host: await f.open(),
+    authority: {
+      archiveClosedController: async () => {
+        archives++;
+      },
+    },
+  }));
+  const first = await rollover.start();
+  const ready = first.startupAttestation();
+  const home = f.directory,
+    state = join(home, ".local/state/hive/codex-host-install"),
+    configDir = join(home, ".config/hive");
+  mkdirSync(state, { recursive: true, mode: 0o700 });
+  mkdirSync(configDir, { recursive: true, mode: 0o700 });
+  const configBytes = `${JSON.stringify(config)}\n`,
+    configSha = createHash("sha256").update(configBytes).digest("hex");
+  writeFileSync(join(configDir, "codex-host.json"), configBytes, { mode: 0o600 });
+  const identity = Object.fromEntries(
+    ["pid", "startTime", "bootId", "executable"].map((key) => [key, ready.outerIdentity[key]]),
+  );
+  const receipt = {
+    schemaVersion: 1,
+    archiveSha256: "d".repeat(64),
+    configSha256: configSha,
+    bootstrapConfigSha256: configSha,
+    runtimeIdentity: {},
+    process: identity,
+    guardianStartup: { start: f.options.startup, ready },
+  };
+  const receiptPath = join(state, "process.json");
+  writeFileSync(receiptPath, `${JSON.stringify(receipt)}\n`, { mode: 0o600 });
+  await rollover.trigger(first);
+  assert.equal(archives, 1);
+  assert.notEqual(rollover.state.host.guardian.lifetimeId, ready.lifetimeId);
+  const python = `import importlib.util,json,os,sys,types\nfrom pathlib import Path\ns=importlib.util.spec_from_file_location('installer',sys.argv[1]);i=importlib.util.module_from_spec(s);s.loader.exec_module(i)\nhome,target,config=sys.argv[2],Path(sys.argv[3]),json.loads(sys.argv[4])\nos.environ['HIVE_WORKSPACE_PROFILE']='software'\ni.pwd.getpwuid=lambda _:types.SimpleNamespace(pw_dir=home)\ni.decode_archive=lambda _:b'fixture'\ni.validate_execution_config=lambda _:None\ni.install_package=lambda *_:target\ni.normalize_agent_config=lambda c,_:(c,{})\ni.same_build_identity=lambda *_:None\ni.subprocess.run=lambda *a,**k:types.SimpleNamespace(returncode=0)\ni.subprocess.check_output=lambda *a,**k:b'24'\nprint(json.dumps(i.install({'schemaVersion':1,'archive':'fixture','config':config,'archiveSha256':'d'*64})))`;
+  const result = JSON.parse(
+    execFileSync(
+      "/usr/bin/python3",
+      [
+        "-c",
+        python,
+        resolve("templates/ai-dev-k8s/scripts/install-codex-host.py"),
+        home,
+        f.options.packageDirectory,
+        JSON.stringify(config),
+      ],
+      { encoding: "utf8", timeout: 10000 },
+    ),
+  );
+  assert.equal(result.status, "already_running");
+  const updated = JSON.parse(readFileSync(receiptPath));
+  assert.equal(updated.process.pid, ready.outerIdentity.pid);
+  assert.equal(updated.guardianStartup.ready.lifetimeId, rollover.state.host.guardian.lifetimeId);
+  assert.notEqual(updated.guardianStartup.ready.workerIdentity.pid, ready.workerIdentity.pid);
+  assert.equal(updated.guardianStartup.start.nonce, receipt.guardianStartup.start.nonce);
+  const journalPath = join(f.options.stateDirectory, "lifetime.json"),
+    original = readFileSync(journalPath),
+    key = readFileSync(join(f.options.stateDirectory, "key"));
+  for (const corrupt of [
+    (value) => {
+      value.nonce = "A".repeat(43);
+    },
+    (value) => {
+      value.workerIdentity.startTime = String(Number(value.workerIdentity.startTime) + 1);
+    },
+    (value) => {
+      value.workerIdentity.parentPid = value.outerIdentity.pid;
+    },
+  ]) {
+    const saved = JSON.parse(original),
+      entry = [...saved.state.events].reverse().find((event) => event.name === "startupReady");
+    corrupt(entry.value);
+    saved.signature = createHmac("sha256", key).update(JSON.stringify(saved.state)).digest("hex");
+    writeFileSync(journalPath, JSON.stringify(saved));
+    assert.throws(() =>
+      execFileSync(
+        "/usr/bin/python3",
+        [
+          "-c",
+          python,
+          resolve("templates/ai-dev-k8s/scripts/install-codex-host.py"),
+          home,
+          f.options.packageDirectory,
+          JSON.stringify(config),
+        ],
+        { encoding: "utf8", timeout: 10000, stdio: "pipe" },
+      ),
+    );
+    assert.deepEqual(JSON.parse(readFileSync(receiptPath)), updated);
+  }
+  writeFileSync(journalPath, original);
 });
 
 test("startup attestation waits for worker readiness and pins nonce, config, package and exact kernel chain", async (t) => {
