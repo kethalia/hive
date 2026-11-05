@@ -2,14 +2,23 @@ import { getDb } from "@hive/db";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { deliverGuardianEnrollment, requestGuardianIdentity } from "./bootstrap-delivery.server";
 import { guardianDeploymentPolicy, guardianDigest } from "./guardian-contracts";
-import { type GuardianOwnerTransport, GuardianService } from "./guardian-service.server";
+import {
+  type GuardianOwnerTransport,
+  type GuardianProvisionStage,
+  GuardianService,
+} from "./guardian-service.server";
 import { registeredSessionConfig } from "./registered-session.server";
 import { resolveVerifiedWorkspaceHost } from "./registration.server";
 import { RegistrationRejected } from "./registration-store.server";
 
 export function createGuardianService(
-  options: { signal?: AbortSignal; transport?: GuardianOwnerTransport } = {},
+  options: {
+    signal?: AbortSignal;
+    transport?: GuardianOwnerTransport;
+    onProvisionStage?: (stage: GuardianProvisionStage) => void;
+  } = {},
 ) {
+  options.onProvisionStage?.("guardian_config");
   const db = getDb(),
     config = registeredSessionConfig(),
     policy = guardianDeploymentPolicy();
@@ -54,6 +63,7 @@ export function createGuardianService(
   };
   return new GuardianService(db, config, policy, encryptionKey, {
     signal: options.signal,
+    onProvisionStage: options.onProvisionStage,
     transport: options.transport ?? {
       async identity(binding, nonce) {
         const value = await requestGuardianIdentity(

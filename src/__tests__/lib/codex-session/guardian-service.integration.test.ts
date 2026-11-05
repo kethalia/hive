@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, type KeyObject, randomUUID, sign } from "node:crypto";
 import { PrismaClient } from "@hive/db";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   expectedGuardianHostConfig,
   guardianConfigSha256,
@@ -37,6 +37,9 @@ const sha = (v: string) => createHash("sha256").update(v).digest("hex");
 async function fixture(
   patch?: (packet: GuardianIdentityResponse) => void,
   transformGrant?: (grant: string, service: GuardianService, key: KeyObject) => Promise<string>,
+  onProvisionStage?: (
+    stage: import("@/lib/codex-session/guardian-service.server").GuardianProvisionStage,
+  ) => void,
 ) {
   const issuer = generateKeyPairSync("ed25519"),
     outer = generateKeyPairSync("ed25519");
@@ -120,6 +123,7 @@ async function fixture(
   });
   service = new GuardianService(db, config, policy, "19".repeat(32), {
     env,
+    onProvisionStage,
     resolveWorkspace: async (p) => {
       resolutions++;
       expect(p).toEqual(principal);
@@ -212,6 +216,54 @@ async function fixture(
   };
 }
 describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQL", () => {
+  it("reports trusted transport, identity validation and reservation boundaries", async () => {
+    const stages: string[] = [];
+    const transportFailure = await fixture(
+      () => {
+        throw new RegistrationRejected();
+      },
+      undefined,
+      (stage) => stages.push(stage),
+    );
+    await expect(
+      transportFailure.service.provision(
+        transportFailure.principal,
+        transportFailure.binding.workspaceId,
+      ),
+    ).rejects.toBeInstanceOf(RegistrationRejected);
+    expect(stages.at(-1)).toBe("guardian_identity_transport");
+    stages.length = 0;
+    const invalidIdentity = await fixture(
+      (packet) => {
+        packet.startup.workerIdentity.parentPid = 999;
+      },
+      undefined,
+      (stage) => stages.push(stage),
+    );
+    await expect(
+      invalidIdentity.service.provision(
+        invalidIdentity.principal,
+        invalidIdentity.binding.workspaceId,
+      ),
+    ).rejects.toBeInstanceOf(RegistrationRejected);
+    expect(stages.at(-1)).toBe("guardian_identity_validation");
+    stages.length = 0;
+    const reservationFailure = await fixture(undefined, undefined, (stage) => stages.push(stage));
+    const reserve = vi
+      .spyOn(GuardianAdmissionStore.prototype, "reserveRuntime")
+      .mockRejectedValueOnce(new RegistrationRejected());
+    try {
+      await expect(
+        reservationFailure.service.provision(
+          reservationFailure.principal,
+          reservationFailure.binding.workspaceId,
+        ),
+      ).rejects.toBeInstanceOf(RegistrationRejected);
+      expect(stages.at(-1)).toBe("guardian_runtime_reservation");
+    } finally {
+      reserve.mockRestore();
+    }
+  });
   it("fresh owner-app identity issues a one-use key/lifetime grant and records real enrollment", async () => {
     const f = await fixture();
     expect(await f.service.provision(f.principal, f.binding.workspaceId)).toMatchObject({

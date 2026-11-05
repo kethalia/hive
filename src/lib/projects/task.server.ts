@@ -289,10 +289,12 @@ export async function reconcileProjectTasks(
           // request cannot substitute for the approved package/lifetime checks.
           if (process.env.HIVE_GUARDIAN_ENABLED === "true") {
             stage = "guardian";
-            const enrollment = await (options.signal
-              ? createGuardianService(options)
-              : createGuardianService()
-            ).provision(
+            const enrollment = await createGuardianService({
+              ...options,
+              onProvisionStage: (next) => {
+                stage = next;
+              },
+            }).provision(
               { hiveUserId: user.id, coderUserId: user.coderUserId },
               payload.workspaceId,
             );

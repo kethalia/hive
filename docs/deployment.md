@@ -2,7 +2,7 @@
 
 ## Audience and outcome
 
-This runbook is for internal engineers deploying Hive through GitOps-managed Helm releases. After reading it, you should be able to promote a built image set, confirm the rollout, and choose a safe rollback path when a release fails.
+This runbook is for internal engineers deploying Hive through GitOps-managed Helm releases. After reading it, you should be able to promote a built image set, confirm the rollout, and choose a safe rollback path when a release fails. For the proposed first transition from Kubernetes to the single Cloudflare Worker, use the separate [environment and cutover preparation](../deploy/cloudflare/environments.md#first-production-cutover); the Kubernetes release remains the initial fallback until that cutover is validated.
 
 ## Release contract
 

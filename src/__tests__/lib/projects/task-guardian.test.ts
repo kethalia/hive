@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({
   project: vi.fn(),
   provision: vi.fn(),
   host: vi.fn(),
+  guardianStage: "" as string,
   payload: {} as Record<string, unknown>,
 }));
 vi.mock("@hive/db", async (importOriginal) => ({
@@ -17,7 +18,12 @@ vi.mock("@hive/db", async (importOriginal) => ({
   }),
 }));
 vi.mock("@/lib/codex-session/guardian-factory.server", () => ({
-  createGuardianService: () => ({ provision: mock.provision }),
+  createGuardianService: (options: { onProvisionStage?: (stage: string) => void }) => ({
+    provision: (...args: unknown[]) => {
+      if (mock.guardianStage) options.onProvisionStage?.(mock.guardianStage);
+      return mock.provision(...args);
+    },
+  }),
 }));
 vi.mock("@/lib/projects/host.server", () => ({ signedHostProjectRequest: mock.host }));
 vi.mock("@/lib/projects/task-intents.server", async (original) => ({
@@ -40,6 +46,7 @@ const ownerId = "11111111-1111-4111-8111-111111111111",
   taskId = "44444444-4444-4444-8444-444444444444";
 beforeEach(() => {
   vi.resetAllMocks();
+  mock.guardianStage = "";
   vi.stubEnv("HIVE_PROJECT_TASKS_ENABLED", "true");
   vi.stubEnv("HIVE_GUARDIAN_ENABLED", "true");
   vi.stubEnv("ENCRYPTION_KEY", "a".repeat(64));
@@ -69,6 +76,19 @@ beforeEach(() => {
     nativeThreadId: null,
     terminalSessionName: null,
     reason: null,
+  });
+});
+it.each([
+  "guardian_config",
+  "guardian_identity_transport",
+  "guardian_identity_validation",
+  "guardian_runtime_reservation",
+])("persists only the reported trusted %s stage", async (stage) => {
+  mock.guardianStage = stage;
+  mock.provision.mockRejectedValueOnce(new Error("private credential"));
+  await expect(reconcileProjectTasks()).rejects.toMatchObject({
+    stage,
+    message: "Task execution stage failed",
   });
 });
 afterEach(() => vi.unstubAllEnvs());

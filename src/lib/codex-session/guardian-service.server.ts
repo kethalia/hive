@@ -48,6 +48,14 @@ export interface GuardianOwnerTransport {
   identity(binding: VerifiedHostBinding, nonce: string): Promise<unknown>;
   bootstrap(binding: VerifiedHostBinding, grant: string): Promise<unknown>;
 }
+export type GuardianProvisionStage =
+  | "guardian_config"
+  | "guardian_resolve"
+  | "guardian_identity_transport"
+  | "guardian_identity_validation"
+  | "guardian_runtime_reservation"
+  | "guardian_bootstrap"
+  | "guardian_enrollment_confirmation";
 export interface GuardianServiceDependencies {
   resolveWorkspace(
     principal: RegistrationPrincipal,
@@ -57,6 +65,7 @@ export interface GuardianServiceDependencies {
   signal?: AbortSignal;
   now?: () => number;
   env?: Record<string, string | undefined>;
+  onProvisionStage?: (stage: GuardianProvisionStage) => void;
 }
 /** Host keys authenticate the approved installed software boundary. Startup
  * evidence is deliberately not represented as hardware remote attestation. */
@@ -197,10 +206,15 @@ export class GuardianService {
   async provision(principal: RegistrationPrincipal, workspaceId: string) {
     const transport = this.dependencies.transport;
     requireGuardian(transport);
+    this.dependencies.onProvisionStage?.("guardian_resolve");
     const binding = await this.resolve(principal, workspaceId),
       nonce = randomBytes(32).toString("hex");
-    const packet = this.verifyIdentity(binding, await transport.identity(binding, nonce), nonce);
+    this.dependencies.onProvisionStage?.("guardian_identity_transport");
+    const identity = await transport.identity(binding, nonce);
+    this.dependencies.onProvisionStage?.("guardian_identity_validation");
+    const packet = this.verifyIdentity(binding, identity, nonce);
     this.active();
+    this.dependencies.onProvisionStage?.("guardian_runtime_reservation");
     const existing = await this.db.codexGuardianRuntime.findFirst({
       where: { ownerId: principal.hiveUserId, lifetimeId: packet.identity.lifetimeId },
     });
@@ -212,6 +226,7 @@ export class GuardianService {
     this.active();
     this.live(packet);
     if (runtime.phase === "open") {
+      this.dependencies.onProvisionStage?.("guardian_enrollment_confirmation");
       requireGuardian(packet.startup.generation === runtime.generation);
       return { runtimeId: runtime.id, enrolled: true };
     }
@@ -220,6 +235,7 @@ export class GuardianService {
         packet.startup.projects.length === 0 &&
         packet.startup.generation === 1,
     );
+    this.dependencies.onProvisionStage?.("guardian_bootstrap");
     const issuedAt = Math.floor(this.now() / 1000),
       jti = randomUUID();
     const claims = {
@@ -262,6 +278,7 @@ export class GuardianService {
     this.active();
     await transport.bootstrap(binding, grant);
     this.active();
+    this.dependencies.onProvisionStage?.("guardian_enrollment_confirmation");
     const fresh = await this.db.codexGuardianRuntime.findUniqueOrThrow({
       where: { ownerId_id: { ownerId: principal.hiveUserId, id: runtime.id } },
     });

@@ -5,6 +5,13 @@ export const projectTaskFailureStageSchema = z.enum([
   "project",
   "policy",
   "guardian",
+  "guardian_config",
+  "guardian_resolve",
+  "guardian_identity_transport",
+  "guardian_identity_validation",
+  "guardian_runtime_reservation",
+  "guardian_bootstrap",
+  "guardian_enrollment_confirmation",
   "host_start",
   "host_status",
   "intent_read",
@@ -78,6 +85,17 @@ export const preparationFailureMessages: Record<
   project: "The project check could not be completed. Your request is preserved.",
   policy: "The project settings check could not be completed. Your request is preserved.",
   guardian: "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_config: "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_resolve: "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_transport:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_validation:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_runtime_reservation:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_bootstrap: "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_enrollment_confirmation:
+    "The workspace connection could not be confirmed. Your request is preserved.",
   host_start: "The task start could not be confirmed. Your request is preserved.",
   host_status: "The task status could not be confirmed. Your request is preserved.",
   intent_read: "The saved request could not be read. Your request is preserved.",
