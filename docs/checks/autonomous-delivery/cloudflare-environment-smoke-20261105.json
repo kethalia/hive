@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-11-05T19:45:29.010580+00:00",
+  "origin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+  "deployedSource": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+  "httpRequests": 2,
+  "cumulativeOuterRequests": 19,
+  "passed": false,
+  "checks": [
+    {
+      "authorized": false,
+      "status": 403,
+      "contentType": "text/plain; charset=UTF-8",
+      "cacheControl": "private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0",
+      "loginFormPresent": false,
+      "coderHostInputAbsent": true
+    },
+    {
+      "authorized": true,
+      "status": 403,
+      "contentType": "text/plain; charset=UTF-8",
+      "cacheControl": "private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0",
+      "loginFormPresent": false,
+      "coderHostInputAbsent": true
+    }
+  ],
+  "scope": "guard and actual SSR login only; no account login/task start/browser/production request"
+}

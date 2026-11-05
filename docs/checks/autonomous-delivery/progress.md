@@ -1097,3 +1097,30 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   made. A fresh test image/workspace is required to prove the live repair; existing guarded
   hosts and their journals remain intact. Difficulty: integration issue exposed by live
   validation, not established by the earlier mock-provider tests.
+
+## 2026-11-05 Cloudflare environment provisioning
+
+- Production target setup: completed as inactive reservations, low difficulty. Created
+  `hive-app-production`, `hive-auth-production` and `hive-jobs-production` in the existing
+  account from reviewed `dbe91300` bootstrap bytes. All return only an unavailable response;
+  provider readback confirms no public/preview URLs, routes, custom domains or cron schedules,
+  and no database/secrets bindings. This is environment provisioning, not a production app
+  rollout or a completed cutover gate. Four configuration/handler checks and three Wrangler
+  dry-run uploads passed. [Provider receipts](cloudflare-production-reservations.json).
+- Preview environment: existing app/auth/jobs deployed at `01eb03ba` are retained. Enabled
+  only the guarded app URL for continuing preview checks; auth and jobs stay private and jobs
+  unscheduled. The actual SSR login returns 200/private-no-store with preview authorization;
+  an unauthorized validation request returns 401. Initial Python-default-client requests
+  returned 403 and are preserved separately. Four outer requests in this step bring the
+  incremental ledger to 21/200. [Passing smoke](cloudflare-environment-smoke-retry-20261105.json).
+- Installed host repair: the fresh `hive-epic-flow` workspace includes the pinned Coder CLI
+  on the guarded PATH; current preview project-open succeeds against that host. A subsequent
+  one-shot task-start attempt did not retain its HTTP response. Read-only reconciliation found
+  no intent/task/policy rows; its cause and original response remain unknown. It was not replayed.
+- Task-start diagnosis: fixed-stage, credential-free logging implemented and independently
+  reviewed at `dbe91300`; 13 focused tests, TypeScript and Biome pass. These diagnostics are not
+  yet in the deployed `01eb03ba` app. Attach a bounded filtered live tail for their next deployment;
+  retained observability is disabled. Current full manager/browser/epic acceptance remains open.
+- No production data, DNS, Kubernetes runtime, or release authority was changed. Account-connection
+  F09/F10 remains the deferred roadmap scope. Environment identities and handoff sequence are in
+  [Cloudflare environments](../../../deploy/cloudflare/environments.md).
