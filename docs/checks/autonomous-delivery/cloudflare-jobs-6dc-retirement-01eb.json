@@ -1,1 +1,71 @@
-{"schemaVersion":1,"scope":"single explicitly authorized task-owned jobs Worker retirement","before":{"accountId":"225177f82b9234ede14e897fe15e0cb5","observedAt":"2026-11-05T18:57:19.538Z","name":"hive-jobs-compatibility-preview","tag":"3347a3d29aff4509ae4ed8dfcc2d8479","createdOn":"2026-11-05T17:38:01.737114Z","deploymentId":"0e0db0c6-faa7-4e31-b1e5-185dfbb177d7","versionId":"fcf57238-eb4e-47ce-a99f-0250c73afb6f","publicState":{"enabled":false,"previews_enabled":false},"schedules":[],"matchingRoutes":[],"matchingCustomDomains":[],"zoneCount":17,"bindings":[{"name":"APP_SERVICE","type":"service","service":"hive-app-compatibility-preview","environment":"production"},{"name":"HIVE_DELIVERY_PILOT_MODE","type":"plain_text","value":"true"},{"name":"HIVE_PROJECT_TASK_RECONCILE_SECRET","type":"secret_text"},{"name":"HIVE_PROJECT_TASKS_ENABLED","type":"plain_text","value":"true"},{"name":"HIVE_RUNTIME_TARGET","type":"plain_text","value":"cloudflare"},{"name":"SOURCE_REVISION","type":"plain_text","value":"6dc61a5056708592fb5d77226f221c8897f6936a"}],"limits":{"cpu_ms":100}},"action":{"attemptedAt":"2026-11-05T18:57:47.712Z","name":"hive-jobs-compatibility-preview","tag":"3347a3d29aff4509ae4ed8dfcc2d8479","forceParameterUsed":false,"response":{"result":{"id":"3347a3d29aff4509ae4ed8dfcc2d8479"},"success":true,"errors":[],"messages":[]}},"after":{"accountId":"225177f82b9234ede14e897fe15e0cb5","observedAt":"2026-11-05T18:57:59.743Z","jobsName":"hive-jobs-compatibility-preview","jobsExists":false,"matchingCustomDomains":[],"app":{"name":"hive-app-compatibility-preview","tag":"d2c4ddb811af4b268d1245e8fd2c8009","createdOn":"2026-10-29T19:15:01.671691Z","deploymentId":"d52d72f0-c41b-4644-88b6-e372e2301cef","versions":[{"version_id":"27368fa7-eab2-4cc1-814e-2ebae99ef9ef","percentage":100}],"publicState":{"enabled":false,"previews_enabled":false}}},"databaseAtPreflight":{"database":"hive_app_preview","role":"hive_app_runtime","policyRows":0},"originalCreationReceipt":"/tmp/hive-epic-coder-auth/app-preview-62423ba5-4b9f-4a8a-ac95-87d1637c86ff/jobs-create/receipt.json","forceParameterUsed":false,"newWorkerCreated":false}
+{
+  "schemaVersion": 1,
+  "scope": "single explicitly authorized task-owned jobs Worker retirement",
+  "before": {
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "observedAt": "2026-11-05T18:57:19.538Z",
+    "name": "hive-jobs-compatibility-preview",
+    "tag": "3347a3d29aff4509ae4ed8dfcc2d8479",
+    "createdOn": "2026-11-05T17:38:01.737114Z",
+    "deploymentId": "0e0db0c6-faa7-4e31-b1e5-185dfbb177d7",
+    "versionId": "fcf57238-eb4e-47ce-a99f-0250c73afb6f",
+    "publicState": { "enabled": false, "previews_enabled": false },
+    "schedules": [],
+    "matchingRoutes": [],
+    "matchingCustomDomains": [],
+    "zoneCount": 17,
+    "bindings": [
+      {
+        "name": "APP_SERVICE",
+        "type": "service",
+        "service": "hive-app-compatibility-preview",
+        "environment": "production"
+      },
+      { "name": "HIVE_DELIVERY_PILOT_MODE", "type": "plain_text", "value": "true" },
+      { "name": "HIVE_PROJECT_TASK_RECONCILE_SECRET", "type": "secret_text" },
+      { "name": "HIVE_PROJECT_TASKS_ENABLED", "type": "plain_text", "value": "true" },
+      { "name": "HIVE_RUNTIME_TARGET", "type": "plain_text", "value": "cloudflare" },
+      {
+        "name": "SOURCE_REVISION",
+        "type": "plain_text",
+        "value": "6dc61a5056708592fb5d77226f221c8897f6936a"
+      }
+    ],
+    "limits": { "cpu_ms": 100 }
+  },
+  "action": {
+    "attemptedAt": "2026-11-05T18:57:47.712Z",
+    "name": "hive-jobs-compatibility-preview",
+    "tag": "3347a3d29aff4509ae4ed8dfcc2d8479",
+    "forceParameterUsed": false,
+    "response": {
+      "result": { "id": "3347a3d29aff4509ae4ed8dfcc2d8479" },
+      "success": true,
+      "errors": [],
+      "messages": []
+    }
+  },
+  "after": {
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "observedAt": "2026-11-05T18:57:59.743Z",
+    "jobsName": "hive-jobs-compatibility-preview",
+    "jobsExists": false,
+    "matchingCustomDomains": [],
+    "app": {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deploymentId": "d52d72f0-c41b-4644-88b6-e372e2301cef",
+      "versions": [{ "version_id": "27368fa7-eab2-4cc1-814e-2ebae99ef9ef", "percentage": 100 }],
+      "publicState": { "enabled": false, "previews_enabled": false }
+    }
+  },
+  "databaseAtPreflight": {
+    "database": "hive_app_preview",
+    "role": "hive_app_runtime",
+    "policyRows": 0
+  },
+  "originalCreationReceipt": "/tmp/hive-epic-coder-auth/app-preview-62423ba5-4b9f-4a8a-ac95-87d1637c86ff/jobs-create/receipt.json",
+  "forceParameterUsed": false,
+  "newWorkerCreated": false
+}
