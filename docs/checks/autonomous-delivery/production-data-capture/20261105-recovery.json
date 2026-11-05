@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "source": "isolated local upgraded production capture",
+  "target": "hive_recovery_rehearsal_20261105",
+  "originalCaptureSha256": "00025c4d48ff2bce6c086ebf49b63bfbb605d3f3e8ae4965c125d18ed798bf27",
+  "backupSha256": "6bf181decccd5183c9b6e6b0890d7271a322ec2ab519d840d577fbfa02d008d1",
+  "backupBytes": 350172,
+  "tables": 68,
+  "rows": 120,
+  "allTableRowsAndColumnsMatch": true,
+  "elapsedSeconds": 0.46,
+  "productionMutations": 0,
+  "neonBackupRestoreTested": false,
+  "postCutoverWriteRecoveryTested": false,
+  "limits": [
+    "Local PostgreSQL17 backup/restore rehearsal only; this does not prove Neon service restore or application behavior.",
+    "Target is an isolated local database. Raw backup remains owner-only outside repository."
+  ]
+}

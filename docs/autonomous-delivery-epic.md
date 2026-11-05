@@ -19,19 +19,22 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 ## Work queue
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
-Current implementation checkpoint (2026-10-30): the installed runtime identity resolver passes
-against the dedicated Coder test workspace. The private Cloudflare preview passes real browser
-login, GitHub repository discovery/search, project enrollment, mobile/desktop layout and logout.
-Neon now has32 committed migration entries, preserving prior data and history; uncommitted release
-migrations remain excluded. Independent intent-aware acceptance, bounded repair and controller-driven
-completion are implemented and reviewed locally; installed acceptance remains pending. Terminal, clipboard and voice transports have local proofs, with account-backed browser
-acceptance still pending. The release journal, artifact attestation and controlled delivery
-adapters are in development, including a trusted tested-merge-tree producer. The scoped agent-tools
-bridge has passed independent local review and awaits its rebuilt image and real Coder pilot. The current package expansion must use image-baked public assets:
-historical live testing established that this Coder provisioner cannot create ConfigMaps.
-Shared-session browser pilots, full baseline compatibility and production-data migration rehearsal
-remain open. A reachable read-only production database or backup is needed for the latter.
-No production cutover has occurred.
+Current implementation checkpoint (2026-11-05): the epic has been rebased onto main
+`1ace8774118b99b28856347edd51410c4f0a0774`, preserving the recent dock and workspace changes.
+Controlled release and database-job implementations are committed; an actual old/new Hive
+Worker pair exercised isolated Neon reads/writes, interrupted backfill recovery and integrity
+checks. Deployment observations and authorization in that pilot remain fixtures. Epic planning,
+closure and workspace reuse have local integration evidence; the installed multi-task pilot
+remains open. The persistent test workspace is running and its isolated Codex login is valid,
+but still runs the historical package and has startup errors under investigation.
+
+A read-only production capture has now been restored and upgraded both locally and in a separate
+Neon Free rehearsal database: all eight original tables (88 rows) match their fingerprints,
+and all 39 migrations are present. Application, secret/session compatibility and final recovery
+checks remain open. The raw data stays in private files and the isolated database; only redacted
+proof is committed. The previous private Cloudflare browser pilot covered login, repository
+search/enrollment, layout and logout; current-build shared-session and full baseline acceptance
+remain pending. No production cutover has occurred.
 
 Current step reports and blockers: [execution ledger](checks/autonomous-delivery/progress.md). Each task follows Understand → Implement → Review →
 Validate, adding Release/Observe when it changes deployed behavior. Record attempts, issues,

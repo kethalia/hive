@@ -1,0 +1,375 @@
+{
+  "observedAt": "2026-10-30T09:44:41.346481+00:00",
+  "services": [
+    {
+      "name": "hive-hive-auth",
+      "clusterIP": "10.43.100.210",
+      "ports": [
+        {
+          "port": 80,
+          "name": "http"
+        }
+      ]
+    },
+    {
+      "name": "hive-hive-terminal",
+      "clusterIP": "10.43.92.226",
+      "ports": [
+        {
+          "port": 80,
+          "name": "http"
+        }
+      ]
+    },
+    {
+      "name": "hive-hive-web",
+      "clusterIP": "10.43.226.137",
+      "ports": [
+        {
+          "port": 80,
+          "name": "http"
+        }
+      ]
+    },
+    {
+      "name": "hive-pg-r",
+      "clusterIP": "10.43.252.131",
+      "ports": [
+        {
+          "port": 5432,
+          "name": "postgres"
+        }
+      ]
+    },
+    {
+      "name": "hive-pg-ro",
+      "clusterIP": "10.43.77.102",
+      "ports": [
+        {
+          "port": 5432,
+          "name": "postgres"
+        }
+      ]
+    },
+    {
+      "name": "hive-pg-rw",
+      "clusterIP": "10.43.162.231",
+      "ports": [
+        {
+          "port": 5432,
+          "name": "postgres"
+        }
+      ]
+    },
+    {
+      "name": "hive-valkey",
+      "clusterIP": "10.43.228.107",
+      "ports": [
+        {
+          "port": 6379,
+          "name": "redis"
+        }
+      ]
+    }
+  ],
+  "cluster": {
+    "phase": "Cluster in healthy state",
+    "currentPrimary": "hive-pg-2",
+    "readyInstances": 2,
+    "instances": 2,
+    "firstRecoverabilityPoint": "2026-09-16T03:00:03Z",
+    "lastSuccessfulBackup": "2026-10-30T03:00:06Z"
+  },
+  "backups": [
+    {
+      "name": "hive-pg-daily-20260731030000",
+      "phase": "failed",
+      "startedAt": null,
+      "stoppedAt": null
+    },
+    {
+      "name": "hive-pg-daily-20260801030000",
+      "phase": "failed",
+      "startedAt": null,
+      "stoppedAt": null
+    },
+    {
+      "name": "hive-pg-daily-20260913030000",
+      "phase": "failed",
+      "startedAt": null,
+      "stoppedAt": "2026-09-13T03:00:09Z"
+    },
+    {
+      "name": "hive-pg-daily-20260916030000",
+      "phase": "completed",
+      "startedAt": "2026-09-16T03:00:00Z",
+      "stoppedAt": "2026-09-16T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260917030000",
+      "phase": "completed",
+      "startedAt": "2026-09-17T03:00:00Z",
+      "stoppedAt": "2026-09-17T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260918030000",
+      "phase": "completed",
+      "startedAt": "2026-09-18T03:00:00Z",
+      "stoppedAt": "2026-09-18T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260919030000",
+      "phase": "completed",
+      "startedAt": "2026-09-19T03:00:00Z",
+      "stoppedAt": "2026-09-19T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260920030000",
+      "phase": "completed",
+      "startedAt": "2026-09-20T03:00:00Z",
+      "stoppedAt": "2026-09-20T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260921030000",
+      "phase": "completed",
+      "startedAt": "2026-09-21T03:00:00Z",
+      "stoppedAt": "2026-09-21T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260922030000",
+      "phase": "completed",
+      "startedAt": "2026-09-22T03:00:00Z",
+      "stoppedAt": "2026-09-22T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20260923030000",
+      "phase": "completed",
+      "startedAt": "2026-09-23T03:00:00Z",
+      "stoppedAt": "2026-09-23T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260924030000",
+      "phase": "completed",
+      "startedAt": "2026-09-24T03:00:00Z",
+      "stoppedAt": "2026-09-24T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260925030000",
+      "phase": "completed",
+      "startedAt": "2026-09-25T03:00:00Z",
+      "stoppedAt": "2026-09-25T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260926030000",
+      "phase": "completed",
+      "startedAt": "2026-09-26T03:00:00Z",
+      "stoppedAt": "2026-09-26T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260927030000",
+      "phase": "completed",
+      "startedAt": "2026-09-27T03:00:00Z",
+      "stoppedAt": "2026-09-27T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260928030000",
+      "phase": "completed",
+      "startedAt": "2026-09-28T03:00:00Z",
+      "stoppedAt": "2026-09-28T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260929030000",
+      "phase": "completed",
+      "startedAt": "2026-09-29T03:00:00Z",
+      "stoppedAt": "2026-09-29T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20260930030000",
+      "phase": "completed",
+      "startedAt": "2026-09-30T03:00:00Z",
+      "stoppedAt": "2026-09-30T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261001030000",
+      "phase": "completed",
+      "startedAt": "2026-10-01T03:00:00Z",
+      "stoppedAt": "2026-10-01T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261002030000",
+      "phase": "completed",
+      "startedAt": "2026-10-02T03:00:00Z",
+      "stoppedAt": "2026-10-02T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261003030000",
+      "phase": "completed",
+      "startedAt": "2026-10-03T03:00:00Z",
+      "stoppedAt": "2026-10-03T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261004030000",
+      "phase": "completed",
+      "startedAt": "2026-10-04T03:00:00Z",
+      "stoppedAt": "2026-10-04T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261005030000",
+      "phase": "completed",
+      "startedAt": "2026-10-05T03:00:00Z",
+      "stoppedAt": "2026-10-05T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261006030000",
+      "phase": "completed",
+      "startedAt": "2026-10-06T03:00:00Z",
+      "stoppedAt": "2026-10-06T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261007030000",
+      "phase": "completed",
+      "startedAt": "2026-10-07T03:00:00Z",
+      "stoppedAt": "2026-10-07T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261008030000",
+      "phase": "completed",
+      "startedAt": "2026-10-08T03:00:00Z",
+      "stoppedAt": "2026-10-08T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261009030000",
+      "phase": "completed",
+      "startedAt": "2026-10-09T03:00:00Z",
+      "stoppedAt": "2026-10-09T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261010030000",
+      "phase": "completed",
+      "startedAt": "2026-10-10T03:00:00Z",
+      "stoppedAt": "2026-10-10T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261011030000",
+      "phase": "completed",
+      "startedAt": "2026-10-11T03:00:00Z",
+      "stoppedAt": "2026-10-11T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261012030000",
+      "phase": "completed",
+      "startedAt": "2026-10-12T03:00:00Z",
+      "stoppedAt": "2026-10-12T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261013030000",
+      "phase": "failed",
+      "startedAt": null,
+      "stoppedAt": "2026-10-13T03:00:06Z"
+    },
+    {
+      "name": "hive-pg-daily-20261014030000",
+      "phase": "completed",
+      "startedAt": "2026-10-14T03:00:00Z",
+      "stoppedAt": "2026-10-14T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261015030000",
+      "phase": "completed",
+      "startedAt": "2026-10-15T03:00:00Z",
+      "stoppedAt": "2026-10-15T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261016030000",
+      "phase": "completed",
+      "startedAt": "2026-10-16T03:00:00Z",
+      "stoppedAt": "2026-10-16T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261017030000",
+      "phase": "completed",
+      "startedAt": "2026-10-17T03:00:00Z",
+      "stoppedAt": "2026-10-17T03:00:06Z"
+    },
+    {
+      "name": "hive-pg-daily-20261018030000",
+      "phase": "completed",
+      "startedAt": "2026-10-18T03:00:00Z",
+      "stoppedAt": "2026-10-18T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261019030000",
+      "phase": "completed",
+      "startedAt": "2026-10-19T03:00:00Z",
+      "stoppedAt": "2026-10-19T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261020030000",
+      "phase": "completed",
+      "startedAt": "2026-10-20T03:00:00Z",
+      "stoppedAt": "2026-10-20T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261021030000",
+      "phase": "completed",
+      "startedAt": "2026-10-21T03:00:00Z",
+      "stoppedAt": "2026-10-21T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261022030000",
+      "phase": "completed",
+      "startedAt": "2026-10-22T03:00:00Z",
+      "stoppedAt": "2026-10-22T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261023030000",
+      "phase": "failed",
+      "startedAt": null,
+      "stoppedAt": "2026-10-23T03:00:07Z"
+    },
+    {
+      "name": "hive-pg-daily-20261024030000",
+      "phase": "completed",
+      "startedAt": "2026-10-24T03:00:00Z",
+      "stoppedAt": "2026-10-24T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261025030000",
+      "phase": "completed",
+      "startedAt": "2026-10-25T03:00:00Z",
+      "stoppedAt": "2026-10-25T03:00:05Z"
+    },
+    {
+      "name": "hive-pg-daily-20261026030000",
+      "phase": "completed",
+      "startedAt": "2026-10-26T03:00:00Z",
+      "stoppedAt": "2026-10-26T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261027030000",
+      "phase": "completed",
+      "startedAt": "2026-10-27T03:00:00Z",
+      "stoppedAt": "2026-10-27T03:00:04Z"
+    },
+    {
+      "name": "hive-pg-daily-20261028030000",
+      "phase": "completed",
+      "startedAt": "2026-10-28T03:00:00Z",
+      "stoppedAt": "2026-10-28T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261029030000",
+      "phase": "completed",
+      "startedAt": "2026-10-29T03:00:00Z",
+      "stoppedAt": "2026-10-29T03:00:03Z"
+    },
+    {
+      "name": "hive-pg-daily-20261030030000",
+      "phase": "completed",
+      "startedAt": "2026-10-30T03:00:00Z",
+      "stoppedAt": "2026-10-30T03:00:06Z"
+    }
+  ],
+  "errors": {},
+  "productionMutations": 0
+}

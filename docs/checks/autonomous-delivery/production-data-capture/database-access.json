@@ -1,0 +1,16 @@
+{
+  "databaseReadable": false,
+  "exitCode": 2,
+  "stderrBytes": 197,
+  "diagnosis": {
+    "dns": false,
+    "timeout": false,
+    "refused": true,
+    "password": false,
+    "ssl": false,
+    "noRoute": false,
+    "hba": false,
+    "databaseMissing": false
+  },
+  "productionMutations": 0
+}

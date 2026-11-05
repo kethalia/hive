@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "fixture": "dedicated synthetic database",
+  "oldAppDigest": "0ee992fb2a2d1904558222a4810afeb4c73d714cab69d3cd5bcf7e793fae304a",
+  "oldAuthDigest": "4702023fbdd5c5a46510930466dacb1ccf37334c1277ebbefb15abd3fc6f2291",
+  "newAppDigest": "fb9abdf4d96706440a6e2037a3eaa5bc2bf1fe9b5f511d75fd374ef49a15995a",
+  "newAuthDigest": "583617f1bcd4569a43079fe0b8e14b7f70cbdcda960ef97ef3a4b75c73e1d73a",
+  "checks": { "oldAndNewRead": true, "oldWriteNewRead": true, "newWriteOldRead": true },
+  "migration": {
+    "runId": "09b6baf1-36f0-4294-9153-a973b7ec684d",
+    "planDigest": "56872493c7e9dc741f5f0d0532d09efc334c6863c3eb494269383d30311cb10d",
+    "checkpointDigest": "ff7694514d0884dfc42768b153059bf8dc66bcb9c11fe5447d3728d82911d2a2",
+    "phase": "activation_ready",
+    "interruptionVerified": true,
+    "contractAuthorized": false
+  },
+  "postWriteIntegrity": true,
+  "runId": "410d5b51-09b3-4e11-9350-d98aa065aede"
+}

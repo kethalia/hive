@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "sourceReadOnly": true,
+  "sourceTables": 8,
+  "sourceRows": 88,
+  "archiveBytes": 25654,
+  "archiveSha256": "00025c4d48ff2bce6c086ebf49b63bfbb605d3f3e8ae4965c125d18ed798bf27",
+  "localRestoreVerified": true,
+  "localUpgradeVerified": true,
+  "originalColumnRows": {
+    "_prisma_migrations": {
+      "count": 7,
+      "sha256": "73b6bc0ade69b392215bd725b1e5ff79120a06411efe58de0f45087ad463a1d7",
+      "matches": true
+    },
+    "coder_tokens": {
+      "count": 7,
+      "sha256": "777482e6d8c6aab86960a5753d72cc29584e097fa145e80a386a373bb1c42fd5",
+      "matches": true
+    },
+    "navigation_favorites": {
+      "count": 16,
+      "sha256": "373c39540712919fb07a61f64ba74fd193e4dcc696db82cf076c9d96e588ebba",
+      "matches": true
+    },
+    "notification_sources": {
+      "count": 1,
+      "sha256": "39f1206610631ec9701d7e67d0e575613cc233359572ec9c68ae61a5e9a2d9cf",
+      "matches": true
+    },
+    "push_subscriptions": {
+      "count": 10,
+      "sha256": "fb75fc2468ba20b301ccc4bf7b758cfa32eb43cb078fc3e2a2fc19fe69217c60",
+      "matches": true
+    },
+    "sessions": {
+      "count": 39,
+      "sha256": "b97d905d79f54146d5194dc9e0aabfe82c1ec959c6cb920911ad5ef2dd0506a0",
+      "matches": true
+    },
+    "users": {
+      "count": 7,
+      "sha256": "2a137ef7bfe9ed7a6c658abb09c28bd4ca1c86dc3dc52c0ad29226d553dc9b26",
+      "matches": true
+    },
+    "vapid_keys": {
+      "count": 1,
+      "sha256": "ad0e93b33736c43c039fb79247f88e68b88f71d6d3ff61022c1e23d35f1b50cb",
+      "matches": true
+    }
+  },
+  "appliedMigrations": [
+    {
+      "name": "0_init",
+      "checksum": "2b4e3de10de83ac6feee91c24525c3ce0baada380d21e3cbbfbb6b48902e400c"
+    },
+    {
+      "name": "20260602000000_add_navigation_favorites",
+      "checksum": "40389bab3a00b8bb95ef3a2cedfde8c04b44d95c1c9c97f3d959c83c35c076a2"
+    },
+    {
+      "name": "20260603000000_add_terminal_controls_beyond_mobile",
+      "checksum": "a10ffffbb49343d2edce2600ca67552d9c8757b0bd4334b37caa0f1f32f033a4"
+    },
+    {
+      "name": "20260714000000_add_navigation_favorite_position",
+      "checksum": "b79e9106b617f501d7c17822b0f0917cd2b464396a43d71f101d0c150166c409"
+    },
+    {
+      "name": "20260814000000_remove_legacy_tasks",
+      "checksum": "1cfb9af7ba4cdc59306f1a25b9e8bbd7c340dd175b955fd3d1f74a72ae10b7a7"
+    },
+    {
+      "name": "20261016000000_add_agent_notifications",
+      "checksum": "323c85eefc64c75c5dfc5240e8aa93805889d86895ef274566893276e36a7d0f"
+    },
+    {
+      "name": "20261016010000_stage_notification_credentials",
+      "checksum": "96cb5165cb50d64c24489cad45f1f53efd0547d73dc91fbc29c5e1548b223b5b"
+    },
+    {
+      "name": "20261029000000_add_delivery_foundation",
+      "checksum": "5afb3dcb698bdae86a0ed905b35bea9255681f9f85f89e893165e549d830dc04"
+    },
+    {
+      "name": "20261029010000_delivery_audit_integrity",
+      "checksum": "3f7bd5aa766c76446d4ba03f13950869aa9834afa6a71ca1d3e4cfb91be10f12"
+    },
+    {
+      "name": "20261029020000_delivery_report_event_binding",
+      "checksum": "b3f460809b36fd2f465d86c2510fd771d5b82830195fd5f569d0af5de2703ddb"
+    },
+    {
+      "name": "20261029030000_delivery_runtime_recovery",
+      "checksum": "22df1aff4ead962203f7297269593721094a69af6cf52b93031ea2b6ceeb2fae"
+    },
+    {
+      "name": "20261029040000_coder_token_key_provenance",
+      "checksum": "79490e708067bd2a75014c431485ec2fb9acf8a30b15657d88a9f846b24ce07b"
+    },
+    {
+      "name": "20261029050000_codex_host_registration",
+      "checksum": "4cdf9506b033b22a4f7a587d7a3666693505d048c1ad199b8b8cc01fbfc45056"
+    },
+    {
+      "name": "20261029060000_codex_heartbeat_ack",
+      "checksum": "a32ca679ad7cb1929be51abf19fd0f7ad8af0c8a1ef0ff7f7ebfca6273a0aa8d"
+    },
+    {
+      "name": "20261029070000_project_task_intents",
+      "checksum": "c00bd0778d1f73de833de0b96399a222cc5d68768a9145e3e409055b42b237b2"
+    },
+    {
+      "name": "20261029071000_project_intent_payload_guards",
+      "checksum": "d99beaaed25ab0fcbeb4cfb8d92053a21079ddf7aab76e9652ddd3816b63350f"
+    },
+    {
+      "name": "20261029072000_project_intent_source_context",
+      "checksum": "06464c8432ee644586f3006c63eda777ab862767f2bb2c2bb085c942594ead97"
+    },
+    {
+      "name": "20261029073000_project_preparation_progress",
+      "checksum": "dd841feb7df1fc095c64f4ceaec0fcfc0b36a7a4f2310fa3f5c8f147343fa97c"
+    },
+    {
+      "name": "20261029090000_delivery_manager_binding",
+      "checksum": "a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2"
+    },
+    {
+      "name": "20261029100000_delivery_informational_report",
+      "checksum": "8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05"
+    },
+    {
+      "name": "20261029100100_delivery_report_null_guard",
+      "checksum": "c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865"
+    },
+    {
+      "name": "20261029110000_delivery_manager_progression",
+      "checksum": "4fcff3d44749f4af283860f299a930da227cb20fcb8b57be9109f6d52d1086df"
+    },
+    {
+      "name": "20261029120000_delivery_source_revisions",
+      "checksum": "fd8777426fd15a9417e4e3f3e6914b0b1d28e499fd01f1e7ab5fe6d8e3416bb1"
+    },
+    {
+      "name": "20261029130000_guardian_admission",
+      "checksum": "c490ae633e12272d821a5b2203637711182789139627a17bf7fa2e60cc8e24b7"
+    },
+    {
+      "name": "20261029140000_delivery_source_application",
+      "checksum": "7a06ad285de5ef6cf47c51b796a0ca15d8a2ec503104c61764caafcbd73b1909"
+    },
+    {
+      "name": "20261029150000_credential_rotation_scheduler",
+      "checksum": "6fb7009af531dbe174f0789d7fe98520a6b645b05138dfec8a57720fe70ce488"
+    },
+    {
+      "name": "20261029160000_template_publication",
+      "checksum": "54f451575e16aa77ad0a4e58e2c483090db96fbf02afef76c582c2c3b6b3c8dd"
+    },
+    {
+      "name": "20261029170000_template_publication_creation",
+      "checksum": "e523c9cf5bebf7927af66887aaa192bcba19e9e9b919444567eae295d6150637"
+    },
+    {
+      "name": "20261029180000_template_publication_notices",
+      "checksum": "a590d0839853d4c554168cc5c21dd02231b090dd78a6bb6976902c1d972e0e91"
+    },
+    {
+      "name": "20261029190000_delivery_repository_policy",
+      "checksum": "296c5952f0701fcfafe431dca66b22074c5edcd440ed73f678caea45cb3dc1b3"
+    },
+    {
+      "name": "20261029200000_delivery_acceptance",
+      "checksum": "0bd8d40821f150e69b76817845e6f37ba8966117cdbb8709144d4d91a1f3488d"
+    },
+    {
+      "name": "20261030200000_delivery_release_journal",
+      "checksum": "181dd5a458c89bbd90fb109fc534448f8741a05a6f27c05efcf8fc053ccb2183"
+    },
+    {
+      "name": "20261030210000_delivery_acceptance_repair",
+      "checksum": "be770a78bd89e488f00d56e881b50e7006eb23e61e595574706f240e7ebc98ea"
+    },
+    {
+      "name": "20261030220000_delivery_release_build_attestation",
+      "checksum": "1f73b7637ac97bab0820003e6c90641cf41a2c3e9c099578d3ac964d08afce66"
+    },
+    {
+      "name": "20261030230000_delivery_release_authority_facts",
+      "checksum": "5fd8a8ac8f35b0d856b35a78efe1733e018012e023ec30d22d5f4f8b2d994769"
+    },
+    {
+      "name": "20261031000000_delivery_release_tested_tree",
+      "checksum": "4ce232573819d04cce7524a04e15750f3854dc3ef64a9f0e402e8f2b1b9855fb"
+    },
+    {
+      "name": "20261031010000_delivery_epic_coordination",
+      "checksum": "e77c7cd3773faa41037bc1ca90b8031ae0da6c4fb47915350d70ac1fec278bd9"
+    },
+    {
+      "name": "20261105140000_guardian_tree_closure",
+      "checksum": "790c458776e782576d18658ecc66c69ad400672ed9d0ddd080980064b6522233"
+    },
+    {
+      "name": "20261105143000_release_database_observations",
+      "checksum": "f8309100fc4d0c0501a3b68463a0f34ab624911ac65520629158a45a1a109e2f"
+    }
+  ],
+  "productionMutations": 0,
+  "neonRestoreVerified": true,
+  "applicationCheckVerified": false,
+  "target": {
+    "projectId": "purple-math-59583745",
+    "branchId": "br-ancient-violet-b7pcun87",
+    "database": "hive_production_rehearsal_20261105",
+    "plan": "free_v3"
+  },
+  "limits": [
+    "Application/session compatibility is pending.",
+    "Raw source archive and credentials remain in owner-only private files outside the repository.",
+    "No production routing, schema, workload or configuration changed."
+  ]
+}

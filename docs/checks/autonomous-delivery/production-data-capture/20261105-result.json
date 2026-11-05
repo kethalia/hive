@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "e14a6100-a371-418d-80a6-e9356b356731",
+  "task": "hive-production-data-capture",
+  "source": "Hive PostgreSQL in namespace hive, observed primary hive-pg-2",
+  "sourceVersion": "17.11",
+  "readOnlyEnforced": true,
+  "sourceSchemaScope": ["public"],
+  "tables": 8,
+  "rows": 88,
+  "archiveBytes": 25654,
+  "archiveSha256": "00025c4d48ff2bce6c086ebf49b63bfbb605d3f3e8ae4965c125d18ed798bf27",
+  "privatePrimaryArchive": "/home/coder/projects/kethalia/.private-hive-rehearsal-20261105/source.dump",
+  "localRestoreAllRowsMatch": true,
+  "productionMutations": 0,
+  "sourceScriptSha256": "253b0bf34bfd2e48d1e5f9b952818ec172cb57109f5787c4048eba3a4ad512d8",
+  "diagnosticInstrumentation": "Exception traceback enabled only in private remote scratch during troubleshooting; capture success path unchanged.",
+  "issues": [
+    "Direct cluster service connections refused; authenticated API port-forward succeeded.",
+    "An idle port-forward reset and transient Rancher TLS handshake failed; bounded fresh-tunnel retry succeeded.",
+    "First local restore rolled back because public schema existed; empty isolated target schema removed before retry.",
+    "Local pg_dump17 cannot capture Neon18; remote restoration verified with read-only SQL fingerprints instead."
+  ],
+  "sensitiveValuesPublished": false,
+  "next": "Complete isolated Neon upgrade and application compatibility checks in primary; Infrastructure capture task no longer needed."
+}

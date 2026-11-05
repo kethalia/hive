@@ -1,20 +1,20 @@
 # Autonomous delivery epic execution ledger
 
-Updated: 2026-10-30. Status: implementation in progress, not release-ready.
+Updated: 2026-11-05. Status: implementation in progress, not release-ready.
 Branch: `codex/delivery-system-design`.
 
 ## Authorization and boundaries
 
 The owner authorized autonomous implementation, trusted subagents, isolated preview validation,
 and a completed PR for their merge and production cutover approval. Use free tiers by default; ask before adding costs. The owner separately authorized the
-bounded R2 proof and up to one GB if needed; its actual payload is 117 bytes. Do not change production, merge the final PR to main, rewrite history,
+bounded R2 proof and up to one GB if needed; its actual payload is 117 bytes. Do not change production or merge the final PR to main. The owner authorized the November 5 rebase; do not otherwise rewrite history,
 or delete unrelated resources. Credentials stay outside source control and evidence.
 
 ## Current work
 
 | Task | State | Evidence / next action |
 | --- | --- | --- |
-| Released baseline | Complete | PR #401 merged main into epic through GitHub; pulled 4d8b821. Formatting-only conflict resolved. |
+| Released baseline | Reconciled with current main | Authorized rebase onto `1ace8774` preserves new dock/config/template features; fresh fetch confirms no newer main. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
 | F02 Cloudflare/Neon | Real preview login/project browsing passed; full parity pending | Deployed a92e305 passes real browser Phase A. Schema31 preserves all42 prior table hashes and30 migration checksums; assembled app/auth local workerd proof passes. Both public Worker URLs are disabled. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
@@ -31,7 +31,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 
 ## Resource and cost record
 
-Neon preview is a separate Free project (`purple-math-59583745`), with no production data copied.
+Neon preview uses a separate Free project (`purple-math-59583745`). Its ordinary application preview remains synthetic. An explicitly isolated rehearsal database now holds the authorized read-only production capture; raw data is never included in reports or public previews.
 The owner confirmed Cloudflare is already Paid. A bounded preview ran within verified included
 usage headroom: 16 scripted requests out of a 20-request budget. No plan upgrades, add-ons, routes
 or DNS changes. The isolated Worker remains stored with public serving disabled. Existing paid
@@ -1002,3 +1002,46 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   Evidence: [application proof](cloudflare-auth-agent-bridge.json).
 
 - Main reconciliation (2026-11-05): complete, moderate difficulty. Rebased the epic onto main 1ace8774 under the user’s explicit authorization. Preserved the keycap dock, user-managed Codex module, optional Sysbox Docker, removed private defaults and version 2.33.0. All704 saved local paths restored;703 are byte-identical, and package.json retains the new main version plus unfinished release tests. Focused checks pass:38 UI,108 template,454 runtime (21 optional skips), typecheck and actual pinned-runtime Unix-socket isolation. The user CLI update is separate from the pinned managed-session runtime. Release, database-job and multi-task integration remain in progress; earlier preview proofs are historical. Evidence: [rebase verification](rebase-20261105/result.json).
+
+## 2026-11-05 implementation and migration checkpoint
+
+- Main reconciliation: complete. The authorized rebase preserves main `1ace8774`, including dock
+  keycaps, user-managed Codex configuration, optional workspace Docker and the current release
+  version. Backup and private stash remain retained. Focused template/runtime/UI checks passed.
+- D09/D10 implementation: committed at `52c4b2e0`. The real old/new Worker and Neon pilot passes
+  mixed-version reads/writes, transaction rollback after a deliberately interrupted backfill,
+  durable restart, six-row backfill, integrity and post-write checks. Authorization/provider
+  observations remain fixtures; this is not production release acceptance. See [pilot](d10-mixed-pilot/README.md).
+- Release validation fixes: absolute Wrangler output paths now match the artifact packer. CI
+  exposed a Node Request garbage-collection abort race; the probe retains its Request until
+  cancellation completes, with a forced-GC regression check. Current CI rerun follows source freeze.
+- F08 restore/upgrade: complete for row preservation, high difficulty due to cluster transport
+  and PostgreSQL tooling differences. Read-only capture: eight tables, 88 rows, 25,654 bytes.
+  Local and isolated Neon upgrades preserve every original row and have all 39 migrations.
+  No production writes or cutover. [Redacted proof](production-data-capture/20261105-restore-upgrade.json).
+  Application/session, restricted-runtime and recovery checks remain pending.
+- D11/D12: local process closure, source preservation, second reservation, two actual guardian
+  lifetimes and installer re-entry pass. Independent review is resolving manager-facing planning
+  usability before the current package is built for the installed Coder pilot.
+- F08 backup recovery: complete for the isolated local PostgreSQL copy. The upgraded database
+  backup restores into a second new database with all 68 tables and 120 rows matching. The
+  first target-creation attempt inherited the capture tool's read-only setting and correctly
+  failed; write capability was enabled only for the explicitly identified local restore target.
+  This is not a Neon point-in-time restore or a post-cutover write-recovery proof.
+  [Recovery result](production-data-capture/20261105-recovery.json).
+- F08 application/session rehearsal: passed with the real 52c app/auth Workers, synthetic keys
+  and sessions, and a restricted role on the restored Neon database. Invalid/expired sessions,
+  wrong keys, task access and logout behaved as expected; all original fingerprints matched
+  afterward. Original production keys and real sessions were not exercised.
+  [Attempts and limitations](f08-restored-app/README.md).
+- D11 installed startup: image 0dc built and inactive template imported; actual host startup exposed
+  a group-writable provisioner-owned home. Fix `041ddd79` uses the existing private runtime root
+  with unchanged ownership checks. Two CI fixture failures and a missing shutdown callback were
+  also corrected; the actual PostgreSQL guardian composition now passes.
+- Authentication correction: `1c815357` rejects malformed HMAC suffixes before hex decoding;
+  11 cookie checks pass. The restored-data proof predates this narrow change; a current Worker
+  rebuild and preview proof follow.
+- GitHub live delivery pilot: [concrete plan](github-preview-pilot-plan.md) records isolated branch,
+  reviewer/producer, protected environment and preview-only release requirements. The current
+  connection gets 403 for environment/secrets access; an appropriately scoped setup token is
+  requested while independent validation continues. No main policy or production route changed.

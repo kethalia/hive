@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "e14a6100-a371-418d-80a6-e9356b356731",
+  "owner_id": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+  "template_id": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+  "created_at": "2026-10-30T09:41:51.716084Z",
+  "deployment": "https://coder.kethalia.com",
+  "primary": "eef6cbdd-b092-41d2-9e0a-a4c7d07d4224",
+  "task": "hive-production-data-capture",
+  "name": "hive-data-rehearsal",
+  "template_name": "infrastructure",
+  "designation": "task-created disposable",
+  "provenance": "primary installed hive-workspace create response; private HMAC receipt remains cleanup authority",
+  "purpose": "read-only database/backup access discovery and isolated capture; no production workload changes",
+  "ttlMinutes": 120
+}

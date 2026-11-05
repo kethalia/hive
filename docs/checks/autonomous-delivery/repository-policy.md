@@ -33,8 +33,8 @@ Source publication binds the complete policy before CI for the new commit exists
 ## Remaining onboarding and pilot gates
 
 1. Deploy the reviewed catalog/selector and migration only after independent review. No flag is changed by this slice. Catalog installation is the operator's policy approval; normal users then provide a task without task UUID configuration.
-2. Nondefault base refs currently return `repository_policy_ref_resolution_pending`. Existing host resolution supplies only `defaultRevision`; selecting `codex/epic` as PR base must not pretend the checkout used that ref. A fixed policy-derived ref resolution path must be implemented and verified before an epic-branch pilot.
-3. Complete the independent acceptance producer or verified external evaluator integration above. With the current foundation, semantic completion intentionally remains pending.
+2. The later source-base implementation resolves the deployment-enrolled `baseBranch` through the signed host and the exact GitHub `refs/heads` endpoint, checking account, repository, branch, permissions and commit identity. Local tests cover a nondefault epic branch and reject substituted refs; a live provider-backed pilot remains outstanding.
+3. The independent acceptance producer was subsequently implemented; its reviewed producer descriptor and current prompt/schema digests must be installed consistently on the preview app and host. Live semantic evaluation remains a pilot gate.
 4. Refresh installed runtime identity/model/authentication and exact guardian/package policy before the separately authorized test-workspace pilot. This source slice performs no live Coder, GitHub, cloud, or account-inference action.
 
 ## Validation and limitations
