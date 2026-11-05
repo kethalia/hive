@@ -26,3 +26,14 @@ test("untrusted builder has no OIDC or cloud secret and publisher uses reviewed 
   for (const action of workflow.matchAll(/uses: ([^\s]+)/g))
     assert.match(action[1], /@[a-f0-9]{40}$/);
 });
+
+test("dry-run bundles use absolute workspace output paths consumed by packaging", () => {
+  for (const component of ["app", "auth"]) {
+    assert.ok(
+      workflow.includes(
+        `--config deploy/cloudflare/${component}/wrangler.jsonc --outdir "$GITHUB_WORKSPACE/build/${component}"`,
+      ),
+    );
+  }
+  assert.match(workflow, /node scripts\/release\/pack-build\.mjs/);
+});

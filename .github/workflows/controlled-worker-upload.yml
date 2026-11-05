@@ -27,8 +27,8 @@ jobs:
           node-version: 24
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:cloudflare
-      - run: pnpm exec wrangler versions upload --dry-run --config deploy/cloudflare/app/wrangler.jsonc --outdir build/app
-      - run: pnpm exec wrangler versions upload --dry-run --config deploy/cloudflare/auth/wrangler.jsonc --outdir build/auth
+      - run: pnpm exec wrangler versions upload --dry-run --config deploy/cloudflare/app/wrangler.jsonc --outdir "$GITHUB_WORKSPACE/build/app"
+      - run: pnpm exec wrangler versions upload --dry-run --config deploy/cloudflare/auth/wrangler.jsonc --outdir "$GITHUB_WORKSPACE/build/auth"
       - run: node scripts/release/pack-build.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
