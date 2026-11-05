@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Fixed installer entry. No supplied worker path, execution grant or drain grant.
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,6 +14,19 @@ const sha = (value) => createHash("sha256").update(value).digest("hex");
 const check = (value) => {
   if (!value) throw new Error("installed_guardian_startup_rejected");
 };
+// The shared home mount may be group writable or provisioner owned. The installer
+// already creates this private, user-owned package root before starting the host.
+export function installedWorkerCwd(home) {
+  const path = join(home, ".local/share/hive/codex-host"),
+    stat = lstatSync(path);
+  check(
+    realpathSync(path) === path &&
+      stat.isDirectory() &&
+      stat.uid === process.getuid() &&
+      !(stat.mode & 0o077),
+  );
+  return path;
+}
 /** Serializes lifetime replacement; uncertain drain or restart never opens a second worker. */
 export function createGuardedRollover(launch) {
   let current,
@@ -112,7 +125,7 @@ export async function startInstalledGuardedHost() {
         workerName: "codex-workspace-host-worker.mjs",
         nodeExecutable,
         nodeSha256: challenge.nodeSha256,
-        workerCwd: home,
+        workerCwd: installedWorkerCwd(home),
         workerEnvironment,
         stateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
         bindingDigest: sha(

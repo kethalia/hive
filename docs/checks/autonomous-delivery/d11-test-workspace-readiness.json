@@ -46,10 +46,7 @@
     "nativeLoginStatusReportedLoggedIn": true,
     "inferencePerformed": false
   },
-  "agentLogMarkers": [
-    "agent_bridge_install_failed",
-    "voice_install_failed"
-  ],
+  "agentLogMarkers": ["agent_bridge_install_failed", "voice_install_failed"],
   "limitations": [
     "manager disabled; no child or terminal pilot performed",
     "agent startup failed; matching installation failure markers do not independently establish their causes",

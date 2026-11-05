@@ -200,7 +200,7 @@ import {createHmac,createHash,randomUUID} from 'node:crypto';
 import {mkdirSync,writeFileSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {connectGuardianWorker,createGuardianOwnerHandler} from './codex-guardian-worker.mjs';
-const guard=await connectGuardianWorker({startup:${JSON.stringify({ configSha256, port })},onCloseAdmission:async()=>{},onLost:()=>process.exitCode=1});
+const guard=await connectGuardianWorker({startup:${JSON.stringify({ configSha256, port })},onCloseAdmission:async()=>{},onFinishClose:async()=>{await new Promise(r=>server.close(r));},onLost:()=>process.exitCode=1});
 const handler=createGuardianOwnerHandler({appOrigin:${JSON.stringify(binding.appOrigin)},guardian:guard});
 const directory=${JSON.stringify(join(home, ".local/state/hive/codex-project-controller"))};mkdirSync(directory,{recursive:true,mode:448});
 const prep=${JSON.stringify(preparation)},request=${JSON.stringify(request)},digest=createHash('sha256').update(JSON.stringify(prep)).digest('hex');

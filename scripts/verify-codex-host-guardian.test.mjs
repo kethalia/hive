@@ -10,6 +10,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -27,11 +28,25 @@ import {
 } from "../templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs";
 import { openGuardedHost } from "../templates/ai-dev-k8s/scripts/codex-host-guardian.mjs";
 import { processParentPid } from "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs";
-import { createGuardedRollover } from "../templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs";
+import {
+  createGuardedRollover,
+  installedWorkerCwd,
+} from "../templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs";
 import { buildNativeGuardian } from "./build-native-guardian.mjs";
 
 const hash = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
+
+test("installed worker uses private package root even when home is group writable", (t) => {
+  const home = mkdtempSync(join(tmpdir(), "hive-worker-home-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  chmodSync(home, 0o775);
+  const root = join(home, ".local/share/hive/codex-host");
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  assert.equal(installedWorkerCwd(home), root);
+  chmodSync(root, 0o770);
+  assert.throws(() => installedWorkerCwd(home));
+});
 async function until(predicate) {
   for (let n = 0; n < 200; n++) {
     if (predicate()) return;
@@ -76,7 +91,7 @@ function fixture(
     barrier = join(directory, "barrier.json"),
     ptyMarker = join(directory, "pty.json"),
     writer = join(directory, "writer");
-  const ptyScript = `import os,pty,json\npid,master=pty.fork()\nif pid==0: os.execve('/usr/bin/tmux',['tmux','-S',${JSON.stringify(join(directory, "tmux.sock"))},'attach-session','-t','=guardian-fixture'],{'PATH':'/usr/bin:/bin','TERM':'xterm-256color'})\nwith open(${JSON.stringify(ptyMarker)},'w') as f: json.dump({'pid':os.getpid(),'child':pid},f)\nwhile True: os.read(master,8192)`;
+  const ptyScript = `import os,pty,json\npid,master=pty.fork()\nif pid==0: os.execve('/usr/bin/tmux',['tmux','-S',${JSON.stringify(join(directory, "tmux.sock"))},'attach-session','-t','=guardian-fixture'],{'PATH':'/usr/bin:/bin','TERM':'xterm-256color'})\nwith open(${JSON.stringify(`${ptyMarker}.tmp`)},'w') as f: json.dump({'pid':os.getpid(),'child':pid},f)\nos.replace(${JSON.stringify(`${ptyMarker}.tmp`)},${JSON.stringify(ptyMarker)})\nwhile True: os.read(master,8192)`;
   const script = `import {connectGuardianWorker} from './codex-guardian-worker.mjs';
 import {spawn,execFileSync} from 'node:child_process';
 import {writeFileSync,existsSync} from 'node:fs';
@@ -305,6 +320,35 @@ test("rollover retains an ineligible or failed closure without starting a new wo
   }
 });
 test("installer re-entry recognizes the current worker after two real guardian lifetimes", async (t) => {
+  // The installer requires the outer and worker to use the same pinned Node.
+  // setup-node's cache may be root-owned or group-writable on hosted runners;
+  // run this entire fixture under a private executable instead of weakening pinning.
+  const currentNode = realpathSync(process.execPath),
+    nodeStat = statSync(currentNode);
+  if (nodeStat.uid !== process.getuid() || (nodeStat.mode & 0o22) !== 0) {
+    const privateDir = mkdtempSync(join(tmpdir(), "hive-installer-node-"));
+    try {
+      const privateNode = join(privateDir, "node");
+      copyFileSync(currentNode, privateNode);
+      chmodSync(privateNode, 0o500);
+      const childEnv = { ...process.env };
+      delete childEnv.NODE_TEST_CONTEXT;
+      const output = execFileSync(
+        privateNode,
+        [
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=^installer re-entry recognizes the current worker after two real guardian lifetimes$",
+          resolve("scripts/verify-codex-host-guardian.test.mjs"),
+        ],
+        { encoding: "utf8", timeout: 120000, stdio: "pipe", env: childEnv },
+      );
+      assert.match(output, /# pass 1\b/);
+    } finally {
+      rmSync(privateDir, { recursive: true, force: true });
+    }
+    return;
+  }
   const probe = createServer();
   await new Promise((resolve, reject) => {
     probe.once("error", reject);

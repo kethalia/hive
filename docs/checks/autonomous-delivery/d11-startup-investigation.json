@@ -15,11 +15,7 @@
       "code": "voice_install_failed"
     }
   ],
-  "otherAgentErrors": [
-    "File Browser",
-    "Agent integrations",
-    "code-server"
-  ],
+  "otherAgentErrors": ["File Browser", "Agent integrations", "code-server"],
   "sourceComparison": "both installer scripts are identical between 24a454c6 and inspected current source",
   "imagePins": {
     "voice": {
