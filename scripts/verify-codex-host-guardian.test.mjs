@@ -64,6 +64,7 @@ function fixture(
     readyDelay = 0,
     applications = false,
     installerConfig = null,
+    idle = false,
   } = {},
 ) {
   const directory = mkdtempSync(join(tmpdir(), "hive-host-guardian-")),
@@ -97,7 +98,7 @@ import {spawn,execFileSync} from 'node:child_process';
 import {writeFileSync,existsSync} from 'node:fs';
 ${installerConfig ? `import {createServer} from 'node:http'; const server=createServer((req,res)=>{res.writeHead(200);res.end('ok')});await new Promise(r=>server.listen(${listenPort},'127.0.0.1',r));` : ""}
 const guard=await connectGuardianWorker({${startup ? `startup:{configSha256:'${mismatch ? "d".repeat(64) : configSha}',port:${listenPort}},` : ""}onLost:()=>{},onFinishClose:async()=>{},onCloseAdmission:async value=>{let rejected=false;try{guard.assertAdmission(token)}catch{rejected=true};writeFileSync(${JSON.stringify(barrier)},JSON.stringify({...value,executionRejected:rejected}));${rejectBarrier ? "throw new Error('fixture_barrier_failure');" : ""}return {closed:true,barrierId:value.barrierId,snapshots:value.projects.map(p=>({projectId:p.projectId}))}}});
-let token=await guard.admit(${JSON.stringify(project)});token=await guard.executionFence(token);guard.assertAdmission(token);
+${idle ? "let token=null;" : `let token=await guard.admit(${JSON.stringify(project)});token=await guard.executionFence(token);guard.assertAdmission(token);`}
 ${
   tmux
     ? `const socket=${JSON.stringify(join(directory, "tmux.sock"))};
@@ -107,6 +108,20 @@ execFileSync('/usr/bin/tmux',['-S',socket,'new-session','-d','-s','guardian-fixt
 spawn('/usr/bin/python3',['-I','-c',${JSON.stringify(ptyScript)}],{env:{PATH:'/usr/bin:/bin'},stdio:'ignore'});`
     : "const tmux={pid:null};"
 }
+
+test("idle shutdown preserves authenticated ECHILD evidence across a changed binding", async (t) => {
+  const f = fixture(t, { idle: true });
+  f.options.canIdleShutdown = async () => true;
+  const first = await openGuardedHost(f.options);
+  const receipt = await first.idleShutdown();
+  assert.equal(receipt.finalWaitResult, "ECHILD");
+  assert.equal(receipt.guardianExited, true);
+  assert.deepEqual(receipt.projects, []);
+  assert.equal(JSON.parse(readFileSync(join(f.options.stateDirectory, "lifetime.json"))).state.phase, "idleClosed");
+  const second = await openGuardedHost({ ...f.options, bindingDigest: "b".repeat(64) });
+  assert.ok(readdirSync(f.options.stateDirectory).some((name) => /^lifetime-idle-[a-f0-9]{64}\.json$/.test(name)));
+  await second.idleShutdown();
+});
 writeFileSync(${JSON.stringify(marker)},JSON.stringify({pid:process.pid,tmuxPid:tmux.pid,token}));
 ${startup ? `await new Promise(r=>setTimeout(r,${readyDelay}));await guard.ready({configSha256:'${configSha}',port:${listenPort}});` : ""}
 ${
@@ -410,7 +425,7 @@ test("installer re-entry recognizes the current worker after two real guardian l
   await rollover.trigger(first);
   assert.equal(archives, 1);
   assert.notEqual(rollover.state.host.guardian.lifetimeId, ready.lifetimeId);
-  const python = `import importlib.util,json,os,sys,types\nfrom pathlib import Path\ns=importlib.util.spec_from_file_location('installer',sys.argv[1]);i=importlib.util.module_from_spec(s);s.loader.exec_module(i)\nhome,target,config=sys.argv[2],Path(sys.argv[3]),json.loads(sys.argv[4])\nos.environ['HIVE_WORKSPACE_PROFILE']='software'\ni.pwd.getpwuid=lambda _:types.SimpleNamespace(pw_dir=home)\ni.decode_archive=lambda _:b'fixture'\ni.validate_execution_config=lambda _:None\ni.install_package=lambda *_:target\ni.normalize_agent_config=lambda c,_:(c,{})\ni.same_build_identity=lambda *_:None\ni.subprocess.run=lambda *a,**k:types.SimpleNamespace(returncode=0)\ni.subprocess.check_output=lambda *a,**k:b'24'\nprint(json.dumps(i.install({'schemaVersion':1,'archive':'fixture','config':config,'archiveSha256':'d'*64})))`;
+  const python = `import importlib.util,json,os,sys,types\nfrom pathlib import Path\ns=importlib.util.spec_from_file_location('installer',sys.argv[1]);i=importlib.util.module_from_spec(s);s.loader.exec_module(i)\nhome,target,config=sys.argv[2],Path(sys.argv[3]),json.loads(sys.argv[4])\nos.environ['HIVE_WORKSPACE_PROFILE']='software'\ni.pwd.getpwuid=lambda _:types.SimpleNamespace(pw_dir=home)\ni.decode_archive=lambda _:b'fixture'\ni.validate_execution_config=lambda _:None\ni.install_package=lambda *_:target\ni.normalize_agent_config=lambda c,_:(c,{})\ni.same_build_identity=lambda *_:None\ni.shutil.which=lambda name:'/usr/bin/env' if name=='node' else None\ni.subprocess.run=lambda *a,**k:types.SimpleNamespace(returncode=0)\ni.subprocess.check_output=lambda *a,**k:b'24'\nprint(json.dumps(i.install({'schemaVersion':1,'archive':'fixture','config':config,'archiveSha256':'d'*64})))`;
   const result = JSON.parse(
     execFileSync(
       "/usr/bin/python3",

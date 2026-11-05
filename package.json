@@ -27,7 +27,7 @@
     "test:agent:workerd": "node scripts/agent-bridge/run-workerd-proof.mjs",
     "test:voice:workerd": "node scripts/voice/run-workerd-proof.mjs",
     "verify:standalone": "node scripts/verify-standalone-runtime.mjs",
-    "test:templates": "node --test scripts/agent-bridge/package.test.mjs scripts/voice/build-package.test.mjs scripts/voice/template.test.mjs scripts/build-workspace-read-package.test.mjs scripts/host-archive-codec.test.mjs scripts/build-codex-host-archive.test.mjs scripts/build-template-artifacts.test.mjs scripts/verify-ai-dev-k8s-template.test.mjs scripts/verify-workspace-profile-templates.test.mjs scripts/verify-desktop-isolation.test.mjs scripts/verify-coder-credential-boundary.test.mjs scripts/verify-tmux-retirement.test.mjs scripts/verify-agent-tools.test.mjs",
+    "test:templates": "node --test scripts/agent-bridge/package.test.mjs scripts/voice/build-package.test.mjs scripts/voice/template.test.mjs scripts/build-workspace-read-package.test.mjs scripts/host-archive-codec.test.mjs scripts/build-codex-host-archive.test.mjs scripts/build-template-artifacts.test.mjs scripts/verify-ai-dev-k8s-template.test.mjs scripts/verify-codex-startup-order.test.mjs scripts/verify-workspace-profile-templates.test.mjs scripts/verify-desktop-isolation.test.mjs scripts/verify-coder-credential-boundary.test.mjs scripts/verify-tmux-retirement.test.mjs scripts/verify-agent-tools.test.mjs",
     "test": "node --test deploy/cloudflare/worker.test.mjs && pnpm test:templates && pnpm test:runtime && vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest",

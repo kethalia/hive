@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash, createPublicKey } from "node:crypto";
 import { PREVIEW_SOFTWARE_TEMPLATE_ID } from "./host-identity.mjs";
 import { workspaceProjectsCandidate } from "./workspace-projects-candidate.mjs";
@@ -22,7 +23,7 @@ export function deliveryPilotCandidate({
   assert.equal(nativeCandidate, true);
   assert.equal(issuer?.scope.templateId, PREVIEW_SOFTWARE_TEMPLATE_ID);
   assert.match(issuer.keyId, /^[A-Za-z0-9._-]{1,64}$/);
-  exact(catalog, ["schemaVersion", "model", "effort", "guardian"]);
+  exact(catalog, ["schemaVersion", "model", "effort", "guardian", "repositoryPolicies"]);
   assert.equal(catalog.schemaVersion, 1);
   assert.match(catalog.model, /^[a-z0-9][a-z0-9._-]{0,99}$/);
   assert.ok(["low", "medium", "high", "xhigh", "max", "ultra"].includes(catalog.effort));
@@ -39,6 +40,15 @@ export function deliveryPilotCandidate({
     digest(g[key]);
   assert.equal(g.protocol, "guardian-v1");
   assert.equal(g.metadataPolicyDigest, metadataPolicy);
+  const check = spawnSync(
+    "pnpm",
+    ["exec", "tsx", "deploy/cloudflare/app/validate-delivery-pilot-policy.ts"],
+    { input: JSON.stringify(catalog.repositoryPolicies), encoding: "utf8", timeout: 15000 },
+  );
+  assert.equal(check.status, 0, "Reviewed pilot repository catalog rejected");
+  const policyDigests = JSON.parse(check.stdout);
+  digest(policyDigests.catalogDigest);
+  digest(policyDigests.policyDigest);
   exact(pins, ["workspace", "voice", "agent", "helper"]);
   for (const value of Object.values(pins)) digest(value);
   return {
@@ -47,6 +57,9 @@ export function deliveryPilotCandidate({
     model: catalog.model,
     effort: catalog.effort,
     guardian: g,
+    repositoryPolicies: catalog.repositoryPolicies,
+    repositoryCatalogDigest: policyDigests.catalogDigest,
+    repositoryPolicyDigest: policyDigests.policyDigest,
     pins,
   };
 }
@@ -54,6 +67,7 @@ export function deliveryPilotCandidate({
 export function deliveryPilotVars(candidate, issuer) {
   const { templateId, pins } = candidate;
   return {
+    HIVE_PUBLIC_ORIGIN: issuer.scope.hiveOrigin,
     HIVE_PROJECT_TASKS_ENABLED: "true",
     HIVE_PROJECT_DISCOVERY_ENABLED: "true",
     HIVE_WORKSPACE_READ_ENABLED: "true",
@@ -84,6 +98,8 @@ export function deliveryPilotVars(candidate, issuer) {
     HIVE_GUARDIAN_PRODUCER_ENABLED: "true",
     HIVE_DELIVERY_MANAGER_ENABLED: "true",
     HIVE_DELIVERY_EXECUTION_ENABLED: "true",
+    HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED: "true",
+    HIVE_DELIVERY_REPOSITORY_POLICIES_JSON: JSON.stringify(candidate.repositoryPolicies),
     HIVE_GUARDIAN_APPROVED_PACKAGES_JSON: JSON.stringify([candidate.guardian]),
   };
 }
@@ -96,6 +112,7 @@ export function assertDeliveryPilot(record, app, secrets, pins) {
     model: candidate.model,
     effort: candidate.effort,
     guardian: candidate.guardian,
+    repositoryPolicies: candidate.repositoryPolicies,
   };
   assert.deepEqual(
     candidate,
@@ -124,6 +141,12 @@ export function assertDeliveryPilot(record, app, secrets, pins) {
   assert.equal(app.vars.HIVE_CODEX_HIVE_ORIGIN, record.nativeIssuer.scope.hiveOrigin);
   assert.equal(app.vars.HIVE_PREVIEW_ORIGIN, record.nativeIssuer.scope.hiveOrigin);
   assert.equal(app.vars.HIVE_CODEX_SOFTWARE_TEMPLATE_IDS, candidate.templateId);
+  assert.equal(
+    record.repositoryCatalogSHA256,
+    createHash("sha256").update(JSON.stringify(candidate.repositoryPolicies)).digest("hex"),
+  );
+  assert.equal(record.repositoryCatalogDigest, candidate.repositoryCatalogDigest);
+  assert.equal(record.repositoryPolicyDigest, candidate.repositoryPolicyDigest);
   for (const flag of [
     "HIVE_DELIVERY_EPICS_ENABLED",
     "HIVE_DELIVERY_RELEASE_ENABLED",
@@ -150,14 +173,20 @@ export function assertDeliveryPilot(record, app, secrets, pins) {
   );
 }
 
-export function projectJobsPilotPlan(reconcileSecret) {
+export function projectJobsPilotPlan(reconcileSecret, sourceRevision) {
   assert.match(reconcileSecret, /^[a-f0-9]{64}$/);
+  assert.match(sourceRevision, /^[a-f0-9]{40}$/);
   return {
     name: "hive-jobs-compatibility-preview",
     workers_dev: false,
     preview_urls: false,
     services: [{ binding: "APP_SERVICE", service: "hive-app-compatibility-preview" }],
-    vars: { HIVE_RUNTIME_TARGET: "cloudflare", HIVE_PROJECT_TASKS_ENABLED: "true" },
+    vars: {
+      HIVE_RUNTIME_TARGET: "cloudflare",
+      HIVE_PROJECT_TASKS_ENABLED: "true",
+      SOURCE_REVISION: sourceRevision,
+    },
+    limits: { cpu_ms: 100 },
     triggers: { crons: [] },
     plannedCron: "*/5 * * * *",
     secretNames: ["HIVE_PROJECT_TASK_RECONCILE_SECRET"],

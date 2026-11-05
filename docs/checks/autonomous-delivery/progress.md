@@ -16,7 +16,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Reconciled with current main | Authorized rebase onto `1ace8774` preserves new dock/config/template features; fresh fetch confirms no newer main. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | Real preview login/project browsing passed; full parity pending | Deployed a92e305 passes real browser Phase A. Schema31 preserves all42 prior table hashes and30 migration checksums; assembled app/auth local workerd proof passes. Both public Worker URLs are disabled. |
+| F02 Cloudflare/Neon | Real preview login/project browsing passed; full parity pending | Historical a92e305 passed browser Phase A. App/auth now privately deployed at f811; current assembled Worker proof passes against isolated Neon with 39 migrations. Live current-build browser parity remains open. Both public Worker URLs are disabled. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
@@ -24,7 +24,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Installed identity and discovery passed; delivery stays off | Dedicated codex/hive-epic-test runs inactive f77f7373 on reviewed e9230f1 image. Signed runtime identity and read service pass real Coder checks. The next image must include voice identity support and pinned public bootstrap assets; global active template is unchanged. |
+| Test workspace | Current guarded host healthy; multi-task pilot pending | Dedicated codex/hive-epic-test runs inactive 791a32d4 on f811 image. The second dedicated workspace exposed an initial Codex install ordering race despite a healthy native host. Both are retained; global active template is unchanged. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
@@ -1045,3 +1045,22 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   reviewer/producer, protected environment and preview-only release requirements. The current
   connection gets 403 for environment/secrets access; an appropriately scoped setup token is
   requested while independent validation continues. No main policy or production route changed.
+
+## 2026-11-05 current preview integration
+
+- Private Cloudflare preview update: app and auth now run f811 with provider identity readback.
+  The original database, encryption and issuer secrets were preserved; no production routes or
+  scheduled jobs were enabled. Current local assembled Worker proof passes. Live guarded
+  application and browser checks remain pending.
+- Delivery pilot configuration: implemented and independently reviewed at f4a18bee, moderate
+  difficulty. Terminal runtime configuration and explicitly scoped shared issuer mode avoid
+  regenerating the existing host key. Focused tests and typecheck pass; actual installed-runtime
+  verification follows the current Worker rebuild. The temporary synthetic Cloudflare inheritance
+  experiment showed rename semantics cannot duplicate bindings; its Worker was deleted after
+  matching its recorded identity. No real issuer was used in that experiment.
+- Test workspace startup: corrected f811 image is healthy in the primary test workspace. The
+  second dedicated software workspace is retained with valid dedicated Codex authentication,
+  but a separate first-boot CLI ordering race needs the template fix before full acceptance.
+- CI: current f811 migration, formatting, lint, quality, Helm and image checks passed. A nested
+  runtime test still fails only on GitHub; f4a18bee preserves its child diagnostics so the actual
+  assertion can be fixed. No test was disabled or acceptance gate weakened.

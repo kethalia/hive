@@ -285,8 +285,11 @@ try {
     nativeGatewayCandidate: nativeCandidate,
     workspaceProjectsCandidate: workspaceCandidate,
     deliveryPilotCandidate: pilot,
+    repositoryCatalogSHA256: pilot ? digest(JSON.stringify(pilot.repositoryPolicies)) : undefined,
+    repositoryCatalogDigest: pilot?.repositoryCatalogDigest,
+    repositoryPolicyDigest: pilot?.repositoryPolicyDigest,
     projectJobsPlan: pilot
-      ? projectJobsPilotPlan(bindings.app.HIVE_PROJECT_TASK_RECONCILE_SECRET)
+      ? projectJobsPilotPlan(bindings.app.HIVE_PROJECT_TASK_RECONCILE_SECRET, revision)
       : undefined,
     nativeIssuer: hostIdentity
       ? {

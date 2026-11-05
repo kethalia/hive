@@ -124,7 +124,11 @@ if (appMode) {
           }
         : {}),
       ...(terminalPilot && service === "app"
-        ? { HIVE_GENERIC_TERMINAL_ENABLED: "true", HIVE_TERMINAL_WS_URL: "/" }
+        ? {
+            HIVE_GENERIC_TERMINAL_ENABLED: "true",
+            HIVE_TERMINAL_WS_URL: "/",
+            HIVE_PUBLIC_ORIGIN: "http://127.0.0.1:8793",
+          }
         : {}),
       ...(deliveryCallbacks && service === "app"
         ? {
@@ -279,7 +283,10 @@ try {
       if (terminalPilot) {
         const config = await request("/runtime-config.js", { headers });
         if (config.status !== 200 || !(await config.text()).includes('"terminalWsUrl":"/"'))
-          throw new Error("Actual Worker terminal runtime configuration failed");
+          throw new Error(
+            `Actual app terminal runtime configuration failed (status ${config.status})`,
+          );
+        appChecks.terminalRuntimeConfig = true;
         const target = `/ws?${new URLSearchParams({ workspaceId: randomUUID(), agentId: randomUUID(), reconnectId: randomUUID(), sessionName: "fixture-shell", width: "80", height: "24" })}`;
         const ticket = await request("/api/auth/terminal-ticket", {
           method: "POST",
@@ -291,7 +298,7 @@ try {
           body: JSON.stringify({ url: `http://127.0.0.1:8793${target}` }),
         });
         if (ticket.status !== 200 || typeof (await ticket.json()).ticket !== "string")
-          throw new Error("Actual Worker terminal ticket failed");
+          throw new Error(`Actual app terminal ticket failed (status ${ticket.status})`);
         appChecks.terminalRuntimeConfigAndTicket = true;
       }
       const list = await request("/api/delivery/tasks", { headers });

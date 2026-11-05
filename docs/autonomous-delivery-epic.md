@@ -25,12 +25,14 @@ Controlled release and database-job implementations are committed; an actual old
 Worker pair exercised isolated Neon reads/writes, interrupted backfill recovery and integrity
 checks. Deployment observations and authorization in that pilot remain fixtures. Epic planning,
 closure and workspace reuse have local integration evidence; the installed multi-task pilot
-remains open. The persistent test workspace is running and its isolated Codex login is valid,
-but still runs the historical package and has startup errors under investigation.
+remains open. The persistent test workspace now runs the corrected f811 image and its guarded host is healthy.
+A second isolated workspace has a healthy host but exposed a first-boot CLI installation race;
+that template fix is in progress. Neither workspace has yet run the current multi-task pilot.
 
 A read-only production capture has now been restored and upgraded both locally and in a separate
 Neon Free rehearsal database: all eight original tables (88 rows) match their fingerprints,
-and all 39 migrations are present. Application, secret/session compatibility and final recovery
+and all 39 migrations are present. The actual Worker application/session proof and local backup recovery also pass within the
+recorded limits. Original production keys/session continuity, streaming and final cutover
 checks remain open. The raw data stays in private files and the isolated database; only redacted
 proof is committed. The previous private Cloudflare browser pilot covered login, repository
 search/enrollment, layout and logout; current-build shared-session and full baseline acceptance

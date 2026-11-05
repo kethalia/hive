@@ -85,7 +85,7 @@ try {
     assertDeliveryPilot(record, configs.app, secrets.app, pins);
     assert.deepEqual(
       record.projectJobsPlan,
-      projectJobsPilotPlan(secrets.app.HIVE_PROJECT_TASK_RECONCILE_SECRET),
+      projectJobsPilotPlan(secrets.app.HIVE_PROJECT_TASK_RECONCILE_SECRET, record.sourceRevision),
     );
   } else
     assertWorkspaceProjectsCandidate(

@@ -108,6 +108,7 @@ test("every profile leaves Codex installation, configuration, and authentication
       agent_id: "coder_agent.main.id",
       install_codex: "false",
       manage_config: "false",
+      pre_install_script: 'file("${path.module}/scripts/wait-for-codex.sh")',
     })) {
       const input = new RegExp(`^\\s*${name}\\s*=\\s*(.+)$`, "m").exec(body);
       assert.equal(input?.[1], value, `${template}: unsafe Codex ${name}`);
@@ -120,6 +121,7 @@ test("every profile leaves Codex installation, configuration, and authentication
       "count",
       "install_codex",
       "manage_config",
+      "pre_install_script",
       "source",
       "version",
     ]);

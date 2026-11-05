@@ -50,7 +50,10 @@ try {
     ),
   );
   assertDeliveryPilot(record, app, secret, pins);
-  const plan = projectJobsPilotPlan(secret.HIVE_PROJECT_TASK_RECONCILE_SECRET);
+  const plan = projectJobsPilotPlan(
+    secret.HIVE_PROJECT_TASK_RECONCILE_SECRET,
+    record.sourceRevision,
+  );
   assert.deepEqual(record.projectJobsPlan, plan);
   const { plannedCron, secretNames, ...config } = plan;
   const directory = join(dirname(process.argv[2]), "jobs-dry-run");
