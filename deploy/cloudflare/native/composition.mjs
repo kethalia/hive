@@ -30,18 +30,19 @@ export function createNativeWorker({ app, auth, jobs }) {
       if (
         env.HIVE_NATIVE_MODE !== "production" ||
         env.HIVE_NATIVE_PRODUCTION_ACTIVE !== "true" ||
-        event?.cron !== "*/5 * * * *"
+        !["* * * * *", "*/5 * * * *"].includes(event?.cron)
       )
         return;
       const local = wired(env, context);
-      // The app's release scheduler registers its own waitUntil; the other two
-      // scheduled handlers return promises and must remain in the invocation.
+      // Distinct cron expressions route each handler exactly once even when
+      // their schedules coincide. The app registers its own waitUntil.
+      const handlers = event.cron === "* * * * *" ? [jobs] : [app, auth];
       context.waitUntil(
-        Promise.allSettled([
-          Promise.resolve().then(() => app.scheduled(event, local, context)),
-          Promise.resolve().then(() => auth.scheduled(event, local, context)),
-          Promise.resolve().then(() => jobs.scheduled(event, local, context)),
-        ]).then((results) => {
+        Promise.allSettled(
+          handlers.map((handler) =>
+            Promise.resolve().then(() => handler.scheduled(event, local, context)),
+          ),
+        ).then((results) => {
           if (results.some((result) => result.status === "rejected"))
             throw new Error("Scheduled dispatch unavailable");
         }),

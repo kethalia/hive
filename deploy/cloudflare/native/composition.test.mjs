@@ -124,7 +124,7 @@ test("public requests enter app only and invocation-local adapters preserve head
   assert.equal(calls.filter((c) => c.service === "auth").at(-1).signalAborted, true);
 });
 
-test("only active production schedules all handlers with local service adapter", async () => {
+test("active production routes minute jobs and five-minute app/auth exactly once at a coincident tick", async () => {
   const { worker, calls } = fixture();
   const preview = context();
   worker.scheduled(
@@ -132,8 +132,17 @@ test("only active production schedules all handlers with local service adapter",
     { HIVE_NATIVE_MODE: "preview", HIVE_NATIVE_PREVIEW_ENABLED: "true" },
     preview,
   );
+  worker.scheduled(
+    { cron: "* * * * *" },
+    { HIVE_NATIVE_MODE: "preview", HIVE_NATIVE_PREVIEW_ENABLED: "true" },
+    preview,
+  );
   assert.equal(preview.pending.length, 0);
-  for (const event of [{}, { cron: "0 * * * *" }, { cron: "* * * * *" }]) {
+  const inactive = context();
+  for (const cron of ["* * * * *", "*/5 * * * *"])
+    worker.scheduled({ cron }, { HIVE_NATIVE_MODE: "production" }, inactive);
+  assert.equal(inactive.pending.length, 0);
+  for (const event of [{}, { cron: "0 * * * *" }]) {
     const other = context();
     worker.scheduled(
       event,
@@ -143,6 +152,12 @@ test("only active production schedules all handlers with local service adapter",
     assert.equal(other.pending.length, 0);
   }
   const ctx = context();
+  const minute = context();
+  worker.scheduled(
+    { cron: "* * * * *" },
+    { HIVE_NATIVE_MODE: "production", HIVE_NATIVE_PRODUCTION_ACTIVE: "true", tenant: "prod" },
+    minute,
+  );
   worker.scheduled(
     { cron: "*/5 * * * *" },
     {
@@ -154,6 +169,7 @@ test("only active production schedules all handlers with local service adapter",
   );
   await Promise.all(ctx.pending);
   await Promise.all(ctx.pending);
+  await Promise.all(minute.pending);
   assert.deepEqual(calls.map((x) => x.service).sort(), [
     "app",
     "app-cron",
@@ -171,20 +187,20 @@ test("a scheduled failure waits for other handlers to settle before rejecting", 
   });
   const handler = { fetch: async () => new Response() };
   const worker = createNativeWorker({
-    app: { ...handler, scheduled() {} },
-    auth: {
-      ...handler,
-      async scheduled() {
-        throw Error("private failure");
-      },
-    },
-    jobs: {
+    app: {
       ...handler,
       async scheduled() {
         await pending;
         settled = true;
       },
     },
+    auth: {
+      ...handler,
+      async scheduled() {
+        throw Error("private failure");
+      },
+    },
+    jobs: { ...handler, scheduled() {} },
   });
   const ctx = context();
   worker.scheduled(
@@ -207,4 +223,25 @@ test("a scheduled failure waits for other handlers to settle before rejecting", 
   await assert.rejects(ctx.pending[0], /^Error: Scheduled dispatch unavailable$/);
   await result;
   assert.equal(settled, true);
+});
+
+test("each cron expression only invokes its assigned handlers", async () => {
+  const { worker, calls } = fixture();
+  const env = {
+    HIVE_NATIVE_MODE: "production",
+    HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
+    tenant: "prod",
+  };
+  const five = context();
+  worker.scheduled({ cron: "*/5 * * * *" }, env, five);
+  await Promise.all(five.pending);
+  expectCalls(["app-cron", "auth-cron"]);
+  calls.length = 0;
+  const minute = context();
+  worker.scheduled({ cron: "* * * * *" }, env, minute);
+  await Promise.all(minute.pending);
+  expectCalls(["app", "jobs-cron"]);
+  function expectCalls(expected) {
+    assert.deepEqual(calls.map((entry) => entry.service).sort(), expected.sort());
+  }
 });
