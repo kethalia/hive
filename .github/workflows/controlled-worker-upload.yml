@@ -1,0 +1,95 @@
+# Reusable workflow: callers must pin this file to an operator-approved commit.
+# Candidate build code runs only in the unprivileged job. Upload is separately
+# protected and disabled until the controller and deployment policy are enrolled.
+name: Controlled Worker version upload
+on:
+  workflow_call:
+    secrets:
+      HIVE_RELEASE_CLOUDFLARE_UPLOAD_TOKEN:
+        required: false
+      HIVE_RELEASE_PREVIEW_BEARER:
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: none
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:cloudflare
+      - run: pnpm exec wrangler versions upload --dry-run --config deploy/cloudflare/app/wrangler.jsonc --outdir build/app
+      - run: pnpm exec wrangler versions upload --dry-run --config deploy/cloudflare/auth/wrangler.jsonc --outdir build/auth
+      - run: node scripts/release/pack-build.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hive-controlled-release
+          path: release.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    if: ${{ vars.HIVE_RELEASE_UPLOAD_ENABLED == 'true' }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment: hive-release-upload
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the reviewed publisher
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ vars.HIVE_RELEASE_PUBLISHER_SHA }}
+          path: trusted-publisher
+          persist-credentials: false
+      - name: Verify the fixed publisher revision
+        working-directory: trusted-publisher
+        env:
+          PUBLISHER_SHA: ${{ vars.HIVE_RELEASE_PUBLISHER_SHA }}
+        run: |
+          [[ "$PUBLISHER_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$PUBLISHER_SHA" ]]
+          node <<'NODE'
+          const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          if (url.protocol !== 'https:' || !url.hostname.endsWith('.actions.githubusercontent.com') || url.username || url.password) process.exit(1);
+          url.searchParams.set('audience', 'urn:hive:publisher-revision-check');
+          const response = await fetch(url, { headers: { Authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` }, redirect: 'error', signal: AbortSignal.timeout(10000) });
+          if (!response.ok) process.exit(1);
+          const result = await response.json();
+          const parts = result.value?.split('.');
+          if (parts?.length !== 3 || parts[1].length > 12000) process.exit(1);
+          const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+          if (claims.job_workflow_sha !== process.env.PUBLISHER_SHA) process.exit(1);
+          NODE
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+        with:
+          package_json_file: trusted-publisher/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Install reviewed publisher dependencies without lifecycle scripts
+        working-directory: trusted-publisher
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: hive-controlled-release
+          path: ${{ runner.temp }}/artifact
+      - name: Authenticate and upload versions
+        working-directory: ${{ runner.temp }}
+        env:
+          HIVE_RELEASE_UPLOAD_ENABLED: ${{ vars.HIVE_RELEASE_UPLOAD_ENABLED }}
+          HIVE_RELEASE_UPLOAD_CONFIG_JSON: ${{ vars.HIVE_RELEASE_UPLOAD_CONFIG_JSON }}
+          HIVE_RELEASE_CLOUDFLARE_UPLOAD_TOKEN: ${{ secrets.HIVE_RELEASE_CLOUDFLARE_UPLOAD_TOKEN }}
+          HIVE_RELEASE_PREVIEW_BEARER: ${{ secrets.HIVE_RELEASE_PREVIEW_BEARER }}
+        run: node "$GITHUB_WORKSPACE/trusted-publisher/scripts/release/publisher.mjs"

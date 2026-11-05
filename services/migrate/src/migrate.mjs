@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertPrismaLockContract } from "./delivery/prisma-lock.mjs";
 
 const require = createRequire(import.meta.url);
 const runbook = "docs/deployment.md#existing-database-baseline-adoption";
@@ -108,6 +109,7 @@ export async function migrate({
   log = console.log,
 } = {}) {
   const schema = migrationSchema(databaseUrl);
+  assertPrismaLockContract();
   let preflight;
   try {
     preflight = await execute({

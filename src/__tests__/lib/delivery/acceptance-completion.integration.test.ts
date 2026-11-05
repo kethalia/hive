@@ -4,12 +4,15 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { AcceptanceSuccessController } from "@/lib/delivery/acceptance-completion.server";
 import { acceptanceDigest, requireIntentDigest } from "@/lib/delivery/acceptance-contracts";
 import { DeliveryAcceptanceService } from "@/lib/delivery/acceptance-service.server";
+import { PostgresReleaseEffectJournal } from "@/lib/delivery/release-effect-journal.server";
+import { verifyReleaseEvidence } from "@/lib/delivery/release-evidence.server";
 import { repositoryPolicyAdapters } from "@/lib/delivery/repository-policy.server";
 import { acceptanceCandidateFixture } from "./acceptance-candidate-fixture";
 import {
   collectCompletionProviderFacts,
   completionServices,
 } from "./acceptance-completion-fixture";
+import { openReleaseFromSignedEvidence } from "./release-autonomous-fixture";
 
 const url = process.env.HIVE_ACCEPTANCE_TEST_DATABASE_URL;
 if (
@@ -209,10 +212,49 @@ describe.skipIf(!url)("controller factual completion", () => {
         f.service.dispatch(f.envelope({ action: "complete_verified", terminal: f.terminal }));
       if (review) {
         expect((await request()).result).toMatchObject({ phase: "completed", writerHeld: true });
+        expect(
+          await db.$transaction((tx) =>
+            verifyReleaseEvidence(tx, f.policies, {
+              ownerId: f.user.id,
+              taskId: f.taskId,
+              sourceSha: f.publication.headSha,
+            }),
+          ),
+        ).toBe(true);
+        let release: Awaited<ReturnType<typeof openReleaseFromSignedEvidence>> | undefined;
+        let actionId: string | undefined;
+        if (process.env.HIVE_RELEASE_AUTONOMOUS_TEST === "true") {
+          release = await openReleaseFromSignedEvidence(db, f);
+          const actions = await db.$queryRaw<
+            { id: string; phase: string }[]
+          >`SELECT id,phase FROM delivery_release_actions WHERE release_id=${release.releaseId}::uuid AND kind='merge'`;
+          expect(actions).toHaveLength(1);
+          expect(actions[0].phase).toBe("prepared");
+          actionId = actions[0].id;
+        }
         const report = await db.deliveryStepReport.findFirstOrThrow({
           where: { attemptId: f.claim.attemptId },
         });
         expect(await db.deliveryReportEvidence.count({ where: { reportId: report.id } })).toBe(3);
+        await db.deliveryEvidence.update({
+          where: { id: f.evidence.id },
+          data: { invalidatedAt: new Date() },
+        });
+        if (release && actionId)
+          expect(
+            await new PostgresReleaseEffectJournal(db, f.user.id, release.authorize).begin(
+              actionId,
+            ),
+          ).toBeNull();
+        expect(
+          await db.$transaction((tx) =>
+            verifyReleaseEvidence(tx, f.policies, {
+              ownerId: f.user.id,
+              taskId: f.taskId,
+              sourceSha: f.publication.headSha,
+            }),
+          ),
+        ).toBe(false);
       } else {
         await expect(request()).rejects.toThrow();
         expect(await db.deliveryStep.count({ where: { id: f.stepId, state: "succeeded" } })).toBe(
@@ -220,6 +262,82 @@ describe.skipIf(!url)("controller factual completion", () => {
         );
       }
     });
+  it.skipIf(process.env.HIVE_RELEASE_AUTONOMOUS_TEST !== "true")(
+    "holds stale tested base, unrelated protection, missing intent and no actionable steps",
+    async () => {
+      const f = await fixture(true);
+      await collectCompletionProviderFacts(db, f, f.publication.operationId);
+      await f.service.dispatch(f.envelope({ action: "complete_verified", terminal: f.terminal }));
+      for (const defect of [
+        "old_base",
+        "unrelated_check",
+        "control_path",
+        "wrong_tree",
+        "test_failed",
+        "runner_config",
+        "dependency_control",
+      ] as const)
+        await expect(openReleaseFromSignedEvidence(db, f, defect)).rejects.toThrow(
+          "release_open_fixture_failed",
+        );
+      for (const defect of ["intent", "steps"] as const) {
+        let authorized = true;
+        await expect(
+          db.$transaction(async (tx) => {
+            await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+            if (defect === "intent")
+              await tx.$executeRaw`DELETE FROM delivery_acceptance_intents WHERE owner_id=${f.user.id}::uuid`;
+            else
+              await tx.$executeRaw`UPDATE delivery_steps SET kind='understand',required_evidence_kinds=ARRAY['analysis'] WHERE owner_id=${f.user.id}::uuid AND task_id=${f.taskId}::uuid`;
+            authorized = await verifyReleaseEvidence(tx, f.policies, {
+              ownerId: f.user.id,
+              taskId: f.taskId,
+              sourceSha: f.publication.headSha,
+            });
+            throw Error("rollback fixture mutation");
+          }),
+        ).rejects.toThrow("rollback fixture mutation");
+        expect(authorized).toBe(false);
+      }
+    },
+  );
+  for (const scenario of ["ordinary_test", "pending_checks"] as const)
+    it.skipIf(process.env.HIVE_RELEASE_AUTONOMOUS_TEST !== "true")(
+      `accepts ${scenario} only after the trusted run and checks complete`,
+      async () => {
+        const f = await fixture(true);
+        await collectCompletionProviderFacts(db, f, f.publication.operationId);
+        await f.service.dispatch(f.envelope({ action: "complete_verified", terminal: f.terminal }));
+        const release = await openReleaseFromSignedEvidence(db, f, scenario);
+        expect(release.releaseId).toBeTruthy();
+      },
+    );
+  it.skipIf(process.env.HIVE_RELEASE_AUTONOMOUS_TEST !== "true")(
+    "opens and reconciles a synthetic async merge from signed acceptance and repository evidence",
+    async () => {
+      const f = await fixture(true);
+      await collectCompletionProviderFacts(db, f, f.publication.operationId);
+      await f.service.dispatch(f.envelope({ action: "complete_verified", terminal: f.terminal }));
+      const release = await openReleaseFromSignedEvidence(db, f);
+      const actions = await db.$queryRaw<
+        { id: string }[]
+      >`SELECT id FROM delivery_release_actions WHERE release_id=${release.releaseId}::uuid AND kind='merge' AND phase='prepared'`;
+      expect(actions).toHaveLength(1);
+      expect(await release.simulateMerge(actions[0].id)).toEqual({
+        first: "held",
+        afterRestart: "observed",
+        writes: 1,
+      });
+      expect(await release.simulateRollout()).toEqual({
+        first: "held",
+        recoveredAck: "observed",
+        stage: "stage_ready",
+        regression: "held",
+        final: "recovered",
+        cloudflareWrites: 4,
+      });
+    },
+  );
   for (const drift of [
     "source",
     "cohort",

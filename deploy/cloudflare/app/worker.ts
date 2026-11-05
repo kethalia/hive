@@ -28,6 +28,7 @@ import { projectRelayPath } from "./project-relay";
 import { type ProjectRelayEnvironment, projectRelay } from "./project-relay-runtime";
 import { runProjectTaskReconciliation } from "./project-tasks";
 import { RELEASE_HEALTH_PATH, releaseAuthReadiness, releaseHealth } from "./release-health";
+import { runReleaseSchedule } from "./release-scheduled";
 import { runRequestLifetime } from "./request-lifetime";
 import { isPortableTemplatePublication } from "./template-publications";
 import { type TerminalPasteEnvironment, terminalPastePath } from "./terminal-paste-runtime";
@@ -49,6 +50,8 @@ type Environment = ProjectRelayEnvironment &
     HIVE_PROJECT_DISCOVERY_ENABLED?: string;
     HIVE_AGENT_TOOLS_ENABLED?: string;
     HIVE_AGENT_TOOLS_TRANSPORT?: string;
+    HIVE_DELIVERY_RELEASE_ENABLED?: string;
+    HIVE_DELIVERY_RELEASE_SCHEDULER_ENABLED?: string;
     HIVE_RELEASE_HEALTH_ENABLED?: string;
     HIVE_RELEASE_PROBE_SECRET?: string;
     HIVE_RELEASE_SOURCE_SHA?: string;
@@ -57,6 +60,31 @@ type Environment = ProjectRelayEnvironment &
 type Context = { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void };
 
 export default {
+  scheduled(event: { cron: string }, env: Environment, context: Context) {
+    context.waitUntil(
+      runReleaseSchedule(event, env, async (signal) => {
+        const database = createCloudflareDatabaseRequest(env.DATABASE_URL, {
+          queryTimeoutMillis: 10000,
+          transactionTimeoutMillis: 10000,
+        });
+        try {
+          await database.run(async () => {
+            const { createInstalledReleaseController } = await import(
+              "../../../src/lib/delivery/release-installed.server"
+            );
+            const variables = Object.fromEntries(
+              Object.entries(env).filter(([, value]) => typeof value === "string"),
+            ) as Record<string, string>;
+            const controller = createInstalledReleaseController(getDb(), variables);
+            if (!controller) throw Error("release_schedule_unavailable");
+            await controller.scheduler.tick(signal);
+          });
+        } finally {
+          await database.close();
+        }
+      }),
+    );
+  },
   async fetch(request: Request, env: Environment, context: Context): Promise<Response> {
     if (projectReconcilePath(request)) {
       return runProjectTaskReconciliation(request, env, context, (tracked) =>

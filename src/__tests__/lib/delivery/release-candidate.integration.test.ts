@@ -8,6 +8,7 @@ import { githubTransportProofPayload } from "@/lib/delivery/github-transport-con
 import { DeliveryManagerService } from "@/lib/delivery/manager.server";
 import { ReleaseCandidateResolver } from "@/lib/delivery/release-candidate.server";
 import type { ReleaseRemoteObservation } from "@/lib/delivery/release-candidate-contracts";
+import { verifyReleaseEvidence } from "@/lib/delivery/release-evidence.server";
 import { repositoryPolicyAdapters } from "@/lib/delivery/repository-policy.server";
 import {
   repositoryGateDescriptors,
@@ -393,6 +394,16 @@ describe.skipIf(!url)("read-only release candidate assembled persistence", () =>
       headSha: x.accepted.sourceContext.headSha,
       providerId: "900",
     });
+    expect(await snapshot(x)).toBe(before);
+    expect(
+      await db.$transaction((tx) =>
+        verifyReleaseEvidence(tx, x.policyStore, {
+          ownerId: x.f.user.id,
+          taskId: x.f.taskId,
+          sourceSha: x.accepted.sourceContext.headSha,
+        }),
+      ),
+    ).toBe(false);
     expect(await snapshot(x)).toBe(before);
   });
   it("missing independent review and absent provider factory remain explicit blockers", async () => {

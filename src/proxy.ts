@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getSessionCookieValuesFromHeader } from "./lib/auth/session-cookie";
 import { isHostCallbackTransport } from "./lib/codex-session/host-callback-transport";
+import { isDatabaseJobTransport } from "./lib/delivery/database-job-transport";
+import { isReleaseBuildTransport } from "./lib/delivery/release-build-transport";
 import {
   authorizeProjectReconcile,
   projectReconcileFailure,
@@ -52,6 +54,12 @@ export function proxy(request: NextRequest) {
     // These exact native transports authenticate their issuer/host signatures
     // in the route. Browser cookies cannot replace that separate authority.
     isHostCallbackTransport(request, process.env.HIVE_CODEX_GATEWAY_ENABLED, process.env) ||
+    isDatabaseJobTransport(request, process.env.HIVE_DELIVERY_DATABASE_ENABLED) ||
+    isReleaseBuildTransport(
+      request,
+      process.env.HIVE_DELIVERY_RELEASE_ENABLED,
+      process.env.HIVE_DELIVERY_RELEASE_TESTED_ENABLED,
+    ) ||
     // Discovery authenticates in its route and must return JSON 401, not login HTML.
     pathname.startsWith("/api/discovery/") ||
     // Project routes enforce their own feature, origin and session checks. Let

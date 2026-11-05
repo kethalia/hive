@@ -1,0 +1,258 @@
+import { execFileSync, spawn } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { artifactDigest, readReleaseArtifact } from "../../../../scripts/release/artifact.mjs";
+import { digest, requireValue } from "./contracts.mjs";
+import { workerdCompatibilitySchema } from "./wire.mjs";
+
+const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+async function download(url, fetcher) {
+  const response = await fetcher(url, { redirect: "error", signal: AbortSignal.timeout(30000) });
+  requireValue(response.ok && response.body, "migration_compatibility_artifact_unavailable");
+  const reader = response.body.getReader(),
+    chunks = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      size += part.value.length;
+      requireValue(size <= 128 * 1024 * 1024, "migration_compatibility_artifact_limit");
+      chunks.push(Buffer.from(part.value));
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  return readReleaseArtifact(Buffer.concat(chunks));
+}
+async function port() {
+  const server = createServer();
+  await new Promise((ok, fail) => {
+    server.once("error", fail);
+    server.listen(0, "127.0.0.1", ok);
+  });
+  const value = server.address().port;
+  await new Promise((ok, fail) => server.close((e) => (e ? fail(e) : ok())));
+  return value;
+}
+async function ready(child, text) {
+  return new Promise((ok, fail) => {
+    let output = "";
+    const timer = setTimeout(() => done(Error("migration_compatibility_workerd_timeout")), 30000);
+    const done = (error) => {
+      clearTimeout(timer);
+      child.stdout.off("data", data);
+      child.stderr.off("data", data);
+      child.off("exit", exit);
+      error ? fail(error) : ok();
+    };
+    const data = (part) => {
+      output += part.toString();
+      if (output.length > 65536) output = output.slice(-65536);
+      if (output.includes(text)) done();
+    };
+    const exit = () => done(Error("migration_compatibility_workerd_failed"));
+    child.stdout.on("data", data);
+    child.stderr.on("data", data);
+    child.once("exit", exit);
+  });
+}
+/** The only executable scenario is pinned in the reviewed workflow checkout.
+ * Candidate release archives are data until loaded inside workerd. */
+export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDatabaseUrl } = {}) {
+  const config = workerdCompatibilitySchema.parse(raw);
+  const root = await realpath(process.cwd()),
+    scenario = await realpath(resolve(root, config.scenarioPath));
+  requireValue(
+    scenario.startsWith(`${root}/scripts/release/compatibility/`) &&
+      sha256(await readFile(scenario)) === config.scenarioDigest,
+    "migration_compatibility_scenario_changed",
+  );
+  const [oldFiles, newFiles] = await Promise.all([
+    download(config.oldArtifactUrl, fetcher),
+    download(config.newArtifactUrl, fetcher),
+  ]);
+  requireValue(
+    artifactDigest(oldFiles, "app") === config.oldAppDigest &&
+      artifactDigest(newFiles, "app") === config.newAppDigest &&
+      artifactDigest(oldFiles, "auth") === config.oldAuthDigest &&
+      artifactDigest(newFiles, "auth") === config.newAuthDigest,
+    "migration_compatibility_artifact_changed",
+  );
+  const directory = await mkdtemp(join(tmpdir(), "hive-d10-workerd-")),
+    suffix = randomBytes(12).toString("hex"),
+    pg = `hive-d10-${suffix}`,
+    password = randomBytes(24).toString("hex"),
+    children = [];
+  const docker = (args) =>
+    execFileSync("docker", args, {
+      encoding: "utf8",
+      timeout: 120000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  const safeEnv = {
+    PATH: process.env.PATH ?? "",
+    HOME: directory,
+    TMPDIR: directory,
+    WRANGLER_SEND_METRICS: "false",
+  };
+  try {
+    let databaseUrl;
+    if (fixtureDatabaseUrl) {
+      const u = new URL(fixtureDatabaseUrl);
+      requireValue(
+        ["localhost", "127.0.0.1"].includes(u.hostname) && u.pathname === "/hive_d10_test",
+        "migration_compatibility_fixture_scope",
+      );
+      databaseUrl = fixtureDatabaseUrl;
+    } else {
+      docker(["pull", config.postgresImage]);
+      requireValue(
+        JSON.parse(
+          docker(["image", "inspect", "--format", "{{json .RepoDigests}}", config.postgresImage]),
+        ).includes(config.postgresImage),
+        "migration_compatibility_image_changed",
+      );
+      docker([
+        "run",
+        "-d",
+        "--name",
+        pg,
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pids-limit",
+        "256",
+        "-p",
+        "127.0.0.1::5432",
+        "-e",
+        "POSTGRES_USER=hive",
+        "-e",
+        `POSTGRES_PASSWORD=${password}`,
+        "-e",
+        "POSTGRES_DB=hive_compatibility",
+        config.postgresImage,
+      ]);
+      let available = false;
+      for (let i = 0; i < 30 && !available; i++) {
+        try {
+          docker(["exec", pg, "pg_isready", "-U", "hive", "-d", "hive_compatibility", "-t", "1"]);
+          available = true;
+        } catch {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+      requireValue(available, "migration_compatibility_database_unavailable");
+      const mapped = docker(["port", pg, "5432/tcp"]),
+        match = /^127\.0\.0\.1:(\d+)$/.exec(mapped);
+      requireValue(
+        match && Number(match[1]) > 0 && Number(match[1]) < 65536,
+        "migration_compatibility_database_unavailable",
+      );
+      databaseUrl = `postgresql://hive:${password}@127.0.0.1:${match[1]}/hive_compatibility`;
+    }
+    const ports = [await port(), await port()];
+    requireValue(ports[0] !== ports[1], "migration_compatibility_port_collision");
+    const scenarioEnv = {
+      ...safeEnv,
+      DATABASE_URL: databaseUrl,
+      HIVE_PLAN_DIGEST: config.planDigest,
+      HIVE_SOURCE_SHA: config.sourceSha,
+      HIVE_COMPATIBILITY_DIGEST: config.compatibilityDigest,
+      HIVE_OLD_APP: `http://127.0.0.1:${ports[0]}`,
+      HIVE_NEW_APP: `http://127.0.0.1:${ports[1]}`,
+    };
+    const scenarioRun = (action) =>
+      execFileSync(process.execPath, [scenario, action], {
+        env: scenarioEnv,
+        stdio: "ignore",
+        timeout: 120000,
+      });
+    scenarioRun("prepare");
+    for (const [index, files] of [oldFiles, newFiles].entries()) {
+      const base = join(directory, String(index));
+      for (const [path, bytes] of files) {
+        const dest = join(base, path);
+        await mkdir(dirname(dest), { recursive: true });
+        await writeFile(dest, bytes);
+      }
+      await mkdir(join(base, "assets"), { recursive: true });
+      const path = join(base, "wrangler.json"),
+        authPath = join(base, "auth.json"),
+        authName = `hive-d10-auth-${suffix}-${index}`;
+      await writeFile(
+        authPath,
+        JSON.stringify({
+          name: authName,
+          main: join(base, "auth/worker.js"),
+          compatibility_date: config.compatibilityDate,
+          compatibility_flags: ["nodejs_compat"],
+          no_bundle: true,
+          vars: { DATABASE_URL: databaseUrl },
+        }),
+      );
+      await writeFile(
+        path,
+        JSON.stringify({
+          name: `hive-d10-${suffix}-${index}`,
+          main: join(base, "app/worker.js"),
+          compatibility_date: config.compatibilityDate,
+          compatibility_flags: ["nodejs_compat"],
+          no_bundle: true,
+          vars: { DATABASE_URL: databaseUrl },
+          services: [{ binding: "AUTH_SERVICE", service: authName }],
+          assets: { directory: join(base, "assets"), binding: "ASSETS", run_worker_first: true },
+        }),
+      );
+      const child = spawn(
+        "pnpm",
+        [
+          "exec",
+          "wrangler",
+          "dev",
+          "--config",
+          path,
+          "--config",
+          authPath,
+          "--ip",
+          "127.0.0.1",
+          "--port",
+          String(ports[index]),
+          "--inspector-port",
+          "0",
+        ],
+        { cwd: root, env: safeEnv, detached: true, stdio: ["ignore", "pipe", "pipe"] },
+      );
+      children.push(child);
+      await ready(child, "Ready on");
+      child.stdout.resume();
+      child.stderr.resume();
+    }
+    scenarioRun("verify");
+    return {
+      schemaVersion: 1,
+      catalogDigest: digest(config),
+      planDigest: config.planDigest,
+      sourceSha: config.sourceSha,
+      oldAppDigest: config.oldAppDigest,
+      newAppDigest: config.newAppDigest,
+      compatibilityDigest: config.compatibilityDigest,
+    };
+  } finally {
+    for (const child of children) {
+      try {
+        if (child.pid) process.kill(-child.pid, "SIGTERM");
+      } catch {}
+    }
+    if (!fixtureDatabaseUrl) {
+      try {
+        docker(["rm", "-f", pg]);
+      } catch {}
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+}

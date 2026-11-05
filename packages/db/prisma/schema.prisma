@@ -375,6 +375,9 @@ model DeliveryTask {
   managerBinding   DeliveryManagerBinding? @relation(fields: [ownerId, projectId, managerBindingId], references: [ownerId, projectId, id], onDelete: Restrict)
   repositoryPolicyBindings DeliveryTaskPolicyBinding[]
   acceptanceJobs DeliveryAcceptanceJob[]
+  releaseAuthorityFacts DeliveryReleaseAuthorityFact[]
+  releaseTestChallenges DeliveryReleaseTestChallenge[]
+  releaseTestAttestations DeliveryReleaseTestAttestation[]
   steps            DeliveryStep[]
   events           DeliveryEvent[]
   sourceRevisions DeliverySourceRevision[] @relation("TaskSourceRevisions")
@@ -768,6 +771,7 @@ model DeliverySourceRevision {
   applications DeliverySourceApplication[] @relation("ApplicationTarget")
   applicationTaskScopes DeliverySourceApplication[] @relation("ApplicationTargetTask")
   previouslyAppliedIn DeliverySourceApplication[] @relation("ApplicationPredecessor")
+  releases DeliveryRelease[]
   @@unique([ownerId, id])
   @@unique([ownerId, taskId, id])
   @@unique([ownerId, stepId, producingAttemptId], map: "delivery_source_revision_attempt_key")
@@ -1112,4 +1116,167 @@ model DeliveryAcceptancePlan {
   @@unique([ownerId,intentId,producerDigest])
   @@unique([ownerId,sourceJobId])
   @@map("delivery_acceptance_plans")
+}
+
+model DeliveryReleaseTarget {
+  targetDigest String @id @map("target_digest")
+  activeReleaseId String? @map("active_release_id") @db.Uuid
+  generation Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  releases DeliveryRelease[] @relation("ReleaseTarget")
+  members DeliveryReleaseTargetMember[]
+  activeRelease DeliveryRelease? @relation("ActiveRelease", fields: [activeReleaseId, targetDigest], references: [id, targetDigest], onDelete: Restrict, onUpdate: NoAction, map: "delivery_release_target_active_fkey")
+  @@map("delivery_release_targets")
+}
+
+model DeliveryReleaseTargetMember {
+  resourceDigest String @id @map("resource_digest")
+  targetDigest String @map("target_digest")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  target DeliveryReleaseTarget @relation(fields: [targetDigest], references: [targetDigest], onDelete: Restrict, onUpdate: NoAction)
+  @@unique([targetDigest,resourceDigest])
+  @@map("delivery_release_target_members")
+}
+
+model DeliveryRelease {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  sourceRevisionId String @map("source_revision_id") @db.Uuid
+  targetDigest String @map("target_digest")
+  policyDigest String @map("policy_digest")
+  snapshot Json
+  snapshotDigest String @map("snapshot_digest")
+  phase String @default("active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  source DeliverySourceRevision @relation(fields: [ownerId, taskId, sourceRevisionId], references: [ownerId, taskId, id], onDelete: Restrict, onUpdate: NoAction)
+  target DeliveryReleaseTarget @relation("ReleaseTarget", fields: [targetDigest], references: [targetDigest], onDelete: Restrict, onUpdate: NoAction)
+  activeFor DeliveryReleaseTarget[] @relation("ActiveRelease")
+  actions DeliveryReleaseAction[]
+  observations DeliveryReleaseObservation[]
+  buildAttestations DeliveryReleaseBuildAttestation[]
+  @@unique([ownerId,id])
+  @@unique([id,targetDigest])
+  @@map("delivery_releases")
+}
+
+model DeliveryReleaseAction {
+  id String @id @db.Uuid
+  releaseId String @map("release_id") @db.Uuid
+  kind String
+  targetDigest String @map("target_digest")
+  request Json
+  requestDigest String @map("request_digest")
+  generation Int
+  phase String @default("prepared")
+  remoteReference Json? @map("remote_reference")
+  receiptDigest String? @map("receipt_digest")
+  receipt Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  release DeliveryRelease @relation(fields: [releaseId,targetDigest], references: [id,targetDigest], onDelete: Restrict, onUpdate: NoAction)
+  @@unique([releaseId,kind,requestDigest])
+  @@map("delivery_release_actions")
+}
+
+model DeliveryReleaseObservation {
+  id String @id @db.Uuid
+  releaseId String @map("release_id") @db.Uuid
+  kind String
+  evidence Json
+  evidenceDigest String @map("evidence_digest")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  release DeliveryRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  @@unique([releaseId,kind,evidenceDigest])
+  @@map("delivery_release_observations")
+}
+
+model DeliveryReleaseBuildAttestation {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  releaseId String @map("release_id") @db.Uuid
+  manifest Json
+  manifestDigest String @map("manifest_digest")
+  jtiDigest String @unique @map("jti_digest")
+  workflowSha String @map("workflow_sha")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  release DeliveryRelease @relation(fields: [ownerId,releaseId], references: [ownerId,id], onDelete: Restrict, onUpdate: NoAction)
+  verifications DeliveryReleaseBuildVerification[]
+  @@unique([ownerId,id])
+  @@unique([ownerId,releaseId])
+  @@map("delivery_release_build_attestations")
+}
+
+model DeliveryReleaseBuildVerification {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  attestationId String @map("attestation_id") @db.Uuid
+  evidence Json
+  evidenceDigest String @map("evidence_digest")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  attestation DeliveryReleaseBuildAttestation @relation(fields: [ownerId,attestationId], references: [ownerId,id], onDelete: Restrict, onUpdate: NoAction)
+  @@unique([ownerId,attestationId])
+  @@map("delivery_release_build_verifications")
+}
+
+model DeliveryReleaseAuthorityFact {
+  id            String   @id @db.Uuid
+  ownerId       String   @map("owner_id") @db.Uuid
+  taskId        String   @map("task_id") @db.Uuid
+  sourceSha     String   @map("source_sha")
+  targetDigest  String   @map("target_digest")
+  configDigest  String   @map("config_digest")
+  payload       Json
+  payloadDigest String   @map("payload_digest")
+  observedAt    DateTime @map("observed_at") @db.Timestamptz(6)
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(dbgenerated("clock_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  task DeliveryTask @relation(fields: [ownerId, taskId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([ownerId, taskId, payloadDigest], map: "delivery_release_authority_fa_owner_id_task_id_payload_dige_key")
+  @@map("delivery_release_authority_facts")
+}
+
+model DeliveryReleaseSchedulerCursor {
+  targetDigest String @id @map("target_digest")
+  openerCursor String @default(dbgenerated("'00000000-0000-0000-0000-000000000000'::uuid")) @map("opener_cursor") @db.Uuid
+  updatedAt DateTime @default(dbgenerated("clock_timestamp()")) @map("updated_at") @db.Timestamptz
+
+  @@map("delivery_release_scheduler_cursors")
+}
+
+model DeliveryReleaseTestChallenge {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  request Json
+  requestDigest String @map("request_digest")
+  nonceDigest String @unique @map("nonce_digest")
+  challengeJtiDigest String @unique @map("challenge_jti_digest")
+  policyDigest String @map("policy_digest")
+  checksDigest String @map("checks_digest")
+  createdAt DateTime @default(dbgenerated("clock_timestamp()")) @map("created_at") @db.Timestamptz
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  task DeliveryTask @relation(fields: [ownerId, taskId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction)
+  attestations DeliveryReleaseTestAttestation[]
+  @@unique([ownerId, id])
+  @@map("delivery_release_test_challenges")
+}
+
+model DeliveryReleaseTestAttestation {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  challengeId String @unique @map("challenge_id") @db.Uuid
+  payload Json
+  payloadDigest String @map("payload_digest")
+  attestationJtiDigest String @unique @map("attestation_jti_digest")
+  workflowDigest String @map("workflow_digest")
+  createdAt DateTime @default(dbgenerated("clock_timestamp()")) @map("created_at") @db.Timestamptz
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  task DeliveryTask @relation(fields: [ownerId, taskId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction)
+  challenge DeliveryReleaseTestChallenge @relation(fields: [ownerId, challengeId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction)
+  @@unique([ownerId, id])
+  @@index([ownerId, taskId, expiresAt], map: "delivery_release_test_attestations_lookup")
+  @@map("delivery_release_test_attestations")
 }
