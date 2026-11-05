@@ -1,6 +1,8 @@
 // Phase A only. The primary supplies a reviewed fresh scope; this is a network
 // budget and test guard, never application authorization or a task permission.
 export const ORIGIN = "https://hive-app-compatibility-preview.b00ste.workers.dev";
+export const NATIVE_ORIGIN = "https://codex-delivery-system-design-hive.b00ste.workers.dev";
+export const NATIVE_WORKSPACE = "5390bdfc-b004-4489-96c8-2b9f1de20f1f";
 export const TARGET = Object.freeze({
   workspaceId: "22c4f094-46f0-4a76-86ca-37ad74254872",
   repositoryId: "1183966024",
@@ -13,7 +15,12 @@ const REVIEWED_WORKSPACES = Object.freeze([
 export const LIMIT = 200,
   DURATION = 180000;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-export function parseScope(value) {
+export function originForScope(scope) {
+  if (REVIEWED_WORKSPACES.includes(scope.workspaceId)) return ORIGIN;
+  if (scope.workspaceId === NATIVE_WORKSPACE) return NATIVE_ORIGIN;
+  throw new Error("scope_rejected");
+}
+export function parseScope(value, { allowNative = false } = {}) {
   const keys = [
     "schemaVersion",
     "sourceRevision",
@@ -45,7 +52,10 @@ export function parseScope(value) {
   )
     throw new Error("scope_rejected");
   if (
-    !REVIEWED_WORKSPACES.includes(value.workspaceId) ||
+    !(
+      REVIEWED_WORKSPACES.includes(value.workspaceId) ||
+      (allowNative && value.workspaceId === NATIVE_WORKSPACE)
+    ) ||
     value.repositoryId !== TARGET.repositoryId ||
     value.providerAccountId !== TARGET.providerAccountId
   )
@@ -60,7 +70,7 @@ export function permitted(scope, input, method, headers = {}, body = "") {
     const url = new URL(input),
       h = new Headers(headers);
     if (
-      url.origin !== ORIGIN ||
+      url.origin !== originForScope(scope) ||
       url.username ||
       url.password ||
       url.hash ||

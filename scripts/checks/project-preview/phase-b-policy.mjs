@@ -1,5 +1,5 @@
 // Phase B browser transport guard; scope is supplied by the primary's private plan.
-import { ORIGIN, parseScope, permitted as phaseA } from "./policy.mjs";
+import { NATIVE_WORKSPACE, originForScope, parseScope, permitted as phaseA } from "./policy.mjs";
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const sha = /^[a-f0-9]{40}$/;
@@ -18,7 +18,7 @@ export function parsePhaseB(raw) {
     incrementalBudget,
     ...base
   } = raw ?? {};
-  const original = parseScope({ ...base, priorForwarded: 0 });
+  const original = parseScope({ ...base, priorForwarded: 0 }, { allowNative: true });
   if (
     !Number.isSafeInteger(base.priorForwarded) ||
     base.priorForwarded < 0 ||
@@ -26,6 +26,8 @@ export function parsePhaseB(raw) {
   )
     throw Error("phase_b_scope_rejected");
   if (!Number.isSafeInteger(incrementalBudget) || incrementalBudget < 2 || incrementalBudget > 200)
+    throw Error("phase_b_scope_rejected");
+  if (base.workspaceId === NATIVE_WORKSPACE && base.priorForwarded + incrementalBudget > 200)
     throw Error("phase_b_scope_rejected");
   if (
     ![attemptId, projectId, ownerId, buildId].every((x) => typeof x === "string" && uuid.test(x)) ||
@@ -85,7 +87,7 @@ export function phaseBPermit(scope, input, method, headers = {}, body = "") {
       h = new Headers(headers),
       prefix = `/api/projects/${projectId}`;
     if (
-      u.origin !== ORIGIN ||
+      u.origin !== originForScope(scope) ||
       u.search ||
       u.hash ||
       u.username ||
@@ -122,7 +124,7 @@ export function phaseBPermit(scope, input, method, headers = {}, body = "") {
 export function phaseBSocket(scope, input) {
   try {
     const u = new URL(input),
-      origin = new URL(ORIGIN);
+      origin = new URL(originForScope(scope));
     return (
       u.protocol === "wss:" &&
       u.host === origin.host &&

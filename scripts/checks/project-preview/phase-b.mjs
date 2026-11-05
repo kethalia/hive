@@ -10,7 +10,7 @@ import {
   phaseBPermit,
   phaseBSocket,
 } from "./phase-b-policy.mjs";
-import { ORIGIN } from "./policy.mjs";
+import { originForScope } from "./policy.mjs";
 
 assert.equal(process.env.HIVE_WORKSPACE_PROFILE, "browser");
 assert.deepEqual(process.argv.slice(2), ["--run"]);
@@ -23,7 +23,8 @@ const input = JSON.parse(raw);
 raw = "";
 assert.deepEqual(Object.keys(input).sort(), ["auth", "scope"]);
 const scope = parsePhaseB(input.scope),
-  auth = input.auth;
+  auth = input.auth,
+  origin = originForScope(scope);
 assert.deepEqual(Object.keys(auth).sort(), ["email", "password", "previewBearer"]);
 assert(
   typeof auth.email === "string" &&
@@ -228,12 +229,12 @@ try {
   });
   stage = "bootstrap";
   check(
-    reserve(`${ORIGIN}/__hive-preview/access`, "POST", {
+    reserve(`${origin}/__hive-preview/access`, "POST", {
       Authorization: `Bearer ${auth.previewBearer}`,
     }),
   );
-  const bootstrap = await context.request.post(`${ORIGIN}/__hive-preview/access`, {
-    headers: { Authorization: `Bearer ${auth.previewBearer}`, Origin: ORIGIN },
+  const bootstrap = await context.request.post(`${origin}/__hive-preview/access`, {
+    headers: { Authorization: `Bearer ${auth.previewBearer}`, Origin: origin },
     maxRedirects: 0,
     timeout: 10000,
   });
@@ -249,7 +250,7 @@ try {
     failed = true;
     void d.cancel();
   });
-  await page.goto(`${ORIGIN}/login`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${origin}/login`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => {
     const f = document.querySelector("form");
     return (
@@ -266,15 +267,15 @@ try {
   auth.email = "";
   auth.password = "";
   stage = "version";
-  check(reserve(`${ORIGIN}/api/app-version`, "GET"));
-  const version = await context.request.get(`${ORIGIN}/api/app-version`);
+  check(reserve(`${origin}/api/app-version`, "GET"));
+  const version = await context.request.get(`${origin}/api/app-version`);
   const v = await version.json();
   check(
     version.ok() && v.version === scope.expectedAppVersion && v.buildId === scope.expectedAppBuild,
   );
   await version.dispose();
   stage = "project";
-  await page.goto(`${ORIGIN}/workspaces?panel=projects&workspace=${scope.workspaceId}`, {
+  await page.goto(`${origin}/workspaces?panel=projects&workspace=${scope.workspaceId}`, {
     waitUntil: "domcontentloaded",
   });
   const region = page.getByRole("region", { name: "GitHub projects", exact: true });
@@ -358,11 +359,11 @@ try {
     context &&
     counts.logins &&
     Date.now() < deadline &&
-    reserve(`${ORIGIN}/api/auth/logout`, "POST", {}, "", true)
+    reserve(`${origin}/api/auth/logout`, "POST", {}, "", true)
   ) {
     try {
-      const r = await context.request.post(`${ORIGIN}/api/auth/logout`, {
-        headers: { Origin: ORIGIN },
+      const r = await context.request.post(`${origin}/api/auth/logout`, {
+        headers: { Origin: origin },
         maxRedirects: 0,
         timeout: 5000,
       });

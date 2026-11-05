@@ -8,7 +8,7 @@ import {
   phaseBPermit,
   phaseBSocket,
 } from "./phase-b-policy.mjs";
-import { ORIGIN, TARGET } from "./policy.mjs";
+import { NATIVE_ORIGIN, NATIVE_WORKSPACE, ORIGIN, parseScope, TARGET } from "./policy.mjs";
 
 const id = "20000000-0000-4000-8000-000000000001";
 const scope = parsePhaseB({
@@ -38,6 +38,60 @@ test("existing session accepts only the two reviewed workspaces and keeps the re
   assert.throws(() => parsePhaseB({ ...scope, workspaceId: flow, repositoryId: "999" }));
   assert.throws(() => parsePhaseB({ ...scope, workspaceId: flow, providerAccountId: "999" }));
   assert.throws(() => parsePhaseB({ ...scope, workspaceId: flow, threadId: null }));
+});
+test("native Phase B binds the reviewed workspace to its exact origin", () => {
+  const native = parsePhaseB({ ...scope, workspaceId: NATIVE_WORKSPACE, incrementalBudget: 52 });
+  const path = `/api/projects/${id}/tasks/status`;
+  const body = JSON.stringify({ workspaceId: NATIVE_WORKSPACE, taskId: id, requestId: id });
+  assert(phaseBPermit(native, `${NATIVE_ORIGIN}${path}`, "POST", {}, body));
+  assert(!phaseBPermit(native, `${ORIGIN}${path}`, "POST", {}, body));
+  assert(!phaseBPermit(scope, `${NATIVE_ORIGIN}${path}`, "POST", {}, body));
+  assert(phaseBPermit(native, `${NATIVE_ORIGIN}/login`, "GET"));
+  assert(!phaseBPermit(native, `${ORIGIN}/login`, "GET"));
+  assert(
+    phaseBSocket(native, `${NATIVE_ORIGIN.replace("https:", "wss:")}/api/projects/${id}/session`),
+  );
+  assert(!phaseBSocket(native, `${ORIGIN.replace("https:", "wss:")}/api/projects/${id}/session`));
+  assert(
+    !phaseBSocket(scope, `${NATIVE_ORIGIN.replace("https:", "wss:")}/api/projects/${id}/session`),
+  );
+  assert(!phaseBSocket(native, `wss://elsewhere.invalid/api/projects/${id}/terminal`));
+  assert.throws(() => parsePhaseB({ ...native, workspaceId: id }));
+  assert.throws(() => parsePhaseB({ ...native, origin: ORIGIN }));
+  assert.throws(
+    () =>
+      parseScope({
+        schemaVersion: 1,
+        sourceRevision: native.sourceRevision,
+        workspaceId: NATIVE_WORKSPACE,
+        repositoryId: native.repositoryId,
+        providerAccountId: native.providerAccountId,
+        preflightDigest: native.preflightDigest,
+        expectedAppVersion: native.expectedAppVersion,
+        expectedAppBuild: native.expectedAppBuild,
+        priorForwarded: 0,
+      }),
+    "Phase A must not admit the native target",
+  );
+});
+test("native pilot keeps cumulative forwarding within its own 200-request ceiling", () => {
+  const native = parsePhaseB({
+    ...scope,
+    workspaceId: NATIVE_WORKSPACE,
+    priorForwarded: 31,
+    incrementalBudget: 169,
+  });
+  assert.equal(phaseBHasBudget(native, 198), true);
+  assert.equal(phaseBHasBudget(native, 199), false);
+  assert.equal(phaseBHasBudget(native, 199, true), true);
+  assert.equal(phaseBHasBudget(native, 200, true), false);
+  assert.throws(() => parsePhaseB({ ...native, incrementalBudget: 170 }));
+  assert.throws(() => parsePhaseB({ ...native, priorForwarded: 199, incrementalBudget: 2 }));
+  assert.equal(
+    parsePhaseB(scope).incrementalBudget,
+    200,
+    "legacy 148 prior requests use a separate allowance",
+  );
 });
 test("existing session is limited to scoped project and read-only socket operations", () => {
   assert(phaseBPermit(scope, `${ORIGIN}/api/projects/${id}/session-grant`, "POST"));

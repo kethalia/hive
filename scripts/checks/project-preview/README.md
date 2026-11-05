@@ -205,6 +205,16 @@ inference are effects, and this mode must not run until the primary identifies t
 exact target and intent. The exact marker must already appear in the authorized
 task's real output; the harness never fabricates it.
 
+Phase B also permits workspace `5390bdfc-b004-4489-96c8-2b9f1de20f1f` only at
+`https://codex-delivery-system-design-hive.b00ste.workers.dev`. The origin is
+derived from this fixed workspace mapping, never supplied by the scope. Prior
+reviewed workspaces remain bound to the compatibility-preview origin. Phase A
+does not accept the native workspace. For this native pilot, `priorForwarded`
+plus `incrementalBudget` must be at most 200, based on the primary's separate
+native request ledger; the earlier compatibility-preview 148 is a different
+ledger. The primary must reserve the browser allowance in that ledger before
+launch, since the browser cannot verify the supplied prior count itself.
+
 Each Phase B attempt uses a unique primary-supplied UUID and an exclusive durable attempt receipt; a retry needs a freshly reviewed cumulative budget and new UUID. Both modes retain `priorForwarded` as the cumulative prior ledger and allow at most the separately reviewed `incrementalBudget` new outer HTTP exchanges, reserving one of those new slots for logout. Refresh account quota before the run; this test budget does not authorize additional spending.
 They allow only the existing phase A paths, fixed project status/grants and the
 one optional approved start; socket messages are limited to authentication,

@@ -1180,3 +1180,34 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   idle closure, ECHILD, changed-binding restart and a second closure, with no auth files or
   primary-path changes. Template packages are synchronized. This does not repair or certify
   the already-held live lifetime; a corrected test image still needs installed acceptance.
+
+## 2026-11-05 native manager integration checkpoint
+
+- Completed: commit `0398cbe0` passed GitHub CI and automatic Cloudflare Builds. Its
+  actual assembled native Worker proof passed. A new dedicated test workspace on the
+  immutable image passed a real idle closure and installed-helper restart on the same
+  build. Its pinned Codex runtime is signed in using only the dedicated test account.
+  The older uncertain lifetime remains quarantined and unchanged.
+- Completed: one reviewed branch deployment enables the bounded manager, guardian,
+  independent acceptance, documentation publication and shared project session. Provider
+  readback matches the exact configuration, existing six preview secrets are preserved,
+  and only the reviewed private R2 evidence bucket is bound. Production, database changes,
+  epic scheduling and unrelated tools remain disabled. See
+  [activation evidence](cloudflare-native-manager-activation-0398.json).
+- Live integration found a defect: project open succeeded, but the single task-start
+  request returned `409 repository_policy_enrollment_revoked`. Read-only database checks
+  found no policy, intent or task. This is not evidence of an actual revoked enrollment;
+  ordinary task start enrolls the deployment-selected policy inside a transaction.
+  A mixed Prisma runtime reproduction showed nested SQL fragments can become ordinary
+  parameters. The bounded fix assembles complete parameterized queries before crossing
+  runtimes; live acceptance remains pending. The failed request is retained without replay.
+- Browser preparation: reused the recorded Browser Testing workspace. Synthetic-only
+  preparation passed; the updated Phase B harness binds the native origin and workspace
+  together and enforces the cumulative native request ceiling. No native browser acceptance
+  has run yet. The incremental ledger carries forward 31 requests and reserves new attempts
+  durably, including failures and uncertain outcomes; the earlier 148-request scope is separate.
+- Production implementation still needs the single-Worker release contract, explicit
+  production request handling, coordinated schedules, deployment configuration/readback,
+  retained production identities, database compatibility and rollback validation. An inactive
+  parent Worker and a successful preview do not satisfy those gates. Production activation
+  and the final merge remain the user's decisions.
