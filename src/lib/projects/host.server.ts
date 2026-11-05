@@ -26,13 +26,30 @@ export async function signedHostProjectRequest(
   request: Record<string, unknown>,
   options: { signal?: AbortSignal; expectedBuildId?: string } = {},
 ) {
+  let stage:
+    | "config"
+    | "client"
+    | "binding"
+    | "issuer"
+    | "transport"
+    | "auth_redirect"
+    | "applications_host"
+    | "cookie_exchange"
+    | "host_post"
+    | "host_response"
+    | "host_decode"
+    | "recheck"
+    | "response" = "config";
+  let statusCode: number | null = null;
   try {
     options.signal?.throwIfAborted();
     const config = registeredSessionConfig();
+    stage = "client";
     const client = options.signal
       ? await getCoderClientForUser(user.id, options)
       : await getCoderClientForUser(user.id);
     options.signal?.throwIfAborted();
+    stage = "binding";
     const { binding } = await resolveVerifiedWorkspaceHost(
       config,
       async () => client,
@@ -42,6 +59,7 @@ export async function signedHostProjectRequest(
     if (options.expectedBuildId && binding.buildId !== options.expectedBuildId)
       throw new ProjectDiscoveryError("workspace_unavailable");
     options.signal?.throwIfAborted();
+    stage = "issuer";
     const key = createPrivateKey(config.privateKeyPem);
     if (key.asymmetricKeyType !== "ed25519") throw new Error("Unsupported issuer key");
     const iat = Math.floor(Date.now() / 1000);
@@ -59,13 +77,35 @@ export async function signedHostProjectRequest(
       .map((part) => Buffer.from(JSON.stringify(part)).toString("base64url"))
       .join(".");
     const ticket = `${encoded}.${sign(null, Buffer.from(encoded), key).toString("base64url")}`;
+    stage = "transport";
     const reply = await postToVerifiedWorkspaceApp(client, binding, {
       path,
       body: JSON.stringify({ ticket }),
       expiresAt: claims.exp,
+      onStage: (value) => {
+        if (
+          [
+            "auth_redirect",
+            "applications_host",
+            "cookie_exchange",
+            "host_post",
+            "host_response",
+            "host_decode",
+          ].includes(value)
+        ) {
+          if (!(stage === "host_response" && value === "host_decode")) statusCode = null;
+          stage = value;
+        }
+      },
+      onStatus: (value, status) => {
+        if (value === stage && Number.isInteger(status) && status >= 100 && status <= 599)
+          statusCode = status;
+      },
       ...(options.signal ? { signal: options.signal } : {}),
     });
     options.signal?.throwIfAborted();
+    stage = "recheck";
+    statusCode = null;
     const current = await client.getWorkspace(workspaceId);
     options.signal?.throwIfAborted();
     if (
@@ -75,6 +115,7 @@ export async function signedHostProjectRequest(
       current.latest_build.status !== "running"
     )
       throw new ProjectDiscoveryError("workspace_unavailable");
+    stage = "response";
     if (
       reply &&
       typeof reply === "object" &&
@@ -87,6 +128,11 @@ export async function signedHostProjectRequest(
     }
     return reply;
   } catch (error) {
+    console.error("project_host_request_failed", {
+      stage,
+      category: error instanceof ProjectDiscoveryError ? "project" : "internal",
+      statusCode,
+    });
     if (error instanceof ProjectDiscoveryError) throw error;
     throw new ProjectDiscoveryError("discovery_unavailable");
   }

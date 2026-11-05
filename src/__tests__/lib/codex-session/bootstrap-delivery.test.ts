@@ -214,6 +214,76 @@ it("bounds task-start bytes before cookie exchange, including multibyte input", 
   expect(f.coder.getApplicationAuthRedirect).not.toHaveBeenCalled();
   expect(f.fetcher).not.toHaveBeenCalled();
 });
+it("reports fixed transport stages without exposing exchange values", async () => {
+  const f = fixture(),
+    stages: string[] = [],
+    statuses: Array<[string, number]> = [];
+  await postToVerifiedWorkspaceApp(
+    f.coder,
+    f.issued.binding,
+    {
+      path,
+      body: "{}",
+      expiresAt: f.issued.expiresAt,
+      onStage: (stage) => stages.push(stage),
+      onStatus: (stage, status) => statuses.push([stage, status]),
+    },
+    f.fetcher,
+  );
+  expect(stages).toEqual([
+    "auth_redirect",
+    "applications_host",
+    "cookie_exchange",
+    "host_post",
+    "host_response",
+    "host_decode",
+  ]);
+  expect(statuses).toEqual([
+    ["cookie_exchange", 303],
+    ["host_response", 200],
+  ]);
+  expect(JSON.stringify(stages)).not.toContain("scoped_secret");
+  expect(JSON.stringify(stages)).not.toContain("encrypted");
+});
+it("records only bounded response stages when the cookie exchange or host rejects", async () => {
+  for (const failingStage of ["cookie_exchange", "host_response"] as const) {
+    const f = fixture(),
+      stages: string[] = [],
+      statuses: Array<[string, number]> = [];
+    if (failingStage === "cookie_exchange") {
+      f.fetcher.mockReset().mockResolvedValueOnce(new Response(null, { status: 403 }));
+    } else {
+      f.fetcher
+        .mockReset()
+        .mockResolvedValueOnce(
+          new Response(null, {
+            status: 303,
+            headers: {
+              Location: path,
+              "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+            },
+          }),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 502 }));
+    }
+    await expect(
+      postToVerifiedWorkspaceApp(
+        f.coder,
+        f.issued.binding,
+        {
+          path,
+          body: "{}",
+          expiresAt: f.issued.expiresAt,
+          onStage: (stage) => stages.push(stage),
+          onStatus: (stage, status) => statuses.push([stage, status]),
+        },
+        f.fetcher,
+      ),
+    ).rejects.toThrow();
+    expect(stages.at(-1)).toBe(failingStage);
+    expect(statuses.at(-1)).toEqual([failingStage, failingStage === "cookie_exchange" ? 403 : 502]);
+  }
+});
 it("a cancelled task response stream rejects without waiting for an uncooperative cancel promise", async () => {
   const f = fixture(),
     controller = new AbortController();

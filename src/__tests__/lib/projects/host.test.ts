@@ -110,6 +110,82 @@ describe("authenticated host project discovery", () => {
     });
     expect(mock.post).not.toHaveBeenCalled();
   });
+  it("logs only fixed failure stages and categories, never provider secrets", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const secret = "private-provider-token://secret-ticket-cookie";
+    try {
+      mock.resolve.mockRejectedValueOnce(new Error(secret));
+      await expect(discoverHostProjects(user, input)).rejects.toMatchObject({
+        code: "discovery_unavailable",
+      });
+      expect(log).toHaveBeenLastCalledWith("project_host_request_failed", {
+        stage: "binding",
+        category: "internal",
+        statusCode: null,
+      });
+      mock.config.mockReturnValueOnce({ privateKeyPem: secret });
+      await expect(discoverHostProjects(user, input)).rejects.toMatchObject({
+        code: "discovery_unavailable",
+      });
+      expect(log).toHaveBeenLastCalledWith("project_host_request_failed", {
+        stage: "issuer",
+        category: "internal",
+        statusCode: null,
+      });
+      for (const stage of [
+        "auth_redirect",
+        "applications_host",
+        "cookie_exchange",
+        "host_post",
+        "host_response",
+        "host_decode",
+      ]) {
+        mock.post.mockImplementationOnce(async (_client, _binding, request) => {
+          if (stage === "host_decode") {
+            request.onStage("host_response");
+            request.onStatus("host_response", 200);
+          }
+          request.onStage(stage);
+          if (stage === "cookie_exchange") request.onStatus(stage, 403);
+          if (stage === "host_response") request.onStatus(stage, 502);
+          throw new Error(secret);
+        });
+        await expect(discoverHostProjects(user, input)).rejects.toMatchObject({
+          code: "discovery_unavailable",
+        });
+        expect(log).toHaveBeenLastCalledWith("project_host_request_failed", {
+          stage,
+          category: "internal",
+          statusCode:
+            stage === "cookie_exchange"
+              ? 403
+              : stage === "host_response"
+                ? 502
+                : stage === "host_decode"
+                  ? 200
+                  : null,
+        });
+      }
+      mock.post.mockImplementationOnce(async (_client, _binding, request) => {
+        request.onStage(secret);
+        request.onStatus("cookie_exchange", 9999);
+        throw new Error(secret);
+      });
+      await expect(discoverHostProjects(user, input)).rejects.toMatchObject({
+        code: "discovery_unavailable",
+      });
+      expect(log).toHaveBeenLastCalledWith("project_host_request_failed", {
+        stage: "transport",
+        category: "internal",
+        statusCode: null,
+      });
+      expect(JSON.stringify(log.mock.calls)).not.toContain(secret);
+      expect(JSON.stringify(log.mock.calls)).not.toContain(user.id);
+      expect(JSON.stringify(log.mock.calls)).not.toContain(workspaceId);
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("rejects caller-selected URLs and executable paths before credentials", async () => {
     await expect(
       discoverHostProjects(user, {

@@ -60,6 +60,14 @@ type AppAuthCoder = Pick<
   "getApplicationAuthRedirect" | "getApplicationsHost" | "getBaseUrl"
 >;
 type AppBinding = Pick<RegistrationBinding, "coderOrigin" | "appOrigin">;
+type HostTransportStage =
+  | "auth_redirect"
+  | "applications_host"
+  | "cookie_exchange"
+  | "host_post"
+  | "host_response"
+  | "host_decode";
+type HostTransportStatusStage = "cookie_exchange" | "host_response";
 export type HostProjectPath =
   | "/registration/bootstrap"
   | "/guardian/identity"
@@ -84,6 +92,8 @@ async function exchangeAppCookie(
     | "/agent/operation",
   expiresAt: number,
   fetchApp: typeof fetch,
+  onStage?: (stage: HostTransportStage) => void,
+  onStatus?: (stage: HostTransportStatusStage, status: number) => void,
 ) {
   const b = binding,
     origin = new URL(b.appOrigin);
@@ -104,6 +114,7 @@ async function exchangeAppCookie(
   };
   // This canonical method sends the owner token exclusively to its pinned Coder API.
   const target = b.appOrigin + fixedPath;
+  onStage?.("auth_redirect");
   const auth = await coder.getApplicationAuthRedirect(target);
   if (auth.length > 16384) reject();
   const authURL = new URL(auth);
@@ -117,9 +128,11 @@ async function exchangeAppCookie(
     !authURL.searchParams.get(smuggle)
   )
     reject();
+  onStage?.("applications_host");
   const hostname = await coder.getApplicationsHost();
   if (!hostname || hostname.includes("://") || hostname.split("*").length !== 2) reject();
   const cookieName = `coder_subdomain_app_session_token_${createHash("sha256").update(hostname).digest("hex").slice(0, 32)}`;
+  onStage?.("cookie_exchange");
   const exchange = await fetchApp(authURL, {
     method: "GET",
     redirect: "manual",
@@ -128,6 +141,7 @@ async function exchangeAppCookie(
     headers: { Accept: "application/json" },
   });
   try {
+    onStatus?.("cookie_exchange", exchange.status);
     boundedHeaders(exchange);
     if (exchange.status !== 303) reject();
     location(exchange, b.appOrigin, fixedPath, false);
@@ -187,7 +201,14 @@ export async function exchangeVerifiedWorkspaceVoiceCookie(
 export async function postToVerifiedWorkspaceApp(
   coder: AppAuthCoder,
   binding: AppBinding,
-  request: { path: HostProjectPath; body: string; expiresAt: number; signal?: AbortSignal },
+  request: {
+    path: HostProjectPath;
+    body: string;
+    expiresAt: number;
+    signal?: AbortSignal;
+    onStage?: (stage: HostTransportStage) => void;
+    onStatus?: (stage: HostTransportStatusStage, status: number) => void;
+  },
   fetchApp: typeof fetch = fetch,
 ) {
   request.signal?.throwIfAborted();
@@ -223,9 +244,12 @@ export async function postToVerifiedWorkspaceApp(
     request.path,
     request.expiresAt,
     scopedFetch,
+    request.onStage,
+    request.onStatus,
   );
   request.signal?.throwIfAborted();
   if (Date.now() >= deadline) reject();
+  request.onStage?.("host_post");
   const response = await scopedFetch(url, {
     method: "POST",
     redirect: "manual",
@@ -235,8 +259,11 @@ export async function postToVerifiedWorkspaceApp(
     body: request.body,
   });
   try {
+    request.onStage?.("host_response");
+    request.onStatus?.("host_response", response.status);
     boundedHeaders(response);
     if (response.status !== 200) reject();
+    request.onStage?.("host_decode");
     const result = await boundedJson(
       response,
       request.path === "/projects/discover"
