@@ -119,3 +119,12 @@ test("auth worker edits and newly added auth modules invalidate a prepared readi
     await put("deploy/cloudflare/auth/new-domain.mjs", "export const altered = true;");
     await assert.rejects(assertBuildReady(root), /sources changed/);
   }));
+
+for (const directory of ["native", "jobs"])
+  test(`${directory} handler changes invalidate an assembled Worker build`, async () =>
+    fixture(async ({ root, put }) => {
+      await put(`deploy/cloudflare/${directory}/worker.ts`, "export default { fetch() {} };");
+      await writeBuildReady(await sourceDigests(root), root);
+      await put(`deploy/cloudflare/${directory}/worker.ts`, "export default { changed: true };");
+      await assert.rejects(assertBuildReady(root), /sources changed/);
+    }));

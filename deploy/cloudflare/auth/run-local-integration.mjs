@@ -6,7 +6,8 @@ import { join, resolve } from "node:path";
 import { assertBuildReady } from "../app/build-integrity.mjs";
 
 const root = process.cwd();
-const appMode = process.argv.includes("--app");
+const nativeMode = process.argv.includes("--native");
+const appMode = process.argv.includes("--app") || nativeMode;
 const callbacks = process.argv.includes("--callbacks");
 const deliveryCallbacks = process.argv.includes("--delivery-callbacks");
 const portableActions = process.argv.includes("--portable-actions");
@@ -15,6 +16,8 @@ if (callbacks && !appMode) throw new Error("Callback proof requires actual app m
 if (portableActions && !appMode) throw new Error("Portable action proof requires actual app mode");
 if (terminalPilot && !appMode) throw new Error("Terminal pilot proof requires actual app mode");
 if (deliveryCallbacks && !callbacks) throw new Error("Delivery callback proof requires callbacks");
+if (nativeMode && callbacks)
+  throw new Error("Native proof requires the actual app, not callback fixture");
 const deliveryCallbackPaths = [
   "/api/codex-host/guardians",
   "/api/delivery/host",
@@ -63,6 +66,14 @@ const sourcePaths = [
   "src/lib/codex-session/registered-session.server.ts",
   "src/lib/codex-session/registration.server.ts",
   "src/lib/delivery/reads.ts",
+  ...(nativeMode
+    ? [
+        "deploy/cloudflare/native/worker.ts",
+        "deploy/cloudflare/native/composition.mjs",
+        "deploy/cloudflare/native/composition.d.mts",
+        "deploy/cloudflare/jobs/worker.ts",
+      ]
+    : []),
 ];
 async function sourceDigests() {
   const sources = {};
@@ -106,12 +117,19 @@ if (appMode) {
     const next = JSON.parse(await readFile(`deploy/cloudflare/${service}/wrangler.jsonc`, "utf8"));
     delete next.$schema;
     next.main = resolve(`deploy/cloudflare/${service}/worker.ts`);
+    if (nativeMode && service === "app") {
+      next.main = resolve("deploy/cloudflare/native/worker.ts");
+      delete next.services;
+    }
     if (callbacks && service === "app")
       next.main = resolve("deploy/cloudflare/auth/local-callback-app.worker.ts");
     next.vars = {
       ...next.vars,
       HIVE_DELIVERY_ENABLED: "true",
       HIVE_PREVIEW_ORIGIN: "http://127.0.0.1:8793",
+      ...(nativeMode && service === "app"
+        ? { HIVE_NATIVE_MODE: "preview", HIVE_NATIVE_PREVIEW_ENABLED: "true" }
+        : {}),
       ...(callbacks
         ? {
             HIVE_CODEX_GATEWAY_ENABLED: "true",
@@ -258,6 +276,18 @@ try {
       const unauthenticated = await request("/login");
       if (unauthenticated.status !== 401) throw new Error("Actual app preview guard failed");
       appChecks.privatePreviewGuardBeforeFramework = true;
+      if (nativeMode) {
+        const login = await request("/login", {
+          headers: { Authorization: `Bearer ${previewBearer}` },
+        });
+        if (
+          login.status !== 200 ||
+          !login.headers.get("content-type")?.includes("text/html") ||
+          !(await login.text()).includes("Sign in")
+        )
+          throw new Error("Actual app login SSR failed");
+        appChecks.nativeLoginPageSSR = true;
+      }
       const privateAsset = "/icons/hive-mark.svg";
       if ((await request(privateAsset)).status !== 401)
         throw new Error("Actual app preview static asset guard failed");
@@ -533,6 +563,18 @@ try {
     result.ok = false;
     result.sourceChangedDuringProof = true;
   }
+  if (
+    nativeMode &&
+    !(
+      result.appChecks?.nativeLoginPageSSR &&
+      result.appChecks?.actualAppLogoutAndRevokedCookieRejected &&
+      result.appChecks?.authenticatedAppListThroughServiceBinding &&
+      result.appChecks?.authenticatedAppDetailThroughServiceBinding
+    )
+  ) {
+    result.ok = false;
+    result.appFailure = "Native inline auth proof incomplete";
+  }
   const evidence = {
     schemaVersion: 1,
     observedAt: new Date().toISOString(),
@@ -546,9 +588,21 @@ try {
     result,
     sourceDigests: sources,
     coderLoginPerformed: false,
-    serviceBindingTransportVerified: Boolean(
-      result.appChecks?.actualAppLogoutAndRevokedCookieRejected,
-    ),
+    serviceBindingTransportVerified:
+      !nativeMode && Boolean(result.appChecks?.actualAppLogoutAndRevokedCookieRejected),
+    ...(nativeMode
+      ? {
+          nativeEntrypoint: true,
+          externalAuthServiceBindingConfigured: false,
+          standaloneAuthUsedOnlyByControlFixture: true,
+          inlineAuthAndRequestLifetimeVerified: Boolean(
+            result.appChecks?.nativeLoginPageSSR &&
+              result.appChecks?.actualAppLogoutAndRevokedCookieRejected &&
+              result.appChecks?.authenticatedAppListThroughServiceBinding &&
+              result.appChecks?.authenticatedAppDetailThroughServiceBinding,
+          ),
+        }
+      : {}),
     credentialRotationControllerVerified: false,
     cloudDeployed: false,
     ...(appMode

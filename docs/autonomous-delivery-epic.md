@@ -158,6 +158,14 @@ Update accepted requirements and cross-references when implementation evidence c
 
 ## Branch, review, preview, and release strategy
 
+Accepted deployment correction (2026-11-05): use one `hive` Worker with native branch
+Previews, following Creative Studio and Top Decor Ledger. Cloudflare Workers Builds
+connects the GitHub repo and publishes PR branch commits automatically once its dedicated
+build token and trigger are enrolled. Compose auth/jobs within this Worker so Preview
+service bindings cannot reach production. Production remains inactive pending reviewed
+main artifacts and user-approved cutover. See [environment setup](../deploy/cloudflare/environments.md);
+this supersedes the temporary separately named preview/production target layout.
+
 Use one long-lived integration branch for this bounded major project. The current branch is
 `codex/delivery-system-design`; it can remain the integration branch rather than creating a new
 clone or restarting the task. Preserve the primary checkout and isolate only concurrent work.

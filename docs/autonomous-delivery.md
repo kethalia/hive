@@ -324,6 +324,12 @@ Treat unavailable capabilities as a blocker to this experience, not a silent two
 
 ### Cloudflare application and Neon database
 
+Deployment direction updated 2026-11-05: one `hive` Worker with native branch Previews,
+following Creative Studio and Top Decor Ledger. Cloudflare Git builds publish repository
+branch commits as PR previews. Auth and jobs compose within that Worker, with separate
+preview database/secrets and exact branch origins; production activation remains gated.
+See [environment configuration](../deploy/cloudflare/environments.md).
+
 Move Hive's application/control plane off the Kubernetes origin. Keep Coder and its execution
 workspaces as the execution layer; migrating the Coder platform itself is outside this epic.
 

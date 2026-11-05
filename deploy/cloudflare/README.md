@@ -2,7 +2,7 @@
 
 For the application migration, use the [preview and production environments](environments.md).
 The `app/`, `auth/` and `jobs/` Workers run the migrated application directly; they do not proxy the Kubernetes Hive web service.
-The `production/` directory initially reserves inactive targets until a reviewed main release is ready.
+The canonical target is now the single `hive` Worker with native branch Previews in `native/`. The separately named production reservations were retired after the user selected this layout.
 
 ## Legacy origin proxy
 
