@@ -61,6 +61,7 @@ test("a passing preflight runs deploy afterward without putting credentials in a
     [
       ["db", "execute"],
       ["migrate", "deploy"],
+      ["db", "execute"],
     ],
   );
   assert.equal(calls[0].databaseUrl, databaseUrl);
@@ -151,4 +152,21 @@ test("subprocess output retention is bounded", async () => {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("runtime grant failure stops deployment without exposing child output", async () => {
+  let calls = 0;
+  await assert.rejects(
+    migrate({
+      databaseUrl,
+      execute: async () => (++calls === 3 ? { code: 1, output: databaseUrl } : success),
+      log: () => {},
+    }),
+    (error) => {
+      assert.match(error.message, /Runtime role provisioning failed/);
+      assert.ok(!error.message.includes(databaseUrl));
+      return true;
+    },
+  );
+  assert.equal(calls, 3);
 });

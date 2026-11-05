@@ -194,6 +194,15 @@ connection credentials and raw CLI output.
 Schema names containing double quotes are rejected before invoking Prisma: Prisma 6 does not
 escape these names in its connection setup. Other schema names are safely encoded in preflight SQL.
 
+After a successful migration, the runner applies a fixed table-and-operation grant list to
+`hive_app_runtime` if that role exists. The list is additive for existing grants and does not
+create a role, reset credentials, grant schema creation, or alter unrelated privileges. Provision
+the restricted runtime role through the approved database setup before running the migration job.
+If the role is provisioned later, rerun the same migration job against the same schema to apply the
+idempotent grants; an absent role is skipped for deployments that do not use it. Grant failures
+stop the job after schema migrations have committed, so inspect the error and rerun after repairing
+permissions rather than rewriting migration history. `--check` does not apply grants.
+
 | Database state | Result |
 | --- | --- |
 | Empty schema, including an empty `_prisma_migrations` table | Normal migration deployment proceeds. |

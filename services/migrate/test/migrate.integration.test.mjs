@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { executePrisma, migrate } from "../src/migrate.mjs";
+import { runtimeGrantsSql } from "../src/runtime-grants.mjs";
 
 const require = createRequire(import.meta.url);
 const prismaCli = require.resolve("prisma/build/index.js");
@@ -73,6 +74,30 @@ test("fresh database migrates successfully", async (t) => {
       RAISE EXCEPTION 'Fresh migration did not finish';
     END IF;
   END $$;`,
+  );
+  const schema = new URL(url).searchParams.get("schema");
+  await sql(
+    url,
+    `BEGIN;
+    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hive_app_runtime') THEN
+      CREATE ROLE hive_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+    END IF; END $$;
+    ${runtimeGrantsSql(schema)}
+    ${runtimeGrantsSql(schema)}
+    DO $$ BEGIN
+      IF NOT has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'SELECT')
+        OR NOT has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'INSERT')
+        OR has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'UPDATE')
+        OR has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'DELETE')
+        OR NOT has_table_privilege('hive_app_runtime', 'codex_guardian_runtimes', 'UPDATE')
+        OR NOT has_table_privilege('hive_app_runtime', 'sessions', 'DELETE') THEN
+        RAISE EXCEPTION 'Runtime grant scope incorrect';
+      END IF;
+    END $$;
+    SET LOCAL ROLE hive_app_runtime;
+    SELECT count(*) FROM codex_guardian_tree_receipts;
+    RESET ROLE;
+    ROLLBACK;`,
   );
 });
 

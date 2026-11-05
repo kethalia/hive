@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertPrismaLockContract } from "./delivery/prisma-lock.mjs";
+import { runtimeGrantsSql } from "./runtime-grants.mjs";
 
 const require = createRequire(import.meta.url);
 const runbook = "docs/deployment.md#existing-database-baseline-adoption";
@@ -158,6 +159,21 @@ export async function migrate({
       `Migration deployment failed${code ? ` (${code})` : ""}. Inspect prisma migrate status and ${runbook}.`,
     );
   }
+  let grants;
+  try {
+    grants = await execute({
+      prismaCli,
+      databaseUrl,
+      args: ["db", "execute", "--schema", schemaPath, "--stdin"],
+      stdin: runtimeGrantsSql(schema),
+    });
+  } catch {
+    throw new Error("Runtime role provisioning could not run; inspect migration role permissions.");
+  }
+  if (grants.code !== 0)
+    throw new Error(
+      "Runtime role provisioning failed; inspect migration role permissions and role setup.",
+    );
   log("[migrate] Deployment complete.");
 }
 
