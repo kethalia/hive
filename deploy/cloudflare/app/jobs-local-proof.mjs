@@ -8,6 +8,7 @@ export async function readJobsLocalProof(path, revision) {
   assert.equal(proof.baseRevision, revision);
   assert.equal(proof.endingBaseRevision, revision);
   assert.equal(proof.testedSourcesCommitted, true);
+  assert.equal(proof.scope.generatedClientNotCommitted, true);
   for (const name of [
     "oneIntentPerWake",
     "authBeforeClaim",

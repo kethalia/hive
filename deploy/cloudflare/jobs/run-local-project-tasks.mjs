@@ -21,6 +21,9 @@ const { Miniflare, convertV4MiniflareOptions } = await import(
 );
 const scratch = await mkdtemp(join(tmpdir(), "hive-project-reconcile-workerd-"));
 const sourcePaths = [
+  "package.json",
+  "pnpm-lock.yaml",
+  "packages/db/scripts/generate-cloudflare.mjs",
   "src/lib/projects/reconcile-transport.ts",
   "src/lib/projects/reconcile-route.server.ts",
   "src/lib/projects/task.server.ts",
@@ -444,12 +447,31 @@ try {
   await new Promise((resolve) => ws.close(resolve));
   await new Promise((resolve) => bridge.close(resolve));
   await db.$disconnect();
+  const endingBaseRevision = execFileSync("git", ["rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  // Generated clients are not Git files; their byte hashes are recorded and
+  // checked against the separately verified Cloudflare build readiness record.
+  const generatedPrefix = "packages/db/src/generated/prisma-workerd/";
+  const trackedSources = sourcePaths.filter((path) => !path.startsWith(generatedPrefix));
+  const testedSourcesCommitted =
+    endingBaseRevision === baseRevision &&
+    trackedSources.every((path) => {
+      try {
+        const contents = execFileSync("git", ["show", `${baseRevision}:${path}`], {
+          maxBuffer: 10 * 1024 * 1024,
+        });
+        return createHash("sha256").update(contents).digest("hex") === sources[path];
+      } catch {
+        return false;
+      }
+    });
   const evidence = {
     schemaVersion: 1,
     observedAt: new Date().toISOString(),
     baseRevision,
-    endingBaseRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
-    testedSourcesCommitted: false,
+    endingBaseRevision,
+    testedSourcesCommitted,
     passed,
     checks,
     observations,
@@ -475,6 +497,7 @@ try {
       localAcceleratedJobsCancellation: true,
       externalProviderRequests: 0,
       remoteMutations: 0,
+      generatedClientNotCommitted: true,
     },
     scratch,
     databaseName,
