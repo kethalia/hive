@@ -1,6 +1,10 @@
 import { getDb } from "@hive/db";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
-import { deliverGuardianEnrollment, requestGuardianIdentity } from "./bootstrap-delivery.server";
+import {
+  deliverGuardianEnrollment,
+  requestGuardianEmptyClose,
+  requestGuardianIdentity,
+} from "./bootstrap-delivery.server";
 import { guardianDeploymentPolicy, guardianDigest } from "./guardian-contracts";
 import {
   type GuardianOwnerTransport,
@@ -75,6 +79,15 @@ export function createGuardianService(
         );
         options.signal?.throwIfAborted();
         return value;
+      },
+      async recoverEmptyClose(binding, grant) {
+        return requestGuardianEmptyClose(
+          await currentCoder(binding),
+          binding,
+          grant,
+          fetchApp,
+          options.signal,
+        );
       },
       async bootstrap(binding, grant) {
         const value = await deliverGuardianEnrollment(

@@ -30,13 +30,13 @@ const sha = (value) => createHash("sha256").update(value).digest("hex");
 const check = (value) => {
   if (!value) throw new Error("host_guardian_rejected");
 };
-async function boundedAuthority(operation) {
+async function boundedAuthority(operation, timeout = 4000) {
   let timer;
   try {
     return await Promise.race([
       Promise.resolve().then(operation),
       new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error("guardian_authority_unavailable")), 4000);
+        timer = setTimeout(() => reject(new Error("guardian_authority_unavailable")), timeout);
       }),
     ]);
   } finally {
@@ -534,7 +534,10 @@ export async function openGuardedHost(options) {
                 /^[a-f0-9]{64}$/.test(value.nonce) &&
                 typeof options.controllerIdentity === "function",
             );
-            const result = await boundedAuthority(() => options.controllerIdentity(value.nonce));
+            const result = await boundedAuthority(
+              () => options.controllerIdentity(value.nonce),
+              25000,
+            );
             check(phase === "open");
             return result;
           }),
@@ -551,6 +554,20 @@ export async function openGuardedHost(options) {
             check(phase === "open" && typeof ready === "boolean");
             return { ready };
           }),
+        recoverEmptyClose: (value) =>
+          enqueue(async () => {
+            check(
+              phase === "open" &&
+                hello &&
+                startupReady &&
+                Object.keys(value ?? {}).join() === "grant" &&
+                typeof value.grant === "string" &&
+                typeof options.recoverEmptyClose === "function",
+            );
+            const accepted = await options.recoverEmptyClose(value.grant);
+            check(phase === "open" && accepted === true);
+            return { accepted: true };
+          }),
         bootstrap: (value) =>
           enqueue(async () => {
             check(
@@ -563,7 +580,10 @@ export async function openGuardedHost(options) {
                 value.grant.length <= 16384 &&
                 typeof options.controllerBootstrap === "function",
             );
-            const result = await boundedAuthority(() => options.controllerBootstrap(value.grant));
+            const result = await boundedAuthority(
+              () => options.controllerBootstrap(value.grant),
+              25000,
+            );
             check(phase === "open");
             return result;
           }),

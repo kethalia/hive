@@ -46,6 +46,7 @@ async function fixture(
     clockWait?: (delay: number, signal?: AbortSignal) => Promise<void>;
     signal?: AbortSignal;
     corruptProof?: boolean;
+    recoverEmptyClose?: (grant: string) => Promise<unknown>;
   },
 ) {
   const issuer = generateKeyPairSync("ed25519"),
@@ -185,6 +186,9 @@ async function fixture(
         if (options?.corruptProof) packet.proof = "A".repeat(86);
         return packet;
       },
+      async recoverEmptyClose(_binding, grant) {
+        return options?.recoverEmptyClose ? options.recoverEmptyClose(grant) : { accepted: true };
+      },
       async bootstrap(_binding, value) {
         if (transformGrant) value = await transformGrant(value, service, issuer.privateKey);
         grant = value;
@@ -227,6 +231,251 @@ async function fixture(
   };
 }
 describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQL", () => {
+  it("recovers only the exact committed enrollment as read-only historical evidence", async () => {
+    let now = Date.now();
+    const f = await fixture(undefined, undefined, undefined, { nowFn: () => now });
+    const opened = await f.service.provision(f.principal, f.binding.workspaceId);
+    const original = f.enrollment as { grant: string; runtimeId: string };
+    const claims = JSON.parse(Buffer.from(original.grant.split(".")[1], "base64url").toString());
+    const runtime = await db.codexGuardianRuntime.findUniqueOrThrow({
+      where: { id: opened.runtimeId },
+    });
+    const grantsBefore = await db.codexGuardianEnrollmentGrant.count({
+      where: { runtimeId: runtime.id },
+    });
+    now += 120000; // Original frame and grant are historical; only readback is fresh.
+    const body = {
+      schemaVersion: 1,
+      action: "enrollment_readback",
+      runtimeId: runtime.id,
+      runtimeGeneration: 1,
+      eventId: randomUUID(),
+      issuedAt: now - 1,
+      expiresAt: now + 30000,
+      nonce: "a".repeat(64),
+      grantId: claims.jti,
+      tokenDigest: sha(original.grant),
+      consumptionDigest: guardianDigest(original),
+      identityDigest: claims.identityDigest,
+      lifetimeId: claims.lifetimeId,
+      configSha256: runtime.configSha256,
+      startupDigest: claims.startupDigest,
+      originalEnrollment: original,
+    };
+    const expected = {
+      accepted: true,
+      runtimeId: runtime.id,
+      runtimeGeneration: 1,
+      nonce: body.nonce,
+      grantId: body.grantId,
+      tokenDigest: body.tokenDigest,
+      consumptionDigest: body.consumptionDigest,
+      identityDigest: body.identityDigest,
+      lifetimeId: body.lifetimeId,
+      configSha256: body.configSha256,
+      startupDigest: body.startupDigest,
+      enrolledAt: runtime.enrolledAt!.getTime(),
+      authorityUntil: runtime.authorityUntil.getTime(),
+      empty: true,
+    };
+    expect(await f.service.execute(f.signFrame(body))).toEqual(expected);
+    expect(await f.service.execute(f.signFrame(body))).toEqual(expected);
+    await expect(
+      f.service.execute(f.signFrame({ ...body, consumptionDigest: "0".repeat(64) })),
+    ).rejects.toBeInstanceOf(RegistrationRejected);
+    await expect(
+      f.service.execute(f.signFrame({ ...body, startupDigest: "0".repeat(64) })),
+    ).rejects.toBeInstanceOf(RegistrationRejected);
+    expect(await db.codexGuardianEnrollmentGrant.count({ where: { runtimeId: runtime.id } })).toBe(
+      grantsBefore,
+    );
+    const after = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: runtime.id } });
+    expect(after.authorityUntil).toEqual(runtime.authorityUntil);
+    expect(after.enrolledAt).toEqual(runtime.enrolledAt);
+  });
+
+  it("requires explicit owner authority to fence an expired empty runtime", async () => {
+    let recoveryGrant = "";
+    const f = await fixture(undefined, undefined, undefined, {
+      recoverEmptyClose: async (grant) => {
+        recoveryGrant = grant;
+        return { accepted: true };
+      },
+    });
+    const opened = await f.service.provision(f.principal, f.binding.workspaceId);
+    const past = new Date(Date.now() - 181000);
+    // Local superuser fixture advances retained timestamps without waiting three minutes.
+    // SET LOCAL is confined to this transaction; production never bypasses triggers.
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+      await tx.codexGuardianRuntime.update({
+        where: { id: opened.runtimeId },
+        data: { enrolledAt: past, authorityUntil: new Date(past.getTime() + 180000) },
+      });
+      await tx.codexGuardianEnrollmentGrant.updateMany({
+        where: { runtimeId: opened.runtimeId },
+        data: { consumedAt: past },
+      });
+    });
+    const close = {
+      schemaVersion: 1,
+      action: "close",
+      runtimeId: opened.runtimeId,
+      runtimeGeneration: 1,
+      eventId: randomUUID(),
+      issuedAt: Date.now() - 1,
+      expiresAt: Date.now() + 30000,
+      barrierId: randomUUID(),
+      ownershipDigest: "b".repeat(64),
+      projectBindings: [],
+      snapshots: [],
+    };
+    await expect(f.service.execute(f.signFrame(close))).rejects.toBeInstanceOf(
+      RegistrationRejected,
+    );
+    expect(
+      await f.service.recoverExpiredEmpty(f.principal, f.binding.workspaceId, opened.runtimeId),
+    ).toEqual({ accepted: true, treeExited: false, cleanupAuthorized: false });
+    expect(recoveryGrant).not.toBe("");
+    const signed = f.signFrame({ ...close, emptyCloseGrant: recoveryGrant });
+    const accepted = await f.service.execute(signed);
+    expect(accepted).toMatchObject({
+      runtimeId: opened.runtimeId,
+      runtimeGeneration: 2,
+      barrierId: close.barrierId,
+      treeExited: false,
+      cleanupAuthorized: false,
+    });
+    expect(await f.service.execute(signed)).toEqual(accepted);
+    await expect(
+      f.service.execute(
+        f.signFrame({ ...close, barrierId: randomUUID(), emptyCloseGrant: recoveryGrant }),
+      ),
+    ).rejects.toBeInstanceOf(RegistrationRejected);
+    const runtime = await db.codexGuardianRuntime.findUniqueOrThrow({
+      where: { id: opened.runtimeId },
+    });
+    expect(runtime.phase).toBe("barrier_closed");
+    const receipts = await db.$queryRaw<
+      { count: bigint }[]
+    >`SELECT count(*) AS count FROM codex_guardian_tree_receipts WHERE runtime_id=${runtime.id}::uuid`;
+    expect(receipts[0].count).toBe(BigInt(0));
+  });
+  it("expiry during an observed row-lock wait rolls back empty closure but permits exact historical replay", async () => {
+    let clockOffset = 0,
+      recoveryGrant = "";
+    const f = await fixture(undefined, undefined, undefined, {
+      nowFn: () => Date.now() + clockOffset,
+      recoverEmptyClose: async (grant) => {
+        recoveryGrant = grant;
+        return { accepted: true };
+      },
+    });
+    const opened = await f.service.provision(f.principal, f.binding.workspaceId),
+      past = new Date(Date.now() - 181000);
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+      await tx.codexGuardianRuntime.update({
+        where: { id: opened.runtimeId },
+        data: { enrolledAt: past, authorityUntil: new Date(past.getTime() + 180000) },
+      });
+      await tx.codexGuardianEnrollmentGrant.updateMany({
+        where: { runtimeId: opened.runtimeId },
+        data: { consumedAt: past },
+      });
+    });
+    const issueShortGrant = async () => {
+      // Exercise real expiration without waiting a minute. All verification and
+      // database transaction checks run against the actual clock afterward.
+      clockOffset = -57000;
+      try {
+        await f.service.recoverExpiredEmpty(f.principal, f.binding.workspaceId, opened.runtimeId);
+      } finally {
+        clockOffset = 0;
+      }
+      return (
+        JSON.parse(Buffer.from(recoveryGrant.split(".")[1], "base64url").toString()).exp * 1000
+      );
+    };
+    const grantExpiresAt = await issueShortGrant(),
+      close = {
+        schemaVersion: 1,
+        action: "close",
+        runtimeId: opened.runtimeId,
+        runtimeGeneration: 1,
+        eventId: randomUUID(),
+        issuedAt: Date.now() - 1,
+        expiresAt: Date.now() + 30000,
+        barrierId: randomUUID(),
+        ownershipDigest: "b".repeat(64),
+        projectBindings: [],
+        snapshots: [],
+      };
+    let release!: () => void, acquired!: (pid: number) => void;
+    const released = new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+      locked = new Promise<number>((resolve) => {
+        acquired = resolve;
+      }),
+      blocker = db.$transaction(
+        async (tx) => {
+          const [row] = await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+          await tx.$queryRaw`SELECT id FROM codex_guardian_runtimes WHERE id=${opened.runtimeId}::uuid FOR UPDATE`;
+          acquired(row.pid);
+          await released;
+        },
+        { timeout: 10000 },
+      );
+    void blocker.catch(() => {});
+    try {
+      const pid = await locked,
+        pending = f.service.execute(f.signFrame({ ...close, emptyCloseGrant: recoveryGrant }));
+      void pending.catch(() => {});
+      let observed = false;
+      for (let n = 0; n < 200; n++) {
+        const [row] = await db.$queryRaw<
+          { n: number }[]
+        >`SELECT count(*)::int AS n FROM pg_stat_activity WHERE ${pid}::int = ANY(pg_blocking_pids(pid))`;
+        if (row.n > 0) {
+          observed = true;
+          break;
+        }
+        await new Promise((done) => setTimeout(done, 5));
+      }
+      expect(observed).toBe(true);
+      expect(Date.now()).toBeLessThan(grantExpiresAt);
+      await new Promise((done) => setTimeout(done, grantExpiresAt - Date.now() + 30));
+      release();
+      await blocker;
+      await expect(pending).rejects.toBeInstanceOf(RegistrationRejected);
+      expect(
+        (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: opened.runtimeId } }))
+          .phase,
+      ).toBe("open");
+      expect(await db.codexGuardianBarrier.count({ where: { runtimeId: opened.runtimeId } })).toBe(
+        0,
+      );
+    } finally {
+      release();
+      await blocker;
+    }
+    const replayGrantExpiresAt = await issueShortGrant(),
+      signed = f.signFrame({ ...close, emptyCloseGrant: recoveryGrant }),
+      accepted = await f.service.execute(signed);
+    await new Promise((done) => setTimeout(done, replayGrantExpiresAt - Date.now() + 30));
+    expect(Date.now()).toBeLessThan(close.expiresAt);
+    expect(await f.service.execute(signed)).toEqual(accepted);
+    await expect(
+      f.service.execute(
+        f.signFrame({
+          ...close,
+          barrierId: randomUUID(),
+          emptyCloseGrant: recoveryGrant,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(RegistrationRejected);
+  }, 15000);
   it("reports trusted transport, identity validation and reservation boundaries", async () => {
     const stages: string[] = [];
     const transportFailure = await fixture(

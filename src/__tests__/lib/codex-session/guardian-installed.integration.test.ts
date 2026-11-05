@@ -59,7 +59,7 @@ async function freePort() {
 describe.skipIf(!url)(
   "real guardian outer/FD3/owner-app/signed controller/PostgreSQL composition",
   () => {
-    it("enrolls before preparation, gates actual Git, seals checkout inode and reserves exactly one native launch", async () => {
+    it.each(["lost_ack", "expired_empty"])("installed recovery %s", async (scenario) => {
       const pinnedNode = process.env.HIVE_GUARDIAN_INSTALLED_FIXTURE_NODE;
       if (!pinnedNode) {
         // CI caches can have a different UID or group-write bit. Re-exec only
@@ -78,6 +78,8 @@ describe.skipIf(!url)(
               "run",
               "src/__tests__/lib/codex-session/guardian-installed.integration.test.ts",
               "--reporter=verbose",
+              "-t",
+              `installed recovery ${scenario}`,
             ],
             {
               encoding: "utf8",
@@ -200,7 +202,7 @@ import {createHmac,createHash,randomUUID} from 'node:crypto';
 import {mkdirSync,writeFileSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {connectGuardianWorker,createGuardianOwnerHandler} from './codex-guardian-worker.mjs';
-const guard=await connectGuardianWorker({startup:${JSON.stringify({ configSha256, port })},onCloseAdmission:async()=>{},onFinishClose:async()=>{await new Promise(r=>server.close(r));},onLost:()=>process.exitCode=1});
+const guard=await connectGuardianWorker({startup:${JSON.stringify({ configSha256, port })},onCloseAdmission:async(v)=>({closed:true,barrierId:v.barrierId,snapshots:[]}),onFinishClose:async()=>{await new Promise(r=>server.close(r));},onLost:()=>process.exitCode=1});
 const handler=createGuardianOwnerHandler({appOrigin:${JSON.stringify(binding.appOrigin)},guardian:guard});
 const directory=${JSON.stringify(join(home, ".local/state/hive/codex-project-controller"))};mkdirSync(directory,{recursive:true,mode:448});
 const prep=${JSON.stringify(preparation)},request=${JSON.stringify(request)},digest=createHash('sha256').update(JSON.stringify(prep)).digest('hex');
@@ -249,6 +251,7 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
             ],
           };
         let service: GuardianService;
+        let loseEnrollmentAck = true;
         const authority = openGuardianController({
           config,
           configSha256,
@@ -264,7 +267,13 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
           fetchImpl: async (target, init) => {
             expect(target).toBe(`${sessionConfig.hiveOrigin}/api/codex-host/guardians`);
             expect(init?.headers).toEqual({ "Content-Type": "application/json" });
-            return Response.json(await service.execute(JSON.parse(String(init?.body))));
+            const body = JSON.parse(String(init?.body));
+            const reply = await service.execute(body);
+            if (body.action === "enroll" && loseEnrollmentAck) {
+              loseEnrollmentAck = false;
+              throw new Error("fixture enrollment acknowledgment lost");
+            }
+            return Response.json(reply);
           },
         });
         host = await openGuardedHost({
@@ -289,11 +298,15 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
           },
           authorizeAdmission: authority.authorizeAdmission,
           authorizeDrain: authority.authorizeDrain,
+          beginDrain: authority.beginDrain,
+          acceptTreeReceipt: authority.acceptTreeReceipt,
+          postTreeClosed: authority.postTreeClosed,
+          recoverEmptyClose: (grant: string) => authority.requestExpiredEmptyDrain(grant),
           controllerIdentity: authority.identity,
           controllerBootstrap: authority.bootstrap,
           metadataAuthority: authority.metadataAuthority,
         });
-        expect(authority.identity("0".repeat(64)).identity.lifetimeId).toBe(
+        expect((await authority.identity("0".repeat(64))).identity.lifetimeId).toBe(
           host.state.guardian.lifetimeId,
         );
         async function app(path: string, body: unknown, origin?: string) {
@@ -336,6 +349,11 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
               expect(r.status).toBe(200);
               return r.json();
             },
+            recoverEmptyClose: async (_b, grant) => {
+              const r = await app("/guardian/recover-empty-close", { grant });
+              expect(r.status).toBe(200);
+              return r.json();
+            },
           },
         });
         expect(
@@ -343,10 +361,63 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
             .status,
         ).toBe(403);
         expect((await app("/guardian/identity?x=1", { nonce: "1".repeat(64) })).status).toBe(403);
+        const firstFailure = await service
+          .provision({ hiveUserId: user.id, coderUserId: user.coderUserId }, binding.workspaceId)
+          .then(
+            () => null,
+            (error: unknown) => error,
+          );
+        expect(firstFailure).toBeInstanceOf(Error);
+        if (!loseEnrollmentAck) expect(authority.status.held).toBe(true);
+        else throw firstFailure;
+        const afterLostAck = await db.codexGuardianRuntime.findFirstOrThrow({
+          where: { ownerId: user.id, workspaceId: binding.workspaceId },
+        });
+        expect(afterLostAck.phase).toBe("open");
+        expect(authority.status.held).toBe(true);
+        if (scenario === "expired_empty") {
+          const past = new Date(Date.now() - 181000);
+          await db.$transaction(async (tx) => {
+            await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+            await tx.codexGuardianRuntime.update({
+              where: { id: afterLostAck.id },
+              data: { enrolledAt: past, authorityUntil: new Date(past.getTime() + 180000) },
+            });
+            await tx.codexGuardianEnrollmentGrant.updateMany({
+              where: { runtimeId: afterLostAck.id },
+              data: { consumedAt: past },
+            });
+          });
+          await expect(
+            service.provision(
+              { hiveUserId: user.id, coderUserId: user.coderUserId },
+              binding.workspaceId,
+            ),
+          ).rejects.toThrow();
+          expect(authority.status.held).toBe(false);
+          const owner = await service.recoverExpiredEmpty(
+            { hiveUserId: user.id, coderUserId: user.coderUserId },
+            binding.workspaceId,
+            afterLostAck.id,
+          );
+          expect(owner).toEqual({ accepted: true, treeExited: false, cleanupAuthorized: false });
+          const receipt = await host.drain();
+          expect(receipt).toMatchObject({ guardianExited: true });
+          expect(
+            (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: afterLostAck.id } }))
+              .phase,
+          ).toBe("tree_closed");
+          expect(
+            await db.codexGuardianAdmission.count({ where: { runtimeId: afterLostAck.id } }),
+          ).toBe(0);
+          return;
+        }
         const result = await service.provision(
           { hiveUserId: user.id, coderUserId: user.coderUserId },
           binding.workspaceId,
         );
+        expect(result.runtimeId).toBe(afterLostAck.id);
+        expect(authority.status.held).toBe(false);
         expect(result.enrolled).toBe(true);
         expect((await app("/fixture/prepare", {})).status).toBe(200);
         const admission = await db.codexGuardianAdmission.findFirstOrThrow({

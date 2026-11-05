@@ -450,7 +450,9 @@ export async function startBridge(rawConfig, registeredHost) {
     response.setHeader("Cache-Control", "no-store");
     if (
       request.method === "POST" &&
-      ["/guardian/identity", "/guardian/bootstrap"].includes(request.url) &&
+      ["/guardian/identity", "/guardian/bootstrap", "/guardian/recover-empty-close"].includes(
+        request.url,
+      ) &&
       registeredHost?.handleGuardian
     ) {
       void registeredHost.handleGuardian(request, response).catch(() => {

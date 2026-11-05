@@ -125,6 +125,28 @@ function fixture() {
           status: 307,
           headers: { Location: "https://foreign.invalid" },
         });
+      if (body.action === "enrollment_readback") {
+        const original = body.originalEnrollment;
+        assert.equal(body.consumptionDigest, digest(original));
+        assert.equal(body.tokenDigest, sha(original.grant));
+        const enrolledAt = Date.now() - 60000;
+        return Response.json({
+          accepted: true,
+          empty: true,
+          runtimeId,
+          runtimeGeneration: 1,
+          nonce: mode === "bad_readback" ? "0".repeat(64) : body.nonce,
+          grantId: body.grantId,
+          tokenDigest: body.tokenDigest,
+          consumptionDigest: body.consumptionDigest,
+          identityDigest: body.identityDigest,
+          lifetimeId: body.lifetimeId,
+          configSha256: body.configSha256,
+          startupDigest: body.startupDigest,
+          enrolledAt,
+          authorityUntil: mode === "expired" ? Date.now() - 1 : Date.now() + 60000,
+        });
+      }
       if (body.action === "enroll")
         return Response.json({ accepted: true, runtimeId, runtimeGeneration: 1 });
       if (body.action === "drain_ready")
@@ -136,7 +158,15 @@ function fixture() {
           barrierId: body.barrierId,
           ownershipDigest: body.ownershipDigest,
           decisions: [
-            { admissionId, admissionGeneration: admission.generation, decisionId: randomUUID() },
+            ...(body.projectBindings.length
+              ? [
+                  {
+                    admissionId,
+                    admissionGeneration: admission.generation,
+                    decisionId: randomUUID(),
+                  },
+                ]
+              : []),
           ],
           treeExited: false,
           cleanupAuthorized: false,
@@ -381,6 +411,30 @@ function fixture() {
     options,
     identity,
     grant,
+    closeGrant(patch = {}) {
+      const now = Math.floor(Date.now() / 1000),
+        header = Buffer.from(
+          JSON.stringify({ alg: "EdDSA", typ: "JWT", kid: config.issuerKeyId }),
+        ).toString("base64url"),
+        claims = {
+          iss: config.hiveOrigin,
+          aud: "hive:workspace-guardian",
+          scope: "workspace:guardian:recover-empty-close",
+          jti: randomUUID(),
+          iat: now,
+          exp: now + 60,
+          runtimeId,
+          hiveUserId: binding.hiveUserId,
+          coderOwnerId: binding.ownerId,
+          workspaceId: binding.workspaceId,
+          buildId: binding.buildId,
+          lifetimeId: startup.lifetimeId,
+          runtimeGeneration: 1,
+          ...patch,
+        },
+        body = Buffer.from(JSON.stringify(claims)).toString("base64url");
+      return `${header}.${body}.${sign(null, Buffer.from(`${header}.${body}`), issuer.privateKey).toString("base64url")}`;
+    },
     project,
     calls,
     startup,
@@ -542,13 +596,148 @@ test("unknown commit or redirect durably holds, including reopen; never retries 
       f.mode(mode);
       await assert.rejects(f.client.bootstrap(f.grant()));
       assert.equal(f.client.status.held, true);
-      assert.throws(() => f.client.identity("a".repeat(64)));
+      await assert.rejects(f.client.identity("a".repeat(64)));
       const reopened = openGuardianController(f.options);
-      assert.throws(() => reopened.identity("b".repeat(64)));
-      assert.equal(f.calls.length, 1);
+      await assert.rejects(reopened.identity("b".repeat(64)));
+      assert.deepEqual(
+        f.calls.map((v) => v.action),
+        ["enroll", "enrollment_readback", "enrollment_readback"],
+      );
     } finally {
       f.close();
     }
+  }
+});
+test("lost enrollment ACK is recovered only by fresh bound factual readback", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    f.mode("unknown");
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    f.mode("normal");
+    const result = await f.client.identity("b".repeat(64));
+    assert.equal(result.nonce, "b".repeat(64));
+    assert.equal(f.client.status.held, false);
+    const state = JSON.parse(readFileSync(join(f.home, "outer", "controller.json"))).state;
+    assert.equal(state.enrollmentRecovery.originalEnrollment.action, "enroll");
+    assert.equal(state.enrollmentRecovery.receipt.authorityUntil > Date.now(), true);
+    assert.deepEqual(
+      f.calls.map((v) => v.action),
+      ["enroll", "enrollment_readback"],
+    );
+  } finally {
+    f.close();
+  }
+});
+test("mismatched factual readback retains the exact signed pending enrollment", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    f.mode("unknown");
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    const path = join(f.home, "outer", "controller.json"),
+      before = JSON.parse(readFileSync(path)).state.pending;
+    f.mode("bad_readback");
+    await assert.rejects(f.client.identity("b".repeat(64)));
+    const state = JSON.parse(readFileSync(path)).state;
+    assert.deepEqual(state.pending, before);
+    assert.equal(state.hold, true);
+    assert.equal(state.runtimeId, null);
+  } finally {
+    f.close();
+  }
+});
+test("authenticated admission supersedes the historical enrollment cutoff", async (t) => {
+  const f = fixture();
+  try {
+    f.identity();
+    f.mode("unknown");
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    f.mode("normal");
+    await f.client.identity("b".repeat(64));
+    const path = join(f.home, "outer", "controller.json"),
+      historical = JSON.parse(readFileSync(path)).state.enrollmentRecovery,
+      p = f.project(true),
+      target = { projectId: p.projectId, bindingDigest: p.bindingDigest };
+    await f.client.authorizeAdmission(target);
+    t.mock.method(Date, "now", () => historical.receipt.authorityUntil + 1);
+    // Successful prepare/fence responses have already moved this lifetime into
+    // ordinary admission authority. Their subsequent fences still go to Hive.
+    assert.equal((await f.client.identity("c".repeat(64))).nonce, "c".repeat(64));
+    const reopened = openGuardianController(f.options);
+    assert.deepEqual(await reopened.authorizeAdmission(target), target);
+    assert.equal(f.calls.at(-1).action, "fence");
+    assert.equal(
+      (await reopened.metadataAuthority([{ projectId: p.projectId }])).approvals.length,
+      1,
+    );
+    await reopened.beginDrain();
+    assert.deepEqual(JSON.parse(readFileSync(path)).state.enrollmentRecovery, historical);
+  } finally {
+    f.close();
+  }
+});
+test("unused recovered enrollment cannot admit work after its historical cutoff", async (t) => {
+  const f = fixture();
+  try {
+    f.identity();
+    f.mode("unknown");
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    f.mode("normal");
+    await f.client.identity("b".repeat(64));
+    const state = JSON.parse(readFileSync(join(f.home, "outer", "controller.json"))).state,
+      p = f.project(true);
+    t.mock.method(Date, "now", () => state.enrollmentRecovery.receipt.authorityUntil + 1);
+    await assert.rejects(
+      f.client.authorizeAdmission({ projectId: p.projectId, bindingDigest: p.bindingDigest }),
+    );
+    await assert.rejects(f.client.beginDrain());
+    assert.deepEqual(
+      f.calls.map((v) => v.action),
+      ["enroll", "enrollment_readback"],
+    );
+  } finally {
+    f.close();
+  }
+});
+test("expired recovered enrollment blocks normal work and requires scoped owner drain grant", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    f.mode("unknown");
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    f.mode("expired");
+    await assert.rejects(f.client.identity("b".repeat(64)));
+    const state = JSON.parse(readFileSync(join(f.home, "outer", "controller.json"))).state;
+    assert(state.enrollmentRecovery.receipt.authorityUntil < Date.now());
+    assert.throws(() => f.client.identity("c".repeat(64)));
+    await assert.rejects(f.client.requestExpiredEmptyDrain("invalid"));
+    await assert.rejects(
+      f.client.requestExpiredEmptyDrain(f.closeGrant({ workspaceId: randomUUID() })),
+    );
+    const grant = f.closeGrant();
+    assert.equal(await f.client.requestExpiredEmptyDrain(grant), true);
+    await f.client.beginDrain();
+    const barrierId = randomUUID(),
+      binding = { ownershipDigest: f.startup.ownershipDigest, projects: [] };
+    assert.deepEqual(
+      await f.client.authorizeDrain(binding, {
+        closed: true,
+        lifetimeId: f.startup.lifetimeId,
+        ownershipDigest: binding.ownershipDigest,
+        generation: 1,
+        barrierId,
+        snapshots: [],
+      }),
+      [],
+    );
+    const close = f.calls.at(-1);
+    assert.equal(close.action, "close");
+    assert.equal(close.emptyCloseGrant, grant);
+    assert.equal(close.barrierId, barrierId);
+    assert.equal(f.calls.length, 3);
+  } finally {
+    f.close();
   }
 });
 test("private signer permission changes and absent idle authority fail closed", async () => {

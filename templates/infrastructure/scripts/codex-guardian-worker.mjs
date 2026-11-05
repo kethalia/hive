@@ -81,7 +81,9 @@ export function createGuardianOwnerHandler({ appOrigin, guardian }) {
   return async (request, response) => {
     check(
       request.method === "POST" &&
-        ["/guardian/identity", "/guardian/bootstrap"].includes(request.url) &&
+        ["/guardian/identity", "/guardian/bootstrap", "/guardian/recover-empty-close"].includes(
+          request.url,
+        ) &&
         request.headers.host === host &&
         !request.headers.origin &&
         request.headers["content-type"]?.split(";")[0] === "application/json" &&
@@ -90,7 +92,10 @@ export function createGuardianOwnerHandler({ appOrigin, guardian }) {
     );
     const length = request.headers["content-length"];
     check(!length || (/^[0-9]+$/.test(length) && Number(length) <= 20000));
-    const timer = setTimeout(() => request.destroy(), 4000),
+    const timer = setTimeout(
+        () => request.destroy(),
+        request.url === "/guardian/recover-empty-close" ? 4000 : 25000,
+      ),
       chunks = [];
     let bytes = 0;
     try {
@@ -100,11 +105,14 @@ export function createGuardianOwnerHandler({ appOrigin, guardian }) {
         chunks.push(chunk);
       }
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8")),
-        identity = request.url === "/guardian/identity";
+        identity = request.url === "/guardian/identity",
+        close = request.url === "/guardian/recover-empty-close";
       check(Object.keys(body ?? {}).join() === (identity ? "nonce" : "grant"));
       const answer = identity
         ? await guardian.identity(body.nonce)
-        : await guardian.bootstrap(body.grant);
+        : close
+          ? await guardian.recoverEmptyClose(body.grant)
+          : await guardian.bootstrap(body.grant);
       check(guardian.state.phase === "open" && !request.aborted && !response.destroyed);
       response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       response.end(JSON.stringify(answer));
@@ -217,7 +225,13 @@ export function guardianWire(stream, handlers, onLost) {
     request(method, value, timeoutMs = 5000) {
       return new Promise((resolve, reject) => {
         try {
-          check(!closed && pending.size < 32 && timeoutMs > 0 && timeoutMs <= 10000);
+          check(
+            !closed &&
+              pending.size < 32 &&
+              timeoutMs > 0 &&
+              (timeoutMs <= 10000 ||
+                (timeoutMs <= 25000 && ["identity", "bootstrap"].includes(method))),
+          );
           const id = ++sequence;
           const timer = setTimeout(stop, timeoutMs);
           pending.set(id, { resolve, reject, timer });
@@ -357,9 +371,15 @@ export async function connectGuardianWorker({
       check(phase === "open" && typeof result?.ready === "boolean");
       return result.ready;
     },
+    async recoverEmptyClose(grant) {
+      check(phase === "open");
+      const result = await wire.request("recoverEmptyClose", { grant }, 5000);
+      check(phase === "open" && result?.accepted === true);
+      return result;
+    },
     async identity(nonce) {
       check(phase === "open" && typeof nonce === "string" && digest.test(nonce));
-      const result = await wire.request("identity", { nonce });
+      const result = await wire.request("identity", { nonce }, 25000);
       check(phase === "open");
       return result;
     },
@@ -370,7 +390,7 @@ export async function connectGuardianWorker({
           grant.length >= 100 &&
           grant.length <= 16384,
       );
-      const result = await wire.request("bootstrap", { grant });
+      const result = await wire.request("bootstrap", { grant }, 25000);
       check(phase === "open" && result?.enrolled === true);
       return result;
     },

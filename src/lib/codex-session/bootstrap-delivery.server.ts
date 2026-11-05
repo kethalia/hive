@@ -72,6 +72,7 @@ export type HostProjectPath =
   | "/registration/bootstrap"
   | "/guardian/identity"
   | "/guardian/bootstrap"
+  | "/guardian/recover-empty-close"
   | "/projects/discover"
   | "/projects/resolve"
   | "/projects/resolve-ref"
@@ -107,7 +108,12 @@ async function exchangeAppCookie(
     reject();
   const remaining = expiresAt * 1000 - Date.now();
   if (remaining < 1000) reject();
-  const deadline = Date.now() + Math.min(10000, remaining);
+  const guardianEnrollment = [
+    "/guardian/identity",
+    "/guardian/bootstrap",
+    "/guardian/recover-empty-close",
+  ].includes(fixedPath);
+  const deadline = Date.now() + Math.min(guardianEnrollment ? 30000 : 10000, remaining);
   const signal = () => {
     if (Date.now() >= deadline) reject();
     return AbortSignal.timeout(deadline - Date.now());
@@ -226,6 +232,7 @@ export async function postToVerifiedWorkspaceApp(
       "/registration/bootstrap",
       "/guardian/identity",
       "/guardian/bootstrap",
+      "/guardian/recover-empty-close",
       "/projects/discover",
       "/projects/resolve",
       "/projects/resolve-ref",
@@ -443,6 +450,27 @@ export async function deliverGuardianEnrollment(
     binding,
     {
       path: "/guardian/bootstrap",
+      body: JSON.stringify({ grant }),
+      expiresAt: Math.floor(Date.now() / 1000) + 30,
+      ...(signal ? { signal } : {}),
+    },
+    fetchApp,
+  );
+}
+/** Explicit owner-requested recovery only; no task or model selects this path. */
+export async function requestGuardianEmptyClose(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  grant: string,
+  fetchApp: typeof fetch = fetch,
+  signal?: AbortSignal,
+) {
+  if (grant.length < 100 || grant.length > 16384) reject();
+  return postToVerifiedWorkspaceApp(
+    coder,
+    binding,
+    {
+      path: "/guardian/recover-empty-close",
       body: JSON.stringify({ grant }),
       expiresAt: Math.floor(Date.now() / 1000) + 30,
       ...(signal ? { signal } : {}),

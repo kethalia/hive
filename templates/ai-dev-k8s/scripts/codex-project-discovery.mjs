@@ -385,7 +385,9 @@ export async function startDiscoveryGateway({ port, appOrigin }, discovery) {
     }
     if (
       request.method === "POST" &&
-      ["/guardian/identity", "/guardian/bootstrap"].includes(request.url) &&
+      ["/guardian/identity", "/guardian/bootstrap", "/guardian/recover-empty-close"].includes(
+        request.url,
+      ) &&
       discovery.handleGuardian
     ) {
       void discovery.handleGuardian(request, response).catch(() => {

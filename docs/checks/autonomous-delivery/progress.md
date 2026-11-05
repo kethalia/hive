@@ -16,7 +16,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Reconciled with current main | Authorized rebase onto `1ace8774` preserves new dock/config/template features; fresh fetch confirms no newer main. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | Real preview login/project browsing passed; full parity pending | Historical a92e305 passed browser Phase A. App/auth now privately deployed at f811; current assembled Worker proof passes against isolated Neon with 39 migrations. Live current-build browser parity remains open. Both public Worker URLs are disabled. |
+| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview` and 40 migrations. Login and exact build/binding checks pass; current-build browser/host acceptance remains open. Production stays inactive. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
@@ -24,7 +24,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Current guarded host healthy; multi-task pilot pending | Dedicated codex/hive-epic-test runs inactive 791a32d4 on f811 image. The second dedicated workspace exposed an initial Codex install ordering race despite a healthy native host. Both are retained; global active template is unchanged. |
+| Test workspace | Held host preserved and stopped; corrected image pending | `codex/hive-native-flow` enrolled remotely after the clock fix but lost its enrollment acknowledgment. Its old immutable package cannot reconcile the held state. Private journals/auth cache were archived and the workspace stopped without deletion; a fresh isolated workspace will validate the corrected package. Global active template is unchanged. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
 | F09 Coder OAuth | Accepted roadmap; implementation deferred | Inspect Creative Studio admin OAuth, minimize credential persistence, preserve fixed-host and owner isolation. No login changes in the current pilot. |
@@ -33,7 +33,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 
 ## Resource and cost record
 
-Neon preview uses a separate Free project (`purple-math-59583745`). Its ordinary application preview remains synthetic. An explicitly isolated rehearsal database now holds the authorized read-only production capture; raw data is never included in reports or public previews.
+Neon preview uses a separate Free project (`purple-math-59583745`). Its ordinary application preview remains synthetic. The completed capability, mixed-version and production-capture rehearsal databases were privately backed up and deleted at the owner's request; the current native Preview and local Workerd regression databases remain. Raw production-capture data is never included in reports or public previews. The one retained Hive R2 bucket is still bound to the current preview. See [cleanup receipt](retired-test-database-cleanup.json).
 The owner confirmed Cloudflare is already Paid. A bounded preview ran within verified included
 usage headroom: 16 scripted requests out of a 20-request budget. No plan upgrades, add-ons, routes
 or DNS changes. The isolated Worker remains stored with public serving disabled. Existing paid
@@ -1286,3 +1286,27 @@ values could not be exported; retained compatibility data may therefore depend o
 unrecoverable retired keys. This retirement does not prove native manager/browser
 acceptance or authorize production cutover. Compatibility upload helpers refuse
 live deployment; local build and proof workflows remain available.
+
+## Enrollment acknowledgment recovery and current acceptance sequence
+
+- Remote clock-fix validation reached a committed runtime enrollment on the native Preview;
+  the host then held its pending enrollment because it did not retain the acknowledgment.
+  No native admission, registration or model turn followed. This replaces the earlier
+  hypothesis that identity verification alone still blocked the pilot.
+- Future host packages now implement factual readback of that exact consumed enrollment,
+  without changing its original authority deadline. Expired, untouched runtimes can close
+  only through an explicit owner grant and actual native tree-exit receipt. Local installed
+  host/PostgreSQL composition passes lost-ACK and expired-empty closure scenarios. Independent
+  review caught stale enrollment-expiry gating after legitimate admissions, and a grant-expiry
+  race during lock waits. Both are fixed with regressions that failed before their fixes;
+  final independent review approves the slice. The primary reran 16 PostgreSQL/installed-host
+  tests, 26 controller tests and five cron-composition tests; all pass, as do TypeScript and
+  template/package synchronization. The host archive is 157,056 bytes under the 160,000-byte cap.
+- The old `5390bdfc-b004-4489-96c8-2b9f1de20f1f` workspace is stopped and retained, with private
+  journals and dedicated test authentication archived. This is operational quarantine, not
+  proof of cryptographic tree closure or cleanup authorization. Database history remains.
+  [Quarantine receipt](d11-native-flow-quarantine.json).
+- Next: complete review and exact-source checks, publish one smoke-tested inactive preview
+  image, provision a fresh isolated test host, then run the actual manager/child/acceptance/
+  publication/closure path and Browser Testing acceptance against the same native deployment.
+  Source-only cutover preparation proceeds independently; no production activation is authorized.

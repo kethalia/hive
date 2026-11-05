@@ -183,6 +183,13 @@ export async function startInstalledGuardedHost() {
             }, 50);
           return ready;
         },
+        recoverEmptyClose: async (grant) => {
+          await authority.requestExpiredEmptyDrain(grant);
+          setTimeout(() => {
+            void rollover.trigger(host);
+          }, 50);
+          return true;
+        },
         controllerIdentity: (...args) => authority.identity(...args),
         controllerBootstrap: (...args) => authority.bootstrap(...args),
         controllerMetadata: (...args) => authority.currentMetadata(...args),

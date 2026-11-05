@@ -104,6 +104,24 @@ export const guardianEnrollmentClaimsSchema = z
   })
   .strict();
 export type GuardianEnrollmentClaims = z.infer<typeof guardianEnrollmentClaimsSchema>;
+export const guardianEmptyCloseClaimsSchema = z
+  .object({
+    iss: z.string().url(),
+    aud: z.literal("hive:workspace-guardian"),
+    scope: z.literal("workspace:guardian:recover-empty-close"),
+    jti: uuid,
+    iat: z.number().int().nonnegative(),
+    exp: z.number().int().positive(),
+    runtimeId: uuid,
+    hiveUserId: uuid,
+    coderOwnerId: uuid,
+    workspaceId: uuid,
+    buildId: uuid,
+    lifetimeId: uuid,
+    runtimeGeneration: z.literal(1),
+  })
+  .strict();
+
 const common = {
   schemaVersion: z.literal(1),
   runtimeId: uuid,
@@ -113,6 +131,10 @@ const common = {
   proof: signature,
 };
 const generation = { runtimeGeneration: z.number().int().positive() };
+const enrollmentEnvelope = z
+  .object({ ...common, action: z.literal("enroll"), grant: z.string().min(100).max(16384) })
+  .strict();
+
 export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
   z
     .object({
@@ -154,8 +176,22 @@ export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
   guardianApplicationActions[0].extend({ ...common, ...generation }).strict(),
   guardianApplicationActions[1].extend({ ...common, ...generation }).strict(),
   guardianApplicationActions[2].extend({ ...common, ...generation }).strict(),
+  enrollmentEnvelope,
   z
-    .object({ ...common, action: z.literal("enroll"), grant: z.string().min(100).max(16384) })
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("enrollment_readback"),
+      nonce: guardianDigestSchema,
+      grantId: uuid,
+      tokenDigest: guardianDigestSchema,
+      consumptionDigest: guardianDigestSchema,
+      identityDigest: guardianDigestSchema,
+      lifetimeId: uuid,
+      configSha256: guardianDigestSchema,
+      startupDigest: guardianDigestSchema,
+      originalEnrollment: enrollmentEnvelope,
+    })
     .strict(),
   z
     .object({
@@ -220,6 +256,7 @@ export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
       ...common,
       ...generation,
       action: z.literal("close"),
+      emptyCloseGrant: z.string().min(100).max(16384).optional(),
       barrierId: uuid,
       ownershipDigest: guardianDigestSchema,
       projectBindings: z

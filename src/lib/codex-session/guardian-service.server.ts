@@ -20,6 +20,7 @@ import {
 import { GuardianAdmissionStore, lockProducerMetadata } from "./guardian-store.server";
 import {
   type GuardianTransportEnvelope,
+  guardianEmptyCloseClaimsSchema,
   guardianEnrollmentClaimsSchema,
   guardianIdentityProofPayload,
   guardianIdentityResponseSchema,
@@ -61,6 +62,7 @@ export interface GuardianOwnerTransport {
   // request-local app cookie. Never accept a URL or credential from these frames.
   identity(binding: VerifiedHostBinding, nonce: string): Promise<unknown>;
   bootstrap(binding: VerifiedHostBinding, grant: string): Promise<unknown>;
+  recoverEmptyClose?(binding: VerifiedHostBinding, grant: string): Promise<unknown>;
 }
 export type GuardianProvisionStage =
   | "guardian_config"
@@ -338,7 +340,84 @@ export class GuardianService {
     requireGuardian(fresh.phase === "open" && fresh.enrolledAt);
     return { runtimeId: runtime.id, enrolled: true };
   }
-  private claims(grant: string) {
+  /** Explicit owner operation; never invoked by automatic reconciliation. */
+  async recoverExpiredEmpty(
+    principal: RegistrationPrincipal,
+    workspaceId: string,
+    runtimeId: string,
+  ) {
+    const transport = this.dependencies.transport;
+    requireGuardian(transport?.recoverEmptyClose);
+    const binding = await this.resolve(principal, workspaceId);
+    const ready = await this.requestStore().expiredEmptyReady({
+      ownerId: principal.hiveUserId,
+      runtimeId,
+      workspaceId,
+      bindingDigest: guardianDigest(this.workspace(binding)),
+      configSha256: guardianConfigSha256(
+        expectedGuardianHostConfig(this.workspace(binding), this.config, this.env),
+      ),
+    });
+    requireGuardian(ready.buildId === binding.buildId);
+    const now = Math.floor(this.now() / 1000);
+    const claims = guardianEmptyCloseClaimsSchema.parse({
+      iss: this.config.hiveOrigin,
+      aud: "hive:workspace-guardian",
+      scope: "workspace:guardian:recover-empty-close",
+      jti: randomUUID(),
+      iat: now,
+      exp: now + 60,
+      runtimeId: ready.runtimeId,
+      hiveUserId: principal.hiveUserId,
+      coderOwnerId: principal.coderUserId,
+      workspaceId,
+      buildId: ready.buildId,
+      lifetimeId: ready.lifetimeId,
+      runtimeGeneration: 1,
+    });
+    const header = Buffer.from(
+      JSON.stringify({ alg: "EdDSA", typ: "JWT", kid: this.config.keyId }),
+    ).toString("base64url");
+    const body = Buffer.from(JSON.stringify(claims)).toString("base64url");
+    const grant = `${header}.${body}.${sign(null, Buffer.from(`${header}.${body}`), this.key).toString("base64url")}`;
+    const response = await transport.recoverEmptyClose(binding, grant);
+    requireGuardian(
+      z
+        .object({ accepted: z.literal(true) })
+        .strict()
+        .safeParse(response).success,
+    );
+    return { accepted: true, treeExited: false, cleanupAuthorized: false };
+  }
+  private emptyCloseClaims(grant: string, historical: boolean) {
+    const parts = grant.split(".");
+    requireGuardian(parts.length === 3 && parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)));
+    const header = z
+      .object({ alg: z.literal("EdDSA"), typ: z.literal("JWT"), kid: z.literal(this.config.keyId) })
+      .strict()
+      .parse(JSON.parse(Buffer.from(parts[0], "base64url").toString()));
+    requireGuardian(
+      header &&
+        verify(
+          null,
+          Buffer.from(`${parts[0]}.${parts[1]}`),
+          this.publicKey,
+          Buffer.from(parts[2], "base64url"),
+        ),
+    );
+    const claims = guardianEmptyCloseClaimsSchema.parse(
+      JSON.parse(Buffer.from(parts[1], "base64url").toString()),
+    );
+    const now = Math.floor(this.now() / 1000);
+    requireGuardian(
+      claims.iss === this.config.hiveOrigin &&
+        claims.exp > claims.iat &&
+        claims.exp - claims.iat <= 60 &&
+        (historical || (claims.iat <= now && claims.exp > now)),
+    );
+    return claims;
+  }
+  private claims(grant: string, historical = false) {
     const parts = grant.split(".");
     requireGuardian(parts.length === 3 && parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)));
     const header = z
@@ -360,8 +439,7 @@ export class GuardianService {
     const now = Math.floor(this.now() / 1000);
     requireGuardian(
       claims.iss === this.config.hiveOrigin &&
-        claims.iat <= now &&
-        claims.exp > now &&
+        (historical || (claims.iat <= now && claims.exp > now)) &&
         claims.exp > claims.iat &&
         claims.exp - claims.iat <= 60,
     );
@@ -485,6 +563,78 @@ export class GuardianService {
         );
     }
     const store = this.requestStore(input.expiresAt);
+    if (input.action === "enrollment_readback") {
+      const original = input.originalEnrollment;
+      const claims = this.claims(original.grant, true);
+      const binding = runtime.binding as unknown as RegistrationBinding;
+      const key = createPublicKey(runtime.outerPublicKeyPem);
+      requireGuardian(
+        original.runtimeId === runtime.id &&
+          input.runtimeGeneration === 1 &&
+          input.lifetimeId === runtime.lifetimeId &&
+          input.configSha256 === runtime.configSha256 &&
+          input.grantId === claims.jti &&
+          input.tokenDigest === sha(original.grant) &&
+          input.consumptionDigest === guardianDigest(original) &&
+          verify(
+            null,
+            Buffer.from(guardianTransportProofPayload(original)),
+            key,
+            Buffer.from(original.proof, "base64url"),
+          ) &&
+          claims.runtimeId === runtime.id &&
+          claims.hiveUserId === runtime.ownerId &&
+          claims.workspaceId === runtime.workspaceId &&
+          claims.buildId === runtime.buildId &&
+          claims.lifetimeId === runtime.lifetimeId &&
+          claims.coderOwnerId === binding.ownerId &&
+          claims.agentId === binding.agentId &&
+          claims.appId === binding.appId &&
+          claims.outerKeyFingerprint === fingerprint(runtime.outerPublicKeyPem) &&
+          claims.bindingDigest === runtime.bindingDigest &&
+          claims.identityDigest === input.identityDigest &&
+          claims.startupDigest === input.startupDigest &&
+          claims.identityDigest ===
+            guardianDigest({
+              identity: {
+                lifetimeId: runtime.lifetimeId,
+                bindingDigest: runtime.bindingDigest,
+                outerPublicKeyPem: runtime.outerPublicKeyPem,
+                packageManifestSha256: runtime.packageManifestSha256,
+                guardianElfSha256: runtime.guardianElfSha256,
+                nodeSha256: runtime.nodeSha256,
+                policyDigest: runtime.policyDigest,
+                metadataPolicyDigest: runtime.metadataPolicyDigest,
+                configSha256: runtime.configSha256,
+              },
+              binding,
+            }),
+      );
+      const historical = await store.enrollmentReadback({
+        ownerId: runtime.ownerId,
+        runtimeId: runtime.id,
+        runtimeGeneration: input.runtimeGeneration,
+        grantId: input.grantId,
+        tokenDigest: input.tokenDigest,
+        claimsDigest: guardianDigest(claims),
+        consumptionDigest: input.consumptionDigest,
+      });
+      return {
+        accepted: true,
+        runtimeId: runtime.id,
+        runtimeGeneration: 1,
+        nonce: input.nonce,
+        grantId: input.grantId,
+        tokenDigest: input.tokenDigest,
+        consumptionDigest: input.consumptionDigest,
+        identityDigest: input.identityDigest,
+        lifetimeId: input.lifetimeId,
+        configSha256: input.configSha256,
+        startupDigest: input.startupDigest,
+        ...historical,
+        empty: true,
+      };
+    }
     if (input.action === "enroll") {
       const claims = this.claims(input.grant);
       requireGuardian(
@@ -620,8 +770,30 @@ export class GuardianService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 10000 },
       );
     }
-    return store.closeBarrier({
+    let emptyCloseGrantDigest: string | undefined;
+    let closeStore = store;
+    if (input.emptyCloseGrant) {
+      requireGuardian(input.projectBindings.length === 0 && input.snapshots.length === 0);
+      const historical = ["barrier_closed", "tree_closed"].includes(runtime.phase);
+      const claims = this.emptyCloseClaims(input.emptyCloseGrant, historical);
+      const binding = runtime.binding as unknown as RegistrationBinding;
+      requireGuardian(
+        claims.runtimeId === runtime.id &&
+          claims.hiveUserId === runtime.ownerId &&
+          claims.coderOwnerId === binding.ownerId &&
+          claims.workspaceId === runtime.workspaceId &&
+          claims.buildId === runtime.buildId &&
+          claims.lifetimeId === runtime.lifetimeId &&
+          claims.runtimeGeneration === input.runtimeGeneration,
+      );
+      emptyCloseGrantDigest = sha(input.emptyCloseGrant);
+      // First closure must retain owner authority through lock waits and commit.
+      // Exact committed-barrier replay remains factual after the grant expires.
+      if (!historical) closeStore = this.requestStore(Math.min(input.expiresAt, claims.exp * 1000));
+    }
+    return closeStore.closeBarrier({
       ...common,
+      ...(emptyCloseGrantDigest ? { emptyCloseGrantDigest } : {}),
       barrierId: input.barrierId,
       ownershipDigest: input.ownershipDigest,
       projectBindings: input.projectBindings,

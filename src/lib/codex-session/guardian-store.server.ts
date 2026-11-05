@@ -473,6 +473,118 @@ export class GuardianAdmissionStore {
       });
     });
   }
+  /** Read only: the original enrollment remains historical even when expired. */
+  async enrollmentReadback(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    grantId: string;
+    tokenDigest: string;
+    claimsDigest: string;
+    consumptionDigest: string;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, slot } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(
+        input.runtimeGeneration === 1 &&
+          runtime.generation === 1 &&
+          runtime.phase === "open" &&
+          runtime.enrolledAt &&
+          !runtime.closedBarrierId &&
+          !runtime.nativeLaunchId &&
+          !runtime.nativeLaunchDigest &&
+          !runtime.nativeLaunchAt &&
+          !runtime.serverInstanceId &&
+          !runtime.hostKeyFingerprint &&
+          !runtime.producerApproved &&
+          !slot.activeRegistrationId,
+      );
+      const [grants, admissions, registrations] = await Promise.all([
+        tx.codexGuardianEnrollmentGrant.findMany({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+          take: 2,
+        }),
+        tx.codexGuardianAdmission.count({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+        }),
+        tx.codexHostRegistration.count({ where: { ownerId: input.ownerId, slotId: slot.id } }),
+      ]);
+      const grant = grants[0];
+      requireGuardian(
+        grants.length === 1 &&
+          grant.id === input.grantId &&
+          grant.consumedAt &&
+          grant.tokenDigest === input.tokenDigest &&
+          grant.bindingDigest === input.claimsDigest &&
+          grant.consumptionDigest === input.consumptionDigest &&
+          admissions === 0 &&
+          registrations === 0 &&
+          grant.consumedAt.getTime() === runtime.enrolledAt.getTime() &&
+          runtime.authorityUntil.getTime() === runtime.enrolledAt.getTime() + 180000,
+      );
+      return {
+        enrolledAt: runtime.enrolledAt.getTime(),
+        authorityUntil: runtime.authorityUntil.getTime(),
+      };
+    });
+  }
+  /** Owner-requested recovery is possible only for an expired, never-used lifetime. */
+  async expiredEmptyReady(input: {
+    ownerId: string;
+    runtimeId: string;
+    workspaceId: string;
+    bindingDigest: string;
+    configSha256: string;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(
+        runtime.workspaceId === input.workspaceId &&
+          guardianDigest(runtime.binding) === input.bindingDigest &&
+          runtime.configSha256 === input.configSha256 &&
+          runtime.phase === "open" &&
+          runtime.generation === 1 &&
+          runtime.enrolledAt &&
+          runtime.authorityUntil <= now &&
+          !runtime.closedBarrierId &&
+          !runtime.nativeLaunchId &&
+          !runtime.nativeLaunchDigest &&
+          !runtime.nativeLaunchAt &&
+          !runtime.serverInstanceId &&
+          !runtime.hostKeyFingerprint &&
+          !runtime.producerApproved &&
+          !slot.activeRegistrationId,
+      );
+      const [grants, admissions, registrations] = await Promise.all([
+        tx.codexGuardianEnrollmentGrant.findMany({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+          take: 2,
+        }),
+        tx.codexGuardianAdmission.count({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+        }),
+        tx.codexHostRegistration.count({ where: { ownerId: input.ownerId, slotId: slot.id } }),
+      ]);
+      requireGuardian(
+        grants.length === 1 &&
+          grants[0].consumedAt &&
+          grants[0].consumptionDigest &&
+          grants[0].consumedAt.getTime() === runtime.enrolledAt.getTime() &&
+          runtime.authorityUntil.getTime() === runtime.enrolledAt.getTime() + 180000 &&
+          admissions === 0 &&
+          registrations === 0,
+      );
+      return {
+        runtimeId: runtime.id,
+        lifetimeId: runtime.lifetimeId,
+        generation: runtime.generation,
+        workspaceId: runtime.workspaceId,
+        buildId: runtime.buildId,
+      };
+    });
+  }
   async prepare(input: {
     ownerId: string;
     runtimeId: string;
@@ -992,6 +1104,7 @@ export class GuardianAdmissionStore {
     ownershipDigest: string;
     projectBindings: { projectId: string; bindingDigest: string }[];
     snapshots: GuardianIdleSnapshot[];
+    emptyCloseGrantDigest?: string;
   }) {
     const snapshots = input.snapshots.map((s) => guardianIdleSnapshotSchema.parse(s));
     requireGuardian(/^[a-f0-9]{64}$/.test(input.ownershipDigest) && snapshots.length <= 32);
@@ -1041,6 +1154,36 @@ export class GuardianAdmissionStore {
         where: { ownerId: input.ownerId, runtimeId: runtime.id },
         orderBy: { projectId: "asc" },
       });
+      if (all.length === 0 && runtime.authorityUntil <= now) {
+        requireGuardian(
+          input.emptyCloseGrantDigest &&
+            /^[a-f0-9]{64}$/.test(input.emptyCloseGrantDigest) &&
+            runtime.generation === 1 &&
+            runtime.enrolledAt &&
+            !runtime.nativeLaunchId &&
+            !runtime.nativeLaunchDigest &&
+            !runtime.nativeLaunchAt &&
+            !runtime.serverInstanceId &&
+            !runtime.hostKeyFingerprint &&
+            !runtime.producerApproved &&
+            !slot.activeRegistrationId,
+        );
+        const grants = await tx.codexGuardianEnrollmentGrant.findMany({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+          take: 2,
+        });
+        const registrations = await tx.codexHostRegistration.count({
+          where: { ownerId: input.ownerId, slotId: slot.id },
+        });
+        requireGuardian(
+          grants.length === 1 &&
+            grants[0].consumedAt &&
+            grants[0].consumptionDigest &&
+            grants[0].consumedAt.getTime() === runtime.enrolledAt.getTime() &&
+            runtime.authorityUntil.getTime() === runtime.enrolledAt.getTime() + 180000 &&
+            registrations === 0,
+        );
+      } else requireGuardian(!input.emptyCloseGrantDigest);
       requireGuardian(
         projects.length === all.length &&
           new Set(projects.map((p) => p.projectId)).size === all.length &&

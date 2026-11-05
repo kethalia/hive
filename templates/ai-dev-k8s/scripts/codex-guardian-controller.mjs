@@ -6,6 +6,7 @@ import {
   createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
+  randomBytes,
   randomUUID,
   sign,
   timingSafeEqual,
@@ -391,7 +392,7 @@ export function openGuardianController({
         ["apply_reserve", "apply_verify", "apply_commit"].includes(frame.action),
     );
   };
-  const initialize = (factual = false) => {
+  const initialize = (factual = false, enrollmentHold = false, expiredDrain = false) => {
     const s = startup(),
       id = identity(s);
     if (!state) {
@@ -425,15 +426,23 @@ export function openGuardianController({
     }
     state.applications ??= {};
     check(
-      ((!state.hold && !state.pending) || (factual && applicationUncertainty())) &&
+      ((!state.hold && !state.pending) ||
+        (factual && applicationUncertainty()) ||
+        (enrollmentHold && state.hold && state.pending?.action === "enroll")) &&
+        (expiredDrain ||
+          !state.enrollmentRecovery ||
+          // An accepted admission leaves enrollment-only authority behind;
+          // ordinary admission/fence requests still require Hive authorization.
+          Object.keys(state.projects).length > 0 ||
+          Date.now() < state.enrollmentRecovery.receipt.authorityUntil) &&
         state.lifetimeId === s.lifetimeId &&
         state.identityDigest === digest(id),
     );
     return s;
   };
-  const serial = (operation) => {
+  const serial = (operation, timeout = 3000) => {
     const pending = queue.then(() => {
-      deadline = Date.now() + 3000;
+      deadline = Date.now() + timeout;
       return operation();
     });
     queue = pending.catch(() => {});
@@ -468,7 +477,8 @@ export function openGuardianController({
         runtimeId: fields.runtimeId ?? state.runtimeId,
         eventId: randomUUID(),
         issuedAt,
-        expiresAt: issuedAt + (action.startsWith("epic_") ? 30500 : 3500),
+        expiresAt:
+          issuedAt + (action === "enroll" ? 20000 : action.startsWith("epic_") ? 30500 : 3500),
         action,
         ...(action === "enroll" ? {} : { runtimeGeneration: state.generation }),
         ...fields,
@@ -493,6 +503,8 @@ export function openGuardianController({
     const abort = new AbortController(),
       timer = setTimeout(() => abort.abort(), Math.max(1, deadline - Date.now()));
     let response;
+    let failureCategory = "transport";
+    const startedAt = Date.now();
     try {
       response = await fetchImpl(`${config.hiveOrigin}${PATH}`, {
         method: "POST",
@@ -501,6 +513,7 @@ export function openGuardianController({
         body: JSON.stringify(frame),
         signal: abort.signal,
       });
+      failureCategory = "response";
       const result = await boundedJson(response, abort.signal);
       check(Date.now() < body.expiresAt && !abort.signal.aborted);
       if (mode !== "closure") startup();
@@ -508,12 +521,18 @@ export function openGuardianController({
       state.chainDigest = digest({ previous: state.chainDigest, request: frame, response: result });
       state.pending = mode === "factual" ? previous : null;
       state.hold = Boolean(state.pending);
+      if (action === "enroll") delete state.enrollmentFailure;
       save();
       return structuredClone(result);
     } catch (error) {
       // The server may already have committed. No local retry can mint authority.
       state.pending = previous ?? state.pending;
       state.hold = true;
+      if (action === "enroll")
+        state.enrollmentFailure = {
+          category: abort.signal.aborted ? "timeout" : failureCategory,
+          elapsedMs: Math.max(0, Math.min(15000, Date.now() - startedAt)),
+        };
       save();
       throw error;
     } finally {
@@ -1188,31 +1207,135 @@ export function openGuardianController({
     check(result.expiresAt > Date.now() / 1000);
     return result;
   }
+  async function recoverEnrollment() {
+    const s = initialize(false, true, true),
+      originalEnrollment = structuredClone(state.pending);
+    check(
+      state.hold &&
+        originalEnrollment?.action === "enroll" &&
+        !state.runtimeId &&
+        state.generation === 1 &&
+        !state.launch &&
+        !Object.keys(state.projects).length &&
+        !Object.keys(state.applications).length &&
+        typeof originalEnrollment.grant === "string",
+    );
+    const claims = JSON.parse(Buffer.from(originalEnrollment.grant.split(".")[1], "base64url"));
+    check(
+      uuid(claims.jti) &&
+        uuid(originalEnrollment.runtimeId) &&
+        claims.runtimeId === originalEnrollment.runtimeId &&
+        claims.lifetimeId === s.lifetimeId &&
+        claims.bindingDigest === s.bindingDigest &&
+        claims.identityDigest ===
+          digest({ identity: identity(s), binding: { ...config.binding, projects: [] } }) &&
+        claims.startupDigest === digest(s),
+    );
+    const now = Date.now(),
+      body = {
+        schemaVersion: 1,
+        runtimeId: originalEnrollment.runtimeId,
+        runtimeGeneration: 1,
+        eventId: randomUUID(),
+        issuedAt: now,
+        expiresAt: now + 20000,
+        action: "enrollment_readback",
+        nonce: randomBytes(32).toString("hex"),
+        grantId: claims.jti,
+        tokenDigest: sha(originalEnrollment.grant),
+        consumptionDigest: digest(originalEnrollment),
+        identityDigest: claims.identityDigest,
+        lifetimeId: claims.lifetimeId,
+        configSha256,
+        startupDigest: claims.startupDigest,
+        originalEnrollment,
+      };
+    const frame = {
+      ...body,
+      proof: sign(
+        null,
+        Buffer.from(`hive-guardian-controller-v1\nPOST\n${PATH}\n${guardianCanonical(body)}`),
+        key,
+      ).toString("base64url"),
+    };
+    const abort = new AbortController(),
+      timer = setTimeout(() => abort.abort(), Math.max(1, deadline - Date.now()));
+    let response;
+    try {
+      response = await fetchImpl(`${config.hiveOrigin}${PATH}`, {
+        method: "POST",
+        redirect: "manual",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(frame),
+        signal: abort.signal,
+      });
+      const r = await boundedJson(response, abort.signal);
+      check(
+        Date.now() < body.expiresAt &&
+          !abort.signal.aborted &&
+          r?.accepted === true &&
+          r.empty === true &&
+          r.runtimeId === body.runtimeId &&
+          r.runtimeGeneration === 1 &&
+          r.nonce === body.nonce &&
+          r.grantId === body.grantId &&
+          r.tokenDigest === body.tokenDigest &&
+          r.consumptionDigest === body.consumptionDigest &&
+          r.identityDigest === body.identityDigest &&
+          r.lifetimeId === body.lifetimeId &&
+          r.configSha256 === body.configSha256 &&
+          r.startupDigest === body.startupDigest &&
+          Number.isSafeInteger(r.enrolledAt) &&
+          Number.isSafeInteger(r.authorityUntil) &&
+          r.authorityUntil > r.enrolledAt,
+      );
+      check(same(startup(), s));
+      check(same(state.pending, originalEnrollment) && state.hold && !state.runtimeId);
+      state.enrollmentRecovery = { originalEnrollment, receipt: structuredClone(r) };
+      state.runtimeId = r.runtimeId;
+      state.generation = 1;
+      state.pending = null;
+      state.hold = false;
+      save();
+    } finally {
+      clearTimeout(timer);
+      void response?.body?.cancel().catch(() => {});
+    }
+  }
+  function issueIdentity(nonce) {
+    const s = initialize(),
+      issuedAt = Date.now(),
+      packet = {
+        schemaVersion: 1,
+        nonce,
+        issuedAt,
+        expiresAt: issuedAt + 30000,
+        identity: identity(s),
+        startup: s,
+      };
+    challenge = structuredClone(packet);
+    return {
+      ...packet,
+      proof: sign(
+        null,
+        Buffer.from(`hive-guardian-identity-v1\n${guardianCanonical(packet)}`),
+        key,
+      ).toString("base64url"),
+    };
+  }
   return {
     canIdleShutdown() {
       return !state && !challenge && !existsSync(statePath);
     },
     identity(nonce) {
       check(hex(nonce));
-      const s = initialize(),
-        issuedAt = Date.now(),
-        packet = {
-          schemaVersion: 1,
-          nonce,
-          issuedAt,
-          expiresAt: issuedAt + 30000,
-          identity: identity(s),
-          startup: s,
-        };
-      challenge = structuredClone(packet);
-      return {
-        ...packet,
-        proof: sign(
-          null,
-          Buffer.from(`hive-guardian-identity-v1\n${guardianCanonical(packet)}`),
-          key,
-        ).toString("base64url"),
-      };
+      initialize(false, true, true);
+      if (state.hold && state.pending?.action === "enroll")
+        return serial(async () => {
+          await recoverEnrollment();
+          return issueIdentity(nonce);
+        }, 15000);
+      return issueIdentity(nonce);
     },
     bootstrap(grant) {
       return serial(async () => {
@@ -1290,7 +1413,7 @@ export function openGuardianController({
         });
         challenge = null;
         return { enrolled: true, runtimeId: state.runtimeId };
-      });
+      }, 15000);
     },
     authorizeAdmission: (v) => serial(() => admission(v)),
     metadataAuthority: (projects) =>
@@ -1407,9 +1530,77 @@ export function openGuardianController({
         );
         return result.ready;
       }),
+    requestExpiredEmptyDrain: (grant) =>
+      serial(() => {
+        const s = initialize(false, false, true),
+          recovery = state.enrollmentRecovery;
+        check(
+          recovery &&
+            Date.now() >= recovery.receipt.authorityUntil &&
+            !state.hold &&
+            !state.pending &&
+            !state.launch &&
+            state.generation === 1 &&
+            !Object.keys(state.projects).length &&
+            !Object.keys(state.applications).length &&
+            typeof grant === "string" &&
+            grant.length <= 16384,
+        );
+        const parts = grant.split(".");
+        check(parts.length === 3 && parts.every((v) => /^[A-Za-z0-9_-]+$/.test(v)));
+        const header = JSON.parse(Buffer.from(parts[0], "base64url")),
+          claims = JSON.parse(Buffer.from(parts[1], "base64url")),
+          now = Math.floor(Date.now() / 1000);
+        check(
+          exact(header, ["alg", "typ", "kid"]) &&
+            header.alg === "EdDSA" &&
+            header.typ === "JWT" &&
+            header.kid === config.issuerKeyId &&
+            verify(
+              null,
+              Buffer.from(`${parts[0]}.${parts[1]}`),
+              issuer,
+              Buffer.from(parts[2], "base64url"),
+            ) &&
+            exact(claims, [
+              "iss",
+              "aud",
+              "scope",
+              "jti",
+              "iat",
+              "exp",
+              "runtimeId",
+              "hiveUserId",
+              "coderOwnerId",
+              "workspaceId",
+              "buildId",
+              "lifetimeId",
+              "runtimeGeneration",
+            ]) &&
+            claims.iss === config.hiveOrigin &&
+            claims.aud === "hive:workspace-guardian" &&
+            claims.scope === "workspace:guardian:recover-empty-close" &&
+            uuid(claims.jti) &&
+            Number.isSafeInteger(claims.iat) &&
+            Number.isSafeInteger(claims.exp) &&
+            claims.iat <= now &&
+            claims.exp > now &&
+            claims.exp - claims.iat <= 60 &&
+            claims.runtimeId === state.runtimeId &&
+            claims.runtimeGeneration === 1 &&
+            claims.lifetimeId === s.lifetimeId &&
+            claims.hiveUserId === config.binding.hiveUserId &&
+            claims.coderOwnerId === config.binding.ownerId &&
+            claims.workspaceId === config.binding.workspaceId &&
+            claims.buildId === config.binding.buildId,
+        );
+        state.expiredEmptyDrain = { grant, expiresAt: claims.exp * 1000 };
+        save();
+        return true;
+      }),
     beginDrain: () =>
       serial(() => {
-        drainStartup = structuredClone(initialize());
+        drainStartup = structuredClone(initialize(false, false, Boolean(state?.expiredEmptyDrain)));
       }),
     authorizeDrain: (binding, barrier) =>
       serial(async () => {
@@ -1457,6 +1648,12 @@ export function openGuardianController({
             activeRoots: 0,
           };
         });
+        if (state.expiredEmptyDrain)
+          check(
+            Date.now() < state.expiredEmptyDrain.expiresAt &&
+              binding.projects.length === 0 &&
+              snapshots.length === 0,
+          );
         const result = await sendClosure(
           "close",
           {
@@ -1464,6 +1661,7 @@ export function openGuardianController({
             ownershipDigest: binding.ownershipDigest,
             projectBindings: binding.projects,
             snapshots,
+            ...(state.expiredEmptyDrain ? { emptyCloseGrant: state.expiredEmptyDrain.grant } : {}),
           },
           (r) => {
             check(
@@ -1608,7 +1806,9 @@ export function openGuardianController({
         };
         const prepared = [];
         let ineligible = 0;
-        const projectJournal = readEvidence(home, "codex-project-controller", "projects.key");
+        const projectJournal = projects.length
+          ? readEvidence(home, "codex-project-controller", "projects.key")
+          : { projects: {} };
         for (const projectId of projects) {
           const result = await call("epic_release_prepare", { projectId });
           if (result?.eligible === false) {

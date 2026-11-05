@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-05T21:07:39.563551Z",
+  "previousBuildId": "0a6d2566-432d-481b-b962-5d071681b54b",
+  "stopBuildId": "1b47647c-0a3e-4f12-bbf4-6c3f5d61d6b6",
+  "status": "stopped",
+  "classification": "unmanaged persistent; retained",
+  "reason": "Held lost-enrollment acknowledgment; immutable old package cannot reconcile it",
+  "privateArchiveBytes": 8541,
+  "privateArchiveSha256": "b40addb40d969f8795b60a5a884a9c80e4efa6e254d9c2a88c87bbc1651920f2",
+  "operationalQuarantineOnly": true,
+  "treeExitCryptographicallyVerified": false,
+  "cleanupAuthorized": false,
+  "databaseHistoryPreserved": true,
+  "jobStatus": "succeeded"
+}
