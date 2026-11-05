@@ -38,7 +38,8 @@ beforeEach(() => {
   vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
   vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "true");
   vi.stubEnv("HIVE_PUBLIC_ORIGIN", origin);
-  vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "/");
+  vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "");
+  vi.stubEnv("HIVE_TERMINAL_WS_URL", "/");
   vi.stubEnv("COOKIE_SECRET", secret);
   auth = vi.fn<typeof fetch>(async (url, init) => {
     expect(String(url)).toBe("https://hive-auth.internal/sessions/fixture-session");

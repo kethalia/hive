@@ -1,0 +1,20 @@
+{
+  "deployment": "https://coder.kethalia.com",
+  "name": "hive-epic-child",
+  "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-05T16:35:36.5537Z",
+  "buildId": "7aa402a0-47d6-4069-93e1-05520e220236",
+  "versionId": "791a32d4-9425-4bea-abbd-68c9820a1fcd",
+  "classification": "unmanaged persistent; retain for review",
+  "task": "D11 isolated epic child",
+  "buildStatus": "running",
+  "agentId": "dab0bb95-fb9f-4bc4-aec0-d7e181bdf8d7",
+  "agentLifecycle": "start_error",
+  "guardedHost": "started; recorded guardian ready and live process",
+  "initialFailedScript": "Codex: Install Script: binary missing before concurrent AI Tools setup completed",
+  "currentNativeRuntimePresent": true,
+  "managedNativeAuthStatusExit": 0,
+  "accountBackedInference": false
+}

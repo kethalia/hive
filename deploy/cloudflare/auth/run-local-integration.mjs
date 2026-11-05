@@ -10,8 +10,10 @@ const appMode = process.argv.includes("--app");
 const callbacks = process.argv.includes("--callbacks");
 const deliveryCallbacks = process.argv.includes("--delivery-callbacks");
 const portableActions = process.argv.includes("--portable-actions");
+const terminalPilot = process.argv.includes("--terminal-pilot");
 if (callbacks && !appMode) throw new Error("Callback proof requires actual app mode");
 if (portableActions && !appMode) throw new Error("Portable action proof requires actual app mode");
+if (terminalPilot && !appMode) throw new Error("Terminal pilot proof requires actual app mode");
 if (deliveryCallbacks && !callbacks) throw new Error("Delivery callback proof requires callbacks");
 const deliveryCallbackPaths = [
   "/api/codex-host/guardians",
@@ -120,6 +122,9 @@ if (appMode) {
             HIVE_CODEX_GATEWAY_PORT: "13341",
             HIVE_CODEX_SESSION_TRANSPORT: "relay",
           }
+        : {}),
+      ...(terminalPilot && service === "app"
+        ? { HIVE_GENERIC_TERMINAL_ENABLED: "true", HIVE_TERMINAL_WS_URL: "/" }
         : {}),
       ...(deliveryCallbacks && service === "app"
         ? {
@@ -271,6 +276,24 @@ try {
       if (cookieAsset.status !== 200) throw new Error("Actual app preview cookie asset failed");
       await cookieAsset.arrayBuffer();
       appChecks.privatePreviewCookieBootstrapAndAsset = true;
+      if (terminalPilot) {
+        const config = await request("/runtime-config.js", { headers });
+        if (config.status !== 200 || !(await config.text()).includes('"terminalWsUrl":"/"'))
+          throw new Error("Actual Worker terminal runtime configuration failed");
+        const target = `/ws?${new URLSearchParams({ workspaceId: randomUUID(), agentId: randomUUID(), reconnectId: randomUUID(), sessionName: "fixture-shell", width: "80", height: "24" })}`;
+        const ticket = await request("/api/auth/terminal-ticket", {
+          method: "POST",
+          headers: {
+            ...headers,
+            Origin: "http://127.0.0.1:8793",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url: `http://127.0.0.1:8793${target}` }),
+        });
+        if (ticket.status !== 200 || typeof (await ticket.json()).ticket !== "string")
+          throw new Error("Actual Worker terminal ticket failed");
+        appChecks.terminalRuntimeConfigAndTicket = true;
+      }
       const list = await request("/api/delivery/tasks", { headers });
       const payload = await list.json();
       if (list.status !== 200 || payload.tasks?.length !== 1 || payload.tasks[0].id !== taskId)

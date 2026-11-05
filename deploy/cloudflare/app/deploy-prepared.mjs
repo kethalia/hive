@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdir, open, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { assertBuildReady } from "./build-integrity.mjs";
+import { assertDeliveryPilot, projectJobsPilotPlan } from "./delivery-pilot-candidate.mjs";
 import { readPreviewPrivateJson } from "./deployment-identity.mjs";
 import {
   validatePreflight,
@@ -55,7 +56,11 @@ try {
       observed[name].secretNames,
       record.inheritedPreviewSecrets
         ? name === "app"
-          ? ["PREVIEW_BEARER", "PREVIEW_COOKIE_SECRET"]
+          ? [
+              "PREVIEW_BEARER",
+              "PREVIEW_COOKIE_SECRET",
+              ...(record.deliveryPilotCandidate ? ["HIVE_PROJECT_TASK_RECONCILE_SECRET"] : []),
+            ].sort()
           : []
         : expected,
     );
@@ -63,12 +68,32 @@ try {
       assert.equal(configs[name].vars[secretName], undefined);
   }
   validatePreviewConfiguration(configs.app, configs.auth);
-  assertWorkspaceProjectsCandidate(
-    record,
-    configs.app,
-    secrets.app,
-    (await readFile("templates/ai-dev-k8s/assets/workspace-read.manifest.sha256", "utf8")).trim(),
-  );
+  if (record.deliveryPilotCandidate) {
+    const pins = Object.fromEntries(
+      await Promise.all(
+        Object.entries({
+          workspace: "workspace-read.manifest.sha256",
+          voice: "voice.manifest.sha256",
+          agent: "agent-bridge.manifest.sha256",
+          helper: "agent-bridge.helper.sha256",
+        }).map(async ([key, path]) => [
+          key,
+          (await readFile(`templates/ai-dev-k8s/assets/${path}`, "utf8")).trim(),
+        ]),
+      ),
+    );
+    assertDeliveryPilot(record, configs.app, secrets.app, pins);
+    assert.deepEqual(
+      record.projectJobsPlan,
+      projectJobsPilotPlan(secrets.app.HIVE_PROJECT_TASK_RECONCILE_SECRET),
+    );
+  } else
+    assertWorkspaceProjectsCandidate(
+      record,
+      configs.app,
+      secrets.app,
+      (await readFile("templates/ai-dev-k8s/assets/workspace-read.manifest.sha256", "utf8")).trim(),
+    );
   assert.equal(configs.app.assets.directory, resolve(".open-next/assets"));
   if (!record.inheritedPreviewSecrets) {
     validateRuntimeDatabase(secrets.app.DATABASE_URL);

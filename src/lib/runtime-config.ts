@@ -21,7 +21,7 @@ declare global {
 
 export function getServerRuntimeConfig(): RuntimeConfig {
   return {
-    terminalWsUrl: process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "",
+    terminalWsUrl: serverTerminalWsUrl(),
     ...(process.env.HIVE_PROJECT_TASKS_ENABLED === "true"
       ? { projectTasksEnabled: true as const }
       : {}),
@@ -33,6 +33,14 @@ export function getServerRuntimeConfig(): RuntimeConfig {
       ? { codexVoiceEnabled: true as const }
       : {}),
   };
+}
+
+/** The Worker pilot has one same-origin terminal relay; its runtime setting must
+ * not depend on a NEXT_PUBLIC value substituted when the application was built. */
+export function serverTerminalWsUrl(): string {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare" && process.env.HIVE_TERMINAL_WS_URL)
+    return process.env.HIVE_TERMINAL_WS_URL === "/" ? "/" : "";
+  return process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "";
 }
 
 export function serializeRuntimeConfig(config: RuntimeConfig): string {

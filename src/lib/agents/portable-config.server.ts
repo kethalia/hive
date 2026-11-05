@@ -3,6 +3,7 @@ import { getDb } from "@hive/db";
 import { z } from "zod";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { requestVerifiedWorkspaceAgent } from "@/lib/codex-session/bootstrap-delivery.server";
+import { workspaceIssuerPrivateKey } from "@/lib/codex-session/workspace-issuer";
 import { AgentBridgeError } from "./portable-client.server";
 import { AgentBridgeService, type AgentBridgeServiceConfig } from "./portable-service.server";
 
@@ -22,13 +23,23 @@ export function portableAgentConfig(
   try {
     const issuer = env.HIVE_AGENT_TOOLS_HIVE_ORIGIN ?? "",
       keyId = env.HIVE_AGENT_TOOLS_ISSUER_KEY_ID ?? "",
-      privateKeyPem = env.HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY ?? "",
       url = new URL(issuer),
       pins = z
         .array(pin)
         .min(1)
         .max(32)
         .parse(JSON.parse(env.HIVE_AGENT_TOOLS_PINS_JSON ?? ""));
+    if (
+      env.HIVE_WORKSPACE_ISSUER_MODE === "shared-host" &&
+      pins.some((p) => p.profile !== "software")
+    )
+      throw new Error();
+    const privateKeyPem = workspaceIssuerPrivateKey(env, {
+      dedicatedKey: env.HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY ?? "",
+      origin: issuer,
+      keyId,
+      templateIds: pins.map((p) => p.templateId),
+    });
     if (
       url.protocol !== "https:" ||
       url.origin !== issuer ||

@@ -1,7 +1,7 @@
 import { createTerminalTicket, isLoopbackHostname } from "@hive/auth";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getRequestSession } from "@/lib/auth/session";
-import { resolveTerminalWsUrl } from "@/lib/runtime-config";
+import { resolveTerminalWsUrl, serverTerminalWsUrl } from "@/lib/runtime-config";
 import { publicationBody } from "@/lib/templates/publication-io";
 import {
   type GenericTerminalAuthEnvironment,
@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
     const origin = new URL(process.env.HIVE_PUBLIC_ORIGIN || request.url).origin;
     if (request.headers.get("origin") !== origin)
       return response(403, { error: "Origin rejected" });
-    const configured = process.env.NEXT_PUBLIC_TERMINAL_WS_URL || "";
+    const configured = serverTerminalWsUrl();
     const location = new URL(origin);
     const base = httpUrl(resolveTerminalWsUrl(configured, location));
     if (

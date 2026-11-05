@@ -333,16 +333,24 @@ test("installer re-entry recognizes the current worker after two real guardian l
       chmodSync(privateNode, 0o500);
       const childEnv = { ...process.env };
       delete childEnv.NODE_TEST_CONTEXT;
-      const output = execFileSync(
-        privateNode,
-        [
-          "--test",
-          "--test-reporter=tap",
-          "--test-name-pattern=^installer re-entry recognizes the current worker after two real guardian lifetimes$",
-          resolve("scripts/verify-codex-host-guardian.test.mjs"),
-        ],
-        { encoding: "utf8", timeout: 120000, stdio: "pipe", env: childEnv },
-      );
+      let output;
+      try {
+        output = execFileSync(
+          privateNode,
+          [
+            "--test",
+            "--test-reporter=tap",
+            "--test-name-pattern=^installer re-entry recognizes the current worker after two real guardian lifetimes$",
+            resolve("scripts/verify-codex-host-guardian.test.mjs"),
+          ],
+          { encoding: "utf8", timeout: 120000, stdio: "pipe", env: childEnv },
+        );
+      } catch (error) {
+        throw new Error(
+          `private Node installer fixture failed: ${error.stdout ?? ""} ${error.stderr ?? ""}`,
+          { cause: error },
+        );
+      }
       assert.match(output, /# pass 1\b/);
     } finally {
       rmSync(privateDir, { recursive: true, force: true });

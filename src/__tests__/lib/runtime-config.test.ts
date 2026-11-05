@@ -55,6 +55,17 @@ describe("runtime-config", () => {
       vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "");
       expect(getServerRuntimeConfig()).toEqual({ terminalWsUrl: "" });
     });
+
+    it("uses only the explicit same-origin Worker terminal setting", () => {
+      vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "wss://node.example/ws");
+      vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+      vi.stubEnv("HIVE_TERMINAL_WS_URL", "/");
+      expect(getServerRuntimeConfig().terminalWsUrl).toBe("/");
+      vi.stubEnv("HIVE_TERMINAL_WS_URL", "https://other.example");
+      expect(getServerRuntimeConfig().terminalWsUrl).toBe("");
+      vi.stubEnv("HIVE_RUNTIME_TARGET", "node");
+      expect(getServerRuntimeConfig().terminalWsUrl).toBe("wss://node.example/ws");
+    });
   });
 
   describe("getClientRuntimeConfig", () => {

@@ -5,6 +5,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { assertBuildReady } from "./build-integrity.mjs";
 import {
+  deliveryPilotCandidate,
+  deliveryPilotVars,
+  projectJobsPilotPlan,
+} from "./delivery-pilot-candidate.mjs";
+import {
   loadPreviewIdentity,
   previewIdentityScope,
   previewRuntimeBindings,
@@ -35,6 +40,11 @@ try {
   assert.ok(!inheritSecrets || !process.argv.includes("--create-preview-identity"));
   const nativeCandidate = process.argv.includes("--native-gateway-candidate");
   const projectsCandidate = process.argv.includes("--workspace-projects-candidate");
+  const pilotEnabled = process.argv.includes("--delivery-pilot-candidate");
+  assert.ok(
+    !pilotEnabled || (projectsCandidate && inheritSecrets),
+    "Pilot requires inherited preview and the workspace candidate",
+  );
   const previous = updating
     ? JSON.parse(
         execFileSync(
@@ -169,6 +179,29 @@ try {
       await readFile("templates/ai-dev-k8s/assets/workspace-read.manifest.sha256", "utf8")
     ).trim(),
   });
+  const pins = Object.fromEntries(
+    await Promise.all(
+      Object.entries({
+        workspace: "workspace-read.manifest.sha256",
+        voice: "voice.manifest.sha256",
+        agent: "agent-bridge.manifest.sha256",
+        helper: "agent-bridge.helper.sha256",
+      }).map(async ([key, path]) => [
+        key,
+        (await readFile(`templates/ai-dev-k8s/assets/${path}`, "utf8")).trim(),
+      ]),
+    ),
+  );
+  const pilot = deliveryPilotCandidate({
+    enabled: pilotEnabled,
+    updating,
+    nativeCandidate,
+    issuer: hostIdentity,
+    catalog: pilotEnabled
+      ? await readPreviewPrivateJson(process.env.HIVE_PREVIEW_DELIVERY_CATALOG_FILE)
+      : undefined,
+    pins,
+  });
   const runId = randomUUID();
   const directory = join(credentials, `app-preview-${runId}`);
   await mkdir(directory, { mode: 0o700 });
@@ -185,6 +218,9 @@ try {
     bindings.app.HIVE_CODEX_ISSUER_PRIVATE_KEY = hostIdentity.privateKeyPem;
   if (workspaceCandidate && !inheritSecrets)
     bindings.app.HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY = hostIdentity.privateKeyPem;
+  if (pilot) {
+    bindings.app.HIVE_PROJECT_TASK_RECONCILE_SECRET = randomBytes(32).toString("hex");
+  }
   const configs = {};
   for (const [kind, config] of Object.entries({ app, auth })) {
     delete config.$schema;
@@ -200,6 +236,7 @@ try {
             HIVE_PREVIEW_ORIGIN: previewOrigin,
             HIVE_CODEX_GATEWAY_ENABLED: nativeCandidate ? "true" : "false",
             ...workspaceProjectsVars(workspaceCandidate, hostIdentity),
+            ...(pilot ? deliveryPilotVars(pilot, hostIdentity) : {}),
           }
         : {}),
       ...(kind === "app" && hostIdentity
@@ -247,6 +284,10 @@ try {
       : undefined,
     nativeGatewayCandidate: nativeCandidate,
     workspaceProjectsCandidate: workspaceCandidate,
+    deliveryPilotCandidate: pilot,
+    projectJobsPlan: pilot
+      ? projectJobsPilotPlan(bindings.app.HIVE_PROJECT_TASK_RECONCILE_SECRET)
+      : undefined,
     nativeIssuer: hostIdentity
       ? {
           keyId: hostIdentity.keyId,

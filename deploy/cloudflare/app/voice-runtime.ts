@@ -16,8 +16,12 @@ import {
   resolveVerifiedWorkspaceHost,
   type VerifiedHostBinding,
 } from "../../../src/lib/codex-session/registration.server";
+import {
+  type WorkspaceIssuerEnvironment,
+  workspaceIssuerPrivateKey,
+} from "../../../src/lib/codex-session/workspace-issuer";
 
-export type VoiceEnvironment = {
+export type VoiceEnvironment = WorkspaceIssuerEnvironment & {
   DATABASE_URL?: string;
   AUTH_SERVICE?: { fetch: typeof fetch };
   AUTH_SERVICE_SECRET?: string;
@@ -47,7 +51,7 @@ const error = (status: number, message = "Voice transport unavailable") =>
 export function voicePath(request: Request) {
   return path.test(new URL(request.url).pathname);
 }
-function configuration(env: VoiceEnvironment) {
+export function voiceRuntimeConfiguration(env: VoiceEnvironment) {
   if (
     env.HIVE_CODEX_VOICE_ENABLED !== "true" ||
     env.HIVE_VOICE_TRANSPORT !== "workspace-app" ||
@@ -60,10 +64,15 @@ function configuration(env: VoiceEnvironment) {
   authServiceHeaders(env.AUTH_SERVICE_SECRET);
   const origin = new URL(env.HIVE_PREVIEW_ORIGIN ?? ""),
     coder = new URL(env.CODER_URL ?? ""),
-    privateKeyPem = env.HIVE_VOICE_ISSUER_PRIVATE_KEY ?? "",
     keyId = env.HIVE_VOICE_ISSUER_KEY_ID ?? "",
     lockDirectory = "/home/coder/.codex/hive-voice",
     profiles = pins.parse(JSON.parse(env.HIVE_VOICE_TEMPLATE_PINS_JSON ?? ""));
+  const privateKeyPem = workspaceIssuerPrivateKey(env, {
+    dedicatedKey: env.HIVE_VOICE_ISSUER_PRIVATE_KEY ?? "",
+    origin: origin.origin,
+    keyId,
+    templateIds: profiles.map((profile) => profile.templateId),
+  });
   if (
     origin.protocol !== "https:" ||
     origin.origin !== env.HIVE_PREVIEW_ORIGIN ||
@@ -96,7 +105,7 @@ function sessionId(request: Request, secret: string) {
 }
 async function authorize(
   env: VoiceEnvironment,
-  config: ReturnType<typeof configuration>,
+  config: ReturnType<typeof voiceRuntimeConfiguration>,
   session: string,
   workspaceId: string,
   signal: AbortSignal,
@@ -213,9 +222,9 @@ export async function voiceRuntime(
   const match = path.exec(new URL(request.url).pathname);
   if (!match || new URL(request.url).search || !["GET", "POST"].includes(request.method))
     return error(404);
-  let config: ReturnType<typeof configuration>, session: string;
+  let config: ReturnType<typeof voiceRuntimeConfiguration>, session: string;
   try {
-    config = configuration(env);
+    config = voiceRuntimeConfiguration(env);
   } catch {
     return error(503);
   }

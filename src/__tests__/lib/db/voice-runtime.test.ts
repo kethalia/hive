@@ -34,7 +34,10 @@ vi.mock("@/lib/codex/voice-portable-client.server", () => ({
   openPortableVoiceClient: mocks.open,
 }));
 
-import { voiceRuntime } from "../../../../deploy/cloudflare/app/voice-runtime";
+import {
+  voiceRuntime,
+  voiceRuntimeConfiguration,
+} from "../../../../deploy/cloudflare/app/voice-runtime";
 
 const workspaceId = randomUUID(),
   userId = randomUUID(),
@@ -134,6 +137,41 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("voice Worker route", () => {
+  it("shares only the exact enrolled host issuer and rejects scope drift", () => {
+    const pair = generateKeyPairSync("ed25519");
+    const shared = {
+      ...env,
+      HIVE_VOICE_ISSUER_PRIVATE_KEY: "",
+      HIVE_WORKSPACE_ISSUER_MODE: "shared-host",
+      HIVE_CODEX_GATEWAY_ENABLED: "true",
+      HIVE_CODEX_HIVE_ORIGIN: origin,
+      HIVE_CODEX_ISSUER_KEY_ID: "test",
+      HIVE_CODEX_SOFTWARE_TEMPLATE_IDS: templateId,
+      HIVE_CODEX_ISSUER_PRIVATE_KEY: pair.privateKey
+        .export({ type: "pkcs8", format: "pem" })
+        .toString(),
+      HIVE_CODEX_ISSUER_PUBLIC_KEY: pair.publicKey
+        .export({ type: "spki", format: "pem" })
+        .toString(),
+    };
+    expect(voiceRuntimeConfiguration(shared).privateKeyPem).toBe(
+      shared.HIVE_CODEX_ISSUER_PRIVATE_KEY,
+    );
+    for (const change of [
+      { HIVE_CODEX_HIVE_ORIGIN: "https://other.example" },
+      { HIVE_CODEX_ISSUER_KEY_ID: "other" },
+      { HIVE_CODEX_SOFTWARE_TEMPLATE_IDS: randomUUID() },
+      { HIVE_CODEX_GATEWAY_ENABLED: "false" },
+      { HIVE_WORKSPACE_ISSUER_MODE: "invalid" },
+      { HIVE_VOICE_ISSUER_PRIVATE_KEY: key },
+      {
+        HIVE_CODEX_ISSUER_PUBLIC_KEY: generateKeyPairSync("ed25519")
+          .publicKey.export({ type: "spki", format: "pem" })
+          .toString(),
+      },
+    ])
+      expect(() => voiceRuntimeConfiguration({ ...shared, ...change })).toThrow();
+  });
   it("stays disabled without explicit transport configuration", async () => {
     const f = setup();
     expect(
