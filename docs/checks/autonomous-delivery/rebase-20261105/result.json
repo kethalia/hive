@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "oldEpicHead": "bf42dc8d3bb6725ac6184ba791ce7de3c7260aaa",
+  "mainBase": "1ace8774118b99b28856347edd51410c4f0a0774",
+  "remoteEpicBefore": "24a454c69610f46ddb7c7ed313a3e7a094c25253",
+  "rebasedHeadBeforeReconciliationCommit": "6b11dc0940235284d47400f0bd67bda0ae69f324",
+  "backupBranch": "codex/backup-delivery-before-main-20261105",
+  "localWorkSnapshot": "089e671ede2136bde077614fa129f0f5d2f5ad4e",
+  "localPathsPreserved": 704,
+  "duplicateReleasedCommitsExcluded": ["d02e5543", "2fb4a796"],
+  "excludedCommitDocumentationRestored": true,
+  "preservedMainFeatures": [
+    "keycap dock and terminal focus",
+    "user-managed Codex registry module 5.5.0",
+    "optional per-workspace Sysbox Docker engine",
+    "private repository removal",
+    "release version 2.33.0 and README updates"
+  ],
+  "checks": {
+    "ui": {
+      "passed": 38,
+      "files": 5
+    },
+    "templates": {
+      "passed": 108
+    },
+    "runtime": {
+      "passed": 454,
+      "skipped": 21
+    },
+    "typecheck": "passed",
+    "nativeSocketBoundary": {
+      "result": "passed",
+      "binaryVersion": "0.165.0",
+      "socket": "synthetic Unix socket with direct and project-symlink positive/negative controls",
+      "actualSysboxEngineValidated": false
+    }
+  },
+  "installedPrimaryCodexVersion": "0.166.0",
+  "remaining": "Validate current Codex compatibility, restore unfinished changes, complete release/database/epic implementation and fresh integrated pilots. Existing dated proof does not establish current deployed behavior."
+}

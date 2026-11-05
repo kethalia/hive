@@ -13,6 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:http";
+import { createServer as createSocketServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -79,6 +80,21 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
   mkdirSync(managed, { recursive: true, mode: 0o700 });
   const checkout = join(managed, "github/123/checkout");
   mkdirSync(checkout, { recursive: true, mode: 0o700 });
+  // Model the separately mounted workspace engine with a harmless Unix socket
+  // outside the managed projects bind mount, and a project-relative alias.
+  const engineSocket = join(home, "engine.sock");
+  const engineAlias = join(checkout, "engine.sock");
+  const socketServer = createSocketServer((connection) => connection.end());
+  await new Promise((resolve, reject) => {
+    socketServer.once("error", reject);
+    socketServer.listen(engineSocket, resolve);
+  });
+  symlinkSync(engineSocket, engineAlias);
+  const socketProbe =
+    "import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(sys.argv[1]); s.close()";
+  for (const path of [engineSocket, engineAlias]) {
+    execFileSync("/usr/bin/python3", ["-I", "-c", socketProbe, path]);
+  }
   const sibling = join(managed, "github/456/checkout");
   mkdirSync(sibling, { recursive: true, mode: 0o700 });
   writeFileSync(join(sibling, "other-project"), "SYNTHETIC_OTHER_PROJECT");
@@ -204,6 +220,7 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
     if (authorityFd !== undefined) closeSync(authorityFd);
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
+    await new Promise((resolve) => socketServer.close(resolve));
     rmSync(home, { recursive: true, force: true });
   });
   const options = {
@@ -231,7 +248,14 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
       return native;
     },
   };
-  supervisor = await openSupervisor(config(), options);
+  const previousDockerHost = process.env.DOCKER_HOST;
+  process.env.DOCKER_HOST = `unix://${engineAlias}`;
+  try {
+    supervisor = await openSupervisor(config(), options);
+  } finally {
+    if (previousDockerHost === undefined) delete process.env.DOCKER_HOST;
+    else process.env.DOCKER_HOST = previousDockerHost;
+  }
   const identity = supervisor.state.executionIdentity;
   assert.equal(identity.mode, "isolated");
   assert.equal(processParentPid(identity.wrapper.pid), process.pid);
@@ -253,6 +277,20 @@ test("actual isolated native WS protects token and same-thread CLI/history with 
   });
   assert.equal(denied.exitCode, 0);
   assert.equal(denied.stdout.trim(), "DENIED");
+  const dockerDenied = await native.call("command/exec", {
+    command: [
+      "/usr/bin/python3",
+      "-I",
+      "-c",
+      "import errno,os,socket,sys\nassert 'DOCKER_HOST' not in os.environ\nos.environ['DOCKER_HOST']='unix://'+sys.argv[2]\nfor path in sys.argv[1:]:\n s=socket.socket(socket.AF_UNIX); s.settimeout(2)\n try: s.connect(path)\n except OSError as e: assert e.errno in (errno.EACCES,errno.EPERM,errno.ENOENT), (path,e.errno)\n else: raise SystemExit('ENGINE_SOCKET_REACHABLE')\n finally: s.close()\nprint('ENGINE_SOCKET_DENIED')",
+      engineSocket,
+      engineAlias,
+    ],
+    cwd: checkout,
+    permissionProfile: NATIVE_PROFILE,
+  });
+  assert.equal(dockerDenied.exitCode, 0, dockerDenied.stderr);
+  assert.equal(dockerDenied.stdout.trim(), "ENGINE_SOCKET_DENIED");
   const rgPath = join(dirname(dirname(executable)), "codex-path/rg");
   const rgDigest = createHash("sha256").update(readFileSync(rgPath)).digest("hex");
   writeFileSync(join(checkout, "search-fixture.txt"), "PINNED_SEARCH_CONTROL\n");
