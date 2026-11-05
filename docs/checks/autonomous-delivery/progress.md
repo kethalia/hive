@@ -27,6 +27,8 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | Test workspace | Current guarded host healthy; multi-task pilot pending | Dedicated codex/hive-epic-test runs inactive 791a32d4 on f811 image. The second dedicated workspace exposed an initial Codex install ordering race despite a healthy native host. Both are retained; global active template is unchanged. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
+| F09 Coder OAuth | Accepted roadmap; implementation deferred | Inspect Creative Studio admin OAuth, minimize credential persistence, preserve fixed-host and owner isolation. No login changes in the current pilot. |
+| F10 agent account window | Accepted roadmap; implementation deferred | Native Codex/Claude account setup and status in Hive; verify supported provider flows and workspace binding before implementation. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
 ## Resource and cost record
@@ -1064,3 +1066,9 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 - CI: current f811 migration, formatting, lint, quality, Helm and image checks passed. A nested
   runtime test still fails only on GitHub; f4a18bee preserves its child diagnostics so the actual
   assertion can be fixed. No test was disabled or acceptance gate weakened.
+
+- Account connection roadmap addition (2026-11-05): documented at the user's request; no auth
+  implementation or account flow was started. Read-only inspection of Creative Studio's admin
+  worktree confirmed Coder authorization-code/PKCE plus encrypted refreshable credentials and
+  a Codex device-code UI. Claude has no verified equivalent in that reference. F09/F10 capture
+  the requested app-managed connections, storage investigation and separate acceptance gates.

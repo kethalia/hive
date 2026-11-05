@@ -146,6 +146,8 @@ relevant dependents; preserve IDs so evidence and progress links remain stable. 
 | F06 | Durable preservation and safe cleanup | F05, D03 | Evidence stored in R2; completed managed checkout can be removed safely and re-created; ignored/untracked files and active consumers block unsafe deletion |
 | F07 | Replace origin-bound background services | F02, D03 | Workflows/Queues cover required jobs, retries, notifications and event waits; no hidden Kubernetes Hive service dependency remains |
 | F08 | Rehearse data migration and application cutover | F02, F07, D05, D06 | Existing PostgreSQL data moves to Neon with integrity checks; secrets/session behavior, R2, streaming, backup and recovery rehearsed |
+| F09 | Connect to the configured Coder instance through OAuth | F01, F02 | Adapt the verified Creative Studio admin pattern; browser consent, owner/origin binding, expiry/refresh/revocation and migration from existing connections pass. Minimize stored credentials and document what unattended operations still require. |
+| F10 | Add in-app Codex and Claude account connections | F04, F09, D12 | A native Accounts window handles connect/status/cancel/reconnect/disconnect for each provider through its supported flow; no terminal or callback-URL copy/paste is required. Credentials remain scoped to the intended user and workspace runtime; independent provider acceptance passes. |
 
 F02 is a capability gate, not a production cutover. Build F04 early: shared-session attachment is a
 core requirement, not something to discover after building the conversation UI. Use the smallest
@@ -199,6 +201,39 @@ User preference is to keep main unchanged by this project until the complete can
 The initial bootstrap release is governed by the current human-merge policy. Automatic release
 capabilities built by this epic are enabled only after their own gates and authority changes pass.
 No workspace/template rollout or production mutation is authorized merely by recording this plan.
+
+## Account connection refactoring (added 2026-11-05)
+
+F09 and F10 are accepted roadmap scope. The user explicitly requested documentation now,
+with implementation deferred; do not start either authentication refactor during the current
+manager/browser pilot. Sequence them after that pilot as separate reviewed slices, and track
+both in the epic's final acceptance rather than silently dropping them.
+
+F09 replaces Hive's normal email/password connection with “Connect to Coder” against the
+instance-defined `https://coder.kethalia.com`; no server-URL prompt is introduced. Use the
+Creative Studio admin OAuth implementation as the starting reference, adapting its connection
+ownership to Hive's per-user authorization. Verify provider availability, registration, scopes,
+callback configuration, refresh/revocation and existing-session migration before retiring the
+current connection method. Document the least persistent state needed by interactive and
+unattended operations. OAuth does not by itself eliminate access/refresh credentials: the
+reference encrypts and stores them. Assess alternatives before choosing storage; never claim
+that local account metadata and delivery history disappear with the login change.
+
+F10 adds a native Accounts/Connections window within Hive for Codex and Claude, with separate
+connection cards and visible status, expiry, cancellation and reconnect behavior. The app may
+open the provider's official consent page in another tab and display a device code where
+required; the user should not need a terminal, pasted callback URL, or manual runtime-file edits.
+Complete sign-in in the intended workspace runtime and preserve its existing user-managed
+configuration. Keep application credentials out of browser storage and conversation transcripts.
+Codex has a concrete Creative Studio device-code UI reference. Claude requires verification of
+its supported browser/device flow before selecting an implementation; do not assume the two
+providers offer the same protocol or copy credentials between workspaces.
+
+Validation includes denied/expired/cancelled consent, duplicate or late callbacks, refresh
+concurrency, logout/revocation, workspace restart, wrong-owner/build rejection and existing
+session/configuration preservation. Assess effects on background jobs and credential rotation
+(F07), cutover/session migration (F08), and workspace provisioning (D12).
+See the [reference audit](checks/autonomous-delivery/account-connections-roadmap.md).
 
 ## Immediate next task
 

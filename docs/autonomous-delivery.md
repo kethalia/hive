@@ -268,7 +268,9 @@ already applied to existing workspaces or production. The release plan is in the
 
 Configure the Coder origin server-side; this deployment uses `https://coder.kethalia.com`.
 Use a deployment setting such as `CODER_URL`; remove the URL field and user-controlled origin
-from login input. Authenticate the user's credentials with the configured Coder service and keep
+from login input. The initial implementation authenticates the user's credentials with the
+configured Coder service. The accepted 2026-11-05 follow-up replaces that normal connection
+flow with Coder OAuth modeled on Creative Studio's admin connection (F09), while keeping
 owner-specific authorization for every operation. Validate existing session origin bindings during
 migration. Never forward credentials to an origin supplied in a request. Coder remains the identity
 authority; neither Neon nor Cloudflare requires introducing a second user identity system.
@@ -365,3 +367,18 @@ traces, attachments, and delivery evidence whose retention should survive tempor
 Neon branch cleanup. Do not introduce a second object store without that concrete
 branching requirement. See [Neon Object Storage](https://neon.com/blog/building-neon-object-storage)
 and [Cloudflare R2](https://developers.cloudflare.com/r2/).
+
+## Accepted account-connection refinement (2026-11-05)
+
+The user requested a roadmap addition, with implementation deferred until after the current
+pilot. Add Coder OAuth for the fixed instance and a native Accounts/Connections window for
+Codex and Claude. Connection setup, status, cancellation and reconnect should be managed in
+Hive; provider consent can occur in its official external page without terminal instructions
+or manual callback forwarding. Preserve user-managed agent settings and authenticate the
+intended owner/workspace runtime.
+
+Minimize Hive-held credential material. Creative Studio's Coder OAuth reference still stores
+encrypted client/access/refresh credentials, so OAuth is not evidence that unattended Hive
+can operate without credential persistence. Decide and document that boundary before migration.
+Codex has a reference device-code UI; Claude's supported flow remains to be verified separately.
+The concrete tasks and acceptance criteria are F09/F10 in the implementation epic.
