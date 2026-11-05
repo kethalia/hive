@@ -30,6 +30,15 @@ const scope = parsePhaseB({
   marker: "HIVE_PILOT_ABCDEFGH",
   start: null,
 });
+test("existing session accepts only the two reviewed workspaces and keeps the repository binding", () => {
+  const flow = "49dfbaf2-f475-4053-8c6b-2fc09d0db8bf";
+  assert.equal(parsePhaseB(scope).workspaceId, TARGET.workspaceId);
+  assert.equal(parsePhaseB({ ...scope, workspaceId: flow }).workspaceId, flow);
+  assert.throws(() => parsePhaseB({ ...scope, workspaceId: id }));
+  assert.throws(() => parsePhaseB({ ...scope, workspaceId: flow, repositoryId: "999" }));
+  assert.throws(() => parsePhaseB({ ...scope, workspaceId: flow, providerAccountId: "999" }));
+  assert.throws(() => parsePhaseB({ ...scope, workspaceId: flow, threadId: null }));
+});
 test("existing session is limited to scoped project and read-only socket operations", () => {
   assert(phaseBPermit(scope, `${ORIGIN}/api/projects/${id}/session-grant`, "POST"));
   assert(

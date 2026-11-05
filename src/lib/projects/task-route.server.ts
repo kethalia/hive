@@ -12,6 +12,7 @@ import {
   readProjectTask,
   retryProjectTask,
   startProjectTask,
+  type TaskStartStage,
 } from "./task.server";
 import { TaskIntentConflict } from "./task-intents.server";
 
@@ -19,6 +20,7 @@ export function projectTaskRoute(operation: "start" | "status" | "retry") {
   return async (request: Request, { params }: { params: Promise<{ projectId: string }> }) => {
     if (process.env.HIVE_PROJECT_TASKS_ENABLED !== "true")
       return sessionError("tasks_disabled", 404);
+    let stage: TaskStartStage | "route" = "route";
     try {
       const session = await authorizeSessionOwner(request);
       if (session instanceof Response) return session;
@@ -30,20 +32,36 @@ export function projectTaskRoute(operation: "start" | "status" | "retry") {
         return sessionError("invalid_request", 400);
       }
       const { projectId } = await params;
-      const execute =
+      const result =
         operation === "start"
-          ? startProjectTask
-          : operation === "retry"
-            ? retryProjectTask
-            : readProjectTask;
-      return Response.json(await execute(session.user, projectId, body), {
+          ? await startProjectTask(session.user, projectId, body, (next) => {
+              stage = next;
+            })
+          : await (operation === "retry" ? retryProjectTask : readProjectTask)(
+              session.user,
+              projectId,
+              body,
+            );
+      return Response.json(result, {
         headers: sessionResponseHeaders,
       });
     } catch (error) {
-      if (error instanceof ZodError) return sessionError("invalid_request", 400);
-      if (error instanceof TaskIntentConflict) return sessionError("task_identity_conflict", 409);
-      if (error instanceof ProjectTaskConflict) return sessionError("source_changed", 409);
-      if (
+      let code = "task_unavailable";
+      let category = "internal";
+      let statusCode = 503;
+      if (error instanceof ZodError) {
+        code = "invalid_request";
+        category = "validation";
+        statusCode = 400;
+      } else if (error instanceof TaskIntentConflict) {
+        code = "task_identity_conflict";
+        category = "intent_conflict";
+        statusCode = 409;
+      } else if (error instanceof ProjectTaskConflict) {
+        code = "source_changed";
+        category = "source_conflict";
+        statusCode = 409;
+      } else if (
         error instanceof DeliveryConflict &&
         [
           "repository_policy_not_enrolled",
@@ -56,14 +74,20 @@ export function projectTaskRoute(operation: "start" | "status" | "retry") {
           "repository_policy_identity_changed",
           "repository_policy_enrollment_revoked",
         ].includes(error.code)
-      )
-        return sessionError(error.code, 409);
-      if (error instanceof ProjectDiscoveryError)
-        return sessionError(
-          error.code,
-          ["workspace_forbidden", "github_permission_denied"].includes(error.code) ? 403 : 502,
-        );
-      return sessionError("task_unavailable", 503);
+      ) {
+        code = error.code;
+        category = "policy_conflict";
+        statusCode = 409;
+      } else if (error instanceof ProjectDiscoveryError) {
+        code = error.code;
+        category = "discovery";
+        statusCode = ["workspace_forbidden", "github_permission_denied"].includes(error.code)
+          ? 403
+          : 502;
+      }
+      if (operation === "start")
+        console.error("project_task_start_failed", { stage, category, statusCode });
+      return sessionError(code, statusCode);
     }
   };
 }

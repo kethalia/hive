@@ -6,6 +6,10 @@ export const TARGET = Object.freeze({
   repositoryId: "1183966024",
   providerAccountId: "62855857",
 });
+const REVIEWED_WORKSPACES = Object.freeze([
+  TARGET.workspaceId,
+  "49dfbaf2-f475-4053-8c6b-2fc09d0db8bf",
+]);
 export const LIMIT = 200,
   DURATION = 180000;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -40,7 +44,11 @@ export function parseScope(value) {
     )
   )
     throw new Error("scope_rejected");
-  if (Object.entries(TARGET).some(([key, expected]) => value[key] !== expected))
+  if (
+    !REVIEWED_WORKSPACES.includes(value.workspaceId) ||
+    value.repositoryId !== TARGET.repositoryId ||
+    value.providerAccountId !== TARGET.providerAccountId
+  )
     throw new Error("scope_rejected");
   return Object.freeze({ ...value });
 }

@@ -135,7 +135,8 @@ python3 scripts/checks/project-preview/remote.py
 node --test scripts/checks/project-preview/policy.test.mjs
 ```
 
-The driver is hard-pinned to the approved workspace22c4f094-46f0-4a76-86ca-37ad74254872,
+The driver permits only the reviewed workspaces 22c4f094-46f0-4a76-86ca-37ad74254872 and
+49dfbaf2-f475-4053-8c6b-2fc09d0db8bf,
 repository1183966024 and GitHub account62855857. It uses the current source's UI
 labels and deep-link contract. Dashboard workspace loading is an SSR read action;
 client discovery uses GET JSON routes. Opening this panel has no required browser

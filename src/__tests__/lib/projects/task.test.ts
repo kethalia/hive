@@ -128,6 +128,16 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("project task controller", () => {
+  it("reports the actual failing start stage without exposing its error", async () => {
+    const stages: string[] = [];
+    mock.host.mockRejectedValue(new Error("private credential"));
+    await expect(
+      startProjectTask(user, projectId, input, (stage) => stages.push(stage)),
+    ).rejects.toThrow();
+    expect(stages).toEqual(["validation", "project", "existing_intent", "repository"]);
+    expect(mock.enqueue).not.toHaveBeenCalled();
+  });
+
   it("pins the independently resolved policy base and rejects a stale displayed revision before enqueue", async () => {
     vi.spyOn(sourceBaseModule, "resolveProjectSourceBase").mockResolvedValue({
       branch: "codex/epic",

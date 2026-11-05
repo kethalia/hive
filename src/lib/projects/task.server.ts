@@ -55,8 +55,26 @@ function status(value: unknown, projectId: string, taskId: string) {
     throw new ProjectDiscoveryError("github_invalid_response");
   return result.data;
 }
-export async function startProjectTask(user: ProjectPrincipal, projectId: string, value: unknown) {
+export type TaskStartStage =
+  | "validation"
+  | "project"
+  | "existing_intent"
+  | "repository"
+  | "source_base"
+  | "runtime_policy"
+  | "intent_store"
+  | "policy_enrollment"
+  | "enqueue";
+
+export async function startProjectTask(
+  user: ProjectPrincipal,
+  projectId: string,
+  value: unknown,
+  onStage?: (stage: TaskStartStage) => void,
+) {
+  onStage?.("validation");
   const input = projectTaskStartSchema.parse(value);
+  onStage?.("project");
   const project = await ownedProject(user, projectId);
   const taskId = projectTaskId(user.id, projectId, input.requestId);
   const requestDigest = taskRequestDigest([
@@ -69,6 +87,7 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
   ]);
   // An accepted request remains accepted even if main advances before its lost
   // acknowledgement is retried. The durable intent, not a fresh HEAD, owns replay.
+  onStage?.("existing_intent");
   const existing = await getDb().projectTaskIntent.findUnique({
     where: { ownerId_id: { ownerId: user.id, id: taskId } },
   });
@@ -82,6 +101,7 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
       throw new TaskIntentConflict("task_identity_conflict");
     return pendingTaskStatus(existing);
   }
+  onStage?.("repository");
   const parsedRepository = resolvedRepositorySchema.safeParse(
     await signedHostProjectRequest(user, input.workspaceId, "/projects/resolve", {
       schemaVersion: 1,
@@ -98,11 +118,13 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
     throw new ProjectDiscoveryError("github_invalid_response");
   if (resolved.repository.archived || resolved.repository.permissions.push !== true)
     throw new ProjectDiscoveryError("github_permission_denied");
+  onStage?.("source_base");
   const sourceBase = await resolveProjectSourceBase(user, input.workspaceId, resolved);
   if (sourceBase.revision !== input.expectedRevision)
     throw new ProjectTaskConflict("source_changed");
   // Runtime policy is deployment-owned. Models cannot promote themselves through
   // browser fields, and absent policy disables task execution.
+  onStage?.("runtime_policy");
   const model = z
     .string()
     .regex(/^[a-z0-9][a-z0-9._-]{0,99}$/)
@@ -111,6 +133,7 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
     .enum(["low", "medium", "high", "xhigh", "max", "ultra"])
     .safeParse(process.env.HIVE_CODEX_MANAGER_EFFORT);
   if (!model.success || !effort.success) throw new Error("Manager runtime policy is unavailable");
+  onStage?.("intent_store");
   let store = taskIntentStore();
   if (process.env.HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED !== "true" && project.repositoryPolicy) {
     const { DeliveryConflict } = await import("@/lib/delivery/state");
@@ -131,6 +154,7 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
         push: resolved.repository.permissions.push,
       },
     }));
+    onStage?.("policy_enrollment");
     const selected = await policies.enroll(user.id, projectId);
     store = taskIntentStore((tx, payload) =>
       policies.pinIntent(
@@ -147,6 +171,7 @@ export async function startProjectTask(user: ProjectPrincipal, projectId: string
       ),
     );
   }
+  onStage?.("enqueue");
   const row = await store.enqueue({
     ownerId: user.id,
     projectId,
