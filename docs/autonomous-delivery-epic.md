@@ -37,7 +37,7 @@ Current step reports and blockers: [execution ledger](checks/autonomous-delivery
 Validate, adding Release/Observe when it changes deployed behavior. Record attempts, issues,
 difficulty with rationale, evidence, and next action on every completed step. Implement small
 reviewable slices on the integration branch; keep the final main-targeting PR as a draft until
-the release gates below pass. This epic does not authorize local branch merges or rebases.
+the release gates below pass. The user explicitly authorized rebasing this epic onto the newer main on 2026-11-05; that reconciliation is recorded in the execution ledger. Other local merges or history rewriting still require authorization.
 
 | ID | Task | Depends on | Done when |
 | --- | --- | --- | --- |
@@ -155,8 +155,8 @@ Use one long-lived integration branch for this bounded major project. The curren
 `codex/delivery-system-design`; it can remain the integration branch rather than creating a new
 clone or restarting the task. Preserve the primary checkout and isolate only concurrent work.
 Create Conventional Commit slices and obtain review incrementally. If child branches are needed,
-use GitHub PRs into the integration branch; never merge/rebase locally under the current policy.
-Keep one draft PR from the integration branch to main while work remains. No force pushes.
+use GitHub PRs into the integration branch; local merges/rebases require explicit user authorization.
+Keep one draft PR from the integration branch to main while work remains. The authorized 2026-11-05 rebase is published with an explicit lease against the recorded remote epic head; other force pushes remain prohibited.
 
 A single branch does not mean a single final validation pass. Run narrow checks after every slice,
 CI regularly, and deploy integration revisions to isolated Cloudflare preview environments backed

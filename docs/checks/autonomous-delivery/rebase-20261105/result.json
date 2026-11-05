@@ -37,5 +37,12 @@
     }
   },
   "installedPrimaryCodexVersion": "0.166.0",
-  "remaining": "Validate current Codex compatibility, restore unfinished changes, complete release/database/epic implementation and fresh integrated pilots. Existing dated proof does not establish current deployed behavior."
+  "remaining": "Validate current Codex compatibility, restore unfinished changes, complete release/database/epic implementation and fresh integrated pilots. Existing dated proof does not establish current deployed behavior.",
+  "localWorkRestored": {
+    "verifiedPaths": 704,
+    "missing": 0,
+    "identical": 703,
+    "expectedDifference": "package.json keeps main version 2.33.0 while restoring unfinished release test command"
+  },
+  "runtimeClarification": "The managed session coordinator intentionally uses separately installed, hash-pinned official Codex 0.165.0. The user CLI is 0.166.0; the nightly updater does not replace the coordinator. Its independent upgrade is not required for this rebase."
 }

@@ -1000,3 +1000,5 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   auth/app/callback/portable-action proof passed against the isolated Neon runtime role, including
   fixture cleanup. No real Coder mutation or cloud deployment is represented by this test.
   Evidence: [application proof](cloudflare-auth-agent-bridge.json).
+
+- Main reconciliation (2026-11-05): complete, moderate difficulty. Rebased the epic onto main 1ace8774 under the user’s explicit authorization. Preserved the keycap dock, user-managed Codex module, optional Sysbox Docker, removed private defaults and version 2.33.0. All704 saved local paths restored;703 are byte-identical, and package.json retains the new main version plus unfinished release tests. Focused checks pass:38 UI,108 template,454 runtime (21 optional skips), typecheck and actual pinned-runtime Unix-socket isolation. The user CLI update is separate from the pinned managed-session runtime. Release, database-job and multi-task integration remain in progress; earlier preview proofs are historical. Evidence: [rebase verification](rebase-20261105/result.json).
