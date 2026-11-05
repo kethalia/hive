@@ -10,12 +10,8 @@
   "storageClass": "longhorn",
   "accessMode": "ReadWriteOnce",
   "provisionerVolumeName": "",
-  "devWritableMounts": [
-    "home:/home/coder"
-  ],
-  "initWritableMounts": [
-    "home:/target"
-  ],
+  "devWritableMounts": ["home:/home/coder"],
+  "initWritableMounts": ["home:/target"],
   "otherVolumes": "read-only downward API bootstrap only",
   "hostPathPresent": false,
   "guardianPins": {

@@ -117,9 +117,7 @@
     "observedAt": "2026-11-05T19:03:55.435Z",
     "schedules": []
   },
-  "cloudWrites": [
-    "create fixed jobs Worker with empty schedules"
-  ],
+  "cloudWrites": ["create fixed jobs Worker with empty schedules"],
   "scheduledInvocationsEnabled": false,
   "publicUrlsEnabled": false,
   "secretValuesRecorded": false

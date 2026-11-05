@@ -62,6 +62,16 @@ test("permits repairing an owned private preview after a recorded failed probe",
   f.preflight.targets[0].deploymentId = "foreign";
   assert.throws(f.validate);
 });
+test("a historical public probe requires fresh closure before updating", () => {
+  const f = fixture();
+  f.previous.finalPublicState.app = { enabled: true, previews_enabled: true };
+  f.validate();
+  f.preflight.targets[0].publicState.enabled = true;
+  assert.throws(f.validate);
+  f.preflight.targets[0].publicState.enabled = false;
+  f.preflight.targets[0].publicState.previews_enabled = true;
+  assert.throws(f.validate);
+});
 test("existing targets require explicit prior evidence and still require fresh included headroom", () => {
   const f = fixture(ACCOUNT_ID, { app: APP_NAME, auth: AUTH_NAME });
   Object.assign(f.preflight, {
@@ -119,9 +129,6 @@ test("rejects foreign account or incomplete/unproven prior deployment evidence",
     },
     (previous) => {
       previous.scriptIdentities = [];
-    },
-    (previous) => {
-      previous.finalPublicState.auth.enabled = true;
     },
   ]) {
     const f = fixture();

@@ -22,10 +22,10 @@ export function validatePreviewRedeployment(preflight, previous, accountId, work
     assert.equal(target.createdOn, identity.createdOn, "Preview Worker creation changed");
     assert.equal(target.deploymentId, deployment.deploymentId, "Preview deployment changed");
     assert.equal(target.versionId, deployment.versionId, "Preview version changed");
-    for (const state of [target.publicState, previous.finalPublicState[kind]]) {
-      assert.equal(state.enabled, false, "Preview must be private before preparation");
-      assert.equal(state.previews_enabled, false);
-    }
+    // A completed probe may leave the prior record public. Fresh provider
+    // evidence, not that historical state, proves the target is closed now.
+    assert.equal(target.publicState.enabled, false, "Preview must be private before preparation");
+    assert.equal(target.publicState.previews_enabled, false);
   }
   assert.ok(typeof previous.prepared.previewIdentityId === "string");
 }
