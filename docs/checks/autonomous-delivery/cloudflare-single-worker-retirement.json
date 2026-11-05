@@ -9,9 +9,7 @@
   "preview": {
     "id": "9b772c5c22f84deeb1af85e68f819798",
     "name": "codex/delivery-system-design",
-    "urls": [
-      "https://codex-delivery-system-design-hive.b00ste.workers.dev"
-    ],
+    "urls": ["https://codex-delivery-system-design-hive.b00ste.workers.dev"],
     "deploymentId": "93f55b0f-e3b2-4c7c-a4ce-edc93072c94f",
     "tag": "4fc81c3",
     "externalServiceBindings": []
