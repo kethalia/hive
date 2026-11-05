@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "b612434c46b2d4c20eed12c230a4d6184d91cc28",
+  "scope": "isolated native preview",
+  "database": "hive_native_preview",
+  "role": "hive_epic_owner",
+  "migrations": 40,
+  "failedMigrations": 0,
+  "applicationTables": 67,
+  "users": 0,
+  "sessions": 0,
+  "projects": 0,
+  "tasks": 0,
+  "intents": 0,
+  "oldRoleCanConnect": false,
+  "oldRoleObjectPrivileges": 0,
+  "newRoleFlags": {
+    "login": true,
+    "superuser": false,
+    "createDatabase": false,
+    "createRole": false,
+    "inherit": false
+  },
+  "nativeCanConnect": true,
+  "immutableCanUpdate": false,
+  "immutableCanDelete": false,
+  "sessionsCanDelete": true,
+  "expectedMigrations": 40,
+  "runtimeRole": "hive_native_runtime"
+}

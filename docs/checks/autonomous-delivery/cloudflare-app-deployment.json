@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "observedAt": "2026-11-05T18:12:03.119Z",
-  "sourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+  "sourceRevision": "b612434c46b2d4c20eed12c230a4d6184d91cc28",
   "accountId": "225177f82b9234ede14e897fe15e0cb5",
   "scriptIdentities": [
     {
@@ -24,8 +24,8 @@
   "workers": {
     "app": {
       "name": "hive-app-compatibility-preview",
-      "deploymentId": "69cea243-2fb0-45d9-842a-d46bc89592aa",
-      "versionId": "2ae40150-534e-4bf9-8776-fea6f719b39d",
+      "deploymentId": "336a83fa-1061-4171-8683-62bb1a2819e4",
+      "versionId": "f82ee2f4-3f93-432d-afc1-1ce24fb2952d",
       "percentage": 100,
       "cpuMilliseconds": 100,
       "bindings": [
@@ -34,7 +34,9 @@
           "type": "assets"
         },
         {
+          "environment": "production",
           "name": "AUTH_SERVICE",
+          "service": "hive-auth-compatibility-preview",
           "type": "service"
         },
         {
@@ -163,9 +165,9 @@
           "value": "true"
         },
         {
+          "bucket_name": "hive-delivery-pilot-20261105",
           "name": "HIVE_DELIVERY_EVIDENCE",
-          "type": "r2_bucket",
-          "bucket_name": "hive-delivery-pilot-20261105"
+          "type": "r2_bucket"
         },
         {
           "name": "HIVE_DELIVERY_EXECUTION_ENABLED",
@@ -243,13 +245,13 @@
           "value": "true"
         },
         {
+          "name": "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+          "type": "secret_text"
+        },
+        {
           "name": "HIVE_PROJECT_TASKS_ENABLED",
           "type": "plain_text",
           "value": "true"
-        },
-        {
-          "name": "HIVE_PROJECT_TASK_RECONCILE_SECRET",
-          "type": "secret_text"
         },
         {
           "name": "HIVE_PUBLIC_ORIGIN",
@@ -331,7 +333,7 @@
         {
           "name": "SOURCE_REVISION",
           "type": "plain_text",
-          "value": "01eb03baf28cde2ee771ce33dae49639c35f2562"
+          "value": "b612434c46b2d4c20eed12c230a4d6184d91cc28"
         }
       ],
       "subdomainBeforeProbes": {
@@ -343,8 +345,8 @@
     },
     "auth": {
       "name": "hive-auth-compatibility-preview",
-      "deploymentId": "416679e2-d229-4937-b431-a8cd7774b715",
-      "versionId": "4a74c66f-d569-494c-a62d-1f05dd6c7eb1",
+      "deploymentId": "97227f3a-9013-4376-b05d-cb133d3c44c0",
+      "versionId": "aa356191-0849-4533-b4b7-8ef453aa1fb8",
       "percentage": 100,
       "cpuMilliseconds": 100,
       "bindings": [
@@ -378,7 +380,7 @@
         {
           "name": "SOURCE_REVISION",
           "type": "plain_text",
-          "value": "01eb03baf28cde2ee771ce33dae49639c35f2562"
+          "value": "b612434c46b2d4c20eed12c230a4d6184d91cc28"
         }
       ],
       "subdomainBeforeProbes": {
@@ -399,8 +401,8 @@
   "additionalPaidProducts": false,
   "prepared": {
     "schemaVersion": 1,
-    "preparedAt": "2026-11-05T18:53:53.106Z",
-    "sourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+    "preparedAt": "2026-11-05T19:56:07.334Z",
+    "sourceRevision": "b612434c46b2d4c20eed12c230a4d6184d91cc28",
     "deploymentMode": "update-preview",
     "previousWorkers": {
       "identities": [
@@ -424,13 +426,13 @@
       "deployments": {
         "app": {
           "name": "hive-app-compatibility-preview",
-          "deploymentId": "d52d72f0-c41b-4644-88b6-e372e2301cef",
-          "versionId": "27368fa7-eab2-4cc1-814e-2ebae99ef9ef"
+          "deploymentId": "69cea243-2fb0-45d9-842a-d46bc89592aa",
+          "versionId": "2ae40150-534e-4bf9-8776-fea6f719b39d"
         },
         "auth": {
           "name": "hive-auth-compatibility-preview",
-          "deploymentId": "09b557c6-a404-462d-97b5-b05f53738ab2",
-          "versionId": "818bd6bc-ed10-432d-8841-5a1b12e5aa41"
+          "deploymentId": "416679e2-d229-4937-b431-a8cd7774b715",
+          "versionId": "4a74c66f-d569-494c-a62d-1f05dd6c7eb1"
         }
       }
     },
@@ -555,7 +557,7 @@
         "HIVE_RUNTIME_TARGET": "cloudflare",
         "HIVE_PROJECT_TASKS_ENABLED": "true",
         "HIVE_DELIVERY_PILOT_MODE": "true",
-        "SOURCE_REVISION": "01eb03baf28cde2ee771ce33dae49639c35f2562"
+        "SOURCE_REVISION": "b612434c46b2d4c20eed12c230a4d6184d91cc28"
       },
       "limits": {
         "cpu_ms": 100
@@ -577,36 +579,36 @@
     },
     "previewIdentityId": "0d4d2304-ed4e-4224-939d-e363c5833811",
     "inheritedPreviewSecrets": true,
-    "runId": "caa661f3-19ca-4d76-a4ab-c363ac5ec726",
+    "runId": "9caa260e-cd3c-4db7-8b1d-606bc870a166",
     "accountId": "225177f82b9234ede14e897fe15e0cb5",
     "workerNames": ["hive-app-compatibility-preview", "hive-auth-compatibility-preview"],
     "configs": {
       "app": {
         "name": "hive-app-compatibility-preview",
-        "configFile": "/tmp/hive-epic-coder-auth/app-preview-caa661f3-19ca-4d76-a4ab-c363ac5ec726/app.jsonc",
-        "secretFile": "/tmp/hive-epic-coder-auth/app-preview-caa661f3-19ca-4d76-a4ab-c363ac5ec726/app-secrets.json",
-        "configSHA256": "8a52be1dd6f4e73ce184ce1df98ee3f564325f2408b52cd3ca47c541b531ea3d",
+        "configFile": "/tmp/hive-epic-coder-auth/app-preview-9caa260e-cd3c-4db7-8b1d-606bc870a166/app.jsonc",
+        "secretFile": "/tmp/hive-epic-coder-auth/app-preview-9caa260e-cd3c-4db7-8b1d-606bc870a166/app-secrets.json",
+        "configSHA256": "adeebc00d460816d6f782b3fab396cf24331b2f142b1e878a76f9cdba5a0e052",
         "secretNames": [
           "HIVE_PROJECT_TASK_RECONCILE_SECRET",
           "PREVIEW_BEARER",
           "PREVIEW_COOKIE_SECRET"
         ],
-        "secretFileSHA256": "800129b01e35d7c3ab20c8e31729a9c71ea1a711cb92278b7f612fe03d799c6b"
+        "secretFileSHA256": "643c03021273217664b3d200300ba044222b1eaaf7f38b1196bd276024a122f2"
       },
       "auth": {
         "name": "hive-auth-compatibility-preview",
-        "configFile": "/tmp/hive-epic-coder-auth/app-preview-caa661f3-19ca-4d76-a4ab-c363ac5ec726/auth.jsonc",
-        "secretFile": "/tmp/hive-epic-coder-auth/app-preview-caa661f3-19ca-4d76-a4ab-c363ac5ec726/auth-secrets.json",
-        "configSHA256": "cb4525df5ef615b345c7d9e4f1a1ab5509948d2eaae9d0bf6e4b5fdf5666fb6f",
+        "configFile": "/tmp/hive-epic-coder-auth/app-preview-9caa260e-cd3c-4db7-8b1d-606bc870a166/auth.jsonc",
+        "secretFile": "/tmp/hive-epic-coder-auth/app-preview-9caa260e-cd3c-4db7-8b1d-606bc870a166/auth-secrets.json",
+        "configSHA256": "160c64f985a61494a2d302b621d37a168da6546d0136a6479ec9c1b364ce0565",
         "secretNames": [],
         "secretFileSHA256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
       }
     },
-    "preflightObservedAt": "2026-11-05T18:53:47.011Z",
-    "readinessSHA256": "599b00c816ace076f29528fdea636dd7b12f5181885779aba9a38624291535bd",
-    "sourceInputSetSHA256": "9dbf2fdad0bbe6f4dd6fa2f8bef6c789040394dcd60121beadd7388c1feccc84",
-    "artifactSetSHA256": "d9144961dcc05be39671f58418809d385233c1c88739a52772daf8b909667285",
-    "maxScriptedRequests": 186,
+    "preflightObservedAt": "2026-11-05T19:56:01.374Z",
+    "readinessSHA256": "538b5f00688f58513218ec7a2ee3365ac3d9a094e484e76c0de03233d9125a84",
+    "sourceInputSetSHA256": "2e4cab8da630b7e240dec5d8c5235e1b2957a24a3df9e65f33a99ce36d1b321a",
+    "artifactSetSHA256": "dd673e9379afddb9e6f40b49ab39ec2957a582b3c68dc3623d7c7fe853b75dd8",
+    "maxScriptedRequests": 179,
     "publicUrlsEnabled": false,
     "additionalCostsAuthorized": false,
     "noCloudWrites": true
@@ -628,7 +630,7 @@
   },
   "finalPublicState": {
     "app": {
-      "enabled": true,
+      "enabled": false,
       "previews_enabled": false
     },
     "auth": {
@@ -641,7 +643,7 @@
     "smoke": "cloudflare-project-preview-smoke-a92-retry.json",
     "priorDeploymentGitRecord": "01eb03baf28cde2ee771ce33dae49639c35f2562:docs/checks/autonomous-delivery/cloudflare-app-deployment.json"
   },
-  "remaining": "Diagnose task-start failure; current-build shared-session/terminal/browser, real epic and release acceptance remain open.",
+  "remaining": "Compatibility pilot retained privately; native Worker migration supersedes further separate-worker deployment. Current full task flow remains unvalidated.",
   "secretRecovery": {
     "existingProviderSecretsPreserved": true,
     "onlyPreviewGateKeysRotated": true,
@@ -655,7 +657,7 @@
     "productionReleaseEnabled": false,
     "bucket": "hive-delivery-pilot-20261105"
   },
-  "finalPublicStateObservedAt": "2026-11-05T19:46:32.945Z",
+  "finalPublicStateObservedAt": "2026-11-05T19:58:51.782Z",
   "liveStartAttempt": {
     "schemaVersion": 1,
     "projectId": "47509698-91da-48dc-bd9f-90e03a2cf4d1",
@@ -678,5 +680,6 @@
     "replayed": false
   },
   "environmentSmoke": "cloudflare-environment-smoke-retry-20261105.json",
-  "liveValidationRequestCount": 21
+  "liveValidationRequestCount": 21,
+  "canonicalDeploymentSupersededBy": "cloudflare-native-parent.json"
 }

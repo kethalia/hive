@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -34,16 +33,67 @@ export function previewTarget(branch) {
     branch.length > 0 && branch.length <= 200 && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(branch),
   );
   assert.notEqual(branch.toLowerCase(), "main", "main may not publish a branch preview");
-  const readable = branch
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 30)
-    .replace(/-+$/g, "");
-  assert.ok(readable);
-  const suffix = createHash("sha256").update(branch).digest("hex").slice(0, 12);
-  const name = `pr-${readable}-${suffix}`;
-  return { name, origin: `https://${name}-hive.b00ste.workers.dev` };
+  return { name: branch };
+}
+
+// The managed Preview's provider identity, not a guessed normalization, binds
+// both the publication target and the only permitted browser origin.
+export async function resolvePreviewOrigin(branch, token, fetcher = fetch) {
+  const { name } = previewTarget(branch);
+  if (typeof token !== "string" || !token || /[\r\n]/.test(token))
+    throw new Error("Preview metadata unavailable");
+  const controller = new AbortController();
+  let timer;
+  try {
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error("timeout"));
+      }, 5000);
+    });
+    const obtain = async () => {
+      const response = await fetcher(
+        `https://api.cloudflare.com/client/v4/accounts/${account}/workers/workers/hive/previews/${encodeURIComponent(name)}`,
+        {
+          method: "GET",
+          redirect: "error",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok || !response.body) throw new Error("bad response");
+      const reader = response.body.getReader();
+      const chunks = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 65536) {
+          await reader.cancel().catch(() => {});
+          throw new Error("oversized");
+        }
+        chunks.push(value);
+      }
+      const body = JSON.parse(
+        Buffer.concat(chunks.map((value) => Buffer.from(value))).toString("utf8"),
+      );
+      const slug = body?.result?.slug;
+      if (
+        body?.success !== true ||
+        body.result.name !== name ||
+        typeof slug !== "string" ||
+        !/^[a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?$/.test(slug)
+      )
+        throw new Error("bad identity");
+      return { name, origin: `https://${slug}-hive.b00ste.workers.dev` };
+    };
+    return await Promise.race([obtain(), timeout]);
+  } catch {
+    throw new Error("Preview metadata unavailable");
+  } finally {
+    clearTimeout(timer);
+  }
 }
 export function validateConfig(c) {
   assert.deepEqual(Object.keys(c).sort(), [
@@ -144,7 +194,11 @@ async function run() {
       const configFile = join(temp, "wrangler.json");
       const v =
         p.target === "preview"
-          ? { ...config.previews.vars, HIVE_PREVIEW_ORIGIN: p.origin, HIVE_PUBLIC_ORIGIN: p.origin }
+          ? {
+              ...config.previews.vars,
+              HIVE_PREVIEW_ORIGIN: "http://localhost",
+              HIVE_PUBLIC_ORIGIN: "http://localhost",
+            }
           : config.vars;
       const isolated = {
         name: config.name,
@@ -177,6 +231,7 @@ async function run() {
     }
     return;
   }
+  const resolved = await resolvePreviewOrigin(p.name, process.env.CLOUDFLARE_API_TOKEN);
   execFileSync(
     "pnpm",
     [
@@ -186,11 +241,11 @@ async function run() {
       "--config",
       configPath,
       "--name",
-      p.name,
+      resolved.name,
       "--var",
-      `HIVE_PREVIEW_ORIGIN:${p.origin}`,
+      `HIVE_PREVIEW_ORIGIN:${resolved.origin}`,
       "--var",
-      `HIVE_PUBLIC_ORIGIN:${p.origin}`,
+      `HIVE_PUBLIC_ORIGIN:${resolved.origin}`,
     ],
     { cwd: root, stdio: "inherit", env: { ...process.env, CLOUDFLARE_ACCOUNT_ID: account } },
   );
@@ -198,8 +253,8 @@ async function run() {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     await run();
-  } catch (error) {
-    console.error(error.message);
+  } catch {
+    console.error("Native Preview deployment failed.");
     process.exitCode = 1;
   }
 }

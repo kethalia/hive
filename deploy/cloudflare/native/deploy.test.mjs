@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { account, plan, previewTarget, validateConfig } from "./deploy.mjs";
+import { account, plan, previewTarget, resolvePreviewOrigin, validateConfig } from "./deploy.mjs";
 
 const config = JSON.parse(readFileSync(new URL("./wrangler.jsonc", import.meta.url)));
 const clone = () => structuredClone(config);
@@ -24,14 +24,54 @@ test("isolated bootstrap and preview config have no production data or service b
   }
   assert.equal(config.account_id, account);
 });
-test("branch name and origin are deterministic, bounded, distinct and target the same name", () => {
+test("branch name preserves the provider-managed Preview identity", () => {
   const a = previewTarget("codex/example-branch");
   assert.deepEqual(a, previewTarget("codex/example-branch"));
   assert.notEqual(a.name, previewTarget("codex/example_branch").name);
-  assert.match(a.name, /^[a-z0-9-]{1,48}$/);
-  assert.equal(a.origin, `https://${a.name}-hive.b00ste.workers.dev`);
+  assert.equal(a.name, "codex/example-branch");
+  assert.equal(a.origin, undefined);
   for (const bad of ["", "main", "MAIN", "-flag", "a b", "a\nother", "a".repeat(201)])
     assert.throws(() => previewTarget(bad));
+});
+test("provider metadata pins the exact branch and valid slug without exposing token", async () => {
+  const token = "synthetic-private-token";
+  const branch = "codex/delivery-system-design";
+  const fetcher = async (url, options) => {
+    assert.equal(
+      url,
+      `https://api.cloudflare.com/client/v4/accounts/${account}/workers/workers/hive/previews/codex%2Fdelivery-system-design`,
+    );
+    assert.equal(options.method, "GET");
+    assert.equal(options.redirect, "error");
+    assert.equal(options.headers.Authorization, `Bearer ${token}`);
+    return Response.json({
+      success: true,
+      result: { name: branch, slug: "codex-delivery-system-design" },
+    });
+  };
+  assert.deepEqual(await resolvePreviewOrigin(branch, token, fetcher), {
+    name: branch,
+    origin: "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  });
+  for (const response of [
+    Response.json({ success: true, result: { name: "other", slug: "safe" } }),
+    Response.json({ success: true, result: { name: branch, slug: "bad.example" } }),
+    Response.json({ success: true, result: { name: branch, slug: "a".repeat(59) } }),
+    Response.json({ success: false, result: { name: branch, slug: "safe" } }),
+    new Response("x".repeat(65537)),
+    new Response("unavailable", { status: 404 }),
+  ])
+    await assert.rejects(
+      resolvePreviewOrigin(branch, token, async () => response),
+      (error) => error.message === "Preview metadata unavailable" && !error.message.includes(token),
+    );
+  await assert.rejects(resolvePreviewOrigin(branch, "", fetcher));
+  await assert.rejects(
+    resolvePreviewOrigin(branch, token, async () => {
+      throw Error(token);
+    }),
+    (error) => !error.message.includes(token),
+  );
 });
 test("production is check/dry-run only, while branch preview cannot target main", () => {
   assert.throws(() => plan({ branch: "main", target: "production", config }));
@@ -59,7 +99,8 @@ test("CLI checks do not deploy and reject a mismatched account or production act
     });
   const preview = run("codex/example", ["preview", "--check"]);
   assert.equal(preview.status, 0);
-  assert.equal(JSON.parse(preview.stdout).origin, previewTarget("codex/example").origin);
+  assert.equal(JSON.parse(preview.stdout).name, "codex/example");
+  assert.equal(JSON.parse(preview.stdout).origin, undefined);
   assert.notEqual(
     run("codex/example", ["preview", "--check"], { CLOUDFLARE_ACCOUNT_ID: "wrong" }).status,
     0,

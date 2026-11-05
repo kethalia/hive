@@ -1124,3 +1124,33 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 - No production data, DNS, Kubernetes runtime, or release authority was changed. Account-connection
   F09/F10 remains the deferred roadmap scope. Environment identities and handoff sequence are in
   [Cloudflare environments](../../../deploy/cloudflare/environments.md).
+
+## 2026-11-05 native Preview correction and Git builds
+
+- Deployment direction corrected at the user's request: one parent Worker `hive`, using
+  native branch Previews and in-process app/auth/jobs composition. Read-only references were
+  Creative Studio's integration worktree and Top Decor Ledger; neither was changed. The three
+  task-created inert production reservations were verified and retired, with receipts retained.
+  Old compatibility pilot Workers remain private and unscheduled while the replacement is validated.
+- Implementation/review: native composition, exact-origin configuration and deployment guards
+  are committed at `feecfcb7`. Scheduled failures now wait for sibling handlers to settle;
+  source readiness includes native/jobs handlers and is enforced before publication. Sixteen
+  focused checks, TypeScript and Biome pass. Actual assembled Workerd proof and dry-run upload
+  pass at feec, including inline auth, SSR, synthetic session/task reads, logout, portable
+  actions and terminal checks. This is not real Coder/task/production acceptance.
+- Isolated native preview database: new `hive_native_preview` and restricted
+  `hive_native_runtime` on the existing Neon Free branch. Forty committed migrations pass;
+  67 tables, zero user/session/project/task/intent rows at provisioning. Previous preview role
+  cannot connect or access new objects. Fresh native app/auth keys are private; Preview Base
+  receives only these preview keys. Old encrypted data/credentials are preserved separately.
+- Git connection: user created the dedicated `hive` build token; primary configured repository
+  root, pinned Node/pnpm, build and preview commands, main-only production command and caching.
+  Production publication deliberately refuses activation. First PR-branch push automatically
+  triggered build `62fb1228-0c3a-4c45-b040-216c8c81b5cf`, which succeeded. Its custom preview name
+  differed from the provider-managed branch environment; the helper correction selects the raw
+  branch and verifies provider metadata before deriving its exact origin. This URL association
+  correction still needs the next actual automatic build and live validation.
+- Native previews initially share only synthetic preview data/Base secrets across trusted
+  repository branches. There are no R2/service bindings or host/delivery execution flags.
+  Real manager/subagent acceptance resumes after the reviewed branch's issuer/host enrollment;
+  production cutover and F09/F10 account refactoring remain open.

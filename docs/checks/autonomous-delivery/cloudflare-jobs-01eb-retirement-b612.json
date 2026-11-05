@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "scope": "single authorized task-owned jobs Worker retirement",
+  "before": {
+    "schemaVersion": 1,
+    "action": "retire task-owned jobs worker",
+    "observedAt": "2026-11-05T19:57:25.897Z",
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "name": "hive-jobs-compatibility-preview",
+    "tag": "51ca28a89d134c679186635d9162eb21",
+    "createdOn": "2026-11-05T19:03:31.414033Z",
+    "deploymentId": "5ebcc10e-eb86-49a9-b7d0-1186ecb540a0",
+    "versionId": "3e5fd043-f0bf-4333-ac79-fa908eedf677",
+    "schedules": [],
+    "publicState": {
+      "enabled": false,
+      "previews_enabled": false
+    },
+    "matchingDomains": 0,
+    "matchingRoutes": 0,
+    "zonesChecked": 17,
+    "database": "hive_app_preview",
+    "role": "hive_app_runtime",
+    "scopedIntents": 0,
+    "scopedTasks": 0,
+    "scopedPolicies": 0,
+    "force": false,
+    "recordedAt": "2026-11-05T19:57:35.463701+00:00"
+  },
+  "action": {
+    "observedAt": "2026-11-05T19:57:45.523Z",
+    "method": "DELETE",
+    "forceParameterUsed": false,
+    "success": true,
+    "deletedTag": "51ca28a89d134c679186635d9162eb21"
+  },
+  "after": {
+    "observedAt": "2026-11-05T19:57:52.081Z",
+    "jobsExists": false,
+    "matchingCustomDomains": 0
+  },
+  "originalCreationEvidence": "docs/checks/autonomous-delivery/cloudflare-jobs-pilot-creation-01eb03ba.json",
+  "newWorkerCreated": false
+}

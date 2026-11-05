@@ -26,8 +26,9 @@ Cloudflare Workers Builds connects `kethalia/hive` at repository root. It builds
 `pnpm build:cloudflare` and publishes branch previews with
 `node deploy/cloudflare/native/deploy.mjs preview`. The main command is
 `node deploy/cloudflare/native/deploy.mjs production`, which currently refuses activation.
-The repo connection exists; build-token setup and a passing actual PR build must be
-verified before claiming automatic deployment works. A merge alone cannot enable the
+The repo connection and dedicated build token are configured. A branch push has
+already triggered a successful build; provider-managed preview URL association and
+live application validation remain required. A merge alone cannot enable the
 production runtime, secrets or data cutover.
 
 The old app/auth/jobs compatibility Workers remain private and unscheduled while the
