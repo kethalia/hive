@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "task": "hive-autonomous-delivery-epic",
+  "createdBy": "primary agent /root",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "creation": {
+    "name": "hive-delivery-pilot-20261105",
+    "creation_date": "2026-11-05T17:01:05.489Z",
+    "location": "EEUR",
+    "storage_class": "Standard",
+    "jurisdiction": "default"
+  },
+  "bucket": {
+    "name": "hive-delivery-pilot-20261105",
+    "creation_date": "2026-11-05T17:01:05.489Z",
+    "location": "EEUR",
+    "storage_class": "Standard",
+    "jurisdiction": "default"
+  },
+  "managed": {
+    "enabled": false,
+    "bucketId": "58e5cd7186cb490e9ee21f814a27ac9d",
+    "domain": "pub-58e5cd7186cb490e9ee21f814a27ac9d.r2.dev"
+  },
+  "custom": {
+    "domains": []
+  },
+  "lock": {
+    "rules": [
+      {
+        "id": "hive-delivery-pilot-retention",
+        "enabled": true,
+        "prefix": "",
+        "condition": {
+          "type": "Age",
+          "maxAgeSeconds": 1800
+        }
+      }
+    ]
+  },
+  "observedAt": "2026-11-05T17:01:10.404Z",
+  "limits": {
+    "userAuthorizedStorageCeilingBytes": 1000000000,
+    "plannedStoredBytes": 10485760,
+    "plannedWriteOperations": 100,
+    "plannedReadOperations": 100,
+    "incrementalCostApprovalUsd": 5
+  },
+  "cleanup": "Retain during active pilot; preserve evidence before removing task-owned objects/bucket.",
+  "production": false
+}

@@ -126,13 +126,62 @@ function openJournal(directory, bindingDigest) {
           saved.signature.length === 64 &&
           timingSafeEqual(Buffer.from(saved.signature), Buffer.from(expected)),
       );
-      check(
-        saved.state.schemaVersion === 1 &&
+      check(saved.state.schemaVersion === 1 && saved.state.receipts.length < 32);
+      if (saved.state.phase === "idleTreeExited") {
+        const exited = saved.state.events.at(-1),
+          prior = saved.state.receipts.at(-1);
+        check(exited?.name === "idleTreeExited" && exited.value?.guardianExited === true && prior);
+        const { guardianExited: _ignored, ...preExit } = exited.value;
+        check(JSON.stringify(preExit) === JSON.stringify(prior));
+        saved.state.events.push({
+          name: "idleClosed",
+          value: { lifetimeId: prior.lifetimeId, receiptId: prior.receiptId },
+          at: Date.now(),
+        });
+        saved.state.phase = "idleClosed";
+        atomic(path, { state: saved.state, signature: mac(saved.state) });
+      }
+      if (saved.state.phase === "idleClosed") {
+        const receipt = saved.state.events.at(-2),
+          closed = saved.state.events.at(-1),
+          prior = saved.state.receipts.at(-1);
+        check(receipt?.value && prior);
+        const { guardianExited: _ignored, ...preExit } = receipt.value;
+        check(
+          receipt?.name === "idleTreeExited" &&
+            closed?.name === "idleClosed" &&
+            receipt.value?.guardianExited === true &&
+            receipt.value.finalWaitResult === "ECHILD" &&
+            receipt.value.scope === "managed_native_tree_only" &&
+            receipt.value.waitFlags === "__WALL" &&
+            receipt.value.cleanupAuthorized === false &&
+            receipt.value.projects?.length === 0 &&
+            receipt.value.decisions?.length === 0 &&
+            closed.value?.receiptId === receipt.value.receiptId &&
+            closed.value?.lifetimeId === receipt.value.lifetimeId &&
+            receipt.value.bindingDigest === saved.state.bindingDigest &&
+            JSON.stringify(preExit) === JSON.stringify(prior) &&
+            !existsSync(join(directory, "controller.json")) &&
+            !saved.state.events.some((event) =>
+              ["admissionIntent", "admissionAccepted"].includes(event.name),
+            ),
+        );
+        const archive = join(directory, `lifetime-idle-${sha(readFileSync(path))}.json`);
+        check(!existsSync(archive));
+        renameSync(path, archive);
+        const dir = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+        try {
+          fsyncSync(dir);
+        } finally {
+          closeSync(dir);
+        }
+      } else {
+        check(
           saved.state.bindingDigest === bindingDigest &&
-          ["closed", "treeExited"].includes(saved.state.phase) &&
-          saved.state.receipts.length < 32,
-      );
-      state = saved.state;
+            ["closed", "treeExited"].includes(saved.state.phase),
+        );
+        state = saved.state;
+      }
     }
     const record = (name, value) => {
       check(!closed && state.events.length < 1024);
@@ -250,7 +299,8 @@ export async function openGuardedHost(options) {
     workerIdentity,
     closedBarrier,
     acceptedReceipt,
-    rolloverEligible = false;
+    rolloverEligible = false,
+    idleDrain = false;
   let serial = Promise.resolve();
   let markLaunch, markReady;
   const launched = new Promise((resolve) => {
@@ -320,12 +370,18 @@ export async function openGuardedHost(options) {
         },
       ],
       prepareDrain: options.beginDrain
-        ? () => boundedAuthority(() => options.beginDrain())
+        ? () => (idleDrain ? undefined : boundedAuthority(() => options.beginDrain()))
         : undefined,
       authorizeDrain: async (binding, barrier) => {
-        const decisions = await boundedAuthority(() =>
-          options.authorizeDrain(structuredClone(binding), structuredClone(barrier)),
-        );
+        let decisions;
+        if (idleDrain) {
+          check(binding.projects.length === 0 && barrier.snapshots.length === 0);
+          decisions = [];
+        } else {
+          decisions = await boundedAuthority(() =>
+            options.authorizeDrain(structuredClone(binding), structuredClone(barrier)),
+          );
+        }
         check(phase === "draining");
         const finished = await wire.request("finishClose", { barrierId: barrier.barrierId }, 10000);
         check(finished?.closed === true && finished.barrierId === barrier.barrierId);
@@ -583,6 +639,28 @@ export async function openGuardedHost(options) {
         return structuredClone({ phase, guardian: guardian.state, workerPid, rolloverEligible });
       },
       startupAttestation,
+      idleShutdown: () =>
+        enqueue(async () => {
+          check(
+            phase === "open" &&
+              guardian.state.projects.length === 0 &&
+              typeof options.canIdleShutdown === "function" &&
+              (await options.canIdleShutdown()),
+          );
+          idleDrain = true;
+          const receipt = await guardian.drain();
+          check(acceptedReceipt?.projects.length === 0 && receipt.projects.length === 0);
+          acceptedReceipt = { ...acceptedReceipt, guardianExited: true };
+          journal.record("idleTreeExited", acceptedReceipt);
+          journal.record("idleClosed", {
+            lifetimeId: receipt.lifetimeId,
+            receiptId: receipt.receiptId,
+          });
+          phase = "closed";
+          wire.close();
+          journal.close();
+          return structuredClone(acceptedReceipt);
+        }),
       drain: () =>
         enqueue(async () => {
           check(phase === "open");

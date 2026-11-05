@@ -1189,6 +1189,9 @@ export function openGuardianController({
     return result;
   }
   return {
+    canIdleShutdown() {
+      return !state && !challenge && !existsSync(statePath);
+    },
     identity(nonce) {
       check(hex(nonce));
       const s = initialize(),

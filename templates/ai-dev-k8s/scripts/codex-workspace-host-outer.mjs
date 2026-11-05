@@ -63,6 +63,17 @@ export function createGuardedRollover(launch) {
       stopped = true;
       if (current) return current.host.abort();
     },
+    async shutdown() {
+      stopped = true;
+      if (!current) return;
+      try {
+        await current.host.idleShutdown();
+        return true;
+      } catch {
+        await current.host.abort();
+        return false;
+      }
+    },
     get state() {
       return { held, pending, host: current?.host.state };
     },
@@ -138,6 +149,7 @@ export async function startInstalledGuardedHost() {
         startup: challenge,
         authorizeAdmission: (...args) => authority.authorizeAdmission(...args),
         authorizeDrain: (...args) => authority.authorizeDrain(...args),
+        canIdleShutdown: () => authority.canIdleShutdown(),
         beginDrain: (...args) => authority.beginDrain(...args),
         acceptTreeReceipt: (...args) => authority.acceptTreeReceipt(...args),
         recoverTreeReceipt: (...args) => authority.recoverTreeReceipt(...args),
@@ -176,6 +188,7 @@ export async function startInstalledGuardedHost() {
     await channel.ready(host.startupAttestation());
     return {
       abort: () => rollover.abort(),
+      shutdown: () => rollover.shutdown(),
       get state() {
         return rollover.state;
       },
@@ -192,8 +205,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     const host = await startInstalledGuardedHost();
     for (const signal of ["SIGTERM", "SIGINT"])
       process.once(signal, () => {
-        void host.abort().then(() => {
-          process.exitCode = 1;
+        void host.shutdown().then((idleClosed) => {
+          process.exitCode = idleClosed ? 0 : 1;
         });
       });
   } catch {

@@ -7,6 +7,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -109,19 +110,6 @@ spawn('/usr/bin/python3',['-I','-c',${JSON.stringify(ptyScript)}],{env:{PATH:'/u
     : "const tmux={pid:null};"
 }
 
-test("idle shutdown preserves authenticated ECHILD evidence across a changed binding", async (t) => {
-  const f = fixture(t, { idle: true });
-  f.options.canIdleShutdown = async () => true;
-  const first = await openGuardedHost(f.options);
-  const receipt = await first.idleShutdown();
-  assert.equal(receipt.finalWaitResult, "ECHILD");
-  assert.equal(receipt.guardianExited, true);
-  assert.deepEqual(receipt.projects, []);
-  assert.equal(JSON.parse(readFileSync(join(f.options.stateDirectory, "lifetime.json"))).state.phase, "idleClosed");
-  const second = await openGuardedHost({ ...f.options, bindingDigest: "b".repeat(64) });
-  assert.ok(readdirSync(f.options.stateDirectory).some((name) => /^lifetime-idle-[a-f0-9]{64}\.json$/.test(name)));
-  await second.idleShutdown();
-});
 writeFileSync(${JSON.stringify(marker)},JSON.stringify({pid:process.pid,tmuxPid:tmux.pid,token}));
 ${startup ? `await new Promise(r=>setTimeout(r,${readyDelay}));await guard.ready({configSha256:'${configSha}',port:${listenPort}});` : ""}
 ${
@@ -224,6 +212,84 @@ setInterval(()=>{},1000);`;
     },
   };
 }
+
+test("idle shutdown preserves authenticated ECHILD evidence across a changed binding", async (t) => {
+  const f = fixture(t, { idle: true });
+  f.options.canIdleShutdown = async () => true;
+  const first = await openGuardedHost(f.options);
+  const receipt = await first.idleShutdown();
+  assert.equal(receipt.finalWaitResult, "ECHILD");
+  assert.equal(receipt.guardianExited, true);
+  assert.deepEqual(receipt.projects, []);
+  assert.equal(
+    JSON.parse(readFileSync(join(f.options.stateDirectory, "lifetime.json"))).state.phase,
+    "idleClosed",
+  );
+  const second = await openGuardedHost({ ...f.options, bindingDigest: "b".repeat(64) });
+  assert.ok(
+    readdirSync(f.options.stateDirectory).some((name) =>
+      /^lifetime-idle-[a-f0-9]{64}\.json$/.test(name),
+    ),
+  );
+  await second.idleShutdown();
+});
+
+test("idle shutdown refuses controller uncertainty and any admitted project", async (t) => {
+  const idle = fixture(t, { idle: true });
+  idle.options.canIdleShutdown = async () => false;
+  const idleHost = await idle.open();
+  await assert.rejects(idleHost.idleShutdown());
+  assert.equal(idleHost.state.phase, "open");
+  const active = fixture(t);
+  active.options.canIdleShutdown = async () => true;
+  const activeHost = await active.open();
+  await until(() => existsSync(active.marker));
+  await assert.rejects(activeHost.idleShutdown());
+  assert.equal(activeHost.state.guardian.projects.length, 1);
+});
+
+test("idle exit receipt recovers after a crash before journal close", async (t) => {
+  const f = fixture(t, { idle: true });
+  f.options.canIdleShutdown = async () => true;
+  const host = await openGuardedHost(f.options);
+  await host.idleShutdown();
+  const path = join(f.options.stateDirectory, "lifetime.json");
+  const journal = JSON.parse(readFileSync(path));
+  journal.state.events.pop();
+  journal.state.phase = "idleTreeExited";
+  journal.signature = createHmac("sha256", readFileSync(join(f.options.stateDirectory, "key")))
+    .update(JSON.stringify(journal.state))
+    .digest("hex");
+  writeFileSync(path, JSON.stringify(journal));
+  const next = await openGuardedHost({ ...f.options, bindingDigest: "b".repeat(64) });
+  assert.ok(
+    readdirSync(f.options.stateDirectory).some((name) =>
+      /^lifetime-idle-[a-f0-9]{64}\.json$/.test(name),
+    ),
+  );
+  await next.idleShutdown();
+});
+
+test("shutdown uses idle drain and preserves the existing abort fallback on refusal", async () => {
+  for (const idleAllowed of [true, false]) {
+    let idle = 0,
+      abort = 0;
+    const host = {
+      idleShutdown: async () => {
+        idle++;
+        if (!idleAllowed) throw Error("held");
+      },
+      abort: async () => {
+        abort++;
+      },
+    };
+    const rollover = createGuardedRollover(async () => ({ host, authority: {} }));
+    await rollover.start();
+    assert.equal(await rollover.shutdown(), idleAllowed);
+    assert.equal(idle, 1);
+    assert.equal(abort, idleAllowed ? 0 : 1);
+  }
+});
 
 test("outer worker barrier refuses active project then drains actual tmux descendants and preserves a durable receipt", async (t) => {
   const f = fixture(t, { tmux: true }),

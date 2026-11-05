@@ -433,6 +433,17 @@ function fixture() {
   };
 }
 
+test("idle shutdown is unavailable after controller identity or durable state exists", () => {
+  const f = fixture();
+  try {
+    assert.equal(f.client.canIdleShutdown(), true);
+    f.identity();
+    assert.equal(f.client.canIdleShutdown(), false);
+  } finally {
+    f.close();
+  }
+});
+
 test("fresh nonce identity and one-use issuer grant use real Ed25519 domains and no bearer", async () => {
   const f = fixture();
   try {
