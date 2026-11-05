@@ -9,12 +9,8 @@
       "namespace": "coder",
       "claimName": "coder-22c4f094-46f0-4a76-86ca-37ad74254872-home",
       "pvcUid": "d3b279cb-7577-4ee6-8b72-9288e836e3d6",
-      "devWritableMounts": [
-        "home:/home/coder"
-      ],
-      "initWritableMounts": [
-        "home:/target"
-      ],
+      "devWritableMounts": ["home:/home/coder"],
+      "initWritableMounts": ["home:/target"],
       "otherVolumes": "read-only downward API bootstrap only",
       "hostPathPresent": false
     },
@@ -24,12 +20,8 @@
       "namespace": "coder",
       "claimName": "coder-23023679-3c7b-4a50-ba52-4ca31673148e-home",
       "pvcUid": "072c460b-1424-4e20-80b9-dc2cf0ec17fa",
-      "devWritableMounts": [
-        "home:/home/coder"
-      ],
-      "initWritableMounts": [
-        "home:/target"
-      ],
+      "devWritableMounts": ["home:/home/coder"],
+      "initWritableMounts": ["home:/target"],
       "otherVolumes": "read-only downward API bootstrap only",
       "hostPathPresent": false
     }

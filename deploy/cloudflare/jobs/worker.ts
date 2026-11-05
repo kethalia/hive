@@ -6,6 +6,7 @@ import {
   dispatchTemplatePublicationNotices,
   sendTemplatePublicationPush,
 } from "../../../src/lib/templates/publication-notices";
+import { pilotScheduleAllowed } from "./pilot-schedule";
 import { dispatchProjectTaskReconciliation, type ProjectTaskEnvironment } from "./project-tasks";
 import {
   dispatchTemplatePublication,
@@ -21,6 +22,10 @@ type Environment = TemplatePublicationEnvironment &
     HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED?: string;
     VAPID_SUBJECT?: string;
     HIVE_PUBLIC_ORIGIN?: string;
+    HIVE_DELIVERY_PILOT_MODE?: string;
+    HIVE_DELIVERY_PILOT_SCHEDULE_ENABLED?: string;
+    HIVE_DELIVERY_PILOT_SCHEDULE_STARTED_AT?: string;
+    HIVE_DELIVERY_PILOT_SCHEDULE_UNTIL?: string;
   };
 
 export async function dispatchScheduled(env: Environment) {
@@ -117,10 +122,16 @@ export default {
   async fetch() {
     return new Response("Not found", { status: 404 });
   },
-  async scheduled(_event: unknown, env: Environment) {
+  async scheduled(event: { cron?: string }, env: Environment) {
     // Cron is merely a wake-up. PostgreSQL owns claims, replay and retry timing;
     // no process-local timer or Redis service is required for delivery notices.
     try {
+      if (
+        (env.HIVE_DELIVERY_PILOT_MODE === "true" ||
+          env.HIVE_DELIVERY_PILOT_SCHEDULE_ENABLED === "true") &&
+        (event.cron !== "*/5 * * * *" || !pilotScheduleAllowed(env))
+      )
+        return;
       const result = await dispatchScheduled(env);
       console.log(JSON.stringify({ event: "delivery_dispatch", ...result }));
     } catch {

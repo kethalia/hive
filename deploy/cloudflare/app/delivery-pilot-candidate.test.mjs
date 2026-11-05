@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import test from "node:test";
+import { PILOT_EVIDENCE_BUCKET } from "./delivery-pilot-bucket.mjs";
 import {
   assertDeliveryPilot,
   deliveryPilotCandidate,
@@ -146,4 +147,43 @@ test("job plan is private and schedule remains proposed only", () => {
   assert.deepEqual(p.triggers.crons, []);
   assert.equal(p.plannedCron, "*/5 * * * *");
   assert.deepEqual(p.secretNames, ["HIVE_PROJECT_TASK_RECONCILE_SECRET"]);
+});
+test("acceptance requires explicit reviewed exact producer", () => {
+  const f = fixture();
+  f.input.catalog.acceptanceProducer = {
+    schemaVersion: 1,
+    codeDigest: "ebe3ca502d891d8c6b52af4cd4d904851f377dc07614cf46450d764e74a80e60",
+    promptDigest: "577302f28d00ad9d1c07bd432f18207b0ce12395c6abb5b7044aefafacf1bfb0",
+    schemaDigest: "67878ee6975eaaa4e211be3e33832d8b72a40d06a55648b185cd50e1c2db0226",
+    permissionsDigest: "5cb0236664ba9833dc964200828cc6b650583eb0b7d2bd43d587889c5a9b175b",
+    runtimeVersion: "0.165.0",
+    model: "gpt-6.1-sol",
+    effort: "high",
+    maxDurationMs: 300000,
+    maxInputBytes: 262144,
+    maxOutputBytes: 65536,
+  };
+  const candidate = deliveryPilotCandidate(f.input);
+  assert.equal(
+    deliveryPilotVars(candidate, f.input.issuer).HIVE_DELIVERY_ACCEPTANCE_ENABLED,
+    "true",
+  );
+  f.input.catalog.evidenceBucket = PILOT_EVIDENCE_BUCKET;
+  assert.throws(() => deliveryPilotCandidate(f.input));
+  Object.assign(f.input.catalog.repositoryPolicies[0], {
+    ownerId: "3a8174c9-5c45-4b54-bdb8-2ed03b9b2f34",
+    repositoryId: "1183966024",
+    providerAccountId: "62855857",
+  });
+  Object.assign(f.input.catalog.repositoryPolicies[0].policy.source, {
+    baseBranch: "codex/delivery-system-design",
+    allowedPrefixes: ["docs"],
+  });
+  const scoped = deliveryPilotCandidate(f.input);
+  assert.equal(
+    deliveryPilotVars(scoped, f.input.issuer).HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED,
+    "true",
+  );
+  f.input.catalog.acceptanceProducer.promptDigest = "a".repeat(64);
+  assert.throws(() => deliveryPilotCandidate(f.input));
 });

@@ -9,7 +9,7 @@ import {
   PROJECT_RECONCILE_PATH,
 } from "../../../src/lib/projects/reconcile-transport";
 import { runProjectTaskReconciliation } from "../app/project-tasks";
-import { dispatchScheduled } from "./worker";
+import jobsWorker, { dispatchScheduled } from "./worker";
 
 type Env = {
   [key: string]: unknown;
@@ -26,6 +26,24 @@ export default {
     if (env.ROLE === "jobs") {
       if (env.DATABASE_URL || "ENCRYPTION_KEY" in env || "HIVE_CODEX_ISSUER_PRIVATE_KEY" in env)
         throw new Error("Jobs must not receive app keys");
+      if (request.headers.get("X-Local-Scheduled") === "true") {
+        await jobsWorker.scheduled({ cron: "*/5 * * * *" }, env);
+        return Response.json({ scheduled: true });
+      }
+      if (request.headers.get("X-Local-Scheduled-Expired") === "true") {
+        const now = Date.now();
+        await jobsWorker.scheduled(
+          { cron: "*/5 * * * *" },
+          {
+            ...env,
+            HIVE_DELIVERY_PILOT_MODE: "true",
+            HIVE_DELIVERY_PILOT_SCHEDULE_ENABLED: "true",
+            HIVE_DELIVERY_PILOT_SCHEDULE_STARTED_AT: String(now - 60000),
+            HIVE_DELIVERY_PILOT_SCHEDULE_UNTIL: String(now - 1),
+          },
+        );
+        return Response.json({ scheduled: true });
+      }
       if (
         request.headers.get("X-Local-Cancel") === "true" ||
         request.headers.get("X-Local-Deadline") === "true"

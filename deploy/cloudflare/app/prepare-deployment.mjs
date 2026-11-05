@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { assertBuildReady } from "./build-integrity.mjs";
+import { assertPilotEvidenceBucket } from "./delivery-pilot-bucket.mjs";
 import {
   deliveryPilotCandidate,
   deliveryPilotVars,
@@ -202,6 +203,16 @@ try {
       : undefined,
     pins,
   });
+  if (pilot?.evidenceBucket) {
+    assertPilotEvidenceBucket(
+      pilot.evidenceBucket,
+      await readPreviewPrivateJson(process.env.HIVE_PREVIEW_DELIVERY_BUCKET_EVIDENCE_FILE),
+    );
+    app.r2_buckets = [
+      { binding: "HIVE_DELIVERY_EVIDENCE", bucket_name: pilot.evidenceBucket.name },
+    ];
+    validatePreviewConfiguration(app, auth, { evidenceBucket: pilot.evidenceBucket });
+  }
   const runId = randomUUID();
   const directory = join(credentials, `app-preview-${runId}`);
   await mkdir(directory, { mode: 0o700 });

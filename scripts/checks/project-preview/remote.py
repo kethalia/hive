@@ -5,6 +5,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shlex
 import stat
@@ -17,13 +18,14 @@ RECORD = ROOT / "docs/checks/autonomous-delivery/project-preview-browser/workspa
 PRIVATE = Path("/tmp/hive-epic-coder-auth")
 PREPARATION = PRIVATE / "project-browser-preparation.json"
 ATTEMPT = PRIVATE / "project-browser-live-attempt.json"
-FILES = ["browser.mjs", "policy.mjs", "policy.test.mjs", "package.json", "package-lock.json"]
+FILES = ["browser.mjs", "policy.mjs", "policy.test.mjs", "phase-b.mjs", "phase-b-policy.mjs", "phase-b-policy.test.mjs", "package.json", "package-lock.json"]
 REMOTE = r'''
 import json,os,pathlib,stat,subprocess,sys,tempfile
 v=json.load(sys.stdin)
 assert os.environ.get('HIVE_WORKSPACE_PROFILE')=='browser'
 assert not os.environ.get('CODER_SESSION_TOKEN')
-assert set(v['files'])=={'browser.mjs','policy.mjs','policy.test.mjs','package.json','package-lock.json'}
+assert set(v['files'])=={'browser.mjs','policy.mjs','policy.test.mjs','phase-b.mjs','phase-b-policy.mjs','phase-b-policy.test.mjs','package.json','package-lock.json'}
+assert v['phase'] in ('A','B')
 assert all(isinstance(x,str) for x in v['files'].values()) and sum(len(x) for x in v['files'].values())<1048576
 if v['directory'] is None:
  assert v['mode']=='prepare'
@@ -43,17 +45,17 @@ if v['mode']=='prepare':
   r=subprocess.run(['npm','ci','--ignore-scripts','--no-audit','--no-fund'],env=env,cwd=p,capture_output=True,timeout=90)
   assert r.returncode==0
  assert json.loads((p/'node_modules/playwright/package.json').read_text())['version']=='1.61.1'
- for args in [['node','--check','browser.mjs'],['node','--test','policy.test.mjs']]:
+ for args in [['node','--check','browser.mjs'],['node','--check','phase-b.mjs'],['node','--test','policy.test.mjs','phase-b-policy.test.mjs']]:
   r=subprocess.run(args,cwd=p,capture_output=True,timeout=20);assert r.returncode==0
  code="import {chromium} from 'playwright';const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true,args:['--no-sandbox','--disable-background-networking','--disable-component-update','--disable-sync']});try{const c=await b.newContext({serviceWorkers:'block'});await c.route('**/*',r=>r.abort());const p=await c.newPage();await p.setContent('<title>PRIVATE_SYNTHETIC_PREPARATION</title>');if(await p.title()!=='PRIVATE_SYNTHETIC_PREPARATION')throw Error();console.log(JSON.stringify({chrome:b.version(),syntheticOnly:true}));await c.close();}finally{await b.close();}"
  r=subprocess.run(['node','--input-type=module','-e',code],cwd=p,capture_output=True,text=True,timeout=25);assert r.returncode==0
  print(json.dumps({'schemaVersion':1,'prepared':True,'directory':str(p),'browser':json.loads(r.stdout),'playwright':'1.61.1','previewRequests':0,'ownerCredentialCopied':False}))
 else:
  assert json.loads((p/'node_modules/playwright/package.json').read_text())['version']=='1.61.1'
- r=subprocess.run(['node','browser.mjs','--run'],input=json.dumps({'auth':v['auth'],'scope':v['scope']}),cwd=p,capture_output=True,text=True,timeout=190)
+ r=subprocess.run(['node','browser.mjs' if v['phase']=='A' else 'phase-b.mjs','--run'],input=json.dumps({'auth':v['auth'],'scope':v['scope']}),cwd=p,capture_output=True,text=True,timeout=190)
  try:
-  result=json.loads(r.stdout);assert result['schemaVersion']==1 and result['phase']=='A' and type(result['passed']) is bool
- except Exception:result={'schemaVersion':1,'phase':'A','passed':False,'stage':'driver_failed_without_sensitive_output'}
+  result=json.loads(r.stdout);assert result['schemaVersion']==1 and result['phase']==v['phase'] and type(result['passed']) is bool
+ except Exception:result={'schemaVersion':1,'phase':v['phase'],'passed':False,'stage':'driver_failed_without_sensitive_output'}
  print(json.dumps(result))
 '''
 
@@ -76,6 +78,7 @@ def private_json(path, maximum):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", nargs="?", choices=["prepare", "run"], default="prepare")
+    parser.add_argument("--phase", choices=["A", "B"], default="A")
     parser.add_argument("--auth-file")
     parser.add_argument("--scope-file")
     parser.add_argument("--approved-live", action="store_true")
@@ -98,7 +101,7 @@ def main():
     files = {name: (SOURCE / name).read_text() for name in FILES}
     hashes = {name: hashlib.sha256(data.encode()).hexdigest() for name, data in files.items()}
     controller_digest = hashlib.sha256(REMOTE.encode()).hexdigest()
-    payload = {"mode": args.mode, "files": files, "directory": prepared["directory"] if prepared else None}
+    payload = {"mode": args.mode, "phase": args.phase, "files": files, "directory": prepared["directory"] if prepared else None}
     if args.mode == "run":
         assert prepared and args.approved_live and args.auth_file and args.scope_file
         assert hashes == prepared["sourceHashes"]
@@ -107,7 +110,13 @@ def main():
         payload["scope"] = private_json(args.scope_file, 8192)
         # An interrupted/failed run may have spent an unknown budget. Never
         # automatically replace this receipt or reset its counters for a retry.
-        fd = os.open(ATTEMPT, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        if args.phase == "A":
+            attempt = ATTEMPT
+        else:
+            attempt_id = payload["scope"].get("attemptId", "")
+            assert isinstance(attempt_id, str) and re.fullmatch(r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", attempt_id)
+            attempt = PRIVATE / ("project-browser-phase-b-" + attempt_id + ".json")
+        fd = os.open(attempt, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, "w") as stream:
             json.dump({"schemaVersion": 1, "status": "started_outcome_unknown", "workspaceId": record["workspaceId"], "buildId": workspace["latest_build"]["id"], "sourceHashes": hashes, "scopeSha256": hashlib.sha256(json.dumps(payload["scope"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()}, stream)
             stream.flush()

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash, generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
-import { cp, mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { connect } from "node:net";
@@ -45,6 +45,7 @@ const sourcePaths = [
   "deploy/cloudflare/app/request-lifetime.ts",
   "deploy/cloudflare/jobs/project-tasks.ts",
   "deploy/cloudflare/jobs/worker.ts",
+  "deploy/cloudflare/jobs/pilot-schedule.ts",
   "deploy/cloudflare/jobs/local-project-tasks.worker.ts",
   "deploy/cloudflare/jobs/local-project-coder.worker.ts",
   "deploy/cloudflare/jobs/run-local-project-tasks.mjs",
@@ -58,13 +59,16 @@ const hash = async (path) =>
     .update(await readFile(path))
     .digest("hex");
 const migrationRoot = resolve("packages/db/prisma/migrations"),
-  migrationNames = (await readdir(migrationRoot, { withFileTypes: true }))
-    .filter(
-      (entry) => entry.isDirectory() && entry.name <= "20261029180000_template_publication_notices",
-    )
-    .map((entry) => entry.name)
+  migrationNames = execFileSync(
+    "git",
+    ["ls-tree", "-d", "--name-only", "HEAD:packages/db/prisma/migrations"],
+    { encoding: "utf8" },
+  )
+    .trim()
+    .split("\n")
+    .filter(Boolean)
     .sort();
-assert.equal(migrationNames.length, 29);
+assert.ok(migrationNames.length >= 39);
 for (const name of migrationNames)
   sourcePaths.push(`packages/db/prisma/migrations/${name}/migration.sql`);
 const sources = Object.fromEntries(
@@ -199,7 +203,6 @@ try {
   observations.migrations = {
     count: migrationNames.length,
     through: migrationNames.at(-1),
-    excludedDraft: "20261029190000_delivery_repository_policy",
   };
   const enqueue = async () => {
     const taskId = randomUUID(),
@@ -303,6 +306,10 @@ try {
             ROLE: "jobs",
             HIVE_PROJECT_TASKS_ENABLED: "true",
             HIVE_PROJECT_TASK_RECONCILE_SECRET: secret,
+            HIVE_DELIVERY_PILOT_MODE: "true",
+            HIVE_DELIVERY_PILOT_SCHEDULE_ENABLED: "true",
+            HIVE_DELIVERY_PILOT_SCHEDULE_STARTED_AT: String(Date.now() - 1000),
+            HIVE_DELIVERY_PILOT_SCHEDULE_UNTIL: String(Date.now() + 600000),
           },
         },
         {
@@ -355,9 +362,19 @@ try {
   assert.equal((await stats()).starts, 1);
   assert.equal(await db.projectTaskIntent.count({ where: { phase: "queued" } }), 1);
   checks.oneIntentPerWake = true;
-  result = await wake();
-  assert.equal(result.projectTasks.processed, 1);
+  response = await jobs.fetch("https://fixture.invalid/__wake", {
+    headers: { "X-Local-Scheduled": "true" },
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { scheduled: true });
   assert.equal((await stats()).starts, 2);
+  checks.actualScheduledHandler = true;
+  response = await jobs.fetch("https://fixture.invalid/__wake", {
+    headers: { "X-Local-Scheduled-Expired": "true" },
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await stats()).starts, 2);
+  checks.expiredScheduledHandlerRejected = true;
   checks.secondWakeSeparateIntent = true;
   await db.projectTaskIntent.updateMany({
     where: { ownerId, phase: "preparing" },

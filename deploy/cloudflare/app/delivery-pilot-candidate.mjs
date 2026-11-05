@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash, createPublicKey } from "node:crypto";
+import { PILOT_EVIDENCE_BUCKET } from "./delivery-pilot-bucket.mjs";
 import { PREVIEW_SOFTWARE_TEMPLATE_ID } from "./host-identity.mjs";
 import { workspaceProjectsCandidate } from "./workspace-projects-candidate.mjs";
 
@@ -23,7 +24,15 @@ export function deliveryPilotCandidate({
   assert.equal(nativeCandidate, true);
   assert.equal(issuer?.scope.templateId, PREVIEW_SOFTWARE_TEMPLATE_ID);
   assert.match(issuer.keyId, /^[A-Za-z0-9._-]{1,64}$/);
-  exact(catalog, ["schemaVersion", "model", "effort", "guardian", "repositoryPolicies"]);
+  exact(catalog, [
+    "schemaVersion",
+    "model",
+    "effort",
+    "guardian",
+    "repositoryPolicies",
+    ...(catalog.acceptanceProducer === undefined ? [] : ["acceptanceProducer"]),
+    ...(catalog.evidenceBucket === undefined ? [] : ["evidenceBucket"]),
+  ]);
   assert.equal(catalog.schemaVersion, 1);
   assert.match(catalog.model, /^[a-z0-9][a-z0-9._-]{0,99}$/);
   assert.ok(["low", "medium", "high", "xhigh", "max", "ultra"].includes(catalog.effort));
@@ -49,6 +58,27 @@ export function deliveryPilotCandidate({
   const policyDigests = JSON.parse(check.stdout);
   digest(policyDigests.catalogDigest);
   digest(policyDigests.policyDigest);
+  if (catalog.acceptanceProducer !== undefined) {
+    const acceptance = spawnSync(
+      "pnpm",
+      ["exec", "tsx", "deploy/cloudflare/app/validate-delivery-pilot-acceptance.ts"],
+      { input: JSON.stringify(catalog.acceptanceProducer), encoding: "utf8", timeout: 15000 },
+    );
+    assert.equal(acceptance.status, 0, "Reviewed pilot acceptance producer rejected");
+  }
+  if (catalog.evidenceBucket !== undefined) {
+    assert.ok(
+      catalog.acceptanceProducer,
+      "Source evidence requires independently reviewed acceptance",
+    );
+    assert.deepEqual(catalog.evidenceBucket, PILOT_EVIDENCE_BUCKET);
+    const [entry] = catalog.repositoryPolicies;
+    assert.equal(entry.ownerId, "3a8174c9-5c45-4b54-bdb8-2ed03b9b2f34");
+    assert.equal(entry.repositoryId, "1183966024");
+    assert.equal(entry.providerAccountId, "62855857");
+    assert.equal(entry.policy.source.baseBranch, "codex/delivery-system-design");
+    assert.deepEqual(entry.policy.source.allowedPrefixes, ["docs"]);
+  }
   exact(pins, ["workspace", "voice", "agent", "helper"]);
   for (const value of Object.values(pins)) digest(value);
   return {
@@ -60,6 +90,10 @@ export function deliveryPilotCandidate({
     repositoryPolicies: catalog.repositoryPolicies,
     repositoryCatalogDigest: policyDigests.catalogDigest,
     repositoryPolicyDigest: policyDigests.policyDigest,
+    ...(catalog.acceptanceProducer === undefined
+      ? {}
+      : { acceptanceProducer: catalog.acceptanceProducer }),
+    ...(catalog.evidenceBucket === undefined ? {} : { evidenceBucket: catalog.evidenceBucket }),
     pins,
   };
 }
@@ -100,6 +134,20 @@ export function deliveryPilotVars(candidate, issuer) {
     HIVE_DELIVERY_EXECUTION_ENABLED: "true",
     HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED: "true",
     HIVE_DELIVERY_REPOSITORY_POLICIES_JSON: JSON.stringify(candidate.repositoryPolicies),
+    ...(candidate.acceptanceProducer
+      ? {
+          HIVE_DELIVERY_ACCEPTANCE_ENABLED: "true",
+          HIVE_DELIVERY_ACCEPTANCE_PRODUCER: JSON.stringify(candidate.acceptanceProducer),
+          HIVE_DELIVERY_NATIVE_ENABLED: "true",
+        }
+      : {}),
+    ...(candidate.evidenceBucket
+      ? {
+          HIVE_GUARDIAN_SOURCE_APPLICATION_ENABLED: "true",
+          HIVE_DELIVERY_GITHUB_SOURCE_ENABLED: "true",
+          HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED: "true",
+        }
+      : {}),
     HIVE_GUARDIAN_APPROVED_PACKAGES_JSON: JSON.stringify([candidate.guardian]),
   };
 }
@@ -113,6 +161,10 @@ export function assertDeliveryPilot(record, app, secrets, pins) {
     effort: candidate.effort,
     guardian: candidate.guardian,
     repositoryPolicies: candidate.repositoryPolicies,
+    ...(candidate.acceptanceProducer === undefined
+      ? {}
+      : { acceptanceProducer: candidate.acceptanceProducer }),
+    ...(candidate.evidenceBucket === undefined ? {} : { evidenceBucket: candidate.evidenceBucket }),
   };
   assert.deepEqual(
     candidate,
@@ -141,6 +193,11 @@ export function assertDeliveryPilot(record, app, secrets, pins) {
   assert.equal(app.vars.HIVE_CODEX_HIVE_ORIGIN, record.nativeIssuer.scope.hiveOrigin);
   assert.equal(app.vars.HIVE_PREVIEW_ORIGIN, record.nativeIssuer.scope.hiveOrigin);
   assert.equal(app.vars.HIVE_CODEX_SOFTWARE_TEMPLATE_IDS, candidate.templateId);
+  if (candidate.evidenceBucket)
+    assert.deepEqual(app.r2_buckets, [
+      { binding: "HIVE_DELIVERY_EVIDENCE", bucket_name: candidate.evidenceBucket.name },
+    ]);
+  else assert.equal(app.r2_buckets, undefined);
   assert.equal(
     record.repositoryCatalogSHA256,
     createHash("sha256").update(JSON.stringify(candidate.repositoryPolicies)).digest("hex"),
@@ -184,6 +241,7 @@ export function projectJobsPilotPlan(reconcileSecret, sourceRevision) {
     vars: {
       HIVE_RUNTIME_TARGET: "cloudflare",
       HIVE_PROJECT_TASKS_ENABLED: "true",
+      HIVE_DELIVERY_PILOT_MODE: "true",
       SOURCE_REVISION: sourceRevision,
     },
     limits: { cpu_ms: 100 },

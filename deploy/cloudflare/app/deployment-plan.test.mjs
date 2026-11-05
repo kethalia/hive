@@ -107,6 +107,15 @@ test("preparation rejects asset bypass, public routing, cron and added products"
     assert.throws(() => validatePreviewConfiguration(...pair));
   }
 });
+test("explicit pilot evidence permits only the exact app binding", () => {
+  const [app, auth] = configs();
+  const evidenceBucket = { name: "hive-delivery-pilot-20261105" };
+  app.r2_buckets = [{ binding: "HIVE_DELIVERY_EVIDENCE", bucket_name: evidenceBucket.name }];
+  validatePreviewConfiguration(app, auth, { evidenceBucket });
+  assert.throws(() => validatePreviewConfiguration(app, auth));
+  app.r2_buckets.push({ binding: "OTHER", bucket_name: "other" });
+  assert.throws(() => validatePreviewConfiguration(app, auth, { evidenceBucket }));
+});
 test("runtime credential cannot bind an owner, production database or other endpoint", () => {
   const runtime =
     "postgresql://hive_app_runtime:fixture@ep-jolly-sky-b7fhirib-pooler.c-13.us-east-1.aws.neon.tech/hive_app_preview?sslmode=require";

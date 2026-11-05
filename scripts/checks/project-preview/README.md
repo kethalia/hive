@@ -181,3 +181,53 @@ failures and primary retry decisions remain preserved; no counter was reset.
 No task, model inference, WebSocket or checkout was created. Project enrollment
 exists in the preview DB/controller with a null task. Both Workers are private
 again. Phase B and the registered native-manager pilot remain pending.
+
+## Prepared Phase B driver
+
+`phase-b.mjs` and `phase-b-policy.mjs` are a separate candidate for an existing
+registered session. The primary must supply the Phase A scope fields plus
+`attemptId`, `projectId`, `taskId`, `ownerId`, `buildId`, `serverInstanceId`, `threadId`, a
+unique `marker` matching `HIVE_PILOT_...`, an `incrementalBudget` from 2 to 200, and `start: null`. These IDs come from
+independent owner-scoped registration/host evidence; the browser checks both
+session and terminal grant bindings against them. It checks the existing marker
+in the conversation, verifies the terminal's authenticated `ready` frame, switches
+back, deliberately closes the scoped session socket, and requires a fresh grant
+and the same single turn/item identity after reconnect. Only the digest of those
+IDs is exported. It sends no terminal input or native prompt.
+
+For an explicitly approved new task, the private scope instead sets `taskId`,
+`serverInstanceId`, and `threadId` to null and sets `start` to the exact
+`{expectedRevision, text}` approved by the operator. The browser permits one
+start POST with exactly those bytes and the approved workspace/project, then
+binds later reads to the returned task and registered session. Task creation and
+inference are effects, and this mode must not run until the primary identifies the
+exact target and intent. The exact marker must already appear in the authorized
+task's real output; the harness never fabricates it.
+
+Each Phase B attempt uses a unique primary-supplied UUID and an exclusive durable attempt receipt; a retry needs a freshly reviewed cumulative budget and new UUID. Both modes retain `priorForwarded` as the cumulative prior ledger and allow at most the separately reviewed `incrementalBudget` new outer HTTP exchanges, reserving one of those new slots for logout. Refresh account quota before the run; this test budget does not authorize additional spending.
+They allow only the existing phase A paths, fixed project status/grants and the
+one optional approved start; socket messages are limited to authentication,
+renewal, conversation history methods, and terminal resize. Terminal input,
+other project mutations, foreign sockets and arbitrary native methods are denied.
+`passed` represents browser checks only. `hostIdentityIndependentlyJoined` and
+`nativeProcessCountProven` remain false until the primary separately joins the
+returned binding/marker digest with trusted persisted registration, native
+process and tmux evidence from before and after the run. The driver records no
+conversation text, screenshots, traces or credentials.
+
+After preparing this exact source and revalidating the Browser workspace, a
+coordinated run uses the same private files and attempt receipt mechanism:
+
+```sh
+python3 scripts/checks/project-preview/remote.py prepare --phase B
+python3 scripts/checks/project-preview/remote.py run --phase B --approved-live --scope-file <private-scope> --auth-file <private-credentials>
+```
+
+No Phase B browser run, task, socket or provider write is performed by preparing
+these files. Runtime behavior and selectors remain unverified until execution in
+Browser Testing against the exact deployed candidate.
+
+The project status POST can reconcile an existing durable task claim; it is not
+strictly read-only. Before existing-session mode, the primary must independently
+verify the selected task is already running or explicitly include that possible
+reconciliation in the approved scope.

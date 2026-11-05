@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T17:05:55.270Z",
+  "database": "hive_app_preview",
+  "project": "purple-math-59583745",
+  "migrationCount": 40,
+  "lastMigration": {
+    "migration_name": "20261105150000_guardian_tree_receipt_runtime_grants",
+    "checksum": "948ca0e86f504234fd48b87b08e8178b4ef5f7a96e24f490ac61d6d4e2870e6a"
+  },
+  "receiptRuntimePrivileges": {
+    "select": true,
+    "insert": true,
+    "update": false,
+    "delete": false
+  },
+  "repeatableRuntimeProvisioning": true,
+  "productionTouched": false
+}

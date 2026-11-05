@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdir, open, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { assertBuildReady } from "./build-integrity.mjs";
+import { assertPilotEvidenceBucket } from "./delivery-pilot-bucket.mjs";
 import { assertDeliveryPilot, projectJobsPilotPlan } from "./delivery-pilot-candidate.mjs";
 import { readPreviewPrivateJson } from "./deployment-identity.mjs";
 import {
@@ -67,7 +68,14 @@ try {
     for (const secretName of observed[name].secretNames)
       assert.equal(configs[name].vars[secretName], undefined);
   }
-  validatePreviewConfiguration(configs.app, configs.auth);
+  validatePreviewConfiguration(configs.app, configs.auth, {
+    evidenceBucket: record.deliveryPilotCandidate?.evidenceBucket,
+  });
+  if (record.deliveryPilotCandidate?.evidenceBucket)
+    assertPilotEvidenceBucket(
+      record.deliveryPilotCandidate.evidenceBucket,
+      await readPreviewPrivateJson(process.env.HIVE_PREVIEW_DELIVERY_BUCKET_EVIDENCE_FILE),
+    );
   if (record.deliveryPilotCandidate) {
     const pins = Object.fromEntries(
       await Promise.all(

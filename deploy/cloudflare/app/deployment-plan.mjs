@@ -48,7 +48,7 @@ export function validatePreflight(preflight, now = Date.now(), previous) {
   );
 }
 
-export function validatePreviewConfiguration(app, auth) {
+export function validatePreviewConfiguration(app, auth, { evidenceBucket } = {}) {
   assert.equal(app.name, APP_NAME);
   assert.equal(auth.name, AUTH_NAME);
   assert.equal(app.assets?.run_worker_first, true, "All assets must pass the preview gate");
@@ -83,7 +83,12 @@ export function validatePreviewConfiguration(app, auth) {
       "ratelimits",
       "send_email",
     ])
-      assert.equal(config[binding], undefined, "No additional resource binding may be prepared");
+      if (binding === "r2_buckets" && config === app && evidenceBucket)
+        assert.deepEqual(config[binding], [
+          { binding: "HIVE_DELIVERY_EVIDENCE", bucket_name: evidenceBucket.name },
+        ]);
+      else
+        assert.equal(config[binding], undefined, "No additional resource binding may be prepared");
     for (const value of Object.values(config.vars ?? {}))
       assert.ok(
         typeof value !== "string" || !/postgres(?:ql)?:\/\/|Bearer /i.test(value),
