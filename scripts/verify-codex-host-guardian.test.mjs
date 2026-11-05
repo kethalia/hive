@@ -270,6 +270,37 @@ test("idle exit receipt recovers after a crash before journal close", async (t) 
   await next.idleShutdown();
 });
 
+test("idle recovery retains the authenticated outer journal until inner archival succeeds", async (t) => {
+  const f = fixture(t, { idle: true });
+  f.options.canIdleShutdown = async () => true;
+  const host = await openGuardedHost(f.options),
+    receipt = await host.idleShutdown();
+  const path = join(f.options.stateDirectory, "lifetime.json"),
+    before = readFileSync(path);
+  await assert.rejects(
+    openGuardedHost({
+      ...f.options,
+      prepareIdleLifetime: async (value) => {
+        assert.deepEqual(value, receipt);
+        throw new Error("fixture_interrupted_inner_archive");
+      },
+    }),
+    /fixture_interrupted_inner_archive/,
+  );
+  assert.deepEqual(readFileSync(path), before);
+  let prepared = false;
+  const next = await openGuardedHost({
+    ...f.options,
+    prepareIdleLifetime: async (value) => {
+      assert.deepEqual(value, receipt);
+      assert.deepEqual(readFileSync(path), before);
+      prepared = true;
+    },
+  });
+  assert.equal(prepared, true);
+  await next.idleShutdown();
+});
+
 test("shutdown uses idle drain and preserves the existing abort fallback on refusal", async () => {
   for (const idleAllowed of [true, false]) {
     let idle = 0,

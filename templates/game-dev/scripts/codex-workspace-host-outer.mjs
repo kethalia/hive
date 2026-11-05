@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { openGuardianController } from "./codex-guardian-controller.mjs";
 import { readGuardianStart } from "./codex-guardian-startup.mjs";
 import { openGuardedHost, verifyGuardianPackage } from "./codex-host-guardian.mjs";
+import { archiveIdleProjectState } from "./codex-project-controller.mjs";
 import { readInstalledHostStartup, validateHostConfig } from "./codex-workspace-host.mjs";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
@@ -154,6 +155,15 @@ export async function startInstalledGuardedHost() {
         acceptTreeReceipt: (...args) => authority.acceptTreeReceipt(...args),
         recoverTreeReceipt: (...args) => authority.recoverTreeReceipt(...args),
         postTreeClosed: (...args) => authority.postTreeClosed(...args),
+        prepareIdleLifetime: (receipt) =>
+          archiveIdleProjectState(
+            {
+              stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
+              ownerId: config.binding.ownerId,
+              workspaceId: config.binding.workspaceId,
+            },
+            receipt,
+          ),
         prepareNextLifetime: recoverPrevious
           ? async (receipt) => {
               await authority.archiveClosedController(receipt);

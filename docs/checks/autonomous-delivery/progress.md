@@ -1154,3 +1154,29 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   repository branches. There are no R2/service bindings or host/delivery execution flags.
   Real manager/subagent acceptance resumes after the reviewed branch's issuer/host enrollment;
   production cutover and F09/F10 account refactoring remain open.
+
+## 2026-11-05 deployment acceptance and actual idle-runtime repair
+
+- Native PR preview: automatic push build `d41fddd0-b77e-44a1-885e-b2dd683a6c03`
+  succeeded at `5c012a63` and updated the provider-managed branch environment. Effective
+  bindings have no R2 or external services; origin and six secret names match the isolated
+  native configuration. Guarded login SSR and real dedicated Coder sign-in passed. A real
+  authenticated settings read returned the correct Coder host and five owned workspaces.
+  Two harness assumptions (anonymous redirect and GET on a mutation-only route) are retained
+  with their failures; the correct authenticated read passes. Incremental HTTP ledger: 31/200.
+  The unused custom-named preview was identity-checked and removed after the managed preview
+  was verified. Main production remains the inactive bootstrap, not the running application.
+- Installed idle transition: held before rebuild. Inactive template `607a411d` was imported
+  without changing the global active version. The existing test workspace's supported idle
+  shutdown recorded `guardian_drain_uncertain`; no closure receipt exists, and its journal
+  remains untouched. No restart/rebuild or fabricated closure followed that result.
+- Runtime implementation repair: difficult, two concrete defects. The real empty-host callback
+  required an adapter that exists only after admission; a separately missed inner controller
+  barrier also prevented the next startup after a valid closure. The fix fences verified empty
+  inventory, archives signed inner state against the prior authenticated tree receipt, then
+  resets only that empty state. Crash replay and nonempty/tampered/newer state checks fail closed.
+  Astra isolated the cause and implemented the bounded fix; Sol independently reviewed and
+  reran 55 focused tests plus both real packaged installer tests. Those actual tests prove
+  idle closure, ECHILD, changed-binding restart and a second closure, with no auth files or
+  primary-path changes. Template packages are synchronized. This does not repair or certify
+  the already-held live lifetime; a corrected test image still needs installed acceptance.

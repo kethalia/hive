@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  archiveIdleProjectState,
   createProjectController,
   validateProjectOperation,
 } from "../templates/ai-dev-k8s/scripts/codex-project-controller.mjs";
@@ -676,6 +677,130 @@ function guardianFixture(t, configure) {
     saved: () => JSON.parse(readFileSync(join(context.dir, "projects.json"))).state,
   };
 }
+
+function idleReceipt(f) {
+  const barrier = f.barrier();
+  f.controller.closeAdmission(barrier);
+  return {
+    schemaVersion: 1,
+    receiptId: randomUUID(),
+    lifetimeId: barrier.lifetimeId,
+    bindingDigest: barrier.bindingDigest,
+    ownershipDigest: barrier.ownershipDigest,
+    generation: barrier.generation + 1,
+    projects: [],
+    decisions: [],
+    workerPid: process.pid,
+    guardianExited: true,
+    finalWaitResult: "ECHILD",
+    waitFlags: "__WALL",
+    scope: "managed_native_tree_only",
+    cleanupAuthorized: false,
+    workerBarrier: {
+      lifetimeId: barrier.lifetimeId,
+      generation: barrier.generation,
+      ownershipDigest: barrier.ownershipDigest,
+      barrierId: barrier.barrierId,
+      closed: true,
+    },
+  };
+}
+
+test("idle recovery archives the signed empty controller and replays either side of its reset", async (t) => {
+  const f = guardianFixture(t),
+    receipt = idleReceipt(f);
+  await f.controller.close();
+  const path = join(f.config.stateDirectory, "projects.json"),
+    original = readFileSync(path);
+  const first = archiveIdleProjectState(f.config, receipt);
+  const reset = readFileSync(path);
+  assert.equal(f.saved().guardianBarrier, undefined);
+  assert.equal(f.saved().guardianLifetimeId, undefined);
+  assert.equal(f.saved().hostProcess, undefined);
+  assert.deepEqual(f.saved().projects, {});
+  const archived = JSON.parse(
+    readFileSync(join(f.config.stateDirectory, `projects-idle-${first.receiptDigest}.json`)),
+  );
+  assert.deepEqual(archived.state.projectState, JSON.parse(original).state);
+  assert.equal(archived.state.receiptDigest, first.receiptDigest);
+  // Crash after durable archive but before active reset.
+  writeFileSync(path, original);
+  assert.deepEqual(archiveIdleProjectState(f.config, receipt), first);
+  assert.deepEqual(readFileSync(path), reset);
+  // Crash after reset but before the outer idle journal is archived.
+  assert.deepEqual(archiveIdleProjectState(f.config, receipt), first);
+  const next = createProjectController(f.config, {
+    ...f.deps,
+    guardian: {
+      ...f.guard,
+      state: { ...f.guard.state, phase: "open", lifetimeId: randomUUID() },
+    },
+  });
+  await next.close();
+  assert.throws(() => archiveIdleProjectState(f.config, receipt), /idle_archive_state_changed/);
+});
+
+test("idle recovery rejects mismatched receipts, nonempty state and altered signatures", async (t) => {
+  const f = guardianFixture(t),
+    receipt = idleReceipt(f);
+  await f.controller.close();
+  const path = join(f.config.stateDirectory, "projects.json"),
+    original = readFileSync(path);
+  for (const change of [
+    { guardianExited: false },
+    { finalWaitResult: "timeout" },
+    { lifetimeId: randomUUID() },
+    { bindingDigest: "a".repeat(64) },
+    { generation: receipt.generation + 1 },
+    { workerPid: process.pid + 1 },
+    { projects: [{ projectId: randomUUID() }] },
+    { workerBarrier: { ...receipt.workerBarrier, barrierId: randomUUID() } },
+  ]) {
+    assert.throws(
+      () => archiveIdleProjectState(f.config, { ...receipt, ...change }),
+      /idle_archive_/,
+    );
+    assert.deepEqual(readFileSync(path), original);
+  }
+  assert.throws(
+    () => archiveIdleProjectState({ ...f.config, workspaceId: randomUUID() }, receipt),
+    /idle_archive_/,
+  );
+  const saved = JSON.parse(original);
+  saved.state.projects[randomUUID()] = { task: null };
+  saved.signature = createHmac(
+    "sha256",
+    readFileSync(join(f.config.stateDirectory, "projects.key")),
+  )
+    .update(JSON.stringify(saved.state))
+    .digest("hex");
+  writeFileSync(path, JSON.stringify(saved));
+  assert.throws(() => archiveIdleProjectState(f.config, receipt), /idle_archive_state_invalid/);
+  saved.signature = "0".repeat(64);
+  writeFileSync(path, JSON.stringify(saved));
+  assert.throws(() => archiveIdleProjectState(f.config, receipt), /journal_signature_invalid/);
+  writeFileSync(path, original);
+  const { receiptDigest } = archiveIdleProjectState(f.config, receipt);
+  const reset = readFileSync(path),
+    archivePath = join(f.config.stateDirectory, `projects-idle-${receiptDigest}.json`),
+    archive = JSON.parse(readFileSync(archivePath));
+  archive.signature = "0".repeat(64);
+  writeFileSync(archivePath, JSON.stringify(archive));
+  assert.throws(() => archiveIdleProjectState(f.config, receipt), /journal_signature_invalid/);
+  assert.deepEqual(readFileSync(path), reset);
+  rmSync(archivePath);
+  assert.throws(() => archiveIdleProjectState(f.config, receipt), /idle_archive_state_invalid/);
+  assert.deepEqual(readFileSync(path), reset);
+});
+
+test("idle barrier refuses even a project that has never acquired a task", async (t) => {
+  const f = guardianFixture(t);
+  await f.controller.handle("/projects/open", f.open);
+  assert.throws(
+    () => f.controller.closeAdmission(f.barrier()),
+    /guardian_barrier_preparation_uncertain/,
+  );
+});
 
 test("guardian admission is durable before preparation and final binding is a separate immutable record", async (t) => {
   const f = guardianFixture(t);

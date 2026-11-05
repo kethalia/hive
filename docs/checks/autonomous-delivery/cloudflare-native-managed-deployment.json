@@ -1,0 +1,109 @@
+{
+  "observedAt": "2026-11-05T20:26:35.134Z",
+  "id": "9b772c5c22f84deeb1af85e68f819798",
+  "name": "codex/delivery-system-design",
+  "slug": "codex-delivery-system-design",
+  "urls": ["https://codex-delivery-system-design-hive.b00ste.workers.dev"],
+  "deploymentId": "e1d5a0d9-5a08-4e30-a0ec-6a8e40421145",
+  "annotations": {
+    "workers/message": "fix(cloudflare): publish to the PR-managed branch preview",
+    "workers/repository_url": "https://github.com/kethalia/hive",
+    "workers/tag": "5c012a6",
+    "workers/triggered_by": "create_preview_deployment_api"
+  },
+  "bindings": [
+    {
+      "name": "ASSETS",
+      "type": "assets"
+    },
+    {
+      "name": "AUTH_SERVICE_SECRET",
+      "type": "secret_text"
+    },
+    {
+      "name": "CODER_URL",
+      "type": "plain_text",
+      "value": "https://coder.kethalia.com"
+    },
+    {
+      "name": "COOKIE_SECRET",
+      "type": "secret_text"
+    },
+    {
+      "name": "DATABASE_URL",
+      "type": "secret_text"
+    },
+    {
+      "name": "ENCRYPTION_KEY",
+      "type": "secret_text"
+    },
+    {
+      "name": "HIVE_CODEX_GATEWAY_ENABLED",
+      "type": "plain_text",
+      "value": "false"
+    },
+    {
+      "name": "HIVE_DELIVERY_DISPATCH_ENABLED",
+      "type": "plain_text",
+      "value": "false"
+    },
+    {
+      "name": "HIVE_DELIVERY_ENABLED",
+      "type": "plain_text",
+      "value": "false"
+    },
+    {
+      "name": "HIVE_DISABLE_BACKGROUND_WORKERS",
+      "type": "plain_text",
+      "value": "true"
+    },
+    {
+      "name": "HIVE_NATIVE_MODE",
+      "type": "plain_text",
+      "value": "preview"
+    },
+    {
+      "name": "HIVE_NATIVE_PREVIEW_ENABLED",
+      "type": "plain_text",
+      "value": "true"
+    },
+    {
+      "name": "HIVE_PREVIEW_ORIGIN",
+      "type": "plain_text",
+      "value": "https://codex-delivery-system-design-hive.b00ste.workers.dev"
+    },
+    {
+      "name": "HIVE_PROJECT_DISCOVERY_ENABLED",
+      "type": "plain_text",
+      "value": "false"
+    },
+    {
+      "name": "HIVE_PROJECT_TASKS_ENABLED",
+      "type": "plain_text",
+      "value": "false"
+    },
+    {
+      "name": "HIVE_PUBLIC_ORIGIN",
+      "type": "plain_text",
+      "value": "https://codex-delivery-system-design-hive.b00ste.workers.dev"
+    },
+    {
+      "name": "HIVE_RUNTIME_TARGET",
+      "type": "plain_text",
+      "value": "cloudflare"
+    },
+    {
+      "name": "HIVE_TOKEN_ROTATION_ENABLED",
+      "type": "plain_text",
+      "value": "false"
+    },
+    {
+      "name": "PREVIEW_BEARER",
+      "type": "secret_text"
+    },
+    {
+      "name": "PREVIEW_COOKIE_SECRET",
+      "type": "secret_text"
+    }
+  ]
+}

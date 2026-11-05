@@ -503,6 +503,12 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       const receipt = controller.closeAdmission(barrier);
       closureBarrier = structuredClone(barrier);
       await gateway.close();
+      if (barrier.projects.length === 0) {
+        // The controller has durably fenced an entirely empty project journal.
+        // No runtime is created until admission, so idle closure has no history.
+        check(!delivery && !supervisor && !registration);
+        return { ...receipt, snapshots: [] };
+      }
       check(
         delivery?.adapter &&
           supervisor &&

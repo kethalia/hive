@@ -74,7 +74,7 @@ function atomic(path, value) {
     closeSync(dir);
   }
 }
-function openJournal(directory, bindingDigest) {
+async function openJournal(directory, bindingDigest, prepareIdleLifetime) {
   check(resolve(directory) === directory && /^[a-f0-9]{64}$/.test(bindingDigest));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   privateFile(directory, true);
@@ -166,6 +166,9 @@ function openJournal(directory, bindingDigest) {
               ["admissionIntent", "admissionAccepted"].includes(event.name),
             ),
         );
+        // Keep the authenticated outer journal in place until inner idle state
+        // is durably archived/reset. A crash retries the same receipt first.
+        if (prepareIdleLifetime) await prepareIdleLifetime(structuredClone(receipt.value));
         const archive = join(directory, `lifetime-idle-${sha(readFileSync(path))}.json`);
         check(!existsSync(archive));
         renameSync(path, archive);
@@ -258,7 +261,11 @@ export async function openGuardedHost(options) {
       startup.packageManifestSha256 === options.packageManifestSha256 &&
         startup.nodeSha256 === options.nodeSha256,
     );
-  const journal = openJournal(options.stateDirectory, options.bindingDigest);
+  const journal = await openJournal(
+    options.stateDirectory,
+    options.bindingDigest,
+    options.prepareIdleLifetime,
+  );
   const recovered = journal.snapshot();
   if (recovered.phase === "treeExited") {
     try {

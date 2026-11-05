@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T20:39:14.951283+00:00",
+  "workspaceId": "49dfbaf2-f475-4053-8c6b-2fc09d0db8bf",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "buildId": "37e32516-86ad-418a-954a-018878aa05a9",
+  "inactiveTemplateVersionId": "607a411d-64bc-4f30-959c-7ff3c8c7cd21",
+  "globalActiveVersionId": "8e86f61b-3c8e-4d6a-8d1f-c87696d42bfa",
+  "inactiveImportSucceeded": true,
+  "publicVariablesReadbackMatch": true,
+  "idleShutdown": "indeterminate",
+  "journalSignatureValid": true,
+  "journalEvents": [
+    "begin",
+    "ready",
+    "launchIntent",
+    "open",
+    "startupReady",
+    "closing",
+    "indeterminate"
+  ],
+  "reason": "guardian_drain_uncertain",
+  "controllerStateAbsent": true,
+  "recordedOuterExited": true,
+  "treeClosureProven": false,
+  "workspaceRebuilt": false,
+  "disposition": "retain workspace and all journals; do not restart or rebuild without resolving closure"
+}

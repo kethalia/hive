@@ -24,7 +24,7 @@ const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const fileSha = (path) => sha(readFileSync(path));
 const privateDir = (path) => mkdirSync(path, { recursive: true, mode: 0o700 });
 const driver = String.raw`
-import copy,ctypes,hashlib,importlib.util,json,os,pwd,signal,socket,subprocess,sys,time,urllib.request
+import copy,ctypes,hashlib,hmac,importlib.util,json,os,pwd,signal,socket,subprocess,sys,time,urllib.request
 from pathlib import Path
 sys.dont_write_bytecode=True
 assert ctypes.CDLL(None).prctl(36,1,0,0,0)==0
@@ -83,26 +83,78 @@ try:
  changed=copy.deepcopy(request);changed['config']['model']='gpt-fixture-changed'
  assert rejected(lambda:invoke(changed));assert same(installed.process_identity(identity['pid']),identity)
  result['liveConfigChangeRejected']=True
- stage='default_denied_preparation'
- opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
- body=(root/'start-ticket.json').read_bytes()
- req=urllib.request.Request('http://127.0.0.1:'+str(config['port'])+'/projects/tasks/start',data=body,headers={'Host':'app.fixture.invalid','Content-Type':'application/json'})
- with opener.open(req,timeout=3) as response: assert response.status==200
- projectId=json.loads((root/'fixture-ids.json').read_text())['projectId']
- controller_path=home/'.local/state/hive/codex-project-controller/projects.json'
- deadline=time.monotonic()+3
- while True:
-  state=json.loads(controller_path.read_text())['state'];task=state['projects'][projectId]['task']
-  if task and task['phase']=='blocked':break
-  assert time.monotonic()<deadline;time.sleep(.02)
- assert task['guardianPreparation'] and not task.get('guardianAdmission') and not task.get('prepared')
- assert task['nativeCreationAttempted'] is False and task['firstPromptSubmissionAttempted'] is False
- assert not (home/'projects/.hive-managed').exists()
- assert not (home/'.local/state/hive/codex-project-supervisor').exists()
- result['defaultPreparationDenied']=True
- result['noNativeRuntimeStarted']=True
- result['noAuthenticationFiles']=not any((home/p).exists() for p in ('.codex/auth.json','.local/share/hive/codex-native/codex/auth.json'))
- assert result['noAuthenticationFiles']
+ if (root/'idle-mode').exists():
+  stage='idle_close_restart'
+  def signed(path,keypath):
+   saved=json.loads(path.read_text());encoded=json.dumps(saved['state'],separators=(',',':'),ensure_ascii=False).encode()
+   assert hmac.compare_digest(saved['signature'],hmac.new(keypath.read_bytes(),encoded,hashlib.sha256).hexdigest())
+   return saved['state']
+  def close_idle(receipt):
+   guardian=home/'.local/state/hive/codex-host-guardian';controller=home/'.local/state/hive/codex-project-controller'
+   assert not (guardian/'controller.json').exists()
+   assert signed(controller/'projects.json',controller/'projects.key')['projects']=={}
+   expected=receipt['process'];assert same(installed.process_identity(expected['pid']),expected)
+   fd=os.pidfd_open(expected['pid'])
+   try:
+    assert same(installed.process_identity(expected['pid']),expected)
+    signal.pidfd_send_signal(fd,signal.SIGTERM)
+   finally:os.close(fd)
+   deadline=time.monotonic()+8;outer_status=None
+   while True:
+    try:
+     pid,status=os.waitpid(-1,os.WNOHANG|0x40000000)
+     if pid==expected['pid']:outer_status=status
+     if pid:continue
+    except ChildProcessError:break
+    assert time.monotonic()<deadline;time.sleep(.01)
+   assert outer_status==0
+   state=signed(guardian/'lifetime.json',guardian/'key');events=[e['name'] for e in state['events']]
+   assert state['phase']=='idleClosed'
+   assert events==['begin','ready','launchIntent','open','startupReady','closing','workerClosed','receipt','idleTreeExited','idleClosed']
+   exited=state['events'][-2]['value'];assert exited['finalWaitResult']=='ECHILD' and exited['guardianExited'] is True
+   assert exited['projects']==[] and exited['decisions']==[] and state['events'][6]['value']['snapshots']==[]
+   assert exited['workerBarrier']['barrierId']==signed(controller/'projects.json',controller/'projects.key')['guardianBarrier']['barrierId']
+   return {'events':events,'lifetimeId':exited['lifetimeId'],'finalWaitResult':exited['finalWaitResult'],'outerExitCode':0,'allChildrenReaped':True}
+  first_idle=close_idle(receipt)
+  changed=copy.deepcopy(request);changed['config']['model']='gpt-fixture-changed'
+  second=invoke(changed);assert second['status']=='started'
+  receipt=json.loads(receipt_path.read_text());second_ready=receipt['guardianStartup']['ready']
+  assert second_ready['lifetimeId']!=first_idle['lifetimeId']
+  assert second_ready['bindingDigest']!=ready['bindingDigest']
+  controller=home/'.local/state/hive/codex-project-controller';guardian=home/'.local/state/hive/codex-host-guardian'
+  inner_archives=list(controller.glob('projects-idle-*.json'));outer_archives=list(guardian.glob('lifetime-idle-*.json'))
+  assert len(inner_archives)==len(outer_archives)==1
+  inner=signed(inner_archives[0],controller/'projects.key');outer=signed(outer_archives[0],guardian/'key')
+  archived_receipt=outer['events'][-2]['value']
+  assert inner['receiptDigest']==hashlib.sha256(json.dumps(archived_receipt,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+  assert inner['projectState']['guardianLifetimeId']==first_idle['lifetimeId']
+  assert inner['projectState']['guardianBarrier']['barrierId']==archived_receipt['workerBarrier']['barrierId']
+  result['idleLifetimes']=[first_idle,close_idle(receipt)]
+  result['idleRestartWithChangedBinding']=True
+  result['authenticatedInnerArchive']=True
+  result['noAuthenticationFiles']=not any((home/p).exists() for p in ('.codex/auth.json','.local/share/hive/codex-native/codex/auth.json'))
+  assert result['noAuthenticationFiles']
+ else:
+  stage='default_denied_preparation'
+  opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+  body=(root/'start-ticket.json').read_bytes()
+  req=urllib.request.Request('http://127.0.0.1:'+str(config['port'])+'/projects/tasks/start',data=body,headers={'Host':'app.fixture.invalid','Content-Type':'application/json'})
+  with opener.open(req,timeout=3) as response: assert response.status==200
+  projectId=json.loads((root/'fixture-ids.json').read_text())['projectId']
+  controller_path=home/'.local/state/hive/codex-project-controller/projects.json'
+  deadline=time.monotonic()+3
+  while True:
+   state=json.loads(controller_path.read_text())['state'];task=state['projects'][projectId]['task']
+   if task and task['phase']=='blocked':break
+   assert time.monotonic()<deadline;time.sleep(.02)
+  assert task['guardianPreparation'] and not task.get('guardianAdmission') and not task.get('prepared')
+  assert task['nativeCreationAttempted'] is False and task['firstPromptSubmissionAttempted'] is False
+  assert not (home/'projects/.hive-managed').exists()
+  assert not (home/'.local/state/hive/codex-project-supervisor').exists()
+  result['defaultPreparationDenied']=True
+  result['noNativeRuntimeStarted']=True
+  result['noAuthenticationFiles']=not any((home/p).exists() for p in ('.codex/auth.json','.local/share/hive/codex-native/codex/auth.json'))
+  assert result['noAuthenticationFiles']
  result['status']='passed'
 except Exception as error:
  failed=True;result.update(status='failed',stage=stage,errorType=type(error).__name__)
@@ -135,15 +187,13 @@ finally:
  if failed:sys.exit(1)
 `;
 
-test("fixed Python installer and guarded outer attest exact worker readiness and refuse duplicate or unauthorized execution", {
-  skip: process.env.HIVE_TEST_GUARDED_INSTALL !== "1",
-  timeout: 60000,
-}, () => {
+function guardedInstallFixture(idle) {
   const root = resolve("."),
     directory = mkdtempSync(join(tmpdir(), "hive-guarded-install-"));
   const home = join(directory, "home"),
     bundle = join(directory, "bundle");
   privateDir(home);
+  if (idle) writeFileSync(join(directory, "idle-mode"), "1");
   const evidence = process.env.HIVE_GUARDED_INSTALL_EVIDENCE_PATH;
   const artifactDirectory = resolve(
     process.env.HIVE_GUARDIAN_ARTIFACT_DIR || "/tmp/hive-guardian-ci-17dbf25",
@@ -263,7 +313,8 @@ test("fixed Python installer and guarded outer attest exact worker readiness and
       port: 32179,
       model: "gpt-6.1-sol",
       effort: "low",
-      managerEnabled: false,
+      managerEnabled: idle,
+      ...(idle ? { deliveryExecutionEnabled: true } : {}),
       nativeIsolationEnabled: true,
       guardianEnabled: true,
     };
@@ -275,15 +326,17 @@ test("fixed Python installer and guarded outer attest exact worker readiness and
         schemaVersion: 1,
         ownerId: ids.ownerId,
         workspaceId: ids.workspaceId,
-        projects: {
-          [projectId]: {
-            projectId,
-            repositoryId: "987654321012345678",
-            expectedAccountId: "123456789",
-            createdAt: Date.now(),
-            task: null,
-          },
-        },
+        projects: idle
+          ? {}
+          : {
+              [projectId]: {
+                projectId,
+                repositoryId: "987654321012345678",
+                expectedAccountId: "123456789",
+                createdAt: Date.now(),
+                task: null,
+              },
+            },
       };
     writeFileSync(join(controller, "projects.key"), key, { mode: 0o600 });
     writeFileSync(
@@ -428,7 +481,11 @@ test("fixed Python installer and guarded outer attest exact worker readiness and
     );
     if (evidence) {
       privateDir(dirname(resolve(evidence)));
-      writeFileSync(resolve(evidence), `${JSON.stringify(result, null, 2)}\n`, { flag: "wx" });
+      writeFileSync(
+        resolve(idle ? `${evidence}.idle.json` : evidence),
+        `${JSON.stringify(result, null, 2)}\n`,
+        { flag: "wx" },
+      );
     }
     assert.equal(
       failure,
@@ -444,4 +501,16 @@ test("fixed Python installer and guarded outer attest exact worker readiness and
     if (success) rmSync(directory, { recursive: true, force: true });
     else process.stderr.write(`Guarded installer fixture retained: ${directory}\n`);
   }
-});
+}
+
+for (const idle of [false, true])
+  test(
+    idle
+      ? "actual packaged idle host closes with ECHILD and restarts from authenticated inner archival"
+      : "fixed Python installer and guarded outer attest exact worker readiness and refuse duplicate or unauthorized execution",
+    {
+      skip: process.env.HIVE_TEST_GUARDED_INSTALL !== "1",
+      timeout: 60000,
+    },
+    () => guardedInstallFixture(idle),
+  );

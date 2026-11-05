@@ -354,6 +354,113 @@ export function archiveClosedProjectState(config, tokens, issuerPublicKeyPem) {
     closeSync(lock);
   }
 }
+
+/** Called only by the outer host after authenticating its idle ECHILD journal.
+ * Archive before resetting, and require the same signed archive on replay. */
+export function archiveIdleProjectState(config, receipt) {
+  check(uuid(config.ownerId) && uuid(config.workspaceId), "idle_archive_identity_invalid");
+  check(
+    receipt?.guardianExited === true &&
+      receipt.finalWaitResult === "ECHILD" &&
+      receipt.waitFlags === "__WALL" &&
+      receipt.scope === "managed_native_tree_only" &&
+      receipt.cleanupAuthorized === false &&
+      uuid(receipt.lifetimeId) &&
+      uuid(receipt.receiptId) &&
+      Array.isArray(receipt.projects) &&
+      receipt.projects.length === 0 &&
+      Array.isArray(receipt.decisions) &&
+      receipt.decisions.length === 0 &&
+      receipt.workerBarrier?.closed === true &&
+      uuid(receipt.workerBarrier.barrierId),
+    "idle_archive_receipt_invalid",
+  );
+  privatePath(config.stateDirectory, true);
+  const lock = openSync(
+    join(config.stateDirectory, "controller.lock"),
+    constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    privatePath(join(config.stateDirectory, "controller.lock"));
+    execFileSync("/usr/bin/flock", ["--exclusive", "--nonblock", "3"], {
+      stdio: ["ignore", "ignore", "ignore", lock],
+      env: { PATH: "/usr/bin:/bin" },
+      timeout: 2000,
+    });
+    const keyPath = join(config.stateDirectory, "projects.key"),
+      statePath = join(config.stateDirectory, "projects.json"),
+      receiptDigest = digest(receipt),
+      archivePath = join(config.stateDirectory, `projects-idle-${receiptDigest}.json`);
+    privatePath(keyPath);
+    const key = readFileSync(keyPath);
+    check(key.length === 32, "journal_key_invalid");
+    const mac = (value) => createHmac("sha256", key).update(JSON.stringify(value)).digest("hex");
+    const readSigned = (path) => {
+      privatePath(path);
+      check(lstatSync(path).size <= 4 * 1024 * 1024, "idle_archive_state_invalid");
+      const saved = JSON.parse(readFileSync(path));
+      check(
+        typeof saved.signature === "string" &&
+          saved.signature.length === 64 &&
+          timingSafeEqual(Buffer.from(saved.signature), Buffer.from(mac(saved.state))),
+        "journal_signature_invalid",
+      );
+      return saved.state;
+    };
+    const current = readSigned(statePath),
+      archived = existsSync(archivePath) ? readSigned(archivePath) : null,
+      state = archived ? archived.projectState : current,
+      barrier = state?.guardianBarrier;
+    check(!archived || archived.receiptDigest === receiptDigest, "idle_archive_receipt_invalid");
+    check(
+      state?.schemaVersion === 1 &&
+        state.ownerId === config.ownerId &&
+        state.workspaceId === config.workspaceId &&
+        state.projects &&
+        typeof state.projects === "object" &&
+        !Array.isArray(state.projects) &&
+        Object.keys(state.projects).length === 0 &&
+        state.guardianLifetimeId === receipt.lifetimeId &&
+        state.hostProcess?.pid === receipt.workerPid &&
+        Array.isArray(barrier?.projects) &&
+        barrier.projects.length === 0 &&
+        barrier.lifetimeId === receipt.lifetimeId &&
+        barrier.bindingDigest === receipt.bindingDigest &&
+        barrier.barrierId === receipt.workerBarrier.barrierId &&
+        barrier.ownershipDigest === receipt.ownershipDigest &&
+        receipt.workerBarrier.lifetimeId === barrier.lifetimeId &&
+        receipt.workerBarrier.ownershipDigest === barrier.ownershipDigest &&
+        receipt.workerBarrier.generation === barrier.generation &&
+        Number.isSafeInteger(barrier.generation) &&
+        barrier.generation > 0 &&
+        receipt.generation === barrier.generation + 1,
+      "idle_archive_state_invalid",
+    );
+    const reset = structuredClone(state);
+    delete reset.guardianBarrier;
+    delete reset.guardianLifetimeId;
+    delete reset.hostProcess;
+    check(
+      digest(current) === digest(state) || (archived && digest(current) === digest(reset)),
+      "idle_archive_state_changed",
+    );
+    const persist = (path, value) => {
+      writeAtomic(path, { state: value, signature: mac(value) });
+      const fd = openSync(config.stateDirectory, constants.O_RDONLY | constants.O_DIRECTORY);
+      try {
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    };
+    if (!archived) persist(archivePath, { receiptDigest, projectState: state });
+    persist(statePath, reset);
+    return { receiptDigest };
+  } finally {
+    closeSync(lock);
+  }
+}
 /** Dependencies are installed functions, never HTTP parameters. openRuntime must
  * return the ONE supervisor plus its registration authority for this host. */
 export function createProjectController(config, deps) {
@@ -1236,6 +1343,7 @@ export function createProjectController(config, deps) {
           /^[a-f0-9]{64}$/.test(barrier.ownershipDigest) &&
           uuid(barrier.barrierId) &&
           Array.isArray(barrier.projects) &&
+          (barrier.projects.length > 0 || Object.keys(state.projects).length === 0) &&
           barrier.projects.length === enrolled.length &&
           new Set(barrier.projects.map((p) => p.projectId)).size === enrolled.length &&
           enrolled.every(
