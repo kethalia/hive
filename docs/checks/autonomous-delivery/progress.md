@@ -1239,3 +1239,24 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   successful reconciliation clears the notice, and cancellation retains an uncertain claim.
   Both pending and blocked tasks show neutral notices without promising an automatic retry.
   Next: deploy this diagnostic candidate and reconcile the existing queued intent once.
+
+### Identity validation checkpoint
+
+- Published `00264a36` and `ff63b499` pass their exact local native Worker proofs and
+  automatic Cloudflare builds. Effective bindings are checked after each bounded operator
+  overlay; no production activation follows. The original request reached its normal
+  preparation timeout while integration was investigated and remains recorded as blocked.
+- The primary verified authenticated host journals, exact worker identity and database state
+  before authorizing a distinct bounded request. This proves non-execution of the old request
+  under the guarded admission protocol; it is not a whole-kernel quiescence or cleanup claim.
+  Old intent `3f7b4ce4-eb01-52aa-adbb-f7d031e87206` is retained. New intent
+  `033c3113-5847-58bf-ac7a-327a06fafc46` explicitly records its replacement relationship.
+- The new request reaches the host identity response, then records
+  `guardian_identity_validation`. There is still no guardian runtime, admission, registration
+  or verified model turn. Finer fixed identity failure categories are implemented without
+  changing the validation predicate. Clock behavior is a hypothesis, not an established cause;
+  offline Workerd checks used captured time, while the earlier Node check used live time.
+- Incremental outer requests are 51/200, including one second-precision HTTP clock observation.
+  Native browser continuity, actual manager/subagent/publication and pre-admission recovery
+  remain open gates. Replacing an independently verified unexecuted test request is not proof
+  that the ordinary task-retry path recovers a request that never reached the host.

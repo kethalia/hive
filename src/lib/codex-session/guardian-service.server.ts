@@ -53,6 +53,16 @@ export type GuardianProvisionStage =
   | "guardian_resolve"
   | "guardian_identity_transport"
   | "guardian_identity_validation"
+  | "guardian_identity_schema"
+  | "guardian_identity_liveness"
+  | "guardian_identity_future"
+  | "guardian_identity_expired"
+  | "guardian_identity_bounds"
+  | "guardian_identity_nonce"
+  | "guardian_identity_pins"
+  | "guardian_identity_signature"
+  | "guardian_identity_config"
+  | "guardian_identity_process"
   | "guardian_runtime_reservation"
   | "guardian_bootstrap"
   | "guardian_enrollment_confirmation";
@@ -142,8 +152,7 @@ export class GuardianService {
         ),
     );
   }
-  private live(value: { issuedAt: number; expiresAt: number }) {
-    const now = this.now();
+  private live(value: { issuedAt: number; expiresAt: number }, now = this.now()) {
     requireGuardian(
       value.issuedAt <= now &&
         value.expiresAt > now &&
@@ -152,11 +161,25 @@ export class GuardianService {
     );
   }
   private verifyIdentity(binding: VerifiedHostBinding, raw: unknown, nonce: string) {
+    this.dependencies.onProvisionStage?.("guardian_identity_schema");
     const packet = guardianIdentityResponseSchema.parse(raw);
-    this.live(packet);
+    const now = this.now();
+    this.dependencies.onProvisionStage?.(
+      packet.issuedAt > now
+        ? "guardian_identity_future"
+        : packet.expiresAt <= now
+          ? "guardian_identity_expired"
+          : packet.expiresAt <= packet.issuedAt || packet.expiresAt - packet.issuedAt > 60000
+            ? "guardian_identity_bounds"
+            : "guardian_identity_liveness",
+    );
+    this.live(packet, now);
+    this.dependencies.onProvisionStage?.("guardian_identity_nonce");
     requireGuardian(packet.nonce === nonce);
     const { identity, startup } = packet;
+    this.dependencies.onProvisionStage?.("guardian_identity_pins");
     this.checkPins(identity);
+    this.dependencies.onProvisionStage?.("guardian_identity_signature");
     const key = createPublicKey(identity.outerPublicKeyPem);
     requireGuardian(
       key.asymmetricKeyType === "ed25519" &&
@@ -168,6 +191,7 @@ export class GuardianService {
           Buffer.from(packet.proof, "base64url"),
         ),
     );
+    this.dependencies.onProvisionStage?.("guardian_identity_config");
     const config = expectedGuardianHostConfig(this.workspace(binding), this.config, this.env),
       configSha256 = guardianConfigSha256(config);
     const expectedBinding = sha(
@@ -188,6 +212,7 @@ export class GuardianService {
         startup.bindingDigest === identity.bindingDigest &&
         startup.port === config.port,
     );
+    this.dependencies.onProvisionStage?.("guardian_identity_process");
     const outer = startup.outerIdentity,
       guardian = startup.guardianIdentity,
       worker = startup.workerIdentity;

@@ -40,6 +40,7 @@ async function fixture(
   onProvisionStage?: (
     stage: import("@/lib/codex-session/guardian-service.server").GuardianProvisionStage,
   ) => void,
+  options?: { now?: number; corruptProof?: boolean },
 ) {
   const issuer = generateKeyPairSync("ed25519"),
     outer = generateKeyPairSync("ed25519");
@@ -124,6 +125,7 @@ async function fixture(
   service = new GuardianService(db, config, policy, "19".repeat(32), {
     env,
     onProvisionStage,
+    now: options?.now === undefined ? undefined : () => options.now!,
     resolveWorkspace: async (p) => {
       resolutions++;
       expect(p).toEqual(principal);
@@ -172,6 +174,7 @@ async function fixture(
           Buffer.from(guardianIdentityProofPayload(packet)),
           outer.privateKey,
         ).toString("base64url");
+        if (options?.corruptProof) packet.proof = "A".repeat(86);
         return packet;
       },
       async bootstrap(_binding, value) {
@@ -246,7 +249,7 @@ describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQ
         invalidIdentity.binding.workspaceId,
       ),
     ).rejects.toBeInstanceOf(RegistrationRejected);
-    expect(stages.at(-1)).toBe("guardian_identity_validation");
+    expect(stages.at(-1)).toBe("guardian_identity_process");
     stages.length = 0;
     const reservationFailure = await fixture(undefined, undefined, (stage) => stages.push(stage));
     const reserve = vi
@@ -262,6 +265,79 @@ describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQ
       expect(stages.at(-1)).toBe("guardian_runtime_reservation");
     } finally {
       reserve.mockRestore();
+    }
+  });
+  it("reports granular identity failures without changing rejection semantics", async () => {
+    const now = 1_800_000_000_000;
+    const cases: Array<{
+      stage: string;
+      patch: (packet: GuardianIdentityResponse) => void;
+      corruptProof?: boolean;
+    }> = [
+      {
+        stage: "future",
+        patch: (p) => {
+          p.issuedAt = now + 1;
+          p.expiresAt = now + 1000;
+        },
+      },
+      {
+        stage: "expired",
+        patch: (p) => {
+          p.issuedAt = now - 1000;
+          p.expiresAt = now;
+        },
+      },
+      {
+        stage: "bounds",
+        patch: (p) => {
+          p.issuedAt = now - 60000;
+          p.expiresAt = now + 1;
+        },
+      },
+      {
+        stage: "nonce",
+        patch: (p) => {
+          p.issuedAt = now - 1;
+          p.expiresAt = now + 1000;
+          p.nonce = "0".repeat(64);
+        },
+      },
+      {
+        stage: "pins",
+        patch: (p) => {
+          p.issuedAt = now - 1;
+          p.expiresAt = now + 1000;
+          p.identity.nodeSha256 = "9".repeat(64);
+        },
+      },
+      {
+        stage: "signature",
+        patch: (p) => {
+          p.issuedAt = now - 1;
+          p.expiresAt = now + 1000;
+        },
+        corruptProof: true,
+      },
+      {
+        stage: "config",
+        patch: (p) => {
+          p.issuedAt = now - 1;
+          p.expiresAt = now + 1000;
+          p.identity.configSha256 = "9".repeat(64);
+        },
+      },
+    ];
+    for (const item of cases) {
+      const stages: string[] = [];
+      const f = await fixture(item.patch, undefined, (stage) => stages.push(stage), {
+        now,
+        corruptProof: item.corruptProof,
+      });
+      await expect(f.service.provision(f.principal, f.binding.workspaceId)).rejects.toBeInstanceOf(
+        RegistrationRejected,
+      );
+      expect(stages.at(-1)).toBe(`guardian_identity_${item.stage}`);
     }
   });
   it("fresh owner-app identity issues a one-use key/lifetime grant and records real enrollment", async () => {

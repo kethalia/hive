@@ -9,6 +9,16 @@ export const projectTaskFailureStageSchema = z.enum([
   "guardian_resolve",
   "guardian_identity_transport",
   "guardian_identity_validation",
+  "guardian_identity_schema",
+  "guardian_identity_liveness",
+  "guardian_identity_future",
+  "guardian_identity_expired",
+  "guardian_identity_bounds",
+  "guardian_identity_nonce",
+  "guardian_identity_pins",
+  "guardian_identity_signature",
+  "guardian_identity_config",
+  "guardian_identity_process",
   "guardian_runtime_reservation",
   "guardian_bootstrap",
   "guardian_enrollment_confirmation",
@@ -90,6 +100,26 @@ export const preparationFailureMessages: Record<
   guardian_identity_transport:
     "The workspace connection could not be confirmed. Your request is preserved.",
   guardian_identity_validation:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_schema:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_liveness:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_future:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_expired:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_bounds:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_nonce:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_pins:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_signature:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_config:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_process:
     "The workspace connection could not be confirmed. Your request is preserved.",
   guardian_runtime_reservation:
     "The workspace connection could not be confirmed. Your request is preserved.",
