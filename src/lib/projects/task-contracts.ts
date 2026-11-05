@@ -1,5 +1,15 @@
 import { z } from "zod";
 import { projectPhaseSchema } from "./session-contracts";
+export const projectTaskFailureStageSchema = z.enum([
+  "owner",
+  "project",
+  "policy",
+  "guardian",
+  "host_start",
+  "host_status",
+  "intent_read",
+  "status_write",
+]);
 export const projectTaskStartSchema = z
   .object({
     workspaceId: z.string().uuid(),
@@ -55,9 +65,24 @@ export const projectTaskStatusSchema = z
         "preparation_timeout",
       ])
       .nullable(),
+    failureStage: projectTaskFailureStageSchema.optional(),
   })
   .strict();
 export type ProjectTaskStatus = z.infer<typeof projectTaskStatusSchema>;
+
+export const preparationFailureMessages: Record<
+  z.infer<typeof projectTaskFailureStageSchema>,
+  string
+> = {
+  owner: "The account check could not be completed. Your request is preserved.",
+  project: "The project check could not be completed. Your request is preserved.",
+  policy: "The project settings check could not be completed. Your request is preserved.",
+  guardian: "The workspace connection could not be confirmed. Your request is preserved.",
+  host_start: "The task start could not be confirmed. Your request is preserved.",
+  host_status: "The task status could not be confirmed. Your request is preserved.",
+  intent_read: "The saved request could not be read. Your request is preserved.",
+  status_write: "The task update could not be confirmed. Your request is preserved.",
+};
 
 export const preparationReasonMessages: Record<NonNullable<ProjectTaskStatus["reason"]>, string> = {
   github_auth_required: "Reconnect GitHub in your Coder account before retrying preparation.",

@@ -14,6 +14,7 @@ import { type ProjectPrincipal, signedHostProjectRequest } from "./host.server";
 import { resolvedRepositorySchema } from "./session-contracts";
 import { resolveProjectSourceBase } from "./source-base.server";
 import {
+  type projectTaskFailureStageSchema,
   projectTaskReadSchema,
   projectTaskStartSchema,
   projectTaskStatusSchema,
@@ -22,6 +23,7 @@ import {
   ProjectTaskIntents,
   pendingTaskStatus,
   reconcileTaskIntents,
+  TaskExecutionStageError,
   TaskIntentConflict,
   taskRequestDigest,
 } from "./task-intents.server";
@@ -51,7 +53,12 @@ async function ownedProject(user: ProjectPrincipal, projectId: string) {
 }
 function status(value: unknown, projectId: string, taskId: string) {
   const result = projectTaskStatusSchema.safeParse(value);
-  if (!result.success || result.data.projectId !== projectId || result.data.taskId !== taskId)
+  if (
+    !result.success ||
+    result.data.failureStage !== undefined ||
+    result.data.projectId !== projectId ||
+    result.data.taskId !== taskId
+  )
     throw new ProjectDiscoveryError("github_invalid_response");
   return result.data;
 }
@@ -240,76 +247,90 @@ export async function reconcileProjectTasks(
   const result = await reconcileTaskIntents(
     taskIntentStore(),
     async (payload, phase) => {
-      options.signal?.throwIfAborted();
-      const owner = await getDb().user.findUnique({ where: { id: payload.ownerId } });
-      options.signal?.throwIfAborted();
-      if (!owner) throw new Error("Task owner unavailable");
-      const user = { id: owner.id, coderUserId: owner.coderUserId };
-      const project = await ownedProject(user, payload.projectId);
-      options.signal?.throwIfAborted();
-      if (
-        project.providerRepositoryId !== payload.repositoryId ||
-        project.providerAccountId !== payload.providerAccountId
-      )
-        throw new Error("Task project identity changed");
-      await authorizeIntentPolicy(user.id, payload.taskId);
-      options.signal?.throwIfAborted();
-      if (phase === "queued" && !payload.hostRequest)
-        throw new Error("Queued intent payload unavailable");
-      if (payload.hostRequest) {
-        const reservations = await getDb().$queryRaw<
-          { workspace_id: string; build_id: string; phase: string; paused: boolean }[]
-        >`SELECT e.workspace_id,e.build_id,e.phase,(t.pause_requested OR t.scheduling_paused) AS paused
+      let stage: z.infer<typeof projectTaskFailureStageSchema> = "owner";
+      try {
+        options.signal?.throwIfAborted();
+        const owner = await getDb().user.findUnique({ where: { id: payload.ownerId } });
+        options.signal?.throwIfAborted();
+        if (!owner) throw new Error("Task owner unavailable");
+        const user = { id: owner.id, coderUserId: owner.coderUserId };
+        stage = "project";
+        const project = await ownedProject(user, payload.projectId);
+        options.signal?.throwIfAborted();
+        if (
+          project.providerRepositoryId !== payload.repositoryId ||
+          project.providerAccountId !== payload.providerAccountId
+        )
+          throw new Error("Task project identity changed");
+        stage = "policy";
+        await authorizeIntentPolicy(user.id, payload.taskId);
+        options.signal?.throwIfAborted();
+        if (phase === "queued" && !payload.hostRequest)
+          throw new Error("Queued intent payload unavailable");
+        if (payload.hostRequest) {
+          const reservations = await getDb().$queryRaw<
+            { workspace_id: string; build_id: string; phase: string; paused: boolean }[]
+          >`SELECT e.workspace_id,e.build_id,e.phase,(t.pause_requested OR t.scheduling_paused) AS paused
           FROM delivery_epic_start_intents e
           JOIN delivery_epic_plan_heads h ON h.owner_id=e.owner_id AND h.epic_id=e.epic_id
           JOIN delivery_epic_plans p ON p.owner_id=h.owner_id AND p.epic_id=h.epic_id AND p.version=h.version
           JOIN delivery_tasks t ON t.owner_id=p.owner_id AND t.id=p.authored_by_task_id
           WHERE e.owner_id=${user.id}::uuid AND e.intent_id=${payload.taskId}::uuid`;
-        if (
-          reservations.length > 1 ||
-          (reservations.length === 1 &&
-            (reservations[0].phase !== "accepted" ||
-              reservations[0].paused ||
-              reservations[0].workspace_id !== payload.workspaceId))
-        )
-          throw new Error("Epic preparation reservation unavailable");
-        // The durable intent exists before enrollment and preparation. This owner
-        // exchange authenticates the installed outer; a host status or browser
-        // request cannot substitute for the approved package/lifetime checks.
-        if (process.env.HIVE_GUARDIAN_ENABLED === "true") {
-          const enrollment = await (options.signal
-            ? createGuardianService(options)
-            : createGuardianService()
-          ).provision({ hiveUserId: user.id, coderUserId: user.coderUserId }, payload.workspaceId);
-          options.signal?.throwIfAborted();
-          if (enrollment.enrolled !== true) throw new Error("Guardian enrollment unavailable");
+          if (
+            reservations.length > 1 ||
+            (reservations.length === 1 &&
+              (reservations[0].phase !== "accepted" ||
+                reservations[0].paused ||
+                reservations[0].workspace_id !== payload.workspaceId))
+          )
+            throw new Error("Epic preparation reservation unavailable");
+          // The durable intent exists before enrollment and preparation. This owner
+          // exchange authenticates the installed outer; a host status or browser
+          // request cannot substitute for the approved package/lifetime checks.
+          if (process.env.HIVE_GUARDIAN_ENABLED === "true") {
+            stage = "guardian";
+            const enrollment = await (options.signal
+              ? createGuardianService(options)
+              : createGuardianService()
+            ).provision(
+              { hiveUserId: user.id, coderUserId: user.coderUserId },
+              payload.workspaceId,
+            );
+            options.signal?.throwIfAborted();
+            if (enrollment.enrolled !== true) throw new Error("Guardian enrollment unavailable");
+          }
+          stage = "host_start";
+          return status(
+            await signedHostProjectRequest(
+              user,
+              payload.workspaceId,
+              "/projects/tasks/start",
+              payload.hostRequest,
+              ...(reservations.length
+                ? [{ ...options, expectedBuildId: reservations[0].build_id }]
+                : options.signal
+                  ? [options]
+                  : []),
+            ),
+            payload.projectId,
+            payload.taskId,
+          );
         }
-        return status(
-          await signedHostProjectRequest(
-            user,
-            payload.workspaceId,
-            "/projects/tasks/start",
-            payload.hostRequest,
-            ...(reservations.length
-              ? [{ ...options, expectedBuildId: reservations[0].build_id }]
-              : options.signal
-                ? [options]
-                : []),
-          ),
+        stage = "host_status";
+        return await readHostProjectTask(
+          user,
           payload.projectId,
-          payload.taskId,
+          {
+            workspaceId: payload.workspaceId,
+            taskId: payload.taskId,
+            requestId: payload.requestId,
+          },
+          options,
         );
+      } catch {
+        options.signal?.throwIfAborted();
+        throw new TaskExecutionStageError(stage);
       }
-      return readHostProjectTask(
-        user,
-        payload.projectId,
-        {
-          workspaceId: payload.workspaceId,
-          taskId: payload.taskId,
-          requestId: payload.requestId,
-        },
-        options,
-      );
     },
     target,
     limit,

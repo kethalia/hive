@@ -13,6 +13,7 @@ import {
 import { type OpenedProject, openedProjectSchema } from "@/lib/projects/session-contracts";
 import {
   type ProjectTaskStatus,
+  preparationFailureMessages,
   preparationReasonMessages,
   projectTaskStatusSchema,
 } from "@/lib/projects/task-contracts";
@@ -384,6 +385,11 @@ function ProjectSession({
             </p>
           ) : null}
         </form>
+      ) : null}
+      {task?.failureStage ? (
+        <p role="status" className="text-sm">
+          {preparationFailureMessages[task.failureStage]}
+        </p>
       ) : null}
       {task?.phase === "blocked" ? (
         <div className="space-y-2 text-sm">

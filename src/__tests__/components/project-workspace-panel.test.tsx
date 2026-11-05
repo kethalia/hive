@@ -85,6 +85,52 @@ async function select() {
   fireEvent.click(await screen.findByRole("button", { name: "owner/repo" }));
 }
 describe("project task workspace", () => {
+  it("shows a plain-language notice for a pending workspace connection failure", async () => {
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) => {
+      if (String(args[0]) === "/api/projects/open")
+        return response({ ...opened, phase: "preparing", currentTaskId: taskId });
+      if (String(args[0]).endsWith("/tasks/status"))
+        return response({
+          ...prepared,
+          phase: "preparing",
+          nativeThreadId: null,
+          terminalSessionName: null,
+          failureStage: "guardian",
+        });
+      return original(...args);
+    });
+    await select();
+    expect(
+      await screen.findByText(
+        "The workspace connection could not be confirmed. Your request is preserved.",
+      ),
+    ).toBeInTheDocument();
+  });
+  it("shows the failure stage with the blocked reason without promising a retry", async () => {
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) => {
+      if (String(args[0]) === "/api/projects/open")
+        return response({ ...opened, phase: "blocked", currentTaskId: taskId });
+      if (String(args[0]).endsWith("/tasks/status"))
+        return response({
+          ...prepared,
+          phase: "blocked",
+          nativeThreadId: null,
+          terminalSessionName: null,
+          reason: "native_unavailable",
+          failureStage: "host_status",
+        });
+      return original(...args);
+    });
+    await select();
+    const notice = await screen.findByText(
+      "The task status could not be confirmed. Your request is preserved.",
+    );
+    expect(notice).toBeInTheDocument();
+    expect(notice).not.toHaveTextContent(/we.ll try again/i);
+    expect(screen.getByText(/Codex could not be reached in the workspace/)).toBeInTheDocument();
+  });
   it("opens a repository without task execution and never submits or polls a task", async () => {
     render(
       <ProjectWorkspacePanel workspaceId={workspaceId} visible enabled tasksEnabled={false} />,

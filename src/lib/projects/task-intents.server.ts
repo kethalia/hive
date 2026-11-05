@@ -2,7 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { decrypt, encrypt } from "@hive/auth";
 import { Prisma, type PrismaClient, type ProjectTaskIntent } from "@hive/db";
 import { z } from "zod";
-import { type ProjectTaskStatus, projectTaskStatusSchema } from "./task-contracts";
+import {
+  type ProjectTaskStatus,
+  projectTaskFailureStageSchema,
+  projectTaskStatusSchema,
+} from "./task-contracts";
 
 const uuid = z.string().uuid();
 export const taskIntentPayloadSchema = z
@@ -51,6 +55,13 @@ export type TaskIntentExecution = {
   hostRequest?: TaskIntentPayload["hostRequest"];
 };
 export class TaskIntentConflict extends Error {}
+export class TaskExecutionStageError extends Error {
+  readonly stage: z.infer<typeof projectTaskFailureStageSchema>;
+  constructor(stage: z.infer<typeof projectTaskFailureStageSchema>) {
+    super("Task execution stage failed");
+    this.stage = projectTaskFailureStageSchema.parse(stage);
+  }
+}
 export function taskRequestDigest(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -193,7 +204,7 @@ export class ProjectTaskIntents {
   }
   async recover(snapshot: { row: ProjectTaskIntent; version: string }, value: ProjectTaskStatus) {
     const { row, version } = snapshot;
-    const status = projectTaskStatusSchema.parse(value);
+    const { failureStage: _failureStage, ...status } = projectTaskStatusSchema.parse(value);
     if (status.taskId !== row.id || status.projectId !== row.projectId)
       throw new Error("Intent recovery binding mismatch");
     if (status.phase === "awaitingTask" || status.phase === "blocked") return false;
@@ -289,7 +300,7 @@ export class ProjectTaskIntents {
     return payload;
   }
   async finish(row: ProjectTaskIntent, value: ProjectTaskStatus) {
-    const status = projectTaskStatusSchema.parse(value);
+    const { failureStage: _failureStage, ...status } = projectTaskStatusSchema.parse(value);
     if (status.taskId !== row.id || status.projectId !== row.projectId)
       throw new Error("Intent result binding mismatch");
     const phase = ["running", "blocked"].includes(status.phase) ? status.phase : "preparing";
@@ -303,12 +314,20 @@ export class ProjectTaskIntents {
       WHERE id=${row.id}::uuid AND owner_id=${row.ownerId}::uuid AND lease_id=${row.leaseId}::uuid AND lease_until > clock_timestamp()`;
     return result === 1;
   }
-  async fail(row: ProjectTaskIntent) {
-    const blocked = pendingTaskStatus({ ...row, status: null, phase: "blocked" });
+  async fail(row: ProjectTaskIntent, failureStage?: z.infer<typeof projectTaskFailureStageSchema>) {
+    const stage =
+      failureStage === undefined ? null : projectTaskFailureStageSchema.parse(failureStage);
+    const fallback = pendingTaskStatus({ ...row, status: null });
     return this.db.$executeRaw`
       UPDATE project_task_intents SET failure_count=LEAST(5,failure_count+1),
         phase=CASE WHEN failure_count>=4 THEN 'blocked' ELSE phase END,
-        status=CASE WHEN failure_count>=4 THEN ${JSON.stringify(blocked)}::jsonb ELSE status END,
+        status=CASE WHEN failure_count>=4 THEN
+          jsonb_set(jsonb_set(
+            CASE WHEN ${stage}::text IS NULL THEN COALESCE(status, ${JSON.stringify(fallback)}::jsonb)
+              ELSE jsonb_set(COALESCE(status, ${JSON.stringify(fallback)}::jsonb), '{failureStage}', to_jsonb(${stage}::text), true) END,
+            '{phase}', '"blocked"'::jsonb, true), '{reason}', '"native_unavailable"'::jsonb, true)
+          WHEN ${stage}::text IS NOT NULL THEN jsonb_set(COALESCE(status, ${JSON.stringify(fallback)}::jsonb), '{failureStage}', to_jsonb(${stage}::text), true)
+          ELSE status END,
         lease_id=NULL,lease_until=NULL,updated_at=clock_timestamp(),
         next_attempt_at=clock_timestamp()+interval '10 seconds'*power(2,LEAST(4,failure_count))
       WHERE id=${row.id}::uuid AND owner_id=${row.ownerId}::uuid AND lease_id=${row.leaseId}::uuid AND lease_until > clock_timestamp()`;
@@ -333,15 +352,29 @@ export async function reconcileTaskIntents(
       continue;
     }
     try {
-      const value = await execute(store.execution(row), row.phase);
+      let execution: TaskIntentExecution;
+      try {
+        execution = store.execution(row);
+      } catch {
+        options.signal?.throwIfAborted();
+        throw new TaskExecutionStageError("intent_read");
+      }
+      const value = await execute(execution, row.phase);
       options.signal?.throwIfAborted();
-      if (await store.finish(row, value)) result.processed++;
+      let finished: boolean;
+      try {
+        finished = await store.finish(row, value);
+      } catch {
+        options.signal?.throwIfAborted();
+        throw new TaskExecutionStageError("status_write");
+      }
+      if (finished) result.processed++;
       else result.stale++;
-    } catch {
+    } catch (error) {
       // A cancelled/unknown host outcome retains this exact durable claim for
       // later lease-fenced recovery; never acknowledge or start a second intent.
       options.signal?.throwIfAborted();
-      await store.fail(row);
+      await store.fail(row, error instanceof TaskExecutionStageError ? error.stage : undefined);
       result.retry++;
     }
   }

@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   ProjectTaskIntents,
   reconcileTaskIntents,
+  TaskExecutionStageError,
   type TaskIntentPayload,
   taskRequestDigest,
 } from "@/lib/projects/task-intents.server";
@@ -97,6 +98,76 @@ function status(
   };
 }
 describe.skipIf(!url)("durable project preparation", () => {
+  it("persists only sanitized stage, preserves running identity, and clears it on success", async () => {
+    const f = await fixture();
+    await store.enqueue(f.payload);
+    await reconcileTaskIntents(
+      store,
+      async (p) => ({ ...status(p, "running"), terminalSessionName: `project-${"a".repeat(24)}` }),
+      f.target,
+      1,
+    );
+    await db.projectTaskIntent.update({
+      where: { id: f.payload.taskId },
+      data: { nextAttemptAt: new Date(0) },
+    });
+    await reconcileTaskIntents(
+      store,
+      async () => {
+        throw new TaskExecutionStageError("host_status");
+      },
+      f.target,
+      1,
+    );
+    let row = await store.get(f.user.id, f.project.id, f.payload.taskId, f.payload.workspaceId);
+    expect(row.status).toMatchObject({
+      phase: "running",
+      nativeThreadId: "thread",
+      terminalSessionName: `project-${"a".repeat(24)}`,
+      failureStage: "host_status",
+    });
+    expect(JSON.stringify(row.status)).not.toContain("Task execution stage failed");
+    await db.projectTaskIntent.update({
+      where: { id: f.payload.taskId },
+      data: { nextAttemptAt: new Date(0) },
+    });
+    await reconcileTaskIntents(store, async (p) => status(p, "running"), f.target, 1);
+    row = await store.get(f.user.id, f.project.id, f.payload.taskId, f.payload.workspaceId);
+    expect(row.status).toMatchObject({ phase: "running", nativeThreadId: "thread" });
+    expect(row.status).not.toHaveProperty("failureStage");
+  });
+  it("retains existing conversation IDs when repeated failures become blocked", async () => {
+    const f = await fixture();
+    await store.enqueue(f.payload);
+    await reconcileTaskIntents(
+      store,
+      async (p) => ({ ...status(p, "running"), terminalSessionName: `project-${"a".repeat(24)}` }),
+      f.target,
+      1,
+    );
+    for (let i = 0; i < 5; i++) {
+      await db.projectTaskIntent.update({
+        where: { id: f.payload.taskId },
+        data: { nextAttemptAt: new Date(0) },
+      });
+      await reconcileTaskIntents(
+        store,
+        async () => {
+          throw new TaskExecutionStageError("host_status");
+        },
+        f.target,
+        1,
+      );
+    }
+    const row = await store.get(f.user.id, f.project.id, f.payload.taskId, f.payload.workspaceId);
+    expect(row.phase).toBe("blocked");
+    expect(row.status).toMatchObject({
+      phase: "blocked",
+      nativeThreadId: "thread",
+      terminalSessionName: `project-${"a".repeat(24)}`,
+      failureStage: "host_status",
+    });
+  });
   it("atomically deduplicates concurrent accepted intents and encrypts their prompts", async () => {
     const f = await fixture();
     const rows = await Promise.all(Array.from({ length: 16 }, () => store.enqueue(f.payload)));

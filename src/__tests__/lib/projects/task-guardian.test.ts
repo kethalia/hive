@@ -94,10 +94,20 @@ it("enrolls the independently verified owner runtime before sending durable prep
 });
 it("failed or unconfirmed enrollment prevents checkout preparation", async () => {
   mock.provision.mockRejectedValueOnce(new Error("approved package changed"));
-  await expect(reconcileProjectTasks()).rejects.toThrow("approved package changed");
+  await expect(reconcileProjectTasks()).rejects.toMatchObject({
+    stage: "guardian",
+    message: "Task execution stage failed",
+  });
   mock.provision.mockResolvedValueOnce({ enrolled: false });
-  await expect(reconcileProjectTasks()).rejects.toThrow("enrollment unavailable");
+  await expect(reconcileProjectTasks()).rejects.toMatchObject({ stage: "guardian" });
   expect(mock.host).not.toHaveBeenCalled();
+});
+it("classifies host failures without retaining their private messages", async () => {
+  mock.host.mockRejectedValueOnce(new Error("private bearer fixture"));
+  await expect(reconcileProjectTasks()).rejects.toMatchObject({
+    stage: "host_start",
+    message: "Task execution stage failed",
+  });
 });
 it("propagates cancellation into guardian and the fixed host transport", async () => {
   const controller = new AbortController();
@@ -129,7 +139,7 @@ it("owner/project mismatches reject before enrollment or host requests", async (
     providerRepositoryId: "999",
     providerAccountId: "456",
   });
-  await expect(reconcileProjectTasks()).rejects.toThrow("identity changed");
+  await expect(reconcileProjectTasks()).rejects.toMatchObject({ stage: "project" });
   expect(mock.provision).not.toHaveBeenCalled();
   expect(mock.host).not.toHaveBeenCalled();
 });

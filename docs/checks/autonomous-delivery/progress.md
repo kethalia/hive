@@ -1211,3 +1211,31 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   retained production identities, database compatibility and rollback validation. An inactive
   parent Worker and a successful preview do not satisfy those gates. Production activation
   and the final merge remain the user's decisions.
+
+### Single-Worker implementation and queued native task
+
+- The mixed-runtime negative control reproduced the exact enrollment error. Complete-query
+  assembly passed actual local Workerd enrollment/replay and joined queries, plus 12 focused
+  PostgreSQL policy/epic tests. Commits `a045d68d` and `b22216f6` are published. The exact b222
+  native build/proof and automatic Cloudflare deployment passed. A new bounded operator
+  deployment passed effective-binding readback; the same six native secret values are retained.
+- Live b222 task start now passes policy enrollment and acknowledges one durable intent. One
+  explicit reconciliation wake returned a retry before any committed guardian runtime or
+  manager registration. No second task was submitted. Node and offline Workerd identity checks
+  pass; a real Workerd reservation callback also passes inside a forced rollback with zero
+  scoped rows before and after. These probes do not identify the original live failure.
+  [Task evidence](cloudflare-native-task-b22216f6.json) records the bounded result. Incremental
+  outer requests: 42/200; manager/thread/browser acceptance remains pending.
+- Single-Worker production code is committed at `86fef37a`: explicit production request gate,
+  public-origin/session relay bounds, one five-minute schedule, and one attested physical
+  artifact/promotion/recovery/metrics stream. The two-Worker legacy path remains supported.
+  Native Preview release targets fail before production-version API calls. Validation includes
+  67 relay/request tests, four composition tests, 20 publisher tests, 57 release unit tests and
+  16 isolated PostgreSQL journal tests. Independent review findings were corrected. This is
+  source/local-provider validation, not an account-backed production release or activation.
+- Task status now records a fixed failure stage for request decoding, account/project/policy
+  checks, workspace enrollment, host start/status and status persistence. No exception text,
+  credentials or stacks are persisted. Existing session IDs survive retries and blocking;
+  successful reconciliation clears the notice, and cancellation retains an uncertain claim.
+  Both pending and blocked tasks show neutral notices without promising an automatic retry.
+  Next: deploy this diagnostic candidate and reconcile the existing queued intent once.

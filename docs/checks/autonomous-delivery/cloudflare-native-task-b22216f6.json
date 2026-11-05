@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T21:54:35.534316+00:00",
+  "applicationRevision": "b22216f67e67bdc8c04de74c71f05ccc78800bcd",
+  "automaticBuildId": "f994c996-f7ee-42be-aaa5-cd6a4186786d",
+  "automaticBuildOutcome": "success",
+  "automaticDeploymentId": "b3125b48-7eb6-4371-96e3-2c3c2f7894fb",
+  "operatorDeploymentId": "e2658370-09df-443f-9ddc-2cb95583091b",
+  "effectiveBindingsVerified": true,
+  "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+  "projectId": "08d245e8-15bd-4f1d-a384-66edc12a7cab",
+  "taskId": "3f7b4ce4-eb01-52aa-adbb-f7d031e87206",
+  "requestId": "477462e7-ca26-4d85-aa8a-50cd1b4c85fa",
+  "taskSourceRevision": "b22216f67e67bdc8c04de74c71f05ccc78800bcd",
+  "startHTTPStatus": 200,
+  "queuedIntentAcknowledged": true,
+  "policyEnrollmentPassed": true,
+  "reconciliationWake": {
+    "status": 200,
+    "processed": 0,
+    "retry": 1,
+    "stale": 0
+  },
+  "managerRegistered": false,
+  "modelTurnVerified": false,
+  "browserAcceptanceRun": false,
+  "remainingDiagnostic": "failure before committed guardian reservation; offline identity and forced-rollback database probes pass but do not identify the live failure",
+  "incrementalOuterRequests": 42,
+  "priorSeparateBrowserRequests": 148,
+  "productionActivated": false
+}
