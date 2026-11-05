@@ -34,10 +34,12 @@ async function main() {
     }
   }
   const workerPart = (path) => path === "worker.js" || path.endsWith(".wasm");
+  const single = process.env.HIVE_RELEASE_TOPOLOGY === "single";
+  if (process.env.HIVE_RELEASE_TOPOLOGY && !single) throw Error("build_topology");
   await collect("build/app", "", "app", workerPart);
-  await collect("build/auth", "", "auth", workerPart);
+  if (!single) await collect("build/auth", "", "auth", workerPart);
   await collect(".open-next/assets", "", "assets", () => true);
-  if (!files.has("app/worker.js") || !files.has("auth/worker.js"))
+  if (!files.has("app/worker.js") || (!single && !files.has("auth/worker.js")))
     throw Error("build_missing_worker");
   await writeFile("release.tar", await packReleaseArtifact(files), { flag: "wx", mode: 0o600 });
 }

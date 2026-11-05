@@ -101,7 +101,14 @@ export async function publishRelease({
     (previewBearer !== undefined && !/^[a-f0-9]{64}$/.test(previewBearer)) ||
     !hex.test(config.targetDigest) ||
     digest(config.target) !== config.targetDigest ||
-    !config.components
+    !config.components ||
+    !config.target?.scripts ||
+    (config.target.topology !== undefined && config.target.topology !== "single") ||
+    (config.target.topology === "single"
+      ? config.target.environment !== "production" ||
+        config.target.scripts.app !== config.target.scripts.auth ||
+        Object.keys(config.components).sort().join(",") !== "app"
+      : config.target.scripts.app === config.target.scripts.auth)
   )
     throw Error("publisher_config");
   const token = async (value) => {
@@ -158,7 +165,7 @@ export async function publishRelease({
   )
     throw Error("publisher_challenge_scope");
   const results = {};
-  for (const component of ["app", "auth"]) {
+  for (const component of config.target.topology === "single" ? ["app"] : ["app", "auth"]) {
     const componentConfig = config.components[component];
     if (!componentConfig || !hex.test(componentConfig.expectedConfigDigest))
       throw Error("publisher_config");
@@ -173,10 +180,13 @@ export async function publishRelease({
       apiToken: cloudflareToken,
       fetcher,
       signal,
+      topology: config.target.topology,
     });
   }
+  if (config.target.topology === "single") results.auth = results.app;
   const manifest = {
     schemaVersion: 1,
+    ...(config.target.topology === "single" ? { topology: "single" } : {}),
     releaseId: scope.releaseId,
     ownerId: scope.ownerId,
     ...identity,

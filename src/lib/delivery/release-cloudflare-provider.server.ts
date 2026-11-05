@@ -7,6 +7,7 @@ import type { ReleaseEffectProvider } from "./release-effect-runner.server";
 const uuid = z.string().uuid();
 export const cloudflareReleaseTargetSchema = z
   .object({
+    topology: z.literal("single").optional(),
     accountId: z.string().regex(/^[a-f0-9]{32}$/),
     environment: z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/),
     scripts: z
@@ -20,10 +21,10 @@ export const cloudflareReleaseTargetSchema = z
     hiveReleaseWriter: z.literal(true),
   })
   .strict()
-  .refine((v) => v.scripts.app !== v.scripts.auth);
+  .refine((v) => (v.topology === "single") === (v.scripts.app === v.scripts.auth));
 export function releaseTargetResources(rawTarget: unknown) {
   const target = cloudflareReleaseTargetSchema.parse(rawTarget);
-  return Object.values(target.scripts)
+  return [...new Set(Object.values(target.scripts))]
     .map((script) =>
       githubSourceDigest({ provider: "cloudflare-worker", accountId: target.accountId, script }),
     )
@@ -65,7 +66,13 @@ export class CloudflareReleaseProvider implements ReleaseEffectProvider {
     private readonly fetcher: typeof fetch = fetch,
   ) {
     this.target = cloudflareReleaseTargetSchema.parse(rawTarget);
+    // Script versions/deployments are production APIs, not native Preview APIs.
+    if (this.target.topology === "single" && this.target.environment !== "production")
+      throw new Error("release_native_preview_unsupported");
     if (!token || token.length > 4096) throw new Error("release_provider_unavailable");
+  }
+  singleWorker() {
+    return this.target.topology === "single";
   }
   private validate(identity: ReleaseActionIdentity) {
     if (
@@ -73,7 +80,10 @@ export class CloudflareReleaseProvider implements ReleaseEffectProvider {
       githubSourceDigest(this.target) !== identity.targetDigest
     )
       throw new Error("release_provider_scope");
-    return cloudflareReleaseRequestSchema.parse(identity.request);
+    const request = cloudflareReleaseRequestSchema.parse(identity.request);
+    if (this.target.topology === "single" && request.component !== "app")
+      throw new Error("release_provider_scope");
+    return request;
   }
   private async call(path: string, init: RequestInit, signal: AbortSignal) {
     const response = await this.fetcher(
@@ -158,9 +168,14 @@ export class CloudflareReleaseProvider implements ReleaseEffectProvider {
   }
   async verifyUploaded(raw: unknown, signal: AbortSignal) {
     const manifest = releaseBuildManifestSchema.parse(raw);
-    if (manifest.targetDigest !== githubSourceDigest(this.target))
+    if (
+      manifest.targetDigest !== githubSourceDigest(this.target) ||
+      manifest.topology !== this.target.topology
+    )
       throw new Error("release_build_scope");
-    for (const component of ["app", "auth"] as const) {
+    for (const component of this.target.topology === "single"
+      ? (["app"] as const)
+      : (["app", "auth"] as const)) {
       const expected = manifest[component];
       if (expected.script !== this.target.scripts[component])
         throw new Error("release_build_scope");

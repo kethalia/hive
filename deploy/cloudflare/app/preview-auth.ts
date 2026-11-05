@@ -5,6 +5,25 @@ const COOKIE_SECONDS = 15 * 60;
 const key = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
 type CookieOptions = { cookieSecret?: unknown; origin?: unknown; now?: number };
+export type RuntimeOriginEnvironment = {
+  HIVE_NATIVE_MODE?: string;
+  HIVE_NATIVE_PRODUCTION_ACTIVE?: string;
+  HIVE_NATIVE_PREVIEW_ENABLED?: string;
+  HIVE_PREVIEW_ORIGIN?: string;
+  HIVE_PUBLIC_ORIGIN?: string;
+};
+/** Legacy standalone app deployments remain behind the private preview gate.
+ * Only an explicitly active native production invocation may bypass that gate. */
+export function previewAccessMode(
+  env: RuntimeOriginEnvironment,
+): "preview" | "production" | "unavailable" {
+  if (env.HIVE_NATIVE_MODE === undefined) return "preview";
+  if (env.HIVE_NATIVE_MODE === "preview" && env.HIVE_NATIVE_PREVIEW_ENABLED === "true")
+    return "preview";
+  if (env.HIVE_NATIVE_MODE === "production" && env.HIVE_NATIVE_PRODUCTION_ACTIVE === "true")
+    return "production";
+  return "unavailable";
+}
 function configuredOrigin(value: unknown): string | null {
   if (typeof value !== "string") return null;
   try {
@@ -23,6 +42,16 @@ function configuredOrigin(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+/** The trusted runtime chooses the origin; callers cannot override it per request. */
+export function runtimeRelayOrigin(env: RuntimeOriginEnvironment): string {
+  const mode = previewAccessMode(env);
+  if (mode === "unavailable") throw new Error("runtime unavailable");
+  const value = mode === "production" ? env.HIVE_PUBLIC_ORIGIN : env.HIVE_PREVIEW_ORIGIN;
+  const origin = configuredOrigin(value);
+  if (!origin || (mode === "production" && !origin.startsWith("https://")))
+    throw new Error("runtime origin unavailable");
+  return origin;
 }
 function signature(payload: string, origin: string, secret: string) {
   return createHmac("sha256", Buffer.from(secret, "hex"))
@@ -52,6 +81,20 @@ export function previewCookieExpiresAt(request: Request, options: CookieOptions)
     "base64url",
   );
   return actual.length === expected.length && timingSafeEqual(actual, expected) ? exp * 1000 : null;
+}
+/** Production is bounded by the relay's verified session/registration, not a preview cookie. */
+export function runtimeRelayDeadline(
+  request: Request,
+  env: RuntimeOriginEnvironment,
+  cookieSecret: unknown,
+  now = Date.now(),
+): number {
+  const mode = previewAccessMode(env);
+  if (mode === "unavailable") throw new Error("runtime unavailable");
+  return mode === "production"
+    ? Number.POSITIVE_INFINITY
+    : (previewCookieExpiresAt(request, { origin: env.HIVE_PREVIEW_ORIGIN, cookieSecret, now }) ??
+        now + 15 * 60 * 1000);
 }
 
 const privateHeaders = {

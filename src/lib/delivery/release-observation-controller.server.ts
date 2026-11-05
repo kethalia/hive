@@ -65,12 +65,21 @@ export class ReleaseObservationController {
         observationWindowMs: z.number().int().min(1000).max(86400000),
         observationConfigDigest: z.string().regex(/^[a-f0-9]{64}$/),
         baselines: releaseBaselinesSchema,
+        topology: z.literal("single").optional(),
       })
       .passthrough()
       .parse(release.snapshot);
     if (config.observationConfigDigest !== this.observer.configDigest())
       throw new Error("release_observation_scope_changed");
     const duration = config.observationWindowMs;
+    const single = this.observer.singleWorker();
+    if ((config.topology === "single") !== single)
+      throw new Error("release_observation_scope_changed");
+    if (
+      single &&
+      githubSourceDigest(config.baselines.app) !== githubSourceDigest(config.baselines.auth)
+    )
+      throw new Error("release_observation_scope_changed");
     const kind = release.phase === "active" ? "promote" : "recover";
     const actions = await tx.$queryRaw<
       {
@@ -94,6 +103,7 @@ export class ReleaseObservationController {
     >`SELECT id FROM delivery_release_actions WHERE release_id=${releaseId}::uuid AND phase IN ('prepared','effect_started','held') LIMIT 1`;
     if (
       pending.length ||
+      (single && (actions.length !== 1 || actions[0]?.request.component !== "app")) ||
       (kind === "promote" && (actions.length < 1 || actions.length > 2)) ||
       (kind === "recover" && (!promotions.length || actions.length !== promotions.length))
     )
@@ -136,6 +146,7 @@ export class ReleaseObservationController {
       });
       startedAt = Math.max(startedAt, action.updated_at.getTime());
     }
+    if (single && result.app) result.auth = result.app;
     if (kind === "recover" || (kind === "promote" && actions.length === 1)) {
       for (const name of ["app", "auth"] as const) {
         if (!result[name]) {
@@ -163,10 +174,10 @@ export class ReleaseObservationController {
       auth: result.auth,
       duration,
       mode: kind,
-      fullyPromoted: kind !== "promote" || actions.length === 2,
-      stageActionId: kind === "promote" && actions.length === 1 ? actions[0].id : null,
+      fullyPromoted: kind !== "promote" || single || actions.length === 2,
+      stageActionId: kind === "promote" && !single && actions.length === 1 ? actions[0].id : null,
       stageReceiptDigest:
-        kind === "promote" && actions.length === 1 ? actions[0].receipt_digest : null,
+        kind === "promote" && !single && actions.length === 1 ? actions[0].receipt_digest : null,
       snapshotDigest: release.snapshot_digest,
     };
   }

@@ -27,7 +27,11 @@ export function createNativeWorker({ app, auth, jobs }) {
       return app.fetch(request, wired(env, context), context);
     },
     scheduled(event, env, context) {
-      if (env.HIVE_NATIVE_MODE !== "production" || env.HIVE_NATIVE_PRODUCTION_ACTIVE !== "true")
+      if (
+        env.HIVE_NATIVE_MODE !== "production" ||
+        env.HIVE_NATIVE_PRODUCTION_ACTIVE !== "true" ||
+        event?.cron !== "*/5 * * * *"
+      )
         return;
       const local = wired(env, context);
       // The app's release scheduler registers its own waitUntil; the other two

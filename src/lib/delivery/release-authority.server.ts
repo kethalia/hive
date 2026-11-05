@@ -11,6 +11,7 @@ const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const snapshotSchema = z
   .object({
     schemaVersion: z.literal(1),
+    topology: z.literal("single").optional(),
     policyVersionId: z.string().uuid(),
     repositoryPolicyDigest: digest,
     repositoryBindingDigest: digest,

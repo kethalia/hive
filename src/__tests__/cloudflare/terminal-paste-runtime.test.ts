@@ -78,6 +78,25 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("ordinary clipboard Workers runtime", () => {
+  it("accepts only the configured public production origin", async () => {
+    env = {
+      ...env,
+      HIVE_NATIVE_MODE: "production",
+      HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
+      HIVE_PUBLIC_ORIGIN: origin,
+      HIVE_PREVIEW_ORIGIN: "https://wrong.example",
+    };
+    expect((await terminalPasteRuntime(request(), env, provider)).status).toBe(200);
+    expect(
+      (
+        await terminalPasteRuntime(
+          request(),
+          { ...env, HIVE_PUBLIC_ORIGIN: "https://wrong.example" },
+          provider,
+        )
+      ).status,
+    ).toBe(403);
+  });
   it("preserves multipart bytes and generated safe paths after fresh owner checks", async () => {
     const res = await terminalPasteRuntime(request(), env, provider);
     expect(res.status).toBe(200);

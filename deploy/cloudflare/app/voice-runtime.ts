@@ -20,21 +20,22 @@ import {
   type WorkspaceIssuerEnvironment,
   workspaceIssuerPrivateKey,
 } from "../../../src/lib/codex-session/workspace-issuer";
+import { type RuntimeOriginEnvironment, runtimeRelayOrigin } from "./preview-auth";
 
-export type VoiceEnvironment = WorkspaceIssuerEnvironment & {
-  DATABASE_URL?: string;
-  AUTH_SERVICE?: { fetch: typeof fetch };
-  AUTH_SERVICE_SECRET?: string;
-  COOKIE_SECRET?: string;
-  CODER_URL?: string;
-  HIVE_PREVIEW_ORIGIN?: string;
-  HIVE_CODEX_VOICE_ENABLED?: string;
-  HIVE_VOICE_TRANSPORT?: string;
-  HIVE_VOICE_ISSUER_PRIVATE_KEY?: string;
-  HIVE_VOICE_ISSUER_KEY_ID?: string;
-  HIVE_VOICE_TEMPLATE_PINS_JSON?: string;
-  COOKIE_DOMAIN?: string;
-};
+export type VoiceEnvironment = WorkspaceIssuerEnvironment &
+  RuntimeOriginEnvironment & {
+    DATABASE_URL?: string;
+    AUTH_SERVICE?: { fetch: typeof fetch };
+    AUTH_SERVICE_SECRET?: string;
+    COOKIE_SECRET?: string;
+    CODER_URL?: string;
+    HIVE_CODEX_VOICE_ENABLED?: string;
+    HIVE_VOICE_TRANSPORT?: string;
+    HIVE_VOICE_ISSUER_PRIVATE_KEY?: string;
+    HIVE_VOICE_ISSUER_KEY_ID?: string;
+    HIVE_VOICE_TEMPLATE_PINS_JSON?: string;
+    COOKIE_DOMAIN?: string;
+  };
 type Context = { waitUntil(promise: Promise<unknown>): void };
 const uuid = z.string().uuid();
 const pins = z
@@ -62,7 +63,8 @@ export function voiceRuntimeConfiguration(env: VoiceEnvironment) {
   )
     throw new Error("disabled");
   authServiceHeaders(env.AUTH_SERVICE_SECRET);
-  const origin = new URL(env.HIVE_PREVIEW_ORIGIN ?? ""),
+  const hiveOrigin = runtimeRelayOrigin(env),
+    origin = new URL(hiveOrigin),
     coder = new URL(env.CODER_URL ?? ""),
     keyId = env.HIVE_VOICE_ISSUER_KEY_ID ?? "",
     lockDirectory = "/home/coder/.codex/hive-voice",
@@ -75,7 +77,7 @@ export function voiceRuntimeConfiguration(env: VoiceEnvironment) {
   });
   if (
     origin.protocol !== "https:" ||
-    origin.origin !== env.HIVE_PREVIEW_ORIGIN ||
+    origin.origin !== hiveOrigin ||
     coder.protocol !== "https:" ||
     coder.origin !== env.CODER_URL ||
     createPrivateKey(privateKeyPem).asymmetricKeyType !== "ed25519" ||

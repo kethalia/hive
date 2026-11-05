@@ -10,6 +10,7 @@ import {
   createRegisteredSessionService,
   registeredSessionConfig,
 } from "../../../src/lib/codex-session/registered-session.server";
+import { type RuntimeOriginEnvironment, runtimeRelayOrigin } from "./preview-auth";
 import {
   openProjectRelay,
   projectRelayPath,
@@ -18,7 +19,7 @@ import {
   type RelaySocket,
 } from "./project-relay";
 
-export type ProjectRelayEnvironment = {
+export type ProjectRelayEnvironment = RuntimeOriginEnvironment & {
   DATABASE_URL?: string;
   AUTH_SERVICE?: { fetch: typeof fetch };
   AUTH_SERVICE_SECRET?: string;
@@ -27,7 +28,6 @@ export type ProjectRelayEnvironment = {
   HIVE_CODEX_GATEWAY_ENABLED?: string;
   HIVE_CODEX_SESSION_TRANSPORT?: string;
   HIVE_CODEX_TERMINAL_ENABLED?: string;
-  HIVE_PREVIEW_ORIGIN?: string;
 };
 let activeRelays = 0;
 const error = (status: number) =>
@@ -120,7 +120,7 @@ async function reauthorize(
       if (!principal) throw new Error("Relay owner session unavailable");
       signal.throwIfAborted();
       const config = registeredSessionConfig();
-      if (config.hiveOrigin !== env.HIVE_PREVIEW_ORIGIN) throw new Error("Relay origin mismatch");
+      if (config.hiveOrigin !== runtimeRelayOrigin(env)) throw new Error("Relay origin mismatch");
       const service = createRegisteredSessionService(getDb(), config, { signal });
       const target = await service.authorizeRelayTarget(principal, projectId);
       signal.throwIfAborted();
@@ -153,7 +153,6 @@ export async function projectRelay(
     !env.AUTH_SERVICE_SECRET ||
     !env.COOKIE_SECRET ||
     !env.CODER_URL ||
-    !env.HIVE_PREVIEW_ORIGIN ||
     activeRelays >= 4
   )
     return error(503);
@@ -179,7 +178,7 @@ export async function projectRelay(
     result = await database.run(async () => {
       const db = getDb();
       const config = registeredSessionConfig();
-      if (config.hiveOrigin !== env.HIVE_PREVIEW_ORIGIN) throw new Error("Relay origin mismatch");
+      if (config.hiveOrigin !== runtimeRelayOrigin(env)) throw new Error("Relay origin mismatch");
       const service = createRegisteredSessionService(db, config, { signal: setupSignal });
       const deps: RelayDependencies = {
         authenticate: (incoming) => authenticate(incoming, env, setupSignal),
@@ -206,7 +205,7 @@ export async function projectRelay(
         response: upgradeResponse,
         onClosed: release,
       };
-      return openProjectRelay(request, env.HIVE_PREVIEW_ORIGIN ?? "", previewExpiresAt, deps);
+      return openProjectRelay(request, runtimeRelayOrigin(env), previewExpiresAt, deps);
     });
   } catch {
     result?.close();

@@ -20,8 +20,9 @@ import {
 import {
   authorizePreview,
   bootstrapPreview,
-  previewCookieExpiresAt,
+  previewAccessMode,
   privatePreviewResponse,
+  runtimeRelayDeadline,
   withoutPreviewCredential,
 } from "./preview-auth";
 import { projectRelayPath } from "./project-relay";
@@ -56,6 +57,9 @@ type Environment = ProjectRelayEnvironment &
     HIVE_RELEASE_PROBE_SECRET?: string;
     HIVE_RELEASE_SOURCE_SHA?: string;
     HIVE_RELEASE_ARTIFACT_DIGEST?: string;
+    HIVE_NATIVE_MODE?: string;
+    HIVE_NATIVE_PRODUCTION_ACTIVE?: string;
+    HIVE_NATIVE_PREVIEW_ENABLED?: string;
   };
 type Context = { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void };
 
@@ -86,6 +90,12 @@ export default {
     );
   },
   async fetch(request: Request, env: Environment, context: Context): Promise<Response> {
+    const accessMode = previewAccessMode(env);
+    if (accessMode === "unavailable")
+      return Response.json(
+        { error: "Deployment unavailable." },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } },
+      );
     if (projectReconcilePath(request)) {
       return runProjectTaskReconciliation(request, env, context, (tracked) =>
         handler.fetch(request, env, tracked),
@@ -95,15 +105,17 @@ export default {
       cookieSecret: env.PREVIEW_COOKIE_SECRET,
       origin: env.HIVE_PREVIEW_ORIGIN,
     };
-    if (!isHostCallbackTransport(request, env.HIVE_CODEX_GATEWAY_ENABLED, env)) {
+    if (
+      accessMode === "preview" &&
+      !isHostCallbackTransport(request, env.HIVE_CODEX_GATEWAY_ENABLED, env)
+    ) {
       const bootstrap = await bootstrapPreview(request, env.PREVIEW_BEARER, cookieOptions);
       if (bootstrap) return bootstrap;
       const unauthorized = authorizePreview(request, env.PREVIEW_BEARER, cookieOptions);
       if (unauthorized) return unauthorized;
     }
-    const previewExpiresAt =
-      previewCookieExpiresAt(request, cookieOptions) ?? Date.now() + 15 * 60 * 1000;
-    request = withoutPreviewCredential(request);
+    const previewExpiresAt = runtimeRelayDeadline(request, env, env.PREVIEW_COOKIE_SECRET);
+    if (accessMode === "preview") request = withoutPreviewCredential(request);
     if (new URL(request.url).pathname === RELEASE_HEALTH_PATH) {
       const database = createCloudflareDatabaseRequest(env.DATABASE_URL, {
         queryTimeoutMillis: 2000,

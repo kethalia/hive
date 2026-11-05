@@ -13,6 +13,7 @@ import {
 } from "@/lib/delivery/release-cloudflare-provider.server";
 import {
   ReleaseDatabaseObserver,
+  readReleaseDatabaseDeployment,
   verifyReleaseDatabaseDeployment,
 } from "@/lib/delivery/release-database-observer.server";
 import { PostgresReleaseEffectJournal } from "@/lib/delivery/release-effect-journal.server";
@@ -68,6 +69,70 @@ async function fixture() {
 }
 
 describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
+  it("observes one physical deployment for both roles of a single Worker", async () => {
+    const f = await fixture();
+    const baseline = {
+      deploymentId: randomUUID(),
+      versionId: randomUUID(),
+      sourceSha: "a".repeat(40),
+      artifactDigest: "b".repeat(64),
+      configDigest: "c".repeat(64),
+    };
+    const snapshot = {
+      topology: "single",
+      baselines: { app: baseline, auth: baseline },
+      database: {
+        catalogDigest: "d".repeat(64),
+        planEventId: randomUUID(),
+        planDigest: "e".repeat(64),
+      },
+    };
+    const request = {
+      component: "app",
+      versionId: randomUUID(),
+      mergedSha: "f".repeat(40),
+      artifactDigest: "1".repeat(64),
+      configDigest: "2".repeat(64),
+    };
+    const receipt = {
+      deploymentId: randomUUID(),
+      versionId: request.versionId,
+      component: "app",
+      targetDigest: f.target,
+      mergedSha: request.mergedSha,
+      artifactDigest: request.artifactDigest,
+      configDigest: request.configDigest,
+    };
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+      await tx.$executeRaw`UPDATE delivery_releases SET snapshot=${canonicalGitHubSource(snapshot)}::jsonb,snapshot_digest=${githubSourceDigest(snapshot)} WHERE id=${f.release}::uuid`;
+      await tx.$executeRaw`UPDATE delivery_release_actions SET kind='promote',phase='observed',request=${canonicalGitHubSource(request)}::jsonb,request_digest=${githubSourceDigest(request)},receipt=${canonicalGitHubSource(receipt)}::jsonb,receipt_digest=${githubSourceDigest(receipt)} WHERE id=${f.action}::uuid`;
+    });
+    let versionReads = 0;
+    const provider = {
+      singleWorker: () => true,
+      inspectCurrent: async () => ({
+        deploymentId: receipt.deploymentId,
+        versionId: request.versionId,
+      }),
+      inspectVersion: async () => {
+        versionReads++;
+        return { configDigest: request.configDigest };
+      },
+    };
+    await new ReleaseDatabaseObserver(db, provider as never).observe(
+      f.owner,
+      f.release,
+      new AbortController().signal,
+    );
+    expect(versionReads).toBe(1);
+    const observed = await db.$transaction((tx) =>
+      readReleaseDatabaseDeployment(tx, f.owner, f.release),
+    );
+    expect(observed?.topology).toBe("single");
+    expect(observed?.expected.app).toEqual(observed?.expected.auth);
+    expect(observed?.expected.app.versionId).toBe(request.versionId);
+  });
   it("persists provider observations only for a stable release lease and rejects drift", async () => {
     const f = await fixture();
     const baseline = {
@@ -92,6 +157,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
     let drift = false,
       race = false;
     const provider = {
+      singleWorker: () => false,
       inspectCurrent: async () => {
         if (race) {
           race = false;
@@ -354,16 +420,28 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
     "partial",
     "partial_smoke",
     "production",
+    "single",
+    "single_recovery",
   ])("runs a synthetic merge and Worker promotion with lost ACK followed by %s", async (outcome) => {
     const f = await fixture();
-    const production = outcome === "production",
+    const single = outcome === "single" || outcome === "single_recovery",
+      production = outcome === "production" || single,
       baseBranch = production ? "main" : "preview";
     const target = {
       accountId: "a".repeat(32),
+      ...(single ? { topology: "single" as const } : {}),
       environment: production ? "production" : "preview",
       scripts: {
-        app: production ? "fixture-app-prod" : "fixture-app",
-        auth: production ? "fixture-auth-prod" : "fixture-auth",
+        app: single
+          ? `fixture-single-${f.release.slice(0, 8)}`
+          : production
+            ? "fixture-app-prod"
+            : "fixture-app",
+        auth: single
+          ? `fixture-single-${f.release.slice(0, 8)}`
+          : production
+            ? "fixture-auth-prod"
+            : "fixture-auth",
       },
       hiveReleaseWriter: true,
     };
@@ -413,9 +491,9 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
       baseline = randomUUID(),
       currentVersion = randomUUID(),
       candidateVersion = randomUUID(),
-      authBaseline = randomUUID(),
-      authCurrent = randomUUID(),
-      authCandidate = randomUUID();
+      authBaseline = single ? baseline : randomUUID(),
+      authCurrent = single ? currentVersion : randomUUID(),
+      authCandidate = single ? candidateVersion : randomUUID();
     const baselines = {
       app: {
         deploymentId: baseline,
@@ -464,6 +542,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
       repositoryPolicies,
       policies: () => [policy],
       productionEnabled: production,
+      singleWorker: single,
       verifyOpening: async (_tx, context) => context.riskAttestationDigest === risk,
       verifyAction: authorize,
       verifyObservation: async (tx, context) => {
@@ -643,6 +722,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
     ).rejects.toThrow();
     const manifest = {
       schemaVersion: 1,
+      ...(single ? { topology: "single" as const } : {}),
       releaseId,
       ownerId: f.owner,
       repositoryId: "1",
@@ -663,7 +743,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
         versionId: authCandidate,
         artifactDigest: promotion.artifactDigest,
         configDigest: buildConfigDigest,
-        providerScriptHash: "auth-etag",
+        providerScriptHash: single ? "app-etag" : "auth-etag",
       },
     };
     const now = Math.floor(Date.now() / 1000),
@@ -725,6 +805,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
       auth: _auth,
       ownerId: _owner,
       releaseId: _release,
+      topology: _topology,
       ...challengeFields
     } = manifest;
     const challenge = {
@@ -775,7 +856,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
     expect((await buildStore.verifyRun(f.owner, releaseId, signal)).manifestDigest).toBe(
       githubSourceDigest(manifest),
     );
-    const planner = new ReleasePlanner(db, policy.targetDigest, lifecycle);
+    const planner = new ReleasePlanner(db, policy.targetDigest, lifecycle, single);
     expect(await planner.advance(f.owner, releaseId)).toBe("prepared");
     promoteId = (
       await db.$queryRaw<
@@ -796,7 +877,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
       versionId: authCandidate,
     };
     let authPromoteId: string = randomUUID();
-    if (outcome !== "partial" && outcome !== "partial_smoke") {
+    if (!single && outcome !== "partial" && outcome !== "partial_smoke") {
       await expect(
         lifecycle.prepare(f.owner, {
           id: authPromoteId,
@@ -881,6 +962,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
     if (
       outcome === "healthy" ||
       outcome === "production" ||
+      outcome === "single" ||
       outcome === "metrics" ||
       outcome === "smoke"
     ) {
@@ -938,15 +1020,16 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
           new ReleaseLifecycle(db, {
             repositoryPolicies,
             policies: () => [policy],
+            singleWorker: single,
             verifyOpening: async () => true,
             verifyAction: authorize,
             verifyObservation,
           }),
       );
       expect((await controller.observe(f.owner, releaseId, signal)).phase).toBe(
-        outcome === "healthy" || outcome === "production" ? "healthy" : "held",
+        outcome === "healthy" || outcome === "production" || single ? "healthy" : "held",
       );
-      if (outcome === "healthy" || outcome === "production") {
+      if (outcome === "healthy" || outcome === "production" || single) {
         const current = await db.$queryRaw<
           { active_release_id: string | null }[]
         >`SELECT active_release_id FROM delivery_release_targets WHERE target_digest=${policy.targetDigest}`;
@@ -975,7 +1058,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
             configDigest: promotion.configDigest,
           },
           auth: {
-            deploymentId: active.auth.id,
+            deploymentId: single ? active.app.id : active.auth.id,
             versionId: authCandidate,
             sourceSha: mergeSha,
             artifactDigest: authPromotion.artifactDigest,
@@ -985,7 +1068,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
         return;
       }
     }
-    if (outcome === "recovery" || outcome === "partial") {
+    if (outcome === "recovery" || outcome === "partial" || outcome === "single_recovery") {
       await expect(
         lifecycle.observe(f.owner, { releaseId, kind: "healthy", evidence: { smoke: "failed" } }),
       ).rejects.toThrow();
@@ -1016,7 +1099,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
       }),
     ).rejects.toThrow();
     let authRecovery: string = randomUUID();
-    if (outcome !== "partial" && outcome !== "partial_smoke") {
+    if (!single && outcome !== "partial" && outcome !== "partial_smoke") {
       expect(await planner.advance(f.owner, releaseId)).toBe("prepared");
       authRecovery = (
         await db.$queryRaw<
@@ -1073,6 +1156,7 @@ describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
         new ReleaseLifecycle(db, {
           repositoryPolicies,
           policies: () => [policy],
+          singleWorker: single,
           verifyOpening: async () => true,
           verifyAction: authorize,
           verifyObservation,

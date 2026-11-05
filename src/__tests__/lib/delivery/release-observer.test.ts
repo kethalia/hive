@@ -121,3 +121,55 @@ describe("release observation producer", () => {
     });
   });
 });
+
+describe("single Worker observation", () => {
+  it("checks both real health roles against one deployment and counts one metric stream", async () => {
+    const single = {
+      ...config,
+      target: {
+        ...config.target,
+        environment: "production",
+        topology: "single" as const,
+        scripts: { app: "hive", auth: "hive" },
+      },
+    };
+    const calls: string[] = [];
+    expect(
+      () =>
+        new CloudflareReleaseObserver(
+          { ...single, target: { ...single.target, environment: "preview" } },
+          secrets,
+          async () => {
+            throw Error("must not read production");
+          },
+          async () => {
+            throw Error("must not fetch");
+          },
+        ),
+    ).toThrow("release_native_preview_unsupported");
+    const observer = new CloudflareReleaseObserver(
+      single,
+      secrets,
+      async () => state.app,
+      async (url) => {
+        calls.push(String(url));
+        return String(url).includes(".well-known")
+          ? Response.json(health)
+          : Response.json(metric(100, 1));
+      },
+    );
+    const result = await observer.observe(
+      { ...window, auth: state.app },
+      new AbortController().signal,
+    );
+    expect(result.evidence).toMatchObject({
+      topology: "single",
+      metrics: "passed",
+      analytics: { worker: { requests: 100, errors: 1 } },
+    });
+    expect(calls).toHaveLength(2);
+    await expect(observer.observe(window, new AbortController().signal)).rejects.toThrow(
+      "release_observer_deployment_changed",
+    );
+  });
+});

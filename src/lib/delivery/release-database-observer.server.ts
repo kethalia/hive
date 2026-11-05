@@ -19,6 +19,7 @@ const stateSchema = z
     targetDigest: digest,
     generation: z.number().int().positive(),
     snapshotDigest: digest,
+    topology: z.literal("single").optional(),
     database: pinSchema,
     expected: releaseBaselinesSchema,
   })
@@ -52,7 +53,11 @@ async function state(
   if (rows.length !== 1 || githubSourceDigest(row.snapshot) !== row.snapshot_digest)
     throw Error("release_database_observation_scope");
   const snapshot = z
-    .object({ database: pinSchema, baselines: releaseBaselinesSchema })
+    .object({
+      database: pinSchema,
+      baselines: releaseBaselinesSchema,
+      topology: z.literal("single").optional(),
+    })
     .passthrough()
     .parse(row.snapshot);
   const actions = await tx.$queryRaw<
@@ -75,6 +80,11 @@ async function state(
   )
     throw Error("release_database_observation_uncertain");
   const expected = structuredClone(snapshot.baselines);
+  if (
+    snapshot.topology === "single" &&
+    githubSourceDigest(expected.app) !== githubSourceDigest(expected.auth)
+  )
+    throw Error("release_database_observation_scope");
   for (const action of actions.filter((a) => a.phase === "observed")) {
     const request = z
       .object({
@@ -98,6 +108,8 @@ async function state(
       })
       .passthrough()
       .parse(action.receipt);
+    if (snapshot.topology === "single" && request.component !== "app")
+      throw Error("release_database_observation_receipt");
     if (
       githubSourceDigest(action.request) !== action.request_digest ||
       githubSourceDigest(action.receipt) !== action.receipt_digest ||
@@ -116,6 +128,7 @@ async function state(
       artifactDigest: request.artifactDigest,
       configDigest: request.configDigest,
     };
+    if (snapshot.topology === "single") expected.auth = expected.app;
   }
   return stateSchema.parse({
     releaseId,
@@ -125,6 +138,7 @@ async function state(
     targetDigest: row.target_digest,
     generation: row.generation,
     snapshotDigest: row.snapshot_digest,
+    ...(snapshot.topology === "single" ? { topology: "single" as const } : {}),
     database: snapshot.database,
     expected,
   });
@@ -139,8 +153,12 @@ export class ReleaseDatabaseObserver {
   ) {}
   async observe(ownerId: string, releaseId: string, signal: AbortSignal) {
     const first = await this.db.$transaction((tx) => state(tx, ownerId, releaseId));
+    if ((first.topology === "single") !== this.provider.singleWorker())
+      throw Error("release_database_observation_scope");
     const started = Date.now();
-    for (const component of ["app", "auth"] as const) {
+    for (const component of this.provider.singleWorker()
+      ? (["app"] as const)
+      : (["app", "auth"] as const)) {
       const current = await this.provider.inspectCurrent(component, signal);
       const version = await this.provider.inspectVersion(component, current.versionId, signal);
       const after = await this.provider.inspectCurrent(component, signal);

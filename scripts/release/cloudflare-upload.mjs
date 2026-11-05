@@ -66,6 +66,7 @@ export async function uploadReleaseVersion({
   apiToken,
   fetcher = fetch,
   signal,
+  topology,
 }) {
   if (
     !["app", "auth"].includes(component) ||
@@ -93,7 +94,8 @@ export async function uploadReleaseVersion({
     throw Error("upload_config");
   if (!Buffer.isBuffer(archive) || archive.length === 0 || archive.length > 128 * 1024 * 1024)
     throw Error("artifact_size");
-  const files = await readReleaseArtifact(Buffer.from(archive));
+  if (topology === "single" && component !== "app") throw Error("upload_scope");
+  const files = await readReleaseArtifact(Buffer.from(archive), { topology });
   const artifact = artifactDigest(files, component);
   const identityFields = {
     HIVE_RELEASE_SOURCE_SHA: { expected: sourceSha, placeholder: "{{source_sha}}" },

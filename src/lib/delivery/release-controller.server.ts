@@ -117,6 +117,13 @@ export function createReleaseController(
   if (!environment.configJson || Buffer.byteLength(environment.configJson) > 32768)
     throw new Error("release_controller_unavailable");
   const config = releaseControllerConfigSchema.parse(JSON.parse(environment.configJson));
+  if (
+    config.target.topology === "single" &&
+    config.authority &&
+    githubSourceDigest(config.authority.baselines.app) !==
+      githubSourceDigest(config.authority.baselines.auth)
+  )
+    throw new Error("release_controller_unavailable");
   const mode = config.target.environment;
   if (
     (mode === "production" && environment.productionEnabled !== "true") ||
@@ -192,6 +199,7 @@ export function createReleaseController(
       repositoryPolicies: dependencies.repositoryPolicies,
       policies,
       productionEnabled: mode === "production" && environment.productionEnabled === "true",
+      singleWorker: config.target.topology === "single",
       verifyOpening: dependencies.verifyOpening,
       resolveDatabasePin: dependencies.resolveDatabasePin,
       verifyAction: authorize,
@@ -238,7 +246,12 @@ export function createReleaseController(
       return observation.observe(ownerId, releaseId, signal);
     },
   };
-  const planner = new ReleasePlanner(db, githubSourceDigest(config.target), controller.lifecycle);
+  const planner = new ReleasePlanner(
+    db,
+    githubSourceDigest(config.target),
+    controller.lifecycle,
+    config.target.topology === "single",
+  );
   return {
     ...controller,
     planner,

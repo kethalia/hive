@@ -17,6 +17,7 @@ import {
   authorizeOwnedWorkspacePty,
   type GenericTerminalEnvironment,
 } from "./generic-terminal-runtime";
+import { runtimeRelayOrigin } from "./preview-auth";
 import { transferTerminalPaste } from "./terminal-paste-transport";
 
 export type TerminalPasteEnvironment = GenericTerminalEnvironment & {
@@ -67,9 +68,15 @@ export async function terminalPasteRuntime(
     request.headers.has("Authorization")
   )
     return response(400, "Paste request rejected");
+  let origin: string;
+  try {
+    origin = runtimeRelayOrigin(env);
+  } catch {
+    return response(503, "Origin unavailable");
+  }
   if (
     request.headers.get("Origin") !== url.origin ||
-    url.origin !== env.HIVE_PREVIEW_ORIGIN ||
+    url.origin !== origin ||
     request.headers.get("Sec-Fetch-Site") === "cross-site"
   )
     return response(403, "Origin rejected");

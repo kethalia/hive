@@ -15,7 +15,8 @@ const validPath = (p) =>
 
 // The publisher consumes bytes only: it never imports the bundle, follows links,
 // or asks a bundler to resolve paths inside candidate-controlled JavaScript.
-export async function readReleaseArtifact(bytes) {
+export async function readReleaseArtifact(bytes, { topology } = {}) {
+  if (topology !== undefined && topology !== "single") throw Error("artifact_topology");
   if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > MAX_ARCHIVE)
     throw Error("artifact_size");
   const files = new Map();
@@ -59,7 +60,11 @@ export async function readReleaseArtifact(bytes) {
     });
     extract.end(bytes);
   });
-  if (!files.has("app/worker.js") || !files.has("auth/worker.js"))
+  if (
+    !files.has("app/worker.js") ||
+    (topology !== "single" && !files.has("auth/worker.js")) ||
+    (topology === "single" && [...files.keys()].some((name) => name.startsWith("auth/")))
+  )
     throw Error("artifact_missing_worker");
   return files;
 }

@@ -18,11 +18,11 @@ import {
   openGenericTerminalRelay,
   TERMINAL_SUBPROTOCOL,
 } from "./generic-terminal-relay";
+import { type RuntimeOriginEnvironment, runtimeRelayOrigin } from "./preview-auth";
 import type { RelaySocket } from "./project-relay";
 
-export type GenericTerminalEnvironment = {
+export type GenericTerminalEnvironment = RuntimeOriginEnvironment & {
   HIVE_GENERIC_TERMINAL_ENABLED?: string;
-  HIVE_PREVIEW_ORIGIN?: string;
   CODER_URL?: string;
   COOKIE_SECRET?: string;
   AUTH_SERVICE_SECRET?: string;
@@ -173,7 +173,7 @@ export function createGenericTerminalDependencies(
     onClosed(): void;
   },
 ): GenericTerminalDependencies {
-  const hiveOrigin = configuredOrigin(env.HIVE_PREVIEW_ORIGIN),
+  const hiveOrigin = configuredOrigin(runtimeRelayOrigin(env)),
     coderOrigin = configuredOrigin(env.CODER_URL);
   if (typeof env.AUTH_SERVICE_SECRET !== "string" || !env.AUTH_SERVICE || !env.COOKIE_SECRET)
     throw new Error("configuration");
@@ -296,7 +296,7 @@ export async function genericTerminalRelay(
     });
     const response = await openGenericTerminalRelay(
       request,
-      configuredOrigin(env.HIVE_PREVIEW_ORIGIN),
+      configuredOrigin(runtimeRelayOrigin(env)),
       previewExpiresAt,
       deps,
     );

@@ -20,8 +20,9 @@ export const releasePolicySchema = z
     targetDigest: digest,
     targetResources: z
       .array(digest)
-      .length(2)
-      .refine((v) => v[0] < v[1]),
+      .min(1)
+      .max(2)
+      .refine((v) => v.length === 1 || v[0] < v[1]),
     actions: z
       .array(z.enum(["merge", "promote", "recover"]))
       .min(1)

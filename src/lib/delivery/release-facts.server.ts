@@ -87,7 +87,8 @@ export class ReleaseAuthorityFacts {
     const actions = await this.db.$queryRaw<
       { receipt: unknown; receipt_digest: string }[]
     >`SELECT receipt,receipt_digest FROM delivery_release_actions WHERE release_id=${row.id}::uuid AND kind='promote' AND phase='observed'`;
-    if (actions.length !== 2) throw Error("release_facts_baseline");
+    if (actions.length !== (manifest.topology === "single" ? 1 : 2))
+      throw Error("release_facts_baseline");
     const result: Record<string, unknown> = {};
     for (const action of actions) {
       if (githubSourceDigest(action.receipt) !== action.receipt_digest)
@@ -106,6 +107,8 @@ export class ReleaseAuthorityFacts {
         .passthrough()
         .parse(action.receipt);
       const built = manifest[receipt.component];
+      if (manifest.topology === "single" && receipt.component !== "app")
+        throw Error("release_facts_baseline");
       if (
         result[receipt.component] ||
         receipt.targetDigest !== this.config.targetDigest ||
@@ -123,6 +126,7 @@ export class ReleaseAuthorityFacts {
         configDigest: receipt.configDigest,
       };
     }
+    if (manifest.topology === "single" && result.app) result.auth = result.app;
     return releaseBaselinesSchema.parse(result);
   }
   async capture(raw: unknown, signal: AbortSignal) {
@@ -151,12 +155,19 @@ export class ReleaseAuthorityFacts {
       ? await this.testedStore.verifyFresh(input.ownerId, input.taskId, input.request, signal)
       : undefined;
     const baselines = await this.resolveBaseline();
+    if (
+      this.cloudflare.singleWorker() &&
+      githubSourceDigest(baselines.app) !== githubSourceDigest(baselines.auth)
+    )
+      throw Error("release_facts_baseline");
     const before = await this.rules.inspect(input.request, signal);
     if (before.digest !== input.request.rulesDigest) throw Error("release_facts_scope");
     const risk = await this.risk.inspect(input.request, signal);
     const after = await this.rules.inspect(input.request, signal);
     if (after.digest !== before.digest || signal.aborted) throw Error("release_facts_scope");
-    for (const component of ["app", "auth"] as const) {
+    for (const component of this.cloudflare.singleWorker()
+      ? (["app"] as const)
+      : (["app", "auth"] as const)) {
       const version = await this.cloudflare.inspectVersion(
         component,
         baselines[component].versionId,

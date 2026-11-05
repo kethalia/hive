@@ -70,11 +70,18 @@ export function releaseDatabaseCompatibility(
         .passthrough()
         .parse(rows[0].evidence);
       if (verification.manifestDigest !== rows[0].manifest_digest) return false;
-      const baseline = z
-        .object({ baselines: releaseBaselinesSchema })
+      const snapshot = z
+        .object({ baselines: releaseBaselinesSchema, topology: z.literal("single").optional() })
         .passthrough()
-        .parse(rows[0].snapshot).baselines;
+        .parse(rows[0].snapshot);
+      const baseline = snapshot.baselines;
       const build = releaseBuildManifestSchema.parse(rows[0].manifest);
+      if (
+        build.topology !== snapshot.topology ||
+        (snapshot.topology === "single" &&
+          githubSourceDigest(baseline.app) !== githubSourceDigest(baseline.auth))
+      )
+        return false;
       const compatibilityConfig = matching[0].compatibilityTest?.config;
       if (
         !compatibilityConfig ||

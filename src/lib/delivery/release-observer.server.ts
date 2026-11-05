@@ -77,6 +77,8 @@ export class CloudflareReleaseObserver {
     private readonly fetcher: typeof fetch = fetch,
   ) {
     this.config = configSchema.parse(rawConfig);
+    if (this.config.target.topology === "single" && this.config.target.environment !== "production")
+      throw new Error("release_native_preview_unsupported");
     if (
       !credentials.analyticsToken ||
       !/^[a-f0-9]{64}$/.test(credentials.probeSecret) ||
@@ -93,8 +95,16 @@ export class CloudflareReleaseObserver {
   settleDelayMs() {
     return this.config.settleDelayMs;
   }
+  singleWorker() {
+    return this.config.target.topology === "single";
+  }
   private async current(expected: z.infer<typeof observationSchema>, signal: AbortSignal) {
-    for (const component of ["app", "auth"] as const) {
+    if (
+      this.singleWorker() &&
+      githubSourceDigest(expected.app) !== githubSourceDigest(expected.auth)
+    )
+      throw new Error("release_observer_deployment_changed");
+    for (const component of this.singleWorker() ? (["app"] as const) : (["app", "auth"] as const)) {
       const actual = await this.readCurrent(component, signal);
       if (
         actual.deploymentId !== expected[component].deploymentId ||
@@ -259,7 +269,9 @@ export class CloudflareReleaseObserver {
         throw new Error("release_smoke_identity_changed");
     }
     const app = await this.metrics(this.config.target.scripts.app, input, signal),
-      auth = await this.metrics(this.config.target.scripts.auth, input, signal);
+      auth = this.singleWorker()
+        ? app
+        : await this.metrics(this.config.target.scripts.auth, input, signal);
     await this.current(input, signal);
     if (signal.aborted) throw new Error("release_observer_aborted");
     const evidence = {
@@ -269,7 +281,8 @@ export class CloudflareReleaseObserver {
       smoke: "passed",
       metrics: app.passed && auth.passed ? "passed" : "failed",
       health,
-      analytics: { app, auth },
+      analytics: this.singleWorker() ? { worker: app } : { app, auth },
+      ...(this.singleWorker() ? { topology: "single" as const } : {}),
       deployments: { app: input.app, auth: input.auth },
       limitations: "sampled_metrics_ingestion_delay_not_a_completeness_guarantee",
       configDigest: this.configDigest(),

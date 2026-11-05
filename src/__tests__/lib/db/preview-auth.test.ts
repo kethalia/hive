@@ -3,12 +3,32 @@ import {
   authorizePreview,
   bootstrapPreview,
   PREVIEW_COOKIE,
+  previewAccessMode,
   privatePreviewResponse,
+  runtimeRelayDeadline,
+  runtimeRelayOrigin,
   withoutPreviewCredential,
 } from "../../../../deploy/cloudflare/app/preview-auth";
 
 const secret = "a".repeat(64);
 describe("private app preview authority", () => {
+  it("allows gate bypass only for explicitly activated native production", () => {
+    expect(previewAccessMode({})).toBe("preview");
+    expect(
+      previewAccessMode({ HIVE_NATIVE_MODE: "preview", HIVE_NATIVE_PREVIEW_ENABLED: "true" }),
+    ).toBe("preview");
+    for (const value of [
+      { HIVE_NATIVE_MODE: "bootstrap" },
+      { HIVE_NATIVE_MODE: "production" },
+      { HIVE_NATIVE_MODE: "preview" },
+      { HIVE_NATIVE_MODE: "unknown", HIVE_NATIVE_PRODUCTION_ACTIVE: "true" },
+      { HIVE_NATIVE_PRODUCTION_ACTIVE: "true" },
+    ])
+      expect(previewAccessMode(value)).not.toBe("production");
+    expect(
+      previewAccessMode({ HIVE_NATIVE_MODE: "production", HIVE_NATIVE_PRODUCTION_ACTIVE: "true" }),
+    ).toBe("production");
+  });
   it.each([
     undefined,
     "",
@@ -76,6 +96,38 @@ describe("same-origin private preview cookie", () => {
     expect(header).not.toContain(secret);
     return header.split(";")[0];
   }
+  it("uses the production origin and session-bound relay deadline without trusting preview cookies", async () => {
+    const cookie = await issue();
+    const request = new Request(`${origin}/api/projects`, { headers: { Cookie: cookie } });
+    const production = {
+      HIVE_NATIVE_MODE: "production",
+      HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
+      HIVE_PUBLIC_ORIGIN: "https://app.example",
+      HIVE_PREVIEW_ORIGIN: origin,
+    };
+    expect(runtimeRelayOrigin(production)).toBe("https://app.example");
+    expect(runtimeRelayDeadline(request, production, options.cookieSecret, options.now)).toBe(
+      Infinity,
+    );
+    expect(
+      runtimeRelayDeadline(
+        request,
+        { HIVE_PREVIEW_ORIGIN: origin },
+        options.cookieSecret,
+        options.now + 60000,
+      ),
+    ).toBe(options.now + 15 * 60 * 1000);
+    for (const bad of [
+      "http://app.example",
+      "https://app.example/path",
+      "https://user@app.example",
+      "",
+    ])
+      expect(() => runtimeRelayOrigin({ ...production, HIVE_PUBLIC_ORIGIN: bad })).toThrow();
+    expect(() =>
+      runtimeRelayOrigin({ ...production, HIVE_NATIVE_PRODUCTION_ACTIVE: "false" }),
+    ).toThrow();
+  });
   it("bootstraps signed15min cookie for assets/WS and strips preview authority before delegation", async () => {
     const cookie = await issue();
     const request = new Request(

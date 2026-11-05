@@ -19,6 +19,7 @@ const component = z
 export const releaseBuildManifestSchema = z
   .object({
     schemaVersion: z.literal(1),
+    topology: z.literal("single").optional(),
     releaseId: uuid,
     ownerId: uuid,
     repositoryId: providerId,
@@ -31,7 +32,11 @@ export const releaseBuildManifestSchema = z
     auth: component,
   })
   .strict()
-  .refine((v) => v.app.script !== v.auth.script);
+  .refine((v) =>
+    v.topology === "single"
+      ? githubSourceDigest(v.app) === githubSourceDigest(v.auth)
+      : v.app.script !== v.auth.script,
+  );
 export const releaseBuildChallengeSchema = z
   .object({
     schemaVersion: z.literal(1),

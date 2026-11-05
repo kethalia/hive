@@ -137,6 +137,19 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("voice Worker route", () => {
+  it("pins native production voice to the public origin, not the preview origin", () => {
+    const production = {
+      ...env,
+      HIVE_NATIVE_MODE: "production",
+      HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
+      HIVE_PUBLIC_ORIGIN: origin,
+      HIVE_PREVIEW_ORIGIN: "https://wrong.example",
+    };
+    expect(voiceRuntimeConfiguration(production).origin).toBe(origin);
+    expect(() =>
+      voiceRuntimeConfiguration({ ...production, HIVE_PUBLIC_ORIGIN: "http://invalid.example" }),
+    ).toThrow();
+  });
   it("shares only the exact enrolled host issuer and rejects scope drift", () => {
     const pair = generateKeyPairSync("ed25519");
     const shared = {

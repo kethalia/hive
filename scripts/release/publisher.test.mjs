@@ -145,3 +145,88 @@ test("publisher rejects foreign OIDC origin and target changes before any reques
   );
   assert.equal(calls, 0);
 });
+
+test("single topology uploads exactly one artifact and attests one identical physical version", async () => {
+  const singleTarget = {
+    ...target,
+    environment: "production",
+    topology: "single",
+    scripts: { app: "hive", auth: "hive" },
+  };
+  const singleConfig = {
+    ...config,
+    target: singleTarget,
+    targetDigest: digest(singleTarget),
+    components: { app: component },
+  };
+  const oneArchive = await packReleaseArtifact(
+    new Map([
+      ["app/worker.js", Buffer.from("one")],
+      ["assets/index.html", Buffer.from("asset")],
+    ]),
+  );
+  let requests = 0,
+    uploads = 0,
+    writtenBindings;
+  const fetcher = async (url, init) => {
+    requests++;
+    if (url.startsWith("https://pipelines.actions.githubusercontent.com/"))
+      return Response.json({ value: "fixture-oidc" });
+    if (url.endsWith("/challenge"))
+      return Response.json({
+        releaseId,
+        ownerId,
+        targetDigest: singleConfig.targetDigest,
+        publisherConfigDigest: digest(singleConfig),
+        mergeSha: identity.mergeSha,
+      });
+    if (url.endsWith("/attestation")) {
+      const manifest = JSON.parse(init.body);
+      assert.equal(manifest.topology, "single");
+      assert.deepEqual(manifest.app, manifest.auth);
+      return Response.json({ releaseId, manifestDigest: digest(manifest) });
+    }
+    if (url.endsWith("/assets-upload-session"))
+      return Response.json({ success: true, result: { jwt: "completed", buckets: [] } });
+    if (url.includes("/versions?") && init.method === "POST") {
+      uploads++;
+      assert.match(url, /\/scripts\/hive\//);
+      writtenBindings = JSON.parse(init.body.get("metadata")).bindings;
+      return Response.json({ success: true, result: { id: version } });
+    }
+    if (url.includes(`/versions/${version}`) && init.method === "GET")
+      return Response.json({
+        success: true,
+        result: {
+          id: version,
+          resources: { bindings: writtenBindings, script_runtime: {}, script: { etag: "opaque" } },
+        },
+      });
+    throw Error("unexpected URL");
+  };
+  const options = {
+    config: singleConfig,
+    identity,
+    archive: oneArchive,
+    oidcUrl: "https://pipelines.actions.githubusercontent.com/oidc",
+    oidcRequestToken: "fixture",
+    cloudflareToken: "fixture",
+    fetcher,
+    signal: AbortSignal.timeout(1000),
+  };
+  await publishRelease(options);
+  assert.equal(uploads, 1);
+  await assert.rejects(publishRelease({ ...options, archive }), /artifact_missing_worker/);
+  assert.equal(uploads, 1);
+  const previewTarget = { ...singleTarget, environment: "preview" };
+  const beforePreview = requests;
+  await assert.rejects(
+    publishRelease({
+      ...options,
+      config: { ...singleConfig, target: previewTarget, targetDigest: digest(previewTarget) },
+    }),
+    /publisher_config/,
+  );
+  assert.equal(uploads, 1);
+  assert.equal(requests, beforePreview);
+});

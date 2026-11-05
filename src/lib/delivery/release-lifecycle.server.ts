@@ -34,6 +34,7 @@ export class ReleaseLifecycle {
       repositoryPolicies: RepositoryPolicyStore;
       policies(): unknown;
       productionEnabled?: boolean;
+      singleWorker?: boolean;
       resolveDatabasePin?(
         tx: Tx,
         scope: { ownerId: string; taskId: string; sourceSha: string; targetDigest: string },
@@ -85,6 +86,11 @@ export class ReleaseLifecycle {
       })
       .strict()
       .parse(raw);
+    if (
+      this.dependencies.singleWorker &&
+      githubSourceDigest(input.baselines.app) !== githubSourceDigest(input.baselines.auth)
+    )
+      return deny();
     return this.transaction(async (tx) => {
       const bound = await this.dependencies.repositoryPolicies.resolveTask(
         tx,
@@ -150,6 +156,7 @@ export class ReleaseLifecycle {
       if (input.riskClass === "database" && !database) return deny();
       const snapshot = {
         schemaVersion: 1,
+        ...(this.dependencies.singleWorker ? { topology: "single" as const } : {}),
         policyVersionId: policy.versionId,
         repositoryPolicyDigest: bound.binding.policyDigest,
         repositoryBindingDigest: bound.binding.bindingDigest,
@@ -299,6 +306,8 @@ export class ReleaseLifecycle {
           build.releaseId !== input.releaseId ||
           build.ownerId !== ownerId ||
           build.targetDigest !== row.target_digest ||
+          (build.topology === "single") !== (this.dependencies.singleWorker === true) ||
+          (this.dependencies.singleWorker && workerRequest.component !== "app") ||
           build.mergeSha !== workerRequest.mergedSha ||
           built.versionId !== workerRequest.versionId ||
           built.artifactDigest !== workerRequest.artifactDigest ||
@@ -471,7 +480,7 @@ export class ReleaseLifecycle {
       if (
         pending.length ||
         (input.kind === "healthy" &&
-          !["app", "auth"].every((component) =>
+          !(this.dependencies.singleWorker ? ["app"] : ["app", "auth"]).every((component) =>
             promotions.some((a) => a.request.component === component),
           )) ||
         (input.kind === "regression" && promotions.length === 0) ||

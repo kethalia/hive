@@ -102,3 +102,73 @@ describe("fixed Cloudflare release provider", () => {
     ).rejects.toThrow("release_provider_scope");
   });
 });
+
+describe("single Worker release target", () => {
+  it("requires explicit topology and one identical attested artifact", async () => {
+    const { cloudflareReleaseTargetSchema, releaseTargetResources } = await import(
+      "@/lib/delivery/release-cloudflare-provider.server"
+    );
+    const { releaseBuildManifestSchema } = await import(
+      "@/lib/delivery/release-build-attestation.server"
+    );
+    const single = {
+      ...target,
+      environment: "production",
+      topology: "single" as const,
+      scripts: { app: "hive", auth: "hive" },
+    };
+    expect(
+      cloudflareReleaseTargetSchema.safeParse({ ...single, topology: undefined }).success,
+    ).toBe(false);
+    expect(releaseTargetResources(single)).toHaveLength(1);
+    expect(
+      () => new CloudflareReleaseProvider({ ...single, environment: "preview" }, "token"),
+    ).toThrow("release_native_preview_unsupported");
+    expect(cloudflareReleaseTargetSchema.safeParse({ ...target, topology: "single" }).success).toBe(
+      false,
+    );
+    const part = {
+      script: "hive",
+      versionId: version,
+      artifactDigest: "b".repeat(64),
+      configDigest: "c".repeat(64),
+      providerScriptHash: "etag",
+    };
+    const manifest = {
+      schemaVersion: 1,
+      topology: "single",
+      releaseId: identity.releaseId,
+      ownerId: identity.id,
+      repositoryId: "12",
+      repositoryOwnerId: "34",
+      mergeSha: "a".repeat(40),
+      targetDigest: githubSourceDigest(single),
+      runId: "56",
+      runAttempt: 1,
+      app: part,
+      auth: part,
+    };
+    expect(releaseBuildManifestSchema.safeParse(manifest).success).toBe(true);
+    expect(
+      releaseBuildManifestSchema.safeParse({ ...manifest, auth: { ...part, versionId: before } })
+        .success,
+    ).toBe(false);
+    let reads = 0;
+    const provider = new CloudflareReleaseProvider(single, "token", async () => {
+      reads++;
+      return json({
+        id: version,
+        resources: { script: { etag: "etag" }, bindings: [], script_runtime: {} },
+      });
+    });
+    const expectedConfig = githubSourceDigest({ bindings: [], runtime: {} });
+    const pinned = { ...part, configDigest: expectedConfig };
+    await expect(
+      provider.verifyUploaded(
+        { ...manifest, app: pinned, auth: pinned },
+        new AbortController().signal,
+      ),
+    ).resolves.toBe(true);
+    expect(reads).toBe(1);
+  });
+});

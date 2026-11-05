@@ -133,6 +133,15 @@ test("only active production schedules all handlers with local service adapter",
     preview,
   );
   assert.equal(preview.pending.length, 0);
+  for (const event of [{}, { cron: "0 * * * *" }, { cron: "* * * * *" }]) {
+    const other = context();
+    worker.scheduled(
+      event,
+      { HIVE_NATIVE_MODE: "production", HIVE_NATIVE_PRODUCTION_ACTIVE: "true" },
+      other,
+    );
+    assert.equal(other.pending.length, 0);
+  }
   const ctx = context();
   worker.scheduled(
     { cron: "*/5 * * * *" },
@@ -179,7 +188,7 @@ test("a scheduled failure waits for other handlers to settle before rejecting", 
   });
   const ctx = context();
   worker.scheduled(
-    {},
+    { cron: "*/5 * * * *" },
     { HIVE_NATIVE_MODE: "production", HIVE_NATIVE_PRODUCTION_ACTIVE: "true" },
     ctx,
   );

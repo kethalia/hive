@@ -144,6 +144,33 @@ afterEach(async () => {
 });
 
 describe("project relay request/database boundary (edge socket simulated)", () => {
+  it("production uses the exact public origin and retains session/registration bounds without preview expiry", async () => {
+    const bindings = {
+      ...env(),
+      HIVE_NATIVE_MODE: "production",
+      HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
+      HIVE_PUBLIC_ORIGIN: origin,
+      HIVE_PREVIEW_ORIGIN: "https://other.example",
+    };
+    const target = await mock.authorize();
+    mock.authorize.mockImplementation(async () => ({
+      ...target,
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    }));
+    expect((await projectRelay(request(), bindings, Infinity)).status).toBe(101);
+    await vi.advanceTimersByTimeAsync(16 * 60 * 1000);
+    expect(pairs[0].server.close).not.toHaveBeenCalled();
+    pairs[0].server.emit("close", { code: 1000 });
+    expect(
+      (
+        await projectRelay(
+          request(),
+          { ...bindings, HIVE_PUBLIC_ORIGIN: "https://other.example" },
+          Infinity,
+        )
+      ).status,
+    ).toBe(503);
+  });
   it("reauthorizes in a distinct bounded database scope and closes it before continuing", async () => {
     const scopes: Array<{ run: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }> = [];
     mock.scope.mockImplementation(() => {

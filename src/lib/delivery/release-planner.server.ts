@@ -16,6 +16,7 @@ export class ReleasePlanner {
     private readonly db: PrismaClient,
     private readonly targetDigest: string,
     private readonly lifecycle: ReleaseLifecycle,
+    private readonly singleWorker = false,
   ) {
     z.string()
       .regex(/^[a-f0-9]{64}$/)
@@ -34,9 +35,11 @@ export class ReleasePlanner {
         .object({
           riskAttestationDigest: z.string().regex(/^[a-f0-9]{64}$/),
           baselines: releaseBaselinesSchema,
+          topology: z.literal("single").optional(),
         })
         .passthrough()
         .parse(release.snapshot);
+    if ((snapshot.topology === "single") !== this.singleWorker) return "held" as const;
     const actions = await this.db.$queryRaw<
       {
         id: string;
@@ -118,8 +121,9 @@ export class ReleasePlanner {
     if (builds.length !== 1 || githubSourceDigest(builds[0].manifest) !== builds[0].manifest_digest)
       return "waiting" as const;
     const build = releaseBuildManifestSchema.parse(builds[0].manifest);
+    if ((build.topology === "single") !== this.singleWorker) return "held" as const;
     const promoted = completed.filter((a) => a.kind === "promote"),
-      component = (["app", "auth"] as const).find(
+      component = (this.singleWorker ? (["app"] as const) : (["app", "auth"] as const)).find(
         (c) => !promoted.some((a) => a.request.component === c),
       );
     if (!component) return "waiting" as const;

@@ -122,6 +122,28 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("fixed private terminal authorization", () => {
+  it("uses the public production origin for ticket binding and rejects origin substitution", async () => {
+    const f = fixture();
+    const production = {
+      ...f.env,
+      HIVE_NATIVE_MODE: "production",
+      HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
+      HIVE_PUBLIC_ORIGIN: origin,
+      HIVE_PREVIEW_ORIGIN: "https://wrong.example",
+    };
+    const deps = createGenericTerminalDependencies(f.request, production, f.options);
+    expect(await deps.authorize(f.request, f.target, new AbortController().signal)).toMatchObject({
+      userId,
+      buildId,
+    });
+    expect(() =>
+      createGenericTerminalDependencies(
+        f.request,
+        { ...production, HIVE_PUBLIC_ORIGIN: "https://wrong.example" },
+        f.options,
+      ),
+    ).toThrow();
+  });
   it("independently binds session/token/API subject/current build/agent and keeps one token for both reads", async () => {
     const f = fixture();
     expect(await f.authorize()).toMatchObject({
