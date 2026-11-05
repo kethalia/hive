@@ -106,6 +106,22 @@ RUN apt-get update \
 # Managed host bootstraps decode bounded XZ archives with the standard library.
 RUN python3 -c "import lzma"
 
+# The guarded host uses a fixed /usr/bin:/bin PATH for agent external auth.
+# Install a vendor release into that path, verifying it before extraction.
+ARG CODER_VERSION=2.38.4
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+      amd64) coder_arch="amd64"; coder_sha="d1d906964852c32413402078d8379a9a2693fa17182703fa8fd77aa463841b2b" ;; \
+      arm64) coder_arch="arm64"; coder_sha="7d854fbd7fef8341b1b8c1ebfb9fa85c0e96a244a3f63105c45173994d371de8" ;; \
+      *) echo "Unsupported Coder CLI architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/coder/coder/releases/download/v${CODER_VERSION}/coder_${CODER_VERSION}_linux_${coder_arch}.tar.gz" -o /tmp/coder.tar.gz && \
+    echo "${coder_sha}  /tmp/coder.tar.gz" | sha256sum -c - && \
+    tar --no-same-owner -xzf /tmp/coder.tar.gz -C /usr/bin ./coder && \
+    chmod 0755 /usr/bin/coder && \
+    rm /tmp/coder.tar.gz && \
+    /usr/bin/coder version
+
 # notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
 RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
         https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz \
