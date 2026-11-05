@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash, generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
-import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { connect } from "node:net";
@@ -54,9 +54,23 @@ const sourcePaths = [
   "deploy/cloudflare/jobs/run-local-project-tasks.mjs",
   "packages/db/prisma/schema.prisma",
   "packages/db/src/cloudflare.ts",
-  "packages/db/src/generated/prisma-workerd/client.ts",
-  "packages/db/src/generated/prisma-workerd/internal/class.ts",
 ];
+const generatedRoot = "packages/db/src/generated/prisma-workerd";
+async function generatedFiles(directory = generatedRoot) {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) files.push(...(await generatedFiles(path)));
+    else {
+      assert.ok(entry.isFile());
+      files.push(path);
+    }
+  }
+  return files.sort();
+}
+const generatedAtStart = await generatedFiles();
+assert.ok(generatedAtStart.length > 0);
+sourcePaths.push(...generatedAtStart);
 const hash = async (path) =>
   createHash("sha256")
     .update(await readFile(path))
@@ -78,6 +92,27 @@ const sources = Object.fromEntries(
   await Promise.all(sourcePaths.map(async (p) => [p, await hash(p)])),
 );
 const baseRevision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const cleanTreePaths = [
+  "src",
+  "packages",
+  "services",
+  "deploy/cloudflare/app",
+  "deploy/cloudflare/auth",
+  "deploy/cloudflare/jobs",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "next.config.ts",
+  "open-next.config.ts",
+  "tsconfig.json",
+];
+const sourceTreeClean = () =>
+  !execFileSync(
+    "git",
+    ["status", "--porcelain", "--untracked-files=all", "--", ...cleanTreePaths],
+    { encoding: "utf8" },
+  ).trim();
+const sourceTreeInitiallyClean = sourceTreeClean();
 const fixture = JSON.parse(await readFile("/tmp/hive-template-fixture.json", "utf8"));
 const parent = new URL(fixture.url);
 assert.equal(parent.hostname, "127.0.0.1");
@@ -440,6 +475,10 @@ try {
   checks.sourceStable = true;
   for (const p of sourcePaths) if ((await hash(p)) !== sources[p]) checks.sourceStable = false;
   assert(checks.sourceStable, "Source changed during proof");
+  checks.generatedClientSetStable =
+    JSON.stringify(await generatedFiles()) === JSON.stringify(generatedAtStart);
+  assert(checks.generatedClientSetStable, "Generated client file set changed during proof");
+  checks.sourceTreeClean = sourceTreeInitiallyClean && sourceTreeClean();
   passed = true;
 } finally {
   await mf?.dispose();
@@ -456,6 +495,7 @@ try {
   const trackedSources = sourcePaths.filter((path) => !path.startsWith(generatedPrefix));
   const testedSourcesCommitted =
     endingBaseRevision === baseRevision &&
+    checks.sourceTreeClean &&
     trackedSources.every((path) => {
       try {
         const contents = execFileSync("git", ["show", `${baseRevision}:${path}`], {

@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+
+const generatedRoot = "packages/db/src/generated/prisma-workerd";
+async function generatedFiles(directory = generatedRoot) {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) files.push(...(await generatedFiles(path)));
+    else {
+      assert.ok(entry.isFile());
+      files.push(path);
+    }
+  }
+  return files.sort();
+}
 
 export async function readJobsLocalProof(path, revision) {
   const proof = JSON.parse(await readFile(path, "utf8"));
@@ -9,12 +23,17 @@ export async function readJobsLocalProof(path, revision) {
   assert.equal(proof.endingBaseRevision, revision);
   assert.equal(proof.testedSourcesCommitted, true);
   assert.equal(proof.scope.generatedClientNotCommitted, true);
+  assert.equal(proof.scope.actualWorkerd, true);
+  assert.equal(proof.scope.actualLocalPostgreSQL, true);
+  assert.equal(proof.scope.actualPrivateServiceBinding, true);
   for (const name of [
     "oneIntentPerWake",
     "authBeforeClaim",
     "jobsHadNoDatabaseOrEncryptionIssuerKeys",
     "awaitedPoolCleanup",
     "sourceStable",
+    "sourceTreeClean",
+    "generatedClientSetStable",
     "actualScheduledHandler",
     "expiredScheduledHandlerRejected",
   ])
@@ -29,6 +48,14 @@ export async function readJobsLocalProof(path, revision) {
     "src/lib/projects/task.server.ts",
   ])
     assert.match(proof.sourceDigests[path], /^[a-f0-9]{64}$/);
+  const generated = await generatedFiles();
+  assert.ok(generated.length > 0);
+  assert.deepEqual(
+    Object.keys(proof.sourceDigests)
+      .filter((path) => path.startsWith(`${generatedRoot}/`))
+      .sort(),
+    generated,
+  );
   for (const [source, expected] of Object.entries(proof.sourceDigests)) {
     assert.ok(!source.startsWith("/") && !source.split("/").includes(".."));
     assert.equal(
