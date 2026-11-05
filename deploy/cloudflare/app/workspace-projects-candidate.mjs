@@ -54,6 +54,11 @@ export function assertWorkspaceProjectsCandidate(record, app, secrets, currentMa
     assert.equal(app.vars.HIVE_CODEX_GATEWAY_ENABLED, "true");
     assert.equal(app.vars.HIVE_CODEX_ISSUER_KEY_ID, record.nativeIssuer.keyId);
     assert.equal(app.vars.HIVE_CODEX_HIVE_ORIGIN, record.nativeIssuer.scope.hiveOrigin);
+    if (record.inheritedPreviewSecrets) {
+      assert.equal(secrets.HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY, undefined);
+      assert.equal(secrets.HIVE_CODEX_ISSUER_PRIVATE_KEY, undefined);
+      return;
+    }
     assert.ok(secrets.HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY);
     assert.equal(
       secrets.HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY,

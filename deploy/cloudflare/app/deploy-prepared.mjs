@@ -10,6 +10,7 @@ import {
   validatePreviewConfiguration,
   validateRuntimeDatabase,
 } from "./deployment-plan.mjs";
+import { previousAfterAuthUpload, validateInheritedPreview } from "./inherited-preview.mjs";
 import { assertPreparedArtifact } from "./prepared-artifact.mjs";
 import { assertWorkspaceProjectsCandidate } from "./workspace-projects-candidate.mjs";
 
@@ -50,7 +51,16 @@ try {
           ]
         : []),
     ].sort();
-    assert.deepEqual(observed[name].secretNames, expected);
+    assert.deepEqual(
+      observed[name].secretNames,
+      record.inheritedPreviewSecrets
+        ? name === "app"
+          ? ["PREVIEW_BEARER", "PREVIEW_COOKIE_SECRET"]
+          : []
+        : expected,
+    );
+    for (const secretName of observed[name].secretNames)
+      assert.equal(configs[name].vars[secretName], undefined);
   }
   validatePreviewConfiguration(configs.app, configs.auth);
   assertWorkspaceProjectsCandidate(
@@ -60,10 +70,12 @@ try {
     (await readFile("templates/ai-dev-k8s/assets/workspace-read.manifest.sha256", "utf8")).trim(),
   );
   assert.equal(configs.app.assets.directory, resolve(".open-next/assets"));
-  validateRuntimeDatabase(secrets.app.DATABASE_URL);
-  assert.equal(secrets.app.DATABASE_URL, secrets.auth.DATABASE_URL);
-  assert.equal(secrets.app.AUTH_SERVICE_SECRET, secrets.auth.AUTH_SERVICE_SECRET);
-  assert.equal(secrets.app.ENCRYPTION_KEY, secrets.auth.ENCRYPTION_KEY);
+  if (!record.inheritedPreviewSecrets) {
+    validateRuntimeDatabase(secrets.app.DATABASE_URL);
+    assert.equal(secrets.app.DATABASE_URL, secrets.auth.DATABASE_URL);
+    assert.equal(secrets.app.AUTH_SERVICE_SECRET, secrets.auth.AUTH_SERVICE_SECRET);
+    assert.equal(secrets.app.ENCRYPTION_KEY, secrets.auth.ENCRYPTION_KEY);
+  }
   assert.equal(
     configs.app.vars.HIVE_CODEX_GATEWAY_ENABLED,
     record.nativeGatewayCandidate ? "true" : "false",
@@ -91,6 +103,34 @@ try {
   );
   validatePreflight(preflight, Date.now(), previous);
   assert.ok(record.maxScriptedRequests <= preflight.approvedProbeRequestMaximum);
+  if (record.inheritedPreviewSecrets) {
+    assert.equal(record.deploymentMode, "update-preview");
+    assert.equal(record.previewIdentityId, previous.prepared.previewIdentityId);
+    const evidence = await readPreviewPrivateJson(process.env.HIVE_PREVIEW_PROVIDER_EVIDENCE_FILE);
+    let expectedPrevious = previous;
+    if (kind === "app" && process.argv.includes("--deploy")) {
+      // The operator records the verified auth upload before starting the app upload.
+      const receipt = await readPreviewPrivateJson(
+        process.env.HIVE_PREVIEW_FIRST_UPLOAD_RECEIPT_FILE,
+      );
+      expectedPrevious = previousAfterAuthUpload(previous, record, receipt);
+    }
+    const issuer = validateInheritedPreview(
+      evidence,
+      expectedPrevious,
+      Date.now(),
+      kind === "app" && process.argv.includes("--deploy") ? { auth: record.sourceRevision } : {},
+    );
+    assert.equal(configs.app.vars.HIVE_CODEX_ISSUER_PUBLIC_KEY, issuer.publicKeyPem);
+    for (const target of evidence.targets)
+      for (const binding of target.bindings)
+        if (binding.type === "secret_text")
+          assert.equal(
+            configs[target.name === record.configs.app.name ? "app" : "auth"].vars[binding.name],
+            undefined,
+          );
+  }
+
   if (process.argv.includes("--check-only")) {
     console.log(
       JSON.stringify({

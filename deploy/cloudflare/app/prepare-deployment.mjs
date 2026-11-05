@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { assertBuildReady } from "./build-integrity.mjs";
@@ -8,6 +8,7 @@ import {
   loadPreviewIdentity,
   previewIdentityScope,
   previewRuntimeBindings,
+  readPreviewPrivateJson,
 } from "./deployment-identity.mjs";
 import {
   ACCOUNT_ID,
@@ -18,6 +19,7 @@ import {
   validateRuntimeDatabase,
 } from "./deployment-plan.mjs";
 import { loadPreviewHostIdentity } from "./host-identity.mjs";
+import { validateInheritedPreview } from "./inherited-preview.mjs";
 import {
   workspaceProjectsCandidate,
   workspaceProjectsVars,
@@ -28,6 +30,9 @@ const digest = (value) => createHash("sha256").update(value).digest("hex");
 try {
   const revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   const updating = process.argv.includes("--update-preview");
+  const inheritSecrets = process.argv.includes("--inherit-preview-secrets");
+  assert.ok(!inheritSecrets || updating, "Inheritance is update-only");
+  assert.ok(!inheritSecrets || !process.argv.includes("--create-preview-identity"));
   const nativeCandidate = process.argv.includes("--native-gateway-candidate");
   const projectsCandidate = process.argv.includes("--workspace-projects-candidate");
   const previous = updating
@@ -106,52 +111,55 @@ try {
   const auth = JSON.parse(await readFile("deploy/cloudflare/auth/wrangler.jsonc", "utf8"));
   validatePreviewConfiguration(app, auth);
   const credentials = process.env.HIVE_PREVIEW_CREDENTIAL_DIRECTORY ?? "/tmp/hive-epic-coder-auth";
-  const databaseUrl = (
-    await readFile(join(credentials, "neon-app-preview-runtime-url"), "utf8")
-  ).trim();
-  validateRuntimeDatabase(databaseUrl);
-  const identityFile = process.env.HIVE_PREVIEW_IDENTITY_FILE;
-  assert.ok(typeof identityFile === "string" && isAbsolute(identityFile));
-  const identityRelative = relative(process.cwd(), identityFile);
-  assert.ok(
-    identityRelative.startsWith("../") || isAbsolute(identityRelative),
-    "Private preview identity must remain outside the checkout",
-  );
-  const identity = await loadPreviewIdentity(identityFile, previewIdentityScope(databaseUrl), {
-    createIfMissing: process.argv.includes("--create-preview-identity"),
-  });
-  if (previous)
-    assert.equal(
-      identity.identityId,
-      previous.prepared.previewIdentityId,
-      "Existing preview identity must be retained",
-    );
+  let identity, hostIdentity, databaseUrl;
   const previewOrigin = `https://${APP_NAME}.${preflight.workersSubdomain}.workers.dev`;
-  const hostIdentityFile = process.env.HIVE_PREVIEW_HOST_IDENTITY_FILE;
-  assert.ok(!nativeCandidate || hostIdentityFile, "Choose the private scoped host identity");
-  let hostIdentity;
-  if (hostIdentityFile) {
-    const outside = relative(process.cwd(), hostIdentityFile);
-    assert.ok(isAbsolute(hostIdentityFile) && (outside.startsWith("../") || isAbsolute(outside)));
+  if (inheritSecrets) {
+    assert.equal(nativeCandidate, true);
+    assert.equal(projectsCandidate, true);
+    const evidence = await readPreviewPrivateJson(process.env.HIVE_PREVIEW_PROVIDER_EVIDENCE_FILE);
+    hostIdentity = validateInheritedPreview(evidence, previous);
+    assert.equal(hostIdentity.scope.hiveOrigin, previewOrigin);
+    assert.equal(hostIdentity.scope.coderOrigin, app.vars.CODER_URL);
     assert.equal(app.vars.CODER_URL, auth.vars.CODER_URL);
-    hostIdentity = await loadPreviewHostIdentity(
-      hostIdentityFile,
-      previewOrigin,
-      app.vars.CODER_URL,
-    );
-  }
-  const priorIssuer = previous?.nativeIssuer ?? previous?.prepared?.nativeIssuer;
-  if (priorIssuer) {
-    assert.ok(hostIdentity, "Retain the existing preview issuer identity");
-    assert.equal(hostIdentity.keyId, priorIssuer.keyId);
-    assert.equal(hostIdentity.publicKeySHA256, priorIssuer.publicKeySHA256);
-    assert.deepEqual(hostIdentity.scope, priorIssuer.scope);
-  } else if (
-    previous?.workers.app.bindings.some(
-      (binding) => binding.name === "HIVE_CODEX_ISSUER_PRIVATE_KEY",
+    identity = { identityId: previous.prepared.previewIdentityId };
+  } else {
+    databaseUrl = (
+      await readFile(join(credentials, "neon-app-preview-runtime-url"), "utf8")
+    ).trim();
+    validateRuntimeDatabase(databaseUrl);
+    const identityFile = process.env.HIVE_PREVIEW_IDENTITY_FILE;
+    assert.ok(typeof identityFile === "string" && isAbsolute(identityFile));
+    const identityRelative = relative(process.cwd(), identityFile);
+    assert.ok(identityRelative.startsWith("../") || isAbsolute(identityRelative));
+    identity = await loadPreviewIdentity(identityFile, previewIdentityScope(databaseUrl), {
+      createIfMissing: process.argv.includes("--create-preview-identity"),
+    });
+    if (previous) assert.equal(identity.identityId, previous.prepared.previewIdentityId);
+    const hostIdentityFile = process.env.HIVE_PREVIEW_HOST_IDENTITY_FILE;
+    assert.ok(!nativeCandidate || hostIdentityFile);
+    if (hostIdentityFile) {
+      const outside = relative(process.cwd(), hostIdentityFile);
+      assert.ok(isAbsolute(hostIdentityFile) && (outside.startsWith("../") || isAbsolute(outside)));
+      assert.equal(app.vars.CODER_URL, auth.vars.CODER_URL);
+      hostIdentity = await loadPreviewHostIdentity(
+        hostIdentityFile,
+        previewOrigin,
+        app.vars.CODER_URL,
+      );
+    }
+    const priorIssuer = previous?.nativeIssuer ?? previous?.prepared?.nativeIssuer;
+    if (priorIssuer) {
+      assert.ok(hostIdentity, "Retain the existing preview issuer identity");
+      assert.equal(hostIdentity.keyId, priorIssuer.keyId);
+      assert.equal(hostIdentity.publicKeySHA256, priorIssuer.publicKeySHA256);
+      assert.deepEqual(hostIdentity.scope, priorIssuer.scope);
+    } else if (
+      previous?.workers.app.bindings.some(
+        (binding) => binding.name === "HIVE_CODEX_ISSUER_PRIVATE_KEY",
+      )
     )
-  )
-    throw new Error("Existing issuer lacks ownership evidence");
+      throw new Error("Existing issuer lacks ownership evidence");
+  }
   const workspaceCandidate = workspaceProjectsCandidate({
     enabled: projectsCandidate,
     updating,
@@ -164,9 +172,18 @@ try {
   const runId = randomUUID();
   const directory = join(credentials, `app-preview-${runId}`);
   await mkdir(directory, { mode: 0o700 });
-  const bindings = previewRuntimeBindings(identity, databaseUrl);
-  if (hostIdentity) bindings.app.HIVE_CODEX_ISSUER_PRIVATE_KEY = hostIdentity.privateKeyPem;
-  if (workspaceCandidate)
+  const bindings = inheritSecrets
+    ? {
+        app: {
+          PREVIEW_BEARER: randomBytes(32).toString("hex"),
+          PREVIEW_COOKIE_SECRET: randomBytes(32).toString("hex"),
+        },
+        auth: {},
+      }
+    : previewRuntimeBindings(identity, databaseUrl);
+  if (hostIdentity && !inheritSecrets)
+    bindings.app.HIVE_CODEX_ISSUER_PRIVATE_KEY = hostIdentity.privateKeyPem;
+  if (workspaceCandidate && !inheritSecrets)
     bindings.app.HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY = hostIdentity.privateKeyPem;
   const configs = {};
   for (const [kind, config] of Object.entries({ app, auth })) {
@@ -238,7 +255,8 @@ try {
         }
       : undefined,
     previewIdentityId: identity.identityId,
-    previewIdentityScopeSHA256: digest(JSON.stringify(identity.scope)),
+    previewIdentityScopeSHA256: identity.scope ? digest(JSON.stringify(identity.scope)) : undefined,
+    inheritedPreviewSecrets: inheritSecrets,
     runId,
     accountId: ACCOUNT_ID,
     workerNames: [APP_NAME, AUTH_NAME],
