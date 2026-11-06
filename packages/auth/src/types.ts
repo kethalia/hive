@@ -85,3 +85,14 @@ export interface CoderTokenResponse {
   expiresAt: string | null;
   credentialSource?: string;
 }
+
+export interface CoderDisconnectRequest {
+  credentialId: string;
+  version: number;
+}
+
+export interface CoderDisconnectResult {
+  status: "disconnected";
+  providerRevocation: "acknowledged" | "unconfirmed";
+  currentConnection: "disconnected" | "changed" | "unknown";
+}

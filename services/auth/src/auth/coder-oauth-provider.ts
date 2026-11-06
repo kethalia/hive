@@ -220,3 +220,45 @@ export async function verifyCoderOAuthIdentity(
     throw new CoderOAuthError("coder_oauth_reconnect", false, true);
   return { id, username, email };
 }
+
+/** RFC7009 acknowledgement is not proof a token existed. Coder deletes this
+ * exact API-key-backed access/refresh pair; never use the broad user/app route. */
+export async function revokeCoderOAuthAccess(
+  config: CoderOAuthConfig,
+  accessToken: string,
+  send: typeof fetch = fetch,
+): Promise<boolean> {
+  const signal = AbortSignal.timeout(5000);
+  let response: Response | undefined;
+  try {
+    const pending = send(`${config.coderOrigin}/oauth2/revoke`, {
+      method: "POST",
+      redirect: "manual",
+      credentials: "omit",
+      signal,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(`${encodeURIComponent(config.clientId)}:${encodeURIComponent(config.clientSecret)}`).toString("base64")}`,
+      },
+      body: new URLSearchParams({ token: accessToken, token_type_hint: "access_token" }).toString(),
+    });
+    void pending.then(
+      (late) => {
+        if (signal.aborted && late.body && !late.body.locked)
+          void late.body.cancel().catch(() => {});
+      },
+      () => {},
+    );
+    response = await oauthAwait(pending, signal);
+    signal.throwIfAborted();
+    return response.status === 200 && !response.redirected;
+  } catch {
+    return false;
+  } finally {
+    if (response?.body && !response.body.locked)
+      await Promise.race([
+        response.body.cancel().catch(() => {}),
+        new Promise((done) => setTimeout(done, 100)),
+      ]);
+  }
+}

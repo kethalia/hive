@@ -1,5 +1,10 @@
 import "dotenv/config";
 import { completeCoderOAuth, startCoderOAuth } from "./auth/coder-oauth.js";
+import {
+  CoderDisconnectError,
+  disconnectCoderOAuth,
+  isCoderDisconnectOperation,
+} from "./auth/coder-oauth-disconnect.js";
 import { DEFAULT_PORT } from "./auth/constants.js";
 import { handleGetCredentials } from "./handlers/credentials.js";
 import { handleLogin } from "./handlers/login.js";
@@ -23,6 +28,45 @@ addRoute("POST", "/oauth/start", async (_req, res) => {
     sendJson(res, 200, await startCoderOAuth());
   } catch {
     sendError(res, 503, "Coder sign-in unavailable", "CODER_OAUTH_UNAVAILABLE");
+  }
+});
+addRoute("POST", "/oauth/disconnect", async (req, res) => {
+  const input = await parseBody(req);
+  if (!isCoderDisconnectOperation(input))
+    return sendError(res, 400, "Invalid disconnect request", "BAD_REQUEST");
+  const controller = new AbortController();
+  const closed = () => {
+    if (!res.writableEnded) controller.abort();
+  };
+  res.once("close", closed);
+  try {
+    sendJson(
+      res,
+      200,
+      await disconnectCoderOAuth(
+        input.sessionId,
+        {
+          credentialId: input.credentialId,
+          version: input.version,
+        },
+        { signal: controller.signal },
+      ),
+    );
+  } catch (failure) {
+    const code =
+      failure instanceof CoderDisconnectError ? failure.code : "coder_disconnect_unavailable";
+    sendError(
+      res,
+      code === "coder_disconnect_unauthorized"
+        ? 401
+        : code === "coder_disconnect_unavailable"
+          ? 503
+          : 409,
+      "Coder disconnect could not be confirmed",
+      code,
+    );
+  } finally {
+    res.removeListener("close", closed);
   }
 });
 addRoute("POST", "/oauth/callback", async (req, res) => {

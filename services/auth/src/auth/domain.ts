@@ -2,6 +2,7 @@
 // points use these implementations; no HTTP server or queue starts on import.
 
 export { completeCoderOAuth, startCoderOAuth } from "./coder-oauth.js";
+export { disconnectCoderOAuth } from "./coder-oauth-disconnect.js";
 export { performLogin } from "./login.js";
 export { createSession, deleteSession, getSessionById } from "./session.js";
 export { rotateCoderCredentials } from "./token-rotation.js";

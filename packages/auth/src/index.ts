@@ -44,6 +44,8 @@ export {
   verifyTerminalTicket,
 } from "./terminal-ticket";
 export type {
+  CoderDisconnectRequest,
+  CoderDisconnectResult,
   CoderTokenResponse,
   CredentialResponse,
   DecryptResult,

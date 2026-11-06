@@ -1,5 +1,6 @@
 import { AuthServiceClient } from "@hive/auth";
 import { describe, expect, it, vi } from "vitest";
+import { CoderDisconnectError } from "../src/auth/coder-oauth-disconnect";
 import { createFetchAuthHandler } from "../src/fetch-handler";
 
 const secret = "a".repeat(64);
@@ -40,6 +41,41 @@ function req(path: string, init: RequestInit = {}) {
 }
 
 describe("Fetch authentication transport", () => {
+  it("carries explicit disconnect through the authenticated client seam without routing a second session read", async () => {
+    const { operations, limiter } = fixture();
+    const result = {
+      status: "disconnected",
+      providerRevocation: "unconfirmed",
+      currentConnection: "changed",
+    } as const;
+    const disconnectCoderOAuth = vi.fn().mockResolvedValue(result);
+    const handle = createFetchAuthHandler(secret, { ...operations, disconnectCoderOAuth }, limiter);
+    const client = new AuthServiceClient("https://auth.internal", undefined, {
+      serviceSecret: secret,
+      fetch: (input, init) => handle(new Request(input, init)),
+    });
+    const sid = "10000000-0000-4000-8000-000000000001",
+      input = { credentialId: "20000000-0000-4000-8000-000000000001", version: 2 };
+    expect(await client.disconnectCoderOAuth(sid, input)).toEqual(result);
+    expect(disconnectCoderOAuth).toHaveBeenCalledWith(sid, input, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(operations.getSessionById).not.toHaveBeenCalled();
+    disconnectCoderOAuth.mockRejectedValueOnce(
+      new CoderDisconnectError("coder_disconnect_unauthorized"),
+    );
+    await expect(client.disconnectCoderOAuth(sid, input)).rejects.toThrow(
+      "coder_disconnect_unauthorized",
+    );
+    const response = await handle(
+      req("/oauth/disconnect", {
+        method: "POST",
+        body: JSON.stringify({ sessionId: sid, ...input, userId: "foreign" }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(disconnectCoderOAuth).toHaveBeenCalledTimes(2);
+  });
   it("rejects configuration and authenticates before routing or reading a body", async () => {
     expect(() => createFetchAuthHandler("invalid")).toThrow();
     const { handle, operations } = fixture();

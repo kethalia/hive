@@ -1,5 +1,7 @@
 import { authServiceHeaders } from "./service-auth";
 import type {
+  CoderDisconnectRequest,
+  CoderDisconnectResult,
   CoderTokenResponse,
   CredentialResponse,
   LoginRequest,
@@ -129,6 +131,56 @@ export class AuthServiceClient {
         (body as Record<string, string>).error ?? `Logout failed with status ${res.status}`,
       );
     }
+  }
+
+  async disconnectCoderOAuth(
+    sessionId: string,
+    input: CoderDisconnectRequest,
+    signal?: AbortSignal,
+  ): Promise<CoderDisconnectResult> {
+    const response = await this.request(
+      "/oauth/disconnect",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authServiceHeaders(this.transport.serviceSecret),
+        },
+        body: JSON.stringify({
+          sessionId,
+          credentialId: input.credentialId,
+          version: input.version,
+        }),
+        signal,
+      },
+      20000,
+    );
+    if (!response.ok) {
+      const failure = (await response.json().catch(() => ({}))) as { code?: unknown };
+      const allowed = [
+        "coder_disconnect_unauthorized",
+        "coder_disconnect_changed",
+        "coder_disconnect_busy",
+        "coder_disconnect_unsupported",
+      ];
+      throw new Error(
+        typeof failure.code === "string" && allowed.includes(failure.code)
+          ? failure.code
+          : "coder_disconnect_unavailable",
+      );
+    }
+    const value = (await response.json()) as CoderDisconnectResult;
+    if (
+      value.status !== "disconnected" ||
+      !["acknowledged", "unconfirmed"].includes(value.providerRevocation) ||
+      !["disconnected", "changed", "unknown"].includes(value.currentConnection)
+    )
+      throw new Error("coder_disconnect_unavailable");
+    return {
+      status: value.status,
+      providerRevocation: value.providerRevocation,
+      currentConnection: value.currentConnection,
+    };
   }
 
   async getSession(sessionId: string): Promise<SessionPayload | null> {

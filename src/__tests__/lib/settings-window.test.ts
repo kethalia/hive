@@ -5,8 +5,14 @@ const mocks = vi.hoisted(() => ({
   sources: vi.fn(),
   coder: vi.fn(),
   list: vi.fn(),
+  credential: vi.fn(),
 }));
-vi.mock("@hive/db", () => ({ getDb: () => ({ notificationSource: { findMany: mocks.sources } }) }));
+vi.mock("@hive/db", () => ({
+  getDb: () => ({
+    notificationSource: { findMany: mocks.sources },
+    coderToken: { findUnique: mocks.credential },
+  }),
+}));
 vi.mock("@/lib/auth/session", () => ({ getRequestSession: mocks.session }));
 vi.mock("@/lib/coder/user-client", () => ({ getCoderClientForUser: mocks.coder }));
 
@@ -43,6 +49,7 @@ beforeEach(() => {
   ]);
   mocks.coder.mockResolvedValue({ listWorkspaces: mocks.list });
   mocks.list.mockResolvedValue({ workspaces: [workspace] });
+  mocks.credential.mockResolvedValue(null);
 });
 
 describe("portable settings reads", () => {
@@ -93,9 +100,31 @@ describe("portable settings reads", () => {
         { id: "offline-workspace", name: "Saved workspace", running: false },
       ],
       workspaceError: false,
+      coderConnection: { source: "other" },
     });
     expect(JSON.stringify(payload)).not.toContain(privateText);
     expect(payload).not.toHaveProperty("pendingTokenHash");
+  });
+  it("returns only the owner's OAuth generation and status for disconnect", async () => {
+    const id = "10000000-0000-4000-8000-000000000001";
+    mocks.credential.mockResolvedValue({
+      id,
+      version: 4,
+      credentialSource: "oauth",
+      oauthRefreshState: "idle",
+    });
+    const payload = await (await GET(new Request(url))).json();
+    expect(payload.coderConnection).toEqual({
+      source: "oauth",
+      credentialId: id,
+      version: 4,
+      status: "connected",
+    });
+    expect(mocks.credential.mock.lastCall?.[0]).toEqual({
+      where: { userId: user.id },
+      select: { id: true, version: true, credentialSource: true, oauthRefreshState: true },
+    });
+    expect(JSON.stringify(payload)).not.toContain("ciphertext");
   });
   it("changes both owner-bound clients with the authenticated principal", async () => {
     mocks.session.mockResolvedValue({ user: { ...user, id: "second-owner" } });

@@ -27,7 +27,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | Test workspace | Fresh test and Infrastructure agents never connected; startup inspection pending | Generic operation receipt recovery and owner retry are implemented/reviewed. The `bfd4d88f` immutable image passed smoke and registry publication. Fresh `hive-native-final` has isolated storage but no connected agent; the diagnostic Infrastructure agent also timed out. No auth transfer or enrollment occurred. Global active template is unchanged. [Startup preflight](d11-native-final-readonly-preflight.json). |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
-| F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect and final production acceptance remain. [Scoped evidence](coder-oauth-live-preview.json). |
+| F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect local checks pass; live disconnect and final production acceptance remain. [Scoped evidence](coder-oauth-live-preview.json). |
 | F10 agent account window | Accepted roadmap; implementation deferred | Native Codex/Claude account setup and status in Hive; verify supported provider flows and workspace binding before implementation. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
@@ -1491,3 +1491,27 @@ by this source checkpoint.
   eligibility stays unverified. No source/build/artifact/config/health/effect authority or
   atomic CAS is inferred. Production mutation guards stay in place.
   [Source design](native-preview-release-identity.md) and [live receipt](native-preview-release-identity-live.json).
+
+- Explicit Coder disconnect: implementation/local acceptance complete. The existing Settings
+  Account section has confirmation/cancel and a single generation-bound submission. Claiming
+  detaches the captured grant and all old sessions before exact-token provider revocation;
+  late acknowledgements cannot change a newer login. Provider acknowledged/unconfirmed is
+  reported honestly; reconnect is only a durable local hold. No migration or F10 work added.
+  Sixty-two actual isolated-PG cases plus37 Settings/API/UI,193 auth-service and58 package
+  checks, typechecks and independent review pass. Parent reproduced37 web checks.
+  [Local evidence](coder-oauth-disconnect-local.md). Real dedicated-account and Browser Testing
+  acceptance follows publication.
+- Startup routing: the task-created Infrastructure workspace failed to connect after a fresh
+  restart and an inactive same-profile variant reducing only requests from500m/2Gi to100m/512Mi.
+  Image/capabilities/shared active template are unchanged; agent never connected.
+  [Smaller-request result](native-startup-infrastructure/smaller-request-result.json). The
+  bounded primary read-only Rancher exception has been requested; no Rancher probe ran.
+  The reused Browser workspace did connect on its fresh build for F09 validation.
+
+- Disconnect result lifecycle: a real-provider regression reproduced cache clearing
+  removing the success notice and triggering an obsolete401 refetch. The parent now
+  retains only user-scoped outcome text, clears all cached private payloads and
+  disables that obsolete query. Owner changes remount the result boundary. Fifty-one
+  frontend checks cover resize/rerender/stale focus/401 and owner changes; parent
+  reproduced40 Settings/API/UI cases. Pinned-slice TypeScript/native acceptance and
+  the prepared single-disconnect Browser pilot follow publication.

@@ -3,7 +3,11 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { Suspense, useId } from "react";
+import { Suspense, useId, useState } from "react";
+import {
+  CoderDisconnectNotice,
+  type CoderDisconnectOutcome,
+} from "@/components/coder-disconnect-notice";
 import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,12 +45,20 @@ const Logs = dynamic(() =>
 const TemplatesWindow = dynamic(() => import("./TemplatesWindow").then((m) => m.TemplatesWindow));
 
 function SettingsWindow({ userId }: { userId: string }) {
+  const [outcome, setOutcome] = useState<{ userId: string; value: CoderDisconnectOutcome } | null>(
+    null,
+  );
+  const currentOutcome = outcome?.userId === userId ? outcome.value : null;
   const query = useQuery({
     queryKey: ["settings-window", userId],
     queryFn: ({ signal }) => fetchSettingsWindow(signal),
     staleTime: 30_000,
     retry: false,
+    enabled: !currentOutcome,
   });
+  // Full cache clearing must discard account data without unmounting a committed
+  // operation's notice. Owner changes still fetch their own authenticated DTO.
+  if (currentOutcome) return <CoderDisconnectNotice outcome={currentOutcome} />;
   if (query.isPending)
     return (
       <p role="status" className="p-4 text-sm">
@@ -60,7 +72,9 @@ function SettingsWindow({ userId }: { userId: string }) {
         <Button onClick={() => void query.refetch()}>Retry</Button>
       </div>
     );
-  return <SettingsContent {...query.data} />;
+  return (
+    <SettingsContent {...query.data} onCoderDisconnect={(value) => setOutcome({ userId, value })} />
+  );
 }
 
 interface Props {
@@ -214,7 +228,7 @@ export function HiveWorkspacePane({
         ) : pane.tool === "diagnostics" ? (
           <Diagnostics visible={visible} highlightedWorkspaceId={pane.workspaceId} />
         ) : (
-          <SettingsWindow userId={userId} />
+          <SettingsWindow key={userId} userId={userId} />
         )}
       </Suspense>
     </TerminalSessionFrame>

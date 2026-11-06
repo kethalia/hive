@@ -8,6 +8,7 @@ import {
   startCoderOAuth,
 } from "../../../../services/auth/src/auth/coder-oauth";
 import { getUsableCoderCredential } from "../../../../services/auth/src/auth/coder-oauth-credentials";
+import { disconnectCoderOAuth } from "../../../../services/auth/src/auth/coder-oauth-disconnect";
 import { deleteSession, getSessionById } from "../../../../services/auth/src/auth/session";
 import {
   getDecryptedCoderToken,
@@ -142,6 +143,391 @@ async function expireAccess(userId: string) {
   await db.coderToken.update({ where: { userId }, data: { expiresAt: new Date(Date.now() - 1) } });
 }
 describe.skipIf(!url)("Coder browser OAuth / actual local PostgreSQL", () => {
+  it("session expiry during disconnect SQL rolls back the claim and session deletion before external I/O", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    await db.session.update({
+      where: { sessionId: first.sessionId },
+      data: { expiresAt: new Date(Date.now() + 300) },
+    });
+    const intercepted = db.$extends({
+      query: {
+        session: {
+          async deleteMany({ args, query }) {
+            const result = await query(args);
+            await new Promise((done) => setTimeout(done, 350));
+            return result;
+          },
+        },
+      },
+    });
+    const send = vi.fn<typeof fetch>();
+    await expect(
+      disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db: intercepted as unknown as PrismaClient, send },
+      ),
+    ).rejects.toThrow("coder_disconnect_unauthorized");
+    expect(await db.coderToken.findUniqueOrThrow({ where: { id: token.id } })).toEqual(token);
+    expect(await db.session.findUnique({ where: { sessionId: first.sessionId } })).not.toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+  it("disconnect isolates another owner's credential/session and rejects a foreign credential selector", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const other = provider(),
+      second = await other.finish(await other.start());
+    const otherToken = await db.coderToken.findUniqueOrThrow({ where: { userId: second.user.id } });
+    vi.stubGlobal("fetch", p.send);
+    const send = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));
+    await expect(
+      disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: otherToken.id, version: otherToken.version },
+        { db, send },
+      ),
+    ).rejects.toThrow("coder_disconnect_changed");
+    expect(send).not.toHaveBeenCalled();
+    await disconnectCoderOAuth(
+      first.sessionId,
+      { credentialId: token.id, version: token.version },
+      { db, send },
+    );
+    expect(await db.coderToken.findUniqueOrThrow({ where: { id: otherToken.id } })).toEqual(
+      otherToken,
+    );
+    expect(await db.session.findUnique({ where: { sessionId: second.sessionId } })).not.toBeNull();
+    expect(send).toHaveBeenCalledOnce();
+  });
+  it("a lost transaction commit acknowledgement leaves a safe local hold without attempting provider revocation", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const original = db.$transaction.bind(db);
+    const uncertain = {
+      session: db.session,
+      coderToken: db.coderToken,
+      $transaction: async (...args: unknown[]) => {
+        await (original as (...input: unknown[]) => Promise<unknown>)(...args);
+        throw new Error("commit acknowledgement lost");
+      },
+    } as unknown as PrismaClient;
+    const send = vi.fn<typeof fetch>();
+    await expect(
+      disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db: uncertain, send },
+      ),
+    ).rejects.toThrow("commit acknowledgement lost");
+    expect(send).not.toHaveBeenCalled();
+    expect(await db.session.count({ where: { userId: first.user.id } })).toBe(0);
+    expect(
+      (await db.coderToken.findUniqueOrThrow({ where: { id: token.id } })).oauthRefreshState,
+    ).toBe("reconnect");
+  });
+  it("explicit disconnect commits local authority before revoking only the captured pair and never revives old sessions", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start()),
+      second = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const send = vi.fn<typeof fetch>(async (input, init) => {
+      expect(String(input)).toBe(`${origin}/oauth2/revoke`);
+      expect(init).toMatchObject({ method: "POST", redirect: "manual", credentials: "omit" });
+      expect(new Headers(init?.headers).get("Authorization")).toMatch(/^Basic /);
+      expect(new Headers(init?.headers).has("Cookie")).toBe(false);
+      expect(new URLSearchParams(String(init?.body)).get("token")).toBe("access-2");
+      expect(new URLSearchParams(String(init?.body)).get("token_type_hint")).toBe("access_token");
+      const held = await db.coderToken.findUniqueOrThrow({ where: { id: token.id } });
+      expect(held.version).toBe(token.version + 1);
+      expect(held.oauthRefreshState).toBe("reconnect");
+      expect(await db.session.count({ where: { userId: first.user.id } })).toBe(0);
+      return new Response(null, { status: 200 });
+    });
+    expect(
+      await disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db, send },
+      ),
+    ).toEqual({
+      status: "disconnected",
+      providerRevocation: "acknowledged",
+      currentConnection: "disconnected",
+    });
+    await expect(getUsableCoderCredential(first.user.id, { db, send })).rejects.toThrow(
+      "coder_oauth_reconnect",
+    );
+    expect(send).toHaveBeenCalledOnce();
+    const reconnected = await p.finish(await p.start());
+    expect(await getSessionById(first.sessionId, db)).toBeNull();
+    expect(await getSessionById(second.sessionId, db)).toBeNull();
+    expect(await getSessionById(reconnected.sessionId, db)).not.toBeNull();
+    expect(
+      (await db.coderToken.findUniqueOrThrow({ where: { id: token.id } })).credentialSource,
+    ).toBe("oauth");
+  });
+  it.each([
+    401, 503, 307,
+  ])("disconnect HTTP%s holds locally with unconfirmed provider cutoff and no retry", async (status) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const send = vi.fn<typeof fetch>(
+      async () =>
+        new Response("private provider detail", {
+          status,
+          headers: { Location: "https://untrusted.invalid" },
+        }),
+    );
+    expect(
+      await disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db, send },
+      ),
+    ).toMatchObject({ providerRevocation: "unconfirmed", currentConnection: "disconnected" });
+    expect(send).toHaveBeenCalledOnce();
+    expect(await db.session.count({ where: { userId: first.user.id } })).toBe(0);
+    expect(
+      (await db.coderToken.findUniqueOrThrow({ where: { id: token.id } })).oauthRefreshState,
+    ).toBe("reconnect");
+  });
+  it("an unresponsive revocation has a five-second deadline and keeps the reconnect hold", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const send = vi.fn<typeof fetch>(() => new Promise(() => {}));
+    const started = Date.now();
+    const result = await disconnectCoderOAuth(
+      first.sessionId,
+      { credentialId: token.id, version: token.version },
+      { db, send },
+    );
+    expect(result.providerRevocation).toBe("unconfirmed");
+    expect(Date.now() - started).toBeLessThan(6500);
+    expect(send).toHaveBeenCalledOnce();
+    expect(await db.session.count({ where: { userId: first.user.id } })).toBe(0);
+  }, 7500);
+  it.each([
+    "login",
+    "refresh",
+  ])("a %s winner before disconnect claim rejects the stale UI generation without mutation", async (winner) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    if (winner === "login") await p.finish(await p.start());
+    else {
+      await expireAccess(first.user.id);
+      await getUsableCoderCredential(first.user.id, { db, send: p.send as typeof fetch });
+    }
+    const before = await db.coderToken.findUniqueOrThrow({ where: { id: token.id } });
+    const send = vi.fn<typeof fetch>();
+    await expect(
+      disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db, send },
+      ),
+    ).rejects.toThrow("coder_disconnect_changed");
+    expect(await db.coderToken.findUniqueOrThrow({ where: { id: token.id } })).toEqual(before);
+    expect(await getSessionById(first.sessionId, db)).not.toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+  it.each([
+    200, 503,
+  ])("a newer login after the disconnect claim survives late provider HTTP%s", async (status) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    let enter!: () => void, release!: () => void;
+    const entered = new Promise<void>((done) => {
+        enter = done;
+      }),
+      resumed = new Promise<void>((done) => {
+        release = done;
+      });
+    const send = vi.fn<typeof fetch>(async (_input, init) => {
+      expect(new URLSearchParams(String(init?.body)).get("token")).toBe("access-1");
+      enter();
+      await resumed;
+      return new Response(null, { status });
+    });
+    const pending = disconnectCoderOAuth(
+      first.sessionId,
+      { credentialId: token.id, version: token.version },
+      { db, send },
+    );
+    await entered;
+    const second = await p.finish(await p.start());
+    const winner = await db.coderToken.findUniqueOrThrow({ where: { id: token.id } });
+    release();
+    expect(await pending).toMatchObject({
+      providerRevocation: status === 200 ? "acknowledged" : "unconfirmed",
+      currentConnection: "changed",
+    });
+    expect(await db.coderToken.findUniqueOrThrow({ where: { id: token.id } })).toEqual(winner);
+    expect(await getSessionById(second.sessionId, db)).not.toBeNull();
+    expect(await getSessionById(first.sessionId, db)).toBeNull();
+  });
+  it("does not steal an in-flight refresh grant for disconnect", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    await expireAccess(first.user.id);
+    let enter!: () => void, release!: () => void;
+    const entered = new Promise<void>((done) => {
+        enter = done;
+      }),
+      resumed = new Promise<void>((done) => {
+        release = done;
+      });
+    const refresh: typeof fetch = async (input, init) => {
+      if (String(input).endsWith("/oauth2/tokens")) {
+        enter();
+        await resumed;
+      }
+      return p.send(input, init);
+    };
+    const pending = getUsableCoderCredential(first.user.id, { db, send: refresh });
+    await entered;
+    const send = vi.fn<typeof fetch>();
+    await expect(
+      disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db, send },
+      ),
+    ).rejects.toThrow("coder_disconnect_busy");
+    expect(send).not.toHaveBeenCalled();
+    release();
+    await pending;
+    expect(await getSessionById(first.sessionId, db)).not.toBeNull();
+  });
+  it("parallel double-submit and replay send at most one exact-token revocation", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const send = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));
+    const results = await Promise.allSettled(
+      [1, 2].map(() =>
+        disconnectCoderOAuth(
+          first.sessionId,
+          { credentialId: token.id, version: token.version },
+          { db, send },
+        ),
+      ),
+    );
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(send).toHaveBeenCalledOnce();
+    await expect(
+      disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db, send },
+      ),
+    ).rejects.toThrow("coder_disconnect_unauthorized");
+    expect(send).toHaveBeenCalledOnce();
+  });
+  it.each([
+    "credential-update",
+    "session-delete",
+  ])("cancel after disconnect %s SQL rolls back all local changes without external I/O", async (stage) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const controller = new AbortController();
+    const intercepted = db.$extends({
+      query: {
+        coderToken: {
+          async updateMany({ args, query }) {
+            const result = await query(args);
+            if (stage === "credential-update") controller.abort();
+            return result;
+          },
+        },
+        session: {
+          async deleteMany({ args, query }) {
+            const result = await query(args);
+            if (stage === "session-delete") controller.abort();
+            return result;
+          },
+        },
+      },
+    });
+    const send = vi.fn<typeof fetch>();
+    await expect(
+      disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db: intercepted as unknown as PrismaClient, send, signal: controller.signal },
+      ),
+    ).rejects.toThrow();
+    expect(await db.coderToken.findUniqueOrThrow({ where: { id: token.id } })).toEqual(token);
+    expect(await getSessionById(first.sessionId, db)).not.toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+  it("caller cancellation after commit cannot undo local disconnection or cancel the bounded captured-token attempt", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const controller = new AbortController();
+    const send = vi.fn<typeof fetch>(async (_input, init) => {
+      controller.abort();
+      expect(init?.signal?.aborted).toBe(false);
+      return new Response(null, { status: 200 });
+    });
+    expect(
+      await disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: token.id, version: token.version },
+        { db, send, signal: controller.signal },
+      ),
+    ).toMatchObject({ providerRevocation: "acknowledged" });
+    expect(await db.session.count({ where: { userId: first.user.id } })).toBe(0);
+  });
+  it.each([
+    "foreign-id",
+    "wrong-client",
+    "expired-session",
+    "managed-key",
+  ])("rejects %s disconnect authority without changing credentials or revoking a provider grant", async (mode) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    if (mode === "wrong-client") vi.stubEnv("HIVE_CODER_OAUTH_CLIENT_ID", randomUUID());
+    if (mode === "expired-session")
+      await db.session.update({
+        where: { sessionId: first.sessionId },
+        data: { expiresAt: new Date(Date.now() - 1) },
+      });
+    if (mode === "managed-key")
+      await db.coderToken.update({
+        where: { userId: first.user.id },
+        data: {
+          credentialSource: "managed_key",
+          oauthClientId: null,
+          refreshCiphertext: null,
+          refreshIv: null,
+          refreshAuthTag: null,
+          remoteKeyId: "tracked-managed-key",
+        },
+      });
+    const token = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const send = vi.fn<typeof fetch>();
+    await expect(
+      disconnectCoderOAuth(
+        first.sessionId,
+        { credentialId: mode === "foreign-id" ? randomUUID() : token.id, version: token.version },
+        { db, send },
+      ),
+    ).rejects.toThrow("coder_disconnect_");
+    expect(await db.coderToken.findUniqueOrThrow({ where: { id: token.id } })).toEqual(token);
+    expect(await db.session.count({ where: { userId: first.user.id } })).toBe(1);
+    expect(send).not.toHaveBeenCalled();
+  });
   it("an immediate 401 returned after provider cancellation cannot change the credential or sessions", async () => {
     const p = provider(),
       first = await p.finish(await p.start());

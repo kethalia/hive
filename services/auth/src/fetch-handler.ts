@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { authServiceHeaders, type SessionPayload } from "@hive/auth";
+import { CoderDisconnectError, isCoderDisconnectOperation } from "./auth/coder-oauth-disconnect.js";
 import { ErrorCode } from "./auth/constants.js";
 import * as domain from "./auth/domain.js";
 import { loginRateLimiter } from "./auth/rate-limit.js";
@@ -9,7 +10,7 @@ type Operations = Pick<
   typeof domain,
   "performLogin" | "deleteSession" | "getSessionById" | "getTokenStatus" | "getDecryptedCoderToken"
 > &
-  Partial<Pick<typeof domain, "startCoderOAuth" | "completeCoderOAuth">>;
+  Partial<Pick<typeof domain, "startCoderOAuth" | "completeCoderOAuth" | "disconnectCoderOAuth">>;
 
 class BodyError extends Error {
   constructor(
@@ -83,6 +84,32 @@ export function createFetchAuthHandler(
       return error(401, "Service authentication required", "SERVICE_UNAUTHORIZED");
     }
     try {
+      if (request.method === "POST" && pathname === "/oauth/disconnect") {
+        const input = await body(request);
+        if (!isCoderDisconnectOperation(input) || !operations.disconnectCoderOAuth)
+          return error(400, "Invalid disconnect request", ErrorCode.BAD_REQUEST);
+        try {
+          return json(
+            await operations.disconnectCoderOAuth(
+              input.sessionId,
+              { credentialId: input.credentialId, version: input.version },
+              { signal: request.signal },
+            ),
+          );
+        } catch (failure) {
+          const code =
+            failure instanceof CoderDisconnectError ? failure.code : "coder_disconnect_unavailable";
+          return error(
+            code === "coder_disconnect_unauthorized"
+              ? 401
+              : code === "coder_disconnect_unavailable"
+                ? 503
+                : 409,
+            "Coder disconnect could not be confirmed",
+            code,
+          );
+        }
+      }
       if (request.method === "POST" && pathname === "/oauth/start") {
         const input = await body(request);
         if (!input || Object.keys(input).length || !operations.startCoderOAuth)

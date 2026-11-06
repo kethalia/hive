@@ -29,6 +29,13 @@ async function loadSettingsWindow(user: SessionData["user"], signal?: AbortSigna
   ]);
   signal?.throwIfAborted();
   if (sourcesResult.status !== "fulfilled") throw new Error(SETTINGS_UNAVAILABLE);
+  // Read generation after the client may have refreshed it. The disconnect
+  // claim still rechecks this snapshot under the auth service's owner locks.
+  const credential = await getDb().coderToken.findUnique({
+    where: { userId: user.id },
+    select: { id: true, version: true, credentialSource: true, oauthRefreshState: true },
+  });
+  signal?.throwIfAborted();
   const sources = sourcesResult.value;
   const workspacePage = workspaceResult.status === "fulfilled" ? workspaceResult.value : null;
   try {
@@ -54,6 +61,15 @@ async function loadSettingsWindow(user: SessionData["user"], signal?: AbortSigna
         .map((source) => source.workspaceId),
       workspaces,
       workspaceError: !workspacePage,
+      coderConnection:
+        credential?.credentialSource === "oauth"
+          ? {
+              source: "oauth",
+              credentialId: credential.id,
+              version: credential.version,
+              status: credential.oauthRefreshState === "idle" ? "connected" : "reconnect",
+            }
+          : { source: "other" },
     });
   } catch {
     throw new Error(SETTINGS_UNAVAILABLE);

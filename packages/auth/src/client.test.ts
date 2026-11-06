@@ -7,10 +7,43 @@ afterEach(() => {
 });
 
 describe("auth service portable redirect boundary", () => {
+  it("projects disconnect response fields and redacts unexpected failure details", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          status: "disconnected",
+          providerRevocation: "unconfirmed",
+          currentConnection: "unknown",
+          ciphertext: "private-field",
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ error: "private-service-detail" }, { status: 503 }));
+    const client = new AuthServiceClient("https://auth.invalid", undefined, {
+      serviceSecret: "a".repeat(64),
+      fetch,
+    });
+    const input = { credentialId: "20000000-0000-4000-8000-000000000001", version: 1 };
+    expect(
+      await client.disconnectCoderOAuth("10000000-0000-4000-8000-000000000001", input),
+    ).toEqual({
+      status: "disconnected",
+      providerRevocation: "unconfirmed",
+      currentConnection: "unknown",
+    });
+    await expect(
+      client.disconnectCoderOAuth("10000000-0000-4000-8000-000000000001", input),
+    ).rejects.toThrow("coder_disconnect_unavailable");
+  });
   const operations = [
     (client: AuthServiceClient) =>
       client.login({ email: "test@example.invalid", password: "private" }),
     (client: AuthServiceClient) => client.logout("session"),
+    (client: AuthServiceClient) =>
+      client.disconnectCoderOAuth("10000000-0000-4000-8000-000000000001", {
+        credentialId: "20000000-0000-4000-8000-000000000001",
+        version: 1,
+      }),
     (client: AuthServiceClient) => client.getSession("session"),
     (client: AuthServiceClient) => client.getCredentials("session"),
     (client: AuthServiceClient) => client.getCoderToken("session"),
