@@ -229,10 +229,16 @@ test("pinned roots drain only after complete project authorization, receipt pers
     await cleanAbort(g);
   }
 });
-for (const mode of ["detached", "nested", "clone_parent", "clone_signal"])
-  test(`adopts and drains ${mode} writers without touching an outside sibling`, async () => {
-    const path = join(scratch, `${mode}.writes`),
-      outside = join(scratch, `${mode}.outside`);
+for (const [mode, siblingPauseMs] of [
+  ["detached", 0],
+  ["nested", 0],
+  ["clone_parent", 0],
+  ["clone_signal", 0],
+  ["detached", 150],
+])
+  test(`adopts and drains ${mode} writers without touching an outside sibling${siblingPauseMs ? " whose writes resume after a delay" : ""}`, async () => {
+    const path = join(scratch, `${mode}-${siblingPauseMs}.writes`),
+      outside = join(scratch, `${mode}-${siblingPauseMs}.outside`);
     const sibling = spawn(
       python,
       [
@@ -245,17 +251,36 @@ for (const mode of ["detached", "nested", "clone_parent", "clone_signal"])
     const ended = once(sibling, "exit");
     const opts = configuration({ roots: [pythonRoot(writerScript(path, mode))] });
     const g = await openNativeGuardian(opts);
+    let resumeSibling;
     try {
       await g.launch("native");
       await until(() => size(path) > 2 && size(outside) > 2);
       const receipt = await g.drain();
       assert.ok(receipt.reaped >= 2);
+      assert.equal(receipt.finalWaitResult, "ECHILD");
+      if (siblingPauseMs) {
+        // Deterministically reproduce an outside writer missing the old 60ms
+        // scheduling window, independently of the guardian's completed drain.
+        sibling.kill("SIGSTOP");
+        await until(() => /^State:\s+T/m.test(readFileSync(`/proc/${sibling.pid}/status`, "utf8")));
+        resumeSibling = setTimeout(() => sibling.kill("SIGCONT"), siblingPauseMs);
+      }
       const n = size(path),
-        other = size(outside);
-      await delay(60);
+        other = size(outside),
+        quietSince = performance.now();
+      // Outside progress is a separate liveness proof: a fixed sleep cannot
+      // guarantee that an unrelated process was scheduled on a busy CI runner.
+      // Keep the full quiescence window and check owned writes on every poll.
+      await until(() => {
+        assert.equal(size(path), n, "drained owned writers must remain quiescent");
+        assert.equal(sibling.exitCode, null, "outside sibling must remain alive");
+        assert.equal(sibling.signalCode, null, "outside sibling must remain alive");
+        return performance.now() - quietSince >= 60 && size(outside) > other;
+      });
       assert.equal(size(path), n);
       assert.ok(size(outside) > other);
     } finally {
+      clearTimeout(resumeSibling);
       await cleanAbort(g);
       sibling.kill("SIGKILL");
       await ended;
