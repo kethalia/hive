@@ -10,7 +10,7 @@ import {
   phaseBPermit,
   phaseBSocket,
 } from "./phase-b-policy.mjs";
-import { originForScope } from "./policy.mjs";
+import { isNativeScope, originForScope, parsePreviewAuth } from "./policy.mjs";
 
 assert.equal(process.env.HIVE_WORKSPACE_PROFILE, "browser");
 assert.deepEqual(process.argv.slice(2), ["--run"]);
@@ -23,16 +23,9 @@ const input = JSON.parse(raw);
 raw = "";
 assert.deepEqual(Object.keys(input).sort(), ["auth", "scope"]);
 const scope = parsePhaseB(input.scope),
-  auth = input.auth,
+  auth = parsePreviewAuth(scope, input.auth),
+  nativePublicLogin = isNativeScope(scope),
   origin = originForScope(scope);
-assert.deepEqual(Object.keys(auth).sort(), ["email", "password", "previewBearer"]);
-assert(
-  typeof auth.email === "string" &&
-    auth.email.length <= 254 &&
-    typeof auth.password === "string" &&
-    auth.password.length <= 2048 &&
-    /^[a-f0-9]{64}$/.test(auth.previewBearer),
-);
 const deadline = Date.now() + 180000,
   checks = {},
   counts = {
@@ -49,6 +42,7 @@ let browser,
   page,
   sessionSocket,
   failed = false,
+  nativeSessionInjected = false,
   stage = "launch",
   cleanup = false,
   markerBefore = new Set(),
@@ -227,20 +221,22 @@ try {
       await route.abort().catch(() => {});
     }
   });
-  stage = "bootstrap";
-  check(
-    reserve(`${origin}/__hive-preview/access`, "POST", {
-      Authorization: `Bearer ${auth.previewBearer}`,
-    }),
-  );
-  const bootstrap = await context.request.post(`${origin}/__hive-preview/access`, {
-    headers: { Authorization: `Bearer ${auth.previewBearer}`, Origin: origin },
-    maxRedirects: 0,
-    timeout: 10000,
-  });
-  check(bootstrap.status() === 204);
-  await bootstrap.dispose();
-  auth.previewBearer = "";
+  if (!nativePublicLogin) {
+    stage = "bootstrap";
+    check(
+      reserve(`${origin}/__hive-preview/access`, "POST", {
+        Authorization: `Bearer ${auth.previewBearer}`,
+      }),
+    );
+    const bootstrap = await context.request.post(`${origin}/__hive-preview/access`, {
+      headers: { Authorization: `Bearer ${auth.previewBearer}`, Origin: origin },
+      maxRedirects: 0,
+      timeout: 10000,
+    });
+    check(bootstrap.status() === 204);
+    await bootstrap.dispose();
+    auth.previewBearer = "";
+  }
   stage = "login";
   page = await context.newPage();
   page.on("pageerror", () => {
@@ -250,22 +246,40 @@ try {
     failed = true;
     void d.cancel();
   });
-  await page.goto(`${origin}/login`, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => {
-    const f = document.querySelector("form");
-    return (
-      f &&
-      Object.keys(f)
-        .filter((k) => k.startsWith("__reactProps$"))
-        .some((k) => typeof f[k]?.onSubmit === "function")
+  if (nativePublicLogin) {
+    await context.addCookies(
+      auth.cookies.map((cookie) => ({
+        ...cookie,
+        url: origin,
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax",
+      })),
     );
-  });
-  await page.locator("#email").fill(auth.email);
-  await page.locator("#password").fill(auth.password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.locator("[data-dashboard-main]").waitFor();
-  auth.email = "";
-  auth.password = "";
+    nativeSessionInjected = true;
+    for (const cookie of auth.cookies) cookie.value = "";
+    auth.cookies = [];
+    await page.goto(`${origin}/workspaces`, { waitUntil: "domcontentloaded" });
+    await page.locator("[data-dashboard-main]").waitFor();
+    checks.injectedHiveSessionWithoutCoderCredentials = true;
+  } else {
+    await page.goto(`${origin}/login`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => {
+      const f = document.querySelector("form");
+      return (
+        f &&
+        Object.keys(f)
+          .filter((k) => k.startsWith("__reactProps$"))
+          .some((k) => typeof f[k]?.onSubmit === "function")
+      );
+    });
+    await page.locator("#email").fill(auth.email);
+    await page.locator("#password").fill(auth.password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.locator("[data-dashboard-main]").waitFor();
+    auth.email = "";
+    auth.password = "";
+  }
   stage = "version";
   check(reserve(`${origin}/api/app-version`, "GET"));
   const version = await context.request.get(`${origin}/api/app-version`);
@@ -357,7 +371,7 @@ try {
 } finally {
   if (
     context &&
-    counts.logins &&
+    (counts.logins || nativeSessionInjected) &&
     Date.now() < deadline &&
     reserve(`${origin}/api/auth/logout`, "POST", {}, "", true)
   ) {
@@ -383,6 +397,7 @@ console.log(
     stage,
     sourceRevision: scope.sourceRevision,
     preflightDigest: scope.preflightDigest,
+    previewAccessRequired: !nativePublicLogin,
     projectId: scope.projectId,
     taskId: scope.taskId,
     observedBinding,

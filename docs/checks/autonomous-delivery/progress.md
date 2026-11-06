@@ -24,10 +24,10 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Prior ACK-loss hosts quarantined; fresh host pilot next | Generic operation receipt recovery and owner retry are implemented/reviewed. The `bfd4d88f` immutable image passed smoke and registry publication; fresh host identity/package verification precedes real manager/child/source/acceptance/closure. Global active template is unchanged. |
+| Test workspace | Fresh test and Infrastructure agents never connected; startup inspection pending | Generic operation receipt recovery and owner retry are implemented/reviewed. The `bfd4d88f` immutable image passed smoke and registry publication. Fresh `hive-native-final` has isolated storage but no connected agent; the diagnostic Infrastructure agent also timed out. No auth transfer or enrollment occurred. Global active template is unchanged. [Startup preflight](d11-native-final-readonly-preflight.json). |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
-| F09 Coder OAuth | Preview login/refresh/browser checkpoint accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; provider revocation/disconnect and final production acceptance remain. [Scoped evidence](coder-oauth-live-preview.json). |
+| F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect and final production acceptance remain. [Scoped evidence](coder-oauth-live-preview.json). |
 | F10 agent account window | Accepted roadmap; implementation deferred | Native Codex/Claude account setup and status in Hive; verify supported provider flows and workspace binding before implementation. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
@@ -1421,3 +1421,43 @@ by this source checkpoint.
   independent semantic acceptance, factual closure and Browser Testing Phase B. F07/F08 parity,
   release behavior and the final production cutover remain unproven. OAuth Preview acceptance
   does not complete the delivery epic or authorize production activation.
+
+
+## 2026-11-06 OAuth revocation deployment and startup gate
+
+- `483737d0` adds fresh provider identity checks and atomic, generation-bound credential/session
+  invalidation after definitive revocation. A delayed old rejection cannot erase a newer login;
+  a new login cannot revive deleted old sessions. The scoped local checks include 41 PostgreSQL
+  OAuth cases, 118 targeted checks and 192 auth checks. See the
+  [local acceptance](coder-oauth-revocation-local.md).
+- The exact source passed full GitHub CI, Cloudflare build, post-build TypeScript and actual
+  assembled Workerd acceptance. Workers Builds automatically deployed that commit to the native
+  branch Preview. Anonymous login shows Continue with Coder and no credential fields.
+  [Deployment receipt](coder-oauth-revocation-deployment.json) and
+  [runtime proof](cloudflare-native-proof-483737d0.json). Real-provider revocation/reconnect now passes separately; explicit disconnect remains open.
+  [Live revocation and reconnect](coder-oauth-revocation-live-preview.json).
+- The primary-created test host and task-created Infrastructure diagnostic host both report
+  running builds but agents that never connected. Read-only Coder inspection confirms identities
+  unchanged. The [startup record](d11-native-final-readonly-preflight.json),
+  [Infrastructure creation record](native-startup-infrastructure-creation.json), and
+  [bounded diagnostic result](native-startup-infrastructure/result.json) preserve this blocker.
+  No cluster probe, host authentication transfer or enrollment occurred. The proposed
+  [primary read-only probe](native-startup-infrastructure/primary-readonly-plan.md) awaits an
+  explicit exception to the supplied workspace routing instruction; it grants no repair authority.
+  Preserve the test host and active diagnostic receipt until the bounded task is resolved.
+- A fresh main fetch still resolves to `1ace8774`, already included in the epic branch. No history
+  rewriting, production activation or paid resource change was needed for this slice.
+
+- F09 live revocation/reconnect: accepted on `483737d0`, moderate difficulty. One real
+  exact-token revocation yielded Coder401. Hive marked that same credential generation reconnect
+  and deleted both previous sessions. Same-owner reauthorization returned the version to idle
+  at exactly version+1 with one new session; protected settings read, workspace page and reload
+  pass. The unchanged original cookie still gets API401, and old sessions remain absent.
+  Testing encountered an unclassified initial503 and two checker defects (CookieJar deepcopy
+  and an incorrect page-redirect assumption); original failed receipts were preserved and the
+  continuation never repeated revocation. See the [scoped live receipt](coder-oauth-revocation-live-preview.json).
+  Explicit disconnect and production acceptance remain open; F10 remains deferred.
+- Shared-session Browser Phase B harness now accepts a fixed-origin Hive session cookie for
+  native OAuth deployments, blocks password/bootstrap calls and accepts the primary-created
+  native-final target only as a registry identity. Nineteen local Node/Python checks and
+  independent source review pass. No new Browser Phase B execution/host enrollment is claimed.

@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createBudget, ORIGIN, parseScope, permitted, TARGET } from "./policy.mjs";
+import {
+  createBudget,
+  NATIVE_ORIGIN,
+  NATIVE_WORKSPACE,
+  ORIGIN,
+  parsePreviewAuth,
+  parseScope,
+  permitted,
+  TARGET,
+} from "./policy.mjs";
 
 const scope = {
   schemaVersion: 1,
@@ -139,4 +148,41 @@ test("includes current reviewed layout/manifest icons and fonts without opening 
     assert(permitted(scope, ORIGIN + path, "GET"));
   assert(!permitted(scope, `${ORIGIN}/icons/unreviewed.svg`, "GET"));
   assert(!permitted(scope, `${ORIGIN}/sw.js`, "GET"));
+});
+
+test("native browser pilot accepts only a host session cookie and blocks password/bootstrap requests", () => {
+  for (const workspaceId of [NATIVE_WORKSPACE, "e6aa588f-89a7-464b-9cf9-a6371d0b819d"]) {
+    const native = parseScope({ ...scope, workspaceId }, { allowNative: true });
+    const auth = { cookies: [{ name: "__Host-hive-session", value: "synthetic.signed.session" }] };
+    assert.deepEqual(parsePreviewAuth(native, auth), auth);
+    for (const bad of [
+      { email: "test", password: "private" },
+      { ...auth, previewBearer: "a".repeat(64) },
+      { cookies: [{ ...auth.cookies[0], domain: "coder.kethalia.com" }] },
+      { cookies: [{ name: "Coder-Session-Token", value: "private" }] },
+      { cookies: [{ name: "__Host-hive-session", value: "private\nheader" }] },
+      { cookies: [auth.cookies[0], auth.cookies[0]] },
+    ])
+      assert.throws(() => parsePreviewAuth(native, bad));
+    assert(
+      !permitted(
+        native,
+        `${NATIVE_ORIGIN}/api/auth/login`,
+        "POST",
+        {},
+        '{"email":"test","password":"private"}',
+      ),
+    );
+    assert(
+      !permitted(native, `${NATIVE_ORIGIN}/__hive-preview/access`, "POST", {
+        Authorization: "Bearer private",
+      }),
+    );
+    assert(permitted(native, `${NATIVE_ORIGIN}/api/auth/logout`, "POST"));
+    assert.throws(() => parseScope({ ...native, origin: NATIVE_ORIGIN }, { allowNative: true }));
+  }
+  assert.deepEqual(
+    parsePreviewAuth(scope, { email: "test", password: "private", previewBearer: "a".repeat(64) }),
+    { email: "test", password: "private", previewBearer: "a".repeat(64) },
+  );
 });

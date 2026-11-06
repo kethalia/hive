@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T02:13:31.190316+00:00",
+  "scope": "Bounded read-only new host preflight; incomplete startup",
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "e6aa588f-89a7-464b-9cf9-a6371d0b819d",
+  "buildId": "6e999652-df3b-4a60-b1a6-a126cfbd0304",
+  "templateVersionId": "8a3f28e7-25b5-4e37-b9d0-e9d97abc0fe6",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-06T02:02:29.531561Z",
+  "agentId": "3a1f5724-7bf0-4f64-a9ad-b649acd077c1",
+  "terraformAgentResourceId": "a10a2f17-6b88-403d-9994-112c107eecbe",
+  "agentIdBasis": "Fresh Coder workspace-build resource API; distinct from Terraform provider resource ID",
+  "agentStatus": "timeout",
+  "agentLifecycleState": "created",
+  "firstConnectedAt": null,
+  "lastConnectedAt": null,
+  "healthy": false,
+  "buildStatus": "running",
+  "healthWaitBoundSeconds": 180,
+  "healthWaitExhausted": true,
+  "identityUnchanged": true,
+  "image": "ghcr.io/kethalia/hive-base@sha256:a840cda894bbd5ac0c581a78b5623eb7c848f4446399852a4f5961515d5047c6",
+  "storage": {
+    "pvcUid": "ca7f02d5-edae-4d53-9eb8-178b8bd0c226",
+    "claimName": "coder-e6aa588f-89a7-464b-9cf9-a6371d0b819d-home",
+    "accessModes": ["ReadWriteOnce"],
+    "storageClass": "longhorn",
+    "hostPathPresent": false,
+    "devImageMatches": true,
+    "initImageMatches": true
+  },
+  "storageIsolation": {
+    "agentId": "3a1f5724-7bf0-4f64-a9ad-b649acd077c1",
+    "distinctFromRetainedAndPrimaryPvc": true,
+    "retained": [
+      {
+        "workspaceId": "3e2e5966-6b15-46e7-abde-f3fed711d360",
+        "status": "stopped",
+        "uid": "d20fb656-0fea-4ec3-add9-fa5d554dfb3e",
+        "claimName": "coder-3e2e5966-6b15-46e7-abde-f3fed711d360-home"
+      },
+      {
+        "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+        "status": "stopped",
+        "uid": "848070d2-cb17-48c0-9b71-e5e91094c76e",
+        "claimName": "coder-5390bdfc-b004-4489-96c8-2b9f1de20f1f-home"
+      },
+      {
+        "workspaceId": "49dfbaf2-f475-4053-8c6b-2fc09d0db8bf",
+        "status": "running",
+        "uid": "634f3cc6-e74c-4289-b928-828c26b16c2a",
+        "claimName": "coder-49dfbaf2-f475-4053-8c6b-2fc09d0db8bf-home"
+      }
+    ],
+    "primary": {
+      "workspaceId": "eef6cbdd-b092-41d2-9e0a-a4c7d07d4224",
+      "pvcUid": "26911756-30c9-4df4-ad5d-743985339da3",
+      "claimName": "coder-eef6cbdd-b092-41d2-9e0a-a4c7d07d4224-home",
+      "pvcBasis": "Root supplied independently verified primary filesystem/Longhorn metadata"
+    },
+    "operatorAuthorizationIssued": false,
+    "terraformAgentResourceId": "a10a2f17-6b88-403d-9994-112c107eecbe",
+    "agentIdBasis": "Fresh Coder workspace-build resource API; distinct from Terraform provider resource ID"
+  },
+  "startupLogs": {
+    "apiAgentId": "3a1f5724-7bf0-4f64-a9ad-b649acd077c1",
+    "logEndpointStatus": 200,
+    "logCount": 0,
+    "levels": {},
+    "safeErrorClasses": []
+  },
+  "globalTemplateActiveVersionUnchanged": true,
+  "readOnlyHostCheckExecuted": false,
+  "preexecutionProcessJournalCheckExecuted": false,
+  "modelObserved": null,
+  "effortObserved": null,
+  "modelExpected": "gpt-6.1-sol",
+  "effortExpected": "high",
+  "operatorAuthorizationIssued": false,
+  "authenticationTransferred": false,
+  "lifecycleOrProviderMutations": false,
+  "readyForEnrollmentReview": false,
+  "privateEvidenceDirectory": "/tmp/hive-epic-coder-auth/native-final-preview",
+  "nextAction": "Inspect provider startup/pod readiness in the Infrastructure profile; obtain a connected healthy agent before bounded SSH host/process/journal checks and independent operator enrollment.",
+  "limitations": [
+    "Terraform provider state may contain credentials and is retained privately0600; no state values or credential hashes published.",
+    "Storage evidence is provider-reported, not hardware/kernel attestation.",
+    "No SSH auth-cache, config, key, journal or source writes performed."
+  ]
+}

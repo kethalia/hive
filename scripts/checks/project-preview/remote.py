@@ -75,6 +75,23 @@ def private_json(path, maximum):
         os.close(fd)
 
 
+def validate_run_input(phase, scope, auth):
+    """Pure local policy validation before credentials cross the specialist boundary."""
+    assert phase in ("A", "B")
+    policy = json.dumps((SOURCE / "policy.mjs").as_uri())
+    phase_b = json.dumps((SOURCE / "phase-b-policy.mjs").as_uri())
+    code = f"""import {{parseScope,parsePreviewAuth}} from {policy};
+import {{parsePhaseB}} from {phase_b};
+let raw='';for await(const part of process.stdin)raw+=part;
+try{{const input=JSON.parse(raw);const scope=input.phase==='B'?parsePhaseB(input.scope):parseScope(input.scope);parsePreviewAuth(scope,input.auth);}}
+catch{{process.exitCode=1;}}
+"""
+    result = subprocess.run(["node", "--input-type=module", "-e", code],
+                            input=json.dumps({"phase": phase, "scope": scope, "auth": auth}),
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, "run_input_rejected_without_sensitive_output"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", nargs="?", choices=["prepare", "run"], default="prepare")
@@ -108,6 +125,7 @@ def main():
         assert controller_digest == prepared["controllerSha256"]
         payload["auth"] = private_json(args.auth_file, 8192)
         payload["scope"] = private_json(args.scope_file, 8192)
+        validate_run_input(args.phase, payload["scope"], payload["auth"])
         # An interrupted/failed run may have spent an unknown budget. Never
         # automatically replace this receipt or reset its counters for a retry.
         if args.phase == "A":

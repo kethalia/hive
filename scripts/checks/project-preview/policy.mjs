@@ -3,6 +3,14 @@
 export const ORIGIN = "https://hive-app-compatibility-preview.b00ste.workers.dev";
 export const NATIVE_ORIGIN = "https://codex-delivery-system-design-hive.b00ste.workers.dev";
 export const NATIVE_WORKSPACE = "5390bdfc-b004-4489-96c8-2b9f1de20f1f";
+// Add a new exact pair only after the primary preserves its creation identity.
+// No caller-supplied origin or workspace selector can extend this registry.
+export const NATIVE_TARGETS = Object.freeze([
+  Object.freeze({ workspaceId: NATIVE_WORKSPACE, origin: NATIVE_ORIGIN }),
+  // Primary creation record: d11-native-final-workspace-creation.json.
+  // Registry membership does not assert host health or authorize enrollment.
+  Object.freeze({ workspaceId: "e6aa588f-89a7-464b-9cf9-a6371d0b819d", origin: NATIVE_ORIGIN }),
+]);
 export const TARGET = Object.freeze({
   workspaceId: "22c4f094-46f0-4a76-86ca-37ad74254872",
   repositoryId: "1183966024",
@@ -17,8 +25,57 @@ export const LIMIT = 200,
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 export function originForScope(scope) {
   if (REVIEWED_WORKSPACES.includes(scope.workspaceId)) return ORIGIN;
-  if (scope.workspaceId === NATIVE_WORKSPACE) return NATIVE_ORIGIN;
+  const target = NATIVE_TARGETS.find((pair) => pair.workspaceId === scope.workspaceId);
+  if (target) return target.origin;
   throw new Error("scope_rejected");
+}
+export function isNativeScope(scope) {
+  const origin = originForScope(scope);
+  return NATIVE_TARGETS.some(
+    (pair) => pair.workspaceId === scope.workspaceId && pair.origin === origin,
+  );
+}
+export function parsePreviewAuth(scope, auth) {
+  if (isNativeScope(scope)) {
+    if (
+      !auth ||
+      typeof auth !== "object" ||
+      Array.isArray(auth) ||
+      Object.keys(auth).join() !== "cookies" ||
+      !Array.isArray(auth.cookies) ||
+      auth.cookies.length !== 1
+    )
+      throw new Error("auth_rejected");
+    const cookie = auth.cookies[0];
+    if (
+      !cookie ||
+      typeof cookie !== "object" ||
+      Array.isArray(cookie) ||
+      Object.keys(cookie).sort().join() !== "name,value" ||
+      cookie.name !== "__Host-hive-session" ||
+      typeof cookie.value !== "string" ||
+      !cookie.value ||
+      cookie.value.length > 4096 ||
+      !/^[A-Za-z0-9._~-]+$/.test(cookie.value)
+    )
+      throw new Error("auth_rejected");
+    return { cookies: [{ name: cookie.name, value: cookie.value }] };
+  }
+  const keys = ["email", "password", "previewBearer"];
+  if (
+    !auth ||
+    typeof auth !== "object" ||
+    Array.isArray(auth) ||
+    Object.keys(auth).sort().join() !== keys.sort().join() ||
+    typeof auth.email !== "string" ||
+    auth.email.length > 254 ||
+    typeof auth.password !== "string" ||
+    auth.password.length > 2048 ||
+    typeof auth.previewBearer !== "string" ||
+    !/^[a-f0-9]{64}$/.test(auth.previewBearer)
+  )
+    throw new Error("auth_rejected");
+  return auth;
 }
 export function parseScope(value, { allowNative = false } = {}) {
   const keys = [
@@ -54,7 +111,7 @@ export function parseScope(value, { allowNative = false } = {}) {
   if (
     !(
       REVIEWED_WORKSPACES.includes(value.workspaceId) ||
-      (allowNative && value.workspaceId === NATIVE_WORKSPACE)
+      (allowNative && NATIVE_TARGETS.some((pair) => pair.workspaceId === value.workspaceId))
     ) ||
     value.repositoryId !== TARGET.repositoryId ||
     value.providerAccountId !== TARGET.providerAccountId
@@ -80,16 +137,22 @@ export function permitted(scope, input, method, headers = {}, body = "") {
       h.has("Upgrade")
     )
       return false;
-    if (h.has("Authorization") && !(method === "POST" && url.pathname === "/__hive-preview/access"))
+    const privateAccess = !isNativeScope(scope);
+    if (
+      h.has("Authorization") &&
+      !(privateAccess && method === "POST" && url.pathname === "/__hive-preview/access")
+    )
       return false;
     if (method === "POST") {
       if (url.search) return false;
-      if (["/__hive-preview/access", "/api/auth/logout"].includes(url.pathname)) return true;
+      if (url.pathname === "/__hive-preview/access") return privateAccess;
+      if (url.pathname === "/api/auth/logout") return true;
       if (typeof body !== "string" || Buffer.byteLength(body) > 4096) return false;
       const data = JSON.parse(body);
       if (!data || Array.isArray(data)) return false;
       if (url.pathname === "/api/auth/login")
         return (
+          privateAccess &&
           Object.keys(data).sort().join() === "email,password" &&
           typeof data.email === "string" &&
           typeof data.password === "string"

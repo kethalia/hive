@@ -91,6 +91,17 @@ scope IDs or their digests, and source hashes; no private URL/query/header/body.
 
 ## Phase B: shared native session remains pending
 
+The current native Preview uses Coder OAuth. Its Phase B harness accepts only an
+already authenticated dedicated Hive `__Host-hive-session` cookie via private
+stdin, binds it to the fixed Preview origin, and sets Secure/HttpOnly/Lax itself.
+It accepts neither Coder credentials nor a preview bearer and blocks the password
+login/bootstrap endpoints. Provider sign-in/navigation has separate F09 evidence;
+this harness does not claim to exercise provider sign-in. The legacy Phase A
+transport remains scoped to its older deployment. The reviewed native-final
+workspace registry entry records creation identity only: fresh host health,
+enrollment, exact session binding and a separately reserved budget remain required
+before execution. No browser Phase B acceptance is claimed by this source change.
+
 A fresh task-null open has no conversation. One prompt in an unrelated CLI does
 not create the controller's project→registration→native-thread→tmux mapping.
 F04 acceptance requires a separately authorized real registered project pilot,

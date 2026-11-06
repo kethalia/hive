@@ -1,5 +1,5 @@
 // Phase B browser transport guard; scope is supplied by the primary's private plan.
-import { NATIVE_WORKSPACE, originForScope, parseScope, permitted as phaseA } from "./policy.mjs";
+import { isNativeScope, originForScope, parseScope, permitted as phaseA } from "./policy.mjs";
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const sha = /^[a-f0-9]{40}$/;
@@ -27,7 +27,7 @@ export function parsePhaseB(raw) {
     throw Error("phase_b_scope_rejected");
   if (!Number.isSafeInteger(incrementalBudget) || incrementalBudget < 2 || incrementalBudget > 200)
     throw Error("phase_b_scope_rejected");
-  if (base.workspaceId === NATIVE_WORKSPACE && base.priorForwarded + incrementalBudget > 200)
+  if (isNativeScope(base) && base.priorForwarded + incrementalBudget > 200)
     throw Error("phase_b_scope_rejected");
   if (
     ![attemptId, projectId, ownerId, buildId].every((x) => typeof x === "string" && uuid.test(x)) ||

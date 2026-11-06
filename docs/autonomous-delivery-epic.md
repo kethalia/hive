@@ -221,7 +221,10 @@ native link and reloaded an injected Hive application session. This is not a con
 browser-driven provider sign-in proof. See the [scoped evidence](checks/autonomous-delivery/coder-oauth-live-preview.json)
 and [execution ledger](checks/autonomous-delivery/progress.md#2026-11-06-f09-preview-acceptance-and-current-pilot-state).
 Independent production client enrollment and offline preparation are ready without production
-activation. Provider revocation/disconnect and final production acceptance remain gates.
+activation. Dedicated-account provider revocation and same-owner reconnect now pass, including deletion
+of both old sessions and unchanged old-cookie API401 after reauthorization.
+[Live revocation evidence](checks/autonomous-delivery/coder-oauth-revocation-live-preview.json).
+Explicit disconnect and final production acceptance remain gates.
 F10 remains implementation-deferred; track both in final epic acceptance.
 
 F09 replaces Hive's normal email/password connection with “Connect to Coder” against the
