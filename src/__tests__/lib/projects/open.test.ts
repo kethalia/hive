@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mock = vi.hoisted(() => ({ host: vi.fn(), bind: vi.fn(), db: vi.fn() }));
+const mock = vi.hoisted(() => ({ host: vi.fn(), bind: vi.fn(), db: vi.fn(), intent: vi.fn() }));
 vi.mock("@hive/db", () => ({ getDb: mock.db }));
 vi.mock("@/lib/delivery/repository", () => ({
   DeliveryRepository: class {
@@ -10,6 +10,7 @@ vi.mock("@/lib/delivery/repository", () => ({
 vi.mock("@/lib/projects/host.server", () => ({ signedHostProjectRequest: mock.host }));
 
 import { openProject } from "@/lib/projects/open.server";
+import { openedProjectSchema } from "@/lib/projects/session-contracts";
 
 const user = { id: "11111111-1111-4111-8111-111111111111", coderUserId: "owner" };
 const projectId = "22222222-2222-4222-8222-222222222222";
@@ -18,6 +19,18 @@ const input = {
   repositoryId: "123",
   providerAccountId: "456",
   requestId: "44444444-4444-4444-8444-444444444444",
+};
+const taskId = "55555555-5555-4555-8555-555555555555";
+const pendingIntent = {
+  id: taskId,
+  ownerId: user.id,
+  projectId,
+  workspaceId: input.workspaceId,
+  repositoryId: input.repositoryId,
+  providerAccountId: input.providerAccountId,
+  phase: "queued",
+  status: null,
+  guardianAdmissions: [],
 };
 const resolved = {
   schemaVersion: 1,
@@ -39,6 +52,8 @@ const resolved = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  mock.db.mockReturnValue({ projectTaskIntent: { findFirst: mock.intent } });
+  mock.intent.mockReset().mockResolvedValue(null);
   mock.bind.mockResolvedValue({ id: projectId, fullName: "owner/repo" });
   mock.host.mockImplementation(async (_user, _workspace, path) =>
     path === "/projects/resolve"
@@ -55,6 +70,155 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("verified project enrollment", () => {
+  it.each([
+    "queued",
+    "preparing",
+    "blocked",
+  ])("reopens a durable %s request before host admission without task execution", async (phase) => {
+    const status =
+      phase === "queued"
+        ? null
+        : {
+            schemaVersion: 1,
+            projectId,
+            taskId,
+            phase,
+            nativeThreadId: null,
+            terminalSessionName: null,
+            reason: phase === "blocked" ? "native_unavailable" : null,
+            failureStage: "guardian_identity_transport",
+          };
+    mock.intent.mockResolvedValue({ ...pendingIntent, phase, status });
+    const result = openedProjectSchema.parse(await openProject(user, input));
+    expect(result).toMatchObject({
+      currentTaskId: taskId,
+      phase: phase === "queued" ? "preparing" : phase,
+    });
+    expect(result.currentTaskStatus).toMatchObject({ projectId, taskId });
+    if (status) expect(result.currentTaskStatus).toEqual(status);
+    const query = mock.intent.mock.calls[0][0];
+    expect(query.where).toEqual({
+      ownerId: user.id,
+      projectId,
+      workspaceId: input.workspaceId,
+      repositoryId: input.repositoryId,
+      providerAccountId: input.providerAccountId,
+    });
+    expect(Object.keys(query.select).sort()).toEqual(
+      [
+        "id",
+        "ownerId",
+        "phase",
+        "projectId",
+        "providerAccountId",
+        "repositoryId",
+        "status",
+        "workspaceId",
+        "guardianAdmissions",
+      ].sort(),
+    );
+    expect(query.select.guardianAdmissions).toEqual({
+      where: { runtime: { phase: { in: ["barrier_closed", "tree_closed"] } } },
+      select: { id: true },
+      take: 1,
+    });
+    expect(mock.host.mock.calls.map((args) => args[2])).toEqual([
+      "/projects/resolve",
+      "/projects/open",
+    ]);
+    expect(result).not.toHaveProperty("ciphertext");
+    expect(result).not.toHaveProperty("hostRequest");
+  });
+  it.each([
+    { phase: "running", guardianAdmissions: [] },
+    { phase: "blocked", guardianAdmissions: [{ id: "closed-lifetime-admission" }] },
+    { phase: "preparing", guardianAdmissions: [{ id: "closed-barrier-admission" }] },
+  ])("does not resurrect older blocked history after a newer request has ended: %s", async (latest) => {
+    const older = { ...pendingIntent, phase: "blocked" },
+      newest = { ...pendingIntent, id: input.requestId, ...latest };
+    // An initial lookup returns the newest row. A second lookup would expose the
+    // older failed request, which must never become the project's current task.
+    mock.intent.mockResolvedValueOnce(newest).mockResolvedValueOnce(older);
+    const result = await openProject(user, input);
+    expect(result).toMatchObject({ phase: "awaitingTask", currentTaskId: null });
+    expect(result).not.toHaveProperty("currentTaskStatus");
+    expect(mock.intent).toHaveBeenCalledTimes(1);
+    expect(mock.intent.mock.calls[0][0]).toMatchObject({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    expect(mock.intent.mock.calls[0][0].where).not.toHaveProperty("phase");
+    expect(mock.intent.mock.calls[0][0].where).not.toHaveProperty("guardianAdmissions");
+  });
+  it("preserves a host's existing task instead of substituting a newer durable intent", async () => {
+    mock.intent.mockResolvedValue(pendingIntent);
+    mock.host.mockResolvedValueOnce(resolved).mockResolvedValueOnce({
+      ...resolved,
+      projectId,
+      phase: "running",
+      currentTaskId: input.requestId,
+      nativeThreadId: "current-thread",
+      terminalSessionName: null,
+    });
+    const result = await openProject(user, input);
+    expect(result).toMatchObject({
+      currentTaskId: input.requestId,
+      nativeThreadId: "current-thread",
+      phase: "running",
+    });
+    expect(result).not.toHaveProperty("currentTaskStatus");
+    expect(mock.intent).not.toHaveBeenCalled();
+  });
+  it("rejects inconsistent task-status envelopes and private payload fields", async () => {
+    mock.intent.mockResolvedValue(pendingIntent);
+    const result = await openProject(user, input),
+      saved = result.currentTaskStatus!;
+    for (const patch of [
+      { taskId: input.requestId },
+      { projectId: input.requestId },
+      { phase: "blocked" },
+      { nativeThreadId: "another-thread" },
+      { text: "PRIVATE_ACCEPTED_PROMPT" },
+    ]) {
+      expect(
+        openedProjectSchema.safeParse({
+          ...result,
+          currentTaskStatus: { ...saved, ...patch },
+        }).success,
+      ).toBe(false);
+    }
+  });
+  it.each([
+    { ownerId: input.requestId },
+    { projectId: input.requestId },
+    { workspaceId: input.requestId },
+    { repositoryId: "999" },
+    { providerAccountId: "999" },
+    {
+      status: {
+        schemaVersion: 1,
+        projectId,
+        taskId: input.requestId,
+        phase: "preparing",
+        nativeThreadId: null,
+        terminalSessionName: null,
+        reason: null,
+      },
+    },
+  ])("rejects substituted durable task scope instead of exposing it: %s", async (patch) => {
+    mock.intent.mockResolvedValue({ ...pendingIntent, ...patch });
+    await expect(openProject(user, input)).rejects.toMatchObject({
+      code: "github_invalid_response",
+    });
+  });
+  it("keeps accepted task status available when source policy resolution needs attention", async () => {
+    mock.intent.mockResolvedValue(pendingIntent);
+    vi.stubEnv("HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED", "true");
+    vi.stubEnv("HIVE_DELIVERY_REPOSITORY_POLICIES_JSON", "[]");
+    expect(await openProject(user, input)).toMatchObject({
+      currentTaskId: taskId,
+      sourceBaseUnavailable: true,
+    });
+  });
   it.each([
     "[]",
     "{",

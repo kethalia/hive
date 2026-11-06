@@ -85,6 +85,55 @@ async function select() {
   fireEvent.click(await screen.findByRole("button", { name: "owner/repo" }));
 }
 describe("project task workspace", () => {
+  it.each([
+    "preparing",
+    "blocked",
+  ])("retains reopened %s status even when polling is unavailable, without a replacement request", async (phase) => {
+    const original = vi.mocked(fetch).getMockImplementation()!,
+      saved = {
+        schemaVersion: 1,
+        projectId,
+        taskId,
+        phase,
+        nativeThreadId: null,
+        terminalSessionName: null,
+        reason: phase === "blocked" ? "native_unavailable" : null,
+        failureStage: "guardian",
+      };
+    vi.mocked(fetch).mockImplementation(async (...args) => {
+      if (String(args[0]) === "/api/projects/open")
+        return response({ ...opened, phase, currentTaskId: taskId, currentTaskStatus: saved });
+      if (String(args[0]).endsWith("/tasks/status")) return response({}, 503);
+      return original(...args);
+    });
+    // Reopening after an unmount models a page refresh: no task state survives
+    // in memory, and the persisted status must survive a failed first poll.
+    for (let n = 0; n < 2; n++) {
+      await select();
+      await screen.findByText(/Could not refresh the task/);
+      expect(
+        screen.getByText(
+          "The workspace connection could not be confirmed. Your request is preserved.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(phase === "blocked" ? "Task needs attention" : "Preparing project"),
+      ).toBeInTheDocument();
+      if (phase === "blocked")
+        expect(screen.getByText(/Codex could not be reached in the workspace/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Start task" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("textbox", { name: "What do you need?" })).not.toBeInTheDocument();
+      cleanup();
+    }
+    const taskCalls = vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => String(url).includes("/tasks/"));
+    expect(taskCalls).toHaveLength(2);
+    for (const [url, init] of taskCalls) {
+      expect(String(url)).toBe(`/api/projects/${projectId}/tasks/status`);
+      expect(JSON.parse(String(init?.body))).toMatchObject({ workspaceId, taskId });
+    }
+  });
   it("shows a plain-language notice for a pending workspace connection failure", async () => {
     const original = vi.mocked(fetch).getMockImplementation()!;
     vi.mocked(fetch).mockImplementation(async (...args) => {

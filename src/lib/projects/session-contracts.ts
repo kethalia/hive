@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { repositoryProjectSchema } from "./contracts";
+import { projectPhaseSchema, projectTaskStatusSchema } from "./task-contracts";
+
+export { projectPhaseSchema } from "./task-contracts";
 
 export const projectOpenRequestSchema = z
   .object({
@@ -28,14 +31,6 @@ export const resolvedRepositoryRefSchema = resolvedRepositorySchema
   .omit({ defaultRevision: true })
   .extend(projectSourceBaseSchema.shape)
   .strict();
-export const projectPhaseSchema = z.enum([
-  "awaitingTask",
-  "preparing",
-  "awaitingRegistration",
-  "awaitingFirstPrompt",
-  "running",
-  "blocked",
-]);
 export const enrolledProjectSchema = resolvedRepositorySchema
   .extend({
     projectId: z.string().uuid(),
@@ -56,6 +51,17 @@ export const openedProjectSchema = enrolledProjectSchema
     workspaceId: z.string().uuid(),
     sourceBase: projectSourceBaseSchema.optional(),
     sourceBaseUnavailable: z.boolean().optional(),
+    currentTaskStatus: projectTaskStatusSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (project) =>
+      !project.currentTaskStatus ||
+      (project.currentTaskStatus.projectId === project.projectId &&
+        project.currentTaskStatus.taskId === project.currentTaskId &&
+        project.currentTaskStatus.phase === project.phase &&
+        project.currentTaskStatus.nativeThreadId === project.nativeThreadId &&
+        project.currentTaskStatus.terminalSessionName === project.terminalSessionName),
+    { message: "Current task binding mismatch", path: ["currentTaskStatus"] },
+  );
 export type OpenedProject = z.infer<typeof openedProjectSchema>;

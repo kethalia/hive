@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { projectPhaseSchema } from "./session-contracts";
+export const projectPhaseSchema = z.enum([
+  "awaitingTask",
+  "preparing",
+  "awaitingRegistration",
+  "awaitingFirstPrompt",
+  "running",
+  "blocked",
+]);
 export const projectTaskFailureStageSchema = z.enum([
   "owner",
   "project",

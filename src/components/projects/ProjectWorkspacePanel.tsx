@@ -155,17 +155,19 @@ function ProjectSession({
 }) {
   const [text, setText] = useState("");
   const [task, setTask] = useState<ProjectTaskStatus | null>(
-    project.currentTaskId
-      ? {
-          schemaVersion: 1,
-          projectId: project.projectId,
-          taskId: project.currentTaskId,
-          phase: project.phase,
-          nativeThreadId: project.nativeThreadId,
-          terminalSessionName: project.terminalSessionName,
-          reason: null,
-        }
-      : null,
+    () =>
+      project.currentTaskStatus ??
+      (project.currentTaskId
+        ? {
+            schemaVersion: 1,
+            projectId: project.projectId,
+            taskId: project.currentTaskId,
+            phase: project.phase,
+            nativeThreadId: project.nativeThreadId,
+            terminalSessionName: project.terminalSessionName,
+            reason: null,
+          }
+        : null),
   );
   const [mode, setMode] = useState<"conversation" | "terminal">("conversation");
   const [terminalOpened, setTerminalOpened] = useState(false);
