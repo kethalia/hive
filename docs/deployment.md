@@ -195,8 +195,12 @@ Schema names containing double quotes are rejected before invoking Prisma: Prism
 escape these names in its connection setup. Other schema names are safely encoded in preflight SQL.
 
 After a successful migration, the runner applies a fixed table-and-operation grant list to
-`hive_app_runtime` if that role exists. The list is additive for existing grants and does not
-create a role, reset credentials, grant schema creation, or alter unrelated privileges. Provision
+`hive_app_runtime` if that role exists. A native deployment explicitly sets the trusted
+`HIVE_MIGRATE_RUNTIME_ROLE=hive_native_runtime` environment variable to select its runtime role
+instead. Only those two fixed roles are accepted, and an invalid selector is rejected before
+preflight or deployment. The list is additive for existing grants and does not create a role,
+reset credentials, grant CONNECT or schema creation, or alter unrelated privileges. Recovery
+history receives SELECT, INSERT, and UPDATE; DELETE remains denied. Provision
 the restricted runtime role through the approved database setup before running the migration job.
 If the role is provisioned later, rerun the same migration job against the same schema to apply the
 idempotent grants; an absent role is skipped for deployments that do not use it. Grant failures

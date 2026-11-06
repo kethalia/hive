@@ -104,12 +104,14 @@ export function executePrisma({ args, stdin = "", databaseUrl, prismaCli }) {
 export async function migrate({
   databaseUrl = process.env.DATABASE_URL,
   checkOnly = false,
+  runtimeRole = process.env.HIVE_MIGRATE_RUNTIME_ROLE ?? "hive_app_runtime",
   prismaCli = require.resolve("prisma/build/index.js"),
   schemaPath = resolve(dirname(require.resolve("@hive/db")), "../prisma/schema.prisma"),
   execute = executePrisma,
   log = console.log,
 } = {}) {
   const schema = migrationSchema(databaseUrl);
+  const grantsSql = runtimeGrantsSql(schema, runtimeRole);
   assertPrismaLockContract();
   let preflight;
   try {
@@ -165,7 +167,7 @@ export async function migrate({
       prismaCli,
       databaseUrl,
       args: ["db", "execute", "--schema", schemaPath, "--stdin"],
-      stdin: runtimeGrantsSql(schema),
+      stdin: grantsSql,
     });
   } catch {
     throw new Error("Runtime role provisioning could not run; inspect migration role permissions.");
