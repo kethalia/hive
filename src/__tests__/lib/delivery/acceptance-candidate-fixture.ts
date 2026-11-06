@@ -17,6 +17,7 @@ export async function acceptanceCandidateFixture(
   options: {
     producer?: typeof acceptanceFixtureProducer;
     native?: { managerThreadId?: string; parentTurnId?: string };
+    releaseRepository?: { fullName: string; baseBranch: string };
   } = {},
 ) {
   let material: AcceptanceMaterialResolver;
@@ -25,6 +26,7 @@ export async function acceptanceCandidateFixture(
     (tx, scope, stored) => material.material(tx, scope, stored),
     options.producer,
     options.native,
+    options.releaseRepository,
   );
   vi.stubEnv("HIVE_GUARDIAN_ENABLED", "true");
   vi.stubEnv("HIVE_GUARDIAN_PRODUCER_ENABLED", "true");
@@ -215,7 +217,7 @@ export async function acceptanceCandidateFixture(
     providerAccountId: f.project.providerAccountId,
     fullName: f.project.fullName,
     branch: `codex/delivery/${f.taskId}/${operationId}`,
-    baseBranch: "main",
+    baseBranch: options.releaseRepository?.baseBranch ?? "main",
     pullRequestId: "900",
     pullNumber: 7,
     issuedAt: Date.now() - 100,

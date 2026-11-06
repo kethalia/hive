@@ -58,7 +58,11 @@ export async function installedReleaseBuildRoute(
       import("./release-installed.server"),
     ]);
     const controller = createInstalledReleaseController(getDb());
-    return releaseBuildRoute(request, operation, controller?.builds ?? null);
+    return releaseBuildRoute(
+      request,
+      operation,
+      controller?.kind === "native-preview" ? null : (controller?.builds ?? null),
+    );
   } catch {
     return new Response(null, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }

@@ -1366,3 +1366,54 @@ model AgentNotificationRateWindow {
   @@unique([ownerId, sourceId], map: "agent_notification_rate_owner_source_key")
   @@map("agent_notification_rate_windows")
 }
+
+model DeliveryNativeReleaseArtifact {
+  id                String   @id @db.Uuid
+  ownerId           String   @map("owner_id") @db.Uuid
+  releaseId         String   @map("release_id") @db.Uuid
+  targetDigest      String   @map("target_digest")
+  manifest          Json
+  manifestDigest    String   @map("manifest_digest")
+  builderEvidence   Json     @map("builder_evidence")
+  publisherIdentity Json     @map("publisher_identity")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([ownerId, id])
+  @@unique([id, ownerId, releaseId, targetDigest])
+  @@map("delivery_native_release_artifacts")
+}
+
+model DeliveryNativePublicationGrant {
+  id          String   @id @db.Uuid
+  actionId    String   @unique @map("action_id") @db.Uuid
+  artifactId  String   @map("artifact_id") @db.Uuid
+  grantData   Json     @map("grant_data")
+  grantDigest String   @map("grant_digest")
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("delivery_native_publication_grants")
+}
+
+model DeliveryNativePublicationReceipt {
+  actionId          String   @id @map("action_id") @db.Uuid
+  grantId           String   @unique @map("grant_id") @db.Uuid
+  receipt           Json
+  receiptDigest     String   @map("receipt_digest")
+  publisherIdentity Json     @map("publisher_identity")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("delivery_native_publication_receipts")
+}
+
+model DeliveryNativeReleaseBaseline {
+  observationDigest String   @id @map("observation_digest")
+  artifactId        String   @map("artifact_id") @db.Uuid
+  actionId          String   @map("action_id") @db.Uuid
+  ownerId           String   @map("owner_id") @db.Uuid
+  targetDigest      String   @map("target_digest")
+  evidence          Json
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("delivery_native_release_baselines")
+}

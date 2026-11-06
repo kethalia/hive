@@ -9,7 +9,7 @@ import { githubSourceDigest } from "./github-evidence.server";
 
 // Deployment-owned enrollment, never a model/task-selected URL or branch. This
 // foundation supports only the already enrolled native epic Preview.
-const providerId = z
+export const nativePreviewProviderIdSchema = z
   .string()
   .regex(/^[A-Za-z0-9_-]{1,128}$/)
   .refine((id) => id !== "latest");
@@ -18,16 +18,20 @@ export const nativePreviewReleaseTargetSchema = z
     provider: z.literal("cloudflare-native-preview"),
     accountId: z.literal("225177f82b9234ede14e897fe15e0cb5"),
     workerName: z.literal("hive"),
-    previewId: providerId,
+    previewId: nativePreviewProviderIdSchema,
     previewName: z.literal("codex/delivery-system-design"),
     previewSlug: z.literal("codex-delivery-system-design"),
     origin: z.literal("https://codex-delivery-system-design-hive.b00ste.workers.dev"),
   })
   .strict();
 export type NativePreviewReleaseTarget = z.infer<typeof nativePreviewReleaseTargetSchema>;
-const previewSchema = z.object({ id: providerId, name: z.string(), slug: z.string() });
+const previewSchema = z.object({
+  id: nativePreviewProviderIdSchema,
+  name: z.string(),
+  slug: z.string(),
+});
 const deploymentSchema = z.object({
-  id: providerId,
+  id: nativePreviewProviderIdSchema,
   annotations: z
     .object({
       "workers/commit_sha": z

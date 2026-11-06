@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "scope": "source-only installed native Preview publication composition",
+  "validatedAt": "2026-11-06",
+  "provider": "cloudflare-native-preview",
+  "target": {
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "workerName": "hive",
+    "previewName": "codex/delivery-system-design",
+    "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev"
+  },
+  "externalWriterPolicy": "observed-drift-hold-no-atomic-cas",
+  "transports": "synthetic GitHub, RS256 OIDC issuer, Cloudflare and health; no provider operations",
+  "database": {
+    "engine": "real isolated local PostgreSQL",
+    "schema": "fresh migration history through 20261106110000_native_preview_release_publication (45)",
+    "runtimeRoles": "both canonical fixed roles tested in rolled-back DDL transaction",
+    "oldNativeConnectBarrier": "explicit app CONNECT/native denied fixture ACL preserved by canonical regrant",
+    "liveMigrations": false,
+    "generatedPrismaClientChanged": false
+  },
+  "checks": {
+    "installedNativeComposition": { "passed": 14, "skipped": 0 },
+    "legacyIndependentAcceptanceAndAutonomousRelease": { "passed": 15, "skipped": 0 },
+    "existingReleaseReaderControllerTransport": { "passed": 32, "skipped": 0 },
+    "migrationProvisioning": { "passed": 30 },
+    "protectedPublisherProtocolWrapper": { "passed": 1, "nativeInnerChecksPassed": 30 },
+    "globalTypecheck": "passed",
+    "prismaSchemaValidation": "passed",
+    "whitespace": "passed"
+  },
+  "composedProof": [
+    "explicit baseline-only initial operator enrollment",
+    "completed first-attempt builder, reviewed caller code blob and immutable artifact provenance",
+    "genuine independent acceptance, source, repository policy, signed tested tree and effective rules",
+    "existing journaled GitHub merge",
+    "artifact submission and atomic locked effect_started plus one-use publication grant",
+    "actual inert archive inspection, assets transfer and native env-map/repeated-files multipart",
+    "authenticated returned deployment ID receipt committed before readback",
+    "fresh authorization after provider readback before observed action",
+    "bounded sampled health and accepted retained artifact baseline",
+    "normal publication with unverified automatic current deployment as concurrency witness only",
+    "sampled regression and compatible separately journaled retained-baseline-byte recovery",
+    "grant, native POST and receipt ACK loss without provider replay",
+    "SQL deadline rollback, concurrent grant, pause, owner and target-fence changes",
+    "external-writer drift before POST, during readback and after regression",
+    "failed or unknown bootstrap sample durably held without later silent acceptance",
+    "more than 1000 early samples preserve window progress within 32 KiB evidence bound",
+    "immutable history and secret payload changes excluded from public evidence"
+  ],
+  "liveAccepted": false,
+  "liveFlagsChanged": false,
+  "productionActivated": false,
+  "remainingAcceptance": [
+    "reachable SHA-pinned trusted builder and protected publisher workflow callers",
+    "protected environment/ref and credential-scope enrollment",
+    "independently reachable existing trusted controller runtime during candidate replacement",
+    "assembled deployed Worker controller/routes/config runtime validation",
+    "reviewed live migration and explicit Preview baseline enrollment",
+    "actual provider native multipart, receipt, readback and sampled health acceptance",
+    "concurrent automatic writer policy and retained-byte recovery rehearsal",
+    "separate final production acceptance and cutover approval"
+  ]
+}

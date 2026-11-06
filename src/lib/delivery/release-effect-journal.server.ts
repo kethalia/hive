@@ -82,15 +82,18 @@ export class PostgresReleaseEffectJournal implements ReleaseEffectJournal {
       canonicalGitHubSource(releaseActionIdentitySchema.parse(identity))
     );
   }
+  /** Native publication grants append their immutable authorization in the
+   * SAME caller transaction as this existing journal transition. */
+  async beginInTransaction(tx: Tx, actionId: string) {
+    const row = await this.locked(tx, actionId);
+    if (!row || row.phase !== "prepared" || !this.fenced(row)) return null;
+    const identity = this.identity(row);
+    if (!(await this.authorize(tx, identity))) return null;
+    await tx.$executeRaw`UPDATE delivery_release_actions SET phase='effect_started',updated_at=clock_timestamp() WHERE id=${identity.id}::uuid`;
+    return identity;
+  }
   async begin(actionId: string) {
-    return this.transaction(async (tx) => {
-      const row = await this.locked(tx, actionId);
-      if (!row || row.phase !== "prepared" || !this.fenced(row)) return null;
-      const identity = this.identity(row);
-      if (!(await this.authorize(tx, identity))) return null;
-      await tx.$executeRaw`UPDATE delivery_release_actions SET phase='effect_started',updated_at=clock_timestamp() WHERE id=${identity.id}::uuid`;
-      return identity;
-    });
+    return this.transaction((tx) => this.beginInTransaction(tx, actionId));
   }
   async reconciliation(actionId: string) {
     return this.transaction(async (tx) => {

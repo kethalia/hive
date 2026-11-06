@@ -1,22 +1,27 @@
 import { createHash } from "node:crypto";
 import { extname } from "node:path";
+import { hash as blake3Hash } from "blake3-wasm";
+import mime from "mime";
 import { artifactDigest, readReleaseArtifact } from "./artifact.mjs";
 
-const mime = {
-  ".html": "text/html",
-  ".js": "application/javascript",
-  ".css": "text/css",
-  ".json": "application/json",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".ico": "image/x-icon",
-  ".woff2": "font/woff2",
-  ".txt": "text/plain",
-  ".map": "application/json",
+// Match the pinned Wrangler 4.155.0 asset uploader. Its provider asset hashes
+// use BLAKE3; artifact/config attestation digests below remain SHA256.
+const assetContentType = (path) => {
+  const type = mime.getType(path);
+  return type?.startsWith("text/") && !type.includes("charset")
+    ? `${type}; charset=utf-8`
+    : (type ?? "application/null");
 };
+function singleAssetUpload(jwt) {
+  try {
+    return (
+      JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString("utf8"))
+        .wrangler_single_asset_uploads === true
+    );
+  } catch {
+    return false;
+  }
+}
 const tokenValid = (value) =>
   typeof value === "string" && value.length > 0 && value.length <= 16384 && !/[\r\n]/.test(value);
 async function api(fetcher, url, options, signal) {
@@ -122,7 +127,7 @@ export async function uploadReleaseVersion({
   const fixedBindings = replaceIdentity(metadata.bindings, "write");
   const base = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers`;
   const target = `${base}/scripts/${script}`;
-  const request = (url, body, token, json = false) =>
+  const request = (url, body, token, json = false, contentType) =>
     api(
       fetcher,
       url,
@@ -130,7 +135,11 @@ export async function uploadReleaseVersion({
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          ...(json ? { "Content-Type": "application/json" } : {}),
+          ...(json
+            ? { "Content-Type": "application/json" }
+            : contentType
+              ? { "Content-Type": contentType }
+              : {}),
         },
         body,
       },
@@ -144,11 +153,10 @@ export async function uploadReleaseVersion({
       if (name.startsWith("assets/")) {
         const path = name.slice(7),
           extension = extname(path).slice(1),
-          hash = createHash("sha256")
-            .update(data.toString("base64") + extension)
-            .digest("hex")
+          hash = blake3Hash(data.toString("base64") + extension)
+            .toString("hex")
             .slice(0, 32);
-        const contentType = mime[extname(path).toLowerCase()] ?? "application/octet-stream";
+        const contentType = assetContentType(path);
         if (
           byHash.has(hash) &&
           (!byHash.get(hash).data.equals(data) || byHash.get(hash).contentType !== contentType)
@@ -172,18 +180,38 @@ export async function uploadReleaseVersion({
       throw Error("upload_session_invalid");
     const seen = new Set();
     completion = session.buckets.length ? undefined : session.jwt;
+    // Validate the entire provider response before the first bucket effect.
     for (const bucket of session.buckets) {
       if (!Array.isArray(bucket) || !bucket.length || bucket.length > 10000)
         throw Error("upload_bucket_invalid");
-      const form = new FormData();
       for (const hash of bucket) {
         if (typeof hash !== "string" || !byHash.has(hash) || seen.has(hash))
           throw Error("upload_bucket_invalid");
         seen.add(hash);
-        const { data, contentType } = byHash.get(hash);
-        form.append(hash, new Blob([data.toString("base64")], { type: contentType }), hash);
       }
-      const result = await request(`${base}/assets/upload?base64=true`, form, session.jwt);
+    }
+    const single = singleAssetUpload(session.jwt);
+    const buckets = single ? session.buckets.flat().map((hash) => [hash]) : session.buckets;
+    for (const bucket of buckets) {
+      let result;
+      if (single) {
+        const hash = bucket[0],
+          { data, contentType } = byHash.get(hash);
+        result = await request(
+          `${base}/assets/upload/${hash}`,
+          new Uint8Array(data),
+          session.jwt,
+          false,
+          contentType,
+        );
+      } else {
+        const form = new FormData();
+        for (const hash of bucket) {
+          const { data, contentType } = byHash.get(hash);
+          form.append(hash, new Blob([data.toString("base64")], { type: contentType }), hash);
+        }
+        result = await request(`${base}/assets/upload?base64=true`, form, session.jwt);
+      }
       if (result.jwt !== undefined) {
         if (!tokenValid(result.jwt)) throw Error("upload_session_invalid");
         completion = result.jwt;

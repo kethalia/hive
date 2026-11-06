@@ -8,6 +8,31 @@ import { cloudflareReleaseRequestSchema } from "./release-cloudflare-provider.se
 import { githubReleaseRequestSchema } from "./release-github-provider.server";
 import type { ReleaseLifecycle } from "./release-lifecycle.server";
 
+/** Shared merge intent derivation; native publication never parses production
+ * version/baseline contracts merely to reuse this existing journal step. */
+export async function prepareReleaseMergeFromFacts(
+  db: PrismaClient,
+  lifecycle: ReleaseLifecycle,
+  scope: { ownerId: string; releaseId: string; taskId: string; riskAttestationDigest: string },
+) {
+  const facts = await db.$queryRaw<
+    { payload: unknown }[]
+  >`SELECT payload FROM delivery_release_authority_facts WHERE owner_id=${scope.ownerId}::uuid AND task_id=${scope.taskId}::uuid AND payload_digest=${scope.riskAttestationDigest}`;
+  if (facts.length !== 1 || githubSourceDigest(facts[0].payload) !== scope.riskAttestationDigest)
+    return "held" as const;
+  const fact = z
+    .object({ request: githubReleaseRequestSchema })
+    .passthrough()
+    .parse(facts[0].payload);
+  await lifecycle.prepare(scope.ownerId, {
+    id: randomUUID(),
+    releaseId: scope.releaseId,
+    kind: "merge",
+    request: fact.request,
+  });
+  return "prepared" as const;
+}
+
 /** Derives the next journal intent only from persisted facts and receipts. The
  * lifecycle independently reauthorizes under locks, including pause, enrollment,
  * source and stage readiness; concurrent planners cannot create duplicate work. */
@@ -95,25 +120,12 @@ export class ReleasePlanner {
     if (release.phase !== "active") return "waiting" as const;
     const merge = completed.find((a) => a.kind === "merge");
     if (!merge) {
-      const facts = await this.db.$queryRaw<
-        { payload: unknown }[]
-      >`SELECT payload FROM delivery_release_authority_facts WHERE owner_id=${ownerId}::uuid AND task_id=${release.task_id}::uuid AND payload_digest=${snapshot.riskAttestationDigest}`;
-      if (
-        facts.length !== 1 ||
-        githubSourceDigest(facts[0].payload) !== snapshot.riskAttestationDigest
-      )
-        return "held" as const;
-      const fact = z
-        .object({ request: githubReleaseRequestSchema })
-        .passthrough()
-        .parse(facts[0].payload);
-      await this.lifecycle.prepare(ownerId, {
-        id: randomUUID(),
+      return prepareReleaseMergeFromFacts(this.db, this.lifecycle, {
+        ownerId,
         releaseId,
-        kind: "merge",
-        request: fact.request,
+        taskId: release.task_id,
+        riskAttestationDigest: snapshot.riskAttestationDigest,
       });
-      return "prepared" as const;
     }
     const builds = await this.db.$queryRaw<
       { manifest: unknown; manifest_digest: string }[]

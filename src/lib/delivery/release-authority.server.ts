@@ -4,6 +4,10 @@ import { githubSourceDigest } from "./github-evidence.server";
 import type { ReleaseActionIdentity } from "./release-action-journal";
 import { releaseBaselinesSchema } from "./release-baseline-contracts";
 import { githubReleaseRequestSchema } from "./release-github-provider.server";
+import {
+  nativeBaselineSchema,
+  nativeReleaseSnapshotSchema,
+} from "./release-native-preview-contracts";
 import { releasePolicyCovers, releasePolicySchema } from "./release-policy-contracts";
 import type { RepositoryPolicyStore } from "./repository-policy-store.server";
 
@@ -21,7 +25,9 @@ const snapshotSchema = z
     observationConfigDigest: digest,
     buildAuthorityDigest: digest,
     authorityConfigDigest: digest,
-    baselines: releaseBaselinesSchema,
+    baselines: z.union([releaseBaselinesSchema, nativeBaselineSchema]),
+    provider: z.literal("cloudflare-native-preview").optional(),
+    native: nativeReleaseSnapshotSchema.optional(),
     riskClass: z.literal("database").optional(),
     database: z
       .object({ catalogDigest: digest, planEventId: z.string().uuid(), planDigest: digest })
@@ -73,7 +79,7 @@ export function createReleaseAuthorizer(options: {
       sourceSha: string;
       riskAttestationDigest: string;
       riskClass: "application_only" | "database";
-      baselines: z.infer<typeof releaseBaselinesSchema>;
+      baselines: z.infer<typeof releaseBaselinesSchema> | z.infer<typeof nativeBaselineSchema>;
     },
   ): Promise<boolean>;
 }) {

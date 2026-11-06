@@ -21,6 +21,7 @@ import { ReleaseAuthorityFacts, verifyReleaseAuthorityFact } from "./release-fac
 import { releaseGitHubMerged } from "./release-github-merged.server";
 import { releaseGitHubPreflight } from "./release-github-preflight.server";
 import { GitHubReleaseRules } from "./release-github-rules.server";
+import { createNativePreviewReleaseController } from "./release-native-preview-controller.server";
 import { CloudflareReleaseObserver } from "./release-observer.server";
 import { releasePolicySchema } from "./release-policy-contracts";
 import { ReleaseScheduler } from "./release-scheduler.server";
@@ -31,7 +32,7 @@ import { repositoryPolicyStore } from "./repository-policy.server";
 /** Deployment-owned construction. Flags, policies, risk catalog, credentials
  * and target never come from a task or HTTP body. No provider writes occur at
  * construction; the scheduler and route must separately be installed. */
-export function createInstalledReleaseController(
+function createInstalledWorkerVersionReleaseController(
   db: PrismaClient,
   env: Record<string, string | undefined> = process.env,
   fetcher: typeof fetch = fetch,
@@ -249,6 +250,7 @@ export function createInstalledReleaseController(
   );
   return {
     ...controller,
+    kind: "worker-version" as const,
     facts,
     opener,
     scheduler: new ReleaseScheduler(
@@ -260,4 +262,20 @@ export function createInstalledReleaseController(
       databaseObserver,
     ),
   };
+}
+
+/** The native discriminator constructs its real branch implementation; parent
+ * production-version adapters remain unsupported for native targets. */
+export function createInstalledReleaseController(
+  db: PrismaClient,
+  env: Record<string, string | undefined> = process.env,
+  fetcher: typeof fetch = fetch,
+) {
+  if (env.HIVE_DELIVERY_RELEASE_ENABLED !== "true") return null;
+  const raw = env.HIVE_DELIVERY_RELEASE_CONFIG_JSON;
+  if (!raw || Buffer.byteLength(raw) > 65536) throw Error("release_controller_unavailable");
+  const candidate = JSON.parse(raw);
+  return candidate.provider === "cloudflare-native-preview"
+    ? createNativePreviewReleaseController(db, env, fetcher)
+    : createInstalledWorkerVersionReleaseController(db, env, fetcher);
 }

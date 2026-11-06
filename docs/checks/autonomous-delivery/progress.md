@@ -1530,3 +1530,22 @@ by this source checkpoint.
   [Live evidence](coder-oauth-disconnect-live.json),
   [bounded browser driver](../../../scripts/checks/coder-disconnect-browser.mjs).
   Production, installed manager/cleanup, and the whole epic remain unaccepted.
+
+
+- Controlled native Preview publication: implementation/local proof complete, high
+  difficulty. Installed controller now journals a one-use grant before writes,
+  verifies an independently attributed completed builder artifact, persists the
+  authenticated returned deployment receipt, samples health and restores retained
+  compatible baseline bytes through a new upload. Native deployment IDs remain
+  distinct from production version IDs; automatic builds stay enabled with explicit
+  observed-drift holds, without atomic CAS claims. Review fixed merge progression,
+  caller-file provenance, differing baseline configuration recovery, reusable secret
+  mappings and Wrangler asset compatibility (also corrected in the legacy uploader).
+  Fourteen real local-PG native cases, fifteen genuine legacy acceptance/release
+  cases,32 existing release checks,30 provisioning checks and30 native publisher
+  checks pass, with typecheck/schema validation and independent final review. Parent
+  independently reproduced12 uploader/native wrapper tests. Dedicated PG composition
+  is wired into CI. [Local receipt](native-preview-controlled-publication-local.json),
+  [controller design](../../native-preview-release-controller.md), and
+  [next live plan](native-preview-live-plan.md). Migration45 is source-only at this
+  checkpoint; no live authority or production changes were enabled.

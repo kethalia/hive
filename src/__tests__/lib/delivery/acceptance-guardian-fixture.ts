@@ -13,8 +13,10 @@ export async function acceptanceGuardianFixture(
   materializeReview?: ConstructorParameters<typeof AcceptanceStore>[0]["materializeReview"],
   producer = acceptanceFixtureProducer,
   native: { managerThreadId?: string; parentTurnId?: string } = {},
+  releaseRepository?: { fullName: string; baseBranch: string },
 ) {
   let policies: RepositoryPolicyStore | undefined;
+  let repositoryCatalog: unknown;
   const store = new AcceptanceStore({
     enabled: true,
     encryptionKey: acceptanceFixtureKey,
@@ -29,39 +31,47 @@ export async function acceptanceGuardianFixture(
   const f = await guardianFixture(db, {
     ...native,
     beforeIntent: async ({ user, project, context }) => {
+      if (releaseRepository) {
+        await db.deliveryProject.update({
+          where: { id: project.id },
+          data: { fullName: releaseRepository.fullName },
+        });
+        project.fullName = releaseRepository.fullName;
+      }
       const gates = githubFixture().policy;
       gates.checks[0].criterionIds = ["repo:ci"];
       if (gates.codexReview) gates.codexReview.criterionIds = ["repo:review"];
       policies = new RepositoryPolicyStore(db, {
         enabled: true,
-        readCatalog: () => [
-          {
-            ownerId: user.id,
-            repositoryId: "123",
-            providerAccountId: "456",
-            fullName: project.fullName,
-            policy: {
-              schemaVersion: 1,
-              source: {
-                version: "fixture-v1",
-                authorName: "Fixture",
-                authorEmail: "fixture@example.invalid",
-                baseBranch: "main",
-                allowedPrefixes: ["src"],
-                maxFiles: 10,
-                maxFileBytes: 1000,
-                maxBytes: 10000,
+        readCatalog: () =>
+          (repositoryCatalog ??= [
+            {
+              ownerId: user.id,
+              repositoryId: "123",
+              providerAccountId: "456",
+              fullName: project.fullName,
+              policy: {
+                schemaVersion: 1,
+                source: {
+                  version: "fixture-v1",
+                  authorName: "Fixture",
+                  authorEmail: "fixture@example.invalid",
+                  baseBranch: releaseRepository?.baseBranch ?? "main",
+                  allowedPrefixes: ["src"],
+                  maxFiles: 10,
+                  maxFileBytes: 1000,
+                  maxBytes: 10000,
+                },
+                evidenceGates: gates,
+                acceptanceContracts: [],
               },
-              evidenceGates: gates,
-              acceptanceContracts: [],
             },
-          },
-        ],
+          ]),
         verifyRepository: async () => ({
           repositoryId: "123",
           providerAccountId: "456",
           fullName: project.fullName,
-          defaultBranch: "main",
+          defaultBranch: releaseRepository?.baseBranch ?? "main",
           defaultRevision: context.revision,
           archived: false,
           permissions: { pull: true, push: true },
@@ -112,5 +122,5 @@ export async function acceptanceGuardianFixture(
       ),
     };
   };
-  return { ...f, store, service, envelope, originalIntent, policies };
+  return { ...f, store, service, envelope, originalIntent, policies, repositoryCatalog };
 }
