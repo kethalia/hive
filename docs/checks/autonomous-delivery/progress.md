@@ -1476,3 +1476,10 @@ by this source checkpoint.
   public start link and readable rejection headers/body fix future deployments
   while preserving origin/cookie/CSP checks. Twenty-two focused checks, full TypeScript
   and independent review pass. [Root cause and scoped validation](coder-oauth-preview-alias.md).
+
+- F09 preview-host fix live: Cloudflare build and four bounded HTTP checks pass at
+  `81e5e084`. Both stable and newly published deployment login pages link to the
+  registered start origin; noncanonical starts return readable400/no flow cookie,
+  and canonical starts redirect to the fixed Coder client/callback with S256.
+  Existing immutable deployments retain prior code, so use the stable branch URL.
+  [Live receipt](coder-oauth-preview-alias-live.json). No Safari automation claimed.

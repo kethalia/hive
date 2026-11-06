@@ -23,5 +23,8 @@ full TypeScript, Biome and diff checks pass. Regression checks cover absolute UR
 resolution from the reported deployment host, confidential config exclusion and
 readable rejected responses with zero flow allocation. Independent source review
 also verified both hosts' same-site relationship using the installed public-suffix
-data. Actual assembled Worker/live navigation acceptance follows publication; no
-Safari automation is claimed by these local checks.
+data. Cloudflare published `81e5e084` successfully. Four bounded live HTTP requests
+verified stable and new deployment login links, readable noncanonical rejection
+without a browser-flow cookie, and the canonical redirect/client/callback/PKCE
+binding. See the [live receipt](coder-oauth-preview-alias-live.json). No Safari
+automation or whole-epic/production acceptance is claimed.
