@@ -11,6 +11,7 @@ const append = [
   "codex_guardian_barriers",
   "codex_guardian_stop_decisions",
   "codex_guardian_tree_receipts",
+  "codex_guardian_operation_receipts",
   "template_publication_events",
   "delivery_acceptance_intents",
   "delivery_acceptance_plans",
@@ -37,6 +38,8 @@ const mutable = [
   "navigation_favorites",
   "vapid_keys",
   "notification_sources",
+  "agent_notification_events",
+  "agent_notification_rate_windows",
   "delivery_projects",
   "delivery_conversations",
   "delivery_tasks",
@@ -76,6 +79,8 @@ const deletable = [
   "push_subscriptions",
   "navigation_favorites",
   "notification_sources",
+  "agent_notification_events",
+  "agent_notification_rate_windows",
 ];
 const array = (names) => `ARRAY[${names.map((name) => `'${name}'`).join(",")}]`;
 

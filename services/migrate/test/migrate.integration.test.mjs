@@ -82,8 +82,19 @@ test("fresh database migrates successfully", async (t) => {
     DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hive_app_runtime') THEN
       CREATE ROLE hive_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
     END IF; END $$;
+    -- Exercise provisioning/regrant independently of any migration-time grants.
+    REVOKE ALL ON agent_notification_events, agent_notification_rate_windows FROM hive_app_runtime;
     ${runtimeGrantsSql(schema)}
     ${runtimeGrantsSql(schema)}
+    DO $$ DECLARE target text; privilege text; BEGIN
+      FOREACH target IN ARRAY ARRAY['agent_notification_events','agent_notification_rate_windows'] LOOP
+        FOREACH privilege IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE'] LOOP
+          IF NOT has_table_privilege('hive_app_runtime', target, privilege) THEN
+            RAISE EXCEPTION 'Late runtime provisioning omitted % on %', privilege, target;
+          END IF;
+        END LOOP;
+      END LOOP;
+    END $$;
     DO $$ BEGIN
       IF NOT has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'SELECT')
         OR NOT has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'INSERT')
