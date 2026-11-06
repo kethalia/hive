@@ -16,7 +16,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Reconciled with current main | Authorized rebase onto `1ace8774` preserves new dock/config/template features; fresh fetch confirms no newer main. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview` and 40 migrations. Login and exact build/binding checks pass; current-build browser/host acceptance remains open. Production stays inactive. |
+| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases now have 44 migrations. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
@@ -24,10 +24,10 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Enrollment recovery candidate validated through committed preparation; held ACK preserved | Fresh `codex/hive-native-recovery` runs the smoke-tested immutable image. Enrollment succeeds, but preparation commits before its acknowledgment is retained. The host stays held before native execution and is stopped/retained; generic operation receipt recovery is in implementation. Global active template is unchanged. |
+| Test workspace | Prior ACK-loss hosts quarantined; fresh host pilot next | Generic operation receipt recovery and owner retry are implemented/reviewed. The `bfd4d88f` immutable image passed smoke and registry publication; fresh host identity/package verification precedes real manager/child/source/acceptance/closure. Global active template is unchanged. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
-| F09 Coder OAuth | Implementation active by November 6 user direction; live acceptance pending | Replace the native Preview credentials form with configured static-client Coder authorization-code/PKCE sign-in. UI/config and backend are under implementation/review; deployment, dedicated-account consent/return and browser acceptance remain pending. Preserve legacy Node/production while disabled. |
+| F09 Coder OAuth | Preview login/refresh/browser checkpoint accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; provider revocation/disconnect and final production acceptance remain. [Scoped evidence](coder-oauth-live-preview.json). |
 | F10 agent account window | Accepted roadmap; implementation deferred | Native Codex/Claude account setup and status in Hive; verify supported provider flows and workspace binding before implementation. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
@@ -120,15 +120,19 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 
 ## Immediate implementation sequence
 
-1. Package the pinned host runtime and signed project enrollment/task-start path; activate only an
-   inactive preview template version in the recorded test workspace.
-2. Connect the project Conversation/Terminal views to the registered host and durable task notices.
-3. Deploy the guarded exact application preview within a verified bounded included-usage budget;
-   finish baseline Coder/terminal/settings compatibility and credential rotation scheduling.
-4. Connect independently verified GitHub checks/reviews, native execution observations and release
-   adapters. Keep production execution disabled pending owner cutover approval.
-5. Run account-backed native and Browser Testing acceptance, migration/rollback rehearsal, failure
-   recovery, full CI and independent review. Only then mark PR #402 ready for the owner to merge.
+1. Verify a fresh isolated host using the smoke-tested, registry-published `bfd4d88f` image and
+   exact owner/build/package identities. Generic operation receipts and explicit owner retry are
+   implemented; retain earlier uncertain hosts in quarantine.
+2. Run the real manager/child flow through source publication, independent semantic acceptance
+   and factual closure against the same native Preview. Do not equate local recovery proofs with
+   installed execution acceptance.
+3. Run Browser Testing Phase B for shared Conversation/Terminal continuity, durable task status
+   and acceptance. The completed OAuth navigation/reload checkpoint is a separate bounded gate.
+4. Complete remaining F07/F08 account-backed parity, migration/recovery and release-controller
+   acceptance, full CI and independent review. F10 stays deferred.
+5. Prepare explicit production OAuth, retained identities, bindings, migration compatibility,
+   schedules and rollback as the concrete final cutover package for owner approval. Production
+   execution remains disabled; only then complete PR #402 for the owner's merge.
 
 - Project preparation and shared-session views: committed at 7635164, high difficulty. 69 focused
   project/UI/scheduling checks, host/package tests and typecheck pass. Accepted prompts are encrypted,
@@ -1370,3 +1374,50 @@ preparation strips Preview OAuth variables and keeps OAuth off pending a separat
 production client/configuration and approved cutover. F10 in-app Codex/Claude
 connections remains deferred roadmap scope. No OAuth live acceptance is claimed
 by this source checkpoint.
+
+
+## 2026-11-06 F09 Preview acceptance and current pilot state
+
+- F09 Preview login/refresh checkpoint: accepted, moderate/high difficulty. Real Coder consent
+  and code exchange on `70839d32` preserve the existing Hive identity and user/session mapping.
+  Two concurrent requests after isolated Preview access expiry both authenticate, advance the
+  stored credential by exactly one version, return refresh state to idle and use no managed-key
+  fallback. Consumed callback replay is rejected without signing out the existing session.
+  [Live OAuth receipt](coder-oauth-live-preview.json).
+- Chrome caught a browser-only integration defect missed by HTTP checks: the GET form's
+  cross-origin 303 was blocked by the existing `form-action 'self'` CSP. An entirely intercepted
+  synthetic Chrome regression reproduces the form failure and native-anchor success with zero
+  upstream requests. The `bfd4d88f` application uses a native anchor through the shared Button's
+  supported render mode; CSP is unchanged. Browser Testing verifies the fixed Coder destination,
+  no credential inputs, authenticated workspaces and reload. [Login screenshot](coder-oauth-login-preview.png)
+  and [exact build proof](cloudflare-native-proof-bfd4d88f.json).
+- Evidence boundary: provider consent/code exchange ran on the primary. Browser Testing then
+  received only the Hive test-account application session for authenticated reload; no Coder
+  management credential crossed into that workspace. This is not a continuously browser-driven
+  provider-consent flow. Browser route counters exclude automatic redirect-chain requests;
+  independently observed top-level Coder navigation does not establish a global egress count.
+- Production OAuth preparation: independent client registration and explicit enrollment metadata
+  support are ready. The helper pins the Coder issuer, production origin/callback, independent
+  client ID and fifth required secret name, strips Preview OAuth variables and retains build,
+  baseline and final-approval gates. [Enrollment receipt](coder-oauth-production-client.json)
+  and [offline preparation](../../../deploy/cloudflare/native/production-preparation.md).
+  No production route or OAuth login has been activated/accepted. Provider revocation/disconnect
+  and final production acceptance remain their recorded gates; F10 remains deferred.
+- Recovery implementation is no longer pending: generic atomic operation receipts/readback
+  landed through `617f8cc8` and subsequent recovery fixes, with original authority deadlines preserved;
+  explicit owner retry at `726ed4ee` is source/test reviewed. See
+  [operation receipts](guardian-operation-receipts.md),
+  [local operation recovery](guardian-operation-recovery-local/result.json) and
+  [owner retry evidence](project-task-recovery-local/README.md). Earlier held hosts remain
+  quarantined; missing historical receipts cannot be fabricated.
+- The [`bfd4d88f` immutable image](host-preview-image-bfd4d88f.json) passed smoke and verified
+  registry publication; global active template
+  rollout remains unchanged. Both application/native Preview databases now have migration 44,
+  preserved prior data/checksums and verified runtime privileges. The native missing-grant
+  postflight finding was repaired at `cd9fb52b` without replaying migrations or changing data.
+  [Migration and grant receipt](neon-preview-migration44.json). These scoped upgrade checks do
+  not establish the full F08 cutover/restore acceptance gate.
+- Next: verify the fresh isolated host, then run actual manager/child execution, source publication,
+  independent semantic acceptance, factual closure and Browser Testing Phase B. F07/F08 parity,
+  release behavior and the final production cutover remain unproven. OAuth Preview acceptance
+  does not complete the delivery epic or authorize production activation.

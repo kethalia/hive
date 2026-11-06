@@ -214,9 +214,15 @@ No workspace/template rollout or production mutation is authorized merely by rec
 
 F09 and F10 were initially accepted as documentation-only roadmap scope. On November 6,
 the user explicitly prioritized implementing F09 after observing the legacy login form.
-F09 is now active: implement the static-client browser consent/return path and prove it
-with the dedicated account before resuming the manager/browser pilot. F10 remains
-implementation-deferred; track both in final epic acceptance rather than silently dropping them.
+F09 remains active, with its Preview login checkpoint accepted: real provider consent/code
+exchange, concurrent refresh, native Chrome navigation and authenticated Hive reload pass.
+Provider consent/code exchange ran on the primary; Browser Testing separately verified the
+native link and reloaded an injected Hive application session. This is not a continuously
+browser-driven provider sign-in proof. See the [scoped evidence](checks/autonomous-delivery/coder-oauth-live-preview.json)
+and [execution ledger](checks/autonomous-delivery/progress.md#2026-11-06-f09-preview-acceptance-and-current-pilot-state).
+Independent production client enrollment and offline preparation are ready without production
+activation. Provider revocation/disconnect and final production acceptance remain gates.
+F10 remains implementation-deferred; track both in final epic acceptance.
 
 F09 replaces Hive's normal email/password connection with “Connect to Coder” against the
 instance-defined `https://coder.kethalia.com`; no server-URL prompt is introduced. Use the
@@ -246,18 +252,25 @@ See the [reference audit](checks/autonomous-delivery/account-connections-roadmap
 
 ## Immediate next task
 
-The single parent Worker now builds automatic branch Previews. Native authentication and the
-corrected installed host's idle closure/restart pass their bounded gates. Complete the live
-manager-to-publication flow on that Preview: repair the mixed Prisma runtime query defect found
-at task start, then validate independent acceptance, source advancement, shared conversation/
-terminal continuity and larger-epic recovery. Keep uncertain attempts and host lifetimes held.
+The native Preview at `bfd4d88f` has accepted OAuth login/navigation and authenticated reload.
+The mixed Prisma query defect and generic operation ACK recovery are implemented; these are
+no longer implementation blockers. Generic atomic operation receipts (the `617f8cc8` checkpoint and subsequent recovery fixes)
+and explicit owner retry (`726ed4ee`) have source/test review. The [exact `bfd4d88f` image](checks/autonomous-delivery/host-preview-image-bfd4d88f.json)
+passed smoke and verified registry publication. Both Preview databases have migration 44 with verified
+native runtime grants repaired at `cd9fb52b`.
 
-Adapt the production request gate, schedules and release controller to the same single-Worker
-topology. Prepare production bindings, retained identities, migration compatibility and rollback
-as a concrete cutover for the user's approval. F07/F08 account-backed behavior and the remaining
-D-task gates still need their recorded acceptance. F09/F10 account connection refactoring remains
-accepted roadmap scope with its documented sequencing. The [execution ledger](checks/autonomous-delivery/progress.md)
-distinguishes completed slices, live integration findings and outstanding milestones.
+Next, provision and verify the fresh isolated host against the exact immutable package/image,
+then complete the real manager/child path, source publication, independent semantic acceptance
+and factual closure on that same native deployment. Run Browser Testing Phase B for shared
+Conversation/Terminal continuity, task status and acceptance. Preserve uncertain attempts and
+held host lifetimes; earlier quarantined hosts do not supply fresh execution authority.
+
+Finish the remaining F07/F08 account-backed parity/recovery gates and release-controller
+acceptance. Prepare production bindings, retained identities, explicit production OAuth,
+migration compatibility, scheduler handover and rollback as a concrete cutover package for the
+user's final approval. Production activation is not authorized. F10 remains deferred. The
+[execution ledger](checks/autonomous-delivery/progress.md) distinguishes source implementation,
+scoped Preview acceptance and outstanding production milestones.
 
 
 ### Bootstrap acceptance versus epic completion

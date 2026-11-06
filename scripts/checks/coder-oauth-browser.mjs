@@ -10,7 +10,7 @@ let browser;
 let stage = "input";
 try {
   const value = JSON.parse(input);
-  if (value.budgetReserved !== 48 || !Array.isArray(value.cookies) || !value.cookies.length)
+  if (value.budgetReserved !== 100 || !Array.isArray(value.cookies) || !value.cookies.length)
     throw Error();
   const cookies = value.cookies.map((cookie) => {
     if (
@@ -51,7 +51,7 @@ try {
       if (url.origin === origin && request.method() === "GET") {
         if (++report.hiveRequests > value.budgetReserved) return route.abort();
       } else if (url.origin === "https://coder.kethalia.com" && request.method() === "GET") {
-        if (++report.coderRequests > 60) return route.abort();
+        if (++report.coderRequests > 40) return route.abort();
       } else return route.abort();
       return route.continue();
     });
@@ -72,10 +72,12 @@ try {
   await page.screenshot({ path: "coder-oauth-login.png", fullPage: true });
   stage = "coder-navigation";
   await Promise.all([
-    page.waitForURL((url) => url.origin === "https://coder.kethalia.com", { timeout: 30000 }),
+    page.waitForURL((url) => url.origin === "https://coder.kethalia.com", {
+      timeout: 30000,
+      waitUntil: "commit",
+    }),
     button.click(),
   ]);
-  await page.waitForLoadState("domcontentloaded");
   const destination = new URL(page.url());
   if (
     destination.origin !== "https://coder.kethalia.com" ||
@@ -83,6 +85,7 @@ try {
   )
     throw Error();
   report.checks.continueNavigatesToFixedCoderHost = true;
+  await page.close();
   stage = "authenticated-hive";
   const authenticated = anonymous;
   await authenticated.addCookies(cookies);
