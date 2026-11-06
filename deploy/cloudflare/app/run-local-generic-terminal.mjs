@@ -8,6 +8,7 @@ import { join, resolve } from "node:path";
 import WebSocket from "ws";
 
 const sources = [
+  "packages/auth/src/coder-credential-headers.ts",
   "deploy/cloudflare/app/generic-terminal-relay.ts",
   "deploy/cloudflare/app/generic-terminal-runtime.ts",
   "deploy/cloudflare/app/local-generic-terminal.worker.ts",
@@ -64,7 +65,7 @@ for (const [name, main, services] of [
 }
 await writeFile(
   join(directory, ".dev.vars"),
-  `PROOF_BEARER=${bearer}\nAUTH_SERVICE_SECRET=${authSecret}\nCOOKIE_SECRET=${cookieSecret}\n`,
+  `PROOF_OAUTH=${process.argv.includes("--oauth") ? "true" : "false"}\nPROOF_BEARER=${bearer}\nAUTH_SERVICE_SECRET=${authSecret}\nCOOKIE_SECRET=${cookieSecret}\n`,
   { mode: 0o600 },
 );
 const child = spawn(
@@ -277,6 +278,7 @@ try {
 const after = await hashes();
 const result = {
   schemaVersion: 1,
+  credentialMode: process.argv.includes("--oauth") ? "oauth" : "legacy",
   observedAt: new Date().toISOString(),
   sourceStable: JSON.stringify(before) === JSON.stringify(after),
   sourceHashes: after,

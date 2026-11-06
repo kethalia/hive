@@ -1,0 +1,17 @@
+{
+  "observedAt": "2026-11-06T00:41:53.877773+00:00",
+  "status": 200,
+  "loginForm": true,
+  "extraPreviewGateAbsent": true,
+  "authorizationHeaderSent": false,
+  "cookieHeaderSent": false,
+  "budget": {
+    "used": 72,
+    "maximum": 200,
+    "remaining": 128
+  },
+  "sourceRevision": "617f8cc8",
+  "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "normalHiveAuthenticationRetained": true,
+  "productionActivationChanged": false
+}

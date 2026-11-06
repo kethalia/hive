@@ -116,6 +116,7 @@ describe("KeepAliveManager", () => {
     manager.stop();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("pings active workspaces with correct URL and headers", async () => {
@@ -132,6 +133,57 @@ describe("KeepAliveManager", () => {
     expect(opts.headers["Content-Type"]).toBe("application/json");
     const body = JSON.parse(opts.body);
     expect(body.deadline).toBeDefined();
+  });
+
+  it("retains OAuth bearer provenance for deadline extensions", async () => {
+    vi.stubEnv("CODER_URL", testMeta.coderUrl);
+    vi.stubEnv("AUTH_SERVICE_SECRET", "a".repeat(64));
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        token: "fresh-oauth-token",
+        coderUrl: testMeta.coderUrl,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        credentialSource: "oauth",
+      }),
+    );
+    fetchMock.mockResolvedValueOnce({ ok: true });
+    registry.addConnection("ws-oauth", "conn-oauth", {
+      ...testMeta,
+      sessionId: "oauth-session",
+      credentialSource: "oauth",
+    });
+    await manager.ping("ws-oauth");
+    expect(fetchMock.mock.calls[0][0]).toContain("/sessions/oauth-session/token");
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get("authorization")).toBe(
+      `Bearer ${"a".repeat(64)}`,
+    );
+    const headers = new Headers(fetchMock.mock.calls[1][1].headers);
+    expect(headers.get("authorization")).toBe("Bearer fresh-oauth-token");
+    expect(headers.has("Coder-Session-Token")).toBe(false);
+  });
+
+  it.each([
+    null,
+    {
+      token: "wrong-origin-token",
+      coderUrl: "https://foreign.example",
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      credentialSource: "oauth",
+    },
+  ])("does not reuse the cached OAuth credential when session refresh fails", async (credential) => {
+    vi.stubEnv("CODER_URL", testMeta.coderUrl);
+    vi.stubEnv("AUTH_SERVICE_SECRET", "a".repeat(64));
+    fetchMock.mockResolvedValueOnce(
+      credential ? Response.json(credential) : new Response(null, { status: 404 }),
+    );
+    registry.addConnection("ws-oauth", "conn-oauth", {
+      ...testMeta,
+      sessionId: "oauth-session",
+      credentialSource: "oauth",
+    });
+    await manager.ping("ws-oauth");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(manager.getHealth()["ws-oauth"].consecutiveFailures).toBe(1);
   });
 
   it("resets failure count on successful ping", async () => {

@@ -144,6 +144,29 @@ afterEach(async () => {
 });
 
 describe("project relay request/database boundary (edge socket simulated)", () => {
+  it("allows a 15s fresh OAuth credential lookup within setup without expanding registration expiry", async () => {
+    mock.coder.mockImplementation(async (_user, options) => {
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+      options.signal.throwIfAborted();
+      return { credentialSource: "oauth" };
+    });
+    const opening = projectRelay(request(), env(), Date.now() + 900000);
+    await vi.advanceTimersByTimeAsync(15000);
+    expect((await opening).status).toBe(101);
+    expect(mock.exchangeSession).toHaveBeenCalled();
+    expect(pairs[0].server.close).not.toHaveBeenCalled();
+  });
+  it("allows a 15s owner reauthorization while keeping the existing refresh schedule", async () => {
+    const bindings = env();
+    expect((await projectRelay(request(), bindings, Date.now() + 900000)).status).toBe(101);
+    const target = await mock.authorize();
+    mock.authorize.mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+      return target;
+    });
+    await vi.advanceTimersByTimeAsync(35000);
+    expect(pairs[0].server.close).not.toHaveBeenCalled();
+  });
   it("production uses the exact public origin and retains session/registration bounds without preview expiry", async () => {
     const bindings = {
       ...env(),

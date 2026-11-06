@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { transferTerminalPaste } from "../../../deploy/cloudflare/app/terminal-paste-transport";
 
-function fixture(mode = "normal") {
+function fixture(mode = "normal", credentialSource?: "oauth") {
   const listeners = new Map<string, Set<(value: any) => void>>();
   let nonce = "",
     manifest: any[] = [],
@@ -66,7 +66,12 @@ function fixture(mode = "normal") {
     expect(url.origin).toBe("https://coder.example");
     expect(url.pathname).toBe("/api/v2/workspaceagents/10000000-0000-4000-8000-000000000001/pty");
     expect(init?.redirect).toBe("manual");
-    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe("private-token");
+    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe(
+      credentialSource ? null : "private-token",
+    );
+    expect(new Headers(init?.headers).get("Authorization")).toBe(
+      credentialSource ? "Bearer private-token" : null,
+    );
     expect(new Headers(init?.headers).has("Cookie")).toBe(false);
     return { status: 101, redirected: false, webSocket: socket } as unknown as Response;
   });
@@ -93,6 +98,7 @@ function fixture(mode = "normal") {
       origin: "https://coder.example",
       agentId: "10000000-0000-4000-8000-000000000001",
       token: "private-token",
+      credentialSource,
       files,
       signal,
       authorize,
@@ -101,6 +107,11 @@ function fixture(mode = "normal") {
   return { run, socket, fetching, received, data, authorize };
 }
 describe("fixed terminal paste PTY transport", () => {
+  it("uses OAuth Bearer for fixed paste PTY transport", async () => {
+    const f = fixture("normal", "oauth");
+    expect(await f.run()).toEqual(["/tmp/hive-terminal-paste/generated.bin"]);
+    expect(Buffer.concat(f.received)).toEqual(f.data);
+  });
   it("sends exact binary bytes in ACK-paced bounded chunks with generated command", async () => {
     const f = fixture();
     expect(await f.run()).toEqual(["/tmp/hive-terminal-paste/generated.bin"]);

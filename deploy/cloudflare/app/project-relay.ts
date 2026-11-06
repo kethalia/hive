@@ -58,7 +58,7 @@ export type RelayDependencies = {
   onClosed?: () => void;
 };
 export const RELAY_REAUTHORIZE_MS = 20000;
-export const RELAY_AUTH_TIMEOUT_MS = 10000;
+export const RELAY_AUTH_TIMEOUT_MS = 20000;
 export const RELAY_RATE_WINDOW_MS = 1000;
 export const RELAY_MAX_FRAME = 1024 * 1024;
 export const RELAY_MAX_BYTES = 8 * RELAY_MAX_FRAME;

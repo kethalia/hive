@@ -199,6 +199,25 @@ describe("voice Worker route", () => {
     ).toBe(503);
     expect(mocks.open).not.toHaveBeenCalled();
   });
+  it("allows a 15s fresh OAuth credential lookup inside setup", async () => {
+    vi.useFakeTimers();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((milliseconds) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), milliseconds);
+      return controller.signal;
+    });
+    const f = setup();
+    mocks.coder.mockImplementationOnce(async (_user, options) => {
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+      options.signal.throwIfAborted();
+      return { credentialSource: "oauth" };
+    });
+    const opening = voiceRuntime(request("GET"), env, Date.now() + 60000, f.context);
+    await vi.advanceTimersByTimeAsync(15000);
+    expect((await opening).status).toBe(200);
+    expect(f.rpc.close).toHaveBeenCalledOnce();
+    timeout.mockRestore();
+  });
   it("authenticates and rechecks ownership before listing threads", async () => {
     const f = setup();
     const response = await voiceRuntime(request("GET"), env, Date.now() + 60000, f.context);

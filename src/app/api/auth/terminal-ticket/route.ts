@@ -3,6 +3,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getRequestSession } from "@/lib/auth/session";
 import { resolveTerminalWsUrl, serverTerminalWsUrl } from "@/lib/runtime-config";
 import { publicationBody } from "@/lib/templates/publication-io";
+import { TERMINAL_AUTH_SERVER_TIMEOUT_MS } from "@/lib/terminal/auth-deadlines";
 import {
   type GenericTerminalAuthEnvironment,
   genericTerminalIssuerSession,
@@ -40,7 +41,10 @@ export async function POST(request: Request): Promise<Response> {
       request.headers.has("Content-Encoding")
     )
       return response(400, { error: "Invalid terminal request" });
-    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(5000)]);
+    const signal = AbortSignal.any([
+      request.signal,
+      AbortSignal.timeout(TERMINAL_AUTH_SERVER_TIMEOUT_MS),
+    ]);
     const body = JSON.parse(
       new TextDecoder("utf-8", { fatal: true }).decode(
         await publicationBody(

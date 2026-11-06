@@ -9,7 +9,10 @@ let mode = "normal",
   completed = 0;
 const accepted: { size: number; sha256: string }[] = [];
 export default {
-  async fetch(request: Request, env: { PROOF_BEARER: string; AUTH_SERVICE_SECRET: string }) {
+  async fetch(
+    request: Request,
+    env: { PROOF_BEARER: string; AUTH_SERVICE_SECRET: string; PROOF_OAUTH?: string },
+  ) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/__paste/")) {
       if (request.headers.get("Authorization") !== `Bearer ${env.PROOF_BEARER}`)
@@ -21,9 +24,12 @@ export default {
     const command = url.searchParams.get("command") ?? "",
       nonce = command.split(" ").at(-1) ?? "";
     if (
-      request.headers.get("Coder-Session-Token") !== "synthetic-coder-token" ||
+      (env.PROOF_OAUTH === "true"
+        ? request.headers.get("Authorization") !== "Bearer synthetic-coder-token" ||
+          request.headers.has("Coder-Session-Token")
+        : request.headers.get("Coder-Session-Token") !== "synthetic-coder-token" ||
+          request.headers.has("Authorization")) ||
       request.headers.has("Cookie") ||
-      request.headers.has("Authorization") ||
       command !== terminalPasteWriterCommand(nonce)
     )
       return new Response(null, { status: 403 });

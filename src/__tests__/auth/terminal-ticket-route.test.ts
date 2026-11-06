@@ -58,6 +58,32 @@ describe("terminal ticket issuer", () => {
     }
     expect(session).not.toHaveBeenCalled();
   });
+
+  it("issues a ticket after a valid OAuth refresh exceeds five seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      session.mockImplementationOnce(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  session: {
+                    sessionId: "refreshed-session",
+                    expiresAt: new Date(Date.now() + 60_000),
+                  },
+                }),
+              6_000,
+            ),
+          ),
+      );
+      const result = POST(request());
+      await vi.advanceTimersByTimeAsync(6_000);
+      expect((await result).status).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it.each([
     "wss://evil.example/ws",
     "wss://terminal.example.com.evil/ws",

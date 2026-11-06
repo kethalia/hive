@@ -1,3 +1,5 @@
+import { TERMINAL_AUTH_CLIENT_TIMEOUT_MS } from "./auth-deadlines";
+
 // Tickets are short-lived, bound to one request, and never persisted or placed in URLs.
 async function terminalTicket(url: string): Promise<string> {
   const response = await fetch("/api/auth/terminal-ticket", {
@@ -7,7 +9,7 @@ async function terminalTicket(url: string): Promise<string> {
     redirect: "error",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(TERMINAL_AUTH_CLIENT_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error("Terminal authentication unavailable");
   const body = await response.json();

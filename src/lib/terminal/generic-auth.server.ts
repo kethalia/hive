@@ -11,6 +11,10 @@ import {
   publicationFetch,
 } from "@/lib/templates/publication-io";
 
+// Allows the bounded 15s OAuth refresh lease while retaining an outer deadline.
+export const GENERIC_TERMINAL_AUTHORIZATION_MS = 20000;
+export const GENERIC_TERMINAL_HANDSHAKE_MS = 30000;
+
 export type GenericTerminalAuthEnvironment = {
   AUTH_SERVICE?: { fetch: typeof fetch };
   AUTH_SERVICE_SECRET?: string;
@@ -43,7 +47,7 @@ export function genericTerminalAuthClient(
   )
     throw new Error("auth");
   authServiceHeaders(env.AUTH_SERVICE_SECRET);
-  return new AuthServiceClient("https://hive-auth.internal", 5000, {
+  return new AuthServiceClient("https://hive-auth.internal", GENERIC_TERMINAL_AUTHORIZATION_MS, {
     serviceSecret: env.AUTH_SERVICE_SECRET,
     fetch: async (input, init) => {
       const combined = AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]);
@@ -71,7 +75,10 @@ export async function genericTerminalIssuerSession(
   if (values.length !== 1 || !env.COOKIE_SECRET) return null;
   const cookie = verifyCookie(values[0], env.COOKIE_SECRET);
   if (!cookie) return null;
-  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(5000)]);
+  const signal = AbortSignal.any([
+    request.signal,
+    AbortSignal.timeout(GENERIC_TERMINAL_AUTHORIZATION_MS),
+  ]);
   const session = genericTerminalSessionSchema.parse(
     await genericTerminalAuthClient(env, signal).getSession(cookie.sessionId),
   );

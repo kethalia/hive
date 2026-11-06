@@ -37,6 +37,51 @@ describe("authenticateUpgrade", () => {
     vi.unstubAllGlobals();
   });
 
+  it("retains OAuth provenance when refresh exceeds five seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      mockVerifyCookie.mockReturnValue({ sessionId: "sess-oauth", timestamp: Date.now() });
+      fetchMock.mockImplementation(
+        (url: string, init: RequestInit) =>
+          new Promise((resolve, reject) => {
+            setTimeout(
+              () =>
+                resolve({
+                  ok: true,
+                  status: 200,
+                  json: async () =>
+                    url.endsWith("/token")
+                      ? {
+                          token: "oauth-access",
+                          coderUrl: "https://coder.test",
+                          credentialSource: "oauth",
+                        }
+                      : { username: "test-user" },
+                }),
+              6_000,
+            );
+            init.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+          }),
+      );
+      let settled = false;
+      const result = authenticateUpgrade(makeReq({ cookie: "hive-session=fixture" })).then(
+        (value) => {
+          settled = true;
+          return value;
+        },
+      );
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(await result).toMatchObject({
+        ok: true,
+        value: { token: "oauth-access", credentialSource: "oauth" },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("returns 502 when COOKIE_SECRET is not configured", async () => {
     delete process.env.COOKIE_SECRET;
     const result = await authenticateUpgrade(makeReq({ cookie: "hive-session=abc" }));

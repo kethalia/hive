@@ -10,6 +10,10 @@ import {
   createRegisteredSessionService,
   registeredSessionConfig,
 } from "../../../src/lib/codex-session/registered-session.server";
+import {
+  GENERIC_TERMINAL_AUTHORIZATION_MS,
+  GENERIC_TERMINAL_HANDSHAKE_MS,
+} from "../../../src/lib/terminal/generic-auth.server";
 import { type RuntimeOriginEnvironment, runtimeRelayOrigin } from "./preview-auth";
 import {
   openProjectRelay,
@@ -70,19 +74,23 @@ async function authenticate(
   if (!verified) return null;
   const binding = env.AUTH_SERVICE;
   if (!binding) throw new Error("Relay authentication service unavailable");
-  const auth = new AuthServiceClient("https://hive-auth.internal", undefined, {
-    fetch: (input, init) => {
-      signal?.throwIfAborted();
-      return binding.fetch(input, {
-        ...init,
-        signal:
-          signal && init?.signal
-            ? AbortSignal.any([signal, init.signal])
-            : (signal ?? init?.signal),
-      });
+  const auth = new AuthServiceClient(
+    "https://hive-auth.internal",
+    GENERIC_TERMINAL_AUTHORIZATION_MS,
+    {
+      fetch: (input, init) => {
+        signal?.throwIfAborted();
+        return binding.fetch(input, {
+          ...init,
+          signal:
+            signal && init?.signal
+              ? AbortSignal.any([signal, init.signal])
+              : (signal ?? init?.signal),
+        });
+      },
+      serviceSecret: env.AUTH_SERVICE_SECRET,
     },
-    serviceSecret: env.AUTH_SERVICE_SECRET,
-  });
+  );
   const session = await auth.getSession(verified.sessionId);
   signal?.throwIfAborted();
   if (
@@ -165,7 +173,7 @@ export async function projectRelay(
     }
   };
   const setup = new AbortController();
-  const setupTimer = setTimeout(() => setup.abort(), 10_000);
+  const setupTimer = setTimeout(() => setup.abort(), GENERIC_TERMINAL_HANDSHAKE_MS);
   const setupSignal = AbortSignal.any([request.signal, setup.signal]);
   let database: ReturnType<typeof createCloudflareDatabaseRequest> | undefined;
   let result: Awaited<ReturnType<typeof openProjectRelay>> | undefined;

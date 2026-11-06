@@ -29,10 +29,18 @@
       "HIVE_CODEX_GATEWAY_ENABLED": "false",
       "HIVE_DELIVERY_DISPATCH_ENABLED": "false",
       "HIVE_TOKEN_ROTATION_ENABLED": "false",
+      "HIVE_CODER_OAUTH_ENABLED": "true",
+      "HIVE_CODER_OAUTH_CLIENT_ID": "8a255ae5-7c91-4a6a-a27a-5107e82962d4",
       "CODER_URL": "https://coder.kethalia.com"
     },
     "secrets": {
-      "required": ["DATABASE_URL", "ENCRYPTION_KEY", "COOKIE_SECRET", "AUTH_SERVICE_SECRET"]
+      "required": [
+        "DATABASE_URL",
+        "ENCRYPTION_KEY",
+        "COOKIE_SECRET",
+        "AUTH_SERVICE_SECRET",
+        "HIVE_CODER_OAUTH_CLIENT_SECRET"
+      ]
     }
   }
 }

@@ -11,7 +11,10 @@ let revoked = false,
   extensions = 0;
 const ids = new Set<string>();
 export default {
-  fetch(request: Request, env: { PROOF_BEARER: string; AUTH_SERVICE_SECRET: string }) {
+  fetch(
+    request: Request,
+    env: { PROOF_BEARER: string; AUTH_SERVICE_SECRET: string; PROOF_OAUTH?: string },
+  ) {
     const url = new URL(request.url),
       path = url.pathname;
     if (path.startsWith("/__local/")) {
@@ -29,6 +32,7 @@ export default {
       if (path === "/sessions/fixture-session/token")
         return Response.json({
           token: "synthetic-coder-token",
+          ...(env.PROOF_OAUTH === "true" ? { credentialSource: "oauth" } : {}),
           coderUrl: "https://coder.example",
           expiresAt: null,
         });
@@ -43,9 +47,12 @@ export default {
       return new Response(null, { status: 404 });
     }
     if (
-      request.headers.get("Coder-Session-Token") !== "synthetic-coder-token" ||
-      request.headers.has("Cookie") ||
-      request.headers.has("Authorization")
+      (env.PROOF_OAUTH === "true"
+        ? request.headers.get("Authorization") !== "Bearer synthetic-coder-token" ||
+          request.headers.has("Coder-Session-Token")
+        : request.headers.get("Coder-Session-Token") !== "synthetic-coder-token" ||
+          request.headers.has("Authorization")) ||
+      request.headers.has("Cookie")
     )
       return new Response(null, { status: 403 });
     if (path === "/api/v2/users/me") return Response.json({ id: coderId });

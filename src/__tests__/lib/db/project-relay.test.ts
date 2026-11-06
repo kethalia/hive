@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   openProjectRelay,
   projectRelayPath,
+  RELAY_AUTH_TIMEOUT_MS,
   RELAY_MAX_FRAME,
+  RELAY_REAUTHORIZE_MS,
   type RelayDependencies,
   type RelaySocket,
 } from "../../../../deploy/cloudflare/app/project-relay";
@@ -251,7 +253,7 @@ describe("scoped project WebSocket relay", () => {
         }),
     );
     await f.open();
-    await vi.advanceTimersByTimeAsync(30000);
+    await vi.advanceTimersByTimeAsync(RELAY_REAUTHORIZE_MS + RELAY_AUTH_TIMEOUT_MS);
     expect(f.server.close).toHaveBeenCalledWith(1008, "Project authorization unavailable");
     expect(f.deps.onClosed).not.toHaveBeenCalled();
     reject!(new Error("Cancelled read drained"));

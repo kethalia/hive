@@ -39,7 +39,7 @@ const target = {
 const request = (query = new URLSearchParams(target).toString()) =>
   new Request(`${origin}/ws?${query}`, { headers: { Upgrade: "websocket", Origin: origin } });
 let closers: Array<() => void> = [];
-function fixture() {
+function fixture(credentialSource?: "oauth") {
   const server = new Socket(),
     client = new Socket(),
     upstream = new Socket();
@@ -49,6 +49,7 @@ function fixture() {
     coderUserId: "coder-owner",
     coderOrigin: "https://coder.example",
     token: "synthetic-credential",
+    credentialSource,
     buildId: "build-1",
     expiresAt: Date.now() + 3600000,
   };
@@ -86,6 +87,31 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("generic reconnecting PTY relay", () => {
+  it("uses OAuth Bearer for PTY upgrades without changing refresh or hard lifetime", async () => {
+    const f = fixture("oauth");
+    expect((await f.open()).status).toBe(101);
+    const headers = new Headers(f.deps.upgrade.mock.calls[0][1].headers);
+    expect(headers.get("Authorization")).toBe("Bearer synthetic-credential");
+    expect(headers.has("Coder-Session-Token")).toBe(false);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(f.deps.authorize).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(GENERIC_TERMINAL_LIFETIME_MS - 20000);
+    expect(f.server.close).toHaveBeenCalled();
+  });
+  it("admits a 15s OAuth refresh inside the bounded setup handshake", async () => {
+    const f = fixture("oauth");
+    const original = f.deps.authorize.getMockImplementation()!;
+    f.deps.authorize.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+      return original();
+    });
+    const opening = f.open();
+    await vi.advanceTimersByTimeAsync(15000);
+    expect((await opening).status).toBe(101);
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(f.server.close).not.toHaveBeenCalled();
+    expect(f.deps.extend).toHaveBeenCalledOnce();
+  });
   it("constructs the fixed Coder PTY, keeps owner credentials off browser output and preserves binary framing", async () => {
     const f = fixture();
     expect((await f.open()).status).toBe(101);

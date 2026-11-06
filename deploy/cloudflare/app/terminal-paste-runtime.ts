@@ -120,6 +120,7 @@ export async function terminalPasteRuntime(
       const sha256 = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
       uploads.push({ name: name(file), bytes, sha256 });
     }
+    let authorized = initial;
     let checked = 0;
     const authorize = async () => {
       signal.throwIfAborted();
@@ -140,13 +141,15 @@ export async function terminalPasteRuntime(
         current.coderOrigin !== initial.coderOrigin
       )
         throw new Error("changed");
+      authorized = current;
       checked = Date.now();
     };
     await authorize();
     const paths = await transferTerminalPaste({
       origin: initial.coderOrigin,
       agentId: initial.agentId,
-      token: initial.token,
+      token: authorized.token,
+      credentialSource: authorized.credentialSource,
       files: uploads,
       signal,
       authorize,

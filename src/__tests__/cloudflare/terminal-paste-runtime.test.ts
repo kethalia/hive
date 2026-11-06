@@ -78,6 +78,25 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("ordinary clipboard Workers runtime", () => {
+  it("passes the most recently reauthorized OAuth token to the fixed transport", async () => {
+    const original = auth.getMockImplementation()!;
+    let tokens = 0;
+    auth.mockImplementation(async (input, init) =>
+      String(input).endsWith("/token")
+        ? Response.json({
+            token: `oauth-${++tokens}`,
+            credentialSource: "oauth",
+            coderUrl: "https://coder.example",
+            expiresAt: null,
+          })
+        : original(input, init),
+    );
+    expect((await terminalPasteRuntime(request(), env, provider)).status).toBe(200);
+    expect(mock.transfer.mock.calls[0][0]).toMatchObject({
+      token: "oauth-2",
+      credentialSource: "oauth",
+    });
+  });
   it("accepts only the configured public production origin", async () => {
     env = {
       ...env,

@@ -1,9 +1,14 @@
+import { coderCredentialHeaders } from "@hive/auth";
 import {
   buildPtyUrl,
   SAFE_IDENTIFIER_RE,
   UUID_RE,
 } from "../../../services/terminal-proxy/src/protocol";
-import { GenericTerminalFailure } from "../../../src/lib/terminal/generic-auth.server";
+import {
+  GENERIC_TERMINAL_AUTHORIZATION_MS,
+  GENERIC_TERMINAL_HANDSHAKE_MS,
+  GenericTerminalFailure,
+} from "../../../src/lib/terminal/generic-auth.server";
 import { TERMINAL_READY, TERMINAL_SUBPROTOCOL } from "../../../src/lib/terminal/protocol";
 import type { RelaySocket, UpgradeResponse } from "./project-relay";
 
@@ -26,6 +31,7 @@ export type GenericTerminalAuthority = {
   coderOrigin: string;
   buildId: string;
   token: string;
+  credentialSource?: "legacy" | "managed_key" | "oauth";
   expiresAt: number;
 };
 export interface GenericTerminalDependencies {
@@ -124,7 +130,7 @@ export async function openGenericTerminalRelay(
   let upstream: RelaySocket | undefined;
   let cleanup: (() => void) | undefined;
   const handshake = new AbortController();
-  const handshakeTimer = setTimeout(() => handshake.abort(), 10000);
+  const handshakeTimer = setTimeout(() => handshake.abort(), GENERIC_TERMINAL_HANDSHAKE_MS);
   try {
     const authority = await deps.authorize(request, target, handshake.signal);
     handshake.signal.throwIfAborted();
@@ -142,7 +148,10 @@ export async function openGenericTerminalRelay(
       redirect: "manual",
       credentials: "omit",
       signal: handshake.signal,
-      headers: { Upgrade: "websocket", "Coder-Session-Token": authority.token },
+      headers: {
+        Upgrade: "websocket",
+        ...coderCredentialHeaders(authority.token, authority.credentialSource),
+      },
     });
     upstream = response.webSocket;
     if (response.status !== 101 || !upstream) {
@@ -188,7 +197,7 @@ export async function openGenericTerminalRelay(
       if (stopped || pending) return;
       const controller = new AbortController();
       pendingAbort = controller;
-      const timer = setTimeout(() => controller.abort(), 5000);
+      const timer = setTimeout(() => controller.abort(), GENERIC_TERMINAL_AUTHORIZATION_MS);
       const work = (async () => {
         const fresh = await deps.authorize(request, target, controller.signal);
         if (stopped) return;

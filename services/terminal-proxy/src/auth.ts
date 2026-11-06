@@ -10,10 +10,12 @@ import {
   verifyTerminalTicket,
 } from "@hive/auth";
 
-const AUTH_SERVICE_TIMEOUT_MS = 5_000;
+// The authentication service may serialize a bounded 15s OAuth refresh.
+const AUTH_SERVICE_TIMEOUT_MS = 20_000;
 
 export interface AuthSuccess {
   token: string;
+  credentialSource?: string;
   coderUrl: string;
   sessionId: string;
   username: string;
@@ -227,6 +229,7 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     ok: true,
     value: {
       token: tokenBody.token,
+      ...(tokenBody.credentialSource ? { credentialSource: tokenBody.credentialSource } : {}),
       coderUrl: getConfiguredCoderUrl(),
       sessionId,
       username,

@@ -27,6 +27,37 @@ Only trusted same-repository branch code may use this shared Preview Base. Previ
 
 Before connecting Workers Builds, provision the parent Worker and configure its Previews Base with **preview-only** values for `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET`, and `AUTH_SERVICE_SECRET`. The database must be the isolated preview database with its restricted runtime role. Existing encryption/session/issuer keys must be retained where existing preview data or issued tokens depend on them. Do not put secret values into Git, config, build variables, or arguments. Base secrets apply to newly created Previews; updating an existing Preview requires the separate native Preview secret command. Missing secrets leave the Preview unavailable. Native previews do not require `PREVIEW_BEARER` or `PREVIEW_COOKIE_SECRET`; those belong to the legacy private transport. Verify anonymous login access and rejection of unauthenticated owner API requests before use.
 
+## Configured Coder browser sign-in
+
+The current epic branch `codex/delivery-system-design` uses static confidential
+client `8a255ae5-7c91-4a6a-a27a-5107e82962d4` for the exact callback:
+
+```text
+https://codex-delivery-system-design-hive.b00ste.workers.dev/api/auth/coder/callback
+```
+
+The public client ID is deployment metadata. Its client secret belongs only in
+`HIVE_CODER_OAUTH_CLIENT_SECRET` through the private provider secret interface;
+never put its value in source, build variables, URLs, logs or reports. The four
+application keys above remain required, plus this fifth secret when OAuth is enabled.
+`HIVE_CODER_OAUTH_ENABLED=true` replaces the native Preview credentials form with
+Continue with Coder, using Coder's own login/consent and a normal Hive session on
+return. The login page reads readiness dynamically on each request. Legacy
+Node/Kubernetes deployments remain on their disabled-flag compatibility path.
+
+This enrollment is specific to that callback, not a wildcard authorization for
+all branches. The deployment helper currently permits OAuth-enabled publication
+only for `codex/delivery-system-design` and verifies the provider-resolved origin
+against that exact enrollment before upload. Other branch check/publication attempts
+fail until a separately reviewed enrollment is configured. Another Preview callback
+requires explicit provider client enrollment
+and matching branch configuration before enabling its OAuth presentation. A shared
+Preview Base secret alone does not enroll a new callback. Production requires a
+separate production client and its exact callback; offline production preparation
+strips Preview OAuth variables and keeps OAuth off until that separate configuration
+is reviewed. Enrollment/provisioning alone does not establish browser consent,
+session return or owner-isolation acceptance on the deployed candidate.
+
 Recommended Workers Builds configuration, after the provider connection and Base configuration are reviewed:
 
 - Repository root: `/`; toolchain and lockfile from this repository.
@@ -37,8 +68,8 @@ Recommended Workers Builds configuration, after the provider connection and Base
 Local checks, without provider calls:
 
 ```sh
-WORKERS_CI_BRANCH=codex/example node deploy/cloudflare/native/deploy.mjs preview --check
-WORKERS_CI_BRANCH=codex/example node deploy/cloudflare/native/deploy.mjs preview --dry-run
+WORKERS_CI_BRANCH=codex/delivery-system-design node deploy/cloudflare/native/deploy.mjs preview --check
+WORKERS_CI_BRANCH=codex/delivery-system-design node deploy/cloudflare/native/deploy.mjs preview --dry-run
 WORKERS_CI_BRANCH=main node deploy/cloudflare/native/deploy.mjs production --check
 node --test deploy/cloudflare/native/deploy.test.mjs
 ```

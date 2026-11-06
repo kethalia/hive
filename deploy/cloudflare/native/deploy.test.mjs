@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { account, plan, previewTarget, resolvePreviewOrigin, validateConfig } from "./deploy.mjs";
+import {
+  account,
+  oauthPreviewBranch,
+  plan,
+  previewTarget,
+  resolvePreviewOrigin,
+  validateConfig,
+} from "./deploy.mjs";
 
 const config = JSON.parse(readFileSync(new URL("./wrangler.jsonc", import.meta.url)));
 const clone = () => structuredClone(config);
@@ -33,6 +40,7 @@ test("isolated bootstrap and preview config have no production data or service b
     "ENCRYPTION_KEY",
     "COOKIE_SECRET",
     "AUTH_SERVICE_SECRET",
+    "HIVE_CODER_OAUTH_CLIENT_SECRET",
   ]);
 });
 test("branch name preserves the provider-managed Preview identity", () => {
@@ -96,8 +104,12 @@ test("production is check/dry-run only, while branch preview cannot target main"
     plan({ branch: "feature", target: "preview", check: true, dryRun: true, config }),
   );
   assert.equal(
-    plan({ branch: "feature", target: "preview", check: true, config }).target,
+    plan({ branch: oauthPreviewBranch, target: "preview", check: true, config }).target,
     "preview",
+  );
+  assert.throws(
+    () => plan({ branch: "feature", target: "preview", check: true, config }),
+    /Enroll an exact Coder OAuth callback/,
   );
 });
 
@@ -108,9 +120,9 @@ test("CLI checks do not deploy and reject a mismatched account or production act
       encoding: "utf8",
       env: { ...process.env, WORKERS_CI_BRANCH: branch, CLOUDFLARE_ACCOUNT_ID: account, ...extra },
     });
-  const preview = run("codex/example", ["preview", "--check"]);
+  const preview = run(oauthPreviewBranch, ["preview", "--check"]);
   assert.equal(preview.status, 0);
-  assert.equal(JSON.parse(preview.stdout).name, "codex/example");
+  assert.equal(JSON.parse(preview.stdout).name, oauthPreviewBranch);
   assert.equal(JSON.parse(preview.stdout).origin, undefined);
   assert.notEqual(
     run("codex/example", ["preview", "--check"], { CLOUDFLARE_ACCOUNT_ID: "wrong" }).status,
@@ -118,4 +130,5 @@ test("CLI checks do not deploy and reject a mismatched account or production act
   );
   assert.notEqual(run("main", ["production"]).status, 0);
   assert.notEqual(run("main", ["preview", "--check"]).status, 0);
+  assert.notEqual(run("codex/unenrolled", ["preview", "--check"]).status, 0);
 });

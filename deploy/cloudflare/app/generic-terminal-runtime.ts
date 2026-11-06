@@ -1,4 +1,9 @@
-import { authServiceHeaders, isLoopbackHostname, verifyTerminalTicket } from "@hive/auth";
+import {
+  authServiceHeaders,
+  coderCredentialHeaders,
+  isLoopbackHostname,
+  verifyTerminalTicket,
+} from "@hive/auth";
 import { z } from "zod";
 import {
   cancelPublicationBody,
@@ -6,6 +11,7 @@ import {
   publicationFetch,
 } from "../../../src/lib/templates/publication-io";
 import {
+  GENERIC_TERMINAL_AUTHORIZATION_MS,
   GenericTerminalFailure,
   genericTerminalAuthClient,
   genericTerminalSessionSchema,
@@ -37,6 +43,7 @@ const tokenSchema = z.object({
     .regex(/^[!-~]+$/),
   coderUrl: z.string(),
   expiresAt: z.string().nullable(),
+  credentialSource: z.enum(["legacy", "managed_key", "oauth"]).optional(),
 });
 
 const workspaceSchema = z.object({
@@ -90,13 +97,13 @@ export async function authorizeOwnedWorkspacePty(
     (agentId !== undefined && !uuid.safeParse(agentId).success)
   )
     throw new Error("workspace");
-  async function json(path: string, token: string, signal: AbortSignal) {
+  async function json(path: string, token: string, signal: AbortSignal, source?: string) {
     const response = await publicationFetch(
       fetcher(`${coderOrigin}${path}`, {
         redirect: "manual",
         credentials: "omit",
         signal,
-        headers: { "Coder-Session-Token": token, Accept: "application/json" },
+        headers: { ...coderCredentialHeaders(token, source), Accept: "application/json" },
       }),
       signal,
     );
@@ -110,7 +117,10 @@ export async function authorizeOwnedWorkspacePty(
       ),
     );
   }
-  const signal = AbortSignal.any([callerSignal, AbortSignal.timeout(5000)]);
+  const signal = AbortSignal.any([
+    callerSignal,
+    AbortSignal.timeout(GENERIC_TERMINAL_AUTHORIZATION_MS),
+  ]);
   const auth = genericTerminalAuthClient(env, signal);
   const [rawSession, rawToken] = await settledPair(
     auth.getSession(sessionId),
@@ -130,8 +140,13 @@ export async function authorizeOwnedWorkspacePty(
   )
     throw new GenericTerminalFailure(4401);
   const [user, workspace] = await settledPair(
-    json("/api/v2/users/me", credential.token, signal),
-    json(`/api/v2/workspaces/${workspaceId}`, credential.token, signal),
+    json("/api/v2/users/me", credential.token, signal, credential.credentialSource),
+    json(
+      `/api/v2/workspaces/${workspaceId}`,
+      credential.token,
+      signal,
+      credential.credentialSource,
+    ),
   );
   const current = workspaceSchema.parse(workspace);
   const agents = current.latest_build.resources
@@ -158,6 +173,7 @@ export async function authorizeOwnedWorkspacePty(
     coderOrigin,
     buildId: current.latest_build.id,
     token: credential.token,
+    credentialSource: credential.credentialSource,
     expiresAt: Math.min(sessionExpiry, tokenExpiry),
   };
 }
@@ -241,7 +257,10 @@ export function createGenericTerminalDependencies(
           redirect: "manual",
           credentials: "omit",
           signal,
-          headers: { "Content-Type": "application/json", "Coder-Session-Token": authority.token },
+          headers: {
+            "Content-Type": "application/json",
+            ...coderCredentialHeaders(authority.token, authority.credentialSource),
+          },
           body: JSON.stringify({ deadline: new Date(Date.now() + 3600000).toISOString() }),
         }),
         signal,

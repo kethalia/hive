@@ -22,7 +22,7 @@ const query = new URLSearchParams({
   width: "80",
   height: "24",
 }).toString();
-function fixture() {
+function fixture(source?: "oauth") {
   const url = `${origin}/ws?${query}`;
   const cookieSecret = "synthetic-cookie-secret";
   const ticket = createTerminalTicket(
@@ -49,8 +49,14 @@ function fixture() {
     coderUrl: coder,
     expiresAt: new Date(Date.now() + 3600000).toISOString(),
   };
-  const credential: { token: unknown; coderUrl: string; expiresAt: string | null } = {
+  const credential: {
+    token: unknown;
+    coderUrl: string;
+    expiresAt: string | null;
+    credentialSource?: "oauth";
+  } = {
     token: "synthetic-coder-token",
+    credentialSource: source,
     coderUrl: coder,
     expiresAt: null,
   };
@@ -72,8 +78,12 @@ function fixture() {
     throw new Error("Unexpected private service path");
   });
   const provider = vi.fn<typeof fetch>(async (input, init) => {
-    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe("synthetic-coder-token");
-    expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe(
+      source ? null : "synthetic-coder-token",
+    );
+    expect(new Headers(init?.headers).get("Authorization")).toBe(
+      source ? "Bearer synthetic-coder-token" : null,
+    );
     expect(new Headers(init?.headers).has("Cookie")).toBe(false);
     expect(init?.redirect).toBe("manual");
     const path = new URL(String(input)).pathname;
@@ -122,6 +132,26 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("fixed private terminal authorization", () => {
+  it("preserves OAuth Bearer credentials through exact owner reads and extension", async () => {
+    const f = fixture("oauth");
+    const authority = await f.authorize();
+    expect(authority.credentialSource).toBe("oauth");
+    await f.deps.extend(authority, f.target, new AbortController().signal);
+    expect(f.provider).toHaveBeenCalledTimes(3);
+  });
+  it("allows a bounded 15s OAuth refresh before owner reads", async () => {
+    vi.useFakeTimers();
+    const f = fixture("oauth");
+    const original = f.auth.getMockImplementation()!;
+    f.auth.mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/token"))
+        await new Promise((resolve) => setTimeout(resolve, 15000));
+      return original(input, init);
+    });
+    const work = f.authorize();
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(await work).toMatchObject({ credentialSource: "oauth" });
+  });
   it("uses the public production origin for ticket binding and rejects origin substitution", async () => {
     const f = fixture();
     const production = {

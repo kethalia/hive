@@ -36,6 +36,18 @@ describe("resolveAuthorizedWorkspaceIds", () => {
     );
   });
 
+  it("lists OAuth-owned workspaces using bearer provenance", async () => {
+    const request = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ workspaces: [{ id: "workspace-1" }] }));
+    expect(await resolveAuthorizedWorkspaceIds({ ...auth, credentialSource: "oauth" })).toEqual(
+      new Set(["workspace-1"]),
+    );
+    const headers = new Headers(request.mock.calls[0][1]?.headers);
+    expect(headers.get("authorization")).toBe("Bearer secret-token");
+    expect(headers.has("Coder-Session-Token")).toBe(false);
+  });
+
   it("aborts a stalled workspace request after the authorization deadline", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {

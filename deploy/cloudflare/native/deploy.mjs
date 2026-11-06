@@ -10,7 +10,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../../..");
 const configPath = join(here, "wrangler.jsonc");
 export const account = "225177f82b9234ede14e897fe15e0cb5";
-const requiredSecrets = ["DATABASE_URL", "ENCRYPTION_KEY", "COOKIE_SECRET", "AUTH_SERVICE_SECRET"];
+export const oauthPreviewBranch = "codex/delivery-system-design";
+export const oauthPreviewOrigin = "https://codex-delivery-system-design-hive.b00ste.workers.dev";
+const requiredSecrets = [
+  "DATABASE_URL",
+  "ENCRYPTION_KEY",
+  "COOKIE_SECRET",
+  "AUTH_SERVICE_SECRET",
+  "HIVE_CODER_OAUTH_CLIENT_SECRET",
+];
 const disabled = [
   "HIVE_PROJECT_DISCOVERY_ENABLED",
   "HIVE_PROJECT_TASKS_ENABLED",
@@ -145,6 +153,8 @@ export function validateConfig(c) {
     HIVE_CODEX_GATEWAY_ENABLED: "false",
     HIVE_DELIVERY_DISPATCH_ENABLED: "false",
     HIVE_TOKEN_ROTATION_ENABLED: "false",
+    HIVE_CODER_OAUTH_ENABLED: "true",
+    HIVE_CODER_OAUTH_CLIENT_ID: "8a255ae5-7c91-4a6a-a27a-5107e82962d4",
     CODER_URL: "https://coder.kethalia.com",
   });
   for (const name of disabled) assert.equal(v[name], "false");
@@ -158,6 +168,11 @@ export function plan({ branch, target, check = false, dryRun = false, config }) 
     assert.ok(check || dryRun, "Production deployment is disabled pending cutover approval");
     return { target, check, dryRun };
   }
+  assert.equal(
+    branch,
+    oauthPreviewBranch,
+    "Enroll an exact Coder OAuth callback before publishing another branch",
+  );
   return { target, check, dryRun, ...previewTarget(branch) };
 }
 async function run() {
@@ -228,6 +243,11 @@ async function run() {
     return;
   }
   const resolved = await resolvePreviewOrigin(p.name, process.env.CLOUDFLARE_API_TOKEN);
+  assert.equal(
+    resolved.origin,
+    oauthPreviewOrigin,
+    "Preview origin differs from the enrolled Coder callback",
+  );
   execFileSync(
     "pnpm",
     [

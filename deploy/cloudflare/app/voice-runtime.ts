@@ -20,6 +20,10 @@ import {
   type WorkspaceIssuerEnvironment,
   workspaceIssuerPrivateKey,
 } from "../../../src/lib/codex-session/workspace-issuer";
+import {
+  GENERIC_TERMINAL_AUTHORIZATION_MS,
+  GENERIC_TERMINAL_HANDSHAKE_MS,
+} from "../../../src/lib/terminal/generic-auth.server";
 import { type RuntimeOriginEnvironment, runtimeRelayOrigin } from "./preview-auth";
 
 export type VoiceEnvironment = WorkspaceIssuerEnvironment &
@@ -118,16 +122,20 @@ async function authorize(
   });
   try {
     return await database.run(async () => {
-      const auth = new AuthServiceClient("https://hive-auth.internal", 5000, {
-        serviceSecret: env.AUTH_SERVICE_SECRET,
-        fetch: (input, init) => {
-          if (!env.AUTH_SERVICE) throw new Error("auth unavailable");
-          return env.AUTH_SERVICE.fetch(input, {
-            ...init,
-            signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal,
-          });
+      const auth = new AuthServiceClient(
+        "https://hive-auth.internal",
+        GENERIC_TERMINAL_AUTHORIZATION_MS,
+        {
+          serviceSecret: env.AUTH_SERVICE_SECRET,
+          fetch: (input, init) => {
+            if (!env.AUTH_SERVICE) throw new Error("auth unavailable");
+            return env.AUTH_SERVICE.fetch(input, {
+              ...init,
+              signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal,
+            });
+          },
         },
-      });
+      );
       const current = await auth.getSession(session);
       signal.throwIfAborted();
       const expiresAt = Date.parse(current?.expiresAt ?? "");
@@ -272,7 +280,11 @@ export async function voiceRuntime(
   };
   context.waitUntil(lifecycle);
   try {
-    const setup = AbortSignal.any([request.signal, abort.signal, AbortSignal.timeout(10000)]);
+    const setup = AbortSignal.any([
+      request.signal,
+      abort.signal,
+      AbortSignal.timeout(GENERIC_TERMINAL_HANDSHAKE_MS),
+    ]);
     setupSignal = setup;
     const initial = await authorize(env, config, session, match[1], setup);
     const pin = config.profiles.find((p) => p.templateId === initial.binding.templateId);
@@ -328,7 +340,7 @@ export async function voiceRuntime(
           config,
           session,
           match[1],
-          AbortSignal.any([abort.signal, AbortSignal.timeout(5000)]),
+          AbortSignal.any([abort.signal, AbortSignal.timeout(GENERIC_TERMINAL_AUTHORIZATION_MS)]),
         );
         if (
           !sameBinding(initial.binding, fresh.binding) ||

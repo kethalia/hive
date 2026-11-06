@@ -28,11 +28,11 @@ export function publicationAuthClient(env: TemplatePublicationEnvironment) {
   if (typeof env.AUTH_SERVICE_SECRET !== "string")
     throw new Error("Template publication authentication secret unavailable");
   authServiceHeaders(env.AUTH_SERVICE_SECRET);
-  return new AuthServiceClient("https://hive-auth.internal", 10000, {
+  return new AuthServiceClient("https://hive-auth.internal", 20000, {
     serviceSecret: env.AUTH_SERVICE_SECRET,
     fetch: async (input, init) => {
       const signal = AbortSignal.any([
-        AbortSignal.timeout(10000),
+        AbortSignal.timeout(20000),
         ...(init?.signal ? [init.signal] : []),
       ]);
       const response = await publicationFetch(service.fetch(input, { ...init, signal }), signal);
