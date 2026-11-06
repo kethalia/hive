@@ -1483,3 +1483,11 @@ by this source checkpoint.
   and canonical starts redirect to the fixed Coder client/callback with S256.
   Existing immutable deployments retain prior code, so use the stable branch URL.
   [Live receipt](coder-oauth-preview-alias-live.json). No Safari automation claimed.
+
+- Native Preview release identity foundation: implemented and accepted for read-only scope.
+  The new reader and existing observer/controller seam use exact branch/Preview identity,
+  bounded manual-redirect GETs and matching samples. Thirty-one focused checks, independent
+  review and four real GET200 responses pass. Actual source/action annotations are absent;
+  eligibility stays unverified. No source/build/artifact/config/health/effect authority or
+  atomic CAS is inferred. Production mutation guards stay in place.
+  [Source design](native-preview-release-identity.md) and [live receipt](native-preview-release-identity-live.json).
