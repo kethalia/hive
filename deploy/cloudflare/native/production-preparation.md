@@ -137,7 +137,7 @@ const argv = publicationRecipe({
 ```
 
 The resulting command uses `pnpm exec wrangler deploy --config <absolute-config>
---strict --secrets-file <private-json-file>`. The private JSON must contain exactly
+--strict --secrets-file <private-json-file>`. The private JSON must contain
 the exact approved application secrets plus the production OAuth secret when
 enabled, and preserve existing identities; never put its values
 in the manifest, arguments, Git or reports. Inspect inherited remote secret names
@@ -145,9 +145,12 @@ as well: omitted secrets are retained by Wrangler. Immediately before running it
 recheck the actual files, build integrity and provider baseline. Do not use shell
 string interpolation; execute the returned argument array. `--strict` adds Wrangler's
 remote conflict check, but is not an atomic comparison against the recorded deployment.
-There is no automated provider-baseline reader, secret-identity verifier, activation
-executor or post-deployment readback in this helper. Those are explicit operator
-steps and remaining integration work, not completed acceptance.
+The separate [read-only metadata collector](production-readback.md) can capture
+fixed-scope provider metadata and compare fresh observations to an independently
+reviewed expectation. It does not certify an offline baseline, private secret
+identity, bootstrap code or application health. Secret-identity verification,
+activation execution and account-backed post-deployment acceptance remain explicit
+operator steps; the recipe does not run them.
 
 After publication, preserve provider readback of the exact Worker/version/config,
 route owner, secret names and empty schedules; validate app/auth, original sessions,

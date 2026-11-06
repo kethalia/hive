@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T03:33:00.889Z",
+  "scope": "Read-only fixed Hive parent Worker metadata; two complete samples",
+  "implementationBaseRevision": "f5f969cf",
+  "collectorSourceSHA256": "e807413daf8352d51cece212aac83c751ca5f34fbaca571f4b151743056b029d",
+  "sourceCommittedAtObservation": false,
+  "accepted": true,
+  "getRequestsInSuccessfulCapture": 19,
+  "deadlineSeconds": 30,
+  "bodyLimitBytes": 1048576,
+  "coverage": "reviewed-public-config-v1",
+  "deploymentId": "58ba59b3-439f-463c-9f27-a5daeeb0c015",
+  "versionId": "8ec86223-c790-40d2-a509-d30a3d3678ba",
+  "bindingNames": [
+    {
+      "name": "HIVE_NATIVE_MODE",
+      "type": "plain_text"
+    }
+  ],
+  "secretNames": [],
+  "crons": [],
+  "workersDev": true,
+  "versionPreviews": true,
+  "inactivePredicate": false,
+  "hiveZoneRouteCount": 0,
+  "hiveCustomDomainCount": 0,
+  "wholeProjectedSettingsDigest": "b015a4999231d7a63e4c4d3d4cddc193af0c1a93cbc15874ebd10d99d7f8420c",
+  "productionWrites": false,
+  "activationAuthorized": false,
+  "providerBaselineVerified": false,
+  "inactiveBaselineConversion": "held: parent workers.dev is enabled, although the retained deployment still has bootstrap-only configuration",
+  "validation": {
+    "focusedTestsPassed": 29,
+    "independentSourceReviewPassed": true,
+    "secretPayloadsExcludedBeforeHashing": true,
+    "unknownPaginationHolds": true
+  },
+  "priorAttemptsPreserved": [
+    "Initial expired Wrangler OAuth403; official whoami refresh restored read access.",
+    "Actual API nullable settings and40hex custom-domain IDs were validated explicitly.",
+    "Domains success:true/errors:null was supported; malformed/nonempty errors still hold."
+  ],
+  "limitations": [
+    "Two observations are not an atomic snapshot or assurance against a subsequent change.",
+    "Does not verify executable bootstrap code, credentials/private configuration, health, DNS, other-zone routes, restore, scheduling handover or rollback.",
+    "Full capture contains other zone metadata and remains private; only Hive summary and noncredential projected digest are published.",
+    "This snapshot is evidence from its observation time, not a current cutover baseline."
+  ]
+}

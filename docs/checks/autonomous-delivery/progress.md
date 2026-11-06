@@ -1461,3 +1461,11 @@ by this source checkpoint.
   native OAuth deployments, blocks password/bootstrap calls and accepts the primary-created
   native-final target only as a registry identity. Nineteen local Node/Python checks and
   independent source review pass. No new Browser Phase B execution/host enrollment is claimed.
+
+- Production metadata collector: source and real read-only capture accepted, moderate difficulty.
+  Twenty-nine focused checks and independent review pass. A real two-sample, nineteen-GET capture
+  validates fixed scope, public projection, strict pagination, nullable API settings/domain IDs
+  and sanitized errors. The retained parent version is unchanged, with bootstrap-only bindings
+  and no secrets/crons/Hive zone route/custom domain. Provider metadata reports parent workers.dev
+  enabled, so the inactive-baseline conversion correctly holds; no setting was changed and no
+  activation/rollback/health acceptance is implied. [Readback receipt](production-readback-live.json).
