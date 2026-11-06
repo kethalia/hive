@@ -94,3 +94,15 @@ before applying existing repository migrations. No provider/Neon mutation,
 production activation or browser execution was performed for this local slice.
 The fixture process was stopped after validation. Native/provider/browser
 acceptance is recorded separately by the primary agent before final F09 acceptance.
+
+
+## Deployed checkpoint
+
+The primary independently completed the real Browser/app/provider/Neon flow at
+`ddcd16ea`; see [live evidence](coder-oauth-disconnect-live.json). Cancel, single
+submission, old-session invalidation, exact captured-token401, notice persistence
+and same-owner restoration passed. Focus events were synthetic DOM signals.
+The committed [driver](../../../scripts/checks/coder-disconnect-browser.mjs) is the
+formatted version of the executed private v2 source; the receipt records the
+executed bytes separately. Five pure policy tests exercise its request bounds and
+synthetic-focus helper without launching a browser. Production acceptance remains open.

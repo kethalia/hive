@@ -27,7 +27,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | Test workspace | Fresh test and Infrastructure agents never connected; startup inspection pending | Generic operation receipt recovery and owner retry are implemented/reviewed. The `bfd4d88f` immutable image passed smoke and registry publication. Fresh `hive-native-final` has isolated storage but no connected agent; the diagnostic Infrastructure agent also timed out. No auth transfer or enrollment occurred. Global active template is unchanged. [Startup preflight](d11-native-final-readonly-preflight.json). |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
-| F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect local checks pass; live disconnect and final production acceptance remain. [Scoped evidence](coder-oauth-live-preview.json). |
+| F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect and same-owner restoration passed the real Browser/app/provider flow; final production acceptance remains. [Scoped evidence](coder-oauth-live-preview.json). |
 | F10 agent account window | Accepted roadmap; implementation deferred | Native Codex/Claude account setup and status in Hive; verify supported provider flows and workspace binding before implementation. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
@@ -1515,3 +1515,18 @@ by this source checkpoint.
   frontend checks cover resize/rerender/stale focus/401 and owner changes; parent
   reproduced40 Settings/API/UI cases. Pinned-slice TypeScript/native acceptance and
   the prepared single-disconnect Browser pilot follow publication.
+
+
+- Explicit Coder disconnect live checkpoint: complete for the isolated Preview account,
+  moderate difficulty. The real Browser Testing flow sent no mutation on Cancel and
+  exactly one generation-bound disconnect POST after confirmation. Old sessions were
+  removed, the captured Coder access token received401, and the unchanged old Hive
+  cookie received401. The result notice survived resize, an API401 and the stale-time
+  check using explicitly synthetic DOM focus signals; native tab focus is not claimed.
+  A fresh same-owner OAuth sign-in restored access with a new session while the old
+  cookie stayed invalid. Cloudflare build/CI and pinned-slice TypeScript pass; a duplicate
+  local Next build exhausted available disk, so only task-owned generated outputs were
+  moved to private scratch storage. Browser workspace stopped and retained for Phase B.
+  [Live evidence](coder-oauth-disconnect-live.json),
+  [bounded browser driver](../../../scripts/checks/coder-disconnect-browser.mjs).
+  Production, installed manager/cleanup, and the whole epic remain unaccepted.

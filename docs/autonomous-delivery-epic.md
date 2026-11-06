@@ -224,7 +224,12 @@ Independent production client enrollment and offline preparation are ready witho
 activation. Dedicated-account provider revocation and same-owner reconnect now pass, including deletion
 of both old sessions and unchanged old-cookie API401 after reauthorization.
 [Live revocation evidence](checks/autonomous-delivery/coder-oauth-revocation-live-preview.json).
-Explicit disconnect and final production acceptance remain gates.
+Explicit Settings disconnect now passes the real Browser/app/provider flow: Cancel sends no
+mutation, confirmation submits once, all old sessions and the captured access token are
+invalidated, and same-owner OAuth restoration creates only a new session. The durable notice
+survives cache clearing and the stale-time synthetic focus check; native tab focus is not
+claimed. [Disconnect evidence](checks/autonomous-delivery/coder-oauth-disconnect-live.json).
+Final production acceptance remains a gate.
 F10 remains implementation-deferred; track both in final epic acceptance.
 
 F09 replaces Hive's normal email/password connection with “Connect to Coder” against the
