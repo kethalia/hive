@@ -29,6 +29,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { GUARDIAN_ADMISSION_BUDGET } from "./codex-guardian-worker.mjs";
 import { archiveClosedProjectState } from "./codex-project-controller.mjs";
 
 const check = (v) => {
@@ -68,12 +69,15 @@ export const GUARDIAN_CONTROLLER_POLICY = Object.freeze({
   native: "one-use-fixed-inventory-before-launch",
   producer: "fresh-signed-server-fence",
   uncertainty: "durable-hold",
+  admissionRecovery: "exact-committed-envelope-then-fresh-fence",
+  admissionBudget: GUARDIAN_ADMISSION_BUDGET,
   drain: "independent-closed-barrier-required",
   sourceApplication: "terminal-root-reservation-and-protected-applied-receipt",
   metadataPolicyDigest: "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b",
 });
 export const GUARDIAN_CONTROLLER_POLICY_DIGEST = digest(GUARDIAN_CONTROLLER_POLICY);
 const PATH = "/api/codex-host/guardians";
+const admissionActions = ["prepare", "checkout", "native", "fence"];
 function privateRead(path, max = 2 * 1024 * 1024) {
   check(realpathSync(path) === path);
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -350,6 +354,7 @@ export function openGuardianController({
     challenge,
     drainStartup,
     deadline,
+    admissionRecoveryUsed = false,
     queue = Promise.resolve();
   const startup = () => {
     const value = startupAttestation();
@@ -392,7 +397,16 @@ export function openGuardianController({
         ["apply_reserve", "apply_verify", "apply_commit"].includes(frame.action),
     );
   };
-  const initialize = (factual = false, enrollmentHold = false, expiredDrain = false) => {
+  const admissionUncertainty = () =>
+    state?.hold &&
+    state.pending?.runtimeId === state.runtimeId &&
+    admissionActions.includes(state.pending?.action);
+  const initialize = (
+    factual = false,
+    enrollmentHold = false,
+    expiredDrain = false,
+    admissionHold = false,
+  ) => {
     const s = startup(),
       id = identity(s);
     if (!state) {
@@ -428,6 +442,7 @@ export function openGuardianController({
     check(
       ((!state.hold && !state.pending) ||
         (factual && applicationUncertainty()) ||
+        (admissionHold && admissionUncertainty()) ||
         (enrollmentHold && state.hold && state.pending?.action === "enroll")) &&
         (expiredDrain ||
           !state.enrollmentRecovery ||
@@ -443,6 +458,7 @@ export function openGuardianController({
   const serial = (operation, timeout = 3000) => {
     const pending = queue.then(() => {
       deadline = Date.now() + timeout;
+      admissionRecoveryUsed = false;
       return operation();
     });
     queue = pending.catch(() => {});
@@ -458,7 +474,9 @@ export function openGuardianController({
           state.lifetimeId === drainStartup.lifetimeId &&
           state.identityDigest === digest(identity(drainStartup)),
       );
-    } else initialize(mode === "factual" || mode === "readback");
+    } else initialize(mode === "factual" || mode === "readback", false, false, mode === "recovery");
+    if (mode === "recovery")
+      check(action === "fence" && state.operationRecovery?.phase === "needs_fence");
     const previous = applicationUncertainty() ? structuredClone(state.pending) : null;
     if (previous) {
       const app = state.applications[previous.applicationId];
@@ -470,15 +488,27 @@ export function openGuardianController({
             fields.projectId === previous.projectId),
       );
     }
-    check(action === "enroll" || uuid(state.runtimeId));
+    check((action === "enroll" || uuid(state.runtimeId)) && Date.now() < deadline);
     const issuedAt = Date.now(),
+      networkDeadline = Math.min(
+        deadline,
+        issuedAt +
+          (admissionActions.includes(action)
+            ? GUARDIAN_ADMISSION_BUDGET.frameMs
+            : action === "enroll"
+              ? 15000
+              : action.startsWith("epic_")
+                ? 30000
+                : 3000),
+      ),
       body = {
         schemaVersion: 1,
         runtimeId: fields.runtimeId ?? state.runtimeId,
         eventId: randomUUID(),
         issuedAt,
-        expiresAt:
-          issuedAt + (action === "enroll" ? 20000 : action.startsWith("epic_") ? 30500 : 3500),
+        expiresAt: admissionActions.includes(action)
+          ? Math.min(deadline + 500, networkDeadline + 500)
+          : issuedAt + (action === "enroll" ? 20000 : action.startsWith("epic_") ? 30500 : 3500),
         action,
         ...(action === "enroll" ? {} : { runtimeGeneration: state.generation }),
         ...fields,
@@ -498,10 +528,11 @@ export function openGuardianController({
       app.requests[action] ??= structuredClone(frame);
     }
     state.pending = frame;
+    if (mode === "recovery") state.operationRecovery.phase = "fencing";
     state.sequence++;
     save();
     const abort = new AbortController(),
-      timer = setTimeout(() => abort.abort(), Math.max(1, deadline - Date.now()));
+      timer = setTimeout(() => abort.abort(), Math.max(1, networkDeadline - Date.now()));
     let response;
     let failureCategory = "transport";
     const startedAt = Date.now();
@@ -515,12 +546,13 @@ export function openGuardianController({
       });
       failureCategory = "response";
       const result = await boundedJson(response, abort.signal);
-      check(Date.now() < body.expiresAt && !abort.signal.aborted);
+      check(Date.now() < networkDeadline && Date.now() < body.expiresAt && !abort.signal.aborted);
       if (mode !== "closure") startup();
       accept(result);
       state.chainDigest = digest({ previous: state.chainDigest, request: frame, response: result });
       state.pending = mode === "factual" ? previous : null;
       state.hold = Boolean(state.pending);
+      if (mode === "recovery") delete state.operationRecovery;
       if (action === "enroll") delete state.enrollmentFailure;
       save();
       return structuredClone(result);
@@ -662,18 +694,224 @@ export function openGuardianController({
       },
     };
   }
+  function validateHistoricalAdmission(original, result, target) {
+    const { project, preparation } = controllerProject(target.projectId, startup());
+    check(
+      sha(JSON.stringify(preparation)) === target.bindingDigest &&
+        result?.runtime?.operationReceiptsEnabled === true &&
+        result?.admission?.preparationDigest === target.bindingDigest &&
+        ["preparation", "checkout", "native"].includes(result.admission.phase) &&
+        result.runtime?.generation >= original.runtimeGeneration &&
+        result.runtime.generation <=
+          original.runtimeGeneration + (original.action === "prepare" ? 1 : 0),
+    );
+    if (original.action === "prepare")
+      check(
+        same(original.preparation, preparation) &&
+          original.preparationDigest === target.bindingDigest,
+      );
+    else if (original.action === "checkout")
+      check(
+        original.checkout.projectId === target.projectId &&
+          same(original.checkout, result.admission.checkoutBinding),
+      );
+    else check(original.projectId === target.projectId);
+    if (original.action === "fence") check(original.preparationDigest === target.bindingDigest);
+    if (result.admission.checkoutBinding) {
+      const bound = result.admission.checkoutBinding,
+        prepared = project.task.guardianPrepared;
+      check(
+        prepared &&
+          bound.projectId === target.projectId &&
+          bound.preparationIntentId === preparation.taskId,
+      );
+      for (const name of [
+        "repositoryId",
+        "revision",
+        "leaseId",
+        "leaseGeneration",
+        "checkoutIncarnation",
+        "checkoutIdentity",
+      ])
+        check(same(bound[name], prepared[name]));
+      const path = join(home, "projects/.hive-managed/github", bound.repositoryId, "checkout");
+      check(realpathSync(path) === path);
+      const fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+      const verifyPin = (descriptor, expected) => {
+        const physical = fstatSync(descriptor, { bigint: true });
+        check(
+          physical.isDirectory() &&
+            physical.uid === BigInt(process.getuid()) &&
+            !(physical.mode & 0o22n) &&
+            String(physical.dev) === expected.device &&
+            String(physical.ino) === expected.inode,
+        );
+      };
+      try {
+        verifyPin(fd, bound.checkoutIdentity);
+        if (result.admission.phase === "native") {
+          const fresh = nativeEvidence(target.projectId, startup()),
+            git = openSync(
+              `/proc/self/fd/${fd}/.git`,
+              constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+            );
+          try {
+            verifyPin(git, fresh.metadata.pins.git);
+          } finally {
+            closeSync(git);
+          }
+        }
+      } finally {
+        closeSync(fd);
+      }
+    } else check(result.admission.phase === "preparation");
+    if (original.action === "native")
+      check(
+        result.admission.phase === "native" &&
+          result.admission.registrationId === original.registrationId &&
+          result.admission.nativeThreadId === original.managerThreadId &&
+          result.admission.metadataPinsDigest === digest(original.metadata),
+      );
+    // A historical fence cannot renew an expired runtime. Its remaining lifetime
+    // is only a prerequisite for asking Hive for new authority.
+    check(Date.parse(result.runtime.authorityUntil) > Date.now());
+  }
+  async function recoverAdmission(target) {
+    initialize(false, false, false, true);
+    check(admissionUncertainty());
+    check(!admissionRecoveryUsed);
+    admissionRecoveryUsed = true;
+    const original = structuredClone(state.pending);
+    if (!state.operationRecovery) {
+      state.operationRecovery = { phase: "reading", requestDigest: digest(original), target };
+      for (const project of Object.values(state.projects)) delete project.producer;
+      save();
+      const issuedAt = Date.now(),
+        networkDeadline = Math.min(deadline, issuedAt + GUARDIAN_ADMISSION_BUDGET.frameMs),
+        nonce = randomBytes(32).toString("hex"),
+        body = {
+          schemaVersion: 1,
+          action: "operation_readback",
+          runtimeId: state.runtimeId,
+          runtimeGeneration: original.runtimeGeneration,
+          eventId: randomUUID(),
+          issuedAt,
+          expiresAt: networkDeadline + 500,
+          nonce,
+          lifetimeId: state.lifetimeId,
+          configSha256,
+          originalRequest: original,
+        },
+        frame = {
+          ...body,
+          proof: sign(
+            null,
+            Buffer.from(`hive-guardian-controller-v1\nPOST\n${PATH}\n${guardianCanonical(body)}`),
+            key,
+          ).toString("base64url"),
+        },
+        abort = new AbortController(),
+        timer = setTimeout(() => abort.abort(), Math.max(1, networkDeadline - Date.now()));
+      let response;
+      try {
+        check(Date.now() < networkDeadline);
+        response = await fetchImpl(`${config.hiveOrigin}${PATH}`, {
+          method: "POST",
+          redirect: "manual",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(frame),
+          signal: abort.signal,
+        });
+        const receipt = await boundedJson(response, abort.signal);
+        check(Date.now() < networkDeadline && !abort.signal.aborted);
+        startup();
+        check(
+          receipt?.accepted === true &&
+            receipt.historical === true &&
+            receipt.executionAuthorized === false &&
+            receipt.nonce === nonce &&
+            receipt.runtimeId === state.runtimeId &&
+            receipt.lifetimeId === state.lifetimeId &&
+            receipt.configSha256 === configSha256 &&
+            receipt.eventId === original.eventId &&
+            receipt.requestDigest === digest(original) &&
+            receipt.action === original.action &&
+            receipt.inputRuntimeGeneration === original.runtimeGeneration &&
+            receipt.resultRuntimeGeneration === receipt.result?.runtime?.generation &&
+            receipt.resultAdmissionGeneration === receipt.result?.admission?.generation &&
+            Number.isSafeInteger(receipt.committedAt) &&
+            receipt.committedAt >= original.issuedAt &&
+            receipt.committedAt <= Date.now() &&
+            Buffer.byteLength(JSON.stringify(receipt.result)) <= 65536 &&
+            same(state.pending, original) &&
+            state.hold,
+        );
+        validateHistoricalAdmission(original, receipt.result, target);
+        acceptPair(receipt.result, target.projectId);
+        state.chainDigest = digest({ previous: state.chainDigest, readback: frame, receipt });
+        state.operationRecovery = {
+          phase: "needs_fence",
+          requestDigest: digest(original),
+          target,
+          receipt: structuredClone(receipt),
+        };
+        // Learned generations and admission facts remain held across a crash.
+        save();
+      } finally {
+        clearTimeout(timer);
+        void response?.body?.cancel().catch(() => {});
+      }
+    }
+    const recovery = state.operationRecovery;
+    check(
+      recovery.phase === "needs_fence" &&
+        recovery.requestDigest === digest(original) &&
+        same(recovery.target, target),
+    );
+    validateHistoricalAdmission(original, recovery.receipt.result, target);
+    await send(
+      "fence",
+      { projectId: target.projectId, preparationDigest: target.bindingDigest },
+      (result) => {
+        validateHistoricalAdmission(
+          {
+            ...original,
+            action: "fence",
+            runtimeGeneration: state.generation,
+            projectId: target.projectId,
+            preparationDigest: target.bindingDigest,
+          },
+          result,
+          target,
+        );
+        acceptPair(result, target.projectId);
+      },
+      "recovery",
+    );
+  }
+  async function sendAdmission(action, fields, target) {
+    try {
+      return await send(action, fields, (result) => acceptPair(result, target.projectId));
+    } catch (error) {
+      if (!admissionUncertainty() || state.operationRecovery) throw error;
+      await recoverAdmission(target);
+    }
+  }
   async function admission(value) {
     check(
       exact(value, ["projectId", "bindingDigest"]) &&
         uuid(value.projectId) &&
         hex(value.bindingDigest),
     );
-    const s = initialize(),
-      { project, preparation } = controllerProject(value.projectId, s);
+    const s = initialize(false, false, false, true);
+    if (state.hold) await recoverAdmission(value);
+    const { project, preparation } = controllerProject(value.projectId, s);
     check(sha(JSON.stringify(preparation)) === value.bindingDigest && uuid(state.runtimeId));
     if (!state.projects[value.projectId])
-      await send("prepare", { preparation, preparationDigest: value.bindingDigest }, (r) =>
-        acceptPair(r, value.projectId),
+      await sendAdmission(
+        "prepare",
+        { preparation, preparationDigest: value.bindingDigest },
+        value,
       );
     const prepared = project.task.guardianPrepared;
     if (prepared && state.projects[value.projectId].phase === "preparation") {
@@ -683,7 +921,7 @@ export function openGuardianController({
           prepared.taskId === preparation.taskId &&
           prepared.repositoryId === preparation.repositoryId,
       );
-      await send(
+      await sendAdmission(
         "checkout",
         {
           checkout: {
@@ -697,14 +935,14 @@ export function openGuardianController({
             checkoutIdentity: prepared.checkoutIdentity,
           },
         },
-        (r) => acceptPair(r, value.projectId),
+        value,
       );
     }
     if (state.launch && state.projects[value.projectId].phase === "checkout") {
       const native = readEvidence(home, "codex-project-supervisor", "key");
       if (native.controllerRegistration?.status === "registered") {
         const evidence = nativeEvidence(value.projectId, s);
-        await send(
+        await sendAdmission(
           "native",
           {
             projectId: value.projectId,
@@ -712,14 +950,14 @@ export function openGuardianController({
             managerThreadId: evidence.managerThreadId,
             metadata: evidence.metadata,
           },
-          (r) => acceptPair(r, value.projectId),
+          value,
         );
       }
     }
-    await send(
+    await sendAdmission(
       "fence",
       { projectId: value.projectId, preparationDigest: value.bindingDigest },
-      (r) => acceptPair(r, value.projectId),
+      value,
     );
     return { ...value };
   }
@@ -1415,7 +1653,7 @@ export function openGuardianController({
         return { enrolled: true, runtimeId: state.runtimeId };
       }, 15000);
     },
-    authorizeAdmission: (v) => serial(() => admission(v)),
+    authorizeAdmission: (v) => serial(() => admission(v), GUARDIAN_ADMISSION_BUDGET.controllerMs),
     metadataAuthority: (projects) =>
       serial(async () => {
         initialize();
@@ -1475,7 +1713,7 @@ export function openGuardianController({
           },
         );
         return answer;
-      }),
+      }, GUARDIAN_ADMISSION_BUDGET.controllerMs),
     currentMetadata: (projectId) =>
       serial(async () => {
         try {
@@ -1487,7 +1725,7 @@ export function openGuardianController({
           }
           throw error;
         }
-      }),
+      }, GUARDIAN_ADMISSION_BUDGET.controllerMs),
     applyReserve: (value) => serial(() => application("reserve", value)),
     applyVerify: (value) => serial(() => application("verify", value)),
     applyCommit: (value) => serial(() => application("commit", value)),

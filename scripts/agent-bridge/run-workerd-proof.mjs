@@ -10,6 +10,27 @@ const root = await mkdtemp(join(tmpdir(), "hive-agent-proof-"));
 const source = await readFile("templates/ai-dev-k8s/scripts/agent-tools.py"),
   helper = join(root, "agent-tools.py");
 await writeFile(helper, source, { mode: 0o600 });
+const notificationAssets = new Map([
+  ["agent-tools.py", source],
+  ["agent-host.mjs", await readFile("scripts/agent-bridge/host.mjs")],
+  ["agent-start.mjs", await readFile("scripts/agent-bridge/start.mjs")],
+  ["notifications-install.py", await readFile("scripts/notifications/install.py")],
+  ["notifications-hook.py", await readFile("scripts/notifications/agent-hook.py")],
+]);
+for (const [name, bytes] of notificationAssets)
+  await writeFile(join(root, name), bytes, { mode: 0o600 });
+const manifestBytes = Buffer.from(
+  JSON.stringify({
+    schemaVersion: 1,
+    files: Object.fromEntries(
+      [...notificationAssets].map(([name, bytes]) => [
+        name,
+        createHash("sha256").update(bytes).digest("hex"),
+      ]),
+    ),
+  }),
+);
+await writeFile(join(root, "manifest.json"), manifestBytes, { mode: 0o600 });
 await mkdir(join(root, "custom-codex"), { mode: 0o700 });
 await mkdir(join(root, "custom-claude"), { mode: 0o700 });
 await writeFile(
@@ -38,7 +59,7 @@ const hostConfig = {
   binding,
   profile: "software",
   home: root,
-  manifestSha256: "a".repeat(64),
+  manifestSha256: sha(manifestBytes),
   helperSha256: sha(source),
 };
 const bridge = createAgentBridge(hostConfig, {
@@ -114,7 +135,9 @@ try {
     response.status !== 200 ||
     !Array.isArray(JSON.parse(body).sessions) ||
     JSON.parse(body).sessions.length !== 0 ||
-    JSON.parse(body).workspaceReads < 12
+    JSON.parse(body).workspaceReads < 12 ||
+    JSON.parse(body).notificationInstalled !== true ||
+    JSON.parse(body).notificationReplay !== true
   )
     throw new Error(`proof failed ${response.status}: ${body.slice(0, 400)}`);
   const hooks = JSON.parse(await readFile(join(root, "custom-codex/hooks.json"), "utf8"));
@@ -130,8 +153,14 @@ try {
   const changed = await (await fetch("http://127.0.0.1:18944/changed-build")).json();
   if (!changed.rejected || changed.code !== "outcome_unknown" || changed.appCalls !== 4)
     throw new Error("changed build proof failed");
+  const output = resolve("docs/checks/autonomous-delivery/agent-notification-installer-local");
+  await mkdir(output, { recursive: true });
+  await writeFile(
+    join(output, "bridge-workerd.json"),
+    `${JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(), localOnly: true, scope: "actual Workerd service/client + local signed host + pinned Python notification installer; synthetic provider reader/cookie exchange", checks: { notificationInstalled: JSON.parse(body).notificationInstalled, notificationReplay: JSON.parse(body).notificationReplay, customConfigPreserved: true, wrongOwnerRejected: denied.rejected, changedBuildUncertain: changed.code === "outcome_unknown" }, realProviderRequests: 0, liveCredentialsUsed: false }, null, 2)}\n`,
+  );
   process.stdout.write(
-    "workerd agent owner/build, scoped cookies, signed sessions and tracking mutations to actual local helper passed\n",
+    "workerd agent owner/build, scoped cookies, signed sessions, tracking and fixed notification installer with private receipt passed\n",
   );
 } finally {
   child.kill();

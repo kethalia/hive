@@ -19,11 +19,13 @@ import {
   preparationDigest,
   producerScopeSchema,
 } from "./guardian-contracts";
+import type { GuardianOperationEnvelope } from "./guardian-transport-contracts";
 import type { RegistrationBinding } from "./registration.server";
 import { lockActiveRegistration, RegistrationRejected } from "./registration-store.server";
 
 if (typeof window !== "undefined") throw new Error("Guardian storage is server-only.");
 type Tx = Prisma.TransactionClient;
+export const GUARDIAN_MAX_OPERATION_RECEIPTS = 1024;
 const requireGuardian: (value: unknown) => asserts value = (value) => {
   if (!value) throw new RegistrationRejected();
 };
@@ -157,6 +159,80 @@ export interface GuardianStoreOptions {
   expectedConfigSha256(binding: RegistrationBinding): string;
   authorizationExpiresAt?: number;
   signal?: AbortSignal;
+  operation?: GuardianOperationReceiptInput;
+}
+export interface GuardianOperationReceiptInput {
+  ownerId: string;
+  runtimeId: string;
+  eventId: string;
+  action: GuardianOperationEnvelope["action"];
+  inputRuntimeGeneration: number;
+  requestDigest: string;
+}
+type OperationReceipt = {
+  action: GuardianOperationEnvelope["action"];
+  requestDigest: string;
+  inputRuntimeGeneration: number;
+  resultRuntimeGeneration: number;
+  resultAdmissionGeneration: number;
+  response: Prisma.JsonObject;
+  responseDigest: string;
+  committedAt: Date;
+  lifetimeId: string;
+  buildId: string;
+  configSha256: string;
+  outerKeyFingerprint: string;
+};
+function operationResponse(value: unknown) {
+  const encoded = JSON.stringify(value);
+  requireGuardian(encoded && Buffer.byteLength(encoded) <= 65536);
+  const json = JSON.parse(encoded) as Prisma.JsonObject;
+  const runtime = json.runtime as Prisma.JsonObject,
+    admission = json.admission as Prisma.JsonObject;
+  requireGuardian(
+    runtime &&
+      admission &&
+      Number.isSafeInteger(runtime.generation) &&
+      Number(runtime.generation) > 0 &&
+      Number.isSafeInteger(admission.generation) &&
+      Number(admission.generation) > 0 &&
+      admission.runtimeId === runtime.id,
+  );
+  return {
+    json,
+    runtimeGeneration: Number(runtime.generation),
+    admissionGeneration: Number(admission.generation),
+  };
+}
+async function operationReceipt(
+  tx: Tx,
+  runtime: CodexGuardianRuntime,
+  input: GuardianOperationReceiptInput,
+) {
+  const [row] = await tx.$queryRaw<OperationReceipt[]>`
+    SELECT action,request_digest AS "requestDigest",input_runtime_generation AS "inputRuntimeGeneration",
+      result_runtime_generation AS "resultRuntimeGeneration",result_admission_generation AS "resultAdmissionGeneration",
+      response,response_digest AS "responseDigest",committed_at AS "committedAt",lifetime_id AS "lifetimeId",
+      build_id AS "buildId",config_sha256 AS "configSha256",outer_key_fingerprint AS "outerKeyFingerprint"
+    FROM codex_guardian_operation_receipts WHERE owner_id=${input.ownerId}::uuid
+      AND runtime_id=${input.runtimeId}::uuid AND event_id=${input.eventId}::uuid`;
+  if (!row) return null;
+  const result = operationResponse(row.response);
+  requireGuardian(
+    row.action === input.action &&
+      row.requestDigest === input.requestDigest &&
+      row.inputRuntimeGeneration === input.inputRuntimeGeneration &&
+      row.lifetimeId === runtime.lifetimeId &&
+      row.buildId === runtime.buildId &&
+      row.configSha256 === runtime.configSha256 &&
+      row.outerKeyFingerprint === runtime.outerKeyFingerprint &&
+      row.responseDigest === guardianDigest(result.json) &&
+      row.resultRuntimeGeneration === result.runtimeGeneration &&
+      row.resultAdmissionGeneration === result.admissionGeneration &&
+      (result.json.runtime as Prisma.JsonObject).id === runtime.id &&
+      (result.json.runtime as Prisma.JsonObject).ownerId === runtime.ownerId,
+  );
+  return row;
 }
 const bytesDigest = (value: string) => createHash("sha256").update(value).digest("hex");
 const fingerprint = (pem: string) => {
@@ -303,22 +379,92 @@ export class GuardianAdmissionStore {
             this.options.authorizationExpiresAt > Date.now(),
         );
     };
-    return this.db.$transaction(
-      async (tx) => {
+    assertCurrent();
+    const remaining =
+      this.options.authorizationExpiresAt === undefined
+        ? 10000
+        : Math.max(1, this.options.authorizationExpiresAt - Date.now());
+    if (this.options.authorizationExpiresAt !== undefined) requireGuardian(remaining >= 2);
+    const maxWait = Math.min(2000, Math.max(1, Math.floor(remaining / 4)));
+    const timeout =
+      this.options.authorizationExpiresAt === undefined
+        ? 10000
+        : Math.min(10000, remaining - maxWait);
+    return this.db
+      .$transaction(
+        async (tx) => {
+          assertCurrent();
+          const operation = this.options.operation;
+          let receiptRuntime: CodexGuardianRuntime | undefined;
+          let historical: OperationReceipt | null = null;
+          if (operation) {
+            const { runtime } = await lockGuardianRuntime(
+              tx,
+              operation.ownerId,
+              operation.runtimeId,
+            );
+            approvedRuntime(runtime, this.options.policy);
+            receiptRuntime = runtime;
+            if (runtime.operationReceiptsEnabled)
+              historical = await operationReceipt(tx, runtime, operation);
+            if (runtime.operationReceiptsEnabled && !historical) {
+              const [count] = await tx.$queryRaw<{ n: bigint }[]>`
+              SELECT count(*) AS n FROM codex_guardian_operation_receipts
+              WHERE owner_id=${operation.ownerId}::uuid AND runtime_id=${operation.runtimeId}::uuid`;
+              // Exhaustion holds before any new operation effect. Existing exact
+              // receipts/readbacks and factual closure remain available forever.
+              requireGuardian(Number(count.n) < GUARDIAN_MAX_OPERATION_RECEIPTS);
+            }
+          }
+          // An exact receipt is consulted before action generation/intent checks.
+          // Its historical response never extends authority or repeats mutations.
+          let result = historical ? (historical.response as T) : await work(tx);
+          if (operation && receiptRuntime?.operationReceiptsEnabled && !historical) {
+            const response = operationResponse(result);
+            await tx.$executeRaw`
+            INSERT INTO codex_guardian_operation_receipts(owner_id,runtime_id,event_id,action,request_digest,
+              input_runtime_generation,result_runtime_generation,result_admission_generation,response,response_digest,
+              lifetime_id,build_id,config_sha256,outer_key_fingerprint)
+            VALUES(${operation.ownerId}::uuid,${operation.runtimeId}::uuid,${operation.eventId}::uuid,
+              ${operation.action},${operation.requestDigest},${operation.inputRuntimeGeneration},
+              ${response.runtimeGeneration},${response.admissionGeneration},${JSON.stringify(response.json)}::jsonb,
+              ${guardianDigest(response.json)},${receiptRuntime.lifetimeId}::uuid,${receiptRuntime.buildId}::uuid,
+              ${receiptRuntime.configSha256},${receiptRuntime.outerKeyFingerprint})`;
+            // Receipt-enabled service calls return JSON wire data: model dates are
+            // ISO strings here, exactly as in the response retained for readback.
+            result = response.json as T;
+          }
+          if (this.options.authorizationExpiresAt !== undefined) {
+            const now = await databaseNow(tx);
+            requireGuardian(now.getTime() < this.options.authorizationExpiresAt);
+          }
+          assertCurrent();
+          return result;
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout,
+          maxWait,
+        },
+      )
+      .catch((error: unknown) => {
+        // Prisma can close a transaction while its last SQL statement drains.
+        // Preserve the same fail-closed expiry/cancellation result after draining.
         assertCurrent();
-        const result = await work(tx);
-        if (this.options.authorizationExpiresAt !== undefined) {
-          const now = await databaseNow(tx);
-          requireGuardian(now.getTime() < this.options.authorizationExpiresAt);
-        }
-        assertCurrent();
-        return result;
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-        timeout: 10000,
-      },
-    );
+        throw error;
+      });
+  }
+  /** Factual evidence only, including after runtime/intent authority expires. */
+  async operationReadback(input: GuardianOperationReceiptInput, required = true) {
+    return this.transaction(async (tx) => {
+      const { runtime } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      const receipt = runtime.operationReceiptsEnabled
+        ? await operationReceipt(tx, runtime, input)
+        : null;
+      if (required) requireGuardian(receipt);
+      return receipt;
+    });
   }
   async reserveRuntime(binding: RegistrationBinding, identity: GuardianRuntimeIdentity) {
     requireGuardian(
@@ -412,6 +558,7 @@ export class GuardianAdmissionStore {
           workspaceId: binding.workspaceId,
           buildId: binding.buildId,
           authorityUntil: new Date(now.getTime() + 60000),
+          operationReceiptsEnabled: true,
         },
       });
       approvedRuntime(row, this.options.policy);

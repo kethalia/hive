@@ -135,7 +135,63 @@ const enrollmentEnvelope = z
   .object({ ...common, action: z.literal("enroll"), grant: z.string().min(100).max(16384) })
   .strict();
 
+const guardianOperationEnvelopes = [
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("prepare"),
+      preparation: guardianPreparationSchema,
+      preparationDigest: guardianDigestSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("checkout"),
+      checkout: guardianCheckoutSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("native"),
+      projectId: uuid,
+      registrationId: uuid,
+      managerThreadId: boundedId,
+      metadata: guardianMetadataEvidenceSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("fence"),
+      projectId: uuid,
+      preparationDigest: guardianDigestSchema,
+    })
+    .strict(),
+] as const;
+export const guardianOperationEnvelopeSchema = z.discriminatedUnion(
+  "action",
+  guardianOperationEnvelopes,
+);
+export type GuardianOperationEnvelope = z.infer<typeof guardianOperationEnvelopeSchema>;
+
 export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("operation_readback"),
+      nonce: guardianDigestSchema,
+      lifetimeId: uuid,
+      configSha256: guardianDigestSchema,
+      originalRequest: guardianOperationEnvelopeSchema,
+    })
+    .strict(),
   z
     .object({
       ...common,
@@ -193,23 +249,8 @@ export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
       originalEnrollment: enrollmentEnvelope,
     })
     .strict(),
-  z
-    .object({
-      ...common,
-      ...generation,
-      action: z.literal("prepare"),
-      preparation: guardianPreparationSchema,
-      preparationDigest: guardianDigestSchema,
-    })
-    .strict(),
-  z
-    .object({
-      ...common,
-      ...generation,
-      action: z.literal("checkout"),
-      checkout: guardianCheckoutSchema,
-    })
-    .strict(),
+  guardianOperationEnvelopes[0],
+  guardianOperationEnvelopes[1],
   z
     .object({
       ...common,
@@ -220,26 +261,8 @@ export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
       projectIds: z.array(uuid).min(1).max(32),
     })
     .strict(),
-  z
-    .object({
-      ...common,
-      ...generation,
-      action: z.literal("native"),
-      projectId: uuid,
-      registrationId: uuid,
-      managerThreadId: boundedId,
-      metadata: guardianMetadataEvidenceSchema,
-    })
-    .strict(),
-  z
-    .object({
-      ...common,
-      ...generation,
-      action: z.literal("fence"),
-      projectId: uuid,
-      preparationDigest: guardianDigestSchema,
-    })
-    .strict(),
+  guardianOperationEnvelopes[2],
+  guardianOperationEnvelopes[3],
   z
     .object({
       ...common,

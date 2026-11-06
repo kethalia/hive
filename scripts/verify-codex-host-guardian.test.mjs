@@ -55,6 +55,23 @@ async function until(predicate) {
   }
   throw new Error("fixture_deadline");
 }
+test("actual FD3 authority uncertainty gates both projects and replaces opaque tokens", async (t) => {
+  const f = fixture(t, { authorityRegression: true });
+  await f.open();
+  const microtasks = join(f.directory, "authority-microtasks.json");
+  await until(() => existsSync(microtasks));
+  const observed = JSON.parse(readFileSync(microtasks));
+  assert(observed.checked > 0);
+  assert.equal(observed.acceptedStale, 0);
+  const report = join(f.directory, "authority-regression.json");
+  await until(() => existsSync(report));
+  assert.deepEqual(JSON.parse(readFileSync(report)), {
+    pendingBlocksOther: true,
+    heldBlocksOther: true,
+    oldGenerationRejected: true,
+    replacedTokenRejected: true,
+  });
+});
 function fixture(
   t,
   {
@@ -66,6 +83,7 @@ function fixture(
     applications = false,
     installerConfig = null,
     idle = false,
+    authorityRegression = false,
   } = {},
 ) {
   const directory = mkdtempSync(join(tmpdir(), "hive-host-guardian-")),
@@ -89,17 +107,40 @@ function fixture(
     join(packageDirectory, "codex-guardian-worker.mjs"),
   );
   const project = { projectId: randomUUID(), bindingDigest: "b".repeat(64) };
+  const secondProject = { projectId: randomUUID(), bindingDigest: "c".repeat(64) };
   const marker = join(directory, "ready.json"),
     barrier = join(directory, "barrier.json"),
     ptyMarker = join(directory, "pty.json"),
     writer = join(directory, "writer");
   const ptyScript = `import os,pty,json\npid,master=pty.fork()\nif pid==0: os.execve('/usr/bin/tmux',['tmux','-S',${JSON.stringify(join(directory, "tmux.sock"))},'attach-session','-t','=guardian-fixture'],{'PATH':'/usr/bin:/bin','TERM':'xterm-256color'})\nwith open(${JSON.stringify(`${ptyMarker}.tmp`)},'w') as f: json.dump({'pid':os.getpid(),'child':pid},f)\nos.replace(${JSON.stringify(`${ptyMarker}.tmp`)},${JSON.stringify(ptyMarker)})\nwhile True: os.read(master,8192)`;
   const script = `import {connectGuardianWorker} from './codex-guardian-worker.mjs';
+import assert from 'node:assert/strict';
+import {createHook} from 'node:async_hooks';
 import {spawn,execFileSync} from 'node:child_process';
 import {writeFileSync,existsSync} from 'node:fs';
 ${installerConfig ? `import {createServer} from 'node:http'; const server=createServer((req,res)=>{res.writeHead(200);res.end('ok')});await new Promise(r=>server.listen(${listenPort},'127.0.0.1',r));` : ""}
 const guard=await connectGuardianWorker({${startup ? `startup:{configSha256:'${mismatch ? "d".repeat(64) : configSha}',port:${listenPort}},` : ""}onLost:()=>{},onFinishClose:async()=>{},onCloseAdmission:async value=>{let rejected=false;try{guard.assertAdmission(token)}catch{rejected=true};writeFileSync(${JSON.stringify(barrier)},JSON.stringify({...value,executionRejected:rejected}));${rejectBarrier ? "throw new Error('fixture_barrier_failure');" : ""}return {closed:true,barrierId:value.barrierId,snapshots:value.projects.map(p=>({projectId:p.projectId}))}}});
 ${idle ? "let token=null;" : `let token=await guard.admit(${JSON.stringify(project)});token=await guard.executionFence(token);guard.assertAdmission(token);`}
+${
+  authorityRegression
+    ? `
+const beforeSecond=token;
+let probing=true,checked=0,acceptedStale=0;
+const hook=createHook({promiseResolve(){if(probing)queueMicrotask(()=>{if(probing){checked++;try{guard.assertAdmission(beforeSecond);acceptedStale++;}catch{}}})}});hook.enable();
+const second=await guard.admit(${JSON.stringify(secondProject)});
+probing=false;hook.disable();writeFileSync(${JSON.stringify(join(directory, "authority-microtasks.json"))},JSON.stringify({checked,acceptedStale}));assert(checked>0);assert.equal(acceptedStale,0);
+assert.throws(()=>guard.assertAdmission(beforeSecond));
+token=await guard.executionFence(token);guard.assertAdmission(token);guard.assertAdmission(second);
+const oldToken=token,pending=guard.executionFence(token);
+assert.throws(()=>guard.assertAdmission(second));
+token=await pending;guard.assertAdmission(token);guard.assertAdmission(second);
+assert.throws(()=>guard.assertAdmission(oldToken));
+await assert.rejects(guard.executionFence(second));
+assert.throws(()=>guard.assertAdmission(token));assert.throws(()=>guard.assertAdmission(second));
+writeFileSync(${JSON.stringify(join(directory, "authority-regression.json"))},JSON.stringify({pendingBlocksOther:true,heldBlocksOther:true,oldGenerationRejected:true,replacedTokenRejected:true}));
+`
+    : ""
+}
 ${
   tmux
     ? `const socket=${JSON.stringify(join(directory, "tmux.sock"))};
@@ -147,6 +188,7 @@ setInterval(()=>{},1000);`;
   );
   let allow = false;
   const applicationCalls = [];
+  let authorizationCalls = 0;
   const options = {
     ...Object.fromEntries(
       ["ApplyReserve", "ApplyVerify", "ApplyCommit"].map((action) => [
@@ -168,7 +210,16 @@ setInterval(()=>{},1000);`;
       : join(directory, "outer"),
     bindingDigest: "a".repeat(64),
     authorizeAdmission: async (value) => {
-      assert.deepEqual(value, project);
+      authorizationCalls++;
+      assert.deepEqual(
+        value,
+        authorityRegression && value.projectId === secondProject.projectId
+          ? secondProject
+          : project,
+      );
+      if (authorityRegression && authorizationCalls === 5) await delay(100);
+      if (authorityRegression && authorizationCalls === 6)
+        throw new Error("fixture uncertain authority");
       return value;
     },
     authorizeDrain: async (value) => {

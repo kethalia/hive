@@ -815,15 +815,38 @@ model CodexGuardianRuntime {
   authorityUntil DateTime @map("authority_until") @db.Timestamptz
   closedBarrierId String? @map("closed_barrier_id") @db.Uuid
   enrolledAt DateTime? @map("enrolled_at") @db.Timestamptz
+  operationReceiptsEnabled Boolean @default(false) @map("operation_receipts_enabled")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id], onDelete: Restrict)
   grants CodexGuardianEnrollmentGrant[]
   admissions CodexGuardianAdmission[]
   barriers CodexGuardianBarrier[]
+  operationReceipts CodexGuardianOperationReceipt[]
   @@unique([ownerId, id])
   @@unique([ownerId, slotId, lifetimeId])
   @@unique([ownerId, outerKeyFingerprint, lifetimeId])
   @@map("codex_guardian_runtimes")
+}
+
+model CodexGuardianOperationReceipt {
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  eventId String @map("event_id") @db.Uuid
+  action String
+  requestDigest String @map("request_digest")
+  inputRuntimeGeneration Int @map("input_runtime_generation")
+  resultRuntimeGeneration Int @map("result_runtime_generation")
+  resultAdmissionGeneration Int @map("result_admission_generation")
+  response Json
+  responseDigest String @map("response_digest")
+  lifetimeId String @map("lifetime_id") @db.Uuid
+  buildId String @map("build_id") @db.Uuid
+  configSha256 String @map("config_sha256")
+  outerKeyFingerprint String @map("outer_key_fingerprint")
+  committedAt DateTime @default(dbgenerated("clock_timestamp()")) @map("committed_at") @db.Timestamptz
+  runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction, map: "guardian_operation_receipt_runtime_fk")
+  @@id([ownerId, runtimeId, eventId], map: "codex_guardian_operation_receipts_pkey")
+  @@map("codex_guardian_operation_receipts")
 }
 
 model CodexGuardianEnrollmentGrant {

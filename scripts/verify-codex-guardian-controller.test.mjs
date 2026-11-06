@@ -83,6 +83,7 @@ function fixture() {
     outerIdentity: { ...kernel, pid: 9, parentPid: 8 },
   };
   const calls = [],
+    operationReceipts = new Map(),
     runtimeId = randomUUID(),
     admissionId = randomUUID();
   let packet,
@@ -92,7 +93,12 @@ function fixture() {
     metadata,
     applicationRequest,
     applicationPhase = "pending",
-    closeReply;
+    closeReply,
+    transportHook;
+  const reply = async (body, result) => {
+    await transportHook?.(body, result);
+    return Response.json(result);
+  };
   const options = {
     config,
     configSha256: startup.configSha256,
@@ -125,6 +131,28 @@ function fixture() {
           status: 307,
           headers: { Location: "https://foreign.invalid" },
         });
+      if (body.action === "operation_readback") {
+        const original = body.originalRequest,
+          saved = operationReceipts.get(original.eventId);
+        assert(saved && saved.requestDigest === digest(original));
+        return reply(body, {
+          accepted: true,
+          historical: true,
+          executionAuthorized: false,
+          nonce: body.nonce,
+          runtimeId,
+          lifetimeId: startup.lifetimeId,
+          configSha256: startup.configSha256,
+          eventId: original.eventId,
+          requestDigest: saved.requestDigest,
+          action: original.action,
+          inputRuntimeGeneration: original.runtimeGeneration,
+          resultRuntimeGeneration: saved.result.runtime.generation,
+          resultAdmissionGeneration: saved.result.admission.generation,
+          committedAt: saved.committedAt,
+          result: structuredClone(saved.result),
+        });
+      }
       if (body.action === "enrollment_readback") {
         const original = body.originalEnrollment;
         assert.equal(body.consumptionDigest, digest(original));
@@ -273,7 +301,7 @@ function fixture() {
           namespaceReceiptDigest: metadata.namespaceReceiptDigest,
         });
       if (body.action === "launch")
-        return Response.json({
+        return reply(body, {
           runtimeId,
           runtimeGeneration: generation,
           policyDigest: GUARDIAN_CONTROLLER_POLICY_DIGEST,
@@ -296,10 +324,23 @@ function fixture() {
             },
           ],
         });
-      return Response.json({
-        runtime: { id: runtimeId, lifetimeId: startup.lifetimeId, phase: "open", generation },
-        admission,
+      const result = {
+        runtime: {
+          id: runtimeId,
+          lifetimeId: startup.lifetimeId,
+          phase: "open",
+          generation,
+          authorityUntil: new Date(Date.now() + 180000).toISOString(),
+          operationReceiptsEnabled: true,
+        },
+        admission: structuredClone(admission),
+      };
+      operationReceipts.set(body.eventId, {
+        requestDigest: digest({ ...body, proof }),
+        committedAt: Date.now(),
+        result: structuredClone(result),
       });
+      return reply(body, result);
     },
   };
   const client = openGuardianController(options);
@@ -382,7 +423,14 @@ function fixture() {
       checkoutIncarnation: randomUUID(),
       checkoutIdentity: { device: "1", inode: "2" },
     };
-    if (prepared) task.guardianPrepared = record;
+    if (prepared) {
+      const path = join(home, "projects/.hive-managed/github/11/checkout");
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+      mkdirSync(join(path, ".git"), { mode: 0o700 });
+      const physical = statSync(path, { bigint: true });
+      record.checkoutIdentity = { device: String(physical.dev), inode: String(physical.ino) };
+      task.guardianPrepared = record;
+    }
     const state = {
       schemaVersion: 1,
       ownerId: binding.ownerId,
@@ -437,6 +485,9 @@ function fixture() {
     },
     project,
     calls,
+    onTransport: (callback) => {
+      transportHook = callback;
+    },
     startup,
     get applicationRequest() {
       return applicationRequest;
@@ -445,6 +496,9 @@ function fixture() {
       const directory = join(home, ".local/state/hive/codex-project-supervisor");
       mkdirSync(directory, { recursive: true, mode: 0o700 });
       const a = approval.approvals[0],
+        git = statSync(join(home, "projects/.hive-managed/github/11/checkout/.git"), {
+          bigint: true,
+        }),
         serverInstanceId = randomUUID(),
         key = Buffer.alloc(32, 14);
       const state = {
@@ -461,7 +515,11 @@ function fixture() {
           pins: {
             metadataPolicyDigest: packet.identity.metadataPolicyDigest,
             pins: [
-              { projectId, checkout: a.checkoutIdentity, metadata: { device: "1", inode: "3" } },
+              {
+                projectId,
+                checkout: a.checkoutIdentity,
+                metadata: { device: String(git.dev), inode: String(git.ino) },
+              },
             ],
           },
         },
@@ -629,6 +687,293 @@ test("lost enrollment ACK is recovered only by fresh bound factual readback", as
     f.close();
   }
 });
+for (const action of ["prepare", "checkout", "native", "fence"]) {
+  test(`lost ${action} ACK is factual until a fresh fence succeeds`, async () => {
+    const f = fixture();
+    try {
+      f.identity();
+      await f.client.bootstrap(f.grant());
+      const project = f.project(true),
+        target = { projectId: project.projectId, bindingDigest: project.bindingDigest },
+        path = join(f.home, "outer", "controller.json");
+      if (["native", "fence"].includes(action)) {
+        await f.client.authorizeAdmission(target);
+        const approval = await f.client.metadataAuthority([{ projectId: project.projectId }]);
+        f.native(approval, project.projectId);
+        if (action === "fence") await f.client.currentMetadata(project.projectId);
+      }
+      let lost,
+        readback = 0,
+        freshFence = 0;
+      f.onTransport((request) => {
+        if (request.action === action && !lost) {
+          lost = structuredClone(request);
+          throw new Error("fixture committed response lost");
+        }
+        if (request.action === "operation_readback") {
+          readback++;
+          assert.equal(request.originalRequest.eventId, lost.eventId);
+          assert.equal(f.client.status.held, true);
+          const state = JSON.parse(readFileSync(path)).state;
+          assert.equal(state.pending.eventId, lost.eventId);
+          assert(Object.values(state.projects).every((p) => !p.producer));
+        } else if (request.action === "fence" && readback && !freshFence) {
+          freshFence++;
+          assert.equal(f.client.status.held, true);
+          assert.equal(JSON.parse(readFileSync(path)).state.operationRecovery.phase, "fencing");
+        }
+      });
+      assert.deepEqual(await f.client.authorizeAdmission(target), target);
+      assert.equal(readback, 1);
+      assert.equal(freshFence, 1);
+      assert.equal(f.client.status.held, false);
+      const state = JSON.parse(readFileSync(path)).state;
+      assert.equal(state.pending, null);
+      assert.equal(state.operationRecovery, undefined);
+      assert(Object.values(state.projects).every((p) => !p.producer));
+      assert.equal(f.calls.filter((r) => r.eventId === lost.eventId).length, 1);
+    } finally {
+      f.close();
+    }
+  });
+}
+for (const failure of [
+  "missing",
+  "event",
+  "digest",
+  "generation",
+  "expired",
+  "fence_lost",
+  "local_drift",
+]) {
+  test(`admission receipt ${failure} preserves hold across reopen`, async () => {
+    const f = fixture();
+    try {
+      f.identity();
+      await f.client.bootstrap(f.grant());
+      const project = f.project(true),
+        target = { projectId: project.projectId, bindingDigest: project.bindingDigest },
+        path = join(f.home, "outer", "controller.json");
+      let original;
+      f.onTransport((request, response) => {
+        if (request.action === "prepare") {
+          original = request;
+          throw new Error("fixture committed response lost");
+        }
+        if (request.action === "operation_readback") {
+          if (failure === "missing") throw new Error("fixture receipt absent");
+          if (failure === "event") response.eventId = randomUUID();
+          if (failure === "digest") response.requestDigest = "0".repeat(64);
+          if (failure === "generation") response.resultRuntimeGeneration++;
+          if (failure === "expired")
+            response.result.runtime.authorityUntil = new Date(Date.now() - 1).toISOString();
+          if (failure === "local_drift") {
+            project.state.projects[project.projectId].task.guardianPreparation.baseSha = "c".repeat(
+              40,
+            );
+            project.save();
+          }
+        }
+        if (request.action === "fence" && failure === "fence_lost")
+          throw new Error("fixture fresh fence lost");
+      });
+      await assert.rejects(f.client.authorizeAdmission(target));
+      const state = JSON.parse(readFileSync(path)).state;
+      assert.equal(state.hold, true);
+      assert.equal(state.pending.action, failure === "fence_lost" ? "fence" : "prepare");
+      if (failure !== "fence_lost") assert.equal(state.pending.eventId, original.eventId);
+      const before = f.calls.length;
+      const reopened = openGuardianController(f.options);
+      await assert.rejects(reopened.authorizeAdmission(target));
+      assert.equal(reopened.status.held, true);
+      assert.equal(
+        f.calls.length,
+        before,
+        "an uncertain recovery is never replayed as new authority",
+      );
+    } finally {
+      f.close();
+    }
+  });
+}
+test("an admission has one shared deadline and at most one recovery sequence", async (t) => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const project = f.project(true),
+      target = { projectId: project.projectId, bindingDigest: project.bindingDigest };
+    const started = Date.now();
+    let now = started;
+    t.mock.method(Date, "now", () => now);
+    f.onTransport((request) => {
+      now += 4500;
+      if (request.action === "prepare" || request.action === "checkout")
+        throw new Error("fixture lost reply");
+    });
+    await assert.rejects(f.client.authorizeAdmission(target));
+    assert.equal(f.client.status.held, true);
+    assert.equal(f.calls.filter((r) => r.action === "operation_readback").length, 1);
+    assert(f.calls.every((r) => r.action === "enroll" || r.expiresAt <= started + 20500));
+  } finally {
+    f.close();
+  }
+});
+test("crash after persisted factual reconciliation still requires a fresh fence", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const project = f.project(true),
+      target = { projectId: project.projectId, bindingDigest: project.bindingDigest },
+      path = join(f.home, "outer", "controller.json");
+    let original;
+    f.onTransport((request) => {
+      if (request.action === "operation_readback") original = request.originalRequest;
+      else throw new Error("fixture stopped at transport boundary");
+    });
+    await assert.rejects(f.client.authorizeAdmission(target));
+    const saved = JSON.parse(readFileSync(path));
+    assert.equal(saved.state.operationRecovery.phase, "fencing");
+    // Reconstitute the earlier durable checkpoint from the genuine committed
+    // receipt. This is fixture-only crash injection with this fixture's signer.
+    saved.state.pending = original;
+    saved.state.operationRecovery.phase = "needs_fence";
+    saved.signature = sign(
+      null,
+      Buffer.from(canonical(saved.state)),
+      readFileSync(join(f.home, "outer", "controller-key.pem")),
+    ).toString("base64url");
+    writeFileSync(path, JSON.stringify(saved));
+    const reopened = openGuardianController(f.options),
+      before = f.calls.length;
+    let fenced = false;
+    f.onTransport((request) => {
+      if (!fenced) {
+        assert.equal(request.action, "fence");
+        assert.equal(reopened.status.held, true);
+        fenced = true;
+      }
+    });
+    assert.deepEqual(await reopened.authorizeAdmission(target), target);
+    assert.equal(fenced, true);
+    assert.equal(reopened.status.held, false);
+    assert(f.calls.slice(before).every((r) => r.action !== "operation_readback"));
+  } finally {
+    f.close();
+  }
+});
+test("one-use native launch uncertainty is never recovered as an admission receipt", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const project = f.project(true),
+      target = { projectId: project.projectId, bindingDigest: project.bindingDigest };
+    await f.client.authorizeAdmission(target);
+    f.onTransport((request) => {
+      if (request.action === "launch") throw new Error("fixture uncertain launch acknowledgment");
+    });
+    await assert.rejects(f.client.metadataAuthority([{ projectId: project.projectId }]));
+    assert.equal(f.client.status.held, true);
+    const before = f.calls.length;
+    await assert.rejects(openGuardianController(f.options).authorizeAdmission(target));
+    assert.equal(f.calls.length, before);
+    assert.equal(f.calls.filter((r) => r.action === "launch").length, 1);
+    assert.equal(f.calls.filter((r) => r.action === "operation_readback").length, 0);
+  } finally {
+    f.close();
+  }
+});
+test("recovery cannot reset the cumulative admission deadline", async (t) => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const project = f.project(true),
+      target = { projectId: project.projectId, bindingDigest: project.bindingDigest };
+    let now = Date.now();
+    const started = now;
+    t.mock.method(Date, "now", () => now);
+    f.onTransport((request) => {
+      now += 5500;
+      if (request.action === "prepare") throw new Error("fixture lost prepare reply");
+    });
+    await assert.rejects(f.client.authorizeAdmission(target));
+    assert.equal(now - started, 22000);
+    assert.equal(f.client.status.held, true);
+    const state = JSON.parse(readFileSync(join(f.home, "outer", "controller.json"))).state;
+    assert.equal(state.pending.action, "checkout");
+    assert.equal(f.calls.at(-1).expiresAt, started + 20500);
+  } finally {
+    f.close();
+  }
+});
+for (const boundary of ["operation_readback", "fence"]) {
+  test(`physical checkout replacement at ${boundary} cannot release recovery hold`, async () => {
+    const f = fixture();
+    try {
+      f.identity();
+      await f.client.bootstrap(f.grant());
+      const project = f.project(true),
+        target = { projectId: project.projectId, bindingDigest: project.bindingDigest };
+      let lost = false,
+        replaced = false;
+      f.onTransport((request) => {
+        if (request.action === "checkout" && !lost) {
+          lost = true;
+          throw new Error("fixture lost checkout reply");
+        }
+        if (lost && request.action === boundary && !replaced) {
+          const path = join(f.home, "projects/.hive-managed/github/11/checkout");
+          renameSync(path, `${path}-old`);
+          mkdirSync(path, { mode: 0o700 });
+          replaced = true;
+        }
+      });
+      await assert.rejects(f.client.authorizeAdmission(target));
+      assert.equal(replaced, true);
+      assert.equal(f.client.status.held, true);
+      const state = JSON.parse(readFileSync(join(f.home, "outer", "controller.json"))).state;
+      assert.equal(state.pending.action, boundary === "fence" ? "fence" : "checkout");
+    } finally {
+      f.close();
+    }
+  });
+  test(`native metadata directory replacement at ${boundary} retains hold`, async () => {
+    const f = fixture();
+    try {
+      f.identity();
+      await f.client.bootstrap(f.grant());
+      const project = f.project(true),
+        target = { projectId: project.projectId, bindingDigest: project.bindingDigest };
+      await f.client.authorizeAdmission(target);
+      f.native(
+        await f.client.metadataAuthority([{ projectId: project.projectId }]),
+        project.projectId,
+      );
+      let lost = false,
+        replaced = false;
+      f.onTransport((request) => {
+        if (request.action === "native" && !lost) {
+          lost = true;
+          throw new Error("fixture lost native reply");
+        }
+        if (lost && request.action === boundary && !replaced) {
+          const path = join(f.home, "projects/.hive-managed/github/11/checkout/.git");
+          renameSync(path, `${path}-old`);
+          mkdirSync(path, { mode: 0o700 });
+          replaced = true;
+        }
+      });
+      await assert.rejects(f.client.authorizeAdmission(target));
+      assert.equal(replaced, true);
+      assert.equal(f.client.status.held, true);
+    } finally {
+      f.close();
+    }
+  });
+}
 test("mismatched factual readback retains the exact signed pending enrollment", async () => {
   const f = fixture();
   try {
@@ -774,7 +1119,7 @@ test("registered native journal is freshly finalized and metadata revocation can
     const approval = await f.client.metadataAuthority([{ projectId: p.projectId }]),
       native = f.native(approval, p.projectId);
     const result = await f.client.currentMetadata(p.projectId);
-    assert.deepEqual(result.metadataPins.git, { device: "1", inode: "3" });
+    assert.deepEqual(result.metadataPins.git, native.state.metadataLaunch.pins.pins[0].metadata);
     assert.deepEqual(
       f.calls.slice(-3).map((c) => c.action),
       ["native", "fence", "metadata"],

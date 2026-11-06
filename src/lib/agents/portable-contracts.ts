@@ -8,6 +8,15 @@ export const agentOperationSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("install") }).strict(),
   z.object({ operation: z.literal("disable") }).strict(),
   z.object({ operation: z.literal("configure-coder") }).strict(),
+  z
+    .object({
+      operation: z.literal("install-notifications"),
+      sourceId: z.string().uuid(),
+      generation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+      createdAt: z.string().datetime({ offset: false }),
+      token: z.string().regex(/^[a-f0-9]{64}$/),
+    })
+    .strict(),
   z.object({ operation: z.literal("resume"), key: agentSessionKeySchema }).strict(),
 ]);
 export type AgentOperation = z.infer<typeof agentOperationSchema>;
@@ -30,6 +39,15 @@ export const agentResultSchemas = {
   install: z.object({ message: z.string().max(200) }).strict(),
   disable: z.object({ message: z.string().max(200) }).strict(),
   "configure-coder": z.object({ message: z.string().max(200) }).strict(),
+  "install-notifications": z
+    .object({
+      sourceId: z.string().uuid(),
+      generation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+      createdAt: z.string().datetime({ offset: false }),
+      credentialHash: z.string().regex(/^[a-f0-9]{64}$/),
+      callbackOrigin: z.string().url(),
+    })
+    .strict(),
   resume: agentResumeResultSchema,
 } as const;
 export type AgentOperationResult<K extends AgentOperation["operation"]> = z.infer<
@@ -60,6 +78,7 @@ export const agentReplySchema = z
       "install",
       "disable",
       "configure-coder",
+      "install-notifications",
       "resume",
     ]),
     result: z.discriminatedUnion("ok", [

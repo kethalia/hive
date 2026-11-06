@@ -42,7 +42,13 @@ export type AgentBridgeServiceDependencies = {
   coderForPrincipal(principal: RegistrationPrincipal, signal: AbortSignal): Promise<Reader>;
   transport(coder: Reader, binding: VerifiedHostBinding): AgentBridgeTransport;
 };
-const MUTATIONS = new Set(["install", "disable", "configure-coder", "resume"]);
+const MUTATIONS = new Set([
+  "install",
+  "disable",
+  "configure-coder",
+  "resume",
+  "install-notifications",
+]);
 /** Request-local authority: resolve the exact owner-only agent app before and
  * after each operation. No mutation is retried on an uncertain result. */
 export class AgentBridgeService {

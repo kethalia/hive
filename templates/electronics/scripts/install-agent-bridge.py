@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 import uuid
 import zlib
 
-MEMBERS = {"agent-host.mjs", "agent-start.mjs", "agent-tools.py", "manifest.json"}
+MEMBERS = {"agent-host.mjs", "agent-start.mjs", "agent-tools.py", "notifications-install.py", "notifications-hook.py", "manifest.json"}
 PROFILES = {"software", "browser", "game", "electronics", "infrastructure"}
 BINDING = {"coderOrigin", "ownerId", "workspaceId", "buildId", "agentId", "templateId", "appOrigin", "appId"}
 CONFIG = {"schemaVersion", "binding", "profile", "home", "hiveOrigin", "issuerKeyId", "issuerPublicKeyPem", "packageDirectory", "manifestSha256", "helperSha256", "port"}

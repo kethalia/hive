@@ -96,4 +96,26 @@ describe("portable agent authority", () => {
       service.execute(principal, workspaceId, { operation: "sessions" }),
     ).rejects.toMatchObject({ code: "unavailable" });
   });
+  it("notification installation retains mutation uncertainty after a build replacement", async () => {
+    mocks.resolve
+      .mockResolvedValueOnce({ binding })
+      .mockResolvedValueOnce({ binding: { ...binding, buildId: randomUUID() } });
+    mocks.execute.mockResolvedValueOnce({
+      sourceId: randomUUID(),
+      generation: 1,
+      createdAt: "2026-11-06T00:00:00.000Z",
+      credentialHash: "a".repeat(64),
+      callbackOrigin: config.issuer,
+    });
+    await expect(
+      service.execute(principal, workspaceId, {
+        operation: "install-notifications",
+        sourceId: randomUUID(),
+        generation: 1,
+        createdAt: "2026-11-06T00:00:00.000Z",
+        token: "d".repeat(64),
+      }),
+    ).rejects.toMatchObject({ code: "outcome_unknown" });
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+  });
 });

@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import {
   chmodSync,
@@ -14,6 +14,7 @@ import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { promisify } from "node:util";
 import { PrismaClient } from "@hive/db";
 import { afterAll, describe, expect, it } from "vitest";
 import {
@@ -59,7 +60,16 @@ async function freePort() {
 describe.skipIf(!url)(
   "real guardian outer/FD3/owner-app/signed controller/PostgreSQL composition",
   () => {
-    it.each(["lost_ack", "expired_empty"])("installed recovery %s", async (scenario) => {
+    it.each([
+      "lost_ack",
+      "expired_empty",
+      "prepare_ack",
+      "prepare_slow_ack",
+      "checkout_ack",
+      "fence_ack",
+      "prepare_expired",
+      "prepare_mismatch",
+    ])("installed recovery %s", async (scenario) => {
       const pinnedNode = process.env.HIVE_GUARDIAN_INSTALLED_FIXTURE_NODE;
       if (!pinnedNode) {
         // CI caches can have a different UID or group-write bit. Re-exec only
@@ -71,13 +81,14 @@ describe.skipIf(!url)(
         copyFileSync(realpathSync(process.execPath), executable);
         chmodSync(executable, 0o500);
         try {
-          const output = execFileSync(
+          const { stdout: output } = await promisify(execFile)(
             executable,
             [
               realpathSync("node_modules/vitest/vitest.mjs"),
               "run",
               "src/__tests__/lib/codex-session/guardian-installed.integration.test.ts",
               "--reporter=verbose",
+              "--no-file-parallelism",
               "-t",
               `installed recovery ${scenario}`,
             ],
@@ -214,7 +225,7 @@ let token;
 const server=createServer((req,res)=>{void(async()=>{
  if(req.url==='/fixture/prepare'&&req.method==='POST'){
  token=await guard.admit({projectId:prep.projectId,bindingDigest:digest});guard.assertAdmission(token);
- const checkout=${JSON.stringify(join(home, "checkout"))};mkdirSync(checkout,{mode:448});
+ const checkout=${JSON.stringify(join(home, "projects/.hive-managed/github/123/checkout"))};mkdirSync(checkout,{recursive:true,mode:448});
  execFileSync('/usr/bin/git',['init','--quiet',checkout],{env:{PATH:'/usr/bin:/bin'},stdio:'ignore'});
  const info=statSync(checkout,{bigint:true});state.projects[prep.projectId].task.guardianPrepared={schemaVersion:1,preparationDigest:digest,projectId:prep.projectId,repositoryId:prep.repositoryId,taskId:prep.taskId,revision:prep.baseSha,leaseId:randomUUID(),leaseGeneration:1,checkoutIncarnation:randomUUID(),checkoutIdentity:{device:String(info.dev),inode:String(info.ino)}};save();
  token=await guard.executionFence(token);guard.assertAdmission(token);res.writeHead(200);res.end('{}');return;
@@ -252,6 +263,8 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
           };
         let service: GuardianService;
         let loseEnrollmentAck = true;
+        let loseOperationAck = !["lost_ack", "expired_empty"].includes(scenario);
+        const operationEvents: string[] = [];
         const authority = openGuardianController({
           config,
           configSha256,
@@ -268,10 +281,32 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
             expect(target).toBe(`${sessionConfig.hiveOrigin}/api/codex-host/guardians`);
             expect(init?.headers).toEqual({ "Content-Type": "application/json" });
             const body = JSON.parse(String(init?.body));
+            operationEvents.push(body.action);
             const reply = await service.execute(body);
             if (body.action === "enroll" && loseEnrollmentAck) {
               loseEnrollmentAck = false;
               throw new Error("fixture enrollment acknowledgment lost");
+            }
+            if (loseOperationAck && body.action === scenario.split("_")[0]) {
+              loseOperationAck = false;
+              if (scenario === "prepare_slow_ack")
+                await new Promise((done) => setTimeout(done, 3600));
+              if (scenario === "prepare_expired") {
+                await db.$transaction(async (tx) => {
+                  await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+                  await tx.codexGuardianRuntime.update({
+                    where: { id: body.runtimeId },
+                    data: { authorityUntil: new Date(Date.now() - 1) },
+                  });
+                });
+              }
+              throw new Error("fixture admission acknowledgment lost after PostgreSQL commit");
+            }
+            if (body.action === "operation_readback") {
+              expect(authority.status.held).toBe(true);
+              expect(reply).toMatchObject({ historical: true, executionAuthorized: false });
+              if (scenario === "prepare_mismatch")
+                return Response.json({ ...reply, eventId: randomUUID() });
             }
             return Response.json(reply);
           },
@@ -419,7 +454,36 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
         expect(result.runtimeId).toBe(afterLostAck.id);
         expect(authority.status.held).toBe(false);
         expect(result.enrolled).toBe(true);
-        expect((await app("/fixture/prepare", {})).status).toBe(200);
+        const prepared = await app("/fixture/prepare", {});
+        if (["prepare_expired", "prepare_mismatch"].includes(scenario)) {
+          expect(prepared.status).toBe(403);
+          expect(authority.status.held).toBe(true);
+          expect(host.state.guardian.projects).toHaveLength(0);
+          const held = await db.codexGuardianRuntime.findUniqueOrThrow({
+            where: { id: result.runtimeId },
+          });
+          expect(held.generation).toBe(2);
+          expect(held.nativeLaunchId).toBeNull();
+          expect(
+            await db.codexGuardianAdmission.count({ where: { runtimeId: result.runtimeId } }),
+          ).toBe(1);
+          expect(operationEvents.filter((action) => action === "operation_readback")).toHaveLength(
+            1,
+          );
+          if (scenario === "prepare_expired")
+            expect(held.authorityUntil.getTime()).toBeLessThan(Date.now());
+          return;
+        }
+        expect(prepared.status).toBe(200);
+        if (scenario.endsWith("_ack") && scenario !== "lost_ack") {
+          expect(loseOperationAck).toBe(false);
+          expect(operationEvents.filter((action) => action === "operation_readback")).toHaveLength(
+            1,
+          );
+          expect(authority.status.held).toBe(false);
+          const readback = operationEvents.indexOf("operation_readback");
+          expect(operationEvents[readback + 1]).toBe("fence");
+        }
         const admission = await db.codexGuardianAdmission.findFirstOrThrow({
           where: { runtimeId: result.runtimeId },
         });

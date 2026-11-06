@@ -18,6 +18,7 @@ import {
 import { join, resolve } from "node:path";
 import { guardianKernelIdentity, guardianStartChallenge } from "./codex-guardian-startup.mjs";
 import {
+  GUARDIAN_ADMISSION_BUDGET,
   guardianApplicationRequest,
   guardianProject,
   guardianStartup,
@@ -492,7 +493,10 @@ export async function openGuardedHost(options) {
             check(phase === "open" && hello);
             const project = guardianProject(value),
               approved = guardianProject(
-                await boundedAuthority(() => options.authorizeAdmission(structuredClone(project))),
+                await boundedAuthority(
+                  () => options.authorizeAdmission(structuredClone(project)),
+                  GUARDIAN_ADMISSION_BUDGET.outerMs,
+                ),
               );
             check(
               phase === "open" &&
@@ -515,7 +519,10 @@ export async function openGuardedHost(options) {
               ),
             );
             const approved = guardianProject(
-              await boundedAuthority(() => options.authorizeAdmission(structuredClone(project))),
+              await boundedAuthority(
+                () => options.authorizeAdmission(structuredClone(project)),
+                GUARDIAN_ADMISSION_BUDGET.outerMs,
+              ),
             );
             check(
               phase === "open" &&
@@ -597,8 +604,9 @@ export async function openGuardedHost(options) {
                 guardian.state.projects.some((p) => p.projectId === value.projectId) &&
                 typeof options.controllerMetadata === "function",
             );
-            const result = await boundedAuthority(() =>
-              options.controllerMetadata(value.projectId),
+            const result = await boundedAuthority(
+              () => options.controllerMetadata(value.projectId),
+              GUARDIAN_ADMISSION_BUDGET.outerMs,
             );
             check(phase === "open");
             return result;
@@ -640,8 +648,9 @@ export async function openGuardedHost(options) {
                 ) &&
                 typeof options.metadataAuthority === "function",
             );
-            const result = await boundedAuthority(() =>
-              options.metadataAuthority(value.projectIds.map((projectId) => ({ projectId }))),
+            const result = await boundedAuthority(
+              () => options.metadataAuthority(value.projectIds.map((projectId) => ({ projectId }))),
+              GUARDIAN_ADMISSION_BUDGET.outerMs,
             );
             check(phase === "open");
             return result;

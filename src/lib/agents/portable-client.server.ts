@@ -46,7 +46,13 @@ export type AgentBridgeTransport = (
   signal: AbortSignal,
 ) => Promise<Response>;
 const hash = (x: string | Uint8Array) => createHash("sha256").update(x).digest("hex");
-const MUTATIONS = new Set(["install", "disable", "configure-coder", "resume"]);
+const MUTATIONS = new Set([
+  "install",
+  "disable",
+  "configure-coder",
+  "resume",
+  "install-notifications",
+]);
 function packet(
   config: AgentBridgeClientConfig,
   request: AgentOperation,
@@ -219,9 +225,19 @@ export class AgentBridgeClient {
         throw new AgentBridgeError(
           MUTATIONS.has(parsed.operation) ? "outcome_unknown" : "operation_failed",
         );
-      return agentResultSchemas[parsed.operation].parse(
-        reply.result.data,
-      ) as AgentOperationResult<K>;
+      const result = agentResultSchemas[parsed.operation].parse(reply.result.data);
+      if (parsed.operation === "install-notifications") {
+        const receipt = agentResultSchemas["install-notifications"].parse(result);
+        if (
+          receipt.sourceId !== parsed.sourceId ||
+          receipt.generation !== parsed.generation ||
+          receipt.createdAt !== parsed.createdAt ||
+          receipt.credentialHash !== hash(parsed.token) ||
+          receipt.callbackOrigin !== this.config.issuer
+        )
+          throw new Error();
+      }
+      return result as AgentOperationResult<K>;
     } catch (error) {
       if (error instanceof AgentBridgeError && error.code === "operation_failed") throw error;
       if (submitted && MUTATIONS.has((request as AgentOperation).operation))

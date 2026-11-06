@@ -9,7 +9,7 @@ import {
 } from "node:crypto";
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { createServer } from "node:http";
-import { isAbsolute, normalize } from "node:path";
+import { dirname, isAbsolute, join, normalize } from "node:path";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY = /^(codex|claude)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -20,6 +20,7 @@ const OPS = [
   "install",
   "disable",
   "configure-coder",
+  "install-notifications",
   "resume",
 ];
 const BINDING = [
@@ -82,14 +83,46 @@ function validOrigin(value) {
   }
 }
 function operationValid(v) {
-  return (
-    v &&
-    OPS.includes(v.operation) &&
-    (v.operation === "resume"
-      ? exact(v, ["operation", "key"]) && typeof v.key === "string" && KEY.test(v.key)
-      : exact(v, ["operation"]))
-  );
+  if (!v || !OPS.includes(v.operation)) return false;
+  if (v.operation === "resume")
+    return exact(v, ["operation", "key"]) && typeof v.key === "string" && KEY.test(v.key);
+  if (v.operation === "install-notifications")
+    return (
+      exact(v, ["operation", "sourceId", "generation", "createdAt", "token"]) &&
+      UUID.test(v.sourceId) &&
+      Number.isSafeInteger(v.generation) &&
+      v.generation >= 1 &&
+      typeof v.createdAt === "string" &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v.createdAt) &&
+      Number.isFinite(Date.parse(v.createdAt)) &&
+      new Date(v.createdAt).toISOString() === v.createdAt &&
+      typeof v.token === "string" &&
+      /^[a-f0-9]{64}$/.test(v.token)
+    );
+  return exact(v, ["operation"]);
 }
+function pinnedSource(path, expected, maximum = 65536) {
+  if (realpathSync(path) !== path) throw new Error();
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const info = fstatSync(fd);
+    if (
+      !info.isFile() ||
+      info.uid !== process.getuid() ||
+      info.nlink !== 1 ||
+      info.mode & 0o077 ||
+      info.size < 1 ||
+      info.size > maximum
+    )
+      throw new Error();
+    const raw = readFileSync(fd);
+    if (raw.length !== info.size || sha(raw) !== expected) throw new Error();
+    return raw;
+  } finally {
+    closeSync(fd);
+  }
+}
+
 /** Config is installer-owned. This factory is inert until an explicit loopback listen. */
 export function createAgentBridge(config, deps = {}) {
   const issuer = createPublicKey(config.issuerPublicKeyPem);
@@ -175,33 +208,50 @@ export function createAgentBridge(config, deps = {}) {
   }
   function execute(request) {
     return new Promise((resolve, reject) => {
-      let source;
+      let source, payload;
       try {
-        if (realpathSync(helper) !== helper) throw new Error();
-        const fd = openSync(helper, constants.O_RDONLY | constants.O_NOFOLLOW);
-        try {
-          const info = fstatSync(fd);
+        source = pinnedSource(helper, config.helperSha256);
+        payload = {
+          ...request,
+          ...(request.operation === "install" ? { source: source.toString("utf8") } : {}),
+        };
+        if (request.operation === "install-notifications") {
+          const directory = dirname(helper);
+          const manifest = JSON.parse(
+            pinnedSource(join(directory, "manifest.json"), config.manifestSha256, 4096),
+          );
+          const names = [
+            "agent-host.mjs",
+            "agent-start.mjs",
+            "agent-tools.py",
+            "notifications-install.py",
+            "notifications-hook.py",
+          ];
           if (
-            !info.isFile() ||
-            info.uid !== process.getuid() ||
-            info.nlink !== 1 ||
-            info.mode & 0o077 ||
-            info.size < 1 ||
-            info.size > 65536
+            !exact(manifest, ["schemaVersion", "files"]) ||
+            manifest.schemaVersion !== 1 ||
+            !exact(manifest.files, names) ||
+            names.some((name) => !/^[a-f0-9]{64}$/.test(manifest.files[name]))
           )
             throw new Error();
-          source = readFileSync(fd);
-          if (source.length !== info.size || sha(source) !== config.helperSha256) throw new Error();
-        } finally {
-          closeSync(fd);
+          source = pinnedSource(
+            join(directory, "notifications-install.py"),
+            manifest.files["notifications-install.py"],
+          );
+          const hook = pinnedSource(
+            join(directory, "notifications-hook.py"),
+            manifest.files["notifications-hook.py"],
+          );
+          payload = {
+            ...request,
+            portable: true,
+            hook: hook.toString("utf8"),
+            url: `${config.issuer}/api/notifications/events`,
+          };
         }
       } catch {
         return reject(new Error());
       }
-      const payload = {
-        ...request,
-        ...(request.operation === "install" ? { source: source.toString("utf8") } : {}),
-      };
       const child = (deps.spawn ?? spawn)(
         "/usr/bin/python3",
         ["-I", "-B", "-c", source.toString("utf8")],

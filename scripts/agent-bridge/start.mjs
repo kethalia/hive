@@ -83,7 +83,13 @@ export function readAgentStartup(
   check(
     exact(manifest, ["schemaVersion", "files"]) &&
       manifest.schemaVersion === 1 &&
-      exact(manifest.files, ["agent-host.mjs", "agent-start.mjs", "agent-tools.py"]),
+      exact(manifest.files, [
+        "agent-host.mjs",
+        "agent-start.mjs",
+        "agent-tools.py",
+        "notifications-install.py",
+        "notifications-hook.py",
+      ]),
   );
   for (const name of Object.keys(manifest.files))
     check(

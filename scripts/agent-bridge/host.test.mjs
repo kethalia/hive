@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { createHash, generateKeyPairSync, randomUUID, sign, verify } from "node:crypto";
 import { once } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -145,4 +146,106 @@ test("oversized helper output fails closed without returning its content", async
   const text = await response.text();
   assert.ok(text.length < 1024);
   assert.deepEqual(JSON.parse(text).result, { ok: false, error: "agent_operation_failed" });
+});
+
+test("fixed notification capability installs pinned assets through stdin and refuses stale generations or asset replacement", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "agent-notifications-host-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const files = new Map([
+    ["agent-tools.py", Buffer.from('import json; print(json.dumps({"ok":True,"data":{}}))')],
+    ["agent-host.mjs", await readFile(new URL("./host.mjs", import.meta.url))],
+    ["agent-start.mjs", await readFile(new URL("./start.mjs", import.meta.url))],
+    [
+      "notifications-install.py",
+      await readFile(new URL("../notifications/install.py", import.meta.url)),
+    ],
+    [
+      "notifications-hook.py",
+      await readFile(new URL("../notifications/agent-hook.py", import.meta.url)),
+    ],
+  ]);
+  for (const [name, raw] of files) await writeFile(join(dir, name), raw, { mode: 0o600 });
+  const manifest = Buffer.from(
+    JSON.stringify({
+      schemaVersion: 1,
+      files: Object.fromEntries([...files].map(([name, raw]) => [name, sha(raw)])),
+    }),
+  );
+  await writeFile(join(dir, "manifest.json"), manifest, { mode: 0o600 });
+  const codex = join(dir, "custom-codex"),
+    claude = join(dir, "custom-claude");
+  await mkdir(codex);
+  await mkdir(claude);
+  const prior = {
+    theme: "preserved",
+    hooks: { Stop: [{ hooks: [{ type: "command", command: "unrelated" }] }] },
+  };
+  await writeFile(join(codex, "hooks.json"), JSON.stringify(prior));
+  await writeFile(join(claude, "settings.json"), JSON.stringify(prior));
+  const commands = [];
+  const bridge = createAgentBridge(
+    {
+      ...config,
+      home: dir,
+      helperSha256: sha(files.get("agent-tools.py")),
+      manifestSha256: sha(manifest),
+    },
+    {
+      helperPath: join(dir, "agent-tools.py"),
+      environment: { CODEX_HOME: codex, CLAUDE_CONFIG_DIR: claude },
+      spawn: (command, args, options) => {
+        commands.push([command, args, options.env]);
+        return spawn(command, args, options);
+      },
+    },
+  );
+  bridge.server.listen(0, "127.0.0.1");
+  await once(bridge.server, "listening");
+  t.after(() => bridge.close());
+  const endpoint = `http://127.0.0.1:${bridge.server.address().port}/agent/operation`;
+  const post = async (request) =>
+    await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticket: request.token }),
+    });
+  const identity = await (await post(issue({ operation: "identity" }))).json();
+  const operation = {
+    operation: "install-notifications",
+    sourceId: randomUUID(),
+    generation: 1,
+    createdAt: "2026-11-06T00:00:00.000Z",
+    token: "d".repeat(64),
+  };
+  assert.equal(
+    (await post(issue({ ...operation, url: "https://arbitrary.invalid" }, identity.lifetimeId)))
+      .status,
+    400,
+  );
+  const run = async (value) =>
+    (await (await post(issue(value, identity.lifetimeId))).json()).result;
+  const installed = await run(operation);
+  assert.equal(installed.ok, true);
+  assert.equal(installed.data.callbackOrigin, config.issuer);
+  assert.equal(installed.data.credentialHash, sha(operation.token));
+  assert.ok(!JSON.stringify(installed).includes(operation.token));
+  assert.ok(!JSON.stringify(commands).includes(operation.token));
+  const statePath = join(dir, ".local/share/hive/notifications/config.json");
+  const state = JSON.parse(await readFile(statePath, "utf8"));
+  assert.equal(state.url, `${config.issuer}/api/notifications/events`);
+  assert.equal(state.token, operation.token);
+  const readHooks = async (path) => JSON.parse(await readFile(path, "utf8"));
+  const first = await readHooks(join(codex, "hooks.json"));
+  assert.equal(first.theme, "preserved");
+  assert.equal(first.hooks.Stop[0].hooks[0].command, "unrelated");
+  assert.equal((await run(operation)).ok, true);
+  assert.deepEqual(await readHooks(join(codex, "hooks.json")), first);
+  const newer = { ...operation, generation: 2, token: "e".repeat(64) };
+  assert.equal((await run(newer)).ok, true);
+  assert.equal((await run(operation)).ok, false);
+  assert.equal(JSON.parse(await readFile(statePath, "utf8")).token, newer.token);
+  assert.equal((await run({ ...newer, token: "f".repeat(64) })).ok, false);
+  await writeFile(join(dir, "notifications-hook.py"), "tampered hook");
+  assert.equal((await run({ ...newer, generation: 3 })).ok, false);
+  assert.equal(JSON.parse(await readFile(statePath, "utf8")).generation, 2);
 });

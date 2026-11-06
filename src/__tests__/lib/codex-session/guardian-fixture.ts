@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, type KeyObject, randomUUID } from "node:crypto";
 import { encrypt } from "@hive/auth";
 import type { PrismaClient, ProjectTaskIntent } from "@hive/db";
 import {
@@ -15,7 +15,10 @@ import {
   guardianDigest,
   preparationDigest,
 } from "@/lib/codex-session/guardian-contracts";
-import { GuardianAdmissionStore } from "@/lib/codex-session/guardian-store.server";
+import {
+  GuardianAdmissionStore,
+  type GuardianOperationReceiptInput,
+} from "@/lib/codex-session/guardian-store.server";
 import type { ManagerDependencies } from "@/lib/delivery/manager.server";
 import type { TaskIntentPayload } from "@/lib/projects/task-intents.server";
 import { taskIntentPayloadSchema } from "@/lib/projects/task-intents.server";
@@ -52,6 +55,10 @@ export async function guardianFixture(
       runtimeId: string;
       admissionId: string;
     }) => Promise<void>;
+    nativeReceipt?: (
+      input: Parameters<GuardianAdmissionStore["finalizeNative"]>[0],
+      key: KeyObject,
+    ) => GuardianOperationReceiptInput;
     beforeNativeLaunch?: (stage: {
       store: GuardianAdmissionStore;
       ownerId: string;
@@ -286,12 +293,21 @@ export async function guardianFixture(
     launchIntentDigest: stage.launch.launchIntentDigest,
     metadataPolicyDigest: pin.metadataPolicyDigest,
   };
-  const finalized = await store.finalizeNative({
+  const nativeInput = {
     scope,
     runtimeId: stage.runtime.id,
     runtimeGeneration: stage.prepared.runtime.generation,
     metadata,
-  });
+  };
+  const nativeStore = hooks.nativeReceipt
+    ? new GuardianAdmissionStore(db, {
+        policy,
+        encryptionKey,
+        expectedConfigSha256,
+        operation: hooks.nativeReceipt(nativeInput, outer.privateKey),
+      })
+    : store;
+  const finalized = await nativeStore.finalizeNative(nativeInput);
   await db.projectTaskIntent.update({
     where: { id: f.context.preparationIntentId },
     data: { phase: "running" },

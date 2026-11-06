@@ -1,6 +1,16 @@
 // Installed, inherited-FD protocol only. Never a network listener or model API.
 import { Socket } from "node:net";
 
+// One admission may include several server transitions plus one factual recovery.
+// The local ELF RPC is outside the controller budget, inside the outer/wire budget.
+export const GUARDIAN_ADMISSION_BUDGET = Object.freeze({
+  controllerMs: 20000,
+  frameMs: 6000,
+  outerMs: 23000,
+  wireMs: 25000,
+});
+const admissionMethods = ["admit", "fence", "metadataAuthority", "currentMetadata"];
+
 const check = (value) => {
   if (!value) throw new Error("guardian_worker_protocol_rejected");
 };
@@ -230,7 +240,8 @@ export function guardianWire(stream, handlers, onLost) {
               pending.size < 32 &&
               timeoutMs > 0 &&
               (timeoutMs <= 10000 ||
-                (timeoutMs <= 25000 && ["identity", "bootstrap"].includes(method))),
+                (timeoutMs <= 25000 &&
+                  ["identity", "bootstrap", ...admissionMethods].includes(method))),
           );
           const id = ++sequence;
           const timer = setTimeout(stop, timeoutMs);
@@ -266,6 +277,36 @@ export async function connectGuardianWorker({
     binding,
     wire;
   const projects = new Map();
+  const tokens = new Map();
+  let pendingAuthority = 0,
+    authorityHeld = false;
+  const authorityRequest = async (method, value, projectId, accept = (result) => result) => {
+    pendingAuthority++;
+    if (projectId) tokens.delete(projectId);
+    try {
+      const result = await wire.request(method, value, GUARDIAN_ADMISSION_BUDGET.wireMs);
+      check(phase === "open");
+      if (["admit", "fence"].includes(method)) {
+        guardianBinding(result);
+        check(
+          result.lifetimeId === binding.lifetimeId &&
+            result.bindingDigest === binding.bindingDigest &&
+            result.generation >= binding.generation,
+        );
+      }
+      // Publish the new binding and opaque token before releasing the global
+      // gate. An await in the caller would otherwise expose the old generation
+      // to another project's queued microtask after the server/ELF advanced it.
+      const accepted = accept(result);
+      authorityHeld = false;
+      return accepted;
+    } catch (error) {
+      authorityHeld = true;
+      throw error;
+    } finally {
+      pendingAuthority--;
+    }
+  };
   const lost = () => {
     if (phase !== "closed") phase = "indeterminate";
     onLost();
@@ -328,15 +369,21 @@ export async function connectGuardianWorker({
     wire.close();
     throw error;
   }
-  const token = (project) =>
-    Object.freeze({
+  const token = (project) => {
+    const value = Object.freeze({
       projectId: project.projectId,
       projectBindingDigest: project.bindingDigest,
       ...binding,
     });
+    tokens.set(project.projectId, value);
+    return value;
+  };
   const assertAdmission = (value) => {
     check(
       phase === "open" &&
+        pendingAuthority === 0 &&
+        !authorityHeld &&
+        tokens.get(value?.projectId) === value &&
         value?.lifetimeId === binding.lifetimeId &&
         value.bindingDigest === binding.bindingDigest &&
         value.projectBindingDigest === projects.get(value.projectId)?.bindingDigest &&
@@ -408,13 +455,13 @@ export async function connectGuardianWorker({
           projectIds.length === projects.size &&
           projectIds.every((p) => projects.has(p)),
       );
-      const result = await wire.request("metadataAuthority", { projectIds });
+      const result = await authorityRequest("metadataAuthority", { projectIds });
       check(phase === "open");
       return result;
     },
     async currentMetadata(projectId) {
       check(phase === "open" && uuid.test(projectId) && projects.has(projectId));
-      const result = await wire.request("currentMetadata", { projectId });
+      const result = await authorityRequest("currentMetadata", { projectId });
       check(phase === "open");
       return result;
     },
@@ -433,16 +480,11 @@ export async function connectGuardianWorker({
     async admit(value) {
       const project = guardianProject(value);
       check(phase === "open");
-      const answer = guardianBinding(await wire.request("admit", project));
-      check(
-        phase === "open" &&
-          answer.lifetimeId === binding.lifetimeId &&
-          answer.bindingDigest === binding.bindingDigest &&
-          answer.generation >= binding.generation,
-      );
-      binding = answer;
-      projects.set(project.projectId, project);
-      return token(project);
+      return authorityRequest("admit", project, project.projectId, (answer) => {
+        binding = answer;
+        projects.set(project.projectId, project);
+        return token(project);
+      });
     },
     async executionFence(value) {
       check(
@@ -451,20 +493,18 @@ export async function connectGuardianWorker({
           value.bindingDigest === binding.bindingDigest &&
           projects.get(value.projectId)?.bindingDigest === value.projectBindingDigest,
       );
-      const answer = guardianBinding(
-        await wire.request("fence", {
+      return authorityRequest(
+        "fence",
+        {
           projectId: value.projectId,
           bindingDigest: value.projectBindingDigest,
-        }),
+        },
+        value.projectId,
+        (answer) => {
+          binding = answer;
+          return token(projects.get(value.projectId));
+        },
       );
-      check(
-        phase === "open" &&
-          answer.lifetimeId === binding.lifetimeId &&
-          answer.bindingDigest === binding.bindingDigest &&
-          answer.generation >= binding.generation,
-      );
-      binding = answer;
-      return token(projects.get(value.projectId));
     },
     assertAdmission,
     close: () => wire.close(),

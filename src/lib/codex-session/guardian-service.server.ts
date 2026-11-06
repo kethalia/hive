@@ -17,13 +17,18 @@ import {
   guardianCheckoutSchema,
   guardianDigest,
 } from "./guardian-contracts";
-import { GuardianAdmissionStore, lockProducerMetadata } from "./guardian-store.server";
+import {
+  GuardianAdmissionStore,
+  type GuardianOperationReceiptInput,
+  lockProducerMetadata,
+} from "./guardian-store.server";
 import {
   type GuardianTransportEnvelope,
   guardianEmptyCloseClaimsSchema,
   guardianEnrollmentClaimsSchema,
   guardianIdentityProofPayload,
   guardianIdentityResponseSchema,
+  guardianOperationEnvelopeSchema,
   guardianTransportEnvelopeSchema,
   guardianTransportProofPayload,
 } from "./guardian-transport-contracts";
@@ -115,12 +120,13 @@ export class GuardianService {
     this.env = dependencies.env ?? process.env;
     this.store = this.requestStore();
   }
-  private requestStore(authorizationExpiresAt?: number) {
+  private requestStore(authorizationExpiresAt?: number, operation?: GuardianOperationReceiptInput) {
     return new GuardianAdmissionStore(this.db, {
       policy: this.policy,
       encryptionKey: this.encryptionKey,
       signal: this.dependencies.signal,
       authorizationExpiresAt,
+      ...(operation ? { operation } : {}),
       expectedConfigSha256: (b) =>
         guardianConfigSha256(expectedGuardianHostConfig(b, this.config, this.env)),
     });
@@ -176,6 +182,20 @@ export class GuardianService {
         value.expiresAt > value.issuedAt &&
         value.expiresAt - value.issuedAt <= 60000,
     );
+  }
+  private async resampleIssuedAt(value: { issuedAt: number }) {
+    // Workerd may freeze Date.now() between I/O turns. Resample rather than
+    // clamping the supplied timestamp or accepting a still-future signature.
+    if (value.issuedAt > this.now()) {
+      const wait = this.dependencies.clockWait ?? waitForClock;
+      await wait(0, this.dependencies.signal);
+      this.active();
+      const remaining = value.issuedAt - this.now();
+      if (remaining > 0 && remaining <= 1000) {
+        await wait(remaining + 1, this.dependencies.signal);
+        this.active();
+      }
+    }
   }
   private verifyIdentity(binding: VerifiedHostBinding, raw: unknown, nonce: string) {
     this.dependencies.onProvisionStage?.("guardian_identity_schema");
@@ -256,16 +276,7 @@ export class GuardianService {
     this.dependencies.onProvisionStage?.("guardian_identity_schema");
     const parsedIdentity = guardianIdentityResponseSchema.parse(identity);
     this.active();
-    if (parsedIdentity.issuedAt > this.now()) {
-      const wait = this.dependencies.clockWait ?? waitForClock;
-      await wait(0, this.dependencies.signal);
-      this.active();
-      const remaining = parsedIdentity.issuedAt - this.now();
-      if (remaining > 0 && remaining <= 1000) {
-        await wait(remaining + 1, this.dependencies.signal);
-        this.active();
-      }
-    }
+    await this.resampleIssuedAt(parsedIdentity);
     this.dependencies.onProvisionStage?.("guardian_identity_validation");
     const packet = this.verifyIdentity(binding, parsedIdentity, nonce);
     this.active();
@@ -447,6 +458,7 @@ export class GuardianService {
   }
   private async runtime(input: GuardianTransportEnvelope) {
     this.active();
+    await this.resampleIssuedAt(input);
     this.live(input);
     const runtime = await this.db.codexGuardianRuntime.findUnique({
       where: { id: input.runtimeId },
@@ -562,7 +574,59 @@ export class GuardianService {
           input.sourceArchiveDigest,
         );
     }
-    const store = this.requestStore(input.expiresAt);
+    const parsedOperation = guardianOperationEnvelopeSchema.safeParse(input);
+    const operation = parsedOperation.success
+      ? {
+          ownerId: runtime.ownerId,
+          runtimeId: runtime.id,
+          eventId: parsedOperation.data.eventId,
+          action: parsedOperation.data.action,
+          inputRuntimeGeneration: parsedOperation.data.runtimeGeneration,
+          requestDigest: guardianDigest(parsedOperation.data),
+        }
+      : undefined;
+    const store = this.requestStore(input.expiresAt, operation);
+    if (input.action === "operation_readback") {
+      const original = input.originalRequest;
+      requireGuardian(
+        original.runtimeId === runtime.id &&
+          input.runtimeGeneration === original.runtimeGeneration &&
+          input.lifetimeId === runtime.lifetimeId &&
+          input.configSha256 === runtime.configSha256 &&
+          verify(
+            null,
+            Buffer.from(guardianTransportProofPayload(original)),
+            createPublicKey(runtime.outerPublicKeyPem),
+            Buffer.from(original.proof, "base64url"),
+          ),
+      );
+      const receipt = await store.operationReadback({
+        ownerId: runtime.ownerId,
+        runtimeId: runtime.id,
+        eventId: original.eventId,
+        action: original.action,
+        inputRuntimeGeneration: original.runtimeGeneration,
+        requestDigest: guardianDigest(original),
+      });
+      requireGuardian(receipt);
+      return {
+        accepted: true,
+        historical: true,
+        executionAuthorized: false,
+        nonce: input.nonce,
+        runtimeId: runtime.id,
+        lifetimeId: runtime.lifetimeId,
+        configSha256: runtime.configSha256,
+        eventId: original.eventId,
+        requestDigest: receipt.requestDigest,
+        action: receipt.action,
+        inputRuntimeGeneration: receipt.inputRuntimeGeneration,
+        resultRuntimeGeneration: receipt.resultRuntimeGeneration,
+        resultAdmissionGeneration: receipt.resultAdmissionGeneration,
+        committedAt: receipt.committedAt.getTime(),
+        result: receipt.response,
+      };
+    }
     if (input.action === "enrollment_readback") {
       const original = input.originalEnrollment;
       const claims = this.claims(original.grant, true);
@@ -727,6 +791,14 @@ export class GuardianService {
         projectIds: input.projectIds,
       });
     if (input.action === "native") {
+      // Exact native retries are factual even if current registration state has
+      // changed. Consult committed evidence before deriving a new native scope.
+      requireGuardian(operation);
+      const historical = await this.requestStore(input.expiresAt).operationReadback(
+        operation,
+        false,
+      );
+      if (historical) return historical.response;
       const scope = await this.nativeScope(
         runtime,
         input.projectId,

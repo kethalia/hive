@@ -10,9 +10,13 @@ import {
   type GuardianPackagePin,
   type GuardianPolicy,
   guardianDigest,
+  preparationDigest,
 } from "@/lib/codex-session/guardian-contracts";
 import { GuardianService } from "@/lib/codex-session/guardian-service.server";
-import { GuardianAdmissionStore } from "@/lib/codex-session/guardian-store.server";
+import {
+  GUARDIAN_MAX_OPERATION_RECEIPTS,
+  GuardianAdmissionStore,
+} from "@/lib/codex-session/guardian-store.server";
 import {
   type GuardianIdentityResponse,
   guardianIdentityProofPayload,
@@ -21,6 +25,7 @@ import {
 } from "@/lib/codex-session/guardian-transport-contracts";
 import type { VerifiedHostBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
+import { ProjectTaskIntents } from "@/lib/projects/task-intents.server";
 import { guardianFixture } from "./guardian-fixture";
 
 const url = process.env.HIVE_DELIVERY_TEST_DATABASE_URL;
@@ -144,7 +149,7 @@ async function fixture(
       async identity(b, nonce) {
         expect(b).toEqual(binding);
         const packet: GuardianIdentityResponse = {
-          schemaVersion: 1,
+          schemaVersion: 1 as const,
           nonce,
           issuedAt: Date.now() - 100,
           expiresAt: Date.now() + 30000,
@@ -230,7 +235,523 @@ async function fixture(
     },
   };
 }
+async function operationFixture(options?: Parameters<typeof fixture>[3]) {
+  const f = await fixture(undefined, undefined, undefined, options);
+  const opened = await f.service.provision(f.principal, f.binding.workspaceId);
+  const project = await db.deliveryProject.create({
+    data: {
+      ownerId: f.user.id,
+      provider: "github",
+      providerRepositoryId: "123",
+      providerAccountId: "456",
+      fullName: "owner/receipt-fixture",
+    },
+  });
+  const taskId = randomUUID(),
+    requestId = randomUUID(),
+    hostRequest = {
+      schemaVersion: 1 as const,
+      projectId: project.id,
+      repositoryId: "123",
+      expectedAccountId: "456",
+      taskId,
+      requestId,
+      revision: "a".repeat(40),
+      model: "gpt-6.1-sol",
+      effort: "low",
+      text: "Private receipt fixture prompt",
+    };
+  await new ProjectTaskIntents(db, "19".repeat(32)).enqueue({
+    ownerId: f.user.id,
+    projectId: project.id,
+    workspaceId: f.binding.workspaceId,
+    taskId,
+    requestId,
+    requestDigest: sha(randomUUID()),
+    hostRequest,
+  });
+  const preparation = {
+    schemaVersion: 1 as const,
+    stage: "preparation" as const,
+    ownerId: f.binding.ownerId,
+    workspaceId: f.binding.workspaceId,
+    buildId: f.binding.buildId,
+    projectId: project.id,
+    repositoryId: "123",
+    providerAccountId: "456",
+    taskId,
+    requestId,
+    baseSha: hostRequest.revision,
+    requestDigest: sha(JSON.stringify(hostRequest)),
+  };
+  const frame = (
+    action: string,
+    fields: Record<string, unknown>,
+    generation = 1,
+  ): Record<string, unknown> =>
+    f.signFrame({
+      schemaVersion: 1,
+      runtimeId: opened.runtimeId,
+      runtimeGeneration: generation,
+      action,
+      eventId: randomUUID(),
+      issuedAt: Date.now() - 1,
+      expiresAt: Date.now() + 30000,
+      ...fields,
+    });
+  const prepare = frame("prepare", {
+    preparation,
+    preparationDigest: preparationDigest(preparation),
+  });
+  const readback = (
+    originalRequest: Record<string, unknown>,
+    patch: Record<string, unknown> = {},
+  ) =>
+    frame(
+      "operation_readback",
+      {
+        nonce: sha(randomUUID()),
+        lifetimeId: f.identity.lifetimeId,
+        configSha256: f.identity.configSha256,
+        originalRequest,
+        ...patch,
+      },
+      originalRequest.runtimeGeneration as number,
+    );
+  const checkout = {
+    projectId: project.id,
+    preparationIntentId: taskId,
+    repositoryId: "123",
+    revision: hostRequest.revision,
+    leaseId: randomUUID(),
+    leaseGeneration: 1,
+    checkoutIncarnation: randomUUID(),
+    checkoutIdentity: { device: "123", inode: "456" },
+  };
+  return { ...f, project, taskId, frame, prepare, readback, checkout, preparation };
+}
+describe.skipIf(!url)("committed guardian operation receipts / actual PostgreSQL", () => {
+  it("records exact prepare/checkout/fence responses atomically and reads historical facts without authority extension", async () => {
+    const f = await operationFixture(),
+      prepared = await f.service.execute(f.prepare),
+      checkoutFrame = f.frame("checkout", { checkout: f.checkout }, 2),
+      checked = await f.service.execute(checkoutFrame),
+      fenceFrame = f.frame(
+        "fence",
+        {
+          projectId: f.project.id,
+          preparationDigest: (f.prepare as Record<string, unknown>).preparationDigest,
+        },
+        2,
+      ),
+      fenced = await f.service.execute(fenceFrame);
+    for (const [original, result] of [
+      [f.prepare, prepared],
+      [checkoutFrame, checked],
+      [fenceFrame, fenced],
+    ] as const) {
+      expect(await f.service.execute(original)).toEqual(result);
+      const request = f.readback(original),
+        receipt = await f.service.execute(request);
+      expect(receipt).toMatchObject({
+        accepted: true,
+        historical: true,
+        executionAuthorized: false,
+        nonce: request.nonce,
+        runtimeId: f.runtimeId,
+        eventId: original.eventId,
+        requestDigest: guardianDigest(original),
+        action: original.action,
+        inputRuntimeGeneration: original.runtimeGeneration,
+        result,
+      });
+    }
+    const before = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } });
+    await db.projectTaskIntent.update({ where: { id: f.taskId }, data: { phase: "blocked" } });
+    await db.codexGuardianRuntime.update({
+      where: { id: f.runtimeId },
+      data: { authorityUntil: new Date(Date.now() - 1) },
+    });
+    const expired = { ...f.prepare, issuedAt: Date.now() - 120000, expiresAt: Date.now() - 90000 };
+    // The original signature is part of the digest: altered historical timestamps
+    // cannot stand in for the actual committed frame.
+    await expect(f.service.execute(f.readback(expired))).rejects.toBeInstanceOf(
+      RegistrationRejected,
+    );
+    const after = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } });
+    expect(await f.service.execute(f.readback(f.prepare))).toMatchObject({ result: prepared });
+    expect(await f.service.execute(f.prepare)).toEqual(prepared);
+    expect(await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } })).toEqual(
+      after,
+    );
+    expect(after.generation).toBe(before.generation);
+    expect(
+      await db.codexGuardianOperationReceipt.count({ where: { runtimeId: f.runtimeId } }),
+    ).toBe(3);
+  });
+  it("rejects original-envelope collisions, missing receipts, wrong signatures and changed lifetime/config bindings", async () => {
+    const f = await operationFixture();
+    await expect(f.service.execute(f.readback(f.prepare))).rejects.toBeInstanceOf(
+      RegistrationRejected,
+    );
+    await f.service.execute(f.prepare);
+    const changed = f.signFrame({
+      ...f.prepare,
+      proof: undefined,
+      expiresAt: Number(f.prepare.expiresAt) + 1,
+    });
+    await expect(f.service.execute(f.readback(changed))).rejects.toBeInstanceOf(
+      RegistrationRejected,
+    );
+    await expect(f.service.execute(changed)).rejects.toBeInstanceOf(RegistrationRejected);
+    for (const patch of [
+      { lifetimeId: randomUUID() },
+      { configSha256: "f".repeat(64) },
+      { runtimeGeneration: 2 },
+      { originalRequest: { ...f.prepare, proof: "A".repeat(86) } },
+    ])
+      await expect(f.service.execute(f.readback(f.prepare, patch))).rejects.toBeInstanceOf(
+        RegistrationRejected,
+      );
+    expect(
+      await db.codexGuardianOperationReceipt.count({ where: { runtimeId: f.runtimeId } }),
+    ).toBe(1);
+  });
+  it("cannot retrofit receipts onto a pre-migration held lifetime", async () => {
+    const f = await operationFixture();
+    // Simulate the additive migration's false default on an existing lifetime.
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+      await tx.codexGuardianRuntime.update({
+        where: { id: f.runtimeId },
+        data: { operationReceiptsEnabled: false },
+      });
+    });
+    await f.service.execute(f.prepare);
+    await expect(f.service.execute(f.readback(f.prepare))).rejects.toBeInstanceOf(
+      RegistrationRejected,
+    );
+    expect(
+      await db.codexGuardianOperationReceipt.count({ where: { runtimeId: f.runtimeId } }),
+    ).toBe(0);
+    await expect(
+      db.codexGuardianRuntime.update({
+        where: { id: f.runtimeId },
+        data: { operationReceiptsEnabled: true },
+      }),
+    ).rejects.toThrow();
+  });
+  it("records native finalization in its mutation transaction and replays facts after registration revocation", async () => {
+    let original: Record<string, unknown> = {};
+    const f = await guardianFixture(db, {
+      workspaceEnrollment: true,
+      nativeReceipt: (input, key) => {
+        const body = {
+          schemaVersion: 1 as const,
+          runtimeId: input.runtimeId,
+          runtimeGeneration: input.runtimeGeneration,
+          action: "native" as const,
+          eventId: randomUUID(),
+          issuedAt: Date.now() - 1,
+          expiresAt: Date.now() + 30000,
+          projectId: input.scope.projectId,
+          registrationId: input.scope.registrationId,
+          managerThreadId: input.scope.managerThreadId,
+          metadata: input.metadata,
+        };
+        original = {
+          ...body,
+          proof: sign(null, Buffer.from(guardianTransportProofPayload(body)), key).toString(
+            "base64url",
+          ),
+        };
+        return {
+          ownerId: input.scope.hiveUserId,
+          runtimeId: input.runtimeId,
+          eventId: body.eventId,
+          action: "native",
+          inputRuntimeGeneration: input.runtimeGeneration,
+          requestDigest: guardianDigest(original),
+        };
+      },
+    });
+    const service = new GuardianService(
+      db,
+      f.guardian.sessionConfig,
+      f.guardian.policy,
+      "19".repeat(32),
+      {
+        env: {
+          HIVE_CODEX_MANAGER_MODEL: "gpt-6.1-sol",
+          HIVE_CODEX_MANAGER_EFFORT: "low",
+          HIVE_DELIVERY_MANAGER_ENABLED: "true",
+        },
+        resolveWorkspace: async () => f.host,
+      },
+    );
+    const stored = await db.codexGuardianOperationReceipt.findFirstOrThrow({
+      where: { runtimeId: f.guardian.runtime.id },
+    });
+    expect(stored.response).toEqual(f.guardian.finalized);
+    expect(stored.resultAdmissionGeneration).toBe(3);
+    await db.codexHostRegistration.update({
+      where: { id: f.registration().id },
+      data: { revokedAt: new Date() },
+    });
+    expect(await service.execute(original)).toEqual(stored.response);
+    const body = {
+      schemaVersion: 1,
+      runtimeId: f.guardian.runtime.id,
+      runtimeGeneration: 2,
+      action: "operation_readback",
+      eventId: randomUUID(),
+      issuedAt: Date.now() - 1,
+      expiresAt: Date.now() + 30000,
+      nonce: sha(randomUUID()),
+      lifetimeId: f.guardian.runtime.lifetimeId,
+      configSha256: f.guardian.runtime.configSha256,
+      originalRequest: original,
+    };
+    const readback = {
+      ...body,
+      proof: sign(
+        null,
+        Buffer.from(guardianTransportProofPayload(body as never)),
+        f.guardian.outer.privateKey,
+      ).toString("base64url"),
+    };
+    expect(await service.execute(readback)).toMatchObject({
+      historical: true,
+      executionAuthorized: false,
+      result: stored.response,
+    });
+    await expect(
+      f.guardian.store.fence({
+        ownerId: f.user.id,
+        runtimeId: f.guardian.runtime.id,
+        runtimeGeneration: 2,
+        projectId: f.project.id,
+        preparationDigest: f.guardian.prepared.admission.preparationDigest,
+      }),
+    ).rejects.toBeInstanceOf(RegistrationRejected);
+  });
+  it("reads an actually expired original frame using only a fresh signed challenge", async () => {
+    const f = await operationFixture();
+    const expiresAt = Date.now() + 250;
+    const original = f.signFrame({ ...f.prepare, proof: undefined, expiresAt });
+    const result = await f.service.execute(original);
+    await new Promise((done) => setTimeout(done, expiresAt - Date.now() + 20));
+    await expect(f.service.execute(original)).rejects.toBeInstanceOf(RegistrationRejected);
+    const before = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } });
+    expect(await f.service.execute(f.readback(original))).toMatchObject({ result });
+    expect(await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } })).toEqual(
+      before,
+    );
+  });
+  it.each([
+    "deadline",
+    "abort",
+  ])("rolls back both receipt and preparation on %s during receipt insertion", async (mode) => {
+    const controller = new AbortController();
+    const f = await operationFixture({ signal: controller.signal }),
+      name = `receipt_delay_${randomUUID().replaceAll("-", "")}`;
+    await db.$executeRawUnsafe(
+      `CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM set_config('application_name','${name}',true); PERFORM pg_sleep(0.4); RETURN NEW; END $$`,
+    );
+    await db.$executeRawUnsafe(
+      `CREATE TRIGGER ${name} AFTER INSERT ON codex_guardian_operation_receipts FOR EACH ROW WHEN(NEW.runtime_id='${f.runtimeId}'::uuid) EXECUTE FUNCTION ${name}()`,
+    );
+    try {
+      const request = f.signFrame({
+        ...f.prepare,
+        proof: undefined,
+        expiresAt: Date.now() + (mode === "deadline" ? 200 : 30000),
+      });
+      const pending = f.service.execute(request);
+      void pending.catch(() => {});
+      await waitForDatabaseSleep(name);
+      if (mode === "abort") controller.abort(new Error("cancelled_receipt"));
+      if (mode === "deadline") await expect(pending).rejects.toBeInstanceOf(RegistrationRejected);
+      else await expect(pending).rejects.toThrow("cancelled_receipt");
+      expect(
+        await db.codexGuardianOperationReceipt.count({ where: { runtimeId: f.runtimeId } }),
+      ).toBe(0);
+      expect(await db.codexGuardianAdmission.count({ where: { runtimeId: f.runtimeId } })).toBe(0);
+      expect(
+        (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } }))
+          .generation,
+      ).toBe(1);
+    } finally {
+      await db.$executeRawUnsafe(`DROP TRIGGER ${name} ON codex_guardian_operation_receipts`);
+      await db.$executeRawUnsafe(`DROP FUNCTION ${name}()`);
+    }
+  });
+  it("concurrent exact requests cannot duplicate admission or manufacture a second receipt", async () => {
+    const f = await operationFixture();
+    const results = await Promise.allSettled([
+      f.service.execute(f.prepare),
+      f.service.execute(f.prepare),
+    ]);
+    const first = results.find((result) => result.status === "fulfilled");
+    expect(first?.status).toBe("fulfilled");
+    if (first?.status !== "fulfilled") throw new Error("No committed receipt");
+    // A serializable loser may be rejected; a subsequent exact request reads the
+    // winner's original result before its now-obsolete input generation check.
+    expect(await f.service.execute(f.prepare)).toEqual(first.value);
+    expect(
+      await db.codexGuardianOperationReceipt.count({ where: { runtimeId: f.runtimeId } }),
+    ).toBe(1);
+    expect(await db.codexGuardianAdmission.count({ where: { runtimeId: f.runtimeId } })).toBe(1);
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } })).generation,
+    ).toBe(2);
+  });
+  it("bounds pool wait and transaction timeout by the remaining signed frame lifetime", async () => {
+    const f = await operationFixture();
+    const expiresAt = Date.now() + 1500;
+    let observed: { timeout: number; maxWait: number } | undefined;
+    const recording = {
+      $transaction: (
+        callback: (tx: unknown) => Promise<unknown>,
+        options: { timeout: number; maxWait: number },
+      ) => {
+        observed = options;
+        return db.$transaction(callback, options);
+      },
+    } as unknown as PrismaClient;
+    const store = new GuardianAdmissionStore(recording, {
+      policy: f.policy,
+      encryptionKey: "19".repeat(32),
+      authorizationExpiresAt: expiresAt,
+      expectedConfigSha256: () => f.identity.configSha256,
+    });
+    await store.prepare({
+      ownerId: f.user.id,
+      runtimeId: f.runtimeId,
+      runtimeGeneration: 1,
+      preparation: f.preparation,
+      preparationDigest: preparationDigest(f.preparation),
+    });
+    expect(observed?.timeout).toBeGreaterThan(0);
+    expect(observed?.timeout).toBeLessThanOrEqual(1500);
+    expect(observed?.maxWait).toBeGreaterThan(0);
+    expect(observed?.maxWait).toBeLessThanOrEqual(1500);
+    expect(Number(observed?.timeout) + Number(observed?.maxWait)).toBeLessThanOrEqual(1500);
+  });
+  it("holds new operations on durable receipt exhaustion while retaining every exact receipt and readback", async () => {
+    const f = await operationFixture();
+    const prepared = await f.service.execute(f.prepare);
+    await db.$executeRaw`
+      INSERT INTO codex_guardian_operation_receipts(owner_id,runtime_id,event_id,action,request_digest,
+        input_runtime_generation,result_runtime_generation,result_admission_generation,response,response_digest,
+        lifetime_id,build_id,config_sha256,outer_key_fingerprint)
+      SELECT owner_id,runtime_id,gen_random_uuid(),action,request_digest,input_runtime_generation,result_runtime_generation,
+        result_admission_generation,response,response_digest,lifetime_id,build_id,config_sha256,outer_key_fingerprint
+      FROM codex_guardian_operation_receipts CROSS JOIN generate_series(1,${GUARDIAN_MAX_OPERATION_RECEIPTS - 1})
+      WHERE runtime_id=${f.runtimeId}::uuid`;
+    const before = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } });
+    const fence = f.frame(
+      "fence",
+      { projectId: f.project.id, preparationDigest: f.prepare.preparationDigest },
+      2,
+    );
+    await expect(f.service.execute(fence)).rejects.toBeInstanceOf(RegistrationRejected);
+    await expect(f.service.execute(f.readback(fence))).rejects.toBeInstanceOf(RegistrationRejected);
+    expect(await f.service.execute(f.prepare)).toEqual(prepared);
+    expect(await f.service.execute(f.readback(f.prepare))).toMatchObject({ result: prepared });
+    expect(await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } })).toEqual(
+      before,
+    );
+    expect(
+      await db.codexGuardianOperationReceipt.count({ where: { runtimeId: f.runtimeId } }),
+    ).toBe(GUARDIAN_MAX_OPERATION_RECEIPTS);
+  });
+  it("retains immutable bounded receipts with append-only privileges for installed runtime roles", async () => {
+    const f = await operationFixture();
+    await f.service.execute(f.prepare);
+    await expect(
+      db.codexGuardianOperationReceipt.updateMany({
+        where: { runtimeId: f.runtimeId },
+        data: { requestDigest: "a".repeat(64) },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.codexGuardianOperationReceipt.deleteMany({ where: { runtimeId: f.runtimeId } }),
+    ).rejects.toThrow();
+    const saved = await db.codexGuardianOperationReceipt.findFirstOrThrow({
+      where: { runtimeId: f.runtimeId },
+    });
+    await expect(
+      db.codexGuardianOperationReceipt.create({
+        data: {
+          ...saved,
+          eventId: randomUUID(),
+          response: { ...(saved.response as Record<string, string>), oversize: "x".repeat(65537) },
+        },
+      }),
+    ).rejects.toThrow();
+    const roles = await db.$queryRaw<
+      { rolname: string }[]
+    >`SELECT rolname FROM pg_roles WHERE rolname IN ('hive_app_runtime','hive_native_runtime')`;
+    for (const { rolname } of roles) {
+      const [privileges] = await db.$queryRaw<
+        { read: boolean; append: boolean; mutate: boolean; remove: boolean }[]
+      >`SELECT
+        has_table_privilege(${rolname},'codex_guardian_operation_receipts','SELECT') AS read,
+        has_table_privilege(${rolname},'codex_guardian_operation_receipts','INSERT') AS append,
+        has_table_privilege(${rolname},'codex_guardian_operation_receipts','UPDATE') AS mutate,
+        has_table_privilege(${rolname},'codex_guardian_operation_receipts','DELETE') AS remove`;
+      expect(privileges).toEqual({ read: true, append: true, mutate: false, remove: false });
+    }
+  });
+});
 describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQL", () => {
+  it.each([
+    "refresh",
+    "still_future",
+    "too_far",
+    "cancel",
+  ])("resamples a fresh signed transport clock without accepting future authority: %s", async (scenario) => {
+    let current = Date.now();
+    const waits: number[] = [],
+      controller = new AbortController();
+    const f = await fixture(undefined, undefined, undefined, {
+      nowFn: () => current,
+      signal: controller.signal,
+      clockWait: async (delay) => {
+        waits.push(delay);
+        if (scenario === "cancel") controller.abort(new Error("transport_clock_cancelled"));
+        if (scenario === "refresh") {
+          await new Promise((done) => setTimeout(done, delay));
+          current = Date.now();
+        }
+      },
+    });
+    await f.service.provision(f.principal, f.binding.workspaceId);
+    current = Date.now();
+    const before = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } });
+    const input = f.signFrame({
+      schemaVersion: 1,
+      action: "drain_ready",
+      runtimeId: f.runtimeId,
+      runtimeGeneration: 1,
+      eventId: randomUUID(),
+      issuedAt: current + (scenario === "too_far" ? 2000 : 100),
+      expiresAt: current + 5000,
+    });
+    if (scenario === "refresh") {
+      expect(await f.service.execute(input)).toMatchObject({ ready: false });
+      expect(waits).toHaveLength(2);
+      expect(waits[0]).toBe(0);
+      expect(waits[1]).toBeGreaterThan(0);
+      expect(current).toBeGreaterThanOrEqual(Number((input as Record<string, unknown>).issuedAt));
+    } else if (scenario === "cancel")
+      await expect(f.service.execute(input)).rejects.toThrow("transport_clock_cancelled");
+    else await expect(f.service.execute(input)).rejects.toBeInstanceOf(RegistrationRejected);
+    expect(await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } })).toEqual(
+      before,
+    );
+  });
   it("recovers only the exact committed enrollment as read-only historical evidence", async () => {
     let now = Date.now();
     const f = await fixture(undefined, undefined, undefined, { nowFn: () => now });

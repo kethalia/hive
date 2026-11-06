@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { AgentBridgeService } from "../../src/lib/agents/portable-service.server";
 import { requestVerifiedWorkspaceAgent } from "../../src/lib/codex-session/bootstrap-delivery.server";
 export default {
@@ -113,6 +113,23 @@ export default {
     const disabled = await service.execute(principal, binding.workspaceId, {
       operation: "disable",
     });
-    return Response.json({ sessions: sessions.sessions, installed, disabled, workspaceReads });
+    const operation = {
+      operation: "install-notifications" as const,
+      sourceId: randomUUID(),
+      generation: 1,
+      createdAt: "2026-11-06T00:00:00.000Z",
+      token: "d".repeat(64),
+    };
+    const notification = await service.execute(principal, binding.workspaceId, operation);
+    const replay = await service.execute(principal, binding.workspaceId, operation);
+    return Response.json({
+      sessions: sessions.sessions,
+      installed,
+      disabled,
+      workspaceReads,
+      notificationInstalled:
+        notification.sourceId === operation.sourceId && notification.generation === 1,
+      notificationReplay: replay.sourceId === operation.sourceId && replay.generation === 1,
+    });
   },
 };

@@ -11,6 +11,8 @@ export async function agentPackage(root = defaultRoot) {
   const files = new Map([
     ["agent-host.mjs", await readFile(resolve(root, "scripts/agent-bridge/host.mjs"))],
     ["agent-start.mjs", await readFile(resolve(root, "scripts/agent-bridge/start.mjs"))],
+    ["notifications-install.py", await readFile(resolve(root, "scripts/notifications/install.py"))],
+    ["notifications-hook.py", await readFile(resolve(root, "scripts/notifications/agent-hook.py"))],
     [
       "agent-tools.py",
       await readFile(resolve(root, "templates/ai-dev-k8s/scripts/agent-tools.py")),

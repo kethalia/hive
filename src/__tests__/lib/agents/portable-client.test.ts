@@ -47,7 +47,12 @@ const digest = sha(
 );
 const lifetimeId = randomUUID();
 function fixture(
-  options: { loseMutation?: boolean; wrongManifest?: boolean; mutationFailed?: boolean } = {},
+  options: {
+    loseMutation?: boolean;
+    wrongManifest?: boolean;
+    mutationFailed?: boolean;
+    wrongReceipt?: boolean;
+  } = {},
 ) {
   const transport = vi.fn(async (ticket: string) => {
     const claims = JSON.parse(Buffer.from(ticket.split(".")[1], "base64url").toString());
@@ -61,7 +66,17 @@ function fixture(
             manifestSha256: options.wrongManifest ? "c".repeat(64) : config.manifestSha256,
             environment: {},
           }
-        : { message: "tracking installed" };
+        : claims.request.operation === "install-notifications"
+          ? {
+              sourceId: claims.request.sourceId,
+              generation: options.wrongReceipt
+                ? claims.request.generation + 1
+                : claims.request.generation,
+              createdAt: claims.request.createdAt,
+              credentialHash: sha(claims.request.token),
+              callbackOrigin: config.issuer,
+            }
+          : { message: "tracking installed" };
     const result = {
       schemaVersion: 1,
       requestId: claims.jti,
@@ -130,5 +145,31 @@ describe("portable agent client", () => {
       code: "outcome_unknown",
     });
     expect(f.transport).toHaveBeenCalledTimes(2);
+  });
+  it("binds a notification receipt to the exact source/generation and treats lost or substituted results as uncertain", async () => {
+    const operation = {
+      operation: "install-notifications" as const,
+      sourceId: randomUUID(),
+      generation: 1,
+      createdAt: "2026-11-06T00:00:00.000Z",
+      token: "d".repeat(64),
+    };
+    const good = fixture();
+    const receipt = await good.client.execute(operation);
+    expect(receipt).toMatchObject({
+      sourceId: operation.sourceId,
+      generation: 1,
+      callbackOrigin: config.issuer,
+    });
+    expect(JSON.stringify(receipt)).not.toContain(operation.token);
+    for (const options of [
+      { loseMutation: true },
+      { wrongReceipt: true },
+      { mutationFailed: true },
+    ]) {
+      const f = fixture(options);
+      await expect(f.client.execute(operation)).rejects.toMatchObject({ code: "outcome_unknown" });
+      expect(f.transport).toHaveBeenCalledTimes(2);
+    }
   });
 });

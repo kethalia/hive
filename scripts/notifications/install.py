@@ -1,3 +1,4 @@
+import hashlib
 import fcntl
 import json
 import os
@@ -38,8 +39,13 @@ try:
         incoming = (bundle.get("createdAt", ""), bundle.get("generation", 0))
         installed = (current.get("createdAt", ""), current.get("generation", 0))
         if incoming < installed:
+            if bundle.get("portable") is True:
+                raise RuntimeError("notification_generation_superseded")
             print("A newer Hive notification setup is already installed.")
             raise SystemExit(0)
+        if bundle.get("portable") is True and incoming == installed:
+            if current.get("sourceId") != bundle["sourceId"] or current.get("token") != bundle["token"]:
+                raise RuntimeError("notification_generation_conflict")
 
     # Parse both configurations before making changes. Preserve all unrelated hooks.
     codex_path = Path(os.environ.get("CODEX_HOME", str(home / ".codex"))) / "hooks.json"
@@ -72,7 +78,15 @@ try:
     for path, text in configs:
         atomic_write(path, text)
     atomic_write(root / "config.json", json.dumps({key: bundle[key] for key in ("url", "token", "sourceId", "generation", "createdAt") if key in bundle}))
-    print("Hive notifications installed. Restart agents; review Codex /hooks.")
+    if bundle.get("portable") is True:
+        print(json.dumps({"ok": True, "data": {
+            "sourceId": bundle["sourceId"], "generation": bundle["generation"],
+            "createdAt": bundle["createdAt"],
+            "credentialHash": hashlib.sha256(bundle["token"].encode()).hexdigest(),
+            "callbackOrigin": bundle["url"].removesuffix("/api/notifications/events"),
+        }}))
+    else:
+        print("Hive notifications installed. Restart agents; review Codex /hooks.")
 
 finally:
     lock.close()
