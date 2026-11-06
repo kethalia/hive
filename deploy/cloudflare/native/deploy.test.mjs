@@ -27,6 +27,13 @@ test("isolated bootstrap and preview config have no production data or service b
   assert.equal(config.account_id, account);
   assert.deepEqual(config.previews.placement, { region: "aws:us-east-1" });
   assert.equal(config.placement, undefined);
+  assert.equal(config.previews.vars.HIVE_PREVIEW_ACCESS_REQUIRED, "false");
+  assert.deepEqual(config.previews.secrets.required, [
+    "DATABASE_URL",
+    "ENCRYPTION_KEY",
+    "COOKIE_SECRET",
+    "AUTH_SERVICE_SECRET",
+  ]);
 });
 test("branch name preserves the provider-managed Preview identity", () => {
   const a = previewTarget("codex/example-branch");

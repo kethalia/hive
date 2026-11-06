@@ -10,6 +10,7 @@ export type RuntimeOriginEnvironment = {
   HIVE_NATIVE_PRODUCTION_ACTIVE?: string;
   HIVE_NATIVE_PREVIEW_ENABLED?: string;
   HIVE_PREVIEW_ORIGIN?: string;
+  HIVE_PREVIEW_ACCESS_REQUIRED?: string;
   HIVE_PUBLIC_ORIGIN?: string;
 };
 /** Legacy standalone app deployments remain behind the private preview gate.
@@ -23,6 +24,18 @@ export function previewAccessMode(
   if (env.HIVE_NATIVE_MODE === "production" && env.HIVE_NATIVE_PRODUCTION_ACTIVE === "true")
     return "production";
   return "unavailable";
+}
+/** Only an explicitly enabled native Preview may serve ordinary public login.
+ * Legacy/unspecified deployments retain their separate private access gate. */
+export function requiresPreviewAccess(env: RuntimeOriginEnvironment): boolean {
+  return (
+    previewAccessMode(env) === "preview" &&
+    !(
+      env.HIVE_NATIVE_MODE === "preview" &&
+      env.HIVE_NATIVE_PREVIEW_ENABLED === "true" &&
+      env.HIVE_PREVIEW_ACCESS_REQUIRED === "false"
+    )
+  );
 }
 function configuredOrigin(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -82,7 +95,8 @@ export function previewCookieExpiresAt(request: Request, options: CookieOptions)
   );
   return actual.length === expected.length && timingSafeEqual(actual, expected) ? exp * 1000 : null;
 }
-/** Production is bounded by the relay's verified session/registration, not a preview cookie. */
+/** Production and explicitly public native Previews are bounded by the relay's
+ * verified session/registration, not a separate preview cookie. */
 export function runtimeRelayDeadline(
   request: Request,
   env: RuntimeOriginEnvironment,
@@ -91,7 +105,7 @@ export function runtimeRelayDeadline(
 ): number {
   const mode = previewAccessMode(env);
   if (mode === "unavailable") throw new Error("runtime unavailable");
-  return mode === "production"
+  return mode === "production" || !requiresPreviewAccess(env)
     ? Number.POSITIVE_INFINITY
     : (previewCookieExpiresAt(request, { origin: env.HIVE_PREVIEW_ORIGIN, cookieSecret, now }) ??
         now + 15 * 60 * 1000);

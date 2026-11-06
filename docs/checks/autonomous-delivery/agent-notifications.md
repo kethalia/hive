@@ -5,14 +5,17 @@ terminal hook events (`question`, `approval`, `ready`, `failure`), distinct from
 reports and terminal-state **template publication** notices, which already have their
 own implementations. Existing callback credential staging, overlap, generation and
 revocation remain in `source-credentials.ts`; no host package, hook installer or user
-configuration changes are included.
+configuration changes were included in the original ingress slice. The separate
+[portable setup followup](agent-notification-installer.md) adds the fixed pinned installer
+and corrects callback transport through the app Preview wrapper.
 
 `POST /api/notifications/events` selects PostgreSQL admission when
 `HIVE_RUNTIME_TARGET=cloudflare` and `HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED=true`.
 The Worker allowlist admits only that method/path when this separate flag is true.
 The route independently enforces its flag and the existing source bearer format.
-All source installation/reinstallation/deletion mutations remain explicitly blocked
-in Cloudflare until an owner/build-bound workspace installer capability is implemented.
+Source installation/reinstallation/deletion mutations require the separate default-off
+portable setup capability documented in the followup; enabling ingress alone does not
+enable source mutations.
 The legacy Node path retains its Redis/BullMQ transport; those imports are evaluated
 only after selecting that path.
 
@@ -83,9 +86,10 @@ PostgreSQL tests also pass after extracting the shared queue primitive.
 
 [Actual Workerd evidence](agent-notifications-local/workerd.json) imports the migrated
 Next POST route, full generated PrismaNeon client, actual jobs dispatcher and shared
-sender through a fixed loopback-only PostgreSQL WebSocket bridge. It verifies 12
+sender through a fixed loopback-only PostgreSQL WebSocket bridge. The initial route-only proof verified 12
 checks including replay, fixed owner/link binding, rate dedupe, conflict, acknowledgment
-and revocation. The sender has **zero subscriptions**: this is real local composition,
+and revocation. The followup extends it through actual app composition and a real staged
+pending credential to cover private Preview transport; see its current check map. The sender has **zero subscriptions**: this is real local composition,
 not provider push delivery or browser notification acceptance. No remote binding or
 provider operation is performed.
 
@@ -100,6 +104,7 @@ Remaining gates: populated upgrade/restricted-runtime rehearsal on the final rel
 schema, real browser foreground/background delivery, actual Codex/Claude hook events,
 portable owner/build-bound installer, preview callback access under the existing preview
 gate, Node worker drain and credential/origin migration, aggregate capacity and scheduler
-ownership. The public native Preview gate is unchanged; a callback source bearer alone
-does not bypass its separate preview authorization. Preview/production flags, database,
+ownership. The followup admits only the fixed, flag-gated callback transport through the Preview
+wrapper, preserving source Authorization for the route's own verification. A source
+bearer grants no browser/UI Preview access. Preview/production flags, database,
 providers, schedules and resources are untouched by this source slice.

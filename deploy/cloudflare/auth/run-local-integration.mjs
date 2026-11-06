@@ -59,6 +59,9 @@ const sourcePaths = [
   "next.config.ts",
   "src/lib/auth/service-client.ts",
   "deploy/cloudflare/app/worker.ts",
+  "deploy/cloudflare/app/composition.ts",
+  "deploy/cloudflare/app/preview-auth.ts",
+  "deploy/cloudflare/app/agent-notifications.ts",
   "deploy/cloudflare/app/host-callback.ts",
   "src/lib/codex-session/host-callback-transport.ts",
   "src/proxy.ts",
@@ -128,7 +131,11 @@ if (appMode) {
       HIVE_DELIVERY_ENABLED: "true",
       HIVE_PREVIEW_ORIGIN: "http://127.0.0.1:8793",
       ...(nativeMode && service === "app"
-        ? { HIVE_NATIVE_MODE: "preview", HIVE_NATIVE_PREVIEW_ENABLED: "true" }
+        ? {
+            HIVE_NATIVE_MODE: "preview",
+            HIVE_NATIVE_PREVIEW_ENABLED: "true",
+            HIVE_PREVIEW_ACCESS_REQUIRED: "false",
+          }
         : {}),
       ...(callbacks
         ? {
@@ -193,8 +200,9 @@ await writeFile(
     ENCRYPTION_KEY: randomBytes(32).toString("hex"),
     COOKIE_SECRET: randomBytes(32).toString("hex"),
     PROOF_BEARER: bearer,
-    PREVIEW_BEARER: previewBearer,
-    PREVIEW_COOKIE_SECRET: randomBytes(32).toString("hex"),
+    ...(!nativeMode
+      ? { PREVIEW_BEARER: previewBearer, PREVIEW_COOKIE_SECRET: randomBytes(32).toString("hex") }
+      : {}),
     RUN_UUID: runId,
     ...(callbackIssuer
       ? {
@@ -271,45 +279,62 @@ try {
       const headers = {
         Cookie: cookie,
         "sec-fetch-site": "same-origin",
-        Authorization: `Bearer ${previewBearer}`,
+        ...(!nativeMode ? { Authorization: `Bearer ${previewBearer}` } : {}),
       };
-      const unauthenticated = await request("/login");
-      if (unauthenticated.status !== 401) throw new Error("Actual app preview guard failed");
-      appChecks.privatePreviewGuardBeforeFramework = true;
+      const asset = "/icons/hive-mark.svg";
       if (nativeMode) {
-        const login = await request("/login", {
-          headers: { Authorization: `Bearer ${previewBearer}` },
-        });
+        const login = await request("/login");
         if (
           login.status !== 200 ||
           !login.headers.get("content-type")?.includes("text/html") ||
           !(await login.text()).includes("Sign in")
         )
-          throw new Error("Actual app login SSR failed");
+          throw new Error("Actual anonymous native login SSR failed");
         appChecks.nativeLoginPageSSR = true;
+        appChecks.nativeAnonymousLoginWithoutPreviewCredential = true;
+        const anonymousAsset = await request(asset);
+        if (
+          anonymousAsset.status !== 200 ||
+          !anonymousAsset.headers.get("cache-control")?.includes("no-store")
+        )
+          throw new Error("Actual anonymous native asset failed");
+        await anonymousAsset.arrayBuffer();
+        appChecks.nativeAnonymousAssetsWithoutPreviewCredential = true;
+        const ownerApi = await request("/api/delivery/tasks");
+        if (ownerApi.status !== 401)
+          throw new Error("Actual anonymous native owner API not rejected");
+        await ownerApi.body?.cancel();
+        appChecks.nativeProtectedOwnerApiStillAuthenticated = true;
+      } else {
+        const unauthenticated = await request("/login");
+        if (unauthenticated.status !== 401) throw new Error("Actual app preview guard failed");
+        await unauthenticated.body?.cancel();
+        appChecks.privatePreviewGuardBeforeFramework = true;
+        const anonymousAsset = await request(asset);
+        if (anonymousAsset.status !== 401)
+          throw new Error("Actual app preview static asset guard failed");
+        await anonymousAsset.body?.cancel();
+        const authorizedAsset = await request(asset, { headers });
+        if (
+          authorizedAsset.status !== 200 ||
+          !authorizedAsset.headers.get("cache-control")?.includes("no-store")
+        )
+          throw new Error("Actual app preview asset privacy failed");
+        await authorizedAsset.arrayBuffer();
+        appChecks.privateStaticAssetsGuardAndNoStore = true;
+        const bootstrapped = await request("/__hive-preview/access", {
+          method: "POST",
+          headers: { Origin: "http://127.0.0.1:8793", Authorization: `Bearer ${previewBearer}` },
+        });
+        const previewCookie = bootstrapped.headers.get("set-cookie")?.split(";")[0];
+        if (bootstrapped.status !== 204 || !previewCookie)
+          throw new Error("Actual app preview cookie bootstrap failed");
+        await bootstrapped.body?.cancel();
+        const cookieAsset = await request(asset, { headers: { Cookie: previewCookie } });
+        if (cookieAsset.status !== 200) throw new Error("Actual app preview cookie asset failed");
+        await cookieAsset.arrayBuffer();
+        appChecks.privatePreviewCookieBootstrapAndAsset = true;
       }
-      const privateAsset = "/icons/hive-mark.svg";
-      if ((await request(privateAsset)).status !== 401)
-        throw new Error("Actual app preview static asset guard failed");
-      const authorizedAsset = await request(privateAsset, { headers });
-      if (
-        authorizedAsset.status !== 200 ||
-        !authorizedAsset.headers.get("cache-control")?.includes("no-store")
-      )
-        throw new Error("Actual app preview asset privacy failed");
-      await authorizedAsset.arrayBuffer();
-      appChecks.privateStaticAssetsGuardAndNoStore = true;
-      const bootstrapped = await request("/__hive-preview/access", {
-        method: "POST",
-        headers: { Origin: "http://127.0.0.1:8793", Authorization: `Bearer ${previewBearer}` },
-      });
-      const previewCookie = bootstrapped.headers.get("set-cookie")?.split(";")[0];
-      if (bootstrapped.status !== 204 || !previewCookie)
-        throw new Error("Actual app preview cookie bootstrap failed");
-      const cookieAsset = await request(privateAsset, { headers: { Cookie: previewCookie } });
-      if (cookieAsset.status !== 200) throw new Error("Actual app preview cookie asset failed");
-      await cookieAsset.arrayBuffer();
-      appChecks.privatePreviewCookieBootstrapAndAsset = true;
       if (terminalPilot) {
         const config = await request("/runtime-config.js", { headers });
         if (config.status !== 200 || !(await config.text()).includes('"terminalWsUrl":"/"'))
@@ -567,6 +592,9 @@ try {
     nativeMode &&
     !(
       result.appChecks?.nativeLoginPageSSR &&
+      result.appChecks?.nativeAnonymousLoginWithoutPreviewCredential &&
+      result.appChecks?.nativeAnonymousAssetsWithoutPreviewCredential &&
+      result.appChecks?.nativeProtectedOwnerApiStillAuthenticated &&
       result.appChecks?.actualAppLogoutAndRevokedCookieRejected &&
       result.appChecks?.authenticatedAppListThroughServiceBinding &&
       result.appChecks?.authenticatedAppDetailThroughServiceBinding
@@ -593,6 +621,8 @@ try {
     ...(nativeMode
       ? {
           nativeEntrypoint: true,
+          previewAccessRequired: false,
+          previewCredentialConfigured: false,
           externalAuthServiceBindingConfigured: false,
           standaloneAuthUsedOnlyByControlFixture: true,
           inlineAuthAndRequestLifetimeVerified: Boolean(

@@ -20,6 +20,7 @@
     "vars": {
       "HIVE_NATIVE_MODE": "preview",
       "HIVE_NATIVE_PREVIEW_ENABLED": "true",
+      "HIVE_PREVIEW_ACCESS_REQUIRED": "false",
       "HIVE_RUNTIME_TARGET": "cloudflare",
       "HIVE_DISABLE_BACKGROUND_WORKERS": "true",
       "HIVE_PROJECT_DISCOVERY_ENABLED": "false",
@@ -31,14 +32,7 @@
       "CODER_URL": "https://coder.kethalia.com"
     },
     "secrets": {
-      "required": [
-        "DATABASE_URL",
-        "ENCRYPTION_KEY",
-        "COOKIE_SECRET",
-        "AUTH_SERVICE_SECRET",
-        "PREVIEW_BEARER",
-        "PREVIEW_COOKIE_SECRET"
-      ]
+      "required": ["DATABASE_URL", "ENCRYPTION_KEY", "COOKIE_SECRET", "AUTH_SERVICE_SECRET"]
     }
   }
 }

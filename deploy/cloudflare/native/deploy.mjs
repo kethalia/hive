@@ -10,14 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../../..");
 const configPath = join(here, "wrangler.jsonc");
 export const account = "225177f82b9234ede14e897fe15e0cb5";
-const requiredSecrets = [
-  "DATABASE_URL",
-  "ENCRYPTION_KEY",
-  "COOKIE_SECRET",
-  "AUTH_SERVICE_SECRET",
-  "PREVIEW_BEARER",
-  "PREVIEW_COOKIE_SECRET",
-];
+const requiredSecrets = ["DATABASE_URL", "ENCRYPTION_KEY", "COOKIE_SECRET", "AUTH_SERVICE_SECRET"];
 const disabled = [
   "HIVE_PROJECT_DISCOVERY_ENABLED",
   "HIVE_PROJECT_TASKS_ENABLED",
@@ -143,6 +136,7 @@ export function validateConfig(c) {
   assert.deepEqual(v, {
     HIVE_NATIVE_MODE: "preview",
     HIVE_NATIVE_PREVIEW_ENABLED: "true",
+    HIVE_PREVIEW_ACCESS_REQUIRED: "false",
     HIVE_RUNTIME_TARGET: "cloudflare",
     HIVE_DISABLE_BACKGROUND_WORKERS: "true",
     HIVE_PROJECT_DISCOVERY_ENABLED: "false",

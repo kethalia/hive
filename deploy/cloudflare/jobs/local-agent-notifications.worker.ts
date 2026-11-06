@@ -1,10 +1,12 @@
 // Local-only proof harness. Never deploy this entrypoint or expose its fixture capability.
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { getDb } from "@hive/db";
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
 import { neonConfig } from "../../../packages/db/node_modules/@neondatabase/serverless/index.mjs";
 import { POST as actualAgentEventPOST } from "../../../src/app/api/notifications/events/route";
 import { agentEventsRoute } from "../../../src/lib/push/agent-events-route";
+import { stageNotificationCredential } from "../../../src/lib/push/source-credentials";
+import { createAppWorker } from "../app/composition";
 import { runRequestLifetime } from "../app/request-lifetime";
 import { dispatchScheduled } from "./worker";
 
@@ -45,9 +47,9 @@ export default {
       const db = getDb(),
         checks: Record<string, boolean> = {};
       const ownerId = randomUUID(),
-        sourceId = randomUUID(),
-        workspaceId = randomUUID(),
-        token = "d".repeat(64);
+        workspaceId = randomUUID();
+      let sourceId: string = randomUUID(),
+        token = "";
       let stage = "fixture";
       const requireProof = (value: unknown, label: string) => {
         stage = label;
@@ -83,16 +85,24 @@ export default {
             email: `${ownerId}@example.invalid`,
           },
         });
-        await db.notificationSource.create({
-          data: {
-            id: sourceId,
-            userId: ownerId,
-            workspaceId,
-            workspaceName: "workerd-proof",
-            tokenHash: createHash("sha256").update(token).digest("hex"),
-          },
-        });
-        const route = actualAgentEventPOST;
+        const staged = await stageNotificationCredential(ownerId, workspaceId, "workerd-proof");
+        sourceId = staged.source.id;
+        token = staged.token;
+        requireProof(staged.source.pendingTokenHash !== null, "actual_staged_pending_source");
+        const app = createAppWorker(
+          { fetch: async (r: Request) => actualAgentEventPOST(r) },
+          { schemaVersion: 1, actions: {} },
+        );
+        const callbackEnv = {
+          ...env,
+          HIVE_NATIVE_MODE: "preview",
+          HIVE_NATIVE_PREVIEW_ENABLED: "true",
+          HIVE_PREVIEW_ORIGIN: "https://hive.invalid",
+          PREVIEW_BEARER: "a".repeat(64),
+          PREVIEW_COOKIE_SECRET: "b".repeat(64),
+          HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED: "true",
+        };
+        const route = (r: Request) => app.fetch(r, callbackEnv, ctx);
         const input = {
           eventId: "workerd-event",
           kind: "question",
@@ -130,6 +140,33 @@ export default {
           "immutable_event_conflict",
         );
         requireProof((await call(input, "a".repeat(64))).status === 401, "unknown_source_rejected");
+        const blocked = (target: string, method = "POST", extra = {}) =>
+          app.fetch(
+            new Request(target, { method, headers: { Authorization: `Bearer ${token}` } }),
+            { ...callbackEnv, ...extra },
+            ctx,
+          );
+        requireProof(
+          (await blocked("https://hive.invalid/api/notifications/events", "GET")).status === 401,
+          "preview_callback_method_cannot_bypass",
+        );
+        requireProof(
+          (await blocked("https://hive.invalid/api/notifications/events?unexpected=1")).status ===
+            401,
+          "preview_callback_query_cannot_bypass",
+        );
+        requireProof(
+          (
+            await blocked("https://hive.invalid/api/notifications/events", "POST", {
+              HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED: "false",
+            })
+          ).status === 401,
+          "preview_callback_flag_off_cannot_bypass",
+        );
+        requireProof(
+          (await blocked("https://hive.invalid/workspaces", "GET")).status === 401,
+          "source_bearer_not_browser_preview_access",
+        );
         // Actual jobs and shared sender, with zero subscriptions. No provider send is
         // performed; this proves local composition and absence-of-recipient handling.
         const result = await dispatchScheduled({

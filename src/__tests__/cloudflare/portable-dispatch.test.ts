@@ -206,3 +206,81 @@ it("allows only migrated notification event POST behind its own flag and keeps i
       (await worker.fetch(request("/api/notifications/sources", method), enabled, context)).status,
     ).toBe(503);
 });
+
+it("admits source mutations only behind their separate flag and rejects query-bearing mutation transport", async () => {
+  mock.framework.mockResolvedValue(new Response(null, { status: 202 }));
+  const enabled = { ...env(), HIVE_AGENT_NOTIFICATION_SOURCES_ENABLED: "true" };
+  for (const method of ["POST", "DELETE"]) {
+    expect(
+      (await worker.fetch(request("/api/notifications/sources", method), env(), context)).status,
+    ).toBe(503);
+    expect(
+      (await worker.fetch(request("/api/notifications/sources", method), enabled, context)).status,
+    ).toBe(202);
+    expect(
+      (
+        await worker.fetch(
+          request("/api/notifications/sources?unexpected=1", method),
+          enabled,
+          context,
+        )
+      ).status,
+    ).toBe(503);
+  }
+});
+
+it("explicit public native Preview permits anonymous login assets and keeps protected application routes authenticated", async () => {
+  const publicPreview = {
+    HIVE_NATIVE_MODE: "preview",
+    HIVE_NATIVE_PREVIEW_ENABLED: "true",
+    HIVE_PREVIEW_ACCESS_REQUIRED: "false",
+    HIVE_PREVIEW_ORIGIN: origin,
+    HIVE_PROJECT_DISCOVERY_ENABLED: "true",
+    HIVE_CODEX_GATEWAY_ENABLED: "true",
+  };
+  mock.framework.mockImplementation(async (r: Request) =>
+    new URL(r.url).pathname === "/api/projects" ? GET(r) : new Response("login", { status: 200 }),
+  );
+  for (const path of ["/", "/login", "/_next/static/login.js"]) {
+    const response = await worker.fetch(new Request(origin + path), publicPreview, context);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    await response.text();
+  }
+  mock.session.mockResolvedValue(null);
+  const response = await worker.fetch(
+    new Request(`${origin}/api/projects?workspaceId=10000000-0000-4000-8000-000000000001`, {
+      headers: {
+        Authorization: "Bearer application-credential",
+        Cookie: "hive_session=owned-session",
+      },
+    }),
+    publicPreview,
+    context,
+  );
+  expect(response.status).toBe(401);
+  expect(mock.discover).not.toHaveBeenCalled();
+  await response.text();
+  const delegated = mock.framework.mock.calls.at(-1)?.[0] as Request;
+  expect(delegated.headers.get("Authorization")).toBe("Bearer application-credential");
+  expect(delegated.headers.get("Cookie")).toBe("hive_session=owned-session");
+});
+
+it("a legacy or unconfigured native Preview keeps its private access gate even if a legacy flag is false", async () => {
+  for (const config of [
+    { ...env(), HIVE_PREVIEW_ACCESS_REQUIRED: "false" },
+    { ...env(), HIVE_NATIVE_MODE: "preview", HIVE_NATIVE_PREVIEW_ENABLED: "true" },
+  ])
+    expect((await worker.fetch(new Request(`${origin}/login`), config, context)).status).toBe(401);
+  expect(mock.framework).not.toHaveBeenCalled();
+  for (const HIVE_NATIVE_MODE of ["bootstrap", "production", "unexpected"])
+    expect(
+      (
+        await worker.fetch(
+          new Request(`${origin}/login`),
+          { HIVE_NATIVE_MODE, HIVE_PREVIEW_ACCESS_REQUIRED: "false", HIVE_PREVIEW_ORIGIN: origin },
+          context,
+        )
+      ).status,
+    ).toBe(503);
+});

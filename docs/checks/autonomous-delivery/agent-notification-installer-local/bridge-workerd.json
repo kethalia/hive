@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T00:24:26.983Z",
+  "localOnly": true,
+  "scope": "actual Workerd service/client + local signed host + pinned Python notification installer; synthetic provider reader/cookie exchange",
+  "checks": {
+    "notificationInstalled": true,
+    "notificationReplay": true,
+    "customConfigPreserved": true,
+    "wrongOwnerRejected": true,
+    "changedBuildUncertain": true
+  },
+  "realProviderRequests": 0,
+  "liveCredentialsUsed": false
+}

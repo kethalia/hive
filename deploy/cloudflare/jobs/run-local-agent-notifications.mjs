@@ -77,14 +77,18 @@ await writeFile(
 );
 await writeFile(
   join(directory, ".dev.vars"),
-  `DATABASE_URL=${JSON.stringify(databaseUrl)}\nLOCAL_PROOF_BEARER=${JSON.stringify(bearer)}\n`,
+  `DATABASE_URL=${JSON.stringify(databaseUrl)}\nLOCAL_PROOF_BEARER=${JSON.stringify(bearer)}\nCOOKIE_SECRET=${JSON.stringify(randomBytes(32).toString("hex"))}\n`,
   { mode: 0o600 },
 );
 const sourcePaths = [
   "packages/db/prisma/schema.prisma",
   "packages/db/prisma/migrations/20261105233000_agent_notification_events/migration.sql",
   "src/lib/push/agent-event-contract.ts",
+  "src/lib/push/source-credentials.ts",
   "src/app/api/notifications/events/route.ts",
+  "deploy/cloudflare/app/worker.ts",
+  "deploy/cloudflare/app/composition.ts",
+  "deploy/cloudflare/app/agent-notifications.ts",
   "src/lib/push/agent-events.ts",
   "src/lib/push/agent-events-route.ts",
   "src/lib/push/durable-outbox.ts",
