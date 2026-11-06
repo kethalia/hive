@@ -2,6 +2,8 @@ import { getDb } from "@hive/db";
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
 import { dispatchTokenWarnings, sendTokenWarning } from "../../../src/lib/auth/rotation-notices";
 import { dispatchNotificationBatch, sendDeliveryPush } from "../../../src/lib/delivery/dispatch";
+import { dispatchAgentEvents } from "../../../src/lib/push/agent-events";
+import { sendBoundedPush } from "../../../src/lib/push/bounded-send";
 import {
   dispatchTemplatePublicationNotices,
   sendTemplatePublicationPush,
@@ -20,6 +22,7 @@ type Environment = TemplatePublicationEnvironment &
     HIVE_PROJECT_TASKS_ENABLED?: string;
     HIVE_TOKEN_WARNING_DISPATCH_ENABLED?: string;
     HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED?: string;
+    HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED?: string;
     VAPID_SUBJECT?: string;
     HIVE_PUBLIC_ORIGIN?: string;
     HIVE_DELIVERY_PILOT_MODE?: string;
@@ -34,6 +37,7 @@ export async function dispatchScheduled(env: Environment) {
     env.HIVE_PROJECT_TASKS_ENABLED !== "true" &&
     env.HIVE_TOKEN_WARNING_DISPATCH_ENABLED !== "true" &&
     env.HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED !== "true" &&
+    env.HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED !== "true" &&
     env.HIVE_TEMPLATE_PUBLICATION_ENABLED !== "true"
   )
     return { enabled: false };
@@ -41,6 +45,7 @@ export async function dispatchScheduled(env: Environment) {
     env.HIVE_DELIVERY_DISPATCH_ENABLED !== "true" &&
     env.HIVE_TOKEN_WARNING_DISPATCH_ENABLED !== "true" &&
     env.HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED !== "true" &&
+    env.HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED !== "true" &&
     env.HIVE_TEMPLATE_PUBLICATION_ENABLED !== "true"
   )
     return { enabled: true, projectTasks: await dispatchProjectTaskReconciliation(env) };
@@ -51,47 +56,67 @@ export async function dispatchScheduled(env: Environment) {
   return context.run(async () => {
     try {
       const db = getDb();
-      const [noticeResult, taskResult, tokenResult, templateResult, templateNoticeResult] =
-        await Promise.allSettled([
-          env.HIVE_DELIVERY_DISPATCH_ENABLED === "true"
-            ? dispatchNotificationBatch(db, (ownerId, payload) =>
-                sendDeliveryPush(
-                  db,
-                  ownerId,
-                  payload,
-                  env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
-                ),
-              )
-            : Promise.resolve({}),
-          env.HIVE_PROJECT_TASKS_ENABLED === "true"
-            ? dispatchProjectTaskReconciliation(env)
-            : Promise.resolve(undefined),
-          env.HIVE_TOKEN_WARNING_DISPATCH_ENABLED === "true"
-            ? dispatchTokenWarnings(db, (ownerId, payload) =>
-                sendTokenWarning(
-                  db,
-                  ownerId,
-                  payload,
-                  env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
-                ),
-              )
-            : Promise.resolve(undefined),
-          dispatchTemplatePublication(db, env),
-          env.HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED === "true"
-            ? dispatchTemplatePublicationNotices(
+      const [
+        noticeResult,
+        taskResult,
+        tokenResult,
+        templateResult,
+        templateNoticeResult,
+        agentNoticeResult,
+      ] = await Promise.allSettled([
+        env.HIVE_DELIVERY_DISPATCH_ENABLED === "true"
+          ? dispatchNotificationBatch(db, (ownerId, payload) =>
+              sendDeliveryPush(
                 db,
-                (ownerId, payload, signal) =>
-                  sendTemplatePublicationPush(
-                    db,
-                    ownerId,
-                    payload,
-                    env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
-                    signal,
-                  ),
-                { enabled: true },
-              )
-            : Promise.resolve(undefined),
-        ]);
+                ownerId,
+                payload,
+                env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
+              ),
+            )
+          : Promise.resolve({}),
+        env.HIVE_PROJECT_TASKS_ENABLED === "true"
+          ? dispatchProjectTaskReconciliation(env)
+          : Promise.resolve(undefined),
+        env.HIVE_TOKEN_WARNING_DISPATCH_ENABLED === "true"
+          ? dispatchTokenWarnings(db, (ownerId, payload) =>
+              sendTokenWarning(
+                db,
+                ownerId,
+                payload,
+                env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
+              ),
+            )
+          : Promise.resolve(undefined),
+        dispatchTemplatePublication(db, env),
+        env.HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED === "true"
+          ? dispatchTemplatePublicationNotices(
+              db,
+              (ownerId, payload, signal) =>
+                sendTemplatePublicationPush(
+                  db,
+                  ownerId,
+                  payload,
+                  env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
+                  signal,
+                ),
+              { enabled: true },
+            )
+          : Promise.resolve(undefined),
+        env.HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED === "true"
+          ? dispatchAgentEvents(
+              db,
+              (ownerId, payload, signal) =>
+                sendBoundedPush(
+                  db,
+                  ownerId,
+                  payload,
+                  env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
+                  signal,
+                ),
+              { enabled: true },
+            )
+          : Promise.resolve(undefined),
+      ]);
       // Independent dispatches finish before closing the shared request context;
       // a push-provider failure cannot strand accepted project preparation.
       if (
@@ -99,7 +124,8 @@ export async function dispatchScheduled(env: Environment) {
         taskResult.status === "rejected" ||
         tokenResult.status === "rejected" ||
         templateResult.status === "rejected" ||
-        templateNoticeResult.status === "rejected"
+        templateNoticeResult.status === "rejected" ||
+        agentNoticeResult.status === "rejected"
       )
         throw new Error("A durable dispatch could not complete");
       return {
@@ -111,6 +137,7 @@ export async function dispatchScheduled(env: Environment) {
         ...(templateNoticeResult.value
           ? { templateNotifications: templateNoticeResult.value }
           : {}),
+        ...(agentNoticeResult.value ? { agentNotifications: agentNoticeResult.value } : {}),
       };
     } finally {
       await context.close();

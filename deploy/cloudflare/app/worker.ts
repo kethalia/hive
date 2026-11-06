@@ -48,6 +48,7 @@ type Environment = ProjectRelayEnvironment &
     HIVE_PREVIEW_ORIGIN?: string;
     HIVE_TEMPLATE_PUBLICATION_ENABLED?: string;
     HIVE_TEMPLATE_LOG_VIEW_ENABLED?: string;
+    HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED?: string;
     HIVE_PROJECT_DISCOVERY_ENABLED?: string;
     HIVE_AGENT_TOOLS_ENABLED?: string;
     HIVE_AGENT_TOOLS_TRANSPORT?: string;
@@ -174,7 +175,8 @@ export default {
         )) ||
       pathname.startsWith("/api/workspace-proxy") ||
       (pathname === "/api/auth/terminal-ticket" && env.HIVE_GENERIC_TERMINAL_ENABLED !== "true") ||
-      pathname === "/api/notifications/events" ||
+      (pathname === "/api/notifications/events" &&
+        !(request.method === "POST" && env.HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED === "true")) ||
       (pathname === "/api/notifications/sources" && request.method !== "GET") ||
       (/^\/api\/workspaces\/[^/]+\/(voice|terminal\/paste-assets)(\/|$)/.test(pathname) &&
         !(

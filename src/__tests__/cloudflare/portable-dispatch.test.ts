@@ -191,3 +191,18 @@ describe("explicit portable terminal and discovery dispatch", () => {
     expect(mock.framework).toHaveBeenCalledOnce();
   });
 });
+
+it("allows only migrated notification event POST behind its own flag and keeps installer mutations blocked", async () => {
+  const post = () => request("/api/notifications/events", "POST");
+  expect((await worker.fetch(post(), env(), context)).status).toBe(503);
+  mock.framework.mockResolvedValue(new Response(null, { status: 202 }));
+  const enabled = { ...env(), HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED: "true" };
+  expect((await worker.fetch(post(), enabled, context)).status).toBe(202);
+  expect(
+    (await worker.fetch(request("/api/notifications/events", "GET"), enabled, context)).status,
+  ).toBe(503);
+  for (const method of ["POST", "DELETE"])
+    expect(
+      (await worker.fetch(request("/api/notifications/sources", method), enabled, context)).status,
+    ).toBe(503);
+});

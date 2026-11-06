@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T00:01:46.298Z",
+  "localOnly": true,
+  "sourceStable": true,
+  "sources": {
+    "packages/db/prisma/schema.prisma": "2d9417951129e8e2504294b5a44aae977cfd76ce392bf4af187fc62743e823d6",
+    "packages/db/prisma/migrations/20261105233000_agent_notification_events/migration.sql": "a6e70d08145ef9c531ea9b40fd2c45cf74f88abd0c5a308a4f6a7cbfd42e06b4",
+    "src/lib/push/agent-event-contract.ts": "3fc11b35f36c60d8ed3dfc15a31fb0a023c34863328ad9d6bc304976f821d998",
+    "src/app/api/notifications/events/route.ts": "3d951d4f9f9931588386cb5374f97562fb6f403d9be6c15fbe3bdf5e30ae8338",
+    "src/lib/push/agent-events.ts": "8fd76a925cfa64fa7e15144ca7131261d1506aa722d78601596ae045477d220b",
+    "src/lib/push/agent-events-route.ts": "7d06350b53db5915b3b3d1d2db0348b3102a9a2969c9b0d59f09596af7b481f0",
+    "src/lib/push/durable-outbox.ts": "52eab75f99d66b1f023af9181c607091ef31b7fe0c3a907675667d1b8bdefacd",
+    "src/lib/push/bounded-send.ts": "99692bcd4427c698db3aca3bde37950cb616d981784fbeda435f8d538fbc93d9",
+    "src/lib/delivery/outbox.ts": "9fdf5c548b4584296a7acb34ffb219106f4a922841a1954c0d05d3e78b570d8a",
+    "deploy/cloudflare/jobs/worker.ts": "f2bb56cbf82b61258ffe381cbf67b5dc2489d8dc7d37adb74e70a414d707882c",
+    "deploy/cloudflare/jobs/local-agent-notifications.worker.ts": "edaa029cc5891fb4ebf36859130417b14f9c718b276f5621503162a8e32e26db",
+    "deploy/cloudflare/jobs/run-local-agent-notifications.mjs": "a4ef3a4b276f374d2fbafb0c92a997572388abe1edc2f74dd23d25d97ffaaad4",
+    "packages/db/src/generated/prisma-workerd/client.ts": "2470293dac8ad80dbd76f6d227440ef030a96adde6f6255625bc56a3a0b7328f",
+    "packages/db/src/generated/prisma-workerd/internal/class.ts": "1259bcd5567494700a20ccca41bb293ef136310b2817365e862fe36fcd3c6227"
+  },
+  "result": {
+    "passed": true,
+    "checks": {
+      "empty_local_event_fixture": true,
+      "default_off_ingress": true,
+      "default_off_jobs": true,
+      "actual_workerd_transaction_acceptance": true,
+      "durable_replay": true,
+      "owner_and_payload_binding": true,
+      "duplicate_does_not_consume_rate": true,
+      "immutable_event_conflict": true,
+      "unknown_source_rejected": true,
+      "actual_jobs_dispatch_without_subscriptions": true,
+      "durable_acknowledgment": true,
+      "revoked_source_rejected": true
+    },
+    "scope": "actual local Workerd route + full PrismaNeon PostgreSQL + actual jobs/shared sender, no subscriptions or provider delivery"
+  },
+  "remoteBindings": false,
+  "realProviderRequests": 0
+}

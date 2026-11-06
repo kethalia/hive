@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@hive/db";
 import { z } from "zod";
+import { claimDurablePush, settleDurablePush } from "@/lib/push/durable-outbox";
 import type { PushPayload } from "@/lib/push/types";
 import { deliveryEventLabel } from "./event-labels";
 
@@ -29,33 +30,7 @@ export class DeliveryOutbox {
     limit = 10,
     leaseMs = 120_000,
   ): Promise<DeliveryNotificationClaim[]> {
-    z.string().uuid().parse(ownerId);
-    z.number().int().min(1).max(20).parse(limit);
-    z.number().int().min(30_000).max(300_000).parse(leaseMs);
-    return this.db.$transaction(async (tx) => {
-      await tx.$executeRaw`
-        WITH exhausted AS (
-          SELECT id FROM delivery_outbox
-          WHERE owner_id = ${ownerId}::uuid AND channel = 'push' AND status IN ('pending', 'processing')
-            AND attempts >= ${MAX_ATTEMPTS} AND next_attempt_at <= clock_timestamp()
-          ORDER BY next_attempt_at, id FOR UPDATE SKIP LOCKED LIMIT ${limit}
-        )
-        UPDATE delivery_outbox AS item SET status = 'failed'
-        FROM exhausted WHERE item.id = exhausted.id`;
-      return tx.$queryRaw<DeliveryNotificationClaim[]>`
-        WITH candidates AS (
-          SELECT id FROM delivery_outbox
-          WHERE owner_id = ${ownerId}::uuid AND channel = 'push' AND status IN ('pending', 'processing')
-            AND attempts < ${MAX_ATTEMPTS} AND next_attempt_at <= clock_timestamp()
-          ORDER BY next_attempt_at, id FOR UPDATE SKIP LOCKED LIMIT ${limit}
-        )
-        UPDATE delivery_outbox AS item
-        SET status = 'processing', attempts = item.attempts + 1,
-            next_attempt_at = clock_timestamp() + ${leaseMs} * interval '1 millisecond'
-        FROM candidates WHERE item.id = candidates.id
-        RETURNING item.id, item.owner_id AS "ownerId", item.event_id AS "eventId",
-                  item.attempts AS attempt`;
-    });
+    return claimDurablePush(this.db, "delivery_outbox", ownerId, limit, leaseMs);
   }
 
   async notification(value: DeliveryNotificationClaim): Promise<DeliveryNotification | null> {
@@ -110,16 +85,7 @@ export class DeliveryOutbox {
   async settle(value: DeliveryNotificationClaim, result: "delivered" | "retry" | "failed") {
     const claim = claimSchema.parse(value);
     z.enum(["delivered", "retry", "failed"]).parse(result);
-    const status =
-      result === "retry" ? (claim.attempt >= MAX_ATTEMPTS ? "failed" : "pending") : result;
-    const backoffMs = Math.min(3600_000, 30_000 * 2 ** (claim.attempt - 1));
-    const count = await this.db.$executeRaw`
-      UPDATE delivery_outbox SET status = ${status},
-        next_attempt_at = clock_timestamp() + ${backoffMs} * interval '1 millisecond'
-      WHERE id = ${claim.id}::uuid AND owner_id = ${claim.ownerId}::uuid
-        AND event_id = ${claim.eventId}::uuid AND attempts = ${claim.attempt}
-        AND status = 'processing' AND next_attempt_at > clock_timestamp()`;
-    return count === 1;
+    return settleDurablePush(this.db, "delivery_outbox", claim, result);
   }
 }
 
