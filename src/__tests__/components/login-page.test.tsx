@@ -25,7 +25,9 @@ describe("login page method selection", () => {
     mocks.mode.mockReturnValue("oauth");
     const html = renderToStaticMarkup(await LoginPage({}));
     expect(html).toContain("Continue with Coder");
-    expect(html).toContain("/api/auth/coder/start");
+    expect(html).toContain('href="/api/auth/coder/start"');
+    expect(html).not.toContain("<form");
+    expect(html).not.toContain("<button");
     expect(html).not.toContain('type="password"');
     expect(html).not.toContain('type="email"');
   });
@@ -41,7 +43,7 @@ describe("login page method selection", () => {
     const html = renderToStaticMarkup(await LoginPage({}));
     expect(html).toContain("temporarily unavailable");
     expect(html).not.toContain('type="password"');
-    expect(html).not.toContain('action="/api/auth/coder/start"');
+    expect(html).not.toContain('href="/api/auth/coder/start"');
   });
   it("never renders callback code/state or arbitrary errors", async () => {
     mocks.mode.mockReturnValue("oauth");

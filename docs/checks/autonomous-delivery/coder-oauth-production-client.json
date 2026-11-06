@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T01:32:41.231259+00:00",
+  "coderOrigin": "https://coder.kethalia.com",
+  "clientId": "0a4e5cd5-cf36-4c56-927c-effe349286c8",
+  "name": "Hive Production",
+  "redirectUris": ["https://hive.kethalia.com/api/auth/coder/callback"],
+  "clientAuthentication": "client_secret_basic",
+  "pkce": "S256",
+  "existingApplicationsChanged": false,
+  "productionCallbackConfigured": true,
+  "productionActivated": false,
+  "secretRetainedPrivately": true,
+  "liveOAuthLoginVerified": false
+}

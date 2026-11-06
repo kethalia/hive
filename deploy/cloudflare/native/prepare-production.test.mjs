@@ -195,3 +195,112 @@ test("operator approval is separately bound to the complete preparation and fres
     assert.throws(() => publicationRecipe(x));
   }
 });
+
+function oauthFixture() {
+  const input = fixture();
+  input.manifest.origin = "https://hive.kethalia.com";
+  input.manifest.route.pattern = "hive.kethalia.com/*";
+  input.manifest.secretNames.push("HIVE_CODER_OAUTH_CLIENT_SECRET");
+  input.manifest.oauthEnrollment = {
+    coderOrigin: "https://coder.kethalia.com",
+    clientId: "independent-production-client",
+    callbackUri: "https://hive.kethalia.com/api/auth/coder/callback",
+    secretName: "HIVE_CODER_OAUTH_CLIENT_SECRET",
+  };
+  return input;
+}
+test("explicit production OAuth enrollment emits only independently pinned public metadata", () => {
+  const input = oauthFixture();
+  const originalConfig = structuredClone(input.config);
+  const { record, configBytes } = prepareProduction(input);
+  assert.equal(record.production.vars.HIVE_CODER_OAUTH_ENABLED, "true");
+  assert.equal(
+    record.production.vars.HIVE_CODER_OAUTH_CLIENT_ID,
+    input.manifest.oauthEnrollment.clientId,
+  );
+  assert.equal(record.production.vars.CODER_URL, "https://coder.kethalia.com");
+  assert.equal(record.production.vars.HIVE_PUBLIC_ORIGIN, "https://hive.kethalia.com");
+  assert.equal(record.production.vars.HIVE_CODER_OAUTH_CLIENT_SECRET, undefined);
+  assert.deepEqual(record.oauthEnrollment, input.manifest.oauthEnrollment);
+  assert.deepEqual(record.production.secrets.required, [...input.manifest.secretNames].sort());
+  assert.equal(configBytes.includes(input.config.previews.vars.HIVE_CODER_OAUTH_CLIENT_ID), false);
+  assert.equal(record.activationAuthorized, false);
+  assert.equal(record.providerBaselineVerified, false);
+  assert.deepEqual(input.config, originalConfig);
+});
+test("production OAuth rejects callback, issuer, production origin, preview client and secret ambiguity", () => {
+  for (const mutate of [
+    (m) => {
+      m.oauthEnrollment.callbackUri += "?extra=true";
+    },
+    (m) => {
+      m.oauthEnrollment.callbackUri = "https://hive.kethalia.com/other";
+    },
+    (m) => {
+      m.oauthEnrollment.callbackUri = "https://other.example/api/auth/coder/callback";
+    },
+    (m) => {
+      m.oauthEnrollment.coderOrigin = "https://other.example";
+    },
+    (m) => {
+      m.origin = "https://other.example";
+      m.route.pattern = "other.example/*";
+    },
+    (m) => {
+      m.oauthEnrollment.clientId = config.previews.vars.HIVE_CODER_OAUTH_CLIENT_ID;
+    },
+    (m) => {
+      m.oauthEnrollment.clientId = "";
+    },
+    (m) => {
+      m.oauthEnrollment.clientId = "invalid\nclient";
+    },
+    (m) => {
+      m.oauthEnrollment.secretName = "OTHER_CLIENT_SECRET";
+    },
+    (m) => {
+      m.oauthEnrollment.clientSecret = "must-never-be-a-manifest-value";
+    },
+    (m) => {
+      m.oauthEnrollment.HIVE_CODER_OAUTH_CLIENT_SECRET = "value";
+    },
+    (m) => {
+      delete m.oauthEnrollment.callbackUri;
+    },
+    (m) => {
+      m.secretNames.pop();
+    },
+    (m) => {
+      delete m.oauthEnrollment;
+    },
+    (m) => {
+      m.oauthEnrollment = null;
+    },
+  ]) {
+    const input = oauthFixture();
+    mutate(input.manifest);
+    assert.throws(() => prepareProduction(input));
+  }
+});
+test("production OAuth publication still needs exact package approval and unchanged inactive baseline", () => {
+  const result = prepareProduction(oauthFixture());
+  const args = {
+    ...result,
+    authorization: approval(result.record),
+    freshBaseline: {
+      observedAt: "2026-11-05T00:05:00Z",
+      baseline: structuredClone(result.record.baseline),
+    },
+    configPath: "/private/cutover/wrangler.production.json",
+    secretsPath: "/private/cutover/secrets.json",
+    now: Date.parse("2026-11-05T00:05:00Z"),
+  };
+  assert.equal(publicationRecipe(args).includes("--strict"), true);
+  const changed = structuredClone(args);
+  changed.record.oauthEnrollment.clientId = "another-production-client";
+  assert.throws(() => publicationRecipe(changed));
+  const changedBaseline = structuredClone(args);
+  changedBaseline.freshBaseline.baseline.versionId = "changed";
+  assert.throws(() => publicationRecipe(changedBaseline));
+  assert.throws(() => publicationRecipe({ ...args, authorization: undefined }));
+});

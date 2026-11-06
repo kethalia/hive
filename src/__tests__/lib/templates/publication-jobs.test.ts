@@ -99,14 +99,31 @@ describe("template publication jobs binding", () => {
       expect(response.bodyUsed).toBe(true);
     }
   });
-  it("bounds stalled response streams and cancels the stream at deadline", async () => {
-    const cancel = vi.fn(),
-      response = new Response(new ReadableStream({ cancel }));
-    const client = publicationAuthClient(auth(vi.fn(async () => response)));
-    const started = Date.now();
-    const work = client.getSession(randomUUID());
-    await expect(work).rejects.toThrow("provider_deadline");
-    expect(Date.now() - started).toBeLessThan(12000);
-    expect(cancel).toHaveBeenCalled();
-  }, 15000);
+  it.each([
+    0, 1,
+  ])("cancels a stalled response stream when auth deadline %i expires", async (deadline) => {
+    const controllers: AbortController[] = [];
+    // Keep the real response/stream/AbortSignal.any path, but expire either
+    // independent 20s deadline explicitly instead of sleeping through it.
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      return controller.signal;
+    });
+    try {
+      const cancel = vi.fn(),
+        response = new Response(new ReadableStream({ cancel }));
+      const client = publicationAuthClient(auth(vi.fn(async () => response)));
+      const work = client.getSession(randomUUID());
+      const rejected = expect(work).rejects.toThrow("provider_deadline");
+      await vi.waitFor(() => expect(response.body?.locked).toBe(true));
+      expect(timeout.mock.calls.map(([milliseconds]) => milliseconds)).toEqual([20000, 20000]);
+      expect(cancel).not.toHaveBeenCalled();
+      controllers[deadline].abort(new DOMException("Auth deadline", "TimeoutError"));
+      await rejected;
+      expect(cancel).toHaveBeenCalledOnce();
+    } finally {
+      timeout.mockRestore();
+    }
+  });
 });

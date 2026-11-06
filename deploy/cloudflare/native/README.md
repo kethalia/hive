@@ -54,8 +54,13 @@ requires explicit provider client enrollment
 and matching branch configuration before enabling its OAuth presentation. A shared
 Preview Base secret alone does not enroll a new callback. Production requires a
 separate production client and its exact callback; offline production preparation
-strips Preview OAuth variables and keeps OAuth off until that separate configuration
-is reviewed. Enrollment/provisioning alone does not establish browser consent,
+strips Preview OAuth variables and accepts an explicit independent production
+`oauthEnrollment` manifest with its fifth required secret name. The registered
+production client `0a4e5cd5-cf36-4c56-927c-effe349286c8` is enrolled only for
+`https://hive.kethalia.com/api/auth/coder/callback`; see the
+[offline preparation manifest](production-preparation.md). Legacy bootstrap
+compatibility remains available, but the requested production cutover requires
+explicit OAuth enrollment. Enrollment/provisioning alone does not establish browser consent,
 session return or owner-isolation acceptance on the deployed candidate.
 
 Recommended Workers Builds configuration, after the provider connection and Base configuration are reviewed:

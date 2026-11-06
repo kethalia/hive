@@ -5,18 +5,8 @@
   "scope": "Explicit owner task recovery; source and isolated local fixtures only",
   "migration": "20261106020000_project_task_recovery",
   "protocol": {
-    "serverStates": [
-      "inspecting",
-      "authorized",
-      "consumed"
-    ],
-    "localStates": [
-      "inspecting",
-      "inspected",
-      "consuming",
-      "consumed",
-      "held"
-    ],
+    "serverStates": ["inspecting", "authorized", "consumed"],
+    "localStates": ["inspecting", "inspected", "consuming", "consumed", "held"],
     "authorizationMaxMs": 60000,
     "attemptBoundPerTask": 32,
     "reconcilerExcludedUntilConsumed": true,

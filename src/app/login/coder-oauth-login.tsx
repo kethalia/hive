@@ -32,11 +32,15 @@ export function CoderOAuthLogin({
         Sign in and approve access on Coder. You’ll return to Hive to open your workspaces.
       </p>
       {available ? (
-        <form action="/api/auth/coder/start" method="get">
-          <Button type="submit" className="w-full" size="lg">
-            Continue with Coder
-          </Button>
-        </form>
+        <Button
+          render={<a href="/api/auth/coder/start">Continue with Coder</a>}
+          nativeButton={false}
+          role="link"
+          className="w-full"
+          size="lg"
+        >
+          Continue with Coder
+        </Button>
       ) : (
         <Button type="button" className="w-full" size="lg" disabled>
           Continue with Coder

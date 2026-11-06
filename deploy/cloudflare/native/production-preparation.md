@@ -26,9 +26,15 @@ observations; this is a schema illustration, not a provider receipt):
 {
   "schemaVersion": 1,
   "sourceRevision": "<40-character merged main SHA>",
-  "origin": "https://<exact-production-host>",
-  "route": { "pattern": "<exact-production-host>/*", "zone_id": "<32-character zone ID>" },
-  "secretNames": ["AUTH_SERVICE_SECRET", "COOKIE_SECRET", "DATABASE_URL", "ENCRYPTION_KEY"],
+  "origin": "https://hive.kethalia.com",
+  "route": { "pattern": "hive.kethalia.com/*", "zone_id": "<32-character zone ID>" },
+  "secretNames": ["AUTH_SERVICE_SECRET", "COOKIE_SECRET", "DATABASE_URL", "ENCRYPTION_KEY", "HIVE_CODER_OAUTH_CLIENT_SECRET"],
+  "oauthEnrollment": {
+    "coderOrigin": "https://coder.kethalia.com",
+    "clientId": "0a4e5cd5-cf36-4c56-927c-effe349286c8",
+    "callbackUri": "https://hive.kethalia.com/api/auth/coder/callback",
+    "secretName": "HIVE_CODER_OAUTH_CLIENT_SECRET"
+  },
   "databaseIdentity": {
     "projectId": "<production-project>", "branchId": "<production-branch>",
     "database": "<production-database>", "role": "<restricted-runtime-role>"
@@ -50,14 +56,31 @@ names, extra manifest fields and secret values are rejected. The metadata does
 not prove that `DATABASE_URL` resolves to that database or that a secret preserves
 the required identity: verify these privately before activation.
 
-The generated first-cutover config explicitly strips all `HIVE_CODER_OAUTH_*`
-Preview variables and forces OAuth off. A Preview client is not enrolled for a
-production callback and must never be inherited. Production OAuth needs its own
-separately reviewed client/secret enrollment and configuration before activation;
-this bounded helper currently prepares only the legacy-compatible bootstrap.
+The generated config strips every `HIVE_CODER_OAUTH_*` Preview variable. To prepare
+OAuth, supply the independent `oauthEnrollment` object shown above and include its
+literal secret name in `secretNames`. The helper accepts only the fixed Coder
+issuer, `https://hive.kethalia.com` origin, exact callback, valid public client ID,
+and `HIVE_CODER_OAUTH_CLIENT_SECRET` name. It rejects the configured Preview client
+ID, extra fields (including secret values), missing enrollment fields and an absent
+fifth secret name. It emits the production client ID and enable flag; the secret
+value must be supplied privately at the separately approved publication step.
+
+The production client metadata above is recorded in the
+[production enrollment receipt](../../../docs/checks/autonomous-delivery/coder-oauth-production-client.json).
+That receipt records independent registration, not production activation or a
+successful production OAuth login. The helper validates metadata syntax and exact
+scope; it does not contact Coder, attest registration or prove the private secret
+matches the client. Verify those identities and production callback enrollment
+against fresh provider observations before approval.
+
+Omitting `oauthEnrollment` and retaining exactly the four application secret names
+preserves legacy bootstrap compatibility: OAuth stays disabled and no Preview
+client ID survives. This compatibility mode does not satisfy the requested OAuth
+production cutover. The final reviewed cutover manifest must explicitly include
+production OAuth enrollment; do not substitute a password-only bootstrap.
 
 The generated first-cutover config serves the application with production origin
-and the four required secret names. It disables public version URLs and workers.dev,
+and the explicit four or five required secret names. It disables public version URLs and workers.dev,
 retains the existing CPU/compatibility settings and keeps discovery, task execution,
 delivery and token rotation off. It installs **no schedules**. Full native manager,
 release, rotation and notification activation needs separately reviewed configuration,
@@ -115,7 +138,8 @@ const argv = publicationRecipe({
 
 The resulting command uses `pnpm exec wrangler deploy --config <absolute-config>
 --strict --secrets-file <private-json-file>`. The private JSON must contain exactly
-those four approved secrets and preserve existing identities; never put its values
+the exact approved application secrets plus the production OAuth secret when
+enabled, and preserve existing identities; never put its values
 in the manifest, arguments, Git or reports. Inspect inherited remote secret names
 as well: omitted secrets are retained by Wrangler. Immediately before running it,
 recheck the actual files, build integrity and provider baseline. Do not use shell

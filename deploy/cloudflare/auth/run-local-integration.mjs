@@ -309,7 +309,8 @@ try {
         if (oauthMode) {
           if (
             !loginHtml.includes("Continue with Coder") ||
-            !loginHtml.includes("/api/auth/coder/start") ||
+            !loginHtml.includes('href="/api/auth/coder/start"') ||
+            loginHtml.includes('action="/api/auth/coder/start"') ||
             /type=["'](?:email|password)["']/.test(loginHtml)
           )
             throw new Error("Actual native OAuth login presentation failed");

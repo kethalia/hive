@@ -18,7 +18,25 @@ const nonempty = (value) =>
   );
 const exact = (object, keys) => assert.deepEqual(Object.keys(object).sort(), [...keys].sort());
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
-const required = ["AUTH_SERVICE_SECRET", "COOKIE_SECRET", "DATABASE_URL", "ENCRYPTION_KEY"];
+const baseRequired = ["AUTH_SERVICE_SECRET", "COOKIE_SECRET", "DATABASE_URL", "ENCRYPTION_KEY"];
+
+const oauthSecretName = "HIVE_CODER_OAUTH_CLIENT_SECRET";
+function productionOAuth(manifest, config) {
+  if (!Object.hasOwn(manifest, "oauthEnrollment")) return null;
+  const enrollment = manifest.oauthEnrollment;
+  exact(enrollment, ["coderOrigin", "clientId", "callbackUri", "secretName"]);
+  assert.equal(manifest.origin, "https://hive.kethalia.com");
+  assert.equal(enrollment.coderOrigin, "https://coder.kethalia.com");
+  assert.equal(enrollment.callbackUri, `${manifest.origin}/api/auth/coder/callback`);
+  assert.equal(enrollment.secretName, oauthSecretName);
+  assert.match(enrollment.clientId, /^[A-Za-z0-9_-]{1,256}$/);
+  assert.notEqual(
+    enrollment.clientId,
+    config.previews.vars.HIVE_CODER_OAUTH_CLIENT_ID,
+    "Production requires its own independently enrolled OAuth client",
+  );
+  return enrollment;
+}
 
 function baseline(value) {
   exact(value, [
@@ -60,6 +78,7 @@ export function prepareProduction({
     "r2Buckets",
     "baseline",
     "evidenceDigests",
+    ...(Object.hasOwn(manifest, "oauthEnrollment") ? ["oauthEnrollment"] : []),
   ]);
   assert.equal(manifest.schemaVersion, 1);
   hex(revision, 40);
@@ -77,6 +96,8 @@ export function prepareProduction({
   assert.equal(manifest.route.pattern, `${origin.hostname}/*`);
   hex(manifest.route.zone_id, 32);
   baseline(manifest.baseline);
+  const oauthEnrollment = productionOAuth(manifest, config);
+  const required = [...baseRequired, ...(oauthEnrollment ? [oauthSecretName] : [])].sort();
   assert.deepEqual([...manifest.secretNames].sort(), required);
   // Production resources must be recorded independently of synthetic Preview.
   exact(manifest.databaseIdentity, ["projectId", "branchId", "database", "role"]);
@@ -107,6 +128,7 @@ export function prepareProduction({
   assert.equal(proof.appBuildReadySHA256, manifest.evidenceDigests.buildReady);
   // A preview client is enrolled only for its preview callback. Bootstrap
   // production must never inherit either that client or its enable switch.
+  // Only independent explicit production enrollment may enable OAuth.
   const productionVars = Object.fromEntries(
     Object.entries(config.previews.vars).filter(([name]) => !name.startsWith("HIVE_CODER_OAUTH_")),
   );
@@ -125,7 +147,13 @@ export function prepareProduction({
     secrets: { required },
     vars: {
       ...productionVars,
-      HIVE_CODER_OAUTH_ENABLED: "false",
+      HIVE_CODER_OAUTH_ENABLED: oauthEnrollment ? "true" : "false",
+      ...(oauthEnrollment
+        ? {
+            CODER_URL: oauthEnrollment.coderOrigin,
+            HIVE_CODER_OAUTH_CLIENT_ID: oauthEnrollment.clientId,
+          }
+        : {}),
       HIVE_NATIVE_MODE: "production",
       HIVE_NATIVE_PREVIEW_ENABLED: "false",
       HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
@@ -144,6 +172,7 @@ export function prepareProduction({
     configDigest: digest(configBytes),
     evidenceDigests: manifest.evidenceDigests,
     baseline: manifest.baseline,
+    ...(oauthEnrollment ? { oauthEnrollment } : {}),
     production,
     activationAuthorized: false,
     providerBaselineVerified: false,
