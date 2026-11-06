@@ -84,7 +84,9 @@ export class ReleaseAuthorityFacts {
    * bootstrap baseline is used only before the first healthy Hive release. */
   async resolveBaseline() {
     if (this.native) return this.native.resolveBaseline();
-    if (!this.cloudflare || !this.observer) throw Error("release_facts_unavailable");
+    // Resolving retained journal history (or the enrolled bootstrap) is a
+    // database-only read. Live provider dependencies are required by capture,
+    // which separately verifies configuration/readiness before minting facts.
     const rows = await this.db.$queryRaw<
       { id: string; manifest: unknown; manifest_digest: string }[]
     >`SELECT r.id,b.manifest,b.manifest_digest FROM delivery_releases r JOIN delivery_release_build_attestations b ON b.release_id=r.id AND b.owner_id=r.owner_id JOIN delivery_release_build_verifications v ON v.attestation_id=b.id AND v.owner_id=b.owner_id WHERE r.target_digest=${this.config.targetDigest} AND r.phase='healthy' ORDER BY r.created_at DESC,r.id DESC LIMIT 1`;

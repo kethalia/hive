@@ -7,6 +7,7 @@ import { createReleaseAuthorizer } from "@/lib/delivery/release-authority.server
 import { ReleaseAutoOpener } from "@/lib/delivery/release-auto-open.server";
 import { GitHubBuildRunVerifier } from "@/lib/delivery/release-build-run.server";
 import { ReleaseBuildStore } from "@/lib/delivery/release-build-store.server";
+import { GitHubReleaseChangeRisk } from "@/lib/delivery/release-change-risk.server";
 import {
   CloudflareReleaseProvider,
   releaseTargetResources,
@@ -69,6 +70,59 @@ async function fixture() {
 }
 
 describe.skipIf(!url)("release journal isolated PostgreSQL", () => {
+  it("resolves the enrolled baseline without live clients while factual capture remains fail-closed", async () => {
+    const f = await fixture();
+    const baseline = {
+      deploymentId: randomUUID(),
+      versionId: randomUUID(),
+      sourceSha: "a".repeat(40),
+      artifactDigest: "b".repeat(64),
+      configDigest: "c".repeat(64),
+    };
+    const risk = new GitHubReleaseChangeRisk(
+      { owner: "fixture", name: "repo", allowedPrefixes: ["src/"] },
+      "fixture",
+      async () => {
+        throw Error("unexpected provider call");
+      },
+    );
+    const authority = new ReleaseAuthorityFacts(
+      db,
+      {
+        targetDigest: f.target,
+        riskCatalogDigest: risk.configDigest(),
+        mergeMethod: "squash",
+        baselines: { app: baseline, auth: baseline },
+      },
+      null as never,
+      () => [],
+      null as never,
+      risk,
+      null,
+      null,
+    );
+    expect(await authority.resolveBaseline()).toEqual({ app: baseline, auth: baseline });
+    await expect(
+      authority.capture(
+        {
+          ownerId: f.owner,
+          taskId: f.task,
+          policyVersionId: randomUUID(),
+          request: {
+            repositoryId: "1",
+            pullRequestId: "3",
+            pullNumber: 1,
+            headSha: "2".repeat(40),
+            baseSha: "1".repeat(40),
+            baseRef: "main",
+            rulesDigest: "d".repeat(64),
+            method: "squash",
+          },
+        },
+        AbortSignal.timeout(1000),
+      ),
+    ).rejects.toThrow("release_facts_scope");
+  });
   it("observes one physical deployment for both roles of a single Worker", async () => {
     const f = await fixture();
     const baseline = {

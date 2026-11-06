@@ -1585,3 +1585,11 @@ by this source checkpoint.
   the patch changeset; Hive pins its exact reviewed commit for validation. Neither
   main branch was changed. The guardian bootstrap clock regression and grants-test
   formatting are also fixed; complete remote checks remain the acceptance gate.
+
+
+- Legacy release compatibility: remote CI exposed an early provider-client check
+  introduced by native delegation in database-only baseline resolution. The three
+  failures reproduced locally; removing only that misplaced check restores retained
+  journal/bootstrap reads while actual fact capture still fails closed. A new
+  regression plus18 journal/scheduler and15 independent acceptance/autonomous-release
+  PostgreSQL cases, typecheck and formatting pass. Full CI reruns on the correction.
