@@ -2,16 +2,30 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      native_preview_build:
+        description: Build an immutable native Preview artifact without deployment credentials
+        required: false
+        default: false
+        type: boolean
   pull_request:
     branches: [main, codex/delivery-system-design]
   push:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ inputs.native_preview_build && 'native-build' || 'checks' }}
   cancel-in-progress: true
 
 jobs:
+  native-preview-build:
+    name: Controlled native Preview artifact
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.native_preview_build }}
+    permissions:
+      contents: read
+      id-token: none
+    uses: kethalia/hive/.github/workflows/controlled-native-preview-build.yml@7cdf06a8ab988a737c16eb69cf861c5acee97554
+
   build-lint-test:
     name: Build / Lint / Test
     permissions:

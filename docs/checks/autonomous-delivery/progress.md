@@ -16,7 +16,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Reconciled with current main | Authorized rebase onto `1ace8774` preserves new dock/config/template features; fresh fetch confirms no newer main. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases now have 44 migrations. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
+| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases now have45 migrations. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
@@ -1549,3 +1549,12 @@ by this source checkpoint.
   [controller design](../../native-preview-release-controller.md), and
   [next live plan](native-preview-live-plan.md). Migration45 is source-only at this
   checkpoint; no live authority or production changes were enabled.
+
+
+- Native publication schema: migration45 applied and verified in both existing
+  Preview databases after private backup/archive decoding. Prior44 history rows,
+  checksums and application rows are unchanged. Four new empty append-only tables
+  and the correct per-database runtime grants pass, including the old role's native
+  CONNECT denial. No production migration or release flag activation.
+  [Sanitized receipt](neon-preview-migration45.json). Archive decoding was verified;
+  a full restore was not performed for these fresh backups.
