@@ -712,23 +712,28 @@ describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQ
     "too_far",
     "cancel",
   ])("resamples a fresh signed transport clock without accepting future authority: %s", async (scenario) => {
-    let current = Date.now();
+    let current = 0,
+      transportClockArmed = false;
     const waits: number[] = [],
       controller = new AbortController();
     const f = await fixture(undefined, undefined, undefined, {
-      nowFn: () => current,
+      // Bootstrap signs real timestamps after fixture/database work. Freeze only
+      // the operation under test, so setup latency cannot trigger its scenario.
+      nowFn: () => (transportClockArmed ? current : Date.now()),
       signal: controller.signal,
       clockWait: async (delay) => {
+        if (!transportClockArmed) {
+          await new Promise((done) => setTimeout(done, delay));
+          return;
+        }
         waits.push(delay);
         if (scenario === "cancel") controller.abort(new Error("transport_clock_cancelled"));
-        if (scenario === "refresh") {
-          await new Promise((done) => setTimeout(done, delay));
-          current = Date.now();
-        }
+        if (scenario === "refresh") current += delay;
       },
     });
     await f.service.provision(f.principal, f.binding.workspaceId);
     current = Date.now();
+    transportClockArmed = true;
     const before = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } });
     const input = f.signFrame({
       schemaVersion: 1,
@@ -741,13 +746,13 @@ describe.skipIf(!url)("signed guardian bootstrap/service, actual local PostgreSQ
     });
     if (scenario === "refresh") {
       expect(await f.service.execute(input)).toMatchObject({ ready: false });
-      expect(waits).toHaveLength(2);
-      expect(waits[0]).toBe(0);
-      expect(waits[1]).toBeGreaterThan(0);
+      expect(waits).toEqual([0, 101]);
       expect(current).toBeGreaterThanOrEqual(Number((input as Record<string, unknown>).issuedAt));
     } else if (scenario === "cancel")
       await expect(f.service.execute(input)).rejects.toThrow("transport_clock_cancelled");
     else await expect(f.service.execute(input)).rejects.toBeInstanceOf(RegistrationRejected);
+    expect(waits).toEqual(scenario === "still_future" || scenario === "refresh" ? [0, 101] : [0]);
+    expect(controller.signal.aborted).toBe(scenario === "cancel");
     expect(await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } })).toEqual(
       before,
     );
