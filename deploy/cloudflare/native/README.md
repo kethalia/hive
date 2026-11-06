@@ -6,6 +6,14 @@ Native Previews use the `previews` block and the exact Git branch as the Preview
 
 Branch Previews share the dedicated synthetic preview database; they do not isolate data from each other. No R2 bucket or service binding is configured. Discovery, task execution, delivery, host gateway, dispatch and token rotation start disabled. Preview schedules remain disabled. Delivery-enabled acceptance requires a separately reviewed branch and matching host issuer and enrollment.
 
+Preview placement explicitly targets `aws:us-east-1`, matching the dedicated Neon
+project. This reduces sequential database round trips; it does not guarantee an
+acknowledgment deadline or replace durable operation recovery. Placement belongs in
+the `previews` block and does not configure production. Verify effective placement
+and observed timings on the deployed candidate. See Cloudflare's
+[placement guidance](https://developers.cloudflare.com/workers/configuration/placement/)
+and [Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/).
+
 Production has no cron configured yet. The reviewed dispatcher routes the exact
 `* * * * *` event to jobs and the exact `*/5 * * * *` event to app release and
 auth rotation. Both events can occur at the same minute without invoking jobs

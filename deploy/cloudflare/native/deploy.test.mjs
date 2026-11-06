@@ -16,6 +16,8 @@ test("isolated bootstrap and preview config have no production data or service b
     (c) => (c.previews.r2_buckets = [{ binding: "DATA", bucket_name: "production" }]),
     (c) => (c.previews.vars.HIVE_DELIVERY_ENABLED = "true"),
     (c) => (c.previews.vars.DATABASE_URL = "postgres://bad"),
+    (c) => (c.previews.placement = { region: "aws:eu-central-1" }),
+    (c) => delete c.previews.placement,
     (c) => (c.triggers.crons = ["* * * * *"]),
   ]) {
     const c = clone();
@@ -23,6 +25,8 @@ test("isolated bootstrap and preview config have no production data or service b
     assert.throws(() => validateConfig(c));
   }
   assert.equal(config.account_id, account);
+  assert.deepEqual(config.previews.placement, { region: "aws:us-east-1" });
+  assert.equal(config.placement, undefined);
 });
 test("branch name preserves the provider-managed Preview identity", () => {
   const a = previewTarget("codex/example-branch");

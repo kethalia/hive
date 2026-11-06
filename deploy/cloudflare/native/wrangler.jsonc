@@ -16,6 +16,7 @@
   "limits": { "cpu_ms": 100 },
   "vars": { "HIVE_NATIVE_MODE": "bootstrap" },
   "previews": {
+    "placement": { "region": "aws:us-east-1" },
     "vars": {
       "HIVE_NATIVE_MODE": "preview",
       "HIVE_NATIVE_PREVIEW_ENABLED": "true",

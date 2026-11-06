@@ -136,7 +136,8 @@ export function validateConfig(c) {
     binding: "ASSETS",
     run_worker_first: true,
   });
-  assert.deepEqual(Object.keys(c.previews).sort(), ["secrets", "vars"]);
+  assert.deepEqual(Object.keys(c.previews).sort(), ["placement", "secrets", "vars"]);
+  assert.deepEqual(c.previews.placement, { region: "aws:us-east-1" });
   assert.deepEqual(c.previews.secrets, { required: requiredSecrets });
   const v = c.previews.vars;
   assert.deepEqual(v, {
@@ -210,6 +211,7 @@ async function run() {
         assets: { ...config.assets, directory: resolve(here, config.assets.directory) },
         vars: v,
         limits: config.limits,
+        ...(p.target === "preview" ? { placement: config.previews.placement } : {}),
       };
       writeFileSync(configFile, JSON.stringify(isolated));
       execFileSync(
