@@ -8,7 +8,8 @@ const MAX_BODY_BYTES = 1024 * 1024;
 type Operations = Pick<
   typeof domain,
   "performLogin" | "deleteSession" | "getSessionById" | "getTokenStatus" | "getDecryptedCoderToken"
->;
+> &
+  Partial<Pick<typeof domain, "startCoderOAuth" | "completeCoderOAuth">>;
 
 class BodyError extends Error {
   constructor(
@@ -82,7 +83,51 @@ export function createFetchAuthHandler(
       return error(401, "Service authentication required", "SERVICE_UNAUTHORIZED");
     }
     try {
+      if (request.method === "POST" && pathname === "/oauth/start") {
+        const input = await body(request);
+        if (!input || Object.keys(input).length || !operations.startCoderOAuth)
+          return error(400, "Invalid OAuth request", ErrorCode.BAD_REQUEST);
+        const rate = limiter.check(request.headers.get("X-Hive-Client-IP") ?? "service-binding");
+        if (!rate.allowed) return error(429, "Too many sign-in attempts", ErrorCode.RATE_LIMITED);
+        try {
+          return json(await operations.startCoderOAuth({ signal: request.signal }));
+        } catch {
+          return error(503, "Coder sign-in unavailable", "CODER_OAUTH_UNAVAILABLE");
+        }
+      }
+      if (request.method === "POST" && pathname === "/oauth/callback") {
+        const input = await body(request);
+        if (
+          !input ||
+          !operations.completeCoderOAuth ||
+          Object.keys(input).some(
+            (key) => !["state", "browserSecret", "code", "denied"].includes(key),
+          ) ||
+          typeof input.state !== "string" ||
+          typeof input.browserSecret !== "string" ||
+          (input.code !== undefined && typeof input.code !== "string") ||
+          (input.denied !== undefined && typeof input.denied !== "boolean")
+        )
+          return error(400, "Invalid OAuth callback", ErrorCode.BAD_REQUEST);
+        try {
+          return json(
+            await operations.completeCoderOAuth(
+              {
+                state: input.state,
+                browserSecret: input.browserSecret,
+                code: input.code as string | undefined,
+                denied: input.denied as boolean | undefined,
+              },
+              { signal: request.signal },
+            ),
+          );
+        } catch {
+          return error(401, "Coder sign-in could not be completed", "CODER_OAUTH_FAILED");
+        }
+      }
       if (request.method === "POST" && pathname === "/login") {
+        if (process.env.HIVE_CODER_OAUTH_ENABLED === "true")
+          return error(409, "Use Coder browser sign-in", "CODER_OAUTH_REQUIRED");
         const input = await body(request);
         if (!input) return error(400, "Request body is required", ErrorCode.BAD_REQUEST);
         if ("coderUrl" in input)
@@ -144,6 +189,7 @@ export function createFetchAuthHandler(
             token: token.token,
             coderUrl: session.user.coderUrl,
             expiresAt: token.expiresAt?.toISOString() ?? null,
+            ...(token.credentialSource ? { credentialSource: token.credentialSource } : {}),
           });
         } catch (failure) {
           const message = failure instanceof Error ? failure.message : "";

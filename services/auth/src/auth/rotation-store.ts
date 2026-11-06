@@ -62,6 +62,7 @@ export class CredentialRotationStore {
       !current ||
       current.userId !== token.userId ||
       current.version !== token.version ||
+      current.credentialSource === "oauth" ||
       current.user.coderUserId !== token.user.coderUserId ||
       !isConfiguredCoderUrl(current.user.coderUrl)
     )

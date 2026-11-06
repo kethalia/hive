@@ -46,6 +46,7 @@ export function publicationActorAuthorizer(
       sessionExpiresAt: new Date(session.expiresAt),
       origin: getConfiguredCoderUrl(),
       token: credential.token,
+      ...(credential.credentialSource ? { credentialSource: credential.credentialSource } : {}),
       tokenExpiresAt: credential.expiresAt ? new Date(credential.expiresAt) : null,
     };
   };

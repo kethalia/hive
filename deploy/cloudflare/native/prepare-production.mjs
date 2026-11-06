@@ -105,6 +105,11 @@ export function prepareProduction({
   assert.equal(proof.result?.ok, true);
   assert.equal(proof.httpStatus, 200);
   assert.equal(proof.appBuildReadySHA256, manifest.evidenceDigests.buildReady);
+  // A preview client is enrolled only for its preview callback. Bootstrap
+  // production must never inherit either that client or its enable switch.
+  const productionVars = Object.fromEntries(
+    Object.entries(config.previews.vars).filter(([name]) => !name.startsWith("HIVE_CODER_OAUTH_")),
+  );
   const production = {
     name: "hive",
     account_id: account,
@@ -119,7 +124,8 @@ export function prepareProduction({
     triggers: { crons: [] },
     secrets: { required },
     vars: {
-      ...config.previews.vars,
+      ...productionVars,
+      HIVE_CODER_OAUTH_ENABLED: "false",
       HIVE_NATIVE_MODE: "production",
       HIVE_NATIVE_PREVIEW_ENABLED: "false",
       HIVE_NATIVE_PRODUCTION_ACTIVE: "true",

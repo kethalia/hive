@@ -40,6 +40,7 @@ export async function handleGetCoderToken(
       token: result.token,
       coderUrl: session.user.coderUrl,
       expiresAt: result.expiresAt?.toISOString() ?? null,
+      ...(result.credentialSource ? { credentialSource: result.credentialSource } : {}),
     });
   } catch (err) {
     const code =

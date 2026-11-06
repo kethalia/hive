@@ -59,6 +59,10 @@ export async function rotateCoderCredentials(options: RotationOptions = {}) {
     nextCursor: tokens.length === batchSize ? tokens[tokens.length - 1].id : null,
   };
   for (const token of tokens) {
+    if (token.credentialSource === "oauth") {
+      result.skipped++;
+      continue;
+    }
     if (!isConfiguredCoderUrl(token.user.coderUrl)) {
       result.skipped++;
       continue;

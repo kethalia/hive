@@ -78,6 +78,12 @@ export async function runCredentialRotation(
         await store.advance(claim, null, true);
         break;
       }
+      if (token.credentialSource === "oauth") {
+        counts.skipped++;
+        counts.scanned++;
+        await store.advance(claim, token.id);
+        continue;
+      }
       if (!isConfiguredCoderUrl(token.user.coderUrl)) {
         counts.skipped++;
         counts.scanned++;

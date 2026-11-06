@@ -66,6 +66,7 @@ export type TemplateArtifactIdentity = {
   manifestDigest: string;
 };
 export type TemplatePublicationActor = {
+  credentialSource?: string;
   ownerId: string;
   coderUserId: string;
   sessionId: string;

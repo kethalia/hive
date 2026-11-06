@@ -55,6 +55,7 @@ export interface WorkspaceBuildRequest {
 export interface CoderClientConfig {
   baseUrl: string;
   sessionToken: string;
+  credentialSource?: string;
   /** Optional request-local cancellation; never stored in a shared client. */
   signal?: AbortSignal;
 }

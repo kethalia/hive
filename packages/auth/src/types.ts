@@ -83,4 +83,5 @@ export interface CoderTokenResponse {
   token: string;
   coderUrl: string;
   expiresAt: string | null;
+  credentialSource?: string;
 }

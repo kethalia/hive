@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { SessionData } from "@hive/auth";
 import { isConfiguredCoderUrl, SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { getDb, type PrismaClient } from "@hive/db";
+import { getUsableCoderCredential } from "./coder-oauth-credentials";
 
 export type { SessionData };
 
@@ -23,10 +24,13 @@ export async function createSession(
   return sessionId;
 }
 
-export async function getSessionById(sessionId: string): Promise<SessionData | null> {
-  const session = await getDb().session.findUnique({
+export async function getSessionById(
+  sessionId: string,
+  db: PrismaClient = getDb(),
+): Promise<SessionData | null> {
+  const session = await db.session.findUnique({
     where: { sessionId },
-    include: { user: true },
+    include: { user: { include: { coderTokens: { select: { credentialSource: true } } } } },
   });
 
   if (!session) {
@@ -36,13 +40,20 @@ export async function getSessionById(sessionId: string): Promise<SessionData | n
 
   if (session.expiresAt < new Date()) {
     console.log(`[auth-service] Session expired for user=${session.userId}, cleaning up`);
-    await getDb().session.delete({ where: { sessionId } });
+    await db.session.delete({ where: { sessionId } });
     return null;
   }
 
   if (!isConfiguredCoderUrl(session.user.coderUrl)) {
     console.log("[auth-service] Session belongs to a different Coder deployment");
     return null;
+  }
+  if (session.user.coderTokens?.some((token) => token.credentialSource === "oauth")) {
+    try {
+      await getUsableCoderCredential(session.userId, { db });
+    } catch {
+      return null;
+    }
   }
 
   return {

@@ -25,6 +25,7 @@ function getTokenEncryptionKey(): string {
 }
 
 export async function performLogin(email: string, password: string): Promise<LoginResult> {
+  if (process.env.HIVE_CODER_OAUTH_ENABLED === "true") throw new Error("coder_oauth_required");
   const coderUrl = getConfiguredCoderUrl();
   const encryptionKey = getTokenEncryptionKey();
 

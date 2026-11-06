@@ -50,6 +50,12 @@ names, extra manifest fields and secret values are rejected. The metadata does
 not prove that `DATABASE_URL` resolves to that database or that a secret preserves
 the required identity: verify these privately before activation.
 
+The generated first-cutover config explicitly strips all `HIVE_CODER_OAUTH_*`
+Preview variables and forces OAuth off. A Preview client is not enrolled for a
+production callback and must never be inherited. Production OAuth needs its own
+separately reviewed client/secret enrollment and configuration before activation;
+this bounded helper currently prepares only the legacy-compatible bootstrap.
+
 The generated first-cutover config serves the application with production origin
 and the four required secret names. It disables public version URLs and workers.dev,
 retains the existing CPU/compatibility settings and keeps discovery, task execution,

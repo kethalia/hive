@@ -1,6 +1,6 @@
 # Autonomous delivery epic execution ledger
 
-Updated: 2026-11-05. Status: implementation in progress, not release-ready.
+Updated: 2026-11-06. Status: implementation in progress, not release-ready.
 Branch: `codex/delivery-system-design`.
 
 ## Authorization and boundaries
@@ -27,7 +27,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | Test workspace | Enrollment recovery candidate validated through committed preparation; held ACK preserved | Fresh `codex/hive-native-recovery` runs the smoke-tested immutable image. Enrollment succeeds, but preparation commits before its acknowledgment is retained. The host stays held before native execution and is stopped/retained; generic operation receipt recovery is in implementation. Global active template is unchanged. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
-| F09 Coder OAuth | Accepted roadmap; implementation deferred | Inspect Creative Studio admin OAuth, minimize credential persistence, preserve fixed-host and owner isolation. No login changes in the current pilot. |
+| F09 Coder OAuth | Implementation active by November 6 user direction; live acceptance pending | Replace the native Preview credentials form with configured static-client Coder authorization-code/PKCE sign-in. UI/config and backend are under implementation/review; deployment, dedicated-account consent/return and browser acceptance remain pending. Preserve legacy Node/production while disabled. |
 | F10 agent account window | Accepted roadmap; implementation deferred | Native Codex/Claude account setup and status in Hive; verify supported provider flows and workspace binding before implementation. |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
@@ -1349,3 +1349,24 @@ live deployment; local build and proof workflows remain available.
   protocol and installer changes settle, avoiding automatic Preview deployment churn during
   live acceptance. Production data, routes, schedules, template activation and final merge
   remain unchanged and require the owner's eventual cutover approval.
+
+## 2026-11-06 Coder OAuth priority
+
+The user explicitly requested implementing F09 now after observing the legacy
+email/password form. This supersedes the earlier documentation-only deferral for
+F09. Static confidential client configuration per deployment replaces dynamic
+registration; the exact callback is `/api/auth/coder/callback`. The native Preview
+UI must show Continue with Coder and return through real code/PKCE/browser-bound
+state to a normal Hive session. The extra private Preview bearer/cookie gate was
+separately removed at the user's request; ordinary application authentication and
+owner checks remain.
+
+The login presentation now reads server-only readiness on every request and never
+serializes OAuth configuration. Enabled/misconfigured deployments do not fall back
+to password collection. Focused UI/config and production-isolation checks pass
+locally; backend, actual assembled Worker and dedicated-account Browser Testing
+acceptance are separately recorded before any completion claim. Production
+preparation strips Preview OAuth variables and keeps OAuth off pending a separate
+production client/configuration and approved cutover. F10 in-app Codex/Claude
+connections remains deferred roadmap scope. No OAuth live acceptance is claimed
+by this source checkpoint.

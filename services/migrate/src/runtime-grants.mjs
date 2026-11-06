@@ -31,6 +31,7 @@ const append = [
   "delivery_epic_task_archives",
 ];
 const mutable = [
+  "coder_oauth_flows",
   "users",
   "coder_tokens",
   "sessions",
@@ -75,6 +76,7 @@ const mutable = [
   "delivery_epic_writer_reservations",
 ];
 const deletable = [
+  "coder_oauth_flows",
   "sessions",
   "push_subscriptions",
   "navigation_favorites",

@@ -158,6 +158,14 @@ model CoderToken {
   expiresAt  DateTime? @map("expires_at") @db.Timestamptz
   // Only a positively identified key created by Hive; legacy credentials stay null.
   remoteKeyId String? @map("remote_key_id")
+  credentialSource String @default("legacy") @map("credential_source")
+  oauthClientId String? @map("oauth_client_id")
+  refreshCiphertext Bytes? @map("refresh_ciphertext")
+  refreshIv Bytes? @map("refresh_iv")
+  refreshAuthTag Bytes? @map("refresh_auth_tag")
+  oauthRefreshState String @default("idle") @map("oauth_refresh_state")
+  oauthRefreshHolder String? @map("oauth_refresh_holder") @db.Uuid
+  oauthRefreshUntil DateTime? @map("oauth_refresh_until") @db.Timestamptz
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -168,6 +176,23 @@ model CoderToken {
   @@unique([userId])
   @@unique([userId, id])
   @@map("coder_tokens")
+}
+
+model CoderOAuthFlow {
+  id String @id @default(uuid()) @db.Uuid
+  stateHash String @unique @map("state_hash")
+  browserHash String @map("browser_hash")
+  coderOrigin String @map("coder_origin")
+  publicOrigin String @map("public_origin")
+  clientId String @map("client_id")
+  verifierCiphertext Bytes @map("verifier_ciphertext")
+  verifierIv Bytes @map("verifier_iv")
+  verifierAuthTag Bytes @map("verifier_auth_tag")
+  createdAt DateTime @default(dbgenerated("clock_timestamp()")) @map("created_at") @db.Timestamptz
+  expiresAt DateTime @default(dbgenerated("clock_timestamp() + interval '10 minutes'")) @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  @@index([expiresAt], map: "coder_oauth_flows_expiry_idx")
+  @@map("coder_oauth_flows")
 }
 
 model CredentialRotationSchedule {

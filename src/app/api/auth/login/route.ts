@@ -11,6 +11,11 @@ import {
 } from "@/lib/security/content-security-policy";
 
 export async function POST(request: Request) {
+  if (process.env.HIVE_CODER_OAUTH_ENABLED === "true")
+    return NextResponse.json(
+      { error: "Use Coder browser sign-in" },
+      { status: 409, headers: { "Cache-Control": "private, no-store" } },
+    );
   let body: unknown;
   try {
     body = await request.json();

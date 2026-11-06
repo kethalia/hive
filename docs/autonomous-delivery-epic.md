@@ -212,10 +212,11 @@ No workspace/template rollout or production mutation is authorized merely by rec
 
 ## Account connection refactoring (added 2026-11-05)
 
-F09 and F10 are accepted roadmap scope. The user explicitly requested documentation now,
-with implementation deferred; do not start either authentication refactor during the current
-manager/browser pilot. Sequence them after that pilot as separate reviewed slices, and track
-both in the epic's final acceptance rather than silently dropping them.
+F09 and F10 were initially accepted as documentation-only roadmap scope. On November 6,
+the user explicitly prioritized implementing F09 after observing the legacy login form.
+F09 is now active: implement the static-client browser consent/return path and prove it
+with the dedicated account before resuming the manager/browser pilot. F10 remains
+implementation-deferred; track both in final epic acceptance rather than silently dropping them.
 
 F09 replaces Hive's normal email/password connection with “Connect to Coder” against the
 instance-defined `https://coder.kethalia.com`; no server-URL prompt is introduced. Use the

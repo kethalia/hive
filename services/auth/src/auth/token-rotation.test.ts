@@ -85,6 +85,15 @@ describe("portable token rotation provenance", () => {
       candidate.id,
     );
   });
+  it("never replaces an OAuth credential with a managed key or sends API-key expiry notices", async () => {
+    const { db, run } = fixture([token({ credentialSource: "oauth", remoteKeyId: null })]);
+    const notifyExpiring = vi.fn();
+    expect((await run({ notifyExpiring })).skipped).toBe(1);
+    expect(keys.create).not.toHaveBeenCalled();
+    expect(keys.remove).not.toHaveBeenCalled();
+    expect(db.coderToken.updateMany).not.toHaveBeenCalled();
+    expect(notifyExpiring).not.toHaveBeenCalled();
+  });
   it("legacy NULL ownership retains the prior key", async () => {
     const { run } = fixture([token({ remoteKeyId: null })]);
     expect((await run()).legacyKeysRetained).toBe(1);

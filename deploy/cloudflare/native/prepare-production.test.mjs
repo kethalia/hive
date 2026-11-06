@@ -77,6 +77,9 @@ test("offline preparation pins one production Worker and leaves all scheduling/e
   assert.equal(record.production.name, "hive");
   assert.equal(record.production.vars.HIVE_NATIVE_PRODUCTION_ACTIVE, "true");
   assert.equal(record.production.vars.HIVE_NATIVE_PREVIEW_ENABLED, "false");
+  assert.equal(record.production.vars.HIVE_CODER_OAUTH_ENABLED, "false");
+  assert.equal(record.production.vars.HIVE_CODER_OAUTH_CLIENT_ID, undefined);
+  assert.equal(record.production.vars.HIVE_CODER_OAUTH_CLIENT_SECRET, undefined);
   assert.equal(record.production.vars.HIVE_DELIVERY_ENABLED, "false");
   assert.equal(record.production.vars.HIVE_PROJECT_TASKS_ENABLED, "false");
   assert.deepEqual(record.production.triggers.crons, []);

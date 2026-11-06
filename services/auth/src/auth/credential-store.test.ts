@@ -16,6 +16,16 @@ const credential = {
   expiresAt: new Date("2030-01-01"),
   remoteKeyId: "newhivekey",
 };
+const managedMetadata = {
+  credentialSource: "managed_key",
+  oauthClientId: null,
+  refreshCiphertext: null,
+  refreshIv: null,
+  refreshAuthTag: null,
+  oauthRefreshState: "idle",
+  oauthRefreshHolder: null,
+  oauthRefreshUntil: null,
+};
 function database() {
   const tx = {
     coderToken: {
@@ -40,7 +50,7 @@ describe("credential/session transaction", () => {
       isolationLevel: "Serializable",
     });
     expect(db.tx.coderToken.create).toHaveBeenCalledWith({
-      data: { userId: "owner", ...credential },
+      data: { userId: "owner", ...credential, ...managedMetadata },
     });
     expect(db.tx.session.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ userId: "owner", sessionId: stored.sessionId }),
@@ -60,7 +70,7 @@ describe("credential/session transaction", () => {
     );
     expect(db.tx.coderToken.updateMany).toHaveBeenCalledWith({
       where: { id: "row", version: 4 },
-      data: { ...credential, version: { increment: 1 } },
+      data: { ...credential, ...managedMetadata, version: { increment: 1 } },
     });
     expect(db.tx.session.create).not.toHaveBeenCalled();
   });

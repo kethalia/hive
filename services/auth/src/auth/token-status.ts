@@ -1,6 +1,7 @@
 import type { TokenStatusResult } from "@hive/auth";
 import { TOKEN_EXPIRY_WARNING_HOURS, tryDecrypt } from "@hive/auth";
 import { getDb } from "@hive/db";
+import { getUsableCoderCredential } from "./coder-oauth-credentials";
 import type { DecryptedTokenResult } from "./types.js";
 
 export type { DecryptedTokenResult, TokenStatusResult };
@@ -15,6 +16,14 @@ export async function getTokenStatus(userId: string): Promise<TokenStatusResult>
 
   if (!token) {
     return { status: "expired", expiresAt: null };
+  }
+  if (token.credentialSource === "oauth") {
+    try {
+      const current = await getUsableCoderCredential(userId, { db });
+      return { status: "valid", expiresAt: current.expiresAt };
+    } catch {
+      return { status: "expired", expiresAt: token.expiresAt };
+    }
   }
 
   const encryptionKey = process.env.ENCRYPTION_KEY;
@@ -68,6 +77,7 @@ export async function getDecryptedCoderToken(userId: string): Promise<DecryptedT
   if (!token) {
     return null;
   }
+  if (token.credentialSource === "oauth") return getUsableCoderCredential(userId, { db });
 
   const encryptionKey = process.env.ENCRYPTION_KEY;
   if (!encryptionKey) {

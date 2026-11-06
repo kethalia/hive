@@ -1,4 +1,4 @@
-import { getConfiguredCoderUrl } from "@hive/auth";
+import { coderCredentialHeaders, getConfiguredCoderUrl } from "@hive/auth";
 import { z } from "zod";
 import type { TemplatePublicationActor } from "./publication-contracts";
 import { cancelPublicationBody, publicationBody, publicationFetch } from "./publication-io";
@@ -71,7 +71,10 @@ export async function readPublicationLogPage(
         method: "GET",
         redirect: "manual",
         credentials: "omit",
-        headers: { "Coder-Session-Token": actor.token, "Accept-Encoding": "identity" },
+        headers: {
+          ...coderCredentialHeaders(actor.token, actor.credentialSource),
+          "Accept-Encoding": "identity",
+        },
         signal,
       }),
       signal,
@@ -129,7 +132,10 @@ export async function readPublicationLogPage(
           method: "GET",
           redirect: "manual",
           credentials: "omit",
-          headers: { "Coder-Session-Token": actor.token, "Accept-Encoding": "identity" },
+          headers: {
+            ...coderCredentialHeaders(actor.token, actor.credentialSource),
+            "Accept-Encoding": "identity",
+          },
           signal: bodySignal,
         },
       ),

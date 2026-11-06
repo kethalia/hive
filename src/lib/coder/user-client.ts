@@ -1,5 +1,6 @@
 import { getConfiguredCoderUrl, isConfiguredCoderUrl, tryDecrypt } from "@hive/auth";
 import { getDb } from "@hive/db";
+import { getUsableCoderCredential } from "../../../services/auth/src/auth/coder-oauth-credentials";
 import { CoderClient } from "./client";
 
 export enum UserClientError {
@@ -8,6 +9,7 @@ export enum UserClientError {
   KEY_MISMATCH = "KEY_MISMATCH",
   USER_NOT_FOUND = "USER_NOT_FOUND",
   ORIGIN_MISMATCH = "ORIGIN_MISMATCH",
+  OAUTH_RECONNECT = "OAUTH_RECONNECT",
 }
 
 export class UserClientException extends Error {
@@ -53,6 +55,22 @@ export async function getCoderClientForUser(
       UserClientError.ORIGIN_MISMATCH,
       "Stored credentials belong to a different Coder deployment; sign in again",
     );
+  }
+  if (token.credentialSource === "oauth") {
+    try {
+      const credential = await getUsableCoderCredential(userId, { db, signal: options.signal });
+      return new CoderClient({
+        baseUrl: getConfiguredCoderUrl(),
+        sessionToken: credential.token,
+        credentialSource: credential.credentialSource,
+        ...(options.signal ? { signal: options.signal } : {}),
+      });
+    } catch {
+      throw new UserClientException(
+        UserClientError.OAUTH_RECONNECT,
+        "Coder browser sign-in must be reconnected",
+      );
+    }
   }
 
   const encryptionKey = process.env.ENCRYPTION_KEY;

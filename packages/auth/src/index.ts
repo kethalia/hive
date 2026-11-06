@@ -11,6 +11,14 @@ export {
   createCloneTerminalProof,
   verifyCloneTerminalProof,
 } from "./clone-terminal-proof";
+export { coderCredentialHeaders } from "./coder-credential-headers";
+export {
+  CODER_OAUTH_CALLBACK_PATH,
+  CODER_OAUTH_FLOW_COOKIE,
+  CODER_OAUTH_FLOW_TTL_MS,
+  type CoderOAuthConfig,
+  getCoderOAuthConfig,
+} from "./coder-oauth-config";
 export { getConfiguredCoderUrl, isConfiguredCoderUrl } from "./coder-origin";
 export {
   ENCRYPTION_ALGORITHM,

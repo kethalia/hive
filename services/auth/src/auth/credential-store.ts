@@ -1,5 +1,5 @@
 import type { EncryptedData } from "@hive/auth";
-import type { PrismaClient } from "@hive/db";
+import type { Prisma, PrismaClient } from "@hive/db";
 import { deleteManagedCoderKey, type ManagedCoderKey } from "./managed-keys";
 import { createSession } from "./session";
 
@@ -24,38 +24,58 @@ export function isConclusiveCredentialRollback(failure: unknown): boolean {
 }
 
 /** Atomic credential version/provenance replacement and local session creation. */
-export async function storeLoginCredential(
-  db: PrismaClient,
+export type LoginCredential = EncryptedData & {
+  expiresAt: Date;
+  remoteKeyId: string | null;
+  credentialSource?: "legacy" | "managed_key" | "oauth";
+  oauthClientId?: string;
+  refreshCiphertext?: Uint8Array;
+  refreshIv?: Uint8Array;
+  refreshAuthTag?: Uint8Array;
+};
+export async function writeLoginCredential(
+  tx: Pick<Prisma.TransactionClient, "coderToken" | "session">,
   userId: string,
-  credential: EncryptedData & { expiresAt: Date; remoteKeyId: string | null },
+  credential: LoginCredential,
 ) {
   const stored = {
     ...credential,
     ciphertext: new Uint8Array(credential.ciphertext),
     iv: new Uint8Array(credential.iv),
     authTag: new Uint8Array(credential.authTag),
+    credentialSource:
+      credential.credentialSource ?? (credential.remoteKeyId ? "managed_key" : "legacy"),
+    oauthClientId: credential.oauthClientId ?? null,
+    refreshCiphertext: credential.refreshCiphertext
+      ? new Uint8Array(credential.refreshCiphertext)
+      : null,
+    refreshIv: credential.refreshIv ? new Uint8Array(credential.refreshIv) : null,
+    refreshAuthTag: credential.refreshAuthTag ? new Uint8Array(credential.refreshAuthTag) : null,
+    oauthRefreshState: "idle",
+    oauthRefreshHolder: null,
+    oauthRefreshUntil: null,
   };
-  return db.$transaction(
-    async (tx) => {
-      const previous = await tx.coderToken.findUnique({ where: { userId } });
-      if (previous) {
-        const result = await tx.coderToken.updateMany({
-          where: { id: previous.id, version: previous.version },
-          data: { ...stored, version: { increment: 1 } },
-        });
-        if (result.count !== 1) throw new CredentialCASConflict();
-      } else {
-        // Unique userId rejects a concurrent first-login insert. Its transaction
-        // rolls back; the caller may discard only its own freshly created key.
-        await tx.coderToken.create({ data: { userId, ...stored } });
-      }
-      return {
-        previousRemoteKeyId: previous?.remoteKeyId ?? null,
-        sessionId: await createSession(userId, tx),
-      };
-    },
-    { isolationLevel: "Serializable" },
-  );
+  const previous = await tx.coderToken.findUnique({ where: { userId } });
+  if (previous) {
+    const result = await tx.coderToken.updateMany({
+      where: { id: previous.id, version: previous.version },
+      data: { ...stored, version: { increment: 1 } },
+    });
+    if (result.count !== 1) throw new CredentialCASConflict();
+  } else await tx.coderToken.create({ data: { userId, ...stored } });
+  return {
+    previousRemoteKeyId: previous?.remoteKeyId ?? null,
+    sessionId: await createSession(userId, tx),
+  };
+}
+export async function storeLoginCredential(
+  db: PrismaClient,
+  userId: string,
+  credential: LoginCredential,
+) {
+  return db.$transaction((tx) => writeLoginCredential(tx, userId, credential), {
+    isolationLevel: "Serializable",
+  });
 }
 
 /** A snapshot cannot prove an in-flight write will never commit. Retain unknowns. */

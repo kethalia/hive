@@ -7,6 +7,9 @@ import { assertBuildReady } from "../app/build-integrity.mjs";
 
 const root = process.cwd();
 const nativeMode = process.argv.includes("--native");
+// Native candidate defaults to the configured OAuth presentation. The explicit
+// legacy switch preserves coverage for unchanged Node/Kubernetes deployment.
+const oauthMode = nativeMode && !process.argv.includes("--legacy-login");
 const appMode = process.argv.includes("--app") || nativeMode;
 const callbacks = process.argv.includes("--callbacks");
 const deliveryCallbacks = process.argv.includes("--delivery-callbacks");
@@ -58,6 +61,12 @@ const sourcePaths = [
   "packages/db/package.json",
   "next.config.ts",
   "src/lib/auth/service-client.ts",
+  "src/lib/auth/coder-login.server.ts",
+  "packages/auth/src/coder-oauth-config.ts",
+  "src/app/login/page.tsx",
+  "src/app/login/layout.tsx",
+  "src/app/login/login-form.tsx",
+  "src/app/login/coder-oauth-login.tsx",
   "deploy/cloudflare/app/worker.ts",
   "deploy/cloudflare/app/composition.ts",
   "deploy/cloudflare/app/preview-auth.ts",
@@ -135,6 +144,13 @@ if (appMode) {
             HIVE_NATIVE_MODE: "preview",
             HIVE_NATIVE_PREVIEW_ENABLED: "true",
             HIVE_PREVIEW_ACCESS_REQUIRED: "false",
+            HIVE_CODER_OAUTH_ENABLED: oauthMode ? "true" : "false",
+            ...(oauthMode
+              ? {
+                  HIVE_CODER_OAUTH_CLIENT_ID: "local-synthetic-client",
+                  HIVE_PUBLIC_ORIGIN: "https://native-oauth-proof.invalid",
+                }
+              : {}),
           }
         : {}),
       ...(callbacks
@@ -152,7 +168,9 @@ if (appMode) {
         ? {
             HIVE_GENERIC_TERMINAL_ENABLED: "true",
             HIVE_TERMINAL_WS_URL: "/",
-            HIVE_PUBLIC_ORIGIN: "http://127.0.0.1:8793",
+            HIVE_PUBLIC_ORIGIN: oauthMode
+              ? "https://native-oauth-proof.invalid"
+              : "http://127.0.0.1:8793",
           }
         : {}),
       ...(deliveryCallbacks && service === "app"
@@ -203,6 +221,7 @@ await writeFile(
     ...(!nativeMode
       ? { PREVIEW_BEARER: previewBearer, PREVIEW_COOKIE_SECRET: randomBytes(32).toString("hex") }
       : {}),
+    ...(oauthMode ? { HIVE_CODER_OAUTH_CLIENT_SECRET: randomBytes(32).toString("hex") } : {}),
     RUN_UUID: runId,
     ...(callbackIssuer
       ? {
@@ -284,12 +303,22 @@ try {
       const asset = "/icons/hive-mark.svg";
       if (nativeMode) {
         const login = await request("/login");
-        if (
-          login.status !== 200 ||
-          !login.headers.get("content-type")?.includes("text/html") ||
-          !(await login.text()).includes("Sign in")
-        )
+        const loginHtml = await login.text();
+        if (login.status !== 200 || !login.headers.get("content-type")?.includes("text/html"))
           throw new Error("Actual anonymous native login SSR failed");
+        if (oauthMode) {
+          if (
+            !loginHtml.includes("Continue with Coder") ||
+            !loginHtml.includes("/api/auth/coder/start") ||
+            /type=["'](?:email|password)["']/.test(loginHtml)
+          )
+            throw new Error("Actual native OAuth login presentation failed");
+          appChecks.nativeOAuthLoginWithoutCredentialForm = true;
+        } else {
+          if (!/type=["']email["']/.test(loginHtml) || !/type=["']password["']/.test(loginHtml))
+            throw new Error("Actual native legacy login presentation failed");
+          appChecks.nativeLegacyLoginCompatibility = true;
+        }
         appChecks.nativeLoginPageSSR = true;
         appChecks.nativeAnonymousLoginWithoutPreviewCredential = true;
         const anonymousAsset = await request(asset);
@@ -342,15 +371,18 @@ try {
             `Actual app terminal runtime configuration failed (status ${config.status})`,
           );
         appChecks.terminalRuntimeConfig = true;
+        const terminalOrigin = oauthMode
+          ? "https://native-oauth-proof.invalid"
+          : "http://127.0.0.1:8793";
         const target = `/ws?${new URLSearchParams({ workspaceId: randomUUID(), agentId: randomUUID(), reconnectId: randomUUID(), sessionName: "fixture-shell", width: "80", height: "24" })}`;
         const ticket = await request("/api/auth/terminal-ticket", {
           method: "POST",
           headers: {
             ...headers,
-            Origin: "http://127.0.0.1:8793",
+            Origin: terminalOrigin,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ url: `http://127.0.0.1:8793${target}` }),
+          body: JSON.stringify({ url: `${terminalOrigin}${target}` }),
         });
         if (ticket.status !== 200 || typeof (await ticket.json()).ticket !== "string")
           throw new Error(`Actual app terminal ticket failed (status ${ticket.status})`);
@@ -449,7 +481,7 @@ try {
           "real Next input validation; unknown/headerless/cross-origin rejected; session required; zero Coder mutations";
         for (const resource of ["workspaces", "template-options", "agent", "templates"]) {
           const anonymousRead = await request(`/api/discovery/${resource}`, {
-            headers: { Authorization: `Bearer ${previewBearer}` },
+            headers: nativeMode ? {} : { Authorization: `Bearer ${previewBearer}` },
           });
           if (anonymousRead.status !== 401)
             throw new Error("Actual app portable discovery bypassed session authentication");
@@ -592,6 +624,9 @@ try {
     nativeMode &&
     !(
       result.appChecks?.nativeLoginPageSSR &&
+      (oauthMode
+        ? result.appChecks?.nativeOAuthLoginWithoutCredentialForm
+        : result.appChecks?.nativeLegacyLoginCompatibility) &&
       result.appChecks?.nativeAnonymousLoginWithoutPreviewCredential &&
       result.appChecks?.nativeAnonymousAssetsWithoutPreviewCredential &&
       result.appChecks?.nativeProtectedOwnerApiStillAuthenticated &&
@@ -623,6 +658,8 @@ try {
           nativeEntrypoint: true,
           previewAccessRequired: false,
           previewCredentialConfigured: false,
+          oauthPresentationConfigured: oauthMode,
+          liveOAuthProviderCredentialsUsed: false,
           externalAuthServiceBindingConfigured: false,
           standaloneAuthUsedOnlyByControlFixture: true,
           inlineAuthAndRequestLifetimeVerified: Boolean(

@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 export interface DecryptedTokenResult {
   token: string;
   expiresAt: Date | null;
+  credentialSource?: string;
 }
 
 // --- Coder API ---
