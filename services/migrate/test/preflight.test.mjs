@@ -175,8 +175,16 @@ test("runtime grant failure stops deployment without exposing child output", asy
 for (const runtimeRole of ["hive_native_runtime", "hive_app_runtime"]) {
   test(`native publication authority remains append-only in canonical grants for ${runtimeRole}`, () => {
     const sql = runtimeGrantsSql("public", runtimeRole);
-    const append = sql.slice(sql.indexOf("FOREACH name"), sql.indexOf("GRANT SELECT, INSERT, UPDATE"));
-    for (const name of ["delivery_native_release_artifacts", "delivery_native_release_baselines", "delivery_native_publication_grants", "delivery_native_publication_receipts"]) {
+    const append = sql.slice(
+      sql.indexOf("FOREACH name"),
+      sql.indexOf("GRANT SELECT, INSERT, UPDATE"),
+    );
+    for (const name of [
+      "delivery_native_release_artifacts",
+      "delivery_native_release_baselines",
+      "delivery_native_publication_grants",
+      "delivery_native_publication_receipts",
+    ]) {
       assert.match(append, new RegExp(`'${name}'`));
       assert.equal(sql.match(new RegExp(`'${name}'`, "g"))?.length, 1);
     }

@@ -1558,3 +1558,15 @@ by this source checkpoint.
   CONNECT denial. No production migration or release flag activation.
   [Sanitized receipt](neon-preview-migration45.json). Archive decoding was verified;
   a full restore was not performed for these fresh backups.
+
+
+- Unmerged publisher reachability: actual dispatch of registered `ci.yml` at the
+  dedicated publisher deployment ref completed with its hard-disabled job skipped.
+  No credentials were enrolled and no publication occurred. The native artifact
+  build job also built successfully, but its first whole run is ineligible because
+  CI formatting failed in a new grants test. That formatting is corrected; a fresh
+  first-attempt build will be used instead of relabelling or rerunning the artifact.
+  Artifact-only dispatch now skips ordinary CI jobs; automatic PR checks still run.
+  Protected environment and Actions variable enrollment returned403; Cloudflare
+  token management also returned403. Access is requested while validation continues.
+  [Dispatch receipt](native-preview-dispatch-reachability.json).

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T12:05:17.904961+00:00",
+  "repository": "kethalia/hive",
+  "registeredWorkflowId": "262356269",
+  "registeredPath": ".github/workflows/ci.yml",
+  "defaultBranchChanged": false,
+  "publisherRef": "refs/heads/codex/native-preview-publisher",
+  "publisherContextSha": "1f4ee6bd2cbda6781fb3ca1794c9d538db45bb5b",
+  "reusablePublisherSha": "7cdf06a8ab988a737c16eb69cf861c5acee97554",
+  "runId": "42214825408",
+  "event": "workflow_dispatch",
+  "conclusion": "skipped",
+  "publishJobConclusion": "skipped",
+  "hardDisabledInCaller": true,
+  "credentialsEnrolled": false,
+  "providerEffectsExecuted": false,
+  "livePublicationAccepted": false,
+  "enrollmentHolds": [
+    "GitHub environment creation/configuration returned403",
+    "GitHub Actions variables API returned403",
+    "Cloudflare account-token permission groups API returned403"
+  ],
+  "sourcePlan": "native-preview-live-plan.md"
+}
