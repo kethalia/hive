@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -619,7 +619,14 @@ function guardianFixture(t, configure) {
   let context;
   const guard = {
     get state() {
-      return { phase, lifetimeId, bindingDigest, generation, ownershipDigest: ownershipDigest() };
+      return {
+        phase,
+        lifetimeId,
+        bindingDigest,
+        generation,
+        ownershipDigest: ownershipDigest(),
+        projects: [...projects].map(([projectId, bindingDigest]) => ({ projectId, bindingDigest })),
+      };
     },
     async admit(project) {
       const saved = JSON.parse(readFileSync(join(context.dir, "projects.json"))).state;
@@ -661,6 +668,9 @@ function guardianFixture(t, configure) {
   });
   return {
     ...f,
+    get controller() {
+      return f.controller;
+    },
     guard,
     barrier() {
       phase = "closed";
@@ -1096,4 +1106,77 @@ test("exact policy branch resolution is read-only and never falls back to defaul
     f.controller.handle("/projects/resolve-ref", request),
     /repository_identity_changed/,
   );
+});
+
+// Exercises the real controller route/queue gate, in addition to the recovery module crash tests.
+test("owner inspection gates an absent task and rejects newer requests and archived local history", async (t) => {
+  const { recoveryDigest } = await import(
+    "../templates/ai-dev-k8s/scripts/codex-project-recovery.mjs"
+  );
+  const f = guardianFixture(t, (_context, guard) => {
+    guard.identity = async (nonce) => ({
+      nonce,
+      identity: { lifetimeId: guard.state.lifetimeId },
+      startup: { generation: guard.state.generation },
+    });
+  });
+  await f.controller.handle("/projects/open", f.open);
+  const scope = {
+    recoveryId: randomUUID(),
+    ownerId: randomUUID(),
+    coderOwnerId: f.config.ownerId,
+    projectId: f.start.projectId,
+    taskId: f.start.taskId,
+    workspaceId: f.config.workspaceId,
+    originalRequestId: f.start.requestId,
+    intentVersion: "v1",
+    intentDigest: "a".repeat(64),
+    hostRequestDigest: createHash("sha256").update(JSON.stringify(f.start)).digest("hex"),
+    repositoryId: f.start.repositoryId,
+    providerAccountId: f.start.expectedAccountId,
+    revision: f.start.revision,
+  };
+  const inspected = await f.controller.handle("/projects/tasks/recovery-inspect", {
+    schemaVersion: 1,
+    scope,
+  });
+  await assert.rejects(
+    f.controller.handle("/projects/tasks/start", f.start),
+    /retry_not_available/,
+  );
+  assert.equal(f.calls.includes("prepare"), false);
+  const authorization = {
+    inspectionDigest: recoveryDigest(inspected.inspection),
+    authorizedVersion: "v2",
+    buildId: f.deps.guardianBuildId,
+    lifetimeId: f.guard.state.lifetimeId,
+    expiresAt: Date.now() + 30000,
+  };
+  const receipt = await f.controller.handle("/projects/tasks/recovery-consume", {
+    schemaVersion: 1,
+    scope,
+    authorization,
+  });
+  await f.restart();
+  assert.deepEqual(
+    await f.controller.handle("/projects/tasks/recovery-consume", {
+      schemaVersion: 1,
+      scope,
+      authorization,
+    }),
+    receipt,
+  );
+  await assert.rejects(
+    f.controller.handle("/projects/tasks/start", { ...f.start, taskId: randomUUID() }),
+    /task_identity_conflict/,
+  );
+  writeFileSync(join(f.config.stateDirectory, "projects-archive-old.json"), "{}");
+  await assert.rejects(
+    f.controller.handle("/projects/tasks/recovery-inspect", {
+      schemaVersion: 1,
+      scope: { ...scope, recoveryId: randomUUID() },
+    }),
+    /retry_not_available/,
+  );
+  assert.equal(f.calls.includes("firstPrompt"), false);
 });

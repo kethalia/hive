@@ -1492,3 +1492,39 @@ describe.skipIf(!url)("guardian signed lifetime at real transaction boundary", (
     }
   });
 });
+
+describe.skipIf(!url)("owner recovery identity verification", () => {
+  it("accepts only a fresh exact signed inspection challenge on an already enrolled live runtime", async () => {
+    let packet: GuardianIdentityResponse | undefined;
+    const f = await fixture((value) => {
+      packet = value;
+    });
+    await f.service.provision(f.principal, f.binding.workspaceId);
+    if (!packet) throw Error("Missing identity");
+    const result = await f.service.verifyRecoveryIdentity(
+      f.principal,
+      f.binding.workspaceId,
+      packet,
+      packet.nonce,
+    );
+    expect(result.runtime.id).toBe(f.runtimeId);
+    await expect(
+      f.service.verifyRecoveryIdentity(f.principal, f.binding.workspaceId, packet, "a".repeat(64)),
+    ).rejects.toThrow();
+    await expect(
+      f.service.verifyRecoveryIdentity(
+        f.principal,
+        f.binding.workspaceId,
+        { ...packet, nonce: "a".repeat(64) },
+        "a".repeat(64),
+      ),
+    ).rejects.toThrow();
+    await db.codexGuardianRuntime.update({
+      where: { id: f.runtimeId! },
+      data: { authorityUntil: new Date(Date.now() - 1) },
+    });
+    await expect(
+      f.service.verifyRecoveryIdentity(f.principal, f.binding.workspaceId, packet, packet.nonce),
+    ).rejects.toThrow();
+  });
+});

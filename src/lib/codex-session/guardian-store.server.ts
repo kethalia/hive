@@ -1,6 +1,7 @@
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
 import { ProjectTaskIntents } from "@/lib/projects/task-intents.server";
+import { assertTaskRecoveryOperation } from "@/lib/projects/task-recovery-store.server";
 import { type GuardianTreeReceipt, guardianTreeReceiptSchema } from "./guardian-closure-contracts";
 import {
   type GuardianCheckout,
@@ -168,6 +169,8 @@ export interface GuardianOperationReceiptInput {
   action: GuardianOperationEnvelope["action"];
   inputRuntimeGeneration: number;
   requestDigest: string;
+  projectId?: string;
+  recovery?: { recoveryId: string; authorizationDigest: string };
 }
 type OperationReceipt = {
   action: GuardianOperationEnvelope["action"];
@@ -397,6 +400,7 @@ export class GuardianAdmissionStore {
           const operation = this.options.operation;
           let receiptRuntime: CodexGuardianRuntime | undefined;
           let historical: OperationReceipt | null = null;
+          let recoveryExpiresAt: number | undefined;
           if (operation) {
             const { runtime } = await lockGuardianRuntime(
               tx,
@@ -407,6 +411,13 @@ export class GuardianAdmissionStore {
             receiptRuntime = runtime;
             if (runtime.operationReceiptsEnabled)
               historical = await operationReceipt(tx, runtime, operation);
+            if (!historical && operation.projectId)
+              recoveryExpiresAt = await assertTaskRecoveryOperation(tx, {
+                ownerId: operation.ownerId,
+                projectId: operation.projectId,
+                runtime,
+                recovery: operation.recovery,
+              });
             if (runtime.operationReceiptsEnabled && !historical) {
               const [count] = await tx.$queryRaw<{ n: bigint }[]>`
               SELECT count(*) AS n FROM codex_guardian_operation_receipts
@@ -434,6 +445,8 @@ export class GuardianAdmissionStore {
             // ISO strings here, exactly as in the response retained for readback.
             result = response.json as T;
           }
+          if (recoveryExpiresAt !== undefined)
+            requireGuardian((await databaseNow(tx)).getTime() < recoveryExpiresAt);
           if (this.options.authorizationExpiresAt !== undefined) {
             const now = await databaseNow(tx);
             requireGuardian(now.getTime() < this.options.authorizationExpiresAt);

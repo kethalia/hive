@@ -67,8 +67,9 @@ function compiled(t, requiredModules = ["codex-project-supervisor.mjs"]) {
 test("compiled package preserves controller, startup fences and session bridge behavior", {
   timeout: 100000,
 }, (t) => {
-  compiled(t)([
+  compiled(t, ["codex-project-supervisor.mjs", "codex-project-recovery.mjs"])([
     "scripts/verify-codex-project-controller.test.mjs",
+    "scripts/verify-codex-project-recovery.test.mjs",
     "scripts/verify-codex-native-startup.test.mjs",
     "scripts/verify-codex-session-bridge.test.mjs",
   ]);

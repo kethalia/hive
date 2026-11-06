@@ -1883,3 +1883,43 @@ test("actual native spool persists progression on claims, and unsupported claims
     }
   }
 });
+
+test("owner consume proof is signed on admission operations while producer launch stays closed until durable receipt", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const p = f.project(true),
+      recoveryId = randomUUID(),
+      authorization = { inspectionDigest: "a".repeat(64), authorizedVersion: "v2" };
+    p.state.projects[p.projectId].recovery = {
+      phase: "inspecting",
+      scope: { recoveryId },
+      authorization,
+    };
+    p.save();
+    await assert.rejects(
+      f.client.authorizeAdmission({ projectId: p.projectId, bindingDigest: p.bindingDigest }),
+    );
+    assert.deepEqual(
+      f.calls.map((c) => c.action),
+      ["enroll"],
+    );
+    p.state.projects[p.projectId].recovery.phase = "consuming";
+    p.save();
+    await f.client.authorizeAdmission({ projectId: p.projectId, bindingDigest: p.bindingDigest });
+    for (const call of f.calls.filter((c) => ["prepare", "checkout", "fence"].includes(c.action)))
+      assert.deepEqual(call.recovery, { recoveryId, authorizationDigest: digest(authorization) });
+    await assert.rejects(f.client.metadataAuthority([{ projectId: p.projectId }]));
+    assert.equal(
+      f.calls.some((c) => c.action === "launch"),
+      false,
+    );
+    p.state.projects[p.projectId].recovery.phase = "consumed";
+    p.save();
+    await f.client.metadataAuthority([{ projectId: p.projectId }]);
+    assert.equal(f.calls.filter((c) => c.action === "launch").length, 1);
+  } finally {
+    f.close();
+  }
+});

@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { getDb } from "@hive/db";
+import { getDb, type Prisma } from "@hive/db";
 import { z } from "zod";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { provisionRegisteredHost } from "@/lib/codex-session/bootstrap-delivery.server";
+import { guardianDigest } from "@/lib/codex-session/guardian-contracts";
 import { createGuardianService } from "@/lib/codex-session/guardian-factory.server";
 import {
   createRegisteredSessionService,
@@ -27,6 +28,8 @@ import {
   TaskIntentConflict,
   taskRequestDigest,
 } from "./task-intents.server";
+import { recoveryInspectionSchema, recoveryScopeSchema } from "./task-recovery-contracts";
+import { ProjectTaskRecoveries } from "./task-recovery-store.server";
 
 export class ProjectTaskConflict extends Error {}
 /** Deterministic UUIDv5 namespace: retries of the same owner/project/request refer
@@ -212,8 +215,13 @@ function taskIntentStore(pinPolicy?: ConstructorParameters<typeof ProjectTaskInt
     acceptance ? (tx, input, row) => acceptance.store.captureIntent(tx, input, row) : undefined,
   );
 }
-async function authorizeIntentPolicy(ownerId: string, taskId: string) {
-  const row = await getDb().projectTaskIntent.findUnique({
+async function authorizeIntentPolicy(
+  ownerId: string,
+  taskId: string,
+  transaction?: Prisma.TransactionClient,
+) {
+  const db = transaction ?? getDb();
+  const row = await db.projectTaskIntent.findUnique({
     where: { ownerId_id: { ownerId, id: taskId } },
   });
   if (
@@ -222,13 +230,17 @@ async function authorizeIntentPolicy(ownerId: string, taskId: string) {
   ) {
     const project =
       row &&
-      (await getDb().deliveryProject.findUnique({
+      (await db.deliveryProject.findUnique({
         where: { ownerId_id: { ownerId, id: row.projectId } },
         select: { repositoryPolicy: { select: { id: true } } },
       }));
     if (!project?.repositoryPolicy) return;
   }
   const { repositoryPolicyStore } = await import("@/lib/delivery/repository-policy.server");
+  if (transaction) {
+    await repositoryPolicyStore(getDb()).authorizeIntent(transaction, ownerId, taskId);
+    return;
+  }
   await getDb().$transaction(
     (tx) => repositoryPolicyStore(getDb()).authorizeIntent(tx, ownerId, taskId),
     {
@@ -370,6 +382,70 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
     snapshot.row.providerAccountId !== project.providerAccountId
   )
     throw new TaskIntentConflict("task_identity_conflict");
+  if (process.env.HIVE_GUARDIAN_ENABLED === "true") {
+    const recoveries = new ProjectTaskRecoveries(getDb(), store);
+    let attempt = await recoveries.begin({
+      ownerId: user.id,
+      coderOwnerId: user.coderUserId,
+      projectId,
+      taskId: input.taskId,
+      workspaceId: input.workspaceId,
+      recoveryId: input.requestId,
+    });
+    if (!attempt || attempt.phase === "consumed")
+      return pendingTaskStatus(
+        await store.get(user.id, projectId, input.taskId, input.workspaceId),
+      );
+    if (attempt.phase === "inspecting") {
+      const service = createGuardianService();
+      await service.provision(
+        { hiveUserId: user.id, coderUserId: user.coderUserId },
+        input.workspaceId,
+      );
+      const inspected = z
+        .object({
+          schemaVersion: z.literal(1),
+          scope: recoveryScopeSchema,
+          inspection: recoveryInspectionSchema,
+          identity: z.unknown(),
+        })
+        .strict()
+        .parse(
+          await signedHostProjectRequest(
+            user,
+            input.workspaceId,
+            "/projects/tasks/recovery-inspect",
+            { schemaVersion: 1, scope: attempt.scope },
+          ),
+        );
+      if (guardianDigest(inspected.scope) !== guardianDigest(attempt.scope))
+        throw new TaskIntentConflict("task_identity_conflict");
+      const { runtime, packet } = await service.verifyRecoveryIdentity(
+        { hiveUserId: user.id, coderUserId: user.coderUserId },
+        input.workspaceId,
+        inspected.identity,
+        guardianDigest({ scope: attempt.scope, inspection: inspected.inspection }),
+      );
+      if (
+        packet.identity.lifetimeId !== inspected.inspection.lifetimeId ||
+        packet.startup.generation !== inspected.inspection.guardianGeneration
+      )
+        throw new TaskIntentConflict("task_identity_conflict");
+      attempt = await recoveries.authorize(attempt, inspected.inspection, runtime, (tx) =>
+        authorizeIntentPolicy(user.id, input.taskId, tx),
+      );
+    }
+    if (!attempt.authorization) throw new TaskIntentConflict("task_identity_conflict");
+    const receipt = await signedHostProjectRequest(
+      user,
+      input.workspaceId,
+      "/projects/tasks/recovery-consume",
+      { schemaVersion: 1, scope: attempt.scope, authorization: attempt.authorization },
+      { expectedBuildId: attempt.authorization.buildId },
+    );
+    await recoveries.finish(attempt, receipt);
+    return pendingTaskStatus(await store.get(user.id, projectId, input.taskId, input.workspaceId));
+  }
   if (snapshot.row.phase !== "blocked") return pendingTaskStatus(snapshot.row);
   const current = status(
     await signedHostProjectRequest(user, input.workspaceId, "/projects/tasks/retry", {

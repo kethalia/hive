@@ -26,6 +26,12 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { processIdentity } from "./codex-process-identity.mjs";
+import {
+  projectRecovery,
+  recoveryHeld,
+  recoveryScopes,
+  validateRecoveryRequest,
+} from "./codex-project-recovery.mjs";
 
 const check = (v, code = "project_request_rejected") => {
   if (!v) throw new Error(code);
@@ -42,6 +48,7 @@ const exact = (v, keys) =>
   Object.keys(v).every((k) => keys.includes(k));
 const digest = (v) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
 export const projectScopes = Object.freeze({
+  ...recoveryScopes,
   "/projects/discover": "projects:discover",
   "/projects/resolve": "projects:resolve",
   "/projects/resolve-ref": "projects:resolve-ref",
@@ -62,6 +69,7 @@ export function validProjectBranch(v) {
   );
 }
 export function validateProjectOperation(path, r) {
+  if (Object.hasOwn(recoveryScopes, path)) return validateRecoveryRequest(path, r);
   const common = ["schemaVersion"];
   if (path === "/projects/discover")
     check(
@@ -590,6 +598,7 @@ export function createProjectController(config, deps) {
     if (guardian) check(guardian.state.phase === "open", "controller_admission_closed");
   }
   function assertSourceInputOpen(p) {
+    check(!recoveryHeld(p), "retry_not_available");
     const a = p.task?.sourceApplication;
     check(
       !a ||
@@ -601,6 +610,7 @@ export function createProjectController(config, deps) {
   }
   function assertAdmission(projectId) {
     assertOpen();
+    check(!recoveryHeld(state.projects[projectId]), "retry_not_available");
     if (guardian) {
       const token = admissions.get(projectId);
       check(token, "guardian_project_not_admitted");
@@ -761,6 +771,7 @@ export function createProjectController(config, deps) {
   }
   async function advance(p) {
     const t = p.task;
+    if (recoveryHeld(p)) return;
     if (t?.sourceApplication && t.sourceApplication.phase !== "released") return;
     if (closed || !t || (t.phase === "blocked" && !(t.executionRevoked && t.prepared))) return;
     if (t.executionRevoked) historyRecovered.add(p.projectId);
@@ -908,6 +919,7 @@ export function createProjectController(config, deps) {
     if (
       closed ||
       state.guardianBarrier ||
+      recoveryHeld(p) ||
       (p.task?.sourceApplication && p.task.sourceApplication.phase !== "released") ||
       pending.has(p.projectId) ||
       (p.task?.phase === "blocked" &&
@@ -922,10 +934,64 @@ export function createProjectController(config, deps) {
     pending.add(p.projectId);
     queue = queue.then(() => advance(p)).finally(() => pending.delete(p.projectId));
   }
+  async function proveRecovery(p) {
+    assertOpen();
+    const t = p.task;
+    check(
+      t && !t.executionRevoked && !t.terminalSessionName && !t.sourceApplication,
+      "retry_not_available",
+    );
+    check(
+      t.phase === "blocked" &&
+        [
+          "github_auth_required",
+          "checkout_busy",
+          "checkout_unavailable",
+          "revision_unavailable",
+          "native_unavailable",
+          "registration_unavailable",
+        ].includes(t.reason),
+      "retry_not_available",
+    );
+    check(
+      t.firstPromptSubmissionAttempted === false && typeof t.nativeCreationAttempted === "boolean",
+      "retry_not_available",
+    );
+    const inspected = await deps.inspectCheckout(p.repositoryId);
+    if (!t.prepared) {
+      check(
+        !t.nativeCreationAttempted &&
+          !t.nativeThreadId &&
+          inspected?.status === "not_created" &&
+          inspected.lease === null,
+        "retry_not_available",
+      );
+    } else {
+      check(
+        runtime &&
+          inspected?.status === "ready" &&
+          inspected.checkoutVerified === true &&
+          inspected.revision === t.request.revision &&
+          inspected.checkoutIncarnation === t.checkoutIncarnation &&
+          inspected.lease?.taskId === t.taskId &&
+          inspected.lease.id === t.prepared.leaseId &&
+          inspected.lease.generation === t.prepared.leaseGeneration &&
+          inspected.lease.expiresAt > Date.now() / 1000,
+        "retry_not_available",
+      );
+      // Missing native history is never evidence that no input occurred.
+      const proof = await runtime.supervisor.provePreExecution(p.projectId, t.taskId);
+      check(
+        proof.threadId === (t.nativeThreadId ?? null) &&
+          (proof.threadId || t.nativeCreationAttempted === false),
+        "retry_not_available",
+      );
+    }
+  }
   function retry(p, request) {
-    // Serialize proof, durable acceptance and scheduling with every transition.
     const operation = queue.then(async () => {
       assertOpen();
+      check(!guardian, "retry_not_available"); // Guarded recovery must use inspect/authorize/consume.
       const t = p.task;
       assertSourceInputOpen(p);
       check(
@@ -933,67 +999,13 @@ export function createProjectController(config, deps) {
         "task_identity_conflict",
       );
       check(!t.executionRevoked, "retry_not_available");
-      await fence(p, Boolean(t.prepared));
-      assertAdmission(p.projectId);
       if (t.phase === "running" || t.retries?.some((r) => r.requestId === request.requestId))
         return status(p);
-      check(
-        t.phase === "blocked" &&
-          [
-            "github_auth_required",
-            "checkout_busy",
-            "checkout_unavailable",
-            "revision_unavailable",
-            "native_unavailable",
-            "registration_unavailable",
-          ].includes(t.reason),
-        "retry_not_available",
-      );
-      check(
-        t.firstPromptSubmissionAttempted === false &&
-          typeof t.nativeCreationAttempted === "boolean",
-        "retry_not_available",
-      );
-      const inspected = await deps.inspectCheckout(p.repositoryId);
-      await fence(p, Boolean(t.prepared));
-      assertAdmission(p.projectId);
-      if (!t.prepared) {
-        check(
-          !t.nativeCreationAttempted &&
-            !t.nativeThreadId &&
-            inspected?.status === "not_created" &&
-            inspected.lease === null,
-          "retry_not_available",
-        );
-      } else {
-        check(
-          runtime &&
-            inspected?.status === "ready" &&
-            inspected.checkoutVerified === true &&
-            inspected.revision === t.request.revision &&
-            inspected.checkoutIncarnation === t.checkoutIncarnation &&
-            inspected.lease?.taskId === t.taskId &&
-            inspected.lease.id === t.prepared.leaseId &&
-            inspected.lease.generation === t.prepared.leaseGeneration &&
-            inspected.lease.expiresAt > Date.now() / 1000,
-          "retry_not_available",
-        );
-        let proof;
-        try {
-          proof = await runtime.supervisor.provePreExecution(p.projectId, t.taskId);
-          await fence(p, true);
-          assertAdmission(p.projectId);
-        } catch (error) {
-          // Native 0.165 cannot read rollout history for some empty loaded
-          // threads. Missing history is not evidence that no input occurred.
-          if (error?.message === "retry_history_unavailable") return status(p);
-          throw error;
-        }
-        check(
-          proof.threadId === (t.nativeThreadId ?? null) &&
-            (proof.threadId || t.nativeCreationAttempted === false),
-          "retry_not_available",
-        );
+      try {
+        await proveRecovery(p);
+      } catch (error) {
+        if (error?.message === "retry_history_unavailable") return status(p);
+        throw error;
       }
       check((t.retries?.length ?? 0) < 32, "retry_limit");
       t.retries ??= [];
@@ -1004,7 +1016,7 @@ export function createProjectController(config, deps) {
       });
       t.phase = "preparing";
       t.reason = null;
-      save(); // A lost reply can replay this receipt, never the first prompt.
+      save();
       schedule(p);
       return status(p);
     });
@@ -1014,6 +1026,33 @@ export function createProjectController(config, deps) {
     );
     return operation;
   }
+  const recovery = projectRecovery({
+    config,
+    guardian,
+    buildId: deps.guardianBuildId,
+    save,
+    taskDigest: digest,
+    prove: proveRecovery,
+    fence,
+    schedule,
+    absent: async (p) => {
+      check(
+        !p.task && !guardian.state.projects.some((v) => v.projectId === p.projectId),
+        "retry_not_available",
+      );
+      // A reset/archived journal is not evidence that this immutable task never ran.
+      const archives = readdirSync(config.stateDirectory).filter((name) =>
+        /^projects-(archive|idle)-/.test(name),
+      );
+      check(archives.length === 0, "retry_not_available");
+      const inspected = await deps.inspectCheckout(p.repositoryId);
+      check(inspected?.status === "not_created" && inspected.lease === null, "retry_not_available");
+      if (runtime) {
+        const snapshot = runtime.supervisor.snapshot(p.projectId);
+        check(!snapshot.threadId && snapshot.phase === "not-created", "retry_not_available");
+      }
+    },
+  });
   return {
     async handle(path, r) {
       assertOpen();
@@ -1053,8 +1092,24 @@ export function createProjectController(config, deps) {
           terminalSessionName: p.task?.terminalSessionName ?? null,
         };
       }
+      if (Object.hasOwn(recoveryScopes, path)) {
+        const p = project(r.scope.projectId);
+        const operation = queue.then(() => recovery(path, p, r));
+        queue = operation.then(
+          () => undefined,
+          () => undefined,
+        );
+        return operation;
+      }
       const p = project(r.projectId);
       if (path === "/projects/tasks/start") {
+        check(!recoveryHeld(p), "retry_not_available");
+        if (!p.task && p.recovery?.inspection?.outcome === "task_absent")
+          check(
+            p.recovery.scope.taskId === r.taskId &&
+              p.recovery.scope.hostRequestDigest === digest(r),
+            "task_identity_conflict",
+          );
         check(
           p.repositoryId === r.repositoryId && p.expectedAccountId === r.expectedAccountId,
           "repository_identity_changed",
@@ -1090,6 +1145,7 @@ export function createProjectController(config, deps) {
       if (closed || state.guardianBarrier || !runtime) return;
       for (const p of Object.values(state.projects)) {
         if (
+          recoveryHeld(p) ||
           !p.task?.prepared ||
           !p.task.nativeThreadId ||
           p.task.executionRevoked ||

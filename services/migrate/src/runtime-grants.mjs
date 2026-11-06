@@ -52,6 +52,7 @@ const mutable = [
   "codex_registration_grants",
   "codex_host_registrations",
   "project_task_intents",
+  "project_task_recoveries",
   "delivery_manager_bindings",
   "codex_guardian_runtimes",
   "codex_guardian_enrollment_grants",

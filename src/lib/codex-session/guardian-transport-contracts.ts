@@ -135,11 +135,16 @@ const enrollmentEnvelope = z
   .object({ ...common, action: z.literal("enroll"), grant: z.string().min(100).max(16384) })
   .strict();
 
+const recovery = z
+  .object({ recoveryId: uuid, authorizationDigest: guardianDigestSchema })
+  .strict()
+  .optional();
 const guardianOperationEnvelopes = [
   z
     .object({
       ...common,
       ...generation,
+      recovery,
       action: z.literal("prepare"),
       preparation: guardianPreparationSchema,
       preparationDigest: guardianDigestSchema,
@@ -149,6 +154,7 @@ const guardianOperationEnvelopes = [
     .object({
       ...common,
       ...generation,
+      recovery,
       action: z.literal("checkout"),
       checkout: guardianCheckoutSchema,
     })
@@ -157,6 +163,7 @@ const guardianOperationEnvelopes = [
     .object({
       ...common,
       ...generation,
+      recovery,
       action: z.literal("native"),
       projectId: uuid,
       registrationId: uuid,
@@ -168,6 +175,7 @@ const guardianOperationEnvelopes = [
     .object({
       ...common,
       ...generation,
+      recovery,
       action: z.literal("fence"),
       projectId: uuid,
       preparationDigest: guardianDigestSchema,

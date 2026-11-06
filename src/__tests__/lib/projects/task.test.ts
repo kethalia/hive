@@ -15,6 +15,11 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(),
   transaction: vi.fn(),
   policyAuthorize: vi.fn(),
+  recoveryBegin: vi.fn(),
+  recoveryAuthorize: vi.fn(),
+  recoveryFinish: vi.fn(),
+  guardianProvision: vi.fn(),
+  guardianIdentity: vi.fn(),
 }));
 vi.mock("@hive/db", () => ({
   getDb: () => ({
@@ -42,6 +47,19 @@ vi.mock("@/lib/codex-session/registered-session.server", () => ({
   createRegisteredSessionService: () => ({ authority: "authority" }),
 }));
 
+vi.mock("@/lib/projects/task-recovery-store.server", () => ({
+  ProjectTaskRecoveries: class {
+    begin = mock.recoveryBegin;
+    authorize = mock.recoveryAuthorize;
+    finish = mock.recoveryFinish;
+  },
+}));
+vi.mock("@/lib/codex-session/guardian-factory.server", () => ({
+  createGuardianService: () => ({
+    provision: mock.guardianProvision,
+    verifyRecoveryIdentity: mock.guardianIdentity,
+  }),
+}));
 vi.mock("@/lib/projects/task-intents.server", async (original) => ({
   ...(await original()),
   ProjectTaskIntents: class {
@@ -313,4 +331,91 @@ describe("project task controller", () => {
       [requestId, projectId],
     );
   });
+});
+
+it("guarded owner recovery stages inspection and CAS before consume, and resumes a lost ACK without another inspection", async () => {
+  const { guardianDigest } = await import("@/lib/codex-session/guardian-contracts");
+  vi.stubEnv("HIVE_GUARDIAN_ENABLED", "true");
+  const coderUserId = "55555555-5555-4555-8555-555555555555",
+    buildId = "66666666-6666-4666-8666-666666666666",
+    lifetimeId = "77777777-7777-4777-8777-777777777777";
+  const scope = {
+    recoveryId: requestId,
+    ownerId: user.id,
+    coderOwnerId: coderUserId,
+    projectId,
+    taskId,
+    workspaceId,
+    originalRequestId: requestId,
+    intentVersion: "v1",
+    intentDigest: "a".repeat(64),
+    hostRequestDigest: "b".repeat(64),
+    repositoryId: "123",
+    providerAccountId: "456",
+    revision: "c".repeat(40),
+  };
+  const inspection = {
+    outcome: "task_absent",
+    taskFingerprint: "d".repeat(64),
+    buildId,
+    lifetimeId,
+    guardianGeneration: 1,
+  };
+  const identity = { identity: { lifetimeId }, startup: { generation: 1 } },
+    runtime = { id: "runtime" };
+  const authorization = {
+    inspectionDigest: guardianDigest(inspection),
+    authorizedVersion: "v2",
+    buildId,
+    lifetimeId,
+    expiresAt: Date.now() + 30000,
+  };
+  const initial = { id: requestId, phase: "inspecting", scope },
+    authorized = { ...initial, phase: "authorized", inspection, authorization };
+  mock.snapshot.mockResolvedValue({
+    row: {
+      id: taskId,
+      projectId,
+      workspaceId,
+      phase: "blocked",
+      repositoryId: "123",
+      providerAccountId: "456",
+    },
+    version: "v1",
+  });
+  mock.get.mockResolvedValue({ id: taskId, projectId, phase: "queued", status: null });
+  mock.recoveryBegin.mockResolvedValue(initial);
+  mock.recoveryAuthorize.mockResolvedValue(authorized);
+  mock.guardianIdentity.mockResolvedValue({ runtime, packet: identity });
+  mock.host.mockImplementation(async (_u, _w, path) =>
+    path.endsWith("inspect")
+      ? { schemaVersion: 1, scope, inspection, identity }
+      : { receipt: true },
+  );
+  await retryProjectTask({ ...user, coderUserId }, projectId, { workspaceId, taskId, requestId });
+  expect(mock.guardianIdentity).toHaveBeenCalledWith(
+    { hiveUserId: user.id, coderUserId },
+    workspaceId,
+    identity,
+    guardianDigest({ scope, inspection }),
+  );
+  expect(mock.recoveryAuthorize.mock.invocationCallOrder[0]).toBeLessThan(
+    mock.host.mock.invocationCallOrder[1],
+  );
+  expect(mock.host.mock.calls[1]).toEqual([
+    { ...user, coderUserId },
+    workspaceId,
+    "/projects/tasks/recovery-consume",
+    { schemaVersion: 1, scope, authorization },
+    { expectedBuildId: buildId },
+  ]);
+  expect(JSON.stringify(mock.host.mock.calls)).not.toContain(input.text);
+  expect(mock.enqueue).not.toHaveBeenCalled();
+  mock.host.mockClear();
+  mock.guardianProvision.mockClear();
+  mock.recoveryBegin.mockResolvedValue(authorized);
+  await retryProjectTask({ ...user, coderUserId }, projectId, { workspaceId, taskId, requestId });
+  expect(mock.host).toHaveBeenCalledTimes(1);
+  expect(mock.host.mock.calls[0][2]).toBe("/projects/tasks/recovery-consume");
+  expect(mock.guardianProvision).not.toHaveBeenCalled();
 });

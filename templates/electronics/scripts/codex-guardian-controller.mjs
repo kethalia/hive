@@ -71,6 +71,7 @@ export const GUARDIAN_CONTROLLER_POLICY = Object.freeze({
   uncertainty: "durable-hold",
   admissionRecovery: "exact-committed-envelope-then-fresh-fence",
   admissionBudget: GUARDIAN_ADMISSION_BUDGET,
+  ownerRecovery: "signed-inspect-cas-consume-fresh-fence",
   drain: "independent-closed-barrier-required",
   sourceApplication: "terminal-root-reservation-and-protected-applied-receipt",
   metadataPolicyDigest: "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b",
@@ -465,6 +466,21 @@ export function openGuardianController({
     return pending;
   };
   async function send(action, fields, accept, mode) {
+    if (["prepare", "checkout", "native", "fence"].includes(action)) {
+      const id = fields.projectId ?? fields.preparation?.projectId ?? fields.checkout?.projectId;
+      const { project } = controllerProject(id, startup(), true);
+      const recovery = project.recovery;
+      if (recovery?.authorization) {
+        check(["consuming", "consumed"].includes(recovery.phase));
+        fields = {
+          ...fields,
+          recovery: {
+            recoveryId: recovery.scope.recoveryId,
+            authorizationDigest: digest(recovery.authorization),
+          },
+        };
+      }
+    }
     if (mode === "closure") {
       check(
         state &&
@@ -627,7 +643,7 @@ export function openGuardianController({
         : {}),
     };
   };
-  function controllerProject(projectId, s) {
+  function controllerProject(projectId, s, recovering = false) {
     const journal = readEvidence(home, "codex-project-controller", "projects.key");
     check(
       !journal.guardianBarrier &&
@@ -643,7 +659,10 @@ export function openGuardianController({
     const project = journal.projects[projectId],
       preparation = project?.task?.guardianPreparation;
     check(
-      !project?.task?.executionRevoked &&
+      (!project?.recovery ||
+        project.recovery.phase === "consumed" ||
+        (recovering && project.recovery.phase === "consuming")) &&
+        !project?.task?.executionRevoked &&
         project?.task?.phase !== "blocked" &&
         preparation?.projectId === projectId &&
         preparation.ownerId === config.binding.ownerId &&
@@ -695,7 +714,7 @@ export function openGuardianController({
     };
   }
   function validateHistoricalAdmission(original, result, target) {
-    const { project, preparation } = controllerProject(target.projectId, startup());
+    const { project, preparation } = controllerProject(target.projectId, startup(), true);
     check(
       sha(JSON.stringify(preparation)) === target.bindingDigest &&
         result?.runtime?.operationReceiptsEnabled === true &&
@@ -905,7 +924,7 @@ export function openGuardianController({
     );
     const s = initialize(false, false, false, true);
     if (state.hold) await recoverAdmission(value);
-    const { project, preparation } = controllerProject(value.projectId, s);
+    const { project, preparation } = controllerProject(value.projectId, s, true);
     check(sha(JSON.stringify(preparation)) === value.bindingDigest && uuid(state.runtimeId));
     if (!state.projects[value.projectId])
       await sendAdmission(

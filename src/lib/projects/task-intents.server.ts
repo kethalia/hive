@@ -230,6 +230,7 @@ export class ProjectTaskIntents {
       WITH candidate AS (
         SELECT id, (phase <> 'running' AND progress_at < clock_timestamp()-interval '30 minutes') AS timed_out FROM project_task_intents
         WHERE phase IN ('queued','preparing','running') AND next_attempt_at <= clock_timestamp()
+          AND NOT EXISTS (SELECT 1 FROM project_task_recoveries r WHERE r.owner_id=project_task_intents.owner_id AND r.task_id=project_task_intents.id AND r.phase<>'consumed')
           AND NOT EXISTS (SELECT 1 FROM delivery_epic_start_intents e WHERE e.owner_id=project_task_intents.owner_id AND e.intent_id=project_task_intents.id AND e.phase='reserved')
           AND NOT EXISTS (
             SELECT 1 FROM delivery_epic_start_intents e

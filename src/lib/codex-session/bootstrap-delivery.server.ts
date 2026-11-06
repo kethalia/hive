@@ -79,7 +79,9 @@ export type HostProjectPath =
   | "/projects/open"
   | "/projects/tasks/start"
   | "/projects/tasks/status"
-  | "/projects/tasks/retry";
+  | "/projects/tasks/retry"
+  | "/projects/tasks/recovery-inspect"
+  | "/projects/tasks/recovery-consume";
 async function exchangeAppCookie(
   coder: AppAuthCoder,
   binding: AppBinding,
@@ -240,6 +242,8 @@ export async function postToVerifiedWorkspaceApp(
       "/projects/tasks/start",
       "/projects/tasks/status",
       "/projects/tasks/retry",
+      "/projects/tasks/recovery-inspect",
+      "/projects/tasks/recovery-consume",
     ].includes(request.path) ||
     Buffer.byteLength(request.body, "utf8") >
       (request.path === "/projects/tasks/start" ? 98304 : 20000)

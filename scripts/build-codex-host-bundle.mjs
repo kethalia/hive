@@ -48,6 +48,7 @@ const modules = [
   "codex-guardian-startup.mjs",
   "codex-process-identity.mjs",
   "codex-project-controller.mjs",
+  "codex-project-recovery.mjs",
   "codex-project-discovery.mjs",
   "codex-project-supervisor.mjs",
   "codex-native-namespace.mjs",

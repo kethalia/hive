@@ -265,6 +265,27 @@ export class GuardianService {
     );
     return packet;
   }
+  async verifyRecoveryIdentity(
+    principal: RegistrationPrincipal,
+    workspaceId: string,
+    raw: unknown,
+    nonce: string,
+  ) {
+    const binding = await this.resolve(principal, workspaceId);
+    const parsed = guardianIdentityResponseSchema.parse(raw);
+    await this.resampleIssuedAt(parsed);
+    const packet = this.verifyIdentity(binding, parsed, nonce);
+    const runtime = await this.requestStore(packet.expiresAt).reserveRuntime(
+      this.workspace(binding),
+      packet.identity,
+    );
+    requireGuardian(
+      runtime.phase === "open" &&
+        runtime.operationReceiptsEnabled &&
+        packet.startup.generation === runtime.generation,
+    );
+    return { runtime, packet };
+  }
   async provision(principal: RegistrationPrincipal, workspaceId: string) {
     const transport = this.dependencies.transport;
     requireGuardian(transport);
@@ -583,6 +604,13 @@ export class GuardianService {
           action: parsedOperation.data.action,
           inputRuntimeGeneration: parsedOperation.data.runtimeGeneration,
           requestDigest: guardianDigest(parsedOperation.data),
+          projectId:
+            parsedOperation.data.action === "prepare"
+              ? parsedOperation.data.preparation.projectId
+              : parsedOperation.data.action === "checkout"
+                ? parsedOperation.data.checkout.projectId
+                : parsedOperation.data.projectId,
+          recovery: parsedOperation.data.recovery,
         }
       : undefined;
     const store = this.requestStore(input.expiresAt, operation);
