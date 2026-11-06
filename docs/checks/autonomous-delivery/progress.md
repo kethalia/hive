@@ -1570,3 +1570,18 @@ by this source checkpoint.
   Protected environment and Actions variable enrollment returned403; Cloudflare
   token management also returned403. Access is requested while validation continues.
   [Dispatch receipt](native-preview-dispatch-reachability.json).
+
+
+- Completed builder provenance: a fresh first-attempt artifact-only dispatch passed.
+  Eight real HTTP reads verified the completed run, exact caller Git blob,
+  SHA-pinned reusable workflow and immutable artifact digest; the34 MB ZIP/archive
+  parsed without candidate execution. [Scoped receipt](native-preview-completed-builder-live.json).
+  Synthetic owner/release/config fields exercised the reader only: no semantic,
+  grant, configuration enrollment or publication acceptance is implied.
+- CI cache preparation: found an independent shared-workflow defect when modules
+  cache hits while the pnpm-store cache misses. A real offline fixture reproduces
+  the missing-store condition and validates unconditional frozen/prefer-offline
+  install. [Workflows PR56](https://github.com/kethalia/workflows/pull/56) carries
+  the patch changeset; Hive pins its exact reviewed commit for validation. Neither
+  main branch was changed. The guardian bootstrap clock regression and grants-test
+  formatting are also fixed; complete remote checks remain the acceptance gate.
