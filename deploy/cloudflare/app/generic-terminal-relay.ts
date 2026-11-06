@@ -157,7 +157,7 @@ export async function openGenericTerminalRelay(
     if (response.status !== 101 || !upstream) {
       closeSocket(upstream, 1011, "Terminal upgrade unavailable");
       void response.body?.cancel().catch(() => {});
-      return denied(502);
+      return denied([401, 403].includes(response.status) ? response.status : 502);
     }
     if (handshake.signal.aborted || request.signal.aborted || deadline <= now()) {
       closeSocket(upstream, 1008, "Terminal authorization expired");

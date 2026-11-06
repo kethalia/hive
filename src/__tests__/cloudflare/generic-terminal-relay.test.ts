@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GenericTerminalFailure } from "@/lib/terminal/generic-auth.server";
 import {
   GENERIC_TERMINAL_LIFETIME_MS,
   type GenericTerminalDependencies,
@@ -87,6 +88,25 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("generic reconnecting PTY relay", () => {
+  it.each([
+    4401, 4403,
+  ] as const)("closes an established attachment with authorization code %s", async (code) => {
+    const f = fixture("oauth");
+    expect((await f.open()).status).toBe(101);
+    await vi.advanceTimersByTimeAsync(0);
+    f.deps.authorize.mockRejectedValue(new GenericTerminalFailure(code));
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(f.server.close).toHaveBeenCalledWith(code, "Terminal authorization expired");
+    expect(f.upstream.close).toHaveBeenCalledWith(code, "Terminal authorization expired");
+  });
+  it.each([
+    401, 403,
+  ])("preserves upstream PTY authentication/permission refusal %s before upgrade", async (status) => {
+    const f = fixture("oauth");
+    f.deps.upgrade.mockResolvedValue({ status, webSocket: f.upstream });
+    expect((await f.open()).status).toBe(status);
+    expect(f.server.accept).not.toHaveBeenCalled();
+  });
   it("uses OAuth Bearer for PTY upgrades without changing refresh or hard lifetime", async () => {
     const f = fixture("oauth");
     expect((await f.open()).status).toBe(101);

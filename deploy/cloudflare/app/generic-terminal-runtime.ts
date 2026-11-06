@@ -109,6 +109,8 @@ export async function authorizeOwnedWorkspacePty(
     );
     if (response.status !== 200 || response.redirected) {
       await cancelPublicationBody(response);
+      if (!response.redirected && response.status === 401) throw new GenericTerminalFailure(4401);
+      if (!response.redirected && response.status === 403) throw new GenericTerminalFailure(4403);
       throw new Error("coder");
     }
     return JSON.parse(

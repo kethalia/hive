@@ -1,13 +1,19 @@
 import { createHash, randomUUID } from "node:crypto";
-import { decrypt, encrypt } from "@hive/auth";
-import { PrismaClient } from "@hive/db";
+import { AuthServiceClient, decrypt, encrypt } from "@hive/auth";
+import { createDatabaseRequest, PrismaClient } from "@hive/db";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { authorizeOwnedWorkspacePty } from "../../../../deploy/cloudflare/app/generic-terminal-runtime";
 import {
   completeCoderOAuth,
   startCoderOAuth,
 } from "../../../../services/auth/src/auth/coder-oauth";
 import { getUsableCoderCredential } from "../../../../services/auth/src/auth/coder-oauth-credentials";
-import { getSessionById } from "../../../../services/auth/src/auth/session";
+import { deleteSession, getSessionById } from "../../../../services/auth/src/auth/session";
+import {
+  getDecryptedCoderToken,
+  getTokenStatus,
+} from "../../../../services/auth/src/auth/token-status";
+import { createFetchAuthHandler } from "../../../../services/auth/src/fetch-handler";
 
 const url = process.env.HIVE_DELIVERY_TEST_DATABASE_URL;
 if (
@@ -29,7 +35,10 @@ beforeEach(() => {
   vi.stubEnv("HIVE_CODER_OAUTH_CLIENT_SECRET", "synthetic-static-secret");
   vi.stubEnv("ENCRYPTION_KEY", key);
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 afterAll(() => db.$disconnect());
 function provider() {
   const identity = {
@@ -98,6 +107,7 @@ function provider() {
     throw new Error("Unexpected provider endpoint");
   });
   const start = () => startCoderOAuth({ db, send: send as typeof fetch });
+  vi.stubGlobal("fetch", send);
   const finish = async (
     flow: Awaited<ReturnType<typeof startCoderOAuth>>,
     patch: Record<string, unknown> = {},
@@ -132,6 +142,350 @@ async function expireAccess(userId: string) {
   await db.coderToken.update({ where: { userId }, data: { expiresAt: new Date(Date.now() - 1) } });
 }
 describe.skipIf(!url)("Coder browser OAuth / actual local PostgreSQL", () => {
+  it("an immediate 401 returned after provider cancellation cannot change the credential or sessions", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const before = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const controller = new AbortController();
+    const send: typeof fetch = async () => {
+      controller.abort();
+      return new Response("private rejected token", { status: 401 });
+    };
+    await expect(
+      getUsableCoderCredential(first.user.id, { db, send, signal: controller.signal }),
+    ).rejects.toThrow();
+    expect(await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } })).toEqual(
+      before,
+    );
+    expect(await db.session.count({ where: { userId: first.user.id } })).toBe(1);
+  });
+  it.each([
+    "credential-update",
+    "session-delete",
+  ])("cancellation after actual SQL %s rolls back both credential and sessions", async (stage) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    await p.finish(await p.start());
+    const before = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const sessions = await db.session.findMany({
+      where: { userId: first.user.id },
+      orderBy: { id: "asc" },
+    });
+    const controller = new AbortController();
+    let mutated = false;
+    const intercepted = db.$extends({
+      query: {
+        coderToken: {
+          async updateMany({ args, query }) {
+            const result = await query(args);
+            if (stage === "credential-update") {
+              mutated = result.count === 1;
+              controller.abort();
+            }
+            return result;
+          },
+        },
+        session: {
+          async deleteMany({ args, query }) {
+            const result = await query(args);
+            if (stage === "session-delete") {
+              mutated = result.count === 2;
+              controller.abort();
+            }
+            return result;
+          },
+        },
+      },
+    });
+    const send: typeof fetch = async () => new Response(null, { status: 401 });
+    await expect(
+      getUsableCoderCredential(first.user.id, {
+        db: intercepted as unknown as PrismaClient,
+        send,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(mutated).toBe(true);
+    expect(await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } })).toEqual(
+      before,
+    );
+    expect(
+      await db.session.findMany({ where: { userId: first.user.id }, orderBy: { id: "asc" } }),
+    ).toEqual(sessions);
+  });
+  it.each([
+    "identity401",
+    "invalid_grant",
+  ])("definitive %s invalidates existing sessions permanently across later sign-in", async (failure) => {
+    const p = provider(),
+      first = await p.finish(await p.start()),
+      second = await p.finish(await p.start());
+    if (failure === "invalid_grant") await expireAccess(first.user.id);
+    const send: typeof fetch = async () =>
+      failure === "identity401"
+        ? new Response(null, { status: 401 })
+        : Response.json({ error: "invalid_grant" }, { status: 400 });
+    await expect(getUsableCoderCredential(first.user.id, { db, send })).rejects.toThrow(
+      "coder_oauth_reconnect",
+    );
+    expect(await db.session.count({ where: { userId: first.user.id } })).toBe(0);
+    const reconnect = await p.finish(await p.start());
+    expect(await getSessionById(first.sessionId, db)).toBeNull();
+    expect(await getSessionById(second.sessionId, db)).toBeNull();
+    expect(await getSessionById(reconnect.sessionId, db)).not.toBeNull();
+  });
+  it("measures fresh session/token service reads and retains ordinary local logout", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start()),
+      second = await p.finish(await p.start());
+    const secret = "a".repeat(64),
+      handler = createFetchAuthHandler(secret);
+    const client = new AuthServiceClient("https://auth.fixture.invalid", 20000, {
+      serviceSecret: secret,
+      fetch: async (input, init) =>
+        createDatabaseRequest(() => db).run(() => handler(new Request(input, init))),
+    });
+    p.send.mockClear();
+    expect((await client.getSession(first.sessionId))?.userId).toBe(first.user.id);
+    expect(p.send).toHaveBeenCalledTimes(1);
+    expect((await client.getCoderToken(first.sessionId))?.token).toBe("access-2");
+    expect(p.send).toHaveBeenCalledTimes(3);
+    const workspaceId = randomUUID(),
+      agentId = randomUUID(),
+      buildId = randomUUID(),
+      original = p.send.getMockImplementation()!;
+    p.send.mockImplementation(async (input, init) =>
+      String(input) === `${origin}/api/v2/workspaces/${workspaceId}`
+        ? Response.json({
+            id: workspaceId,
+            owner_id: p.identity.id,
+            latest_build: {
+              id: buildId,
+              status: "running",
+              resources: [{ agents: [{ id: agentId, status: "connected" }] }],
+            },
+          })
+        : original(input, init),
+    );
+    p.send.mockClear();
+    await authorizeOwnedWorkspacePty(
+      first.sessionId,
+      {
+        CODER_URL: origin,
+        AUTH_SERVICE_SECRET: secret,
+        AUTH_SERVICE: {
+          fetch: async (input, init) =>
+            createDatabaseRequest(() => db).run(() => handler(new Request(input, init))),
+        },
+      },
+      workspaceId,
+      agentId,
+      new AbortController().signal,
+      p.send as typeof fetch,
+    );
+    expect(
+      p.send.mock.calls.filter(([input]) => String(input) === `${origin}/api/v2/users/me`),
+    ).toHaveLength(4);
+    expect(p.send).toHaveBeenCalledTimes(5);
+    const before = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    await createDatabaseRequest(() => db).run(() => deleteSession(first.sessionId));
+    expect(await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } })).toEqual(
+      before,
+    );
+    expect(await getSessionById(first.sessionId, db)).toBeNull();
+    expect(await getSessionById(second.sessionId, db)).not.toBeNull();
+  });
+  it.each([
+    400, 401, 403,
+  ])("structured token invalid_client (%s) releases only its unconsumed refresh claim", async (status) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    await expireAccess(first.user.id);
+    const before = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const send: typeof fetch = async () =>
+      Response.json(
+        { error: "invalid_client", error_description: "private client detail" },
+        { status },
+      );
+    await expect(getUsableCoderCredential(first.user.id, { db, send })).rejects.toThrow(
+      "coder_oauth_unavailable",
+    );
+    expect(await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } })).toEqual({
+      ...before,
+      updatedAt: expect.any(Date),
+    });
+    expect(
+      (await getUsableCoderCredential(first.user.id, { db, send: p.send as typeof fetch })).token,
+    ).toBe("refresh-access");
+  });
+  it.each([
+    "invalid_grant",
+    "unknown-403",
+    "unavailable",
+  ])("token %s distinguishes revoked from ambiguous rotating grants", async (failure) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    await expireAccess(first.user.id);
+    const send: typeof fetch = async () =>
+      failure === "invalid_grant"
+        ? Response.json({ error: "invalid_grant" }, { status: 400 })
+        : new Response("private ambiguous provider response", {
+            status: failure === "unknown-403" ? 403 : 503,
+          });
+    await expect(getUsableCoderCredential(first.user.id, { db, send })).rejects.toThrow(
+      failure === "invalid_grant" ? "coder_oauth_reconnect" : "coder_oauth_unavailable",
+    );
+    const current = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    expect(current.oauthRefreshState).toBe(
+      failure === "invalid_grant" ? "reconnect" : "refreshing",
+    );
+    expect(current.version).toBe(1);
+    expect(decrypt(current, key)).toBe("access-1");
+  });
+  it("detects a fresh revoked grant for all sessions and token/status readers without fallback", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start()),
+      second = await p.finish(await p.start());
+    const before = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    p.send.mockClear();
+    p.send.mockImplementation(
+      async () => new Response("private provider failure", { status: 401 }),
+    );
+    expect(await getSessionById(first.sessionId, db)).toBeNull();
+    expect(await getSessionById(second.sessionId, db)).toBeNull();
+    const request = createDatabaseRequest(() => db);
+    await request.run(async () => {
+      expect(await getTokenStatus(first.user.id)).toMatchObject({ status: "expired" });
+      await expect(getDecryptedCoderToken(first.user.id)).rejects.toThrow("coder_oauth_reconnect");
+    });
+    const after = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    expect(after).toEqual({
+      ...before,
+      oauthRefreshState: "reconnect",
+      updatedAt: expect.any(Date),
+    });
+    expect(p.send).toHaveBeenCalledTimes(1);
+    expect(String(p.send.mock.calls[0][0])).toBe(`${origin}/api/v2/users/me`);
+    expect(await db.session.count({ where: { userId: first.user.id } })).toBe(0);
+  });
+  it.each([
+    "wrong-owner",
+    "inactive",
+    "deleted",
+  ])("holds a fresh %s identity for reconnect", async (failure) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    p.send.mockImplementation(async () =>
+      Response.json({
+        ...p.identity,
+        ...(failure === "wrong-owner" ? { id: randomUUID() } : {}),
+        ...(failure === "inactive" ? { status: "suspended" } : {}),
+        ...(failure === "deleted" ? { deleted: true } : {}),
+      }),
+    );
+    await expect(
+      getUsableCoderCredential(first.user.id, { db, send: p.send as typeof fetch }),
+    ).rejects.toThrow("coder_oauth_reconnect");
+    expect(
+      (await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } }))
+        .oauthRefreshState,
+    ).toBe("reconnect");
+  });
+  it.each([
+    403,
+    429,
+    503,
+    "network",
+    "timeout",
+    "missing-status",
+  ])("fresh identity %s fails the request without revoking credentials", async (failure) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    const before = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    const controller = new AbortController();
+    const send: typeof fetch = async () => {
+      if (failure === "network") throw new Error("private network detail");
+      if (failure === "timeout") {
+        controller.abort();
+        return new Promise<Response>(() => {});
+      }
+      if (failure === "missing-status") return Response.json({ ...p.identity, status: undefined });
+      return new Response("private provider detail", { status: Number(failure) });
+    };
+    await expect(
+      getUsableCoderCredential(first.user.id, { db, send, signal: controller.signal }),
+    ).rejects.toThrow("coder_oauth_unavailable");
+    expect(await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } })).toEqual(
+      before,
+    );
+  });
+  it.each([
+    "refresh",
+    "login",
+  ])("a delayed fresh-token 401 reloads the %s winner without invalidating it", async (winner) => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    let entered!: () => void, release!: () => void;
+    const waiting = new Promise<void>((done) => {
+        entered = done;
+      }),
+      resumed = new Promise<void>((done) => {
+        release = done;
+      });
+    let checks = 0;
+    const send: typeof fetch = async (input, init) => {
+      checks++;
+      if (new Headers(init?.headers).get("Authorization") === "Bearer access-1") {
+        entered();
+        await resumed;
+        return new Response("private old credential failure", { status: 401 });
+      }
+      return p.send(input, init);
+    };
+    const pending = getUsableCoderCredential(first.user.id, { db, send });
+    await waiting;
+    let expected: string;
+    let winnerSession: string | undefined;
+    if (winner === "refresh") {
+      await expireAccess(first.user.id);
+      expected = (
+        await getUsableCoderCredential(first.user.id, { db, send: p.send as typeof fetch })
+      ).token;
+    } else {
+      winnerSession = (await p.finish(await p.start())).sessionId;
+      expected = "access-2";
+    }
+    const before = await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } });
+    release();
+    expect((await pending).token).toBe(expected);
+    expect(checks).toBe(2);
+    expect(await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } })).toEqual(
+      before,
+    );
+    expect(await getSessionById(first.sessionId, db)).not.toBeNull();
+    if (winnerSession) expect(await getSessionById(winnerSession, db)).not.toBeNull();
+  });
+  it("bounds concurrent replacement retries to three identity calls", async () => {
+    const p = provider(),
+      first = await p.finish(await p.start());
+    let calls = 0;
+    const send: typeof fetch = async () => {
+      calls++;
+      await db.coderToken.update({
+        where: { userId: first.user.id },
+        data: { version: { increment: 1 } },
+      });
+      return Response.json(p.identity);
+    };
+    await expect(getUsableCoderCredential(first.user.id, { db, send })).rejects.toThrow(
+      "coder_oauth_refresh_pending",
+    );
+    expect(calls).toBe(3);
+    expect(
+      (await db.coderToken.findUniqueOrThrow({ where: { userId: first.user.id } }))
+        .oauthRefreshState,
+    ).toBe("idle");
+  });
   it("commits PKCE-bound verified identity, encrypted access/refresh and a normal Hive session atomically", async () => {
     const p = provider(),
       flow = await p.start(),

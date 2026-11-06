@@ -132,6 +132,20 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("fixed private terminal authorization", () => {
+  it.each([
+    [401, 4401],
+    [403, 4403],
+  ])("classifies upstream %s as terminal %s without shared-account mutation", async (status, closeCode) => {
+    const f = fixture("oauth");
+    f.provider.mockResolvedValue(new Response("private provider detail", { status }));
+    await expect(f.authorize()).rejects.toMatchObject({ closeCode });
+    expect(
+      f.auth.mock.calls.every(
+        ([input, init]) =>
+          init?.method === undefined && String(input).includes("/sessions/fixture-session"),
+      ),
+    ).toBe(true);
+  });
   it("preserves OAuth Bearer credentials through exact owner reads and extension", async () => {
     const f = fixture("oauth");
     const authority = await f.authorize();

@@ -8,6 +8,8 @@ export class CoderOAuthError extends Error {
       | "coder_oauth_reconnect"
       | "coder_oauth_flow_invalid"
       | "coder_oauth_refresh_pending",
+    readonly refreshNotConsumed = false,
+    readonly credentialRejected = false,
   ) {
     super(code);
   }
@@ -68,12 +70,32 @@ async function json(
       () => {},
     );
     response = await oauthAwait(pending, signal);
+    signal.throwIfAborted();
     if (!response.ok || response.redirected) {
-      if (response.status === 400 || response.status === 401 || response.status === 403)
-        throw new CoderOAuthError("coder_oauth_reconnect");
+      // Resource authorization and client configuration failures do not prove
+      // that this user's grant was revoked. Only these endpoint-specific
+      // failures establish that the captured credential needs reconnecting.
+      if (path === "/api/v2/users/me" && response.status === 401 && !response.redirected)
+        throw new CoderOAuthError("coder_oauth_reconnect", false, true);
+      if (
+        path === "/oauth2/tokens" &&
+        [400, 401, 403].includes(response.status) &&
+        !response.redirected
+      ) {
+        const failure = object(await boundedCoderJson(response, signal));
+        signal.throwIfAborted();
+        if (response.status === 400 && failure.error === "invalid_grant")
+          throw new CoderOAuthError("coder_oauth_reconnect", false, true);
+        // Client authentication precedes grant redemption. A structured client
+        // refusal proves no rotating grant was consumed; transport failures do not.
+        if (failure.error === "invalid_client")
+          throw new CoderOAuthError("coder_oauth_unavailable", true);
+      }
       throw fail();
     }
-    return object(await boundedCoderJson(response, signal));
+    const value = object(await boundedCoderJson(response, signal));
+    signal.throwIfAborted();
+    return value;
   } catch (error) {
     if (error instanceof CoderOAuthError) throw error;
     throw fail();
@@ -188,12 +210,13 @@ export async function verifyCoderOAuthIdentity(
   const id = string(value.id, 36),
     username = string(value.username, 128),
     email = string(value.email, 320);
+  if (typeof value.status !== "string") throw fail();
   if (
     !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id) ||
     !email.includes("@") ||
-    (value.status !== undefined && value.status !== "active") ||
+    value.status !== "active" ||
     value.deleted === true
   )
-    throw new CoderOAuthError("coder_oauth_reconnect");
+    throw new CoderOAuthError("coder_oauth_reconnect", false, true);
   return { id, username, email };
 }
