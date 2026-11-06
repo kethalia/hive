@@ -309,7 +309,7 @@ try {
         if (oauthMode) {
           if (
             !loginHtml.includes("Continue with Coder") ||
-            !loginHtml.includes('href="/api/auth/coder/start"') ||
+            !loginHtml.includes('href="https://native-oauth-proof.invalid/api/auth/coder/start"') ||
             loginHtml.includes('action="/api/auth/coder/start"') ||
             /type=["'](?:email|password)["']/.test(loginHtml)
           )

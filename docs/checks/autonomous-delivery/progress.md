@@ -1469,3 +1469,10 @@ by this source checkpoint.
   and no secrets/crons/Hive zone route/custom domain. Provider metadata reports parent workers.dev
   enabled, so the inactive-baseline conversion correctly holds; no setting was changed and no
   activation/rollback/health acceptance is implied. [Readback receipt](production-readback-live.json).
+
+- F09 deployment-preview navigation: source correction validated after a Safari report.
+  The deployment-specific host rejected its relative OAuth start with an empty400;
+  the canonical branch start still redirected correctly. An absolute validated
+  public start link and readable rejection headers/body fix future deployments
+  while preserving origin/cookie/CSP checks. Twenty-two focused checks, full TypeScript
+  and independent review pass. [Root cause and scoped validation](coder-oauth-preview-alias.md).

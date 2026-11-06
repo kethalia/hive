@@ -12,6 +12,18 @@ export function coderLoginMode(
     return "oauth-unavailable";
   }
 }
+/** Public navigation only; never expose the confidential server config as props.
+ * Deployment-specific preview hosts must start the flow on the enrolled origin. */
+export function coderLoginStartUrl(
+  env: Record<string, string | undefined> = process.env,
+): string | null {
+  try {
+    const config = getCoderOAuthConfig(env);
+    return config ? `${config.publicOrigin}/api/auth/coder/start` : null;
+  } catch {
+    return null;
+  }
+}
 export function coderLoginError(
   search: Record<string, string | string[] | undefined>,
 ): "failed" | null {

@@ -14,7 +14,12 @@ import { getAuthServiceClient } from "./service-client";
 import { createSignedSessionCookie } from "./session";
 import { appendSetSessionCookieHeaders } from "./session-cookie";
 
-const secureHeaders = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" };
+const secureHeaders = {
+  "Cache-Control": "private, no-store",
+  "Referrer-Policy": "no-referrer",
+  "Content-Type": "text/plain; charset=utf-8",
+  "X-Content-Type-Options": "nosniff",
+};
 const clearFlow = (headers: Headers) =>
   headers.append(
     "Set-Cookie",
@@ -39,7 +44,10 @@ export async function coderOAuthStart(request: Request): Promise<Response> {
     (request.headers.has("origin") && request.headers.get("origin") !== config.publicOrigin) ||
     request.headers.get("sec-fetch-site") === "cross-site"
   )
-    return new Response(null, { status: 400, headers: secureHeaders });
+    return new Response(`Open ${config.publicOrigin}/login to sign in to Hive.`, {
+      status: 400,
+      headers: secureHeaders,
+    });
   const ip =
     process.env.HIVE_RUNTIME_TARGET === "cloudflare"
       ? (request.headers.get("CF-Connecting-IP") ?? "unknown")

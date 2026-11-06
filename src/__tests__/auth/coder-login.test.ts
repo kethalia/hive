@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { coderLoginError, coderLoginMode } from "@/lib/auth/coder-login.server";
+import { coderLoginError, coderLoginMode, coderLoginStartUrl } from "@/lib/auth/coder-login.server";
 
 const configured = {
   HIVE_CODER_OAUTH_ENABLED: "true",
@@ -36,6 +36,18 @@ describe("OAuth presentation projection", () => {
       { ...configured, CODER_URL: "http://coder.kethalia.com" },
     ])
       expect(coderLoginMode(bad)).toBe("oauth-unavailable");
+  });
+  it("projects only the registered start URL, independent of a deployment-specific browser address", () => {
+    expect(coderLoginStartUrl(configured)).toBe("https://hive.example/api/auth/coder/start");
+    const serialized = JSON.stringify(coderLoginStartUrl(configured));
+    expect(serialized).not.toContain(configured.HIVE_CODER_OAUTH_CLIENT_SECRET);
+    expect(serialized).not.toContain(configured.HIVE_CODER_OAUTH_CLIENT_ID);
+    for (const bad of [
+      {},
+      { ...configured, HIVE_CODER_OAUTH_CLIENT_SECRET: "" },
+      { ...configured, HIVE_PUBLIC_ORIGIN: "https://foreign.example/path" },
+    ])
+      expect(coderLoginStartUrl(bad)).toBeNull();
   });
   it("recognizes only the backend's fixed sanitized failure label", () => {
     expect(coderLoginError({ error: "coder_oauth_failed" })).toBe("failed");

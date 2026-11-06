@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { coderLoginError, coderLoginMode } from "@/lib/auth/coder-login.server";
+import { coderLoginError, coderLoginMode, coderLoginStartUrl } from "@/lib/auth/coder-login.server";
 import { getRequestSession } from "@/lib/auth/session";
 import { CoderOAuthLogin } from "./coder-oauth-login";
 import { LoginForm } from "./login-form";
@@ -17,7 +17,7 @@ export default async function LoginPage({
   if (mode === "legacy") return <LoginForm />;
   return (
     <CoderOAuthLogin
-      available={mode === "oauth"}
+      startUrl={mode === "oauth" ? coderLoginStartUrl() : null}
       error={coderLoginError(searchParams ? await searchParams : {})}
     />
   );

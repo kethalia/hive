@@ -96,7 +96,15 @@ describe("public Coder OAuth navigation", () => {
       new Request(`${origin}/api/auth/coder/start?redirect=https://foreign.example`),
       new Request(`${origin}/api/auth/coder/start`, { method: "POST" }),
     ];
-    for (const request of requests) expect((await coderOAuthStart(request)).status).toBe(400);
+    for (const request of requests) {
+      const response = await coderOAuthStart(request);
+      expect(response.status).toBe(400);
+      expect(response.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(response.headers.get("content-disposition")).toBeNull();
+      expect(await response.text()).toBe(`Open ${origin}/login to sign in to Hive.`);
+      expect(response.headers.get("set-cookie")).toBeNull();
+    }
     expect(mocks.start).not.toHaveBeenCalled();
   });
 

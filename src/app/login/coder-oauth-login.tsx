@@ -10,12 +10,13 @@ const messages = {
 /** Ordinary browser navigation starts OAuth. No prefetch, client-side token,
  * provider URL input or password collection is involved in this view. */
 export function CoderOAuthLogin({
-  available,
+  startUrl,
   error,
 }: {
-  available: boolean;
+  startUrl: string | null;
   error: CoderLoginError;
 }) {
+  const available = startUrl !== null;
   return (
     <div className="w-full space-y-5">
       {(!available || error) && (
@@ -31,9 +32,9 @@ export function CoderOAuthLogin({
       <p className="text-sm leading-6 text-muted-foreground">
         Sign in and approve access on Coder. You’ll return to Hive to open your workspaces.
       </p>
-      {available ? (
+      {startUrl ? (
         <Button
-          render={<a href="/api/auth/coder/start">Continue with Coder</a>}
+          render={<a href={startUrl}>Continue with Coder</a>}
           nativeButton={false}
           role="link"
           className="w-full"
