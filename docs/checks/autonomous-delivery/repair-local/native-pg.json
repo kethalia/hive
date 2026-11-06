@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "actualNativeVersion": "0.165.0",
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "managerThreadId": "01a18bde-891e-76e1-949d-474faeb05b4d",
+  "initialTurnId": "01a18bde-89e3-7f91-986d-e5298bdfcf6e",
+  "repairTurnId": "01a18bde-9085-7120-995e-37de0f4ac44a",
+  "evaluatorThreadIds": [
+    "01a18bde-8da1-7313-93e3-98eed671573d",
+    "01a18bde-9292-7e42-9902-dbb23a9663bf"
+  ],
+  "reviewOutcomes": ["fail", "pass"],
+  "candidateHeads": [
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "cccccccccccccccccccccccccccccccccccccccc"
+  ],
+  "sameStepId": "80471c17-a535-45a9-9e60-2bb251086de7",
+  "attemptIds": ["bfbcdeb7-b4f0-4e69-896e-1be0d2e50e68", "3b4dd8d6-a776-4d03-9d77-474445344263"],
+  "criteriaUnchanged": true,
+  "physicalWriterHeld": true,
+  "requests": 5,
+  "accountInference": false,
+  "providerPublication": "explicit-local-double",
+  "nativeChildFacts": "explicit-local-double",
+  "inputBarrierReceipt": "explicit-local-double",
+  "productionCompletion": false
+}

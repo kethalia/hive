@@ -1,0 +1,24 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts > durable accepted-source application reservation, actual local PostgreSQL > reserves after producing-root completion, refreshes only same operation and retains physical writer 395ms
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts > durable accepted-source application reservation, actual local PostgreSQL > pending application cannot admit another operation or accept foreign source/barrier receipt 353ms
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts > durable accepted-source application reservation, actual local PostgreSQL > producer revocation preserves pending and cannot use old positive verification 301ms
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts > durable accepted-source application reservation, actual local PostgreSQL > database retains immutable reservations, applied receipts and original source/physical scope 323ms
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts > action gate closes accepted-to-reserve gap, preserves exact producing-root report, then reopens only after protected ACK 358ms
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts > concurrent different application identities cannot both reserve the held admission 334ms
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts > late native facts invalidate pending application verification without clearing its fence 276ms
+ ✓ src/__tests__/lib/codex-session/guardian-application.integration.test.ts > lost apply ACK recovers by fresh applied-state verification after original receipt freshness expires 5408ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed application actions use approved outer/current PostgreSQL scope > crosses signed fixed route and strict positive schema through reserve/verify/protected commit 444ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed application actions use approved outer/current PostgreSQL scope > new actions default off and forged outer proofs fail before Coder resolution 272ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed application actions use approved outer/current PostgreSQL scope > foreign application/project and extra policy fields cannot select source or execution authority 307ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed application lifetime expires during observed SQL commit write and rolls back acknowledgement 1659ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > signed stale generations cannot reserve, verify or commit current application authority 371ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > concurrent persisted generation change after signed authentication cannot upgrade an old generation 351ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-service.integration.test.ts > abort during observed signed application write rolls back the pending reservation 1617ms
+ ✓ src/__tests__/lib/codex-session/guardian-application-installed.integration.test.ts > protected source application composed with signed server authority > applies actual sealed Git objects, retains worktree/staged bytes and reconciles lost commit ACK without rewriting 2223ms
+
+ Test Files  3 passed (3)
+      Tests  16 passed (16)
+   Start at  02:17:22
+   Duration  16.15s (transform 398ms, setup 0ms, collect 776ms, tests 15.00s, environment 0ms, prepare 114ms)

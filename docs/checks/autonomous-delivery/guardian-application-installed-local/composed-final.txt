@@ -1,0 +1,9 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/codex-session/guardian-application-installed.integration.test.ts > protected source application composed with signed server authority > applies actual sealed Git objects, retains worktree/staged bytes and reconciles lost commit ACK without rewriting 2622ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  02:19:12
+   Duration  3.34s (transform 390ms, setup 0ms, collect 574ms, tests 2.62s, environment 0ms, prepare 42ms)

@@ -1,0 +1,38 @@
+Combined delivery and registration checks
+Command: HIVE_DELIVERY_TEST_DATABASE_URL=<isolated-local-fixture> pnpm exec vitest run --no-file-parallelism <delivery state/database-errors/repository/recovery/outbox/manager/manager-route and registration-store suites>
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/recovery.integration.test.ts (12 tests) 724ms
+ ✓ src/__tests__/lib/delivery/manager.integration.test.ts (9 tests) 604ms
+ ✓ src/__tests__/lib/delivery/repository.integration.test.ts (18 tests) 617ms
+ ✓ src/__tests__/lib/codex-session/registration-store.integration.test.ts (8 tests) 409ms
+ ✓ src/__tests__/lib/delivery/outbox.integration.test.ts (7 tests) 297ms
+ ✓ src/__tests__/lib/delivery/database-errors.test.ts (3 tests) 95ms
+ ✓ src/__tests__/lib/delivery/manager-route.test.ts (4 tests) 9ms
+ ✓ src/__tests__/lib/delivery/state.test.ts (12 tests) 6ms
+
+ Test Files  8 passed (8)
+      Tests  73 passed (73)
+   Start at  17:50:11
+   Duration  4.35s (transform 256ms, setup 0ms, collect 636ms, tests 2.76s, environment 1ms, prepare 301ms)
+
+
+Host adapter and actual native local fixture
+Command: HIVE_TEST_NATIVE_CODEX=1 node --test scripts/verify-delivery-manager-adapter.test.mjs
+✔ native delegation reducer matches exact parent/turn/call and never persists prompt text (0.99979ms)
+✔ default disabled, fixed configured HTTPS endpoint and exact registered native thread (2.627966ms)
+✔ signed native-call journal survives adapter restart and changed-body replay conflicts (10.679874ms)
+✔ ambiguous response may replay only the same event; redirects and excessive response fail closed (5.33933ms)
+✔ installed native 0.165 emits a real dynamic tool call and consumes its result using only a local Responses fixture (517.453066ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 597.963522
+
+Root pnpm typecheck: passed. Scoped pnpm exec biome check: 9 files clean.
+Native provider is localhost-only synthetic Responses. Empty private HOME/no account keys. No production or external inference performed.

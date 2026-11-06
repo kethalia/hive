@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-30T00:39:30.296Z",
+  "sourceDigestsCaptured": false,
+  "kind": "local_composition_fixture_failures",
+  "failures": [
+    {
+      "observedAt": "2026-10-30T00:32:56.000Z",
+      "stage": "owner_app_identity_before_runtime_reservation",
+      "result": "403_expected_200",
+      "cause": "Node fetch did not supply the required fixed Host in the local fixture.",
+      "correction": "Use explicit Node HTTP fixture transport with the fixed verified app Host."
+    },
+    {
+      "observedAt": "2026-10-30T00:33:53.000Z",
+      "stage": "live_startup_identity_verification",
+      "result": "RegistrationRejected",
+      "cause": "Fixture outer ran /usr/bin/node while the guardian worker used a private executable copy with a different path and inode.",
+      "correction": "Run the fixture worker with the same pinned Node executable as the actual outer. Exact identity checks retained."
+    }
+  ],
+  "database": {
+    "host": "127.0.0.1",
+    "port": 39989,
+    "schema": 24
+  },
+  "sourcePolicyRelaxed": false,
+  "cloudMutations": false,
+  "accountInference": false
+}

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "phase": "A",
+  "passed": true,
+  "stage": "complete",
+  "sourceRevision": "a92e3052953ac04d3657596e55edec7b2767a044",
+  "preflightDigest": "0a16a67d730f7551838c6ff88b85212864a7ae63590a2ab55c40a7b4988c7c45",
+  "checks": {
+    "credentialsOnlyFixedHostLogin": true,
+    "loggedInViaUI": true,
+    "secureCookie": true,
+    "appVersionMatches": true,
+    "appBuildMatches": true,
+    "reviewedBuild": true,
+    "discoveredExpectedRepository": true,
+    "searchMatchesAndMisses": true,
+    "taskNullProjectOpenedViaUI": true,
+    "taskControlsUnavailable": true,
+    "responsiveWithoutHorizontalOverflow": true
+  },
+  "pending": {
+    "conversation": "requires_real_registered_pilot",
+    "reconnect": "requires_real_registered_pilot",
+    "terminal": "requires_real_registered_pilot",
+    "nativePrompt": "not_authorized_in_phase_A"
+  },
+  "budget": {
+    "forwarded": 55,
+    "cumulativeForwarded": 148,
+    "priorForwarded": 93,
+    "limit": 200,
+    "elapsedMs": 25024,
+    "loginPosts": 1,
+    "openPosts": 1,
+    "repositoryReads": 1,
+    "blocked": {}
+  },
+  "requests": {
+    "page": 17,
+    "asset": 31,
+    "auth": 1,
+    "discovery": 1,
+    "repositories": 1,
+    "open": 1
+  },
+  "blockedRequests": [],
+  "webSocketsBlocked": 0,
+  "pageErrors": 0,
+  "cleanupAttempted": true,
+  "cleanupSucceeded": true,
+  "browser": "155.0.8059.79",
+  "screenshots": false,
+  "traces": false,
+  "consoleCaptured": false,
+  "projectTasksStarted": false,
+  "nativePromptSent": false,
+  "hostSessionIdentityProven": false,
+  "coderKeyRetainedForRotation": true,
+  "outerPreviewHttpBudgetOnly": true,
+  "backendProviderFanoutMeasured": false,
+  "sourceHashes": {
+    "browser.mjs": "d168e2f02853ad22b143dfe33585eb59cc234c4c4a1827e65e826814d7f384af",
+    "policy.mjs": "1567495b614b1d17fc52b24fef71a09befd4dd9640233f89ecf1903031771163",
+    "policy.test.mjs": "238a52ce180826adcb6c69570dc6eb4380a209f2cd45054c0cc291c69125e584",
+    "package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
+    "package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b"
+  },
+  "controllerSha256": "12b89bd0dfe8f4a98211b3ec8e738fe9b4ad200ccf86c5956af7d03c55594726",
+  "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+  "buildId": "8e3860b5-5ba2-4b95-a26c-1f673138a26d",
+  "observedAt": "2026-10-30T07:08:20.740971+00:00"
+}

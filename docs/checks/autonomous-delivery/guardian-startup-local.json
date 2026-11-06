@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-29T22:55:55.411390+00:00",
+  "baseCommit": "c63506ebdc1c4abef3fb511821064629ec37cfbe",
+  "scope": "Private installer/outer/worker readiness attestation; installed admission and drain denied by default",
+  "validation": {
+    "command": "node --test scripts/verify-codex-native-guardian.test.mjs scripts/verify-codex-host-guardian.test.mjs",
+    "passed": 30,
+    "failed": 0,
+    "biomeFiles": 5,
+    "testLog": "guardian-startup-tests.txt"
+  },
+  "authority": {
+    "installedPreparation": false,
+    "independentControllerBarrier": false,
+    "cleanupAuthorized": false,
+    "publicRoute": false,
+    "accountInference": false,
+    "cloudChanges": false
+  },
+  "remainingGates": [
+    "Independent Python installer exact-listener and private-frame integration",
+    "Installed workspace package proof",
+    "Independent persisted controller admission/barrier authority"
+  ],
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "e18210f036c9c6fa299012fb571144b98420ee14f50bd3dfa5237ed791a496a3",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "21c1aa91e7e9f4abbe56173f8ef39eb4066f2b051fdd020105d4aab632a62c10",
+    "templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs": "f5cc40737bd7497fc18f9001ab63117b2a8a5c5175ab7a84ee4b1948e31bba04",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs": "2581d414f1966d7aad8ebf17dd577ed2ef518f8023bbb6b5e811ff1a2d2fd0d6",
+    "scripts/verify-codex-host-guardian.test.mjs": "6f3f7be1ba554bc7d3148318fd189a7346024d795cc6b4edf8e7a6b760c60dee",
+    "docs/checks/autonomous-delivery/guardian-startup.md": "daa8c31698bf4e3c0e69db5934b52d0e3e925c890334901166a15a74a73dc3db"
+  },
+  "testLogSha256": "db0bf699b09e74495e6b63c530ba451f0d1db291d3fa2dd3a078f7bfccaaff48"
+}

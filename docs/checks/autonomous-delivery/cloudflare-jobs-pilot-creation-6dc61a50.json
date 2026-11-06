@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "task": "hive-autonomous-delivery-epic",
+  "action": "create-private-jobs-worker",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "sourceRevision": "6dc61a5056708592fb5d77226f221c8897f6936a",
+  "preflight": {
+    "observedAt": "2026-11-05T17:37:09.757Z",
+    "jobsAbsent": true,
+    "app": {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deploymentId": "c63d5809-6e23-41ec-a4cc-edb68c443d35",
+      "versionId": "9ad1bd8a-401d-407a-9624-43cac3778727",
+      "sourceRevision": "6dc61a5056708592fb5d77226f221c8897f6936a",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "repositoryPolicyEnabled": true,
+      "repositoryCatalogSHA256": "5f008843c3b4aea5faee720c7f41d560ebfbc5ede2bd0121513e0353e5030904"
+    },
+    "usageWindow": {
+      "start": "2026-10-05T17:37:06.629Z",
+      "end": "2026-11-05T17:37:06.629Z",
+      "requests": 279660,
+      "conservativeCpuMilliseconds": 20510967.99
+    },
+    "quota": {
+      "additionalCostsAuthorized": false,
+      "newPaidProductsAllowed": false,
+      "remainingRequests": 9720340,
+      "remainingCpuMilliseconds": 9489032.010000002
+    }
+  },
+  "readback": {
+    "observedAt": "2026-11-05T17:38:26.926Z",
+    "app": {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deploymentId": "c63d5809-6e23-41ec-a4cc-edb68c443d35",
+      "versionId": "9ad1bd8a-401d-407a-9624-43cac3778727",
+      "sourceRevision": "6dc61a5056708592fb5d77226f221c8897f6936a",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "repositoryPolicyEnabled": true,
+      "repositoryCatalogSHA256": "5f008843c3b4aea5faee720c7f41d560ebfbc5ede2bd0121513e0353e5030904"
+    },
+    "jobs": {
+      "name": "hive-jobs-compatibility-preview",
+      "exists": true,
+      "tag": "3347a3d29aff4509ae4ed8dfcc2d8479",
+      "createdOn": "2026-11-05T17:38:01.737114Z",
+      "deploymentId": "0e0db0c6-faa7-4e31-b1e5-185dfbb177d7",
+      "versionId": "fcf57238-eb4e-47ce-a99f-0250c73afb6f",
+      "sourceRevision": "6dc61a5056708592fb5d77226f221c8897f6936a",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "bindings": [
+        "APP_SERVICE",
+        "HIVE_DELIVERY_PILOT_MODE",
+        "HIVE_PROJECT_TASKS_ENABLED",
+        "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+        "HIVE_RUNTIME_TARGET",
+        "SOURCE_REVISION"
+      ],
+      "bindingTypes": [
+        {
+          "name": "APP_SERVICE",
+          "type": "service"
+        },
+        {
+          "name": "HIVE_DELIVERY_PILOT_MODE",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "HIVE_PROJECT_TASKS_ENABLED",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_RUNTIME_TARGET",
+          "type": "plain_text"
+        },
+        {
+          "name": "SOURCE_REVISION",
+          "type": "plain_text"
+        }
+      ],
+      "appService": "hive-app-compatibility-preview",
+      "projectTasksEnabled": true,
+      "pilotMode": true,
+      "schedules": []
+    }
+  },
+  "creationReceipt": {
+    "schemaVersion": 1,
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "name": "hive-jobs-compatibility-preview",
+    "runId": "62423ba5-4b9f-4a8a-ac95-87d1637c86ff",
+    "sourceRevision": "6dc61a5056708592fb5d77226f221c8897f6936a",
+    "tag": "3347a3d29aff4509ae4ed8dfcc2d8479",
+    "createdOn": "2026-11-05T17:38:01.737114Z",
+    "deploymentId": "0e0db0c6-faa7-4e31-b1e5-185dfbb177d7",
+    "versionId": "fcf57238-eb4e-47ce-a99f-0250c73afb6f",
+    "action": "create",
+    "observedAt": "2026-11-05T17:38:26.926Z",
+    "schedules": []
+  },
+  "cloudWrites": ["create fixed jobs Worker with empty schedules"],
+  "scheduledInvocationsEnabled": false,
+  "publicUrlsEnabled": false,
+  "secretValuesRecorded": false
+}

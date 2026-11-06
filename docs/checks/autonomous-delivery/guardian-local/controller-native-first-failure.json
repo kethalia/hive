@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-29T22:44:50Z",
+  "passed": false,
+  "stage": "fixture_readiness_observation",
+  "failure": "Unexpected end of JSON input while reading a newly created PTY fixture marker",
+  "cause": "The observer used file existence as readiness while Python was still writing JSON.",
+  "runtimeAuthorityFailure": false,
+  "plannedDrainReceiptProduced": false,
+  "cleanup": "Fixture test finally aborted and drained the owned tree before removing scratch.",
+  "cloudMutations": false,
+  "accountInference": false,
+  "subsequentFixtureCorrections": [
+    {
+      "stage": "generated_fixture_build",
+      "failure": "Adding the namespace probe initially placed unescaped Python newlines inside a generated JavaScript string; esbuild rejected both fixture variants before guardian launch.",
+      "resolution": "Serialize the Python program as a JavaScript string literal before composing the fixture. Confirmed no guardian launch occurred, then removed retained build-only scratch."
+    },
+    {
+      "stage": "direct_fixture_marker",
+      "failure": "The direct fixture initially dereferenced the isolated-only null probe result while assembling readiness metadata.",
+      "resolution": "Removed the duplicate nonoptional metadata expression; the test's finally aborted/drained the owned tree. Both variants subsequently passed."
+    }
+  ]
+}

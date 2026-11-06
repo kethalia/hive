@@ -2,16 +2,20 @@ import type { IncomingMessage } from "node:http";
 import type { CoderTokenResponse } from "@hive/auth";
 import {
   authServiceHeaders,
+  getConfiguredCoderUrl,
+  isConfiguredCoderUrl,
   isLoopbackHostname,
   sessionCookieValues,
   verifyCookie,
   verifyTerminalTicket,
 } from "@hive/auth";
 
-const AUTH_SERVICE_TIMEOUT_MS = 5_000;
+// The authentication service may serialize a bounded 15s OAuth refresh.
+const AUTH_SERVICE_TIMEOUT_MS = 20_000;
 
 export interface AuthSuccess {
   token: string;
+  credentialSource?: string;
   coderUrl: string;
   sessionId: string;
   username: string;
@@ -202,6 +206,14 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     };
   }
 
+  if (!isConfiguredCoderUrl(tokenBody.coderUrl)) {
+    console.error("[terminal-proxy] auth: coder_origin_mismatch → 401");
+    return {
+      ok: false,
+      value: { error: "Coder deployment mismatch", status: 401, reason: "coder_origin_mismatch" },
+    };
+  }
+
   let username = "";
   try {
     const sessionBody = (await sessionRes.json()) as { username?: string };
@@ -217,7 +229,8 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     ok: true,
     value: {
       token: tokenBody.token,
-      coderUrl: tokenBody.coderUrl,
+      ...(tokenBody.credentialSource ? { credentialSource: tokenBody.credentialSource } : {}),
+      coderUrl: getConfiguredCoderUrl(),
       sessionId,
       username,
     },

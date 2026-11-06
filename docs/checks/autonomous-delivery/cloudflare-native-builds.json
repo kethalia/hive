@@ -1,0 +1,59 @@
+{
+  "observedAt": "2026-11-05T20:14:30.651Z",
+  "configuration": {
+    "script_tag": "4d36354d2c86462e971b32a875e8b549",
+    "git_repository": {
+      "repo_id": "1183966024",
+      "repo_name": "hive",
+      "provider_type": "github",
+      "provider_account_id": "213844574",
+      "provider_account_name": "kethalia",
+      "grant_id": null,
+      "branch": "main"
+    },
+    "production_settings": {
+      "build_command": "pnpm build:cloudflare",
+      "deploy_command": "node deploy/cloudflare/native/deploy.mjs production",
+      "root_directory": "/",
+      "build_caching_enabled": true,
+      "path_includes": ["*"],
+      "path_excludes": [],
+      "build_token_uuid": "2679d15a-9e19-4f0d-982e-e83bda156164",
+      "environment_variables": {
+        "NODE_VERSION": {
+          "is_secret": false,
+          "created_on": "2026-11-05T20:14:06.620Z",
+          "value": "24.21.0"
+        },
+        "PNPM_VERSION": {
+          "is_secret": false,
+          "created_on": "2026-11-05T20:14:30.392Z",
+          "value": "10.32.1"
+        }
+      }
+    },
+    "auto_build_enabled": true,
+    "previews_enabled": true,
+    "previews_base_config": {
+      "build_command": "pnpm build:cloudflare",
+      "deploy_command": "node deploy/cloudflare/native/deploy.mjs preview",
+      "root_directory": "/",
+      "build_caching_enabled": true,
+      "path_includes": ["*"],
+      "path_excludes": [],
+      "build_token_uuid": "2679d15a-9e19-4f0d-982e-e83bda156164",
+      "environment_variables": {
+        "NODE_VERSION": {
+          "is_secret": false,
+          "created_on": "2026-11-05T20:14:06.620Z",
+          "value": "24.21.0"
+        },
+        "PNPM_VERSION": {
+          "is_secret": false,
+          "created_on": "2026-11-05T20:14:30.392Z",
+          "value": "10.32.1"
+        }
+      }
+    }
+  }
+}

@@ -8,6 +8,8 @@ import {
   discoveryCacheKey,
   invalidateDiscovery,
 } from "@/lib/discovery/server-cache";
+import { createPortableAgentService } from "./portable-config.server";
+import { agentOperationSchema } from "./portable-contracts";
 import { agentToolsSnapshotSchema } from "./types";
 
 const SOURCE_PATH = join(process.cwd(), "templates/ai-dev-k8s/scripts/agent-tools.py");
@@ -15,7 +17,10 @@ const SOURCE_PATH = join(process.cwd(), "templates/ai-dev-k8s/scripts/agent-tool
 // 200 maximum-length session directories alone can require about 4.7 MiB.
 const MAX_OUTPUT = 8 * 1024 * 1024;
 
-async function authorize(user: { id: string; coderUserId: string }, workspaceId: string) {
+export async function authorizeWorkspaceAgent(
+  user: { id: string; coderUserId: string },
+  workspaceId: string,
+) {
   const client = await getCoderClientForUser(user.id);
   const workspace = await client.getWorkspace(workspaceId);
   // Agent accounts and conversation metadata are private to the workspace owner.
@@ -34,6 +39,8 @@ async function authorize(user: { id: string; coderUserId: string }, workspaceId:
   return {
     client,
     target,
+    user,
+    workspaceId,
     cacheKey: discoveryCacheKey([
       "agent-inventory",
       client.getBaseUrl(),
@@ -58,7 +65,7 @@ export async function runWorkspaceAgentOperation(
   operation: Operation,
   key?: string,
 ): Promise<unknown> {
-  const authorized = await authorize(user, workspaceId);
+  const authorized = await authorizeWorkspaceAgent(user, workspaceId);
   const result = await execute(authorized, operation, key);
   if (["install", "disable", "configure-coder"].includes(operation))
     await invalidateDiscovery(authorized.cacheKey);
@@ -70,7 +77,7 @@ export async function inspectWorkspaceAgentTools(
   workspaceId: string,
   refresh = false,
 ) {
-  const authorized = await authorize(user, workspaceId);
+  const authorized = await authorizeWorkspaceAgent(user, workspaceId);
   const [inventory, live] = await Promise.all([
     cachedDiscovery({
       key: authorized.cacheKey,
@@ -90,10 +97,21 @@ export async function inspectWorkspaceAgentTools(
 }
 
 async function execute(
-  { client, target }: Awaited<ReturnType<typeof authorize>>,
+  { client, target, user, workspaceId }: Awaited<ReturnType<typeof authorizeWorkspaceAgent>>,
   operation: Operation,
   key?: string,
 ): Promise<unknown> {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+    const request = agentOperationSchema.parse(
+      operation === "resume" ? { operation, key } : { operation },
+    );
+    if (request.operation === "identity") throw new Error("Invalid agent operation");
+    return createPortableAgentService().execute(
+      { hiveUserId: user.id, coderUserId: user.coderUserId },
+      workspaceId,
+      request,
+    );
+  }
   const source = await readFile(SOURCE_PATH, "utf8");
   const command = `python3 -c '${source.replace(/'/g, "'\\''")}'`;
   const payload = {

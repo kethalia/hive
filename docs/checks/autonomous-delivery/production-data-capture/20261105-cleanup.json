@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T16:03:31.993845+00:00",
+  "workspaceId": "e14a6100-a371-418d-80a6-e9356b356731",
+  "task": "hive-production-data-capture",
+  "cleanupAuthority": "installed hive-workspace signed receipt",
+  "preservedArchiveVerified": true,
+  "freshIdentityMatchedBeforeCompletion": true,
+  "captureProcessesRemainingBeforeCompletion": 0,
+  "absentFromCoderList": true
+}

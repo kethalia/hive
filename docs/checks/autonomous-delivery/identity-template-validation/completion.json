@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-30T05:30:29.150090+00:00",
+  "workspaceId": "1bc12b81-4554-4ba8-af34-7fda2dc900d5",
+  "task": "hive-epic-runtime-identity-validation",
+  "profilesValidated": 5,
+  "errors": 0,
+  "warnings": 0,
+  "allSourceHashesMatchPrimary": true,
+  "sourceArchiveSha256": "d1d8ba8454dcb3ebdf3e8efeb682ac679c4a4edebe224455cb423ec91d431e10",
+  "planOrApply": false,
+  "resultSha256": "e2896014b0b7247fbe30cb1a0b49e58576af24f6ab32dfef5aa687db063d1df6",
+  "noOtherTaskUsesWorkspace": true
+}

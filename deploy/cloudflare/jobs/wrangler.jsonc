@@ -1,0 +1,24 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "hive-jobs-compatibility-preview",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "services": [
+    { "binding": "AUTH_SERVICE", "service": "hive-auth-compatibility-preview" },
+    { "binding": "APP_SERVICE", "service": "hive-app-compatibility-preview" }
+  ],
+  "assets": { "directory": "../../../public", "binding": "ASSETS", "run_worker_first": true },
+  "triggers": { "crons": [] },
+  "vars": {
+    "HIVE_RUNTIME_TARGET": "cloudflare",
+    "HIVE_DELIVERY_DISPATCH_ENABLED": "false",
+    "HIVE_PROJECT_TASKS_ENABLED": "false",
+    "HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED": "false",
+    "HIVE_TOKEN_WARNING_DISPATCH_ENABLED": "false",
+    "HIVE_TEMPLATE_PUBLICATION_ENABLED": "false",
+    "CODER_URL": "https://coder.kethalia.com"
+  }
+}

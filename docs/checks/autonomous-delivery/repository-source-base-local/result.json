@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T05:20:40.674942+00:00",
+  "sourceHashes": {
+    "scripts/agents/test_github_projects.py": "e9bc08a94264df59867488ab5ac2e44dee30a09a854ee1cd6573ed99b3218e1e",
+    "scripts/verify-codex-project-controller.test.mjs": "bccc6b2e5b3c5ec77d302efd9c18f4d378cc43778e2aff17bbc08a16945cbb09",
+    "scripts/verify-codex-project-discovery.test.mjs": "17e12db19de0be4bbcf795cfab15fd4e75ef54f47f9e6ee6461f283b0d2082b1",
+    "src/__tests__/components/project-workspace-panel.test.tsx": "bbf597974b25155601675e0d759d86989f26f01c485605996fedede36cb99850",
+    "src/__tests__/lib/delivery/repository-policy.integration.test.ts": "6802c5829a7680b59d69a7d2ee06e17455240fa154576d9f305eade5e01725a5",
+    "src/__tests__/lib/projects/open.test.ts": "d20a82c5722caa261e1584f91f1c6954e587f40772c521d4303135d19947ce30",
+    "src/__tests__/lib/projects/source-base.test.ts": "8be74aec6c7dcf22f11078a1ab5ff061a34080f54015117ab84942b0123b46f0",
+    "src/__tests__/lib/projects/task.test.ts": "0ba14231dc51412e5e7fe9fa057c69609c5a2f66e756256a7b9111d3729364c1",
+    "src/components/projects/ProjectWorkspacePanel.tsx": "afd8f95098124993315615cad909e14943317e6154d1c771af13ea6f85e7b606",
+    "src/lib/codex-session/bootstrap-delivery.server.ts": "8c6c143e693945e564b48141c27844d299345193f868288f780da50c542e878a",
+    "src/lib/delivery/repository-policy-store.server.ts": "cc9d23ca3667cb09e9316b678b6834aa264dd5acb1d64568eeff5d7b1d2b3640",
+    "src/lib/projects/host.server.ts": "30eccef05e35ecc4ab221525a28ff55b3e9627dc30b6fd487d5ecb43e8c8e836",
+    "src/lib/projects/open.server.ts": "61f87985923409689883f80167e6058b79827d9e8c84e9aff718c31ea3f4b76e",
+    "src/lib/projects/session-contracts.ts": "7a7f3a44165c74f61fa2998f4fb178b375809e38e1fc38f0be19fa18bd4a3c92",
+    "src/lib/projects/source-base.server.ts": "ea1d9f54facdb6cac1a0d6497315f8028d7802afbfd9659e73fd5fe676e8892e",
+    "src/lib/projects/task.server.ts": "a081c8fbcba0886f7bcbb5c06586b43291de5d872033b3d0d85dafe30264bdb1",
+    "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "b78c48d0310ed032d2dcebfc49700ce1dfe0ae41b44a86a36ff11162fdcc8cde",
+    "templates/ai-dev-k8s/scripts/codex-project-discovery.mjs": "f242fb43a60876b0af5a9edeb3773e18a9ea52e0f98991dd04c6c15aac694600",
+    "templates/ai-dev-k8s/scripts/codex-session-bridge.mjs": "2c7d6d4ce02018921ad21d3f2892c4e311e8fef19ee29a12b03e4218d23b468a",
+    "templates/ai-dev-k8s/scripts/github-projects.py": "3c305ef655bfd6f71da8d804238395e523202bae7f5732a3de4eefa97e5b2e27"
+  },
+  "checks": {
+    "parentVitest": 48,
+    "postReviewCatalogTests": 21,
+    "python": 15,
+    "nodePassed": 54,
+    "nodeExistingOptInSkipped": 1,
+    "typecheckExitCode": 0,
+    "independentTypescript": 32,
+    "independentPython": 15,
+    "independentNode": 40
+  },
+  "reviewFindingResolved": "Malformed deployment catalog now preserves conversation access while blocking task start",
+  "providerWrites": false,
+  "liveInstalledAcceptance": false,
+  "notes": [
+    "The observed branch revision becomes immutable task source; later branch movement does not retarget an accepted intent.",
+    "Current-base release verification remains a separate gate."
+  ]
+}

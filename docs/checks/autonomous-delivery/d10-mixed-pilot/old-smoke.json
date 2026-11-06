@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "fixture": "dedicated synthetic database",
+  "oldAppDigest": "0ee992fb2a2d1904558222a4810afeb4c73d714cab69d3cd5bcf7e793fae304a",
+  "oldAuthDigest": "4702023fbdd5c5a46510930466dacb1ccf37334c1277ebbefb15abd3fc6f2291",
+  "newAppDigest": "0ee992fb2a2d1904558222a4810afeb4c73d714cab69d3cd5bcf7e793fae304a",
+  "newAuthDigest": "4702023fbdd5c5a46510930466dacb1ccf37334c1277ebbefb15abd3fc6f2291",
+  "checks": { "oldAndNewRead": true, "oldWriteNewRead": true, "newWriteOldRead": true },
+  "runId": "41d7bf09-5c48-4726-b7a2-abd2ea894998"
+}

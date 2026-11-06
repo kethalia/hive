@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T01:01:07.755645+00:00",
+  "sourceRevision": "617f8cc8dddfec6ace799e8ff62f657c39d59596",
+  "workflowUrl": "https://github.com/kethalia/hive/actions/runs/42138350912",
+  "jobId": 127632111962,
+  "conclusion": "success",
+  "imageTag": "ghcr.io/kethalia/hive-base:preview-cli-617f8cc8dddfec6ace799e8ff62f657c39d59596",
+  "imageDigest": "sha256:0366d1ec80e9a344aced153275956bccdeda2f84c4527dddc1710ce8e18c3a90",
+  "imageConfigDigest": "sha256:f750fef15f61fd38cc998059313845f576cf2fcfe879eb114dde82fc983c1400",
+  "imageSmokePassed": true,
+  "hostManifestSha256": "757395c551dc8f128e50a95302469c5bc2cfdbb29c32b4f00d06ef6400fe6e09",
+  "controllerPolicyDigest": "419ff9cba6f17a0b52a59b881490121948eb1f2e403eacd2e01bd8dfafdb584a",
+  "globalTemplateActivated": false,
+  "realHostAcceptancePassed": false
+}

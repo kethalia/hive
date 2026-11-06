@@ -1,0 +1,12 @@
+{
+  "archiveSha256": "d1d8ba8454dcb3ebdf3e8efeb682ac679c4a4edebe224455cb423ec91d431e10",
+  "archiveBytes": 7219200,
+  "workspaceId": "1bc12b81-4554-4ba8-af34-7fda2dc900d5",
+  "inputAuthority": "primary staged template bytes before commit",
+  "commands": [
+    "terraform fmt -check -diff -recursive",
+    "terraform init -backend=false -lockfile=readonly -input=false",
+    "terraform validate -json"
+  ],
+  "planOrApply": false
+}

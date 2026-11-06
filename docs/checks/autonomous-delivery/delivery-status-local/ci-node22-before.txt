@@ -1,0 +1,160 @@
+TAP version 13
+# Subtest: installed read_status uses only empty current-claim scope and never treats missing policy as evidence
+ok 1 - installed read_status uses only empty current-claim scope and never treats missing policy as evidence
+  ---
+  duration_ms: 35.018487
+  type: 'test'
+  ...
+# Subtest: status schedules one bounded refresh per minute without waiting for collector and stops on pause
+not ok 2 - status schedules one bounded refresh per minute without waiting for collector and stops on pause
+  ---
+  duration_ms: 19.096122
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:292:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: registration loss during status rejects late signed facts
+not ok 3 - registration loss during status rejects late signed facts
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:354:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: explicit delivery capability cannot be inferred from legacy manager-only config
+not ok 4 - explicit delivery capability cannot be inferred from legacy manager-only config
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:381:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: factory fails before constructing effects without all installed prerequisites
+not ok 5 - factory fails before constructing effects without all installed prerequisites
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:394:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: actual installed adapter exposes source protocol and signs immutable physical task context
+not ok 6 - actual installed adapter exposes source protocol and signs immutable physical task context
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:406:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: foreign manager cannot select a checkout or mint a signed call
+not ok 7 - foreign manager cannot select a checkout or mint a signed call
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:434:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: changed native lifetime stops signed effects and trusted status
+not ok 8 - changed native lifetime stops signed effects and trusted status
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:439:1'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: recorded child completion preserves rejected_policy authority boundary
+not ok 9 - recorded child completion preserves rejected_policy authority boundary
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:448:3'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: recorded child completion preserves revoked_metadata authority boundary
+not ok 10 - recorded child completion preserves revoked_metadata authority boundary
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:448:3'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+not ok 11 - in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:558:3'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+not ok 12 - in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:558:3'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+# Subtest: in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+not ok 13 - in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 0
+  type: 'test'
+  location: '/home/coder/projects/kethalia/hive/scripts/verify-codex-delivery-runtime.test.mjs:558:3'
+  failureType: 'cancelledByParent'
+  error: 'Promise resolution is still pending but the event loop has already resolved'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    process.emit (node:events:519:28)
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 1
+# fail 0
+# cancelled 12
+# skipped 0
+# todo 0
+# duration_ms 132.668594

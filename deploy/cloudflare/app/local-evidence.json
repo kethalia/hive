@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T16:47:53.794Z",
+  "scope": "actual Hive application, local workerd only",
+  "baseRevisionAtRecord": "c9619948967cd03a337a352ce878799665ed08a4",
+  "testedSourceCommitted": false,
+  "sourceIdentityNote": "Working tree with concurrent epic edits; output digests identify the observed build. Current source digests are recorded separately. A post-commit clean build is required.",
+  "versions": {
+    "next": "16.4.1",
+    "openNext": "1.20.14",
+    "wrangler": "4.155.0",
+    "prisma": "6.19.3"
+  },
+  "build": {
+    "completed": true,
+    "lastBuiltConfigPrecedesFinalTracingExclusions": true,
+    "nodeMiddleware": "vendor warns experimental and not officially maintained",
+    "uploadUncompressedKiB": 21147.12,
+    "uploadGzipKiB": 4940.71,
+    "staticAssets": 138,
+    "artifactDigests": {
+      "worker": "d05223bf4d44c84108a102ab62aa3bc9c5568f0c3ac2064c37be5cc65c64bc45",
+      "server": "9e1fcb7371fc449a03eff00d5d50b8fe238885e3a31defb5dd3c635bbd7359d2"
+    },
+    "generatedLocalEnvironmentValuesRemoved": true
+  },
+  "checks": [
+    {
+      "path": "/login",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 13200,
+      "signInFormPresent": true
+    },
+    {
+      "path": "/runtime-config.js",
+      "method": "GET",
+      "status": 200,
+      "expected": 200,
+      "contentType": "application/javascript; charset=utf-8",
+      "bytes": 63
+    },
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "status": 503,
+      "expected": 503,
+      "contentType": "application/json",
+      "bytes": 61
+    },
+    {
+      "path": "/api/discovery/workspaces",
+      "method": "GET",
+      "status": 503,
+      "expected": 503,
+      "contentType": "application/json",
+      "bytes": 83
+    },
+    {
+      "path": "/api/projects",
+      "method": "GET",
+      "status": 503,
+      "expected": 503,
+      "contentType": "application/json",
+      "bytes": 83
+    },
+    {
+      "path": "/workspaces",
+      "method": "POST",
+      "status": 503,
+      "expected": 503,
+      "contentType": "application/json",
+      "bytes": 83
+    }
+  ],
+  "unitChecks": {
+    "databaseIsolationAndLifetime": 5,
+    "authPackage": 56,
+    "authService": 145
+  },
+  "typecheck": "passed for root and @hive/db",
+  "cloudDeployed": false,
+  "cloudResourceMutations": 0,
+  "fullHiveDatabaseIntegrationVerified": false,
+  "hiveAuthenticationVerified": false,
+  "sourceDigests": {
+    "package.json": "a7642b9efbbead478aac0e69a37f2df4029b89fb5806337ee8ee931a5f092c26",
+    "pnpm-lock.yaml": "785813ab6cae39b252fd0364efcdb789dbfeff31b599888deb95c81aeb9f8a83",
+    "next.config.ts": "0f15b8e68abd197f8b1b65a4d0ead69919ca72e0a84cfe495657ac242bda4cec",
+    "open-next.config.ts": "cd4f8993ffa117baea5f51527665af13890600836e8e71793150924593d0cb77",
+    "packages/db/package.json": "5f63f51125f95660b768bc8e8598f52a465a90ed6fa0475ecc8c5685a7a58f8f",
+    "packages/db/src/index.ts": "5d8dbb191dd1d04212ce6c267e9b73b6e3072f50ea12d580ba256f8bcf3fc28d",
+    "packages/db/src/request-scope.ts": "bf61a6ae3b04b33f7eaf29261cde262b5d12723bd10fa43280fecb5dca80b43a",
+    "packages/db/src/cloudflare.ts": "e62006dc5644f3871467ee699a41f408b1f95edd42c158fae4932d52c37aa5d7",
+    "packages/db/scripts/generate-cloudflare.mjs": "26e5afd6ad964aee49b4c09c7da8cf6e6fd77297ad01b6cd20218fd3b52db3e8",
+    "packages/db/prisma/schema.prisma": "6bb33f2550c67d9539ce3e3686b3a6a7ab76d9d574ce1de6ff0f1829623720b3",
+    "packages/auth/src/client.ts": "14cb5eab39ef83340cfc972a9339052645b0231a7e012528e94fa17aa88c77e9",
+    "deploy/cloudflare/app/wrangler.jsonc": "ecbaf2be0651df79e8d0dc0e5fa85cd1480091b17d7828f47e71f1b91e9758aa",
+    "deploy/cloudflare/app/worker.ts": "60264887467cae958cd3b2fd66af675708e06ec5ca8156174ed79d58676860d3",
+    "deploy/cloudflare/app/request-lifetime.ts": "ed8e5968f02eedf7c03230c3ec3289bc6cc40300207a3fb8d60d2dbf1826fb35",
+    "deploy/cloudflare/app/build.mjs": "66430a65e4f7fd0162e540dcb5f22eb0994879ca9e658bd550b6dbb144ae274b"
+  }
+}

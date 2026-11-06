@@ -1,0 +1,19 @@
+✔ disabled client touches no credentials, filesystem, callbacks or network (0.959829ms)
+✔ fixed signed read validates current accepted facts and returns no new permissions (31.327703ms)
+✔ historical reader stays distinct; historical output cannot be used for apply (3.169422ms)
+✔ model cannot override current task, site, policy or producer in apply query (1.128816ms)
+✔ changed owner/physical binding/revision and fabricated permission bits are rejected (3.734905ms)
+✔ missing or changed current source cannot masquerade as applicable accepted output (2.66667ms)
+✔ metadata/admission drift while HTTP is outstanding invalidates response (1.434278ms)
+✔ stale or overlong fact freshness is rejected (2.576407ms)
+✔ server errors and injected credential text are sanitized (1.38683ms)
+✔ stalled response and stalled cancellation finish within bounded deadline (150.824699ms)
+✔ close aborts pending authority reads and future calls (1.238238ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 245.749824

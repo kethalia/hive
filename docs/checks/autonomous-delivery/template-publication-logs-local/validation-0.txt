@@ -1,0 +1,2 @@
+Prisma schema loaded from ../../../../../../../tmp/hive-template-schema29.prisma
+The schema at ../../../../../../../tmp/hive-template-schema29.prisma is valid 🚀

@@ -1,0 +1,49 @@
+Traceback (most recent call last):
+  File "/opt/hive-read-test.py", line 89, in <module>
+    first = run()
+  File "/opt/hive-read-test.py", line 32, in run
+    assert result.returncode == 0, "installer rejected valid isolated request"
+           ^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: installer rejected valid isolated request
+✖ actual standalone installer pins Node/config/package/listener inside private home and network namespace (113.060676ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 166.584015
+
+✖ failing tests:
+
+test at scripts/verify-workspace-read-install.test.mjs:10:1
+✖ actual standalone installer pins Node/config/package/listener inside private home and network namespace (113.060676ms)
+  Error: Isolated read installer proof failed; retained /tmp/hive-read-install-actual-OSXLmW
+      at test.timeout (file:///home/coder/projects/kethalia/hive/scripts/verify-workspace-read-install.test.mjs:116:13)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    [cause]: Error: Command failed: bwrap --unshare-user --unshare-net --die-with-parent --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --ro-bind /etc/passwd /etc/passwd --ro-bind /etc/group /etc/group --dir /opt --ro-bind /home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/install-workspace-read.py /opt/hive-read-installer.py --ro-bind /home/coder/projects/kethalia/hive/scripts/fixtures/workspace-read-install.py /opt/hive-read-test.py --bind /tmp/hive-read-install-actual-OSXLmW/home /home/coder --proc /proc --dev /dev --tmpfs /tmp --chdir /home/coder -- /usr/bin/python3 -I -B /opt/hive-read-test.py
+    Traceback (most recent call last):
+      File "/opt/hive-read-test.py", line 89, in <module>
+        first = run()
+      File "/opt/hive-read-test.py", line 32, in run
+        assert result.returncode == 0, "installer rejected valid isolated request"
+               ^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: installer rejected valid isolated request
+
+        at genericNodeError (node:internal/errors:986:15)
+        at wrappedFn (node:internal/errors:540:14)
+        at checkExecSyncError (node:child_process:942:11)
+        at execFileSync (node:child_process:978:15)
+        at test.timeout (file:///home/coder/projects/kethalia/hive/scripts/verify-workspace-read-install.test.mjs:51:22)
+        at async Test.run (node:internal/test_runner/test:1409:7)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      status: 1,
+      signal: null,
+      output: [ null, '', 'Traceback (most recent call last):\n  File "/opt/hive-read-test.py", line 89, in <module>\n    first = run()\n  File "/opt/hive-read-test.py", line 32, in run\n    assert result.returncode == 0, "installer rejected valid isolated request"\n           ^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: installer rejected valid isolated request\n' ],
+      pid: 957896,
+      stdout: '',
+      stderr: 'Traceback (most recent call last):\n  File "/opt/hive-read-test.py", line 89, in <module>\n    first = run()\n  File "/opt/hive-read-test.py", line 32, in run\n    assert result.returncode == 0, "installer rejected valid isolated request"\n           ^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: installer rejected valid isolated request\n'
+    }
+  }

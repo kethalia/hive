@@ -1,4 +1,29 @@
+# syntax=docker/dockerfile:1
+# Official SDK/toolchain build lives outside all five runtime image variants.
+# The named source context is explicit in build-base-image.yml.
+FROM debian:trixie AS workspace-identity-build
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates curl python3 \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+        https://go.dev/dl/go1.26.10.linux-amd64.tar.gz -o /tmp/go.tar.gz \
+    && echo 'ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5  /tmp/go.tar.gz' | sha256sum --check --status \
+    && mkdir /opt/go \
+    && tar -xzf /tmp/go.tar.gz --strip-components=1 -C /opt/go \
+    && rm /tmp/go.tar.gz
+WORKDIR /src
+COPY --from=workspace-identity . /src/
+RUN python3 /src/build-image.py
+
 FROM debian:trixie
+COPY --from=workspace-identity-build --chmod=0755 /out/hive-workspace-identity /usr/local/libexec/hive-workspace-identity
+COPY --from=workspace-identity-build --chmod=0644 /out/hive-workspace-identity.json /usr/local/libexec/hive-workspace-identity.json
+COPY --chmod=0555 hive-template-bootstrap.py /usr/local/libexec/hive-template-bootstrap
+COPY --from=template-runtime --chmod=0444 assets/codex-host.tar.xz assets/workspace-read.tar.gz assets/voice.tar.gz assets/agent-bridge.tar.gz /usr/local/libexec/hive-template-runtime/
+COPY --from=template-runtime --chmod=0444 scripts/install-codex-host.py scripts/install-workspace-read.py scripts/install-voice.py scripts/install-agent-bridge.py /usr/local/libexec/hive-template-runtime/
+
+# COPY --chmod protects file contents; the unprivileged runtime must traverse the asset directory.
+RUN chmod 0555 /usr/local/libexec/hive-template-runtime
 
 ARG WORKSPACE_VARIANT=cli
 
@@ -77,6 +102,25 @@ RUN apt-get update \
         zsh \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
+
+# Managed host bootstraps decode bounded XZ archives with the standard library.
+RUN python3 -c "import lzma"
+
+# The guarded host uses a fixed /usr/bin:/bin PATH for agent external auth.
+# Install a vendor release into that path, verifying it before extraction.
+ARG CODER_VERSION=2.38.4
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+      amd64) coder_arch="amd64"; coder_sha="d1d906964852c32413402078d8379a9a2693fa17182703fa8fd77aa463841b2b" ;; \
+      arm64) coder_arch="arm64"; coder_sha="7d854fbd7fef8341b1b8c1ebfb9fa85c0e96a244a3f63105c45173994d371de8" ;; \
+      *) echo "Unsupported Coder CLI architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/coder/coder/releases/download/v${CODER_VERSION}/coder_${CODER_VERSION}_linux_${coder_arch}.tar.gz" -o /tmp/coder.tar.gz && \
+    echo "${coder_sha}  /tmp/coder.tar.gz" | sha256sum -c - && \
+    tar --no-same-owner -xzf /tmp/coder.tar.gz -C /usr/bin ./coder && \
+    chmod 0755 /usr/bin/coder && \
+    rm /tmp/coder.tar.gz && \
+    /usr/bin/coder version
 
 # notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
 RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \

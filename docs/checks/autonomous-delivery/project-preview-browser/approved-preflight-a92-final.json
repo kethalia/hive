@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scope": {
+    "schemaVersion": 1,
+    "sourceRevision": "a92e3052953ac04d3657596e55edec7b2767a044",
+    "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+    "repositoryId": "1183966024",
+    "providerAccountId": "62855857",
+    "preflightDigest": "0a16a67d730f7551838c6ff88b85212864a7ae63590a2ab55c40a7b4988c7c45",
+    "expectedAppVersion": "2.31.0",
+    "expectedAppBuild": "f5509172-bd87-46df-a7eb-ce8b8c4014ae",
+    "priorForwarded": 93
+  },
+  "evidenceDigests": {
+    "database-preflight.json": "7a703c8a2d47ee591c4239679aba71c67bb8b10955698765762a889a5bd73cee",
+    "controller-preflight-a92-final.json": "09da596fdf804db20088c5d7c798708e4b7d49e2d56e0cc9ea7d31cac2337d26"
+  },
+  "sameTaskNullProjectReopenApproved": true,
+  "priorLoginCount": 2,
+  "newLoginMaximum": 1,
+  "newOpenMaximum": 1,
+  "privateAttemptHistoryRetained": true,
+  "change": "Allow only reviewed marketing root GET with one bounded RSC selector; correct Cloudflare build pin."
+}

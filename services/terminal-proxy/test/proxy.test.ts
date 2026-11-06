@@ -78,7 +78,7 @@ vi.mock("ws", () => {
 
 import { WebSocket } from "ws";
 import { authenticateUpgrade } from "../src/auth.js";
-import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
+import { connectionRegistry, handleUpgrade, isOriginAllowed } from "../src/proxy.js";
 import { terminalSessionEventStore } from "../src/session-events.js";
 import { verifyWorkspaceAgentAccess } from "../src/workspace-authorization.js";
 
@@ -307,6 +307,25 @@ describe("handleUpgrade", () => {
       const opts = WsCtor.mock.calls[0][1] as { headers: Record<string, string> };
       expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
     }
+  });
+
+  it("carries OAuth provenance through authorization, PTY upgrade and keepalive metadata", async () => {
+    mockAuth.mockResolvedValue({
+      ...mockAuthResult,
+      value: { ...mockAuthResult.value, credentialSource: "oauth" },
+    });
+    const params = { ...validParams, workspaceId: "d97b213e-0e63-414a-94c1-cb365f84c681" };
+    await handleUpgrade(makeReq(params), makeSocket(), Buffer.alloc(0));
+    const WsCtor = WebSocket as unknown as ReturnType<typeof vi.fn>;
+    expect(WsCtor.mock.calls.at(-1)?.[1].headers).toEqual({
+      Authorization: "Bearer per-user-token",
+    });
+    expect(mockVerifyWorkspaceAgentAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialSource: "oauth" }),
+    );
+    expect(connectionRegistry.getWorkspaceMeta(params.workspaceId)).toMatchObject({
+      credentialSource: "oauth",
+    });
   });
 
   it("opens upstream WebSocket with correct URL and per-user auth on valid request", async () => {

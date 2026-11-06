@@ -1,6 +1,9 @@
 export interface RuntimeConfig {
   terminalWsUrl: string;
   codexVoiceEnabled?: true;
+  projectDiscoveryEnabled?: true;
+  projectTasksEnabled?: true;
+  deliveryEnabled?: true;
 }
 
 export const RUNTIME_CONFIG_ELEMENT_ID = "hive-runtime-config";
@@ -18,11 +21,26 @@ declare global {
 
 export function getServerRuntimeConfig(): RuntimeConfig {
   return {
-    terminalWsUrl: process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "",
+    terminalWsUrl: serverTerminalWsUrl(),
+    ...(process.env.HIVE_PROJECT_TASKS_ENABLED === "true"
+      ? { projectTasksEnabled: true as const }
+      : {}),
+    ...(process.env.HIVE_DELIVERY_ENABLED === "true" ? { deliveryEnabled: true as const } : {}),
+    ...(process.env.HIVE_PROJECT_DISCOVERY_ENABLED === "true"
+      ? { projectDiscoveryEnabled: true as const }
+      : {}),
     ...(process.env.HIVE_CODEX_VOICE_ENABLED === "true"
       ? { codexVoiceEnabled: true as const }
       : {}),
   };
+}
+
+/** The Worker pilot has one same-origin terminal relay; its runtime setting must
+ * not depend on a NEXT_PUBLIC value substituted when the application was built. */
+export function serverTerminalWsUrl(): string {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare" && process.env.HIVE_TERMINAL_WS_URL)
+    return process.env.HIVE_TERMINAL_WS_URL === "/" ? "/" : "";
+  return process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "";
 }
 
 export function serializeRuntimeConfig(config: RuntimeConfig): string {
@@ -49,6 +67,15 @@ export function parseRuntimeConfig(value: string | null | undefined): RuntimeCon
     ) {
       return {
         terminalWsUrl: parsed.terminalWsUrl,
+        ...("projectTasksEnabled" in parsed && parsed.projectTasksEnabled === true
+          ? { projectTasksEnabled: true as const }
+          : {}),
+        ...("deliveryEnabled" in parsed && parsed.deliveryEnabled === true
+          ? { deliveryEnabled: true as const }
+          : {}),
+        ...("projectDiscoveryEnabled" in parsed && parsed.projectDiscoveryEnabled === true
+          ? { projectDiscoveryEnabled: true as const }
+          : {}),
         ...("codexVoiceEnabled" in parsed && parsed.codexVoiceEnabled === true
           ? { codexVoiceEnabled: true as const }
           : {}),
@@ -92,6 +119,9 @@ export function getClientRuntimeConfig(): RuntimeConfig {
 
   return {
     terminalWsUrl: resolveTerminalWsUrl(runtimeConfig.terminalWsUrl, browserLocation),
+    ...(runtimeConfig.projectTasksEnabled ? { projectTasksEnabled: true as const } : {}),
+    ...(runtimeConfig.deliveryEnabled ? { deliveryEnabled: true as const } : {}),
+    ...(runtimeConfig.projectDiscoveryEnabled ? { projectDiscoveryEnabled: true as const } : {}),
     ...(runtimeConfig.codexVoiceEnabled ? { codexVoiceEnabled: true as const } : {}),
   };
 }

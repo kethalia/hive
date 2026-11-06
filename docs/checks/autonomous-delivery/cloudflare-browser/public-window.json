@@ -1,0 +1,23 @@
+{
+  "activation": {
+    "observedAt": "2026-10-29T21:01:55.542Z",
+    "purpose": "One bounded browser proof: 200 requests, 180 seconds, one login; app preview only",
+    "appVersion": "9dd91379-967f-47b8-85e1-67c82dcd73b9",
+    "authRemainsPrivate": true,
+    "state": {
+      "enabled": true,
+      "previews_enabled": false
+    }
+  },
+  "deactivation": {
+    "observedAt": "2026-10-29T21:02:23.721Z",
+    "app": {
+      "enabled": false,
+      "previews_enabled": false
+    },
+    "auth": {
+      "enabled": false,
+      "previews_enabled": false
+    }
+  }
+}

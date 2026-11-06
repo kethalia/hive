@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T05:46:50.234Z",
+  "sourceStable": true,
+  "sourceHashes": {
+    "deploy/cloudflare/app/generic-terminal-relay.ts": "95029ca78bc58d7fb2d63a872394e0917b64e66644441f3f41623b9e3140175d",
+    "deploy/cloudflare/app/generic-terminal-runtime.ts": "26ff1b3799f78c2864aac6eed3d3242603d1fab0ae5a2c103902ed55682b61fe",
+    "deploy/cloudflare/app/local-generic-terminal.worker.ts": "2c61ae206b712cd37a4a67d8a92567e43396fcce16a9a8a97a12c240b08bf397",
+    "deploy/cloudflare/app/local-generic-terminal-provider.ts": "7bf16b2bb94993e62321362bfae4f103c0fd79577ad050934ff89fe5b5e27243",
+    "deploy/cloudflare/app/run-local-generic-terminal.mjs": "a8538236bf91d62e49b121c3128b7f50356829237c4a7d4d850116c2a8660e1d",
+    "src/lib/terminal/generic-auth.server.ts": "b4d359d12ea4b883a22b972d38a130218601b0c68c8476ba7bc13f03d9877599",
+    "services/terminal-proxy/src/protocol.ts": "2a84c20b22ac5e98ba6632e8f4a7f506394f355c5c47742b63c4fae051d28b7a"
+  },
+  "checks": {
+    "defaultOff": true,
+    "expiredAdmissionRejected": true,
+    "targetSubstitutionRejected": true,
+    "upgrade": true,
+    "binaryInputOutput": true,
+    "resize": true,
+    "healthControl": true,
+    "reconnectSameRemoteId": true,
+    "sanitizedClose": true,
+    "cumulativeOutputBound": true,
+    "attachmentExpiry": true,
+    "currentOwnerRevocation": true
+  },
+  "passed": false,
+  "provider": "synthetic private auth/Coder service binding; actual workerd WebSockets",
+  "cloudMutation": false
+}

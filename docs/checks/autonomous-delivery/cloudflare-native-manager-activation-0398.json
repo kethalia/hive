@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T21:24:39.093Z",
+  "sourceRevision": "0398cbe0bcec00ade1a3c6b8350b4e4a9955fef7",
+  "parentWorker": "hive",
+  "previewName": "codex/delivery-system-design",
+  "previewId": "9b772c5c22f84deeb1af85e68f819798",
+  "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "priorAutomaticDeploymentId": "7ae40fba-6b08-40d8-aa09-eaf5744d0b51",
+  "operatorPilotDeploymentId": "cadb13f0-ffda-47a5-9358-a5e6030a7bb4",
+  "exactEffectiveBindingsVerified": true,
+  "singleBranchOnly": true,
+  "previewBaseModified": false,
+  "productionActivated": false,
+  "localProof": "cloudflare-native-proof-0398cbe0.json",
+  "configurationSHA256": "4de5c2f9358e86e7a9f99410ee80802e2dc0979d36c17ae7580fb3a15aa66669",
+  "guardianPackageManifest": "93286d39628e3bdff236e23e92839cb7dbe6a51eff85435fc91bed28d6ff1e93",
+  "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+  "workspaceBuildId": "0a6d2566-432d-481b-b962-5d071681b54b",
+  "scope": "bounded manager, independent acceptance, docs-only source publication and shared session pilot",
+  "hardSourceLimits": {
+    "prefix": "docs/",
+    "files": 2,
+    "fileBytes": 8192,
+    "totalBytes": 16384
+  },
+  "evidenceBucket": {
+    "name": "hive-delivery-pilot-20261105",
+    "creationDate": "2026-11-05T17:01:05.489Z",
+    "bucketId": "58e5cd7186cb490e9ee21f814a27ac9d"
+  },
+  "disabled": [
+    "production release",
+    "database changes",
+    "epic scheduling",
+    "generic terminal",
+    "paste",
+    "voice",
+    "agent tools",
+    "independent workspace read",
+    "cron"
+  ],
+  "secretValuesReadBack": false,
+  "existingSixPreviewSecretValuesPreserved": true,
+  "nativePreviewScheduling": "unsupported; bounded pilot requires explicit authenticated reconciliation wake",
+  "pilotTaskStarted": false
+}

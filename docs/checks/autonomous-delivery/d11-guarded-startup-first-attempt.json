@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "templateVersionId": "a47cbf67-9890-4d22-9b3e-e5e6fd27313f",
+  "globalActiveVersionBeforeAndAfter": "8e86f61b-3c8e-4d6a-8d1f-c87696d42bfa",
+  "buildId": "5c1156c5-ca94-41d6-8825-3a20623f1861",
+  "image": "ghcr.io/kethalia/hive-base@sha256:63bfecec5662dae419858ca65ee0cc762f87ff952de6802feeae1fb3fd143789",
+  "sourceCommit": "0dc1b33cbc2d46da8923d5ddb8c33a03b7785846",
+  "templateArtifactSha256": "8ca8d93b779d2982fac150dac1b54c242793572b212d3aed9744df4bc67f73ba",
+  "importedVariablesExact": true,
+  "agentConnected": true,
+  "agentLifecycle": "start_error",
+  "hostGuardedStartupReady": false,
+  "hostRecordedProcessAlive": false,
+  "guardianJournalHasLifetime": false,
+  "fileBrowserHealthStatus": 200,
+  "diagnostic": {
+    "homeUidMatches": false,
+    "homeMode": "0775",
+    "packageRootUidMatches": true,
+    "packageRootMode": "0700",
+    "installedGuardianHomeReachedPreSpawn": false,
+    "installedGuardianPrivateRootReachedPreSpawn": true,
+    "preSpawnCallbackStoppedBeforeAnyProcessOrJournalWrite": true
+  },
+  "note": "Existing persistent workspace retained; no manager or inference request was sent. Initial startup failure preserved. Follow-up fix uses private package root while retaining guardian validation."
+}

@@ -1,0 +1,15 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/components/project-workspace-panel.test.tsx (8 tests) 3384ms
+   ✓ project task workspace > waits for registered persisted history before opening the read connection  3018ms
+ ✓ src/__tests__/lib/delivery/repository-policy.integration.test.ts (10 tests) 458ms
+ ✓ src/__tests__/lib/projects/source-base.test.ts (11 tests) 17ms
+ ✓ src/__tests__/lib/projects/task.test.ts (11 tests) 14ms
+ ✓ src/__tests__/lib/projects/open.test.ts (8 tests) 9ms
+
+ Test Files  5 passed (5)
+      Tests  48 passed (48)
+   Start at  05:16:43
+   Duration  5.71s (transform 436ms, setup 0ms, collect 813ms, tests 3.88s, environment 393ms, prepare 197ms)
+

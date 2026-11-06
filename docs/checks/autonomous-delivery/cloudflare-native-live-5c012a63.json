@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-11-05T20:27:13.426068+00:00",
+  "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "revision": "5c012a63ddcaa323548b70166661faa6d4ec11f3",
+  "passed": false,
+  "httpRequests": 3,
+  "cumulativeOuterRequests": 24,
+  "checks": [
+    {
+      "path": "/login",
+      "method": "GET",
+      "status": 401,
+      "cacheControl": "private, no-store",
+      "loginForm": false,
+      "loginSucceeded": false
+    },
+    {
+      "path": "/login",
+      "method": "GET",
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "loginForm": true,
+      "loginSucceeded": false
+    },
+    {
+      "path": "/api/notifications/sources",
+      "method": "GET",
+      "status": 307,
+      "cacheControl": "private, no-store",
+      "loginForm": false,
+      "loginSucceeded": false
+    }
+  ],
+  "realCoderLoginAttempted": false,
+  "taskStartAttempted": false,
+  "nativeHostDeliveryEnabled": false
+}

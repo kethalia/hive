@@ -1,0 +1,15 @@
+{
+  "recordedAt": "2026-10-29T22:10:19.216541+00:00",
+  "baseCommit": "accccac3fde744423926b97ac8a0c12efcb42a9a",
+  "review": "Independent parent code review of capture, journal, Git plumbing, provider scope and uncertain publication recovery; no blocking finding for fixture-only scope. Documentation corrected to distinguish POST object checks from separate commit/ref/PR GET readbacks.",
+  "validation": {
+    "command": "python3 -B -m unittest discover -s scripts/agents -p test_delivery_source_broker.py -v",
+    "passed": 19
+  },
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/delivery-source-broker.py": "c5240f4e5f620aab27741e70c9fd2af22eb8ca1bec542557a6a65ca16304f1c1",
+    "templates/ai-dev-k8s/scripts/delivery-source-provider.py": "698524efc41ed592b60ef919dfc1298e92d3b98635c3bc00b9f88390de02c529",
+    "scripts/agents/test_delivery_source_broker.py": "84c85eb425e53b680fffe8469265cb658a9fe7071c95184330ded895662c9e54"
+  },
+  "activation": "None. No live transport, source acceptance, installed runtime import or cleanup authority."
+}

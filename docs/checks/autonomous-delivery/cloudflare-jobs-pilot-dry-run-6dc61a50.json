@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T17:28:48.332Z",
+  "sourceRevision": "6dc61a5056708592fb5d77226f221c8897f6936a",
+  "mode": "wrangler-dry-run",
+  "workerName": "hive-jobs-compatibility-preview",
+  "workerSha256": "ab311f61446572a8529fc68bbc891fa0e2749e7a4c59d041d73b37f2ced87129",
+  "uploadKiB": 3120.84,
+  "gzipKiB": 992.21,
+  "privateAppService": "hive-app-compatibility-preview",
+  "pilotMode": true,
+  "workersDev": false,
+  "previewUrls": false,
+  "crons": [],
+  "plannedCron": "*/5 * * * *",
+  "cpuLimitMs": 100,
+  "cloudWrites": 0,
+  "credentialsPrinted": false
+}

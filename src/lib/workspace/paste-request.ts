@@ -1,4 +1,5 @@
 import { MIMEType } from "node:util";
+import { publicationAwait } from "@/lib/templates/publication-io";
 import {
   TERMINAL_PASTE_ASSET_MAX_FILES,
   TERMINAL_PASTE_ASSET_MAX_REQUEST_BYTES,
@@ -79,8 +80,10 @@ export async function readTerminalPasteFormData(
     // A fixed buffer also bounds metadata overhead for tiny/empty stream chunks.
     const body = Buffer.allocUnsafe(TERMINAL_PASTE_ASSET_MAX_REQUEST_BYTES);
     let size = 0;
+    let chunks = 0;
     while (true) {
-      const { done, value } = await reader.read();
+      if (++chunks > 65536) throw new PasteRequestError("Paste request has too many chunks", 413);
+      const { done, value } = await publicationAwait(reader.read(), signal);
       signal.throwIfAborted();
       if (done) break;
       if (size + value.byteLength > TERMINAL_PASTE_ASSET_MAX_REQUEST_BYTES) {
@@ -106,6 +109,8 @@ export async function readTerminalPasteFormData(
     throw new PasteRequestError("Expected multipart form data", 400);
   } finally {
     signal.removeEventListener("abort", abort);
-    reader.releaseLock();
+    try {
+      reader.releaseLock();
+    } catch {}
   }
 }

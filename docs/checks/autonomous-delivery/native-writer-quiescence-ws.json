@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "transport": "WebSocket",
+  "realHome": true,
+  "accountInference": false,
+  "productionChanged": false,
+  "runs": [
+    {
+      "mode": "baseline",
+      "steps": [
+        "initialize",
+        "requirements",
+        "thread/start",
+        "localMockTurn",
+        "command/exec",
+        "sameThreadCLI/noInference"
+      ],
+      "error": null,
+      "wrapperExited": true,
+      "diagnostic": "WARNING: proceeding, even though we could not create PATH aliases: Read-only file system (os error 30)\n\u001b[2m2026-10-29T20:41:43.378898Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_app_server\u001b[0m\u001b[2m:\u001b[0m Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.\ncodex app-server (WebSockets)\n  listening on: ws://127.0.0.1:36099\n  readyz: http://127.0.0.1:36099/readyz\n  healthz: http://127.0.0.1:36099/healthz\n  note: binds localhost only (use SSH port-forwarding for remote access)\n"
+    },
+    {
+      "mode": "pidNamespace",
+      "steps": ["initialize", "requirements"],
+      "error": "timeout:thread/resume",
+      "wrapperExited": true,
+      "diagnostic": "WARNING: proceeding, even though we could not create PATH aliases: Read-only file system (os error 30)\n\u001b[2m2026-10-29T20:41:44.412684Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_app_server\u001b[0m\u001b[2m:\u001b[0m Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.\ncodex app-server (WebSockets)\n  listening on: ws://127.0.0.1:34549\n  readyz: http://127.0.0.1:34549/readyz\n  healthz: http://127.0.0.1:34549/healthz\n  note: binds localhost only (use SSH port-forwarding for remote access)\n"
+    },
+    {
+      "mode": "restoredBaseline",
+      "steps": [
+        "initialize",
+        "requirements",
+        "resume",
+        "history",
+        "command/exec",
+        "sameThreadCLI/noInference"
+      ],
+      "error": null,
+      "wrapperExited": true,
+      "diagnostic": "WARNING: proceeding, even though we could not create PATH aliases: Read-only file system (os error 30)\n\u001b[2m2026-10-29T20:41:51.499410Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_app_server\u001b[0m\u001b[2m:\u001b[0m Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.\ncodex app-server (WebSockets)\n  listening on: ws://127.0.0.1:33233\n  readyz: http://127.0.0.1:33233/readyz\n  healthz: http://127.0.0.1:33233/healthz\n  note: binds localhost only (use SSH port-forwarding for remote access)\n"
+    }
+  ],
+  "integratedNamespaceReady": false,
+  "localMockRequests": 1
+}

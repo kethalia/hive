@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T19:43:45.405Z",
+  "testedRevision": "68b4aaf5870a7068d3379fb48629ee3df03f6fe9",
+  "testedSourceCommitted": false,
+  "sourceStable": true,
+  "sourceDigests": {
+    "deploy/cloudflare/app/project-relay.ts": "ee51c88ef9b9d70516c55161a018d21bb98227c98cad02bb4f4a7c080b00d092",
+    "deploy/cloudflare/app/local-relay-fixture.ts": "1dd48d4efe9aee31f9085419fd4b951280b467df71869ae86ce7850f02db97ca",
+    "deploy/cloudflare/app/local-relay-provider.ts": "3e93de2ada6bc6aac103d9c88a8a4580efb3110fb659341f2b2c6d85fc9d51a3",
+    "deploy/cloudflare/app/run-local-relay-proof.mjs": "653eb108b985419c78442905aec4261ef78b8669301ac6d5610e992bc9ce11a1"
+  },
+  "scope": "actual local workerd WebSocket relay, simulated provider and auth metadata",
+  "checks": {
+    "textRelay": true,
+    "binaryRelay": true,
+    "sanitizedClose": true,
+    "oversizedFrameRejected": true,
+    "shorterPreviewDeadlineClosed": true,
+    "sameConnectionBeyond60Seconds": true,
+    "periodicFreshAuthority": true
+  },
+  "sustainedMilliseconds": 66013,
+  "reauthorizations": 3,
+  "providerSimulated": true,
+  "authMetadataSimulated": true,
+  "databaseUsed": false,
+  "realCoderUsed": false,
+  "cloudWrites": 0
+}

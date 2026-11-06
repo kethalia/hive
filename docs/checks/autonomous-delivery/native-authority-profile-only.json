@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "at": "2026-10-29T19:36:16.434Z",
+  "runtimeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "credentialSource": "none-local-mock-only",
+  "managedPolicy": true,
+  "commands": [
+    {
+      "name": "selected-profile",
+      "exitCode": 0,
+      "results": [
+        {
+          "case": "inside",
+          "outcome": "allowed"
+        },
+        {
+          "case": "insideWrite",
+          "outcome": "allowed"
+        },
+        {
+          "case": "authorityWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "configWrite",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "authority",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "symlink",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentFd",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentEnviron",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeConfig",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "managedPolicy",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "network",
+          "outcome": "denied",
+          "errno": 1
+        },
+        {
+          "case": "nativeRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeEnviron",
+          "outcome": "denied",
+          "errno": 13
+        }
+      ],
+      "error": ""
+    },
+    {
+      "name": "unrestricted-override",
+      "rejected": true,
+      "error": "invalid permission profile: Configured value for `permission_profile` is disallowed by requirements; falling back from `:danger-full-access` to required value `hive-isolated`."
+    },
+    {
+      "name": "legacy-override",
+      "exitCode": 0,
+      "results": [
+        {
+          "case": "inside",
+          "outcome": "allowed"
+        },
+        {
+          "case": "insideWrite",
+          "outcome": "allowed"
+        },
+        {
+          "case": "authorityWrite",
+          "outcome": "allowed"
+        },
+        {
+          "case": "configWrite",
+          "outcome": "allowed"
+        },
+        {
+          "case": "authority",
+          "outcome": "allowed"
+        },
+        {
+          "case": "symlink",
+          "outcome": "allowed"
+        },
+        {
+          "case": "parentRoot",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentFd",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "parentEnviron",
+          "outcome": "denied",
+          "errno": 13
+        },
+        {
+          "case": "nativeConfig",
+          "outcome": "allowed"
+        },
+        {
+          "case": "managedPolicy",
+          "outcome": "allowed"
+        },
+        {
+          "case": "network",
+          "outcome": "allowed"
+        },
+        {
+          "case": "nativeRoot",
+          "outcome": "allowed"
+        },
+        {
+          "case": "nativeEnviron",
+          "outcome": "allowed"
+        }
+      ],
+      "error": ""
+    }
+  ],
+  "overrides": [
+    {
+      "name": "named-override",
+      "rejected": true,
+      "error": "failed to load configuration: /tmp/hive-authority-proof-y9jV3U/native-home/config.toml:1:16: key with no value, expected `=`"
+    },
+    {
+      "name": "legacy-override",
+      "rejected": true,
+      "error": "failed to load configuration: /tmp/hive-authority-proof-y9jV3U/native-home/config.toml:1:16: key with no value, expected `=`"
+    },
+    {
+      "name": "profile-redefinition",
+      "rejected": true,
+      "error": "failed to load configuration: /tmp/hive-authority-proof-y9jV3U/native-home/config.toml:1:16: key with no value, expected `=`"
+    }
+  ],
+  "modelTurns": [],
+  "passed": false,
+  "profileOnlyControl": true,
+  "productionActivated": false,
+  "productionReady": false,
+  "processChain": {
+    "wrapperPid": 276194,
+    "nativePid": 276195,
+    "wrapperIdentity": {
+      "pid": 276194,
+      "startTime": "970247305",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+      "device": "2128",
+      "inode": "4196057"
+    },
+    "nativeIdentity": {
+      "pid": 276195,
+      "startTime": "970247306",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+      "device": "2128",
+      "inode": "4196065"
+    },
+    "wrapperParent": 276172,
+    "nativeParent": 276194
+  },
+  "error": "failed to load configuration: /tmp/hive-authority-proof-y9jV3U/native-home/config.toml:1:16: key with no value, expected `=`",
+  "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/tmp\" (codex_home: AbsolutePathBuf(\"/tmp/hive-authority-proof-y9jV3U/native-home\"))\n\u001b[2m2026-10-29T19:36:16.790290Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_app_server\u001b[0m\u001b[2m:\u001b[0m Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.\n",
+  "externalFixtureUnchanged": false
+}

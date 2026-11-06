@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "runtimeVersion": "0.165.0",
+  "modelInference": "local mock only",
+  "productionReady": false,
+  "localProcessBoundaryOnly": true,
+  "sameSharedRuntimeOtherProjectsAreNotIsolated": true,
+  "scope": "whole native PID namespace; not per-thread",
+  "runs": [
+    {
+      "mode": "native-inventory-control",
+      "lifetimeRootIdentity": {
+        "pid": 382309,
+        "startTime": "970606263",
+        "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+        "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+        "device": "2128",
+        "inode": "4196065"
+      },
+      "pidNamespace": "pid:[4026533255]",
+      "nspid": [382309],
+      "daemonDoubleFork": true,
+      "daemonSessionEscaped": true,
+      "inheritedUnlinkedFdWritesBeforeDrain": true,
+      "trackedProcessExited": true,
+      "backgroundTerminalCount": 0,
+      "writerContinuedAfterTerminalClean": true,
+      "initPidfdExit": false,
+      "exactDaemonPidfdExit": true,
+      "inheritedFdStableAfterExit": true,
+      "unrelatedWriterContinued": true
+    },
+    {
+      "mode": "pidfd-init-kill",
+      "lifetimeRootIdentity": {
+        "pid": 382598,
+        "startTime": "970606387",
+        "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+        "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+        "device": "2128",
+        "inode": "4196057"
+      },
+      "pidNamespace": "pid:[4026537109]",
+      "nspid": [382598, 1],
+      "daemonDoubleFork": true,
+      "daemonSessionEscaped": true,
+      "inheritedUnlinkedFdWritesBeforeDrain": true,
+      "trackedProcessExited": true,
+      "backgroundTerminalCount": null,
+      "writerContinuedAfterTerminalClean": null,
+      "initPidfdExit": true,
+      "exactDaemonPidfdExit": false,
+      "inheritedFdStableAfterExit": true,
+      "unrelatedWriterContinued": true
+    },
+    {
+      "mode": "abrupt-wrapper-death",
+      "lifetimeRootIdentity": {
+        "pid": 382737,
+        "startTime": "970606471",
+        "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+        "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+        "device": "2128",
+        "inode": "4196057"
+      },
+      "pidNamespace": "pid:[4026537109]",
+      "nspid": [382737, 1],
+      "daemonDoubleFork": true,
+      "daemonSessionEscaped": true,
+      "inheritedUnlinkedFdWritesBeforeDrain": true,
+      "trackedProcessExited": true,
+      "backgroundTerminalCount": null,
+      "writerContinuedAfterTerminalClean": null,
+      "initPidfdExit": true,
+      "exactDaemonPidfdExit": false,
+      "inheritedFdStableAfterExit": true,
+      "unrelatedWriterContinued": true
+    }
+  ],
+  "freshProcMount": "native_exited:bwrap: Can't mount proc on /newroot/proc: Operation not permitted\n",
+  "pidNamespaceResume": "native_timeout:thread/resume",
+  "historyPreservedWithCurrentLauncher": true,
+  "integratedNamespaceReady": false,
+  "providerRequests": 1,
+  "passed": true
+}

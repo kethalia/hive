@@ -1,0 +1,30 @@
+✔ controller creates a separate configured evaluator and archives exact terminal thread (1.742157ms)
+✔ native configuration drift or unexpected tool output cannot become acceptance (0.718386ms)
+✔ cancellation retains a held exact turn and never retries inference (0.416106ms)
+✔ unknown producer/config fields cannot enable evaluation (0.650649ms)
+Acceptance fixture retained: /home/coder/projects/kethalia/hive/.ae-S6ycyT
+✖ actual pinned native evaluator uses readonly permissions and no shell/collaboration tools (2369.739771ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2456.277382
+
+✖ failing tests:
+
+test at scripts/verify-codex-acceptance-native.test.mjs:223:1
+✖ actual pinned native evaluator uses readonly permissions and no shell/collaboration tools (2369.739771ms)
+  Error: acceptance_turn_incomplete
+      at fail (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-acceptance-native.mjs:151:54)
+      at file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-acceptance-native.mjs:236:7
+      at WebSocket.<anonymous> (file:///home/coder/projects/kethalia/hive/templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs:2132:71)
+      at WebSocket.emit (node:events:514:28)
+      at Receiver.receiverOnMessage (/home/coder/projects/kethalia/hive/node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/websocket.js:1239:20)
+      at Receiver.emit (node:events:514:28)
+      at Receiver.dataMessage (/home/coder/projects/kethalia/hive/node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/receiver.js:633:14)
+      at Receiver.getData (/home/coder/projects/kethalia/hive/node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/receiver.js:532:10)
+      at Receiver.startLoop (/home/coder/projects/kethalia/hive/node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/receiver.js:190:16)
+      at Receiver._write (/home/coder/projects/kethalia/hive/node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/receiver.js:117:10)

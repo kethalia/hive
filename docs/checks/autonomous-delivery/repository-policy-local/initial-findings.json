@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "supersededFindings": [
+    {
+      "category": "reserved_repository_criterion_binding",
+      "observation": "Signed manager composition rejected repository criteria absent from the old collector transport ABI.",
+      "resolution": "Trusted persisted policy derives reserved criterion IDs; transport and persistence recheck the complete immutable set. Collector wire cannot choose it."
+    },
+    {
+      "category": "semantic_provenance",
+      "observation": "Matching ordinary workflow/check selectors cannot prove immutable evaluator implementation or task meaning.",
+      "resolution": "Matched links remain acceptance_evaluator_provenance_pending; no successful semantic completion claimed."
+    },
+    {
+      "category": "fixture_rate_limit",
+      "observation": "A fixture attempted a second refresh within the existing 60-second limiter.",
+      "resolution": "Independent fixture used; production limiter unchanged."
+    },
+    {
+      "category": "upgrade_fixture_init",
+      "observation": "Initial isolated upgrade probe omitted the non-timestamp 0_init migration.",
+      "resolution": "Probe now includes 0_init; final schema29-to30 upgrade passed with old checksums preserved."
+    },
+    {
+      "category": "exact_query_shape",
+      "observation": "Existing unit mock expected project read without the new repositoryPolicy include.",
+      "resolution": "Updated exact expected query and added enrolled-project wrapper regression; initial failure log retained."
+    }
+  ],
+  "noLiveMigration": true
+}

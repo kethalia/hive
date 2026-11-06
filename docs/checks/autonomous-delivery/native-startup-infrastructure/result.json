@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T02:25:28.629988+00:00",
+  "status": "infrastructure_unavailable",
+  "infrastructureWorkspace": {
+    "id": "0d1c1fec-5c8b-4e49-a53b-baacee1e3a1a",
+    "name": "daniel/hive-native-diagnostics",
+    "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+    "templateId": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+    "createdAt": "2026-11-06T02:15:45.897537Z",
+    "buildId": "7a4d18e8-1614-4e4d-8218-b4306d631c4e",
+    "classification": "task-created-disposable",
+    "primaryCreationRecord": "../native-startup-infrastructure-creation.json",
+    "identityUnchanged": true,
+    "buildStatus": "running",
+    "healthy": false,
+    "agents": [
+      {
+        "id": "d8e63e44-e71d-4bb2-8702-267a365919e4",
+        "name": "main",
+        "status": "timeout",
+        "lifecycle_state": "created",
+        "first_connected_at": null,
+        "last_connected_at": null
+      }
+    ]
+  },
+  "healthWaitBoundSeconds": 180,
+  "healthWaitExhausted": true,
+  "target": {
+    "namespace": "coder",
+    "deployment": "coder-e6aa588f-89a7-464b-9cf9-a6371d0b819d"
+  },
+  "sshExecuted": false,
+  "infrastructureProfileVerifiedRemotely": null,
+  "rancherCredentialReadOrTransferred": false,
+  "rancherRequestsExecuted": 0,
+  "clusterOrProviderWrites": false,
+  "lifecycleActions": false,
+  "nativeEnrollmentStillBlocked": true,
+  "probeSource": "probe.py",
+  "probeValidation": {
+    "syntaxCheckPassed": true,
+    "syntheticInMemoryRedactionChecksPassed": true,
+    "liveExecutionPassed": false
+  },
+  "handoff": "Primary may choose another healthy Infrastructure workspace under its own authorization. No Rancher fallback from software and no TLS verification bypass occurred.",
+  "cleanupAuthority": "Root alone must independently verify completion/evidence and fresh exact creation identity before installed helper complete/cleanup; this artifact grants no cleanup authority."
+}

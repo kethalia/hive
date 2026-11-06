@@ -1,0 +1,19 @@
+
+> hive-web@2.31.0 templates:sync /tmp/hive-factory-parent-bu5266t7
+> node scripts/sync-workspace-profile-templates.mjs
+
+Synchronized 4 workspace profile scaffolds.
+file:///tmp/hive-factory-parent-bu5266t7/scripts/build-template-artifacts.mjs:188
+  if (archive.length > 1024 * 1024) throw new Error("Template archive exceeds Coder upload bounds");
+                                          ^
+
+Error: Template archive exceeds Coder upload bounds
+    at templateArtifact (file:///tmp/hive-factory-parent-bu5266t7/scripts/build-template-artifacts.mjs:188:43)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///tmp/hive-factory-parent-bu5266t7/scripts/build-template-artifacts.mjs:205:7
+    at async Promise.all (index 0)
+    at async buildTemplateArtifacts (file:///tmp/hive-factory-parent-bu5266t7/scripts/build-template-artifacts.mjs:202:21)
+    at async file:///tmp/hive-factory-parent-bu5266t7/scripts/sync-workspace-profile-templates.mjs:112:3
+
+Node.js v24.21.0
+ ELIFECYCLE  Command failed with exit code 1.

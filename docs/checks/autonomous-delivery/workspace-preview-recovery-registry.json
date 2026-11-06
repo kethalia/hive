@@ -1,0 +1,14 @@
+{
+  "sourceRevision": "2f7a69fec52a788d60544296a4f08dd15451e153",
+  "image": "ghcr.io/kethalia/hive-base@sha256:1b1cf7fc2f7a0d310f84638098085bf1dd879ae968725c5867030e1159e1dc6d",
+  "configDigest": "sha256:1fe193e851bf1626ef8a8bd8d9f2a35a07fcdef44bd5b3bc335c787864c671c4",
+  "registryManifestDigestVerified": true,
+  "registryConfigDigestVerified": true,
+  "sourceAndPreviewLabelsVerified": true,
+  "architecture": "amd64",
+  "workflowRun": 42131522107,
+  "smokeWorkflowReadbackRequired": false,
+  "workflowConclusion": "success",
+  "smokeTestedByWorkflow": true,
+  "globalTemplateActivationChanged": false
+}

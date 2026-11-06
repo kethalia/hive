@@ -1,0 +1,32 @@
+[
+  {
+    "path": ".codex",
+    "type": "directory",
+    "sha256": null
+  },
+  {
+    "path": ".git",
+    "type": "directory",
+    "sha256": null
+  },
+  {
+    "path": "test_intervals.py",
+    "type": "file",
+    "sha256": "1ad50aa41abf50bf2c57ab34701f705ce387fbe761c59d57b53a54a2c29e66cc"
+  },
+  {
+    "path": ".agents",
+    "type": "directory",
+    "sha256": null
+  },
+  {
+    "path": "intervals.py",
+    "type": "file",
+    "sha256": "1393fb683af1854c3a0e26f538cfdc0300cfeb0a6311131a3651204c8b7b193d"
+  },
+  {
+    "path": ".aws",
+    "type": "directory",
+    "sha256": null
+  }
+]

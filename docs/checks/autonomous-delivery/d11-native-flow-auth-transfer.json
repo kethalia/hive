@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T21:16:22.432247+00:00",
+  "sourceWorkspaceId": "49dfbaf2-f475-4053-8c6b-2fc09d0db8bf",
+  "sourceBuildId": "37e32516-86ad-418a-954a-018878aa05a9",
+  "targetWorkspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+  "targetBuildId": "0a6d2566-432d-481b-b962-5d071681b54b",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "isolationEnrollmentChecked": true,
+  "transfer": "bounded in-memory encrypted Coder SSH stream",
+  "sourceNoFollowPrivateRegularSingleLink": true,
+  "sourceMetadataStableDuringRead": true,
+  "targetExclusiveAtomicWrite": true,
+  "targetMode": "0600",
+  "targetManagedCodexVersion": "0.165.0",
+  "targetManagedBinaryPinMatches": true,
+  "targetManagedLoginSignedIn": true,
+  "sourceGuardianJournalModified": false,
+  "credentialValuesOrHashesRecorded": false,
+  "modelTurnStarted": false
+}

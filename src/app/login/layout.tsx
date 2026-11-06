@@ -18,9 +18,9 @@ export default function LoginLayout({ children }: { children: React.ReactNode })
         <div className="pixel-panel border border-primary/25 bg-card p-6 shadow-[0_0_60px_rgb(141_255_157/0.07)] sm:p-8">
           <div className="mb-8">
             <p className="text-xs uppercase tracking-[0.2em] text-primary">Secure operator link</p>
-            <h1 className="mt-3 text-3xl font-medium tracking-[-0.04em]">Connect your Coder</h1>
+            <h1 className="mt-3 text-3xl font-medium tracking-[-0.04em]">Sign in to Hive</h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Credentials establish a short-lived Hive session and are not stored in this browser.
+              Use your Coder account to connect to your workspaces.
             </p>
           </div>
           {children}

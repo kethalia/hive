@@ -64,4 +64,26 @@ describe("terminal authentication transport", () => {
     ).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("allows a serialized OAuth refresh before receiving its ticket", async () => {
+    vi.useFakeTimers();
+    try {
+      const request = vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((resolve, reject) => {
+            setTimeout(() => resolve(Response.json({ ticket })), 6_000);
+            init.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+          }),
+      );
+      vi.stubGlobal("fetch", request);
+      const result = terminalAuthProtocols(
+        "wss://terminal.example.com/ws?agentId=agent",
+        "hive-terminal-v1",
+      );
+      await vi.advanceTimersByTimeAsync(6_000);
+      expect(await result).toEqual(["hive-terminal-v1", `hive-ticket.${ticket}`]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -1,0 +1,38 @@
+✔ outer worker barrier refuses active project then drains actual tmux descendants and preserves a durable receipt (767.191082ms)
+✔ startup attestation waits for worker readiness and pins nonce, config, package and exact kernel chain (1202.026813ms)
+✔ startup challenge mismatch cannot attest or leave a worker running (5573.796915ms)
+✔ private installer startup framing rejects duplicates, extra keys, oversized input and timeout (32.53851ms)
+✔ uncertain old lifetime cannot be adopted or restarted from an empty new guardian (693.88464ms)
+✔ failed durable worker barrier cannot produce a planned drain receipt or permit restart (781.377375ms)
+✔ worker import tampering is rejected before any guardian lifetime (464.827451ms)
+✔ private worker channel rejects repeated request IDs and bounded oversized frames (21.168455ms)
+✔ an initially empty lifetime admits projects durably and never forgets earlier bindings (21.933231ms)
+✔ a pinned worker receives only its separate inherited channel and its descendants are drained (46.255456ms)
+✔ agent environment is restricted to the essential host role and never admits owner sessions (124.085205ms)
+✔ pinned roots drain only after complete project authorization, receipt persistence and ACK (32.125942ms)
+✔ adopts and drains detached writers without touching an outside sibling (136.083946ms)
+✔ adopts and drains nested writers without touching an outside sibling (150.958447ms)
+✔ adopts and drains clone_parent writers without touching an outside sibling (135.59782ms)
+✔ adopts and drains clone_signal writers without touching an outside sibling (147.243443ms)
+✔ root child inherits neither guardian control/descriptors nor ambient credential environment (67.71718ms)
+✔ changed pinned executable between bootstrap and launch revokes the lifetime (38.28175ms)
+✔ duplicate launch and incomplete stop authorization cannot create another root or certify a drain (39.629491ms)
+✔ receipt journal failure never becomes successful cleanup authority (25.870467ms)
+✔ controller channel loss drains descendants but produces no accepted receipt (139.145813ms)
+✔ guardian crash cannot be certified by a replacement empty lifetime (40.040454ms)
+✔ oversize and out-of-order private frames fail closed before any spawn (9.106723ms)
+✔ pin and environment errors are rejected before a lifetime is created (17.691614ms)
+✔ a leader's exit does not hide live writer threads (184.576698ms)
+✔ bounded concurrent forks remain owned while drain closes the tree (130.137207ms)
+✔ owned ptrace relationships do not turn a stopped child into an empty tree (144.650031ms)
+✔ an inherited unlinked writable FD stops changing only after the owned tree drains (138.567904ms)
+✔ an exact private-frame replay acknowledges the same PID without another fork (16.181431ms)
+✔ a completed terminal helper does not revoke another active root (142.115133ms)
+ℹ tests 30
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9600.12629

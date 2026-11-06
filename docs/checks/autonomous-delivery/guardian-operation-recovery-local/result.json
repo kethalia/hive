@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-06T00:29:29.987883+00:00",
+  "baseCommit": "df651a3f387ea9098e89c36a0fc2b3a3c7b2dcdb",
+  "scope": "Installed host committed-operation ACK recovery; source and isolated local fixtures only",
+  "budgetsMs": {
+    "controllerCumulative": 20000,
+    "networkLeg": 6000,
+    "outerAuthority": 23000,
+    "workerFd3": 25000,
+    "nativeElfRpcUnchanged": 2000
+  },
+  "invariants": [
+    "Historical receipts retain the execution hold until fresh server fence and local evidence validation.",
+    "One bounded readback/fresh-fence sequence per cumulative admission operation.",
+    "Missing/mismatched/expired receipts and uncertain fresh fences remain held across reopen.",
+    "Cached producer metadata is invalidated before readback; worker token assertions are globally gated during pending/failed authority exchanges.",
+    "One-use native launch is excluded from generic recovery.",
+    "Recovered checkout and native metadata directory identities are re-statted without following symlinks before factual acceptance and after the fresh fence.",
+    "Worker binding and replacement opaque token are synchronously published before releasing the global authority gate."
+  ],
+  "verification": [
+    {
+      "command": "node --test scripts/verify-codex-guardian-controller.test.mjs",
+      "passed": 45
+    },
+    {
+      "command": "node --test scripts/verify-codex-host-guardian.test.mjs",
+      "passed": 21,
+      "actualNativeElfAndFd3": true
+    },
+    {
+      "command": "HIVE_DELIVERY_TEST_DATABASE_URL=<isolated-loopback-fixture> pnpm exec vitest run src/__tests__/lib/codex-session/guardian-installed.integration.test.ts --no-file-parallelism",
+      "passed": 8,
+      "exitCode": 0,
+      "durationMs": 63086,
+      "scenarios": [
+        "lost_ack",
+        "expired_empty",
+        "prepare_ack",
+        "prepare_slow_ack",
+        "checkout_ack",
+        "fence_ack",
+        "prepare_expired",
+        "prepare_mismatch"
+      ],
+      "actualNativeElfAndFd3AndPostgres": true
+    },
+    {
+      "command": "pnpm templates:sync && pnpm templates:check",
+      "exitCode": 0,
+      "mirroredProfiles": 4
+    },
+    {
+      "kind": "scratch-only microtask regression mutation",
+      "mutation": "publish worker binding after awaiting authority rather than within the held exchange",
+      "staleTokenAccepted": 1,
+      "expected": 0,
+      "testRejectedMutation": true
+    },
+    {
+      "command": "node --test scripts/build-codex-host-archive.test.mjs scripts/verify-codex-compiled-host.test.mjs scripts/verify-codex-host-package.test.mjs scripts/agent-bridge/package.test.mjs scripts/verify-workspace-profile-templates.test.mjs",
+      "passed": 26,
+      "skipped": 2,
+      "note": "Compiled/package checks passed. The profile synchronization scratch fixture required copying the newly packaged notification sources; its focused 13-test rerun passed after that fixture fix. Native-inference-only checks were intentionally skipped."
+    }
+  ],
+  "limitations": [
+    "Native finalization ACK loss uses the actual controller with fixture native journals; native receipt persistence is covered separately by server PostgreSQL tests.",
+    "No live workspace adoption, provider operations, native inference, or live database mutation.",
+    "Existing immutable held package has no compatible readback path and remains ineligible for hot recovery.",
+    "Owner-triggered blocked-task recovery and task-absent pre-admission recovery remain separate follow-up work."
+  ],
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs": "b8d431d8e249b608e689e33a3aa9552e59d7b4b79d431e7a1577afad71a380ba",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "a6e84e7cb88ae231d0d0899a40fdf15e3fc63dcd014c53b3baa0c27369f4299a",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "e8b458021a65cd7f35230f3f9d4456bf998506a46c32c317641608a301eefc90",
+    "scripts/verify-codex-guardian-controller.test.mjs": "0cf3b6c5264e5ea91e2d26fab46245a92bf0ac052e992d84a3c46971297c3d9e",
+    "scripts/verify-codex-host-guardian.test.mjs": "cbed9c26485e40afe1112df88d2140845fda7a2277682c620a25e5cca2665817",
+    "src/__tests__/lib/codex-session/guardian-installed.integration.test.ts": "966b51d1ff2e22dbe2758f188eb145a1b780bed52b730220d975ce84d23a5ca5",
+    "scripts/verify-workspace-profile-templates.test.mjs": "78d518710a32d263253e4e48c471b4501d82f3afe4b3a496850b1f4de866e210"
+  },
+  "package": {
+    "manifestSha256": "757395c551dc8f128e50a95302469c5bc2cfdbb29c32b4f00d06ef6400fe6e09",
+    "guardianElfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "controllerPolicyDigest": "419ff9cba6f17a0b52a59b881490121948eb1f2e403eacd2e01bd8dfafdb584a",
+    "tarSha256": "4b3a8ef328948e628eebb758a9cfaefb56b95061f0039781d353ff3dc2142cbe",
+    "compressedBytes": 158276,
+    "compressedSha256": "94daed3b7ab177c9ede287608a5024cf18f60e5dc81fcf5e50b8948c53997339"
+  }
+}

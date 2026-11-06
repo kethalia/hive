@@ -1,0 +1,34 @@
+✔ controller creates a separate configured evaluator and archives exact terminal thread (1.782932ms)
+✔ native configuration drift or unexpected tool output cannot become acceptance (0.771336ms)
+✔ cancellation retains a held exact turn and never retries inference (0.412082ms)
+✔ unknown producer/config fields cannot enable evaluation (0.700142ms)
+Acceptance fixture retained: /home/coder/projects/kethalia/hive/.ae-YLI3L4
+✖ actual pinned native evaluator uses readonly permissions and no shell/collaboration tools (1443.466965ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1528.213539
+
+✖ failing tests:
+
+test at scripts/verify-codex-acceptance-native.test.mjs:223:1
+✖ actual pinned native evaluator uses readonly permissions and no shell/collaboration tools (1443.466965ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-acceptance-native.test.mjs:342:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

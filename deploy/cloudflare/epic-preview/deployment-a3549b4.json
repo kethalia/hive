@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "a3549b4fd489a8dd76fd0f7390d3ab087f77175d",
+  "sourceSetDigest": "534351c4bdcf7af46753a690130a4b70df12aa66114ad665a9216c5fef3ebfeb",
+  "configDigest": "2ce2db0fe7f11af18b868b4011cc6e499955d2651cf7350519750a1fcc0a9c07",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "workerName": "hive-delivery-capability-preview",
+  "runId": "3f5081ab-5fd4-4362-8c82-8bcee8bb749f",
+  "initialVersionId": "2b130e54-bd51-4f8c-bb87-a8daf518465b",
+  "initialDeploymentId": "3e4da318-1a3a-48c6-859a-f4603ded5837",
+  "configuredVersionId": "b53fe7aa-8fc9-4eb7-90a7-025d607bbd3b",
+  "configuredDeploymentId": "8f55046a-6487-43bd-af44-87cc5eab8e51",
+  "configuredDeployedAt": "2026-10-29T16:15:56.326319Z",
+  "uploadUncompressedKiB": 2450.37,
+  "uploadGzipKiB": 880.82,
+  "startupMs": 28,
+  "workerDevEnabled": true,
+  "versionPreviewUrlsEnabled": false,
+  "customRoutes": [],
+  "paidAddons": [],
+  "secretsBound": ["DATABASE_URL", "PREVIEW_BEARER_TOKEN", "CODER_API_TOKEN"],
+  "credentialScope": "restricted Neon runtime role and supplied Coder test-account session; admin DB URL unused",
+  "scriptedWorkerRequestsSoFar": 8,
+  "maximumAuthorizedScriptedRequests": 20,
+  "status": "Neon HTTP/Prisma verified; Coder Worker fetch unavailable; diagnostic revision pending",
+  "localDryRunArtifacts": {
+    "b5eac128f9b2a7b2146c1e479f7284d9f4137e45-query_compiler_bg.wasm": "8ad65dab5c22d8ce70db4bcb6c8c0a5069feb9841d9154cfb59f2003c2bd0236",
+    "worker.js": "ea597ee6134b3d94e6f5696edd731379f288bea2c2123858d2e89e4e627ff292"
+  }
+}

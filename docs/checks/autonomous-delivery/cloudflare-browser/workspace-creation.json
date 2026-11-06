@@ -1,0 +1,16 @@
+{
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "6bc1ff4f-c190-4d8f-becd-b7b3e01e9535",
+  "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+  "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+  "createdAt": "2026-10-29T20:42:24.345891Z",
+  "name": "hive-cloudflare-browser",
+  "task": "hive-cloudflare-browser-preview",
+  "designation": "task-created-disposable",
+  "recordSource": "primary installed hive-workspace create response",
+  "cleanupAuthority": "installed helper private HMAC-signed receipt; this copy is informational",
+  "purpose": "bounded real Cloudflare preview login and browser validation",
+  "existingWorkspaceDecision": "creator-direction-upgrade serves another project and is retained unchanged",
+  "ttlMinutes": 120,
+  "templateParameters": { "enable_opencode": "false" }
+}

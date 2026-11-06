@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-10-29T22:58:47.868143+00:00",
+  "parentTests": {
+    "passed": 112,
+    "failed": 0,
+    "skipped": 0
+  },
+  "pythonInstallerTestsPassed": 12,
+  "review": [
+    "Parent reviewed preparation admission, post-await execution checks, durable full-set closure and startup attestation",
+    "Independent Astra reviewed controller/host/supervisor/shim plus Python installer; no remaining concrete blocker"
+  ],
+  "fixedFinding": "Validate guardian dependency before opening controller lock to avoid leaked descriptor on rejection",
+  "limits": [
+    "Exact fixed installer cross-language proof still in progress",
+    "Installed preparation and drain explicitly denied until independent persisted server authority",
+    "No automatic checkout cleanup or production activation"
+  ],
+  "cleanStagedExport": {
+    "templateChecks": 87,
+    "packageChecks": 4,
+    "installerChecks": 12,
+    "failed": 0,
+    "gzipBytes": 121733
+  }
+}

@@ -79,6 +79,10 @@ export async function cachedDiscovery<T>({
   refresh?: boolean;
   cacheable?: (value: T) => boolean;
 }): Promise<T> {
+  // Workerd IO and database contexts belong to one request. Even a tenant-keyed
+  // pending promise can carry another request's lifetime; use fresh authorized
+  // reads until a platform-native cache with explicit invalidation is configured.
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") return load();
   const client = await connection();
   let epoch = "local";
   try {
@@ -146,6 +150,7 @@ export async function cachedDiscovery<T>({
 }
 
 export async function invalidateDiscovery(key: string) {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") return;
   for (const existing of memory.keys()) if (existing.startsWith(`${key}:`)) remove(existing);
   for (const existing of pending.keys())
     if (existing.startsWith(`${key}:`)) pending.delete(existing);

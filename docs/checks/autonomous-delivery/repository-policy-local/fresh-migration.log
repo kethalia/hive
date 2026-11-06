@@ -1,0 +1,105 @@
+
+> @hive/db@0.3.0 migrate:deploy /home/coder/projects/kethalia/hive/packages/db
+> prisma migrate deploy --schema prisma/schema.prisma
+
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "hive_delivery_test", schema "public" at "127.0.0.1:44741"
+
+30 migrations found in prisma/migrations
+
+Applying migration `0_init`
+Applying migration `20260602000000_add_navigation_favorites`
+Applying migration `20260603000000_add_terminal_controls_beyond_mobile`
+Applying migration `20260714000000_add_navigation_favorite_position`
+Applying migration `20260814000000_remove_legacy_tasks`
+Applying migration `20261016000000_add_agent_notifications`
+Applying migration `20261016010000_stage_notification_credentials`
+Applying migration `20261029000000_add_delivery_foundation`
+Applying migration `20261029010000_delivery_audit_integrity`
+Applying migration `20261029020000_delivery_report_event_binding`
+Applying migration `20261029030000_delivery_runtime_recovery`
+Applying migration `20261029040000_coder_token_key_provenance`
+Applying migration `20261029050000_codex_host_registration`
+Applying migration `20261029060000_codex_heartbeat_ack`
+Applying migration `20261029070000_project_task_intents`
+Applying migration `20261029071000_project_intent_payload_guards`
+Applying migration `20261029072000_project_intent_source_context`
+Applying migration `20261029073000_project_preparation_progress`
+Applying migration `20261029090000_delivery_manager_binding`
+Applying migration `20261029100000_delivery_informational_report`
+Applying migration `20261029100100_delivery_report_null_guard`
+Applying migration `20261029110000_delivery_manager_progression`
+Applying migration `20261029120000_delivery_source_revisions`
+Applying migration `20261029130000_guardian_admission`
+Applying migration `20261029140000_delivery_source_application`
+Applying migration `20261029150000_credential_rotation_scheduler`
+Applying migration `20261029160000_template_publication`
+Applying migration `20261029170000_template_publication_creation`
+Applying migration `20261029180000_template_publication_notices`
+Applying migration `20261029190000_delivery_repository_policy`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 0_init/
+    └─ migration.sql
+  └─ 20260602000000_add_navigation_favorites/
+    └─ migration.sql
+  └─ 20260603000000_add_terminal_controls_beyond_mobile/
+    └─ migration.sql
+  └─ 20260714000000_add_navigation_favorite_position/
+    └─ migration.sql
+  └─ 20260814000000_remove_legacy_tasks/
+    └─ migration.sql
+  └─ 20261016000000_add_agent_notifications/
+    └─ migration.sql
+  └─ 20261016010000_stage_notification_credentials/
+    └─ migration.sql
+  └─ 20261029000000_add_delivery_foundation/
+    └─ migration.sql
+  └─ 20261029010000_delivery_audit_integrity/
+    └─ migration.sql
+  └─ 20261029020000_delivery_report_event_binding/
+    └─ migration.sql
+  └─ 20261029030000_delivery_runtime_recovery/
+    └─ migration.sql
+  └─ 20261029040000_coder_token_key_provenance/
+    └─ migration.sql
+  └─ 20261029050000_codex_host_registration/
+    └─ migration.sql
+  └─ 20261029060000_codex_heartbeat_ack/
+    └─ migration.sql
+  └─ 20261029070000_project_task_intents/
+    └─ migration.sql
+  └─ 20261029071000_project_intent_payload_guards/
+    └─ migration.sql
+  └─ 20261029072000_project_intent_source_context/
+    └─ migration.sql
+  └─ 20261029073000_project_preparation_progress/
+    └─ migration.sql
+  └─ 20261029090000_delivery_manager_binding/
+    └─ migration.sql
+  └─ 20261029100000_delivery_informational_report/
+    └─ migration.sql
+  └─ 20261029100100_delivery_report_null_guard/
+    └─ migration.sql
+  └─ 20261029110000_delivery_manager_progression/
+    └─ migration.sql
+  └─ 20261029120000_delivery_source_revisions/
+    └─ migration.sql
+  └─ 20261029130000_guardian_admission/
+    └─ migration.sql
+  └─ 20261029140000_delivery_source_application/
+    └─ migration.sql
+  └─ 20261029150000_credential_rotation_scheduler/
+    └─ migration.sql
+  └─ 20261029160000_template_publication/
+    └─ migration.sql
+  └─ 20261029170000_template_publication_creation/
+    └─ migration.sql
+  └─ 20261029180000_template_publication_notices/
+    └─ migration.sql
+  └─ 20261029190000_delivery_repository_policy/
+    └─ migration.sql
+      
+All migrations have been successfully applied.

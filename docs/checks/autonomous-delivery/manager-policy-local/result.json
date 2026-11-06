@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-10-29T20:32:41.915489+00:00",
+  "sourceRevision": "a4fa3381f829066c5d7245bc23eaf71f12a8b353",
+  "tests": {
+    "total": 92,
+    "files": 9,
+    "newManagerPolicyPostgres": 12,
+    "sharedPolicyUnit": 6,
+    "legacyManagerPostgres": 9,
+    "nativeSourcePostgres": 10,
+    "githubTransportPostgres": 9,
+    "githubPublisherPostgres": 12,
+    "githubEvidenceDomain": 24,
+    "sourceRoute": 6,
+    "managerRoute": 4
+  },
+  "typecheck": "passed",
+  "scopedBiome": "passed",
+  "sourceSha256": {
+    "src/lib/delivery/github-policy.server.ts": "dc211e78e12c8e1093defd71201a1eff833baef369baf67e8ac538ae3f025276",
+    "src/lib/delivery/manager.server.ts": "f15fe1095ecc9933e6c2dc49ab7189c3653b46f161213f2662719199ea1d5c29",
+    "src/app/api/delivery/host/route.ts": "8166ce8f6fe09939d1b1943505fdb1e00a2252c3d5225afcb3ed8297372869ed",
+    "src/lib/delivery/github-source-route.server.ts": "8060efaed8f26c1575bc20505c7e76a3c7bd53b337687e5c85852a43754eb56e",
+    "src/__tests__/lib/delivery/github-policy.test.ts": "36f88ee5f0363dbadb4cf327c2a58f8d6ce5f1c258b043634222ea4688e80150",
+    "src/__tests__/lib/delivery/manager-policy.integration.test.ts": "6740783dc3e42ad1ed34faf46e6915ce65724bfadc823974544225a34c06136c",
+    "src/__tests__/lib/delivery/github-source-route.test.ts": "da495e770abc7e031fbe71e8c2b52551bb618ad9607211de1e167a2a56cc272c",
+    "docs/checks/autonomous-delivery/manager-policy.md": "9efac959218881a6927d84527b5191186dd751041c9dff56fd1fc7d4fbdf99f2",
+    "docs/checks/autonomous-delivery/github-transport.md": "0d0b1ad936b68938b93d59bea804872bc1c4ace471d791a6b8835792ac058e3f"
+  },
+  "schemaChanged": false,
+  "authority": "Current exact server task map; full normalized policy producer; authenticated persisted owner/task/source scope before lookup; resolution rechecked inside the result transaction; selected references require publication/consumed-challenge/current-target provenance.",
+  "phaseSemantics": "GitHub applies to code-quality/check/review steps. Analysis-only understand keeps its existing independent-evidence contract with no new PR prerequisite. No trusted analysis adapter or successful informational outcome is invented.",
+  "provenance": "Isolated local PostgreSQL17; synthetic Coder/GitHub/artifact authority fixtures. No account inference, live cloud write, production DB mutation, runtime flag or job activation.",
+  "remainingGates": [
+    "Trusted analysis/change/migration/artifact producers or explicit informational outcome",
+    "Automatic trusted PR discovery and durable policy administration",
+    "Live authenticated source composition and isolated native/signer authority",
+    "Trusted background/external quiescence; writer holds remain after accepted reports",
+    "Production acceptance and owner release approval"
+  ],
+  "independentJournalReview": "Validated-before-sealing receipt and MAC-bound stamp prevent malformed reply retirement; legacy/corrupt/unknown files fail closed. Root subsequently added O_NONBLOCK plus FIFO regression after review; unique host lock remains the cleanup serialization boundary."
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:47:03.820707+00:00",
+  "status": "prepared_only_no_live_preview_requests",
+  "sourceStable": true,
+  "sourceHashes": {
+    "scripts/checks/project-preview/README.md": "a1b2954bfc43922d65446545675af0e629faa11b87fc0e5f8554cb66b609982d",
+    "scripts/checks/project-preview/browser.mjs": "bfcda6e08bf00dafc23e5b3b8ad0f4eaf19b415b87e44512aa4d984f89c234a4",
+    "scripts/checks/project-preview/package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b",
+    "scripts/checks/project-preview/package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
+    "scripts/checks/project-preview/policy.mjs": "60f709fbb02f0defaf95a5afb5686971e82bfebfd78c36be469bb93289ed0e71",
+    "scripts/checks/project-preview/policy.test.mjs": "79098e14f808f10a227388cff9314491ea4ab9c0069c0b6c70a6e99ddc261382",
+    "scripts/checks/project-preview/preparation.json": "501191f576e4026db7f4e20d6afe6f9df1d1906959f7784c5751a9a37733687f",
+    "scripts/checks/project-preview/remote.py": "c289c4df0aca6af746dc3923edf2e0319a770d1b2bd979a7fc1b02cef7dd50c4",
+    "scripts/checks/project-preview/test_remote.py": "8fea7c860f6d03029d66df7aec7b3be1ba6e8d848023c16c891319a027e01644"
+  },
+  "checks": {
+    "networkPolicy": {
+      "passed": 6,
+      "command": "node --test scripts/checks/project-preview/policy.test.mjs"
+    },
+    "privateInput": {
+      "passed": 4,
+      "command": "python3 -m unittest discover -s scripts/checks/project-preview -p test_remote.py"
+    },
+    "browserPreparation": {
+      "passed": true,
+      "command": "python3 scripts/checks/project-preview/remote.py prepare",
+      "profile": "browser",
+      "chrome": "155.0.8059.79",
+      "playwright": "1.61.1",
+      "syntheticOnly": true,
+      "previewRequests": 0
+    }
+  },
+  "liveAuthorization": false,
+  "livePhaseAPassed": false,
+  "phaseBPending": true,
+  "budget": {
+    "outerHttpTotal": 200,
+    "priorRootRequests": 5,
+    "remainingIncludingCleanup": 195,
+    "backendFanoutMeasured": false
+  },
+  "primaryOwnsWorkspaceCleanup": true
+}

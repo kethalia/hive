@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T23:33:39.446677+00:00",
+  "projectId": "purple-math-59583745",
+  "branchId": "br-ancient-violet-b7pcun87",
+  "userRequestedCleanup": true,
+  "deletedDatabases": [
+    {
+      "database": "hive_epic_preview",
+      "bytes": 4005,
+      "sha256": "ddb5c2f2a313ccf9fa6090e7e4ff3b665318e620392f4c158b774ae69ebf20e8",
+      "archiveDecodedSuccessfully": true,
+      "fullRestoreTested": false
+    },
+    {
+      "database": "hive_d10_pilot",
+      "bytes": 338468,
+      "sha256": "b4043a2e6004103633963f0dc6305d640230698ba88ffa549c295582c582e2a1",
+      "archiveDecodedSuccessfully": true,
+      "fullRestoreTested": false
+    },
+    {
+      "database": "hive_production_rehearsal_20261105",
+      "bytes": 372282,
+      "sha256": "f25e3ae9c25296cb8d241022bceeb34caac0e72e68abf0a988a5908d4e64cb08",
+      "archiveDecodedSuccessfully": true,
+      "fullRestoreTested": false
+    }
+  ],
+  "retainedDatabases": [
+    {
+      "name": "hive_native_preview",
+      "id": 1303554,
+      "reason": "Current native branch preview and manager pilot"
+    },
+    {
+      "name": "hive_app_preview",
+      "id": 1112631,
+      "reason": "Still used by the local Workerd regression harness; retains historical guardian records"
+    }
+  ],
+  "privateBackupDirectory": "/home/coder/projects/kethalia/.private-hive-database-retirement-20261105",
+  "backupIncludesGlobalRoles": false,
+  "backupFullRestoreTested": false,
+  "cloudflareStorage": {
+    "deletedBuckets": [],
+    "retainedHiveBucket": "hive-delivery-pilot-20261105",
+    "reason": "Still bound to the current native preview",
+    "hiveD1DatabasesFound": 0,
+    "hiveKVNamespacesFound": 0,
+    "neonObjectStorageBucketsFound": 0
+  },
+  "unrelatedApplicationsChanged": false,
+  "productionChanged": false,
+  "previewCheck": {
+    "initialStatus": 403,
+    "retryWithUserAgentStatus": 200,
+    "loginForm": true,
+    "deploymentId": "36eba9ce-62af-429d-be9a-bcf6ba3373ff",
+    "cumulativeOuterRequests": 63
+  }
+}

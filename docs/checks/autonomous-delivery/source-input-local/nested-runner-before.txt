@@ -1,0 +1,47 @@
+✖ private accepted-source worker and lost-ack recovery (1525.838838ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1570.95821
+
+✖ failing tests:
+
+test at scripts/verify-agent-tools.test.mjs:66:3
+✖ private accepted-source worker and lost-ack recovery (1525.838838ms)
+  AssertionError [ERR_ASSERTION]: ...F...
+  ======================================================================
+  FAIL: test_real_coordinator_recovers_lost_commit_ack_with_historical_expected_source (__main__.PublishedObjectTests.test_real_coordinator_recovers_lost_commit_ack_with_historical_expected_source)
+  ----------------------------------------------------------------------
+  Traceback (most recent call last):
+    File "/home/coder/projects/kethalia/hive/scripts/agents/test_delivery_source_apply_worker.py", line 212, in test_real_coordinator_recovers_lost_commit_ack_with_historical_expected_source
+      self.test_real_private_fd_worker_applies_published_objects_without_touching_worktree(coordinator=True)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+    File "/home/coder/projects/kethalia/hive/scripts/agents/test_delivery_source_apply_worker.py", line 161, in test_real_private_fd_worker_applies_published_objects_without_touching_worktree
+      self.assertIn(b"pass 1", result.stdout)
+      ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  AssertionError: b'pass 1' not found in b''
+
+  ----------------------------------------------------------------------
+  Ran 7 tests in 1.439s
+
+  FAILED (failures=1)
+
+
+  1 !== 0
+
+      at TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-agent-tools.test.mjs:68:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/progression.integration.test.ts (12 tests) 1945ms
+   ✓ protocol-one server progression (synthetic signed host, not native ordering proof) > advances analysis then two delegated attempts at one source while preserving the physical writer and immutable receipts  354ms
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  21:31:42
+   Duration  2.35s (transform 185ms, setup 0ms, collect 248ms, tests 1.94s, environment 0ms, prepare 41ms)

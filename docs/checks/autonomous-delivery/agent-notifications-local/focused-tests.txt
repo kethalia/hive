@@ -1,0 +1,16 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/push/agent-events.integration.test.ts (12 tests) 710ms
+ ✓ src/__tests__/lib/delivery/outbox.integration.test.ts (7 tests) 362ms
+ ✓ src/__tests__/lib/delivery/dispatch.test.ts (5 tests) 14ms
+ ✓ src/__tests__/cloudflare/portable-dispatch.test.ts (8 tests) 19ms
+ ✓ src/__tests__/push/event-route.test.ts (13 tests) 16ms
+ ✓ src/__tests__/push/agent-events-route.test.ts (4 tests) 16ms
+ ✓ src/__tests__/lib/templates/publication-notices.test.ts (6 tests) 7ms
+ ✓ src/__tests__/push/bounded-send.test.ts (3 tests) 4ms
+
+ Test Files  8 passed (8)
+      Tests  58 passed (58)
+   Start at  00:01:41
+   Duration  3.09s (transform 524ms, setup 0ms, collect 999ms, tests 1.15s, environment 1ms, prepare 309ms)

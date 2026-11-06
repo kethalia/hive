@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "outcome": "held_before_role_creation",
+  "errorCode": "42P18",
+  "reason": "format parameters missing explicit text casts",
+  "transactionRolledBack": true,
+  "generatedRoleExists": false,
+  "fixturePolicies": 0,
+  "fixtureSeeded": false,
+  "originalTables": 8,
+  "originalRows": 88,
+  "originalFingerprintsMatch": true,
+  "fix": "cast both format parameters to text",
+  "secretsIncluded": false
+}

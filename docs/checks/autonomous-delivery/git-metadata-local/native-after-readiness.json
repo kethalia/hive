@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "status": "failed",
+  "requests": 0,
+  "nativeCreated": true,
+  "registryPhase": null,
+  "observedMethods": [],
+  "error": "fixture_called_nonexistent_native_subscribe",
+  "nativeReadinessPassed": true,
+  "modelTurnsSubmitted": 0,
+  "cleanupCorrection": "Fallback closes native when fixture runtimeFactory fails before supervisor assignment; actual leftover wrapper stopped via verified pidfd identity",
+  "recordedFixtureProcessesGone": true
+}

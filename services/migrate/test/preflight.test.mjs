@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { executePrisma, migrate, migrationSchema, preflightSql } from "../src/migrate.mjs";
+import { runtimeGrantsSql } from "../src/runtime-grants.mjs";
 
 const databaseUrl = "postgresql://fixture:secret@localhost/hive";
 const success = { code: 0, output: "" };
@@ -61,6 +62,7 @@ test("a passing preflight runs deploy afterward without putting credentials in a
     [
       ["db", "execute"],
       ["migrate", "deploy"],
+      ["db", "execute"],
     ],
   );
   assert.equal(calls[0].databaseUrl, databaseUrl);
@@ -150,5 +152,117 @@ test("subprocess output retention is bounded", async () => {
     assert.ok(result.output.length <= 16384);
   } finally {
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("runtime grant failure stops deployment without exposing child output", async () => {
+  let calls = 0;
+  await assert.rejects(
+    migrate({
+      databaseUrl,
+      execute: async () => (++calls === 3 ? { code: 1, output: databaseUrl } : success),
+      log: () => {},
+    }),
+    (error) => {
+      assert.match(error.message, /Runtime role provisioning failed/);
+      assert.ok(!error.message.includes(databaseUrl));
+      return true;
+    },
+  );
+  assert.equal(calls, 3);
+});
+
+for (const runtimeRole of ["hive_native_runtime", "hive_app_runtime"]) {
+  test(`native publication authority remains append-only in canonical grants for ${runtimeRole}`, () => {
+    const sql = runtimeGrantsSql("public", runtimeRole);
+    const append = sql.slice(
+      sql.indexOf("FOREACH name"),
+      sql.indexOf("GRANT SELECT, INSERT, UPDATE"),
+    );
+    for (const name of [
+      "delivery_native_release_artifacts",
+      "delivery_native_release_baselines",
+      "delivery_native_publication_grants",
+      "delivery_native_publication_receipts",
+    ]) {
+      assert.match(append, new RegExp(`'${name}'`));
+      assert.equal(sql.match(new RegExp(`'${name}'`, "g"))?.length, 1);
+    }
+    assert.doesNotMatch(sql, /GRANT\s+CONNECT/i);
+  });
+  test(`provisions only the selected fixed runtime role (${runtimeRole})`, async () => {
+    const calls = [];
+    await migrate({
+      databaseUrl,
+      runtimeRole,
+      execute: async (call) => {
+        calls.push(call);
+        return success;
+      },
+      log: () => {},
+    });
+    assert.equal(calls[2].stdin, runtimeGrantsSql("public", runtimeRole));
+    assert.ok(calls[2].stdin.includes(`TO "${runtimeRole}"`));
+    assert.ok(
+      !calls[2].stdin.includes(
+        runtimeRole === "hive_native_runtime" ? "hive_app_runtime" : "hive_native_runtime",
+      ),
+    );
+    assert.doesNotMatch(calls[2].stdin, /GRANT\s+CONNECT/i);
+  });
+}
+test("the runtime grant selector defaults to the existing app role", () => {
+  assert.equal(runtimeGrantsSql("public"), runtimeGrantsSql("public", "hive_app_runtime"));
+});
+for (const runtimeRole of ["", null, "postgres", 'hive_native_runtime"; GRANT ALL TO PUBLIC; --']) {
+  test(`rejects an invalid runtime role before any database operation (${JSON.stringify(runtimeRole)})`, async () => {
+    let calls = 0;
+    await assert.rejects(
+      migrate({
+        databaseUrl,
+        runtimeRole,
+        execute: async () => {
+          calls++;
+          return success;
+        },
+        log: () => {},
+      }),
+      /HIVE_MIGRATE_RUNTIME_ROLE/,
+    );
+    assert.equal(calls, 0);
+    assert.throws(() => runtimeGrantsSql("public", runtimeRole), /HIVE_MIGRATE_RUNTIME_ROLE/);
+  });
+}
+test("the trusted environment selector is validated before check-only preflight", async () => {
+  const prior = process.env.HIVE_MIGRATE_RUNTIME_ROLE;
+  let calls = 0;
+  try {
+    process.env.HIVE_MIGRATE_RUNTIME_ROLE = "postgres";
+    await assert.rejects(
+      migrate({
+        databaseUrl,
+        checkOnly: true,
+        execute: async () => {
+          calls++;
+          return success;
+        },
+      }),
+      /HIVE_MIGRATE_RUNTIME_ROLE/,
+    );
+    assert.equal(calls, 0);
+    process.env.HIVE_MIGRATE_RUNTIME_ROLE = "hive_native_runtime";
+    const scripts = [];
+    await migrate({
+      databaseUrl,
+      execute: async (call) => {
+        scripts.push(call.stdin);
+        return success;
+      },
+      log: () => {},
+    });
+    assert.equal(scripts[2], runtimeGrantsSql("public", "hive_native_runtime"));
+  } finally {
+    if (prior === undefined) delete process.env.HIVE_MIGRATE_RUNTIME_ROLE;
+    else process.env.HIVE_MIGRATE_RUNTIME_ROLE = prior;
   }
 });

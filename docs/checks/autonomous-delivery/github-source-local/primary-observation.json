@@ -1,0 +1,81 @@
+{
+  "context": "Primary account read-only source and normalization compatibility. No test-account, signed-source-channel, R2 or production proof.",
+  "target": {
+    "schemaVersion": 1,
+    "providerRepositoryId": "1183966024",
+    "providerAccountId": "62855857",
+    "fullName": "kethalia/hive",
+    "pullNumber": 402,
+    "expectedHeadSha": "b0e278c0ec40490c3a5a9a2cce258d27c9ef5bf1"
+  },
+  "observedAt": "2026-10-29T18:12:56.475531+00:00",
+  "normalizedChecks": [
+    {
+      "producer": "github-actions:1183966024:workflow:262356269:app:15368",
+      "name": "Build / Lint / Test / Build",
+      "sourceSha": "b0e278c0ec40490c3a5a9a2cce258d27c9ef5bf1",
+      "observedAt": 1793297576475,
+      "sourceUpdatedAt": 1793296926000,
+      "remoteId": "github:1183966024:run:40926642200:attempt:1:job:123634330401:check:123634330401",
+      "runSequence": 1423,
+      "runAttempt": 1,
+      "status": "failure",
+      "verified": true
+    },
+    {
+      "producer": "github-actions:1183966024:workflow:262356269:app:15368",
+      "name": "Build / Lint / Test / Format",
+      "sourceSha": "b0e278c0ec40490c3a5a9a2cce258d27c9ef5bf1",
+      "observedAt": 1793297576475,
+      "sourceUpdatedAt": 1793296926000,
+      "remoteId": "github:1183966024:run:40926642200:attempt:1:job:123634330432:check:123634330432",
+      "runSequence": 1423,
+      "runAttempt": 1,
+      "status": "failure",
+      "verified": true
+    },
+    {
+      "producer": "github-actions:1183966024:workflow:262356269:app:15368",
+      "name": "Build / Lint / Test / Lint",
+      "sourceSha": "b0e278c0ec40490c3a5a9a2cce258d27c9ef5bf1",
+      "observedAt": 1793297576475,
+      "sourceUpdatedAt": 1793296926000,
+      "remoteId": "github:1183966024:run:40926642200:attempt:1:job:123634330581:check:123634330581",
+      "runSequence": 1423,
+      "runAttempt": 1,
+      "status": "success",
+      "verified": true
+    },
+    {
+      "producer": "github-actions:1183966024:workflow:262356269:app:15368",
+      "name": "Migration preflight / PostgreSQL",
+      "sourceSha": "b0e278c0ec40490c3a5a9a2cce258d27c9ef5bf1",
+      "observedAt": 1793297576475,
+      "sourceUpdatedAt": 1793296926000,
+      "remoteId": "github:1183966024:run:40926642200:attempt:1:job:123633811066:check:123633811066",
+      "runSequence": 1423,
+      "runAttempt": 1,
+      "status": "success",
+      "verified": true
+    }
+  ],
+  "normalizedReviews": [],
+  "eligibility": {
+    "mode": "observation",
+    "eligible": false,
+    "sourceSha": "b0e278c0ec40490c3a5a9a2cce258d27c9ef5bf1",
+    "policyVersion": "primary-read-only-observation-v1",
+    "blockers": [
+      "check-not-passed:Build / Lint / Test / Build",
+      "check-not-passed:Build / Lint / Test / Format",
+      "review-missing",
+      "review-producer-missing:github-codex-review:1183966024:user:199175422:app:1144995",
+      "pull-draft"
+    ]
+  },
+  "sourceDigest": "13b0bd52795ac9cb329ae46f94370f8d828c73593de75f37bff1b400e000a10d",
+  "workflowCount": 3,
+  "checkCount": 27,
+  "threadCount": 0,
+  "reviewSummaryCount": 1
+}

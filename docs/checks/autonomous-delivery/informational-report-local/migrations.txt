@@ -1,0 +1,252 @@
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "hive_informational_fresh_55cbfdf9", schema "public" at "127.0.0.1:36229"
+
+21 migrations found in prisma/migrations
+
+Applying migration `0_init`
+Applying migration `20260602000000_add_navigation_favorites`
+Applying migration `20260603000000_add_terminal_controls_beyond_mobile`
+Applying migration `20260714000000_add_navigation_favorite_position`
+Applying migration `20260814000000_remove_legacy_tasks`
+Applying migration `20261016000000_add_agent_notifications`
+Applying migration `20261016010000_stage_notification_credentials`
+Applying migration `20261029000000_add_delivery_foundation`
+Applying migration `20261029010000_delivery_audit_integrity`
+Applying migration `20261029020000_delivery_report_event_binding`
+Applying migration `20261029030000_delivery_runtime_recovery`
+Applying migration `20261029040000_coder_token_key_provenance`
+Applying migration `20261029050000_codex_host_registration`
+Applying migration `20261029060000_codex_heartbeat_ack`
+Applying migration `20261029070000_project_task_intents`
+Applying migration `20261029071000_project_intent_payload_guards`
+Applying migration `20261029072000_project_intent_source_context`
+Applying migration `20261029073000_project_preparation_progress`
+Applying migration `20261029090000_delivery_manager_binding`
+Applying migration `20261029100000_delivery_informational_report`
+Applying migration `20261029100100_delivery_report_null_guard`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 0_init/
+    └─ migration.sql
+  └─ 20260602000000_add_navigation_favorites/
+    └─ migration.sql
+  └─ 20260603000000_add_terminal_controls_beyond_mobile/
+    └─ migration.sql
+  └─ 20260714000000_add_navigation_favorite_position/
+    └─ migration.sql
+  └─ 20260814000000_remove_legacy_tasks/
+    └─ migration.sql
+  └─ 20261016000000_add_agent_notifications/
+    └─ migration.sql
+  └─ 20261016010000_stage_notification_credentials/
+    └─ migration.sql
+  └─ 20261029000000_add_delivery_foundation/
+    └─ migration.sql
+  └─ 20261029010000_delivery_audit_integrity/
+    └─ migration.sql
+  └─ 20261029020000_delivery_report_event_binding/
+    └─ migration.sql
+  └─ 20261029030000_delivery_runtime_recovery/
+    └─ migration.sql
+  └─ 20261029040000_coder_token_key_provenance/
+    └─ migration.sql
+  └─ 20261029050000_codex_host_registration/
+    └─ migration.sql
+  └─ 20261029060000_codex_heartbeat_ack/
+    └─ migration.sql
+  └─ 20261029070000_project_task_intents/
+    └─ migration.sql
+  └─ 20261029071000_project_intent_payload_guards/
+    └─ migration.sql
+  └─ 20261029072000_project_intent_source_context/
+    └─ migration.sql
+  └─ 20261029073000_project_preparation_progress/
+    └─ migration.sql
+  └─ 20261029090000_delivery_manager_binding/
+    └─ migration.sql
+  └─ 20261029100000_delivery_informational_report/
+    └─ migration.sql
+  └─ 20261029100100_delivery_report_null_guard/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+
+Prisma schema loaded from ../../../../../../../tmp/hive-informational-migrate-gezhdow5/previous/schema.prisma
+Datasource "db": PostgreSQL database "hive_informational_upgrade_55cbfdf9", schema "public" at "127.0.0.1:36229"
+
+19 migrations found in prisma/migrations
+
+Applying migration `0_init`
+Applying migration `20260602000000_add_navigation_favorites`
+Applying migration `20260603000000_add_terminal_controls_beyond_mobile`
+Applying migration `20260714000000_add_navigation_favorite_position`
+Applying migration `20260814000000_remove_legacy_tasks`
+Applying migration `20261016000000_add_agent_notifications`
+Applying migration `20261016010000_stage_notification_credentials`
+Applying migration `20261029000000_add_delivery_foundation`
+Applying migration `20261029010000_delivery_audit_integrity`
+Applying migration `20261029020000_delivery_report_event_binding`
+Applying migration `20261029030000_delivery_runtime_recovery`
+Applying migration `20261029040000_coder_token_key_provenance`
+Applying migration `20261029050000_codex_host_registration`
+Applying migration `20261029060000_codex_heartbeat_ack`
+Applying migration `20261029070000_project_task_intents`
+Applying migration `20261029071000_project_intent_payload_guards`
+Applying migration `20261029072000_project_intent_source_context`
+Applying migration `20261029073000_project_preparation_progress`
+Applying migration `20261029090000_delivery_manager_binding`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 0_init/
+    └─ migration.sql
+  └─ 20260602000000_add_navigation_favorites/
+    └─ migration.sql
+  └─ 20260603000000_add_terminal_controls_beyond_mobile/
+    └─ migration.sql
+  └─ 20260714000000_add_navigation_favorite_position/
+    └─ migration.sql
+  └─ 20260814000000_remove_legacy_tasks/
+    └─ migration.sql
+  └─ 20261016000000_add_agent_notifications/
+    └─ migration.sql
+  └─ 20261016010000_stage_notification_credentials/
+    └─ migration.sql
+  └─ 20261029000000_add_delivery_foundation/
+    └─ migration.sql
+  └─ 20261029010000_delivery_audit_integrity/
+    └─ migration.sql
+  └─ 20261029020000_delivery_report_event_binding/
+    └─ migration.sql
+  └─ 20261029030000_delivery_runtime_recovery/
+    └─ migration.sql
+  └─ 20261029040000_coder_token_key_provenance/
+    └─ migration.sql
+  └─ 20261029050000_codex_host_registration/
+    └─ migration.sql
+  └─ 20261029060000_codex_heartbeat_ack/
+    └─ migration.sql
+  └─ 20261029070000_project_task_intents/
+    └─ migration.sql
+  └─ 20261029071000_project_intent_payload_guards/
+    └─ migration.sql
+  └─ 20261029072000_project_intent_source_context/
+    └─ migration.sql
+  └─ 20261029073000_project_preparation_progress/
+    └─ migration.sql
+  └─ 20261029090000_delivery_manager_binding/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+
+
+[*] Changed the `codex_host_slots` table
+  [-] Removed foreign key on columns (owner_id, id, active_registration_id)
+
+[*] Changed the `project_task_intents` table
+  [*] Renamed the foreign key "project_task_intents_project_fkey" to "project_task_intents_owner_id_project_id_fkey"
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+
+{"event": {"id": "d539bff1-6de9-42e1-88fb-610fcb568e05", "type": "step_completed", "payload": null, "step_id": "7a28be39-bd92-4a44-9d28-d2237d798aea", "task_id": "0e736799-dbf9-41ce-8fc6-dbc37f383203", "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "attempt_id": "6fa2a287-542c-4135-998c-27df75e02178", "created_at": "2026-10-29T20:50:48.734282+00:00", "aggregate_key": "step/7a28be39-bd92-4a44-9d28-d2237d798aea", "policy_version": "disabled-v1", "request_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "schema_version": 1, "aggregate_version": 1}, "outbox": {"id": "eb8e100c-b84d-4002-b5ae-7e10eaad5596", "status": "pending", "channel": "push", "attempts": 0, "event_id": "d539bff1-6de9-42e1-88fb-610fcb568e05", "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "created_at": "2026-10-29T20:50:48.736198+00:00", "next_attempt_at": "2026-10-29T20:50:48.736198+00:00"}, "report": {"id": "a8de6f70-6e15-4d4e-82f2-d778f8c5a260", "issues": [], "step_id": "7a28be39-bd92-4a44-9d28-d2237d798aea", "summary": "Synthetic legacy report", "event_id": "d539bff1-6de9-42e1-88fb-610fcb568e05", "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "attempt_id": "6fa2a287-542c-4135-998c-27df75e02178", "created_at": "2026-10-29T20:50:48.735316+00:00", "difficulty": "low", "next_action": "Inspect upgrade", "difficulty_reason": "Migration fixture", "remaining_uncertainty": "No external verification implied"}}
+
+{"task": {"id": "0e736799-dbf9-41ce-8fc6-dbc37f383203", "branch": "fixture", "epic_id": null, "outcome": "Preserve active attempt", "version": 0, "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "created_at": "2026-10-29T20:50:47.773812+00:00", "project_id": "e23658cc-362f-4154-b327-31b845ee27d9", "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "updated_at": "2026-10-29T20:50:47.773812+00:00", "release_mode": "disabled", "conversation_id": null, "pause_requested": false, "scheduling_paused": false}, "user": {"id": "884f19dd-5851-4d28-a879-61c873b0d024", "email": "fixture@example.invalid", "username": "upgrade-fixture", "coder_url": "https://fixture.invalid", "created_at": "2026-10-29T20:50:47.771936+00:00", "updated_at": "2026-10-29T20:50:47.771936+00:00", "coder_user_id": "f30ab5bb-64c2-4ff8-8a57-84b5410e69e9", "terminal_controls_beyond_mobile": false}, "token": {"id": "732bf54d-9264-484e-a0fa-91ba5aaa5378", "iv": "\\x445566", "user_id": "884f19dd-5851-4d28-a879-61c873b0d024", "version": 1, "auth_tag": "\\x778899", "ciphertext": "\\x112233", "created_at": "2026-10-29T20:50:47.773207+00:00", "expires_at": null, "updated_at": "2026-10-29T20:50:47.773207+00:00", "remote_key_id": null}, "attempt": {"id": "ec19830f-5eab-4c1a-878b-e6abadba4d04", "outcome": "running", "step_id": "b8ea79c4-e40d-49bb-8590-c381fafae372", "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "started_at": "2026-10-29T20:50:47.774621+00:00", "finished_at": null, "quiesced_at": null, "lease_holder": "upgrade-fixture", "effective_model": null, "requested_model": null, "runtime_binding": null, "runtime_version": 0, "effective_effort": null, "lease_expires_at": "2026-10-29T21:00:47.774621+00:00", "lease_generation": 1, "requested_effort": null, "runtime_binding_digest": null}, "session": {"id": "601ced4c-d1a0-40e3-b3d3-657e82095f05", "user_id": "884f19dd-5851-4d28-a879-61c873b0d024", "created_at": "2026-10-29T20:50:47.772506+00:00", "expires_at": "2026-10-30T20:50:47.772506+00:00", "session_id": "db9722a9-8605-42eb-90c4-1f3a3b21a8a1"}}
+
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "hive_informational_upgrade_55cbfdf9", schema "public" at "127.0.0.1:36229"
+
+21 migrations found in prisma/migrations
+
+Applying migration `20261029100000_delivery_informational_report`
+Applying migration `20261029100100_delivery_report_null_guard`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261029100000_delivery_informational_report/
+    └─ migration.sql
+  └─ 20261029100100_delivery_report_null_guard/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+
+{"task": {"id": "0e736799-dbf9-41ce-8fc6-dbc37f383203", "branch": "fixture", "epic_id": null, "outcome": "Preserve active attempt", "version": 0, "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "created_at": "2026-10-29T20:50:47.773812+00:00", "project_id": "e23658cc-362f-4154-b327-31b845ee27d9", "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "updated_at": "2026-10-29T20:50:47.773812+00:00", "release_mode": "disabled", "conversation_id": null, "pause_requested": false, "scheduling_paused": false}, "user": {"id": "884f19dd-5851-4d28-a879-61c873b0d024", "email": "fixture@example.invalid", "username": "upgrade-fixture", "coder_url": "https://fixture.invalid", "created_at": "2026-10-29T20:50:47.771936+00:00", "updated_at": "2026-10-29T20:50:47.771936+00:00", "coder_user_id": "f30ab5bb-64c2-4ff8-8a57-84b5410e69e9", "terminal_controls_beyond_mobile": false}, "token": {"id": "732bf54d-9264-484e-a0fa-91ba5aaa5378", "iv": "\\x445566", "user_id": "884f19dd-5851-4d28-a879-61c873b0d024", "version": 1, "auth_tag": "\\x778899", "ciphertext": "\\x112233", "created_at": "2026-10-29T20:50:47.773207+00:00", "expires_at": null, "updated_at": "2026-10-29T20:50:47.773207+00:00", "remote_key_id": null}, "attempt": {"id": "ec19830f-5eab-4c1a-878b-e6abadba4d04", "outcome": "running", "step_id": "b8ea79c4-e40d-49bb-8590-c381fafae372", "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "started_at": "2026-10-29T20:50:47.774621+00:00", "finished_at": null, "quiesced_at": null, "lease_holder": "upgrade-fixture", "effective_model": null, "requested_model": null, "runtime_binding": null, "runtime_version": 0, "effective_effort": null, "lease_expires_at": "2026-10-29T21:00:47.774621+00:00", "lease_generation": 1, "requested_effort": null, "runtime_binding_digest": null}, "session": {"id": "601ced4c-d1a0-40e3-b3d3-657e82095f05", "user_id": "884f19dd-5851-4d28-a879-61c873b0d024", "created_at": "2026-10-29T20:50:47.772506+00:00", "expires_at": "2026-10-30T20:50:47.772506+00:00", "session_id": "db9722a9-8605-42eb-90c4-1f3a3b21a8a1"}}
+
+0_init|2b4e3de10de83ac6feee91c24525c3ce0baada380d21e3cbbfbb6b48902e400c
+20260602000000_add_navigation_favorites|40389bab3a00b8bb95ef3a2cedfde8c04b44d95c1c9c97f3d959c83c35c076a2
+20260603000000_add_terminal_controls_beyond_mobile|a10ffffbb49343d2edce2600ca67552d9c8757b0bd4334b37caa0f1f32f033a4
+20260714000000_add_navigation_favorite_position|b79e9106b617f501d7c17822b0f0917cd2b464396a43d71f101d0c150166c409
+20260814000000_remove_legacy_tasks|1cfb9af7ba4cdc59306f1a25b9e8bbd7c340dd175b955fd3d1f74a72ae10b7a7
+20261016000000_add_agent_notifications|323c85eefc64c75c5dfc5240e8aa93805889d86895ef274566893276e36a7d0f
+20261016010000_stage_notification_credentials|96cb5165cb50d64c24489cad45f1f53efd0547d73dc91fbc29c5e1548b223b5b
+20261029000000_add_delivery_foundation|5afb3dcb698bdae86a0ed905b35bea9255681f9f85f89e893165e549d830dc04
+20261029010000_delivery_audit_integrity|3f7bd5aa766c76446d4ba03f13950869aa9834afa6a71ca1d3e4cfb91be10f12
+20261029020000_delivery_report_event_binding|b3f460809b36fd2f465d86c2510fd771d5b82830195fd5f569d0af5de2703ddb
+20261029030000_delivery_runtime_recovery|22df1aff4ead962203f7297269593721094a69af6cf52b93031ea2b6ceeb2fae
+20261029040000_coder_token_key_provenance|79490e708067bd2a75014c431485ec2fb9acf8a30b15657d88a9f846b24ce07b
+20261029050000_codex_host_registration|4cdf9506b033b22a4f7a587d7a3666693505d048c1ad199b8b8cc01fbfc45056
+20261029060000_codex_heartbeat_ack|a32ca679ad7cb1929be51abf19fd0f7ad8af0c8a1ef0ff7f7ebfca6273a0aa8d
+20261029070000_project_task_intents|c00bd0778d1f73de833de0b96399a222cc5d68768a9145e3e409055b42b237b2
+20261029071000_project_intent_payload_guards|d99beaaed25ab0fcbeb4cfb8d92053a21079ddf7aab76e9652ddd3816b63350f
+20261029072000_project_intent_source_context|06464c8432ee644586f3006c63eda777ab862767f2bb2c2bb085c942594ead97
+20261029073000_project_preparation_progress|dd841feb7df1fc095c64f4ceaec0fcfc0b36a7a4f2310fa3f5c8f147343fa97c
+20261029090000_delivery_manager_binding|a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2
+20261029100000_delivery_informational_report|8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05
+20261029100100_delivery_report_null_guard|c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865
+
+
+[*] Changed the `codex_host_slots` table
+  [-] Removed foreign key on columns (owner_id, id, active_registration_id)
+
+[*] Changed the `project_task_intents` table
+  [*] Renamed the foreign key "project_task_intents_project_fkey" to "project_task_intents_owner_id_project_id_fkey"
+
+0_init|2b4e3de10de83ac6feee91c24525c3ce0baada380d21e3cbbfbb6b48902e400c
+20260602000000_add_navigation_favorites|40389bab3a00b8bb95ef3a2cedfde8c04b44d95c1c9c97f3d959c83c35c076a2
+20260603000000_add_terminal_controls_beyond_mobile|a10ffffbb49343d2edce2600ca67552d9c8757b0bd4334b37caa0f1f32f033a4
+20260714000000_add_navigation_favorite_position|b79e9106b617f501d7c17822b0f0917cd2b464396a43d71f101d0c150166c409
+20260814000000_remove_legacy_tasks|1cfb9af7ba4cdc59306f1a25b9e8bbd7c340dd175b955fd3d1f74a72ae10b7a7
+20261016000000_add_agent_notifications|323c85eefc64c75c5dfc5240e8aa93805889d86895ef274566893276e36a7d0f
+20261016010000_stage_notification_credentials|96cb5165cb50d64c24489cad45f1f53efd0547d73dc91fbc29c5e1548b223b5b
+20261029000000_add_delivery_foundation|5afb3dcb698bdae86a0ed905b35bea9255681f9f85f89e893165e549d830dc04
+20261029010000_delivery_audit_integrity|3f7bd5aa766c76446d4ba03f13950869aa9834afa6a71ca1d3e4cfb91be10f12
+20261029020000_delivery_report_event_binding|b3f460809b36fd2f465d86c2510fd771d5b82830195fd5f569d0af5de2703ddb
+20261029030000_delivery_runtime_recovery|22df1aff4ead962203f7297269593721094a69af6cf52b93031ea2b6ceeb2fae
+20261029040000_coder_token_key_provenance|79490e708067bd2a75014c431485ec2fb9acf8a30b15657d88a9f846b24ce07b
+20261029050000_codex_host_registration|4cdf9506b033b22a4f7a587d7a3666693505d048c1ad199b8b8cc01fbfc45056
+20261029060000_codex_heartbeat_ack|a32ca679ad7cb1929be51abf19fd0f7ad8af0c8a1ef0ff7f7ebfca6273a0aa8d
+20261029070000_project_task_intents|c00bd0778d1f73de833de0b96399a222cc5d68768a9145e3e409055b42b237b2
+20261029071000_project_intent_payload_guards|d99beaaed25ab0fcbeb4cfb8d92053a21079ddf7aab76e9652ddd3816b63350f
+20261029072000_project_intent_source_context|06464c8432ee644586f3006c63eda777ab862767f2bb2c2bb085c942594ead97
+20261029073000_project_preparation_progress|dd841feb7df1fc095c64f4ceaec0fcfc0b36a7a4f2310fa3f5c8f147343fa97c
+20261029090000_delivery_manager_binding|a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2
+20261029100000_delivery_informational_report|8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05
+20261029100100_delivery_report_null_guard|c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865
+
+
+[*] Changed the `codex_host_slots` table
+  [-] Removed foreign key on columns (owner_id, id, active_registration_id)
+
+[*] Changed the `project_task_intents` table
+  [*] Renamed the foreign key "project_task_intents_project_fkey" to "project_task_intents_owner_id_project_id_fkey"
+
+{"event": {"id": "d539bff1-6de9-42e1-88fb-610fcb568e05", "type": "step_completed", "payload": null, "step_id": "7a28be39-bd92-4a44-9d28-d2237d798aea", "task_id": "0e736799-dbf9-41ce-8fc6-dbc37f383203", "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "attempt_id": "6fa2a287-542c-4135-998c-27df75e02178", "created_at": "2026-10-29T20:50:48.734282+00:00", "aggregate_key": "step/7a28be39-bd92-4a44-9d28-d2237d798aea", "policy_version": "disabled-v1", "request_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "schema_version": 1, "aggregate_version": 1}, "outbox": {"id": "eb8e100c-b84d-4002-b5ae-7e10eaad5596", "status": "pending", "channel": "push", "attempts": 0, "event_id": "d539bff1-6de9-42e1-88fb-610fcb568e05", "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "created_at": "2026-10-29T20:50:48.736198+00:00", "next_attempt_at": "2026-10-29T20:50:48.736198+00:00"}, "report": {"id": "a8de6f70-6e15-4d4e-82f2-d778f8c5a260", "issues": [], "step_id": "7a28be39-bd92-4a44-9d28-d2237d798aea", "summary": "Synthetic legacy report", "event_id": "d539bff1-6de9-42e1-88fb-610fcb568e05", "owner_id": "884f19dd-5851-4d28-a879-61c873b0d024", "attempt_id": "6fa2a287-542c-4135-998c-27df75e02178", "created_at": "2026-10-29T20:50:48.735316+00:00", "difficulty": "low", "next_action": "Inspect upgrade", "difficulty_reason": "Migration fixture", "remaining_uncertainty": "No external verification implied"}}
+
+t
+
+t

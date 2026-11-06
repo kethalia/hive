@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-30T02:22:04.403329+00:00",
+  "failedRevision": "1a7fea23a0fafb763049e4b19e7f5cb636dcffb7",
+  "ciRun": "https://github.com/kethalia/hive/actions/runs/40990154231",
+  "failedJob": 123850449432,
+  "cause": "Node test runner context inherited through Python into nested Node test; child returned no report, assertion rejected",
+  "reproducedOnNode24": true,
+  "fix": "remove NODE_TEST_CONTEXT only from independent nested runner; require explicit TAP and preserve pass-count assertion",
+  "node24After": "passed",
+  "node22Version": "22.23.4",
+  "node22After": "passed",
+  "runtimeChanged": false,
+  "logsSha256": {
+    "nested-runner-before.txt": "04182ec69be99e3e67a19c7de488f7fd58bab2cc513c8f3d5161454ca02ffb5f",
+    "nested-runner-after.txt": "a019551a1eeb92f2ba22590c90e22541b3235cb7109813ba112d98077056397f",
+    "nested-runner-node22-after.txt": "bd437ae0b9eb0e857b17acb7a89409b961bd7f0e58ba9b5cd2b9a7402c8aeddc"
+  },
+  "rawLogs": "/tmp/hive-source-nested-*.txt"
+}

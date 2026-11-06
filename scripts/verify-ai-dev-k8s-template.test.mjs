@@ -621,7 +621,7 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /^permissions:\n {2}contents: read$/m);
   assert.match(
     workflow,
-    /build-test:\n[\s\S]*?if: github\.ref != 'refs\/heads\/main' \|\| \(github\.event_name != 'push' && github\.event_name != 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}contents: read/,
+    /build-test:\n[\s\S]*?if: \(github\.ref != 'refs\/heads\/main' \|\| \(github\.event_name != 'push' && github\.event_name != 'workflow_dispatch'\)\) && inputs\.publish_preview != true[\s\S]*?permissions:\n {6}contents: read/,
   );
   assert.match(
     workflow,
@@ -650,6 +650,20 @@ function verifyBaseImageRollout() {
     readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),
     /workflow_dispatch:/,
   );
+  const preview = workflow
+    .split("  publish-preview:\n")[1]
+    ?.split("\n  update-profile-digests:")[0];
+  assert.ok(preview);
+  assert.match(
+    preview,
+    /if: github\.event_name == 'workflow_dispatch' && inputs\.publish_preview == true/,
+  );
+  assert.ok(preview.includes('[[ "$EXPECTED_SOURCE_SHA" == "$GITHUB_SHA" ]]'));
+  assert.ok(preview.includes(`[[ "$GITHUB_REF" == 'refs/heads/codex/delivery-system-design' ]]`));
+  assert.match(preview, /build-args: WORKSPACE_VARIANT=cli/);
+  assert.doesNotMatch(preview, /cli-latest|cache-to:|replace_digest|git push|gh pr/);
+  assert.match(workflow, /build-test-push:[\s\S]*?inputs\.publish_preview != true/);
+  assert.match(workflow, /update-profile-digests:[\s\S]*?inputs\.publish_preview != true/);
   assert.doesNotMatch(workflow, /git push origin main/);
 }
 

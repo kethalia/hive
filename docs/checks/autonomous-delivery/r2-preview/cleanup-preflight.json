@@ -1,0 +1,132 @@
+{
+  "observedAt": "2026-10-29T20:39:33.323Z",
+  "results": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "suffix": "",
+        "success": true,
+        "errors": [],
+        "messages": [],
+        "result": {
+          "name": "hive-delivery-proof-20261029-a4b19072",
+          "creation_date": "2026-10-29T20:09:33.480Z",
+          "location": "EEUR",
+          "storage_class": "Standard",
+          "jurisdiction": "default"
+        },
+        "status": 200
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "suffix": "/lock",
+        "success": true,
+        "errors": [],
+        "messages": [],
+        "result": {
+          "rules": [
+            {
+              "id": "hive-proof-67bf44fc",
+              "enabled": true,
+              "prefix": "delivery/",
+              "condition": {
+                "type": "Date",
+                "date": "2026-10-29T20:39:12.998Z"
+              }
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "suffix": "/lifecycle",
+        "success": true,
+        "errors": [],
+        "messages": [],
+        "result": {
+          "rules": [
+            {
+              "id": "hive-proof-expiry-67bf44fc",
+              "enabled": true,
+              "conditions": {
+                "prefix": "delivery/"
+              },
+              "deleteObjectsTransition": {
+                "condition": {
+                  "type": "Age",
+                  "maxAge": 604800
+                }
+              }
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "suffix": "/domains/managed",
+        "success": true,
+        "errors": [],
+        "messages": [],
+        "result": {
+          "enabled": false,
+          "bucketId": "faee7216adf047caaea9c40806bd3d21",
+          "domain": "pub-faee7216adf047caaea9c40806bd3d21.r2.dev"
+        },
+        "status": 200
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "suffix": "/domains/custom",
+        "success": true,
+        "errors": [],
+        "messages": [],
+        "result": {
+          "domains": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "suffix": "/objects",
+        "success": true,
+        "errors": [],
+        "messages": [],
+        "result": [
+          {
+            "key": "delivery/67bf44fc-0ade-4eab-9795-814d4bff0612/0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a.json",
+            "etag": "3cd53b42a5bddeb70130dfefa67d6fd1",
+            "last_modified": "2026-10-29T20:12:42.495Z",
+            "size": 117,
+            "http_metadata": {
+              "contentType": "application/octet-stream"
+            },
+            "custom_metadata": {},
+            "storage_class": "Standard"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "suffix": "/objects/delivery/67bf44fc-0ade-4eab-9795-814d4bff0612/0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a.json",
+        "success": true,
+        "status": 200,
+        "result": "{\"purpose\":\"Hive R2 retention and integrity test\",\"schemaVersion\":1,\"taskId\":\"67bf44fc-0ade-4eab-9795-814d4bff0612\"}\n"
+      }
+    }
+  ]
+}

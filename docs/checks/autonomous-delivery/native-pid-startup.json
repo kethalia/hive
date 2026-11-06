@@ -1,0 +1,1360 @@
+{
+  "schemaVersion": 1,
+  "runtimeVersion": "0.165.0",
+  "nativePins": {
+    "bin/codex": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+    "bin/codex-code-mode-host": "522935d4392ec9674fab60b239b5495992c6a93e4deb65113a216b6f5451ccd4",
+    "codex-resources/bwrap": "755c8d6a9b893905a4aabab058bd6c02c453e5e8653adb84fc08e570607f3f36",
+    "codex-path/rg": "e62198eb19b136b88c330af83647b5a962cb99b6b1f066758568f12de1974849"
+  },
+  "accountInference": false,
+  "turnStartCalls": 0,
+  "policyChanged": false,
+  "procMount": "unchanged protected inherited bind",
+  "cases": [
+    {
+      "pidNamespace": false,
+      "ephemeral": true,
+      "initialized": true,
+      "kernelDuringStartup": [
+        {
+          "identity": {
+            "pid": 421105,
+            "startTime": "970837121",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421105],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421105,
+              "wait": "do_poll.constprop.0"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421106,
+            "startTime": "970837121",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+            "device": "2128",
+            "inode": "4196065"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421106],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421106,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421107,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421108,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421109,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421110,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421111,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421112,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421113,
+              "wait": "futex_wait_queue"
+            }
+          ]
+        }
+      ],
+      "readWhileStartupPending": "ok",
+      "startup": "ok",
+      "elapsedStartupMs": 241,
+      "kernelAfterStartup": [
+        {
+          "identity": {
+            "pid": 421105,
+            "startTime": "970837121",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421105],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421105,
+              "wait": "do_poll.constprop.0"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421106,
+            "startTime": "970837121",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+            "device": "2128",
+            "inode": "4196065"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421106],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421106,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421107,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421108,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421109,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421110,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421111,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421112,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421113,
+              "wait": "futex_wait_queue"
+            }
+          ]
+        }
+      ],
+      "wrapperExited": true
+    },
+    {
+      "pidNamespace": false,
+      "ephemeral": false,
+      "initialized": true,
+      "kernelDuringStartup": [
+        {
+          "identity": {
+            "pid": 421323,
+            "startTime": "970837206",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421323],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421323,
+              "wait": "do_poll.constprop.0"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421324,
+            "startTime": "970837206",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+            "device": "2128",
+            "inode": "4196065"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421324],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421324,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421325,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421326,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421327,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421328,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421329,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421330,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421331,
+              "wait": "futex_wait_queue"
+            }
+          ]
+        }
+      ],
+      "readWhileStartupPending": "ok",
+      "startup": "ok",
+      "elapsedStartupMs": 242,
+      "kernelAfterStartup": [
+        {
+          "identity": {
+            "pid": 421323,
+            "startTime": "970837206",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421323],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421323,
+              "wait": "do_poll.constprop.0"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421324,
+            "startTime": "970837206",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+            "device": "2128",
+            "inode": "4196065"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421324],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421324,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421325,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421326,
+              "wait": "ep_poll"
+            },
+            {
+              "tid": 421327,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421328,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421329,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421330,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421331,
+              "wait": "futex_wait_queue"
+            }
+          ]
+        }
+      ],
+      "wrapperExited": true
+    },
+    {
+      "pidNamespace": true,
+      "ephemeral": true,
+      "initialized": true,
+      "kernelDuringStartup": [
+        {
+          "identity": {
+            "pid": 421547,
+            "startTime": "970837289",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421547],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421547,
+              "wait": "do_poll.constprop.0"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421548,
+            "startTime": "970837290",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026535761]",
+          "namespacePids": [421548, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421548,
+              "wait": "do_wait"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421549,
+            "startTime": "970837291",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+            "device": "2128",
+            "inode": "4196065"
+          },
+          "pidNamespace": "pid:[4026535761]",
+          "namespacePids": [421549, 2],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421549,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421550,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421551,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421552,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421553,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421554,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421555,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421556,
+              "wait": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421655,
+            "startTime": "970837316",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026535766]",
+          "namespacePids": [421655, 108, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421655,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421657,
+            "startTime": "970837316",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026536413]",
+          "namespacePids": [421657, 110, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421657,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421658,
+            "startTime": "970837316",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026536916]",
+          "namespacePids": [421658, 111, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421658,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421662,
+            "startTime": "970837316",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538000]",
+          "namespacePids": [421662, 115, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421662,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421663,
+            "startTime": "970837317",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538228]",
+          "namespacePids": [421663, 116, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421663,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421664,
+            "startTime": "970837317",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538308]",
+          "namespacePids": [421664, 117, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421664,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421665,
+            "startTime": "970837317",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538591]",
+          "namespacePids": [421665, 118, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421665,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421676,
+            "startTime": "970837318",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538850]",
+          "namespacePids": [421676, 129, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421676,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421678,
+            "startTime": "970837318",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538991]",
+          "namespacePids": [421678, 131, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421678,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        }
+      ],
+      "readWhileStartupPending": "ok",
+      "startup": "timeout",
+      "elapsedStartupMs": 8001,
+      "kernelAfterStartup": [
+        {
+          "identity": {
+            "pid": 421547,
+            "startTime": "970837289",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421547],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421547,
+              "wait": "do_poll.constprop.0"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421548,
+            "startTime": "970837290",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026535761]",
+          "namespacePids": [421548, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421548,
+              "wait": "do_wait"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421549,
+            "startTime": "970837291",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+            "device": "2128",
+            "inode": "4196065"
+          },
+          "pidNamespace": "pid:[4026535761]",
+          "namespacePids": [421549, 2],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421549,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421550,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421551,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421552,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421553,
+              "wait": "ep_poll"
+            },
+            {
+              "tid": 421554,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421555,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421556,
+              "wait": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421655,
+            "startTime": "970837316",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026535766]",
+          "namespacePids": [421655, 108, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421655,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421657,
+            "startTime": "970837316",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026536413]",
+          "namespacePids": [421657, 110, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421657,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421658,
+            "startTime": "970837316",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026536916]",
+          "namespacePids": [421658, 111, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421658,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421662,
+            "startTime": "970837316",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538000]",
+          "namespacePids": [421662, 115, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421662,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421663,
+            "startTime": "970837317",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538228]",
+          "namespacePids": [421663, 116, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421663,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421664,
+            "startTime": "970837317",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538308]",
+          "namespacePids": [421664, 117, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421664,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421665,
+            "startTime": "970837317",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538591]",
+          "namespacePids": [421665, 118, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421665,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421676,
+            "startTime": "970837318",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538850]",
+          "namespacePids": [421676, 129, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421676,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421678,
+            "startTime": "970837318",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538991]",
+          "namespacePids": [421678, 131, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421678,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        }
+      ],
+      "wrapperExited": true
+    },
+    {
+      "pidNamespace": true,
+      "ephemeral": false,
+      "initialized": true,
+      "kernelDuringStartup": [
+        {
+          "identity": {
+            "pid": 421837,
+            "startTime": "970838211",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421837],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421837,
+              "wait": "do_poll.constprop.0"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421838,
+            "startTime": "970838212",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026535761]",
+          "namespacePids": [421838, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421838,
+              "wait": "do_wait"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421839,
+            "startTime": "970838213",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+            "device": "2128",
+            "inode": "4196065"
+          },
+          "pidNamespace": "pid:[4026535761]",
+          "namespacePids": [421839, 2],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421839,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421840,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421841,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421842,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421843,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421844,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421845,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421846,
+              "wait": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421952,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026535766]",
+          "namespacePids": [421952, 115, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421952,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421953,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026536453]",
+          "namespacePids": [421953, 116, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421953,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421954,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026536939]",
+          "namespacePids": [421954, 117, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421954,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421955,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026537973]",
+          "namespacePids": [421955, 118, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421955,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421956,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538002]",
+          "namespacePids": [421956, 119, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421956,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421957,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538600]",
+          "namespacePids": [421957, 120, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421957,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421971,
+            "startTime": "970838238",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538768]",
+          "namespacePids": [421971, 134, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421971,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421972,
+            "startTime": "970838238",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538850]",
+          "namespacePids": [421972, 135, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421972,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421973,
+            "startTime": "970838238",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538988]",
+          "namespacePids": [421973, 136, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421973,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        }
+      ],
+      "readWhileStartupPending": "ok",
+      "startup": "timeout",
+      "elapsedStartupMs": 8002,
+      "kernelAfterStartup": [
+        {
+          "identity": {
+            "pid": 421837,
+            "startTime": "970838211",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026533255]",
+          "namespacePids": [421837],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421837,
+              "wait": "do_poll.constprop.0"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421838,
+            "startTime": "970838212",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026535761]",
+          "namespacePids": [421838, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421838,
+              "wait": "do_wait"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421839,
+            "startTime": "970838213",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
+            "device": "2128",
+            "inode": "4196065"
+          },
+          "pidNamespace": "pid:[4026535761]",
+          "namespacePids": [421839, 2],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421839,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421840,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421841,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421842,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421843,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421844,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421845,
+              "wait": "futex_wait_queue"
+            },
+            {
+              "tid": 421846,
+              "wait": "futex_wait_queue"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421952,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026535766]",
+          "namespacePids": [421952, 115, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421952,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421953,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026536453]",
+          "namespacePids": [421953, 116, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421953,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421954,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026536939]",
+          "namespacePids": [421954, 117, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421954,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421955,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026537973]",
+          "namespacePids": [421955, 118, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421955,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421956,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538002]",
+          "namespacePids": [421956, 119, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421956,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421957,
+            "startTime": "970838236",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538600]",
+          "namespacePids": [421957, 120, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421957,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421971,
+            "startTime": "970838238",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538768]",
+          "namespacePids": [421971, 134, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421971,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421972,
+            "startTime": "970838238",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538850]",
+          "namespacePids": [421972, 135, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421972,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        },
+        {
+          "identity": {
+            "pid": 421973,
+            "startTime": "970838238",
+            "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+            "executable": "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap",
+            "device": "2128",
+            "inode": "4196057"
+          },
+          "pidNamespace": "pid:[4026538988]",
+          "namespacePids": [421973, 136, 1],
+          "state": "S",
+          "threads": [
+            {
+              "tid": 421973,
+              "wait": "do_wait_intr_irq"
+            }
+          ]
+        }
+      ],
+      "wrapperExited": true
+    }
+  ],
+  "elapsedMs": 19489,
+  "productionReady": false,
+  "writerHoldsRetained": true,
+  "postRunPreviouslyRecordedProcessesAlive": 0
+}

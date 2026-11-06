@@ -1,0 +1,7 @@
+{
+  "workspaceId": "1bc12b81-4554-4ba8-af34-7fda2dc900d5",
+  "deleted": true,
+  "httpStatus": 410,
+  "cleanup": "installed hive-workspace complete and cleanup; stop succeeded before deletion",
+  "productionChanged": false
+}

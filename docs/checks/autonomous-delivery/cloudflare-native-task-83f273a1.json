@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T00:10:23.137455+00:00",
+  "sourceRevision": "83f273a18729489647d686089d52612c1eaf955d",
+  "workspaceImageSource": "2f7a69fec52a788d60544296a4f08dd15451e153",
+  "deploymentId": "00bff45a-66ef-4d9a-820a-d6ea57501217",
+  "workspaceId": "3e2e5966-6b15-46e7-abde-f3fed711d360",
+  "buildId": "adb51ed2-fed2-459e-94e0-00d3fa489068",
+  "projectId": "08d245e8-15bd-4f1d-a384-66edc12a7cab",
+  "taskId": "f1fe5ef5-8d72-5940-aeaa-d8d4f8462e4d",
+  "requestId": "e4cc60fa-2d0d-490e-8e49-9c0e9e498d80",
+  "taskStartAcknowledged": true,
+  "enrollmentCommittedAndAcknowledgedByHost": true,
+  "runtimeId": "ccd2c4e5-d921-40f7-87e1-35a32d111256",
+  "serverRuntimeGeneration": 2,
+  "committedAdmissionCount": 1,
+  "hostPendingAction": "prepare",
+  "pendingEventId": "a73ea77c-b5e6-4f2f-bc75-59336f2aa5f7",
+  "pendingIssuedAt": 1793923119409,
+  "pendingExpiresAt": 1793923122909,
+  "serverAuthorityUntilAtInspection": "2026-11-06T00:01:41.561Z",
+  "localNativeAdmissionCount": 0,
+  "localManagedCodexProcessCount": 0,
+  "localTmuxProcessCount": 0,
+  "hostHeld": true,
+  "workspaceStoppedAndRetained": true,
+  "nativeManagerExecutionVerified": false,
+  "receiptRecoveryForThisOldPackageAvailable": false,
+  "treeExitCryptographicallyVerified": false,
+  "cleanupAuthorized": false,
+  "limitations": [
+    "Local signed journal/process snapshot and server rows, not independent kernel attestation",
+    "No native manager/child/browser acceptance",
+    "Old immutable package cannot retrospectively acquire operation receipts"
+  ],
+  "reconcileWake": {
+    "status": 200,
+    "processed": 1,
+    "retry": 0,
+    "stale": 0
+  }
+}

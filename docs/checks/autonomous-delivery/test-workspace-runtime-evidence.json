@@ -1,0 +1,69 @@
+{
+  "startedAt": "2026-10-29T17:20:11Z",
+  "profile": "software",
+  "workspace": "codex/hive-epic-test",
+  "manifest": {
+    "dependency": "ws",
+    "version": "8.21.3",
+    "bundler": "esbuild0.28.2",
+    "sourceFiles": {
+      "templates/ai-dev-k8s/scripts/codex-session-bridge.mjs": "67eb8da65c4c68ddb8f2f0f9bb874d70786b306dedc970153f204ce1e7ed4116",
+      "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "f7ee9d60d4d1e9429554fc9ebb20110f45a2f4ce84cabfbacbc3132cd99ce0fd",
+      "templates/ai-dev-k8s/scripts/codex-project-gateway.mjs": "64ba6af72050bedc7a906d1dfa46e64a3979b43b335e4bd01536e24e2b9c5ef0",
+      "templates/ai-dev-k8s/scripts/managed-projects.py": "eb20731a963fc6a09762fd8326f27290754824ff389ad50ec37b9d2204448bec",
+      "templates/ai-dev-k8s/scripts/github-projects.py": "c493688f11ff5cf816ef336256edf5b56f00fbc8f59e3321f6759d0f8caa20b8",
+      "scripts/verify-codex-session-bridge.test.mjs": "67b20b7ed2e1f165af591ff94bde7b76647e6ca8ef3706df6a9dc1906c63ee1e",
+      "scripts/verify-codex-project-supervisor.test.mjs": "45ed7a4dd4ce25d6a14cb7442becf3f76fb9abc38e6c0671423f8b8c875f778e",
+      "scripts/verify-codex-project-gateway.test.mjs": "d3424367a5a92026cbcb783e849236653e5a255ec293fb501310445049406eec",
+      "scripts/agents/test_managed_projects.py": "63d636789a5a600a05a37fab88c8984858f860a2a27b0526c510e480a3156d13"
+    },
+    "bundleSha256": "3ea00236d92b42b5c0dcd15580578c78e409f9934646d195493c4021666a9f3c"
+  },
+  "results": [
+    {
+      "name": "managed-checkouts",
+      "exitCode": 0,
+      "output": "test_active_dirty_task_inspection_preserves_lease_and_edits (scripts.agents.test_managed_projects.ManagedProjectsTests.test_active_dirty_task_inspection_preserves_lease_and_edits) ... ok\ntest_active_process_blocks_cleanup (scripts.agents.test_managed_projects.ManagedProjectsTests.test_active_process_blocks_cleanup) ... ok\ntest_cleanup_cli_never_accepts_completion_boolean_or_deletes (scripts.agents.test_managed_projects.ManagedProjectsTests.test_cleanup_cli_never_accepts_completion_boolean_or_deletes) ... ok\ntest_dirty_untracked_and_ignored_work_block_cleanup (scripts.agents.test_managed_projects.ManagedProjectsTests.test_dirty_untracked_and_ignored_work_block_cleanup) ... ok\ntest_existing_primary_clone_and_native_history_are_never_owned (scripts.agents.test_managed_projects.ManagedProjectsTests.test_existing_primary_clone_and_native_history_are_never_owned) ... ok\ntest_expired_lease_does_not_authorize_another_writer (scripts.agents.test_managed_projects.ManagedProjectsTests.test_expired_lease_does_not_authorize_another_writer) ... ok\ntest_feature_branch_push_upstream_release_and_cleanup (scripts.agents.test_managed_projects.ManagedProjectsTests.test_feature_branch_push_upstream_release_and_cleanup) ... ok\ntest_forged_or_wrong_revision_authority_cannot_remove (scripts.agents.test_managed_projects.ManagedProjectsTests.test_forged_or_wrong_revision_authority_cannot_remove) ... ok\ntest_inaccessible_same_owner_process_blocks_cleanup (scripts.agents.test_managed_projects.ManagedProjectsTests.test_inaccessible_same_owner_process_blocks_cleanup) ... ok\ntest_inspect_verifies_checkout_provenance_without_rejecting_dirty_work (scripts.agents.test_managed_projects.ManagedProjectsTests.test_inspect_verifies_checkout_provenance_without_rejecting_dirty_work) ... ok\ntest_interrupted_clone_preserves_stage_and_recovers_from_signed_attempt (scripts.agents.test_managed_projects.ManagedProjectsTests.test_interrupted_clone_preserves_stage_and_recovers_from_signed_attempt) ... ok\ntest_interrupted_stage_substitution_and_retry_budget_fail_closed (scripts.agents.test_managed_projects.ManagedProjectsTests.test_interrupted_stage_substitution_and_retry_budget_fail_closed) ... ok\ntest_mount_and_checkout_symlink_are_retained (scripts.agents.test_managed_projects.ManagedProjectsTests.test_mount_and_checkout_symlink_are_retained) ... ok\ntest_new_lease_invalidates_cleanup_request_without_replacing_checkout (scripts.agents.test_managed_projects.ManagedProjectsTests.test_new_lease_invalidates_cleanup_request_without_replacing_checkout) ... ok\ntest_open_file_reference_and_linked_worktree_block_cleanup (scripts.agents.test_managed_projects.ManagedProjectsTests.test_open_file_reference_and_linked_worktree_block_cleanup) ... ok\ntest_prepares_exact_revision_reuses_and_rejects_other_writer (scripts.agents.test_managed_projects.ManagedProjectsTests.test_prepares_exact_revision_reuses_and_rejects_other_writer) ... ok\ntest_production_git_auth_never_enters_argv_env_remote_or_owner_credentials (scripts.agents.test_managed_projects.ManagedProjectsTests.test_production_git_auth_never_enters_argv_env_remote_or_owner_credentials) ... ok\ntest_publish_interruption_recovers_without_duplicate_clone (scripts.agents.test_managed_projects.ManagedProjectsTests.test_publish_interruption_recovers_without_duplicate_clone) ... ok\ntest_reflog_only_commit_blocks_cleanup (scripts.agents.test_managed_projects.ManagedProjectsTests.test_reflog_only_commit_blocks_cleanup) ... ok\ntest_released_checkout_fetches_new_exact_revision_without_losing_old_commit (scripts.agents.test_managed_projects.ManagedProjectsTests.test_released_checkout_fetches_new_exact_revision_without_losing_old_commit) ... ok\ntest_reused_inode_cannot_revive_old_checkout_cleanup_authority (scripts.agents.test_managed_projects.ManagedProjectsTests.test_reused_inode_cannot_revive_old_checkout_cleanup_authority) ... ok\ntest_trusted_fixture_removal_preserves_project_evidence_and_can_rehydrate (scripts.agents.test_managed_projects.ManagedProjectsTests.test_trusted_fixture_removal_preserves_project_evidence_and_can_rehydrate) ... ok\ntest_unmanaged_roots_symlinks_and_tampered_receipts_fail_closed (scripts.agents.test_managed_projects.ManagedProjectsTests.test_unmanaged_roots_symlinks_and_tampered_receipts_fail_closed) ... ok\ntest_unpreserved_local_commit_blocks_cleanup (scripts.agents.test_managed_projects.ManagedProjectsTests.test_unpreserved_local_commit_blocks_cleanup) ... ok\ntest_upstream_allowance_rejects_execution_transport_and_ambiguous_config (scripts.agents.test_managed_projects.ManagedProjectsTests.test_upstream_allowance_rejects_execution_transport_and_ambiguous_config) ... ok\n\n----------------------------------------------------------------------\nRan 25 tests in 2.586s\n\nOK\n"
+    },
+    {
+      "name": "native-session-gateway",
+      "exitCode": 0,
+      "output": "\u2714 one gateway routes registered threads with isolated histories/events and private native auth (205.262777ms)\n\u2714 unknown threads and wrong owners are denied before native connect; execution remains forbidden (302.526391ms)\n\u2714 one durable creation intent, actual first input once, persisted same-thread attach (49.671715ms)\n\u2714 ambiguous create survives restart and never creates a second thread (24.036308ms)\n\u2714 one workspace lifetime authorizes only each independently registered project's exact thread (35.857541ms)\n\u2714 lease expiry denies execution while durable read binding remains available (24.113204ms)\n\u2714 checkout absence retains durable reads while input and attach stay denied (24.0931ms)\n\u2714 failed helper provenance cannot authorize execution even with an otherwise current lease (15.084617ms)\n\u2714 ambiguous first prompt is durable, replay cannot repeat inference (21.33605ms)\n\u2714 native lifetime loss revokes all bindings and restart requires explicit same-thread rejoin (44.847061ms)\n\u2714 OS lock rejects another supervisor and private registry forgery cannot reopen (16.699503ms)\n\u2714 unpersisted rejoin failure is explicit and never substitutes a new thread (28.758579ms)\n\u2714 unknown caller fields, project substitutions, lease changes and path escapes are denied (10.827261ms)\n\u2714 unsupported profile/version and mismatched native thread metadata fail closed (17.859239ms)\n\u2714 SIGKILL releases process lock but preserves uncertain creation intent (60.451ms)\n\u2714 installed native 0.165 rejects remote CLI attachment of an empty loaded thread (4407.776351ms)\n\u2714 actual native first text persists through local mock provider then same-thread CLI attaches (3220.870114ms)\n\u2714 SIGKILL supervisor terminates its actual native child and permits a fresh lifetime (884.824882ms)\n\u2714 signed owner capability reads the exact existing native thread and streams allowed events (27.522335ms)\n\u2714 wrong owner, host bindings, scope, origin, expiry, and algorithms are rejected before native access (18.398201ms)\n\u2714 Origin, Host, URL query credentials, and forged Coder headers do not grant access (5.949614ms)\n\u2714 ticket replay remains rejected after a bridge restart (7.396477ms)\n\u2714 active sockets close at ticket expiry (1739.940529ms)\n\u2714 fresh renewal extends one socket and native connection, with replay rejected (3001.176958ms)\n\u2714 a changed-binding renewal cannot extend the old capability deadline (2002.060538ms)\n\u2714 execution, model overrides, arbitrary threads, and server request responses are rejected (15.961419ms)\n\u2714 an unloaded thread is not resumed and unsupported native versions fail closed (8.876809ms)\n\u2714 duplicate IDs, malformed and oversized frames are bounded (13.59658ms)\n\u2714 hidden reasoning and unsupported tool payloads never reach a read client (4.594563ms)\n\u2714 configuration rejects public native endpoints, unsupported versions, and concurrent state owners (5.471464ms)\n\u2714 an incompatible native server cannot leak events before its version check (4.274056ms)\n\u2714 SIGKILL releases the OS lock while preserving replay rejection on automatic restart (68.838317ms)\n\u2714 native 0.165 CLI and capability client share one loaded thread without inference (2447.885726ms)\n\u2139 tests 33\n\u2139 suites 0\n\u2139 pass 33\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 9452.412934\n"
+    }
+  ],
+  "workspaceIdentity": {
+    "id": "22c4f094-46f0-4a76-86ca-37ad74254872",
+    "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+    "agentId": "48423ba6-6bca-45a7-b4f6-c90954c72dcb",
+    "deployment": "https://coder.kethalia.com",
+    "provenance": "primary creation record; persistent epic validation; retained"
+  },
+  "versions": {
+    "codex": "0.165.0",
+    "node": "24.21.0",
+    "python": "3.13.5",
+    "git": "2.47.3",
+    "tmux": "3.5a"
+  },
+  "githubDiscovery": {
+    "source": "reviewed github-projects.py via workspace-local Coder agent external auth",
+    "page": 1,
+    "perPage": 10,
+    "repositoryCount": 10,
+    "nextPage": 2,
+    "providerAccountIdVerified": true,
+    "credentialsCopied": false,
+    "privateRepositoryMetadataOmitted": true
+  },
+  "fixtureDistribution": {
+    "temporaryOnly": true,
+    "dependency": "ws8.21.3 bundled by esbuild0.28.2 from primary pinned dependency",
+    "remotePackageInstall": false,
+    "nodeModulesCopied": false,
+    "credentialsCopied": false,
+    "startupChanged": false,
+    "temporaryFixturesRemoved": true,
+    "workspaceRetained": true
+  }
+}

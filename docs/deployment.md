@@ -2,7 +2,7 @@
 
 ## Audience and outcome
 
-This runbook is for internal engineers deploying Hive through GitOps-managed Helm releases. After reading it, you should be able to promote a built image set, confirm the rollout, and choose a safe rollback path when a release fails.
+This runbook is for internal engineers deploying Hive through GitOps-managed Helm releases. After reading it, you should be able to promote a built image set, confirm the rollout, and choose a safe rollback path when a release fails. For the proposed first transition from Kubernetes to the single Cloudflare Worker, use the separate [environment and cutover preparation](../deploy/cloudflare/environments.md#first-production-cutover); the Kubernetes release remains the initial fallback until that cutover is validated.
 
 ## Release contract
 
@@ -43,6 +43,33 @@ The following exceptions are intentional and should be revisited only when the m
 - Database migrations are forward-only operationally. A failed app rollout can be rolled back to a compatible image, but do not assume the database schema can be automatically rolled back.
 
 ## Auth-service caller authentication
+
+### One configured Coder deployment
+
+Set `CODER_URL` to the same origin in the web, auth, and terminal-proxy
+environments. This deployment uses `https://coder.kethalia.com`; the value is
+server configuration, not a library default. HTTPS is required in production.
+Development may configure a local HTTP origin. Paths, query strings, fragments,
+and embedded credentials are rejected. `CODER_AGENT_URL` and the retired
+`ALLOWED_CODER_URLS` setting do not select the login host.
+
+Login accepts only email and password. Requests supplying `coderUrl` are rejected
+before credentials are forwarded. Coder login requests reject redirects. Deploy
+the web and auth changes together: old clients that still submit a URL must
+refresh, and the old service request contract is incompatible with this release.
+Verify the configured origin in isolated preview before promotion.
+
+Existing user and session rows remain intact. Sessions bound to a different origin
+are treated as unauthenticated, and stored credentials for another origin cannot
+be used for workspace operations or token rotation. A host change requires users
+to sign in again; it does not transfer accounts, rewrite origin bindings, or
+authorize sending old credentials to the new host. User ownership and session
+expiry/revocation checks remain in force. Confirm matching-origin existing
+sessions and new login, wrong-origin rejection, logout, and terminal reconnect
+during preview and cutover. This login flow uses Coder password authentication;
+it does not add an SSO flow.
+
+### Internal service credential
 
 `AUTH_SERVICE_SECRET` is required in the web, auth, and terminal-proxy environments.
 Use the same value in all three services: 32 random bytes encoded as exactly 64 hex
@@ -166,6 +193,19 @@ connection credentials and raw CLI output.
 
 Schema names containing double quotes are rejected before invoking Prisma: Prisma 6 does not
 escape these names in its connection setup. Other schema names are safely encoded in preflight SQL.
+
+After a successful migration, the runner applies a fixed table-and-operation grant list to
+`hive_app_runtime` if that role exists. A native deployment explicitly sets the trusted
+`HIVE_MIGRATE_RUNTIME_ROLE=hive_native_runtime` environment variable to select its runtime role
+instead. Only those two fixed roles are accepted, and an invalid selector is rejected before
+preflight or deployment. The list is additive for existing grants and does not create a role,
+reset credentials, grant CONNECT or schema creation, or alter unrelated privileges. Recovery
+history receives SELECT, INSERT, and UPDATE; DELETE remains denied. Provision
+the restricted runtime role through the approved database setup before running the migration job.
+If the role is provisioned later, rerun the same migration job against the same schema to apply the
+idempotent grants; an absent role is skipped for deployments that do not use it. Grant failures
+stop the job after schema migrations have committed, so inspect the error and rerun after repairing
+permissions rather than rewriting migration history. `--check` does not apply grants.
 
 | Database state | Result |
 | --- | --- |

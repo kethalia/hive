@@ -1,0 +1,24 @@
+
+> hive-web@2.31.0 typecheck /home/coder/projects/kethalia/hive
+> tsc --noEmit
+
+src/__tests__/lib/templates/publication.integration.test.ts(107,7): error TS2322: Type 'string' is not assignable to type '`${string}-${string}-${string}-${string}-${string}`'.
+src/__tests__/lib/templates/publication.integration.test.ts(123,20): error TS18047: 'job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(154,76): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(161,68): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(171,73): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(181,73): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(194,73): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(203,73): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(209,44): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(211,43): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(213,20): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(217,34): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(225,12): error TS2531: Object is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(225,61): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(225,88): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(231,9): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(236,22): error TS18047: 'f.job' is possibly 'null'.
+src/__tests__/lib/templates/publication.integration.test.ts(242,25): error TS18047: 'f.job' is possibly 'null'.
+src/lib/templates/publication-routes.ts(48,39): error TS18047: 'job' is possibly 'null'.
+ ELIFECYCLE  Command failed with exit code 2.

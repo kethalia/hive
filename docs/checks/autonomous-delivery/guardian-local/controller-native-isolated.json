@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T22:55:46.724Z",
+  "baseRevision": "c63506ebdc1c4abef3fb511821064629ec37cfbe",
+  "sourceDigests": {
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "731228834e262f4bfe930c3fa8a711d3b7ae2e2fc55d93f658b76dbff5648537",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "21c1aa91e7e9f4abbe56173f8ef39eb4066f2b051fdd020105d4aab632a62c10",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "e18210f036c9c6fa299012fb571144b98420ee14f50bd3dfa5237ed791a496a3",
+    "templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs": "f5cc40737bd7497fc18f9001ab63117b2a8a5c5175ab7a84ee4b1948e31bba04",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs": "2581d414f1966d7aad8ebf17dd577ed2ef518f8023bbb6b5e811ff1a2d2fd0d6",
+    "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "8057a97732aa0c477b32601898503d7a233abbb7bdf11a9f600b0a33c9f8c6f9",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "afc58b0a9b4c6c3ee36a86b0ea2706dc36a781375db6b4f702d760957318d924",
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": "dc800679ba7193f67b26d020bee290ebbafe5fa2fbb0b907fd984b8c75ea97eb",
+    "templates/ai-dev-k8s/scripts/codex-process-identity.mjs": "c93b5845f0d4b9eb0c98177ed0746f86a521332f0568403082d6aed5fd6da24c",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": "9571ce94eb0fd4d723b9330b105d3c67d08073e97317a7a9209c9de5ddaadedb",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-worker.mjs": "8d6d99ecbe352f55a0db21dc757f70a85e6f49ef5ad59775b183cbde4951dc50",
+    "templates/ai-dev-k8s/scripts/codex-project-discovery.mjs": "8062fbbc1c311b30b0d712bb8ed5b04ce4df83498276d38bc0dfac7cdc0514ee",
+    "templates/ai-dev-k8s/scripts/codex-project-gateway.mjs": "8068b48eae2eef0f8bbce6e9dd9815290f4e1dd9e1c3bf61590f715766889479",
+    "templates/ai-dev-k8s/scripts/codex-project-terminal.mjs": "aa573cd860847bb7a4a3c70b36c6055cc89853d68afc70b141dfaad1673d7942",
+    "templates/ai-dev-k8s/scripts/codex-session-bridge.mjs": "125cb2f433ca284cfff6711bfa6b0cb9e2d4a52c949210720fcc94a03c216c59",
+    "templates/ai-dev-k8s/scripts/codex-host-registration.mjs": "c9cc1019bb3d0784df0f9e6be9542e3042d5ee43328ffa42747e5d4de521aef7",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "cee257cbaa392aa1094cf49bacedc0f935bc8e33a7bc004e89d3ca83ef327ccf",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "fbd006009ca6db0fc784e94054e51ce7aab098623a9c1271ebb5ac66443da403",
+    "scripts/verify-codex-guarded-controller.test.mjs": "bb31e825e10ba7852676671151f141f2aee94cfb87af387b3b4caa0402244b2d",
+    "scripts/build-native-guardian.mjs": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f"
+  },
+  "sourceStable": true,
+  "passed": true,
+  "nativeVersion": "0.165.0",
+  "executionMode": "isolated",
+  "nativeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "providerRequests": 1,
+  "accountCredentials": false,
+  "accountInference": false,
+  "cloudMutations": false,
+  "checks": {
+    "preparationAdmissionBeforeHelper": true,
+    "exactGuardianWorkerNativeParentEdges": true,
+    "exactPythonPtyParentEdges": true,
+    "adoptedTmuxDaemonVerified": true,
+    "actualGitInitAfterAdmission": true,
+    "outerJournalKeyAndWorkerFdDenied": true,
+    "originalThreeEdgeLeaseChainPreserved": true,
+    "workerAgentEnvNotForwardedToNativeTool": true,
+    "activeProjectDrainRefused": true,
+    "durableControllerBarrierBeforeDrain": true,
+    "inputClosedBeforeAck": true,
+    "allObservedProcessesGone": true
+  },
+  "receipt": {
+    "lifetimeId": "770151ec-6a6b-4677-91dd-c8076d2ee003",
+    "finalWaitResult": "ECHILD",
+    "scope": "managed_native_tree_only",
+    "cleanupAuthorized": false
+  },
+  "limitations": [
+    "Synthetic local controller admission/drain authorization and lease inspection, not installed server receipt ingestion.",
+    "Actual native namespace/controller-key/outer-key/proc-FD denial tested; installed controller barrier and challenge receipt ingestion remain separate gates.",
+    "Actual fixed worker shim/private installed configuration startup and installer readiness are not exercised."
+  ]
+}

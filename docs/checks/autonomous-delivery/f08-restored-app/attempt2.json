@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "outcome": "held_at_authenticated_app_read",
+  "runtimeRoleCreated": true,
+  "runtimePrivilegesAndOriginalRowIsolationPassed": true,
+  "fixtureSeeded": true,
+  "restrictedChildRowsCleaned": true,
+  "initialUserCleanupHeld": "validated FK column array decoded as text instead of array; no deletion occurred",
+  "fix": "cast catalog column names to text",
+  "syntheticUserRemovedAfterGuardedChecks": true,
+  "originalTables": 8,
+  "originalRows": 88,
+  "originalFingerprintsMatch": true,
+  "roleAndPoliciesRetainedForReview": true,
+  "applicationReadFailureHttpStatus": "not captured",
+  "secretsIncluded": false
+}

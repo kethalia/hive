@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T00:29:41.030Z",
+  "localOnly": true,
+  "sourceStable": true,
+  "sources": {
+    "packages/db/prisma/schema.prisma": "ada4a3ef86480bade185819219e8165d529c862b61915c5daf5b2a364e34fea9",
+    "packages/db/prisma/migrations/20261105233000_agent_notification_events/migration.sql": "a6e70d08145ef9c531ea9b40fd2c45cf74f88abd0c5a308a4f6a7cbfd42e06b4",
+    "src/lib/push/agent-event-contract.ts": "3fc11b35f36c60d8ed3dfc15a31fb0a023c34863328ad9d6bc304976f821d998",
+    "src/lib/push/source-credentials.ts": "0ce757841aab79e612e68dfbfe8ac376eff53ceb1e4b84e8d071a09fbab7a726",
+    "src/app/api/notifications/events/route.ts": "3d951d4f9f9931588386cb5374f97562fb6f403d9be6c15fbe3bdf5e30ae8338",
+    "deploy/cloudflare/app/worker.ts": "6034da2ffb26861b96e6b3e3057e876e3af69d93b56f7586b706f4db0c00929d",
+    "deploy/cloudflare/app/composition.ts": "8cf8a0f808c3529e14d06962db9c5de77fb936b689f69a14aa12ce77b1e4d757",
+    "deploy/cloudflare/app/agent-notifications.ts": "0319d196d2a87f50c90554283be690bf070898d62e5e4116ecb0ad324e45b8a5",
+    "src/lib/push/agent-events.ts": "8fd76a925cfa64fa7e15144ca7131261d1506aa722d78601596ae045477d220b",
+    "src/lib/push/agent-events-route.ts": "7d06350b53db5915b3b3d1d2db0348b3102a9a2969c9b0d59f09596af7b481f0",
+    "src/lib/push/durable-outbox.ts": "52eab75f99d66b1f023af9181c607091ef31b7fe0c3a907675667d1b8bdefacd",
+    "src/lib/push/bounded-send.ts": "99692bcd4427c698db3aca3bde37950cb616d981784fbeda435f8d538fbc93d9",
+    "src/lib/delivery/outbox.ts": "9fdf5c548b4584296a7acb34ffb219106f4a922841a1954c0d05d3e78b570d8a",
+    "deploy/cloudflare/jobs/worker.ts": "f2bb56cbf82b61258ffe381cbf67b5dc2489d8dc7d37adb74e70a414d707882c",
+    "deploy/cloudflare/jobs/local-agent-notifications.worker.ts": "677c00f165816b3995bece23c399082dd530b1fa68d3e3e570b045b16b1298bb",
+    "deploy/cloudflare/jobs/run-local-agent-notifications.mjs": "79280d57bd14706eb014e58c477f36473070341e6b6d75a2c9644f723298d413",
+    "packages/db/src/generated/prisma-workerd/client.ts": "c9c55c458c9b4055502f385867e52d44ef4ad391e405d3156fe95c9c0a8247ce",
+    "packages/db/src/generated/prisma-workerd/internal/class.ts": "e0cdada06e7a349bf2c34ae2d6749bc1e421259acc8cc30bc39fc1a9c7604ee9"
+  },
+  "result": {
+    "passed": true,
+    "checks": {
+      "empty_local_event_fixture": true,
+      "default_off_ingress": true,
+      "default_off_jobs": true,
+      "actual_staged_pending_source": true,
+      "actual_workerd_transaction_acceptance": true,
+      "durable_replay": true,
+      "owner_and_payload_binding": true,
+      "duplicate_does_not_consume_rate": true,
+      "immutable_event_conflict": true,
+      "unknown_source_rejected": true,
+      "preview_callback_method_cannot_bypass": true,
+      "preview_callback_query_cannot_bypass": true,
+      "preview_callback_flag_off_cannot_bypass": true,
+      "source_bearer_not_browser_preview_access": true,
+      "actual_jobs_dispatch_without_subscriptions": true,
+      "durable_acknowledgment": true,
+      "revoked_source_rejected": true
+    },
+    "scope": "actual local Workerd route + full PrismaNeon PostgreSQL + actual jobs/shared sender, no subscriptions or provider delivery"
+  },
+  "remoteBindings": false,
+  "realProviderRequests": 0
+}

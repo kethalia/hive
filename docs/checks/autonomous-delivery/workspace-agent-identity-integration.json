@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-30T05:27:27.873806+00:00",
+  "baseRevisionAtEvidenceWrite": "6a55bb59c764fad75b7329e7ba6c1fcb3de7caea",
+  "testedSourcesCommitted": false,
+  "sourceIdentity": "Exact file digests bind tested/reviewed bytes; base revision is a later observation, not committed-source proof.",
+  "sourceDigests": {
+    ".github/workflows/build-base-image.yml": "bd20185acec2e51e234bb45cdfc6d134f9fe72a6829d5e3cf8796a51502259a3",
+    "docker/hive-base/Dockerfile": "6046aa314a07e2aef9088f25773da2f01c2df8b20ac7f6b6a05917440290af4f",
+    "docker/hive-base/smoke-test.sh": "d345866dd2cbd44acc47c53f766a37065b48e71f03109dcdfc4f943223b887fb",
+    "docker/hive-base/test-workspace-identity.py": "1535b83183536331be0fef5df8797044498b6682122b28d082426cff822139f3",
+    "templates/ai-dev-k8s/main.tf": "4d83985b33fdc293c3dca063eb571755c8f73f36981689c9c51ecea271844fc1",
+    "templates/ai-dev-k8s/scripts/install-workspace-read.py": "711235506badd6e7bc4c569be17b0ad60a516fe0dd9b7c6ef6e8896796977423",
+    "templates/ai-dev-k8s/scripts/install-codex-host.py": "c54a903e4542b31490ef8c2d4f501cd2f9e27d8b36f2f454143d0f546a459ef6",
+    "scripts/agents/test_workspace_identity_install.py": "400423232eddd02f85fcca98dd7f70caa5b244a46c858c5e31bf648e3c97b27d",
+    "scripts/agents/test_workspace_image_preview.py": "eb23f28d6c65aedd0d860300af1cf98c04c5488b6430033e7a678bdd8c2f5a4c",
+    "scripts/fixtures/workspace-identity-install.py": "626ffe6f96f01dca9638223478d42c84ff2a182da6bab14fcb5b5dfe4abaefca",
+    "scripts/fixtures/workspace-read-install.py": "53b557c664aef0b9b342af644c0c874d9c6f5fea5cc3b3ea72f85b7f42263858",
+    "scripts/fixtures/workspace-read-install-entry.py": "667826992fb24006745a69c7a831d8186a595b1494d9af5f9913dd8f57f0c9fc",
+    "scripts/verify-workspace-read-install.test.mjs": "fb500591ab379b57fbbd16fbcb7101ce43684565e43439d677711e46fee68df6",
+    "scripts/verify-workspace-read-bootstrap.test.mjs": "0cad7bdc7574182525023733c7585ccf10bd06186d5f9a4c61bc6d71541c0de0",
+    "scripts/verify-codex-guarded-install.test.mjs": "c07900c9bb9666cbdd58731e95db8148a8b9e4a649aac8d3a613e8d514ea68eb",
+    "scripts/probe-workspace-read-install.mjs": "b12a9ed451ee138582a57a50a2ee5a59cbe8b705dae3d5f57b7f8ad3f49ecb10",
+    "tools/workspace-identity/README.md": "eac791bb292b8582126262394abae8bfc81ee14f520143e15fcb3f98d7778080",
+    "tools/workspace-identity/build-image.py": "749c78ab87c481f04164f9019722f33d348ca179172746e3ea3e943d12d92bdf",
+    "tools/workspace-identity/go.mod": "4e762cd3d765362aeec5a12b9b58c72a77504df8a1b5ae0a7cac8237b8dcd62a",
+    "tools/workspace-identity/go.sum": "05e5cd00e38f889585c41983fec3b7039849cdbb8ad1e6219936c55b212ca852",
+    "tools/workspace-identity/main.go": "0d171349e34733e002eb45244b0e6d0b81c55d82ef658a49e45dda2e98de5cef",
+    "tools/workspace-identity/main_test.go": "397f728b67741483d58a5bad468723037a74714da84c5ca71901345b7a9bda71",
+    "tools/workspace-identity/pins.json": "7dd1da9022bf767c64724695463785bd1c23beab91eeb73ed9d0c4ef757b7b02",
+    "tools/workspace-identity/preview-image.py": "dd02cbfa2d81d8165722bc647ab4eda732768daab440ac8409b6fe3e27162584"
+  },
+  "sourceStable": true,
+  "checks": {
+    "goUnitAndTLSRpc": {
+      "passed": 21,
+      "liveOptInSkipped": 1,
+      "toolchain": "go1.26.10",
+      "log": "/tmp/hive-identity-final-strict-tests.jsonl"
+    },
+    "targetedPython": {
+      "passed": 30
+    },
+    "nodePythonBoundaries": {
+      "passed": 5,
+      "log": "/tmp/hive-identity-bootstrap-tests.log"
+    },
+    "isolatedReadInstaller": {
+      "passed": true,
+      "sourceStable": true,
+      "evidence": "workspace-read-install-local/identity-result-final.json",
+      "authenticatedManifestSynthetic": true,
+      "distinctEffectiveAgentRecorded": true
+    },
+    "isolatedGuardedHostInstaller": {
+      "passed": true,
+      "sourceStable": true,
+      "evidence": "workspace-agent-identity-guarded-install.json",
+      "authenticatedManifestSynthetic": true,
+      "defaultPreparationDenied": true,
+      "noNativeRuntimeStarted": true
+    },
+    "yamlParsed": true,
+    "shellSyntax": true,
+    "independentReview": "delivery_gate_audit no remaining concrete blocker"
+  },
+  "finalBinary": {
+    "sha256": "6696bfcf39d80dd4236997df87def6ba592ef27526a9d817a4b85db6e2f58be8",
+    "bytes": 54091902,
+    "repeatedBuildIdentical": true,
+    "runtimeImageAssetOnly": true
+  },
+  "historicalLiveProbe": {
+    "evidence": "workspace-agent-identity-local.json",
+    "artifactSha256": "72a9e66336b5a4ad1e2af5b7c63d63fd198f946adedbdd7eba7aa4441e3dcfa7",
+    "note": "Actual SDK RPC preceded literal JSON-key allowlist tightening; exact earlier source/artifact preserved. No second RPC was invented. Current helper still needs real new-image acceptance.",
+    "normalizationAccepted": false,
+    "agentMatchesOwnerAPI": true,
+    "missingBuildMetadata": true
+  },
+  "previewReadOnlyPreflight": {
+    "imageTag": "ghcr.io/kethalia/hive-base:preview-cli-6a55bb59c764fad75b7329e7ba6c1fcb3de7caea",
+    "publicPackage": true,
+    "schemaVersion": 1,
+    "sourceSha": "6a55bb59c764fad75b7329e7ba6c1fcb3de7caea",
+    "targetAbsent": true
+  },
+  "costEvidence": {
+    "repositoryPublic": true,
+    "packageAnonymousPull": true,
+    "packageMetadataApi": "403; public anonymous registry preflight succeeded independently",
+    "standardPublicRunnerFree": "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
+    "currentContainerRegistryFree": "https://docs.github.com/en/billing/concepts/product-billing/github-packages",
+    "previewCacheWrites": false,
+    "previewLargeArtifacts": false
+  },
+  "limitations": [
+    "No Docker image was built, pushed, dispatched or installed by this local proof.",
+    "One earlier actual SDK manifest read confirmed runtime agent mismatch and rejected missing build metadata. It did not demonstrate successful normalization.",
+    "Read and guarded-host installer lifecycle proofs explicitly use synthetic authenticated manifest resolution, separate from SDK/TLS and live RPC evidence.",
+    "No profile sync/assets regeneration/template import/workspace mutation/service replacement performed in this slice.",
+    "Existing project-host outer agent credential handling remains; read service and native model process do not receive it.",
+    "Preview tag absence checks are not registry CAS against unrelated external publishers. Deployment must use the recorded immutable registry digest."
+  ]
+}

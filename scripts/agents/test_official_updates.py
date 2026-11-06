@@ -123,3 +123,33 @@ class OfficialUpdatesTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class PinnedCoordinatorTests(unittest.TestCase):
+    def test_only_exact_kernel_inode_path_hash_and_private_pin_is_exempt(self):
+        import hashlib
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as root:
+            home=Path(root)
+            binary=home/updates.COORDINATOR_RELATIVE
+            binary.parent.mkdir(parents=True)
+            (home/'.local/share/hive/codex-runtime').chmod(0o700)
+            binary.write_bytes(b'fixture-native')
+            binary.chmod(0o500)
+            process=home/'process';process.mkdir()
+            (process/'exe').symlink_to(binary)
+            with patch.object(updates.pwd,'getpwuid',return_value=SimpleNamespace(pw_dir=str(home))), patch.object(updates,'COORDINATOR_SHA256',hashlib.sha256(b'fixture-native').hexdigest()):
+                self.assertTrue(updates.pinned_coordinator(process,{}))
+                binary.chmod(0o700);binary.write_bytes(b'changed');binary.chmod(0o500)
+                self.assertFalse(updates.pinned_coordinator(process,{}))
+                binary.chmod(0o700);binary.write_bytes(b'fixture-native');binary.chmod(0o522)
+                self.assertFalse(updates.pinned_coordinator(process,{}))
+                binary.chmod(0o500)
+                (process/'exe').unlink();(process/'exe').symlink_to(str(binary)+' (deleted)')
+                self.assertFalse(updates.pinned_coordinator(process,{}))
+
+    def test_interactive_and_unreadable_executables_remain_blocking(self):
+        with tempfile.TemporaryDirectory() as root:
+            p=Path(root)
+            self.assertFalse(updates.pinned_coordinator(p,{}))
+            (p/'exe').symlink_to('/usr/bin/python3')
+            self.assertFalse(updates.pinned_coordinator(p,{}))

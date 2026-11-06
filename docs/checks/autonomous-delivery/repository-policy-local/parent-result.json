@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T05:09:40.281466+00:00",
+  "baseRevision": "a1c70c7be0bfcc534317a3dabd775dd22b894b11",
+  "sourceHashesVerifiedAgainst": "result.json",
+  "parentFocusedTestsPassed": 27,
+  "parentPackageAndRuntimeTestsPassed": 33,
+  "independentPostgresTestsPassed": 17,
+  "reviewFindingsResolved": [
+    "restricted runtime role grants",
+    "no legacy fallback after project enrollment"
+  ],
+  "semanticAcceptancePending": true,
+  "nondefaultRefResolutionPending": true,
+  "logs": {
+    "docs/checks/autonomous-delivery/repository-policy-local/parent-d08-parent-tests.txt": {
+      "sha256": "cea51516411e21b034db7dfa40ba83f3f4b26d007faf9c0401735d0df81579ad"
+    },
+    "docs/checks/autonomous-delivery/repository-policy-local/parent-d08-parent-package.txt": {
+      "sha256": "e06cab6376ec88d9d53f04b33ec46881cf41da4910c2740014e1f091ac7d8150"
+    },
+    "docs/checks/autonomous-delivery/repository-policy-local/parent-repository-policy-independent-review.log": {
+      "sha256": "770fd2117e6b608812e092d79135fb91a2e5e339a87080c75ad5948156bd4b29"
+    }
+  }
+}

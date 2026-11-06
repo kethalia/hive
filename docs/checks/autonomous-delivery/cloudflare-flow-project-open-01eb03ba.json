@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T18:46:28.529390+00:00",
+  "appSourceRevision": "3f5b203ca3c6b27f411b9afa2da4382661d65eb7",
+  "workspaceImageSourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+  "workspaceId": "49dfbaf2-f475-4053-8c6b-2fc09d0db8bf",
+  "buildId": "37e32516-86ad-418a-954a-018878aa05a9",
+  "projectId": "47509698-91da-48dc-bd9f-90e03a2cf4d1",
+  "projectOpenHttpStatus": 200,
+  "verified": {
+    "projectWorkspaceRepositoryAndAccount": true,
+    "pushPermission": true,
+    "sourceBranch": "codex/delivery-system-design",
+    "sourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+    "phase": "awaitingTask",
+    "currentTaskId": null,
+    "nativeThreadId": null
+  },
+  "outerHttpRequests": 2,
+  "incrementalOuterHttpRequestsTotal": 14,
+  "incrementalOuterHttpRequestCeiling": 200,
+  "taskStartRequests": 0,
+  "taskStatusRequests": 0,
+  "temporaryTailRemoved": true,
+  "appWorkersDevEnabledAfterProbe": false,
+  "productionChanged": false
+}

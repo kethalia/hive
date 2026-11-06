@@ -1,7 +1,7 @@
 import { once } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
-import { VoiceRequestRejected, VoiceRpc } from "@/lib/codex/voice-rpc";
+import { nativeVoiceSocket, VoiceRequestRejected, VoiceRpc } from "@/lib/codex/voice-rpc";
 import { createVoiceStream, listVoiceThreads } from "@/lib/codex/voice-session";
 
 const cleanup: Array<() => void> = [];
@@ -18,7 +18,7 @@ async function pair() {
   const client = new WebSocket(`ws://127.0.0.1:${port}`);
   const [socket] = (await connected) as [WebSocket];
   await once(client, "open");
-  const rpc = new VoiceRpc(client);
+  const rpc = new VoiceRpc(nativeVoiceSocket(client as unknown as globalThis.WebSocket));
   cleanup.push(() => {
     rpc.close();
     socket.terminate();
@@ -92,6 +92,28 @@ describe("thread-scoped voice", () => {
     expect(rpc.request.mock.calls.some(([method]) => method === "thread/resume")).toBe(false);
   });
 
+  it("rejects oversized, duplicate, and malformed loaded thread lists before reading threads", async () => {
+    for (const data of [
+      Array.from({ length: 101 }, (_, i) => `thread-${i}`),
+      ["same", "same"],
+      ["x".repeat(201)],
+      [null],
+    ]) {
+      const rpc = fakeRpc();
+      rpc.request.mockResolvedValue({ data });
+      await expect(listVoiceThreads(rpc)).rejects.toThrow("Invalid Codex thread list");
+      expect(rpc.request).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("rejects a thread read that returns a different thread", async () => {
+    const rpc = fakeRpc();
+    rpc.request
+      .mockResolvedValueOnce({ data: ["selected"] })
+      .mockResolvedValueOnce({ thread: { id: "other", cwd: "/project" } });
+    await expect(listVoiceThreads(rpc)).rejects.toThrow("Invalid Codex thread");
+  });
+
   it("filters other threads and stops its session before closing on browser cancellation", async () => {
     const rpc = fakeRpc();
     const abort = new AbortController();
@@ -129,20 +151,92 @@ describe("thread-scoped voice", () => {
     expect(rpc.close).toHaveBeenCalled();
   });
 
-  it("cleans up an uncertain startup after a timeout, and skips starting on an already canceled request", async () => {
+  it("does not stop an uncertain startup after a timeout", async () => {
     const rpc = fakeRpc();
     rpc.request.mockRejectedValueOnce(new Error("timeout"));
     createVoiceStream(rpc, "selected", "offer", new AbortController().signal);
-    await vi.waitFor(() =>
-      expect(rpc.request).toHaveBeenCalledWith(
-        "thread/realtime/stop",
-        { threadId: "selected" },
-        3000,
-      ),
-    );
+    await vi.waitFor(() => expect(rpc.close).toHaveBeenCalled());
+    expect(rpc.request).toHaveBeenCalledTimes(1);
     const canceled = fakeRpc();
     createVoiceStream(canceled, "selected", "offer", AbortSignal.abort());
     expect(canceled.request).not.toHaveBeenCalled();
     expect(canceled.close).toHaveBeenCalled();
+  });
+
+  it("waits for pending startup before stopping and never stops a rejected call", async () => {
+    for (const accepted of [true, false]) {
+      const rpc = fakeRpc();
+      let resolve!: () => void, reject!: (error: Error) => void;
+      const pending = new Promise<void>((a, b) => {
+        resolve = a;
+        reject = b;
+      });
+      rpc.request.mockImplementation((method) =>
+        method === "thread/realtime/start" ? pending : Promise.resolve({}),
+      );
+      const abort = new AbortController();
+      createVoiceStream(rpc, "selected", "offer", abort.signal);
+      abort.abort();
+      expect(rpc.request).toHaveBeenCalledTimes(1);
+      if (accepted) resolve();
+      else reject(new VoiceRequestRejected("already active"));
+      await vi.waitFor(() => expect(rpc.close).toHaveBeenCalled());
+      expect(rpc.request.mock.calls.some(([method]) => method === "thread/realtime/stop")).toBe(
+        accepted,
+      );
+    }
+  });
+
+  it("does not stop after the pending call closes before its accepted response", async () => {
+    const rpc = fakeRpc();
+    let accept!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      accept = resolve;
+    });
+    rpc.request.mockImplementation((method) =>
+      method === "thread/realtime/start" ? pending : Promise.resolve({}),
+    );
+    const abort = new AbortController();
+    createVoiceStream(rpc, "selected", "offer", abort.signal);
+    abort.abort();
+    rpc.onNotification({ method: "thread/realtime/closed", params: { threadId: "selected" } });
+    accept();
+    await vi.waitFor(() => expect(rpc.close).toHaveBeenCalled());
+    expect(rpc.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an incomplete listing beyond its ten-page bound", async () => {
+    const rpc = fakeRpc();
+    let page = 0;
+    rpc.request.mockImplementation(async () => ({
+      data: [`thread-${page}`],
+      nextCursor: `cursor-${++page}`,
+    }));
+    await expect(listVoiceThreads(rpc)).rejects.toThrow("Invalid Codex thread cursor");
+    expect(rpc.request).toHaveBeenCalledTimes(10);
+  });
+
+  it("paginates loaded threads and rejects cursor loops and duplicates across pages", async () => {
+    const rpc = fakeRpc();
+    rpc.request.mockImplementation(async (method, params) =>
+      method === "thread/loaded/list"
+        ? params.cursor
+          ? { data: ["second"] }
+          : { data: ["first"], nextCursor: "page-two" }
+        : { thread: { id: params.threadId, cwd: "/project" } },
+    );
+    expect((await listVoiceThreads(rpc)).map((v) => v.id)).toEqual(["first", "second"]);
+    expect(rpc.request).toHaveBeenCalledWith("thread/loaded/list", {
+      limit: 100,
+      cursor: "page-two",
+    });
+    for (const second of [{ data: ["first"] }, { data: ["second"], nextCursor: "page-two" }]) {
+      const bad = fakeRpc();
+      bad.request
+        .mockResolvedValueOnce({ data: ["first"], nextCursor: "page-two" })
+        .mockResolvedValueOnce(second);
+      await expect(listVoiceThreads(bad)).rejects.toThrow();
+      expect(bad.request).toHaveBeenCalledTimes(2);
+    }
   });
 });

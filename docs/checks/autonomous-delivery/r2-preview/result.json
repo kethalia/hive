@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T20:14:02.708222+00:00",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "bucket": "hive-delivery-proof-20261029-a4b19072",
+  "bucketId": "faee7216adf047caaea9c40806bd3d21",
+  "createdByPrimary": true,
+  "actualStoredBytes": 117,
+  "reservedClassA": 11,
+  "reservedClassB": 19,
+  "additionalPreflightListReads": 1,
+  "lockExpiresAt": "2026-10-29T20:39:12.998871Z",
+  "retentionAndIntegrityPassed": true,
+  "actualWorkersAdapterBindingTested": false,
+  "cleanupStatus": "complete",
+  "results": {
+    "r2ObjectUpload": {
+      "success": true,
+      "errors": [],
+      "messages": [],
+      "result": {
+        "key": "delivery/67bf44fc-0ade-4eab-9795-814d4bff0612/0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a.json",
+        "size": "117",
+        "etag": "3cd53b42a5bddeb70130dfefa67d6fd1",
+        "version": "7e5e76b4e7ad44e4b749256bf80a92af",
+        "uploaded": "2026-10-29T20:12:42.495Z",
+        "storage_class": "Standard"
+      },
+      "status": 200
+    },
+    "r2InitialRead": {
+      "status": 200,
+      "bodyType": "string",
+      "exactBytes": true,
+      "sha256": "0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a",
+      "bytes": 117
+    },
+    "r2IdenticalRetry": {
+      "rejected": true,
+      "error": "Error: Cloudflare API error: PUT /accounts/225177f82b9234ede14e897fe15e0cb5/r2/buckets/hive-delivery-proof-20261029-a4b19072/objects/delivery/67bf44fc-0ade-4eab-9795-814d4bff0612/0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a.json returned HTTP 409: 10069: The object is locked by the bucket policy"
+    },
+    "r2RetentionRejections": [
+      {
+        "method": "PUT",
+        "rejected": true,
+        "error": "Error: Cloudflare API error: PUT /accounts/225177f82b9234ede14e897fe15e0cb5/r2/buckets/hive-delivery-proof-20261029-a4b19072/objects/delivery/67bf44fc-0ade-4eab-9795-814d4bff0612/0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a.json returned HTTP 409: 10069: The object is locked by the bucket policy"
+      },
+      {
+        "method": "DELETE",
+        "rejected": true,
+        "error": "Error: Cloudflare API error: DELETE /accounts/225177f82b9234ede14e897fe15e0cb5/r2/buckets/hive-delivery-proof-20261029-a4b19072/objects/delivery/67bf44fc-0ade-4eab-9795-814d4bff0612/0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a.json returned HTTP 200: 10069: The object is locked by the bucket policy"
+      }
+    ],
+    "r2FinalReadBeforeExpiry": {
+      "status": 200,
+      "exactBytes": true,
+      "sha256": "0e22d6102c01f2f7e4a87beda64e530968a878cc7cbd13c345a2bb494ec77d9a",
+      "bytes": 117
+    }
+  },
+  "cleanupCompletedAt": "2026-10-29T20:40:42.961Z",
+  "finalStoredBytes": 0,
+  "automaticDateExpiryDeletionVerified": false,
+  "expiredRuleRemovedForCleanup": true
+}

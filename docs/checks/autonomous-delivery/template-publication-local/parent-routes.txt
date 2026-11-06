@@ -1,0 +1,27 @@
+
+ RUN  v3.2.4 /tmp/hive-publication-parent-lsn3qc8g
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the ai-dev-k8s template
+[api/templates/push] Enqueued job 1d7b3cca-ddc3-4e2b-8595-cd6392414f87 for template "ai-dev-k8s"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the browser-testing template
+[api/templates/push] Enqueued job e76f8b35-6bc0-4f5a-a667-298a7137e3a9 for template "browser-testing"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the game-dev template
+[api/templates/push] Enqueued job 9bbea492-6bea-49f3-ac0b-66bb67606166 for template "game-dev"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the electronics template
+[api/templates/push] Enqueued job cddcca13-53b0-4d2b-b4cb-431b1313372b for template "electronics"
+
+stdout | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > enqueues a push job for the infrastructure template
+[api/templates/push] Enqueued job 28726fa0-85f1-49e3-9507-9aff85f5f507 for template "infrastructure"
+
+stderr | src/__tests__/app/api/templates/push-routes.test.ts > POST /api/templates/[name]/push > returns 500 when queue.add fails
+[api/templates/push] Failed to enqueue job for "ai-dev-k8s": Redis down
+
+ ✓ src/__tests__/app/api/templates/push-routes.test.ts (28 tests) 64ms
+
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+   Start at  03:04:08
+   Duration  581ms (transform 210ms, setup 0ms, collect 306ms, tests 64ms, environment 0ms, prepare 44ms)

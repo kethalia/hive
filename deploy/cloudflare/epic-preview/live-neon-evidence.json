@@ -1,0 +1,101 @@
+{
+  "observedAt": "2026-10-29T16:17:26.692Z",
+  "sourceRevision": "a3549b4fd489a8dd76fd0f7390d3ab087f77175d",
+  "precedingWorkerRequests": 4,
+  "probeRequests": 4,
+  "results": [
+    {
+      "endpoint": "prisma",
+      "status": 200,
+      "elapsedMs": 2519,
+      "body": {
+        "sourceRevision": "a3549b4fd489a8dd76fd0f7390d3ab087f77175d",
+        "runId": "3f5081ab-5fd4-4362-8c82-8bcee8bb749f",
+        "prisma": {
+          "prismaVersion": "6.19.3",
+          "generatorRuntime": "workerd",
+          "engine": "client",
+          "transport": "neon-websocket",
+          "transactionKind": "interactive-callback",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": true,
+          "retainedRowsForRun": 1,
+          "uuidAndJsonRoundTrip": true,
+          "timestampRoundTrip": true,
+          "runtimeRoleRestricted": true,
+          "fullHiveSchemaVerified": false,
+          "frameworkVerified": false
+        }
+      }
+    },
+    {
+      "endpoint": "prisma",
+      "status": 200,
+      "elapsedMs": 2291,
+      "body": {
+        "sourceRevision": "a3549b4fd489a8dd76fd0f7390d3ab087f77175d",
+        "runId": "3f5081ab-5fd4-4362-8c82-8bcee8bb749f",
+        "prisma": {
+          "prismaVersion": "6.19.3",
+          "generatorRuntime": "workerd",
+          "engine": "client",
+          "transport": "neon-websocket",
+          "transactionKind": "interactive-callback",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": false,
+          "retainedRowsForRun": 1,
+          "uuidAndJsonRoundTrip": true,
+          "timestampRoundTrip": true,
+          "runtimeRoleRestricted": true,
+          "fullHiveSchemaVerified": false,
+          "frameworkVerified": false
+        }
+      }
+    },
+    {
+      "endpoint": "neon",
+      "status": 200,
+      "elapsedMs": 1095,
+      "body": {
+        "sourceRevision": "a3549b4fd489a8dd76fd0f7390d3ab087f77175d",
+        "runId": "3f5081ab-5fd4-4362-8c82-8bcee8bb749f",
+        "neon": {
+          "transport": "neon-http",
+          "transactionKind": "noninteractive-batch",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": false,
+          "retainedRowsForRun": 1,
+          "prismaVerified": false,
+          "interactiveTransactionsVerified": false
+        }
+      }
+    },
+    {
+      "endpoint": "neon",
+      "status": 200,
+      "elapsedMs": 523,
+      "body": {
+        "sourceRevision": "a3549b4fd489a8dd76fd0f7390d3ab087f77175d",
+        "runId": "3f5081ab-5fd4-4362-8c82-8bcee8bb749f",
+        "neon": {
+          "transport": "neon-http",
+          "transactionKind": "noninteractive-batch",
+          "committed": true,
+          "duplicateReplay": true,
+          "rollback": true,
+          "insertedThisRun": false,
+          "retainedRowsForRun": 1,
+          "prismaVerified": false,
+          "interactiveTransactionsVerified": false
+        }
+      }
+    }
+  ],
+  "f02Complete": false
+}

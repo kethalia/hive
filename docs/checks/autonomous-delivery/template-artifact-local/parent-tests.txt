@@ -1,0 +1,33 @@
+✔ Coder shell startup loads a large host package from a mounted file, outside argv (33.622293ms)
+✔ host archive has the same digest across checkouts sharing a dependency store (307.304751ms)
+✔ reproducible archive preserves executable scripts and matches file content identity (10.742299ms)
+✔ provider caches are excluded and private files or symlinks fail the build (2.689389ms)
+✔ a missing entrypoint or oversized file cannot become a published artifact (7.803016ms)
+✔ dedup verifies compiled bytes, retains Terraform/bootstrap dependencies and rejects stale sources (18.283535ms)
+✔ digest mismatch and dynamic script selection cannot silently drop deployment inputs (3.077193ms)
+✔ a recompressed package with a stale internal file digest is rejected (3.757248ms)
+✔ actual curated template fits deployment bound and every literal Terraform file remains extractable (256.369893ms)
+ℹ {"hostGzipBytes":132409,"templateTarBytes":896512,"files":68}
+✔ optional guardian bundle copies the verified build artifact without compiling at install (505.122258ms)
+✔ bundles only locked ws locally and keeps modules inert on import (216.49541ms)
+✔ host config cannot request unreviewed startup fields or profiles (0.56533ms)
+✔ JS controller and installed Python authority agree on actual kernel process identity (58.511275ms)
+✔ every Coder script has a supported execution trigger (4.540007ms)
+✔ every workspace profile is a directly deployable Kubernetes Coder template (1.314111ms)
+✔ profile configuration defines exact image, resources, and runtime capabilities (0.925012ms)
+✔ canonical Terraform gates every optional workspace surface (0.384956ms)
+✔ specialist templates stay synchronized with the canonical Kubernetes scaffold (455.700506ms)
+✔ profile synchronization detects and removes obsolete shared scripts (1244.700843ms)
+✔ repository manifests remain narrow and parseable (0.6509ms)
+✔ profile guidance encodes the intended interactive and capability boundaries (0.347451ms)
+✔ every profile receives the same workspace routing and interactive handoff contract (0.71086ms)
+✔ specialist cleanup authority comes from primary creation evidence (0.316075ms)
+✔ Turborepo cache cleanup preserves project data (337.125737ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2096.343058

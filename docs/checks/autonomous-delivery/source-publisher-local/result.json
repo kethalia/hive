@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-10-29T23:54:35.003409+00:00",
+  "sourceRevision": "5db87fff906c11aa5f4a9fa8f91b7f9af74e06e7",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/delivery-source-publisher.mjs": "1500e602ff0f34bc6c7a82b0f7543b2cddc61b71e5950db06a8768751a190f00",
+    "templates/ai-dev-k8s/scripts/delivery-source-publisher-journal.mjs": "9b21789a483bcd2fbc8e06567ab29c36af5cbc4286b821eae0961d68e5602ab4",
+    "templates/ai-dev-k8s/scripts/delivery-source-worker.py": "25d707e7873f71e515fbf6820e8a9c36a19951a99b465a51c7ee9239f0a5d419",
+    "templates/ai-dev-k8s/scripts/delivery-source-runtime.py": "fe6bd196e98030449897ce5076ccc2688d48af127c5c9f68e0525212c8c926ef",
+    "templates/ai-dev-k8s/scripts/delivery-source-broker.py": "a1046b274d4947924c5b10ba02b509982d629b8c332c6ac075aaf3f39638ba70",
+    "scripts/verify-delivery-source-publisher.test.mjs": "a3684e56c155f693314f2fce9f4a58b05e8c2a15901cba4eda538ee4b29346c4",
+    "src/__tests__/lib/delivery/source-publisher-protocol.test.ts": "9d7737fac4445e9297a43dab8ed63aa848711bff8384229de6b54292ca5bc993"
+  },
+  "nodeTestsPassed": 15,
+  "crossServerSigningTestsPassed": 3,
+  "actualFixedWorkerCases": [
+    "real local Git preparation with denied server grant",
+    "stalled trusted metadata exchange deadline, worker close and process-group absence",
+    "post-close unknown group probe never triggers post-reap SIGKILL; unresolved ownership retains publisher flock"
+  ],
+  "providerCallbacks": "explicit fake transport only",
+  "realProviderProof": false,
+  "installedBundleProof": false,
+  "remoteWrites": false,
+  "activation": false
+}

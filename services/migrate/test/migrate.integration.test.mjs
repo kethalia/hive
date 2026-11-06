@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { executePrisma, migrate } from "../src/migrate.mjs";
+import { runtimeGrantsSql } from "../src/runtime-grants.mjs";
 
 const require = createRequire(import.meta.url);
 const prismaCli = require.resolve("prisma/build/index.js");
@@ -73,6 +74,71 @@ test("fresh database migrates successfully", async (t) => {
       RAISE EXCEPTION 'Fresh migration did not finish';
     END IF;
   END $$;`,
+  );
+  const schema = new URL(url).searchParams.get("schema");
+  await sql(
+    url,
+    `BEGIN;
+    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hive_app_runtime') THEN
+      CREATE ROLE hive_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+    END IF; END $$;
+    -- Exercise provisioning/regrant independently of any migration-time grants.
+    REVOKE ALL ON agent_notification_events, agent_notification_rate_windows FROM hive_app_runtime;
+    ${runtimeGrantsSql(schema)}
+    ${runtimeGrantsSql(schema)}
+    DO $$ DECLARE target text; privilege text; BEGIN
+      FOREACH target IN ARRAY ARRAY['agent_notification_events','agent_notification_rate_windows'] LOOP
+        FOREACH privilege IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE'] LOOP
+          IF NOT has_table_privilege('hive_app_runtime', target, privilege) THEN
+            RAISE EXCEPTION 'Late runtime provisioning omitted % on %', privilege, target;
+          END IF;
+        END LOOP;
+      END LOOP;
+    END $$;
+    DO $$ BEGIN
+      IF NOT has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'SELECT')
+        OR NOT has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'INSERT')
+        OR has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'UPDATE')
+        OR has_table_privilege('hive_app_runtime', 'codex_guardian_tree_receipts', 'DELETE')
+        OR NOT has_table_privilege('hive_app_runtime', 'codex_guardian_runtimes', 'UPDATE')
+        OR NOT has_table_privilege('hive_app_runtime', 'sessions', 'DELETE') THEN
+        RAISE EXCEPTION 'Runtime grant scope incorrect';
+      END IF;
+    END $$;
+    SET LOCAL ROLE hive_app_runtime;
+    SELECT count(*) FROM codex_guardian_tree_receipts;
+    RESET ROLE;
+    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hive_native_runtime') THEN
+      CREATE ROLE hive_native_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+    END IF; END $$;
+    -- The selected native role must work when created after all DDL, even though
+    -- migration 44 has no native grant. No migration or app grant is replayed.
+    REVOKE ALL ON ALL TABLES IN SCHEMA ${quote(schema)} FROM hive_native_runtime;
+    REVOKE CONNECT ON DATABASE hive_migrate_test FROM PUBLIC, hive_native_runtime;
+    ${runtimeGrantsSql(schema, "hive_native_runtime")}
+    ${runtimeGrantsSql(schema, "hive_native_runtime")}
+    DO $$ DECLARE item record; privilege text; BEGIN
+      FOR item IN SELECT tablename FROM pg_tables WHERE schemaname='${schema}' AND tablename<>'_prisma_migrations' LOOP
+        FOREACH privilege IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER'] LOOP
+          IF has_table_privilege('hive_native_runtime', format('%I.%I','${schema}',item.tablename), privilege)
+            IS DISTINCT FROM has_table_privilege('hive_app_runtime', format('%I.%I','${schema}',item.tablename), privilege) THEN
+            RAISE EXCEPTION 'Native/app fixed grant matrices differ for % on %', privilege, item.tablename;
+          END IF;
+        END LOOP;
+      END LOOP;
+      IF NOT has_table_privilege('hive_native_runtime', 'project_task_recoveries', 'SELECT')
+        OR NOT has_table_privilege('hive_native_runtime', 'project_task_recoveries', 'INSERT')
+        OR NOT has_table_privilege('hive_native_runtime', 'project_task_recoveries', 'UPDATE')
+        OR has_table_privilege('hive_native_runtime', 'project_task_recoveries', 'DELETE')
+        OR has_database_privilege('hive_native_runtime','hive_migrate_test','CONNECT') THEN
+        RAISE EXCEPTION 'Native recovery permission or database-connect boundary incorrect';
+      END IF;
+    END $$;
+    SET LOCAL ROLE hive_native_runtime;
+    SELECT count(*) FROM project_task_recoveries;
+    SELECT count(*) FROM codex_guardian_tree_receipts;
+    RESET ROLE;
+    ROLLBACK;`,
   );
 });
 

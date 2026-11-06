@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "errors": [
+    "error: upload: Post \"https://coder.kethalia.com/api/v2/files\": Archive too big. Must be <= 1048576 bytes",
+    "error: template import init error: extract template archive: extract template source archive: create file \"/home/coder/.cache/coder/provisioner-0/work/Session6384a908-43f6-4bed-b0d6-d3eec60ccce1/assets/codex-host.tar.sha256\" (mode -rw-r--r--): open /home/coder/.cache/coder/provisioner-0/work/Session6384a908-43f6-4bed-b0d6-d3eec60ccce1/assets/codex-host.tar.sha256: no such file or directory"
+  ],
+  "directoryUploadRejected": true,
+  "maintainedArchiveWithoutDirectoriesRejected": true,
+  "correctedArtifactImportSucceeded": true,
+  "activeTemplateVersionChanged": false
+}

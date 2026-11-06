@@ -1,0 +1,17 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/repository-policy-manager.integration.test.ts (4 tests) 2658ms
+   ✓ repository policy in signed manager/source/evidence lifecycle > automatically binds policy before publication and derives exact accepted PR; omitted independent review blocks completion  920ms
+   ✓ repository policy in signed manager/source/evidence lifecycle > actual signed next-claim path cannot pass repository subsets or pending semantic acceptance after source advance  907ms
+   ✓ repository policy in signed manager/source/evidence lifecycle > generic CI plus Codex review never certifies unmatched task meaning  442ms
+   ✓ repository policy in signed manager/source/evidence lifecycle > revoked pinned version rejects a current signed manager request even with passing evidence  387ms
+ ✓ src/__tests__/lib/delivery/repository-policy.integration.test.ts (9 tests) 441ms
+ ✓ src/__tests__/lib/delivery/repository-policy-contracts.test.ts (4 tests) 20ms
+ ✓ src/__tests__/lib/projects/task.test.ts (10 tests) 17ms
+
+ Test Files  4 passed (4)
+      Tests  27 passed (27)
+   Start at  05:08:42
+   Duration  4.28s (transform 407ms, setup 0ms, collect 659ms, tests 3.14s, environment 0ms, prepare 155ms)
+

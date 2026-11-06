@@ -1,0 +1,27 @@
+✔ pinned roots drain only after complete project authorization, receipt persistence and ACK (24.072955ms)
+✔ adopts and drains detached writers without touching an outside sibling (129.135517ms)
+✔ adopts and drains nested writers without touching an outside sibling (140.846235ms)
+✔ adopts and drains clone_parent writers without touching an outside sibling (131.486934ms)
+✔ adopts and drains clone_signal writers without touching an outside sibling (143.730976ms)
+✔ root child inherits neither guardian control/descriptors nor ambient credential environment (47.829997ms)
+✔ changed pinned executable between bootstrap and launch revokes the lifetime (2.960878ms)
+✔ duplicate launch and incomplete stop authorization cannot create another root or certify a drain (17.57578ms)
+✔ receipt journal failure never becomes successful cleanup authority (15.297916ms)
+✔ controller channel loss drains descendants but produces no accepted receipt (133.092829ms)
+✔ guardian crash cannot be certified by a replacement empty lifetime (19.511049ms)
+✔ oversize and out-of-order private frames fail closed before any spawn (4.976343ms)
+✔ pin and environment errors are rejected before a lifetime is created (1.18637ms)
+✔ a leader's exit does not hide live writer threads (191.651504ms)
+✔ bounded concurrent forks remain owned while drain closes the tree (130.253308ms)
+✔ owned ptrace relationships do not turn a stopped child into an empty tree (141.494374ms)
+✔ an inherited unlinked writable FD stops changing only after the owned tree drains (123.288074ms)
+✔ an exact private-frame replay acknowledges the same PID without another fork (15.869667ms)
+✔ a completed terminal helper does not revoke another active root (117.228431ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1778.045183

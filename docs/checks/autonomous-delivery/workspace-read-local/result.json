@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T03:19:52.226Z",
+  "baseRevision": "e4191aa826d1fba52f36b2c50c7aa6f79871be49",
+  "endingBaseRevision": "e4191aa826d1fba52f36b2c50c7aa6f79871be49",
+  "sourceStable": true,
+  "sourceDigests": {
+    "templates/ai-dev-k8s/scripts/hive-workspace-read.mjs": "ff05418b0653f15438d2e1b202302103700087236b0e21f91c6bad041d533d1a",
+    "templates/ai-dev-k8s/scripts/hive-workspace-read.py": "617bcc9fd343eecd16bcd6108bde4ba0fe8c8b8e251bde4211172617e7a93da5",
+    "src/lib/workspaces/read-contracts.ts": "f535415f6423beecc530107290a01a7972a64a0cbeb2a1ad314a003ea90dbbc1",
+    "src/lib/workspaces/read-client.server.ts": "000a5b3d0be5c6fa7a64328bb48006c236d288b6be599a4c709b5dcea86886f9",
+    "src/lib/workspaces/read-service.server.ts": "ebda6ca99911589928206f4da7e215b5d6fbcb3987407bb758c26e3bd6c9ac22",
+    "src/lib/codex-session/bootstrap-delivery.server.ts": "39e8af123bf6e92ab4f1ab0eb6becd963208b40ad5865fa100fe6800c2fab639",
+    "src/lib/codex-session/registration.server.ts": "a29e1cf84b8c9f25e47c999eec94681c06bd316e1507694978ddcdc350a61d90",
+    "src/lib/security/workspace-app-isolation.ts": "b8f4930119a0be2647827b3a707eb2510a5ac800eb8d191a67a0d2b541cf5535",
+    "src/lib/coder/user-client.ts": "43c0a6aae1abde72d8e94fd5ec87847c959128d595d4933b476960c6967011f7",
+    "src/lib/coder/client.ts": "b163082ea75bbb88cf94489e41fba31b965ea30b4c5c4c69046e941b329d2222",
+    "src/lib/coder/fetch.ts": "b3d3bf2eb986dbee72dd0868381f3029705df1c8b7464efcf32cb285f9077cac",
+    "src/lib/git/clone-actions-contract.ts": "421b5d0729e1a97c805af7a858cf1f5bb9e710bc4626f5e4b03474f1df6d3a75",
+    "scripts/verify-workspace-read.test.mjs": "a6cbfb666b0eeb493ab0489ed13436b4cf0a9db643a36b0e04ffdf3b45cdc7f5",
+    "scripts/agents/test_workspace_read.py": "d11bbd318c43c3749480a502283606dc9cb99ba4720b34db13dd4cbe2b94beb5",
+    "src/__tests__/lib/workspaces/read-client.test.ts": "b3f13e304bd0ca482109293142b8cd9d616c401bb9e062f8ec4150911b73b6c5",
+    "src/__tests__/lib/workspaces/read-service.test.ts": "1329f7049841e806fc77aa4195d5d9300985bd87e231e4977fb36e60da0e03fe",
+    "src/__tests__/lib/workspaces/read-transport.test.ts": "e54babb58b87b9f1d8a2ab469e615a02a5bb11d6c4ea3a44e34132a5da30e2f3",
+    "src/__tests__/lib/workspaces/read-fixture.ts": "556a78d9616dae1e982fc6146322258fb57ec9d0bf6daee6421e983fa2c5b11f",
+    "src/__tests__/lib/codex-session/bootstrap-delivery.test.ts": "248da3e7c5fc19161a5f95f67a441050b8021c57a440b018d67580706f506529",
+    "scripts/build-workspace-read-package.mjs": "fee3b4ce9191ce739c4c3604c4d38e254d54895dcc3caaaf337633b9355efc95",
+    "scripts/probe-workspace-read.mjs": "74e1bbc44521c90804d774fe89850e329f58c095de97f8578675ee65249a2a39"
+  },
+  "testedSourcesCommitted": false,
+  "runtime": {
+    "node": "v24.21.0",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "tests": {
+    "nodePassed": 7,
+    "pythonPassed": 9,
+    "typeScriptPassed": 25,
+    "typeScriptFailed": 0
+  },
+  "package": {
+    "compressedBytes": 9382,
+    "expandedBytes": 34816,
+    "archiveSha256": "016f6616bc13d4fc968d21689977f863e175e378ed3447fd6e90b965e93448c8",
+    "manifestSha256": "c61be01b5bdedc53052a57cfd8028039dafa6494ec1eb0ada9d0e5112586c000"
+  },
+  "passed": true,
+  "checks": [
+    "Actual private tmux socket reads do not mutate sessions or touch the primary socket.",
+    "Signed identity/config/manifest/lifetime, nonce replay and exact profile capability limits are enforced.",
+    "Actual local HTTP service and canonical scoped app-cookie exchange code forward no owner credentials.",
+    "Fresh Coder owner/build/app checks reject foreign, changed and ambiguous targets.",
+    "Paths preserve CWD/fallback/home behavior with explicit outside-root/unavailable statuses and no contents.",
+    "Pagination, command/output/stream deadlines and cancellation are bounded; no arbitrary exec/SSH interface exists."
+  ],
+  "limitations": [
+    "Coder metadata and app-auth responses are synthetic fixtures, not live Coder calls.",
+    "Profile configurations are exercised locally; no all-profile installation or browser parity is claimed.",
+    "Installer, template/app activation and existing action dispatch are separate gates."
+  ],
+  "existingActionDispatchChanged": false,
+  "cloudMutations": false,
+  "newWorkspaces": false,
+  "accountInference": false
+}

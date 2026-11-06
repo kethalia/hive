@@ -1,0 +1,3 @@
+Shared full typecheck exit 2. No diagnostics in this slice. Concurrent files:
+src/__tests__/lib/db/host-callback.test.ts(103,54): TS2322 HeadersInit union includes optional undefined values.
+src/proxy.ts(40,78): TS2559 ProcessEnv has no properties in common with HostCallbackCapabilities.

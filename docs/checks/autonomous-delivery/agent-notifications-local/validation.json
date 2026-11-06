@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T00:02:45.058188+00:00",
+  "scope": "source/local only; portable terminal agent callback ingress and bounded dispatch",
+  "tests": {
+    "focusedPassed": 58,
+    "actualPostgresqlPassed": 19,
+    "actualWorkerdChecks": 12,
+    "typecheck": true,
+    "biome": true,
+    "diffCheck": true
+  },
+  "database": {
+    "endpoint": "loopback PostgreSQL 55439",
+    "newTaskDatabase": "hive_agent_notification_test",
+    "migrationsAppliedFresh": 41,
+    "remoteMigrationApplied": false,
+    "deliveryRegressionDatabase": "hive_delivery_test",
+    "deliverySchemaChanged": false
+  },
+  "independentFinding": {
+    "issue": "settlement could sample clock before a row-lock or trigger wait",
+    "correction": "exact row lock, post-lock DB clock, final transactional clock fence; late-trigger regression verifies rollback"
+  },
+  "providerRequests": 0,
+  "subscriptionsUsedByWorkerdProof": 0,
+  "hostOrInstallerChanges": false,
+  "liveConfigurationChanged": false,
+  "remaining": [
+    "populated upgrade/restricted runtime rehearsal",
+    "owner/build-bound portable installer",
+    "actual provider push and browser acceptance",
+    "preview callback access under existing independent preview gate",
+    "Node worker drain and scheduler ownership",
+    "aggregate jobs capacity and budget review"
+  ],
+  "independentReview": {
+    "reviewer": "recovery_review",
+    "result": "approved source slice; no remaining actionable findings",
+    "confirmedFix": "exact lock precedes lease clock; final database-clock check rolls back late settlement"
+  }
+}

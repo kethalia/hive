@@ -11,9 +11,6 @@ export async function register() {
   if (process.env.HIVE_DISABLE_BACKGROUND_WORKERS === "true") return;
 
   const { createTemplatePushWorker } = await import("@/lib/templates/push-queue");
-  const { createTokenRotationWorker, scheduleTokenRotation } = await import(
-    "@/lib/queue/token-rotation"
-  );
 
   const { createNotificationWorker } = await import("@/lib/push/event-queue");
   createNotificationWorker();
@@ -21,7 +18,12 @@ export async function register() {
   createTemplatePushWorker();
   console.log("[instrumentation] Template push worker started");
 
-  createTokenRotationWorker();
-  await scheduleTokenRotation();
-  console.log("[instrumentation] Token rotation worker started");
+  if (process.env.HIVE_DISABLE_TOKEN_ROTATION_WORKER !== "true") {
+    const { createTokenRotationWorker, scheduleTokenRotation } = await import(
+      "@/lib/queue/token-rotation"
+    );
+    createTokenRotationWorker();
+    await scheduleTokenRotation();
+    console.log("[instrumentation] Token rotation worker started");
+  }
 }

@@ -1,0 +1,17 @@
+{
+  "observedAt": "2026-11-05T20:31:07.893Z",
+  "deleted": {
+    "id": "a4bd64c3824a4d33a8ddc18dd98f58bd",
+    "name": "pr-codex-delivery-system-design-1b499d0975f3",
+    "createdOn": "2026-11-05T20:18:12.606202Z",
+    "deploymentId": "434bfba2-dc50-4ceb-b7ba-b12829c1ce88"
+  },
+  "remaining": [
+    {
+      "id": "9b772c5c22f84deeb1af85e68f819798",
+      "name": "codex/delivery-system-design",
+      "slug": "codex-delivery-system-design"
+    }
+  ],
+  "sharedDatabaseUnchanged": true
+}

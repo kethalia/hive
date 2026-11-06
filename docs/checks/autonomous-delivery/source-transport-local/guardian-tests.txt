@@ -1,0 +1,25 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/source-publication.integration.test.ts (16 tests) 3659ms
+   ✓ internal source revision acceptance, synthetic independent producer > accepts output under the same writer, verifies output evidence and advances a second immutable source link  604ms
+   ✓ internal source revision acceptance, synthetic independent producer > serializes duplicate and competing publications with exact lost-ACK replay only  316ms
+   ✓ internal source revision acceptance, synthetic independent producer > rejects unactivated fixture receipts, model booleans, bad signatures and binding/producer scope swaps  328ms
+   ✓ internal source revision acceptance, synthetic independent producer > checks revocation/expiry/pause inside mutation and never consumes a source version on rejection  405ms
+   ✓ internal source revision acceptance, synthetic independent producer > protects append-only chain/input/output and cross-owner/cross-attempt pointers in PostgreSQL  314ms
+ ✓ src/__tests__/lib/delivery/source-transport.integration.test.ts (12 tests) 3990ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > rejects wrong PR branch/account and expired grant before upload  822ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > serializes concurrent exact grant and publication retries  326ms
+   ✓ Source publication signed transport (injected admission; real local PostgreSQL) > allows exact consumed receipt replay after original provider-readback freshness without new authority  1319ms
+ ✓ src/__tests__/lib/delivery/progression.integration.test.ts (12 tests) 2223ms
+   ✓ protocol-one server progression (synthetic signed host, not native ordering proof) > advances analysis then two delegated attempts at one source while preserving the physical writer and immutable receipts  401ms
+ ✓ src/__tests__/lib/codex-session/guardian-store.integration.test.ts (10 tests) 1343ms
+ ✓ src/__tests__/lib/delivery/source-guardian.integration.test.ts (3 tests) 926ms
+   ✓ source issuer with real staged guardian store (local authorization/pin fixtures, synthetic native/provider) > publishes only under finalized persisted runtime/admission and preserves exact replay  507ms
+ ✓ src/__tests__/lib/delivery/source-transport-route.test.ts (6 tests) 20ms
+ ✓ src/__tests__/lib/delivery/source-policy.test.ts (2 tests) 7ms
+
+ Test Files  7 passed (7)
+      Tests  61 passed (61)
+   Start at  00:01:33
+   Duration  13.96s (transform 427ms, setup 0ms, collect 924ms, tests 12.17s, environment 1ms, prepare 275ms)

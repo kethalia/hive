@@ -1,0 +1,62 @@
+{
+  "observedAt": "2026-10-29T20:59:12.512986+00:00",
+  "sourceRevision": "91fb4a813a26a9cb144a20f6680de9b4669a6eb7",
+  "tests": {
+    "deliveryAndUiPassed": 218,
+    "optionalR2FixtureSkipped": 1,
+    "filesPassed": 23,
+    "newInformationalPostgres": 9,
+    "state": 13,
+    "deliveryUi": 7,
+    "hostNativeAdapterSpool": 15
+  },
+  "typecheck": "passed",
+  "scopedBiome": "passed",
+  "migrations": {
+    "legacyReportEventAndOutboxPreserved": true,
+    "observedAt": "2026-10-29T20:50:51.597194+00:00",
+    "freshDatabase": "hive_informational_fresh_55cbfdf9",
+    "upgradeDatabase": "hive_informational_upgrade_55cbfdf9",
+    "migrationCount": 21,
+    "checksumMatch": true,
+    "schemaDrift": "unchanged from committed pre-informational baseline",
+    "baselineDrift": "[*] Changed the `codex_host_slots` table\n  [-] Removed foreign key on columns (owner_id, id, active_registration_id)\n\n[*] Changed the `project_task_intents` table\n  [*] Renamed the foreign key \"project_task_intents_project_fkey\" to \"project_task_intents_owner_id_project_id_fkey\"",
+    "postgres": "17.11",
+    "scope": "isolated primary local cluster only; no remote migration",
+    "baselineMigrations": 19,
+    "preInformationalLegacyPreservation": true,
+    "legacyManagerBindingFieldsRemainNull": true
+  },
+  "sourceSha256": {
+    "src/lib/delivery/contracts.ts": "3e3a5e7886df76afe0133bad2d69c54980dd3bd1a6702e08700fcb3b10c5893f",
+    "src/lib/delivery/state.ts": "9de693de68107272c5ceb78a6d8deb42657f1ba43926868a5c923ac1c1357cf1",
+    "src/lib/delivery/repository.ts": "8f2148dbedcb42f2060785d6c5bc7f8c92e314a9e3e710f4db1e7ce8a7df7726",
+    "src/lib/delivery/manager-contracts.ts": "4e3cdae6a0b08ad345f2204565ea028e8139f3454e55709cea28320ac8eeae96",
+    "src/lib/delivery/manager.server.ts": "e66cfae40bf4405db76817f49aae2b740a828ec22de00e96d971af1ac3a568c8",
+    "src/lib/delivery/event-labels.ts": "915602ed17f0ae5353bcacbf0be05fb133d51950f46334fb4f3ddb994f74eeaa",
+    "src/lib/delivery/read-contracts.ts": "395982f86b7d498cd2d22ac4dea12420caab985a2e48e9594880ba06a50a5846",
+    "src/lib/delivery/reads.ts": "c7c19c37f0bb0d022620d95a4b39f95134cec6efe3555ce6bd45562229eeb500",
+    "src/components/delivery/DeliveryPanel.tsx": "19f2cca0a2afbb3aeecc44a7e6983be0452349e01dafdaea17230124978f40ac",
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "20a3761f4fd2ce783bd9bf3a461928bf773d87a7e592ff3bd32f495f89ef26a8",
+    "scripts/verify-delivery-manager-adapter.test.mjs": "3a0bf37bf2fb4e47786cc0a989b3c005ecb101f21ec4f52e058a7ba560db1d3d",
+    "src/__tests__/lib/delivery/state.test.ts": "86ebc805ffefc9d7d812ebd354b2b40b6afecd00899b3973ba745c763e10503c",
+    "src/__tests__/lib/delivery/informational-report.integration.test.ts": "3669e75a97111ab34e88e682228a79be343568a1ae73435311bd1a169e8e80cd",
+    "src/__tests__/components/delivery-panel.test.tsx": "053eee97a6632b492d170fbe6986c8915d7c82743479ca6137103062a7880bf1",
+    "packages/db/prisma/migrations/20261029100000_delivery_informational_report/migration.sql": "8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05",
+    "packages/db/prisma/migrations/20261029100100_delivery_report_null_guard/migration.sql": "c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865",
+    "docs/checks/autonomous-delivery/informational-reports.md": "f00139f9f3340b1761e01c47655af25050ec03a11524e6bed4ae70b0c0e23936",
+    "docs/checks/autonomous-delivery/manager-policy.md": "300d6dcd65aa7f479ea8740b2565d584a49df7f8138b382bd9c7d3f092c44c79"
+  },
+  "reportedSemantics": "Model-authored understand-only preview analysis, separate reported state; creates zero evidence; strict producer/status/policy/evidence-ID rejection. Report/event/outbox atomic with owner/source/version/lease/registration fences.",
+  "writerAuthority": "No runtime binding/version/quiescedAt or activeAttempt clearing; logical dependencies may be satisfied but next native attempt remains held by existing writer/reconciliation checks.",
+  "readAndNotification": "Reported count separate from evidence-backed acceptance; immutable event classification; original attempt SHA retained in notification and per-report display after source invalidation.",
+  "remainingIntegration": [
+    "Task-lifetime checkout writer lease vs per-step logical attempts",
+    "Pending results and deterministic acceptance after observed native completion",
+    "Trusted activeAttempt retirement and explicit drain before handoff/cleanup",
+    "Verified change/migration/artifact/analysis adapters and independent controller-required release eligibility",
+    "Installed package/template regeneration by coordinator; no generated copies changed here",
+    "Live/account-backed acceptance and owner production approval"
+  ],
+  "scope": "Primary isolated local PostgreSQL17 plus actual installed Codex0.165/local mocked Responses host fixtures; no account inference, cloud migration/write, production activation or altered previous migration history."
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "prepared": true,
+  "directory": "/tmp/hive-project-preview-ksjfs3g7",
+  "browser": {
+    "chrome": "155.0.8059.79",
+    "syntheticOnly": true
+  },
+  "playwright": "1.61.1",
+  "previewRequests": 0,
+  "ownerCredentialCopied": false,
+  "sourceHashes": {
+    "browser.mjs": "bfcda6e08bf00dafc23e5b3b8ad0f4eaf19b415b87e44512aa4d984f89c234a4",
+    "policy.mjs": "60f709fbb02f0defaf95a5afb5686971e82bfebfd78c36be469bb93289ed0e71",
+    "policy.test.mjs": "79098e14f808f10a227388cff9314491ea4ab9c0069c0b6c70a6e99ddc261382",
+    "package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
+    "package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b"
+  },
+  "controllerSha256": "12b89bd0dfe8f4a98211b3ec8e738fe9b4ad200ccf86c5956af7d03c55594726",
+  "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+  "buildId": "8e3860b5-5ba2-4b95-a26c-1f673138a26d",
+  "observedAt": "2026-10-30T06:46:12.925636+00:00"
+}
