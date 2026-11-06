@@ -24,7 +24,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Held host preserved and stopped; corrected image pending | `codex/hive-native-flow` enrolled remotely after the clock fix but lost its enrollment acknowledgment. Its old immutable package cannot reconcile the held state. Private journals/auth cache were archived and the workspace stopped without deletion; a fresh isolated workspace will validate the corrected package. Global active template is unchanged. |
+| Test workspace | Enrollment recovery candidate validated through committed preparation; held ACK preserved | Fresh `codex/hive-native-recovery` runs the smoke-tested immutable image. Enrollment succeeds, but preparation commits before its acknowledgment is retained. The host stays held before native execution and is stopped/retained; generic operation receipt recovery is in implementation. Global active template is unchanged. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
 | F09 Coder OAuth | Accepted roadmap; implementation deferred | Inspect Creative Studio admin OAuth, minimize credential persistence, preserve fixed-host and owner isolation. No login changes in the current pilot. |
@@ -1310,3 +1310,42 @@ live deployment; local build and proof workflows remain available.
   image, provision a fresh isolated test host, then run the actual manager/child/acceptance/
   publication/closure path and Browser Testing acceptance against the same native deployment.
   Source-only cutover preparation proceeds independently; no production activation is authorized.
+
+## 2026-11-06 implementation and real admission checkpoint
+
+- Reviewed enrollment recovery is committed at `934298b1`; minute jobs routing at
+  `95ff2710` and offline first-production preparation at `2f7a69fe`. A documentation-only
+  formatting fix produces `83f273a1`; its unchanged application build hashes and actual
+  assembled native Workerd proof pass. GitHub CI is green. The image from the identical
+  host sources at `2f7a69fe` passed smoke/local-registry identity checks and was published
+  once without changing a production image alias or globally active template.
+- Fresh isolated host `3e2e5966-6b15-46e7-abde-f3fed711d360` verifies exact package/process,
+  owner/build, private distinct PVC and managed dedicated-account Codex login. A reviewed
+  branch-only operator deployment has exact variable/secret-name/R2 readback. One bounded
+  task is accepted and one reconciliation wake completes enrollment and commits preparation
+  admission. No native process or model turn starts: the host loses that preparation ACK,
+  preserving its pending signed frame while the server is at generation two. See
+  [real task receipt](cloudflare-native-task-83f273a1.json).
+- This demonstrates that enrollment-only readback is insufficient. Generic atomic operation
+  receipts and factual readback for prepare/checkout/native/fence are in implementation,
+  with separate fresh execution authority, cumulative deadlines and staged blocked recovery
+  still required. The already-held immutable package cannot be retrofitted or used to invent
+  an old operation receipt. It is privately archived and stopped/retained; neither cryptographic
+  closure nor cleanup is claimed. [Quarantine](d11-native-recovery-quarantine.json).
+- Task reopen status is implemented at `e98c60f7`, moderate difficulty. Seventy project/UI tests
+  pass. Newest intent selection precedes eligibility checks, preventing old blocked requests
+  resurfacing after newer completed work. This reads status only; it does not retry a task.
+- Portable terminal-agent event ingress/dispatch is implemented at `c17e2fcf`, high difficulty.
+  Fifty-eight checks pass, including nineteen PostgreSQL checks and twelve actual Workerd
+  checks. A reviewed lease-expiry race is fixed. `8f51610c` wires recurring CI coverage and
+  runtime-role regrant checks. Migration 41 is applied only in isolated local fixtures;
+  live Native/Neon still has forty migrations. Installer parity and actual browser push
+  remain open, and all new live flags remain off. [Scope and evidence](agent-notifications.md).
+- Preview placement is prepared at `4d99e556` for Neon in AWS us-east-1, verified against the
+  installed Wrangler schema and official Preview configuration guidance. Nine deployment/
+  preparation checks pass. It has not yet been published or measured. Placement mitigates
+  latency; it does not replace durable recovery or guarantee acknowledgment deadlines.
+- Current unpublished implementation checkpoints will be published together after the receipt
+  protocol and installer changes settle, avoiding automatic Preview deployment churn during
+  live acceptance. Production data, routes, schedules, template activation and final merge
+  remain unchanged and require the owner's eventual cutover approval.

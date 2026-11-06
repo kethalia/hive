@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "3e2e5966-6b15-46e7-abde-f3fed711d360",
+  "workspaceName": "hive-native-recovery",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-05T23:52:41.034778Z",
+  "task": "native-autonomous-delivery-pilot",
+  "classification": "unmanaged persistent; retain for explicit review",
+  "templateVersionId": "07eaf3fd-4644-43ab-a66c-66a402ff595c",
+  "buildId": "adb51ed2-fed2-459e-94e0-00d3fa489068"
+}
