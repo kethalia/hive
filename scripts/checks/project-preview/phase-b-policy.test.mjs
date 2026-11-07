@@ -39,6 +39,42 @@ test("existing session accepts only the two reviewed workspaces and keeps the re
   assert.throws(() => parsePhaseB({ ...scope, workspaceId: flow, providerAccountId: "999" }));
   assert.throws(() => parsePhaseB({ ...scope, workspaceId: flow, threadId: null }));
 });
+test("managed 20Gi pilot binds its exact workspace and marker without server logout", () => {
+  const managed = parsePhaseB({
+    ...scope,
+    workspaceId: "35dded27-d8bd-479c-a44a-f20b766349af",
+    marker: "HIVE_MANAGED_PILOT_20261107_20G",
+    incrementalBudget: 52,
+  });
+  assert(phaseBPermit(managed, `${NATIVE_ORIGIN}/api/app-version`, "GET"));
+  assert(!phaseBPermit(managed, `${NATIVE_ORIGIN}/api/auth/logout`, "POST"));
+  assert(!phaseBPermit(managed, `${ORIGIN}/api/app-version`, "GET"));
+  assert.throws(() => parsePhaseB({ ...managed, workspaceId: NATIVE_WORKSPACE }));
+  assert.throws(() => parsePhaseB({ ...managed, marker: "HIVE_MANAGED_PILOT_DIFFERENT" }));
+});
+test("optional Delivery report proof permits only pinned reads, with no notice or task mutations", () => {
+  const delivery = { taskId: id, reportId: id, eventId: id },
+    pinned = parsePhaseB({ ...scope, delivery });
+  for (const route of [
+    "/api/delivery/tasks",
+    `/api/delivery/tasks/${id}`,
+    `/api/delivery/tasks/${id}?report=${id}`,
+    `/workspaces?panel=delivery&task=${id}&report=${id}`,
+  ])
+    assert(phaseBPermit(pinned, `${ORIGIN}${route}`, "GET"));
+  for (const [route, method] of [
+    [`/api/delivery/tasks/${id}`, "POST"],
+    [`/api/delivery/tasks/${id}/pause`, "POST"],
+    [`/api/delivery/tasks/${id}?report=${id}&report=${id}`, "GET"],
+    ["/api/delivery/tasks?cursor=other", "GET"],
+    ["/api/delivery/tasks/30000000-0000-4000-8000-000000000001", "GET"],
+    [`/workspaces?panel=delivery&task=${id}&report=30000000-0000-4000-8000-000000000001`, "GET"],
+  ])
+    assert(!phaseBPermit(pinned, `${ORIGIN}${route}`, method));
+  assert(!phaseBPermit(scope, `${ORIGIN}/api/delivery/tasks`, "GET"));
+  assert.throws(() => parsePhaseB({ ...scope, delivery: { ...delivery, eventId: "unknown" } }));
+  assert.throws(() => parsePhaseB({ ...scope, delivery: { ...delivery, origin: ORIGIN } }));
+});
 test("native Phase B binds the reviewed workspace to its exact origin", () => {
   const native = parsePhaseB({ ...scope, workspaceId: NATIVE_WORKSPACE, incrementalBudget: 52 });
   const path = `/api/projects/${id}/tasks/status`;

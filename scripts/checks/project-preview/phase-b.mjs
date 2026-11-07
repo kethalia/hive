@@ -36,6 +36,7 @@ const deadline = Date.now() + 180000,
     starts: 0,
     logins: 0,
     opens: 0,
+    deliveryReads: 0,
   };
 let browser,
   context,
@@ -214,6 +215,28 @@ try {
         if (path.endsWith("/session-grant")) counts.sessionGrants++;
         else counts.terminalGrants++;
       }
+      if (scope.delivery && path === `/api/delivery/tasks/${scope.delivery.taskId}` && res.ok()) {
+        const detail = await res.json(),
+          report = detail.steps
+            ?.flatMap((step) => step.reports ?? [])
+            .find((entry) => entry.id === scope.delivery.reportId),
+          event = detail.recentEvents?.find((entry) => entry.id === scope.delivery.eventId);
+        check(
+          detail.id === scope.delivery.taskId &&
+            detail.manager?.projectId === scope.projectId &&
+            detail.manager?.workspaceId === scope.workspaceId &&
+            detail.manager?.threadId === scope.threadId &&
+            report?.informational === false &&
+            typeof report.difficultyReason === "string" &&
+            report.difficultyReason.length > 0 &&
+            typeof report.nextAction === "string" &&
+            report.nextAction.length > 0 &&
+            event?.reportId === scope.delivery.reportId &&
+            event.label === "Step completed",
+        );
+        counts.deliveryReads++;
+        checks.completedReportAndNoticeBound = true;
+      }
       await route.fulfill({ response: res });
       await res.dispose();
     } catch {
@@ -365,11 +388,36 @@ try {
   checks.reconnectedMarkerOnce = true;
   checks.sameTurnAndItem = true;
   checks.sessionAndTerminalBindingsMatch = true;
+  if (scope.delivery) {
+    stage = "delivery";
+    const target = `/workspaces?panel=delivery&task=${scope.delivery.taskId}&report=${scope.delivery.reportId}`;
+    await page.goto(`${origin}${target}`, { waitUntil: "domcontentloaded" });
+    const progress = page.getByRole("region", { name: "Task progress", exact: true }),
+      report = progress.locator(`#delivery-report-${scope.delivery.reportId}`),
+      activity = progress.getByRole("region", { name: "Recent task activity", exact: true });
+    await report.waitFor();
+    check((await report.getAttribute("open")) !== null);
+    await report.getByText("Difficulty:", { exact: false }).waitFor();
+    await report.getByText("Evidence", { exact: true }).waitFor();
+    await activity.locator(`a[href="${target}"]`).waitFor();
+    check(checks.completedReportAndNoticeBound && counts.deliveryReads >= 1);
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      check(await report.isVisible());
+      check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    }
+    checks.deliveryReportLinkAndResponsiveView = true;
+  }
   stage = "complete";
 } catch {
   failed = true;
 } finally {
-  if (
+  if (context && nativeSessionInjected) {
+    // Reuse of the operator's existing session is local to this ephemeral
+    // context. Server logout would revoke the primary's still-needed cookie.
+    await context.clearCookies().catch(() => {});
+    cleanup = (await context.cookies().catch(() => null))?.length === 0;
+  } else if (
     context &&
     (counts.logins || nativeSessionInjected) &&
     Date.now() < deadline &&
@@ -410,6 +458,9 @@ console.log(
         : null,
     counts,
     cleanupSucceeded: cleanup,
+    cleanupScope: nativePublicLogin ? "browser-context-only" : "server-logout",
+    serverLogoutPerformed: !nativePublicLogin && cleanup,
+    deliveryNoticeChecks: scope.delivery ? (failed ? "failed" : "passed") : "pending",
     hostIdentityIndependentlyJoined: false,
     nativeProcessCountProven: false,
     screenshots: false,

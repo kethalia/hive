@@ -10,6 +10,8 @@ export const NATIVE_TARGETS = Object.freeze([
   // Primary creation record: d11-native-final-workspace-creation.json.
   // Registry membership does not assert host health or authorize enrollment.
   Object.freeze({ workspaceId: "e6aa588f-89a7-464b-9cf9-a6371d0b819d", origin: NATIVE_ORIGIN }),
+  // Primary creation record: managed-flow-20g-workspace-creation.json.
+  Object.freeze({ workspaceId: "35dded27-d8bd-479c-a44a-f20b766349af", origin: NATIVE_ORIGIN }),
 ]);
 export const TARGET = Object.freeze({
   workspaceId: "22c4f094-46f0-4a76-86ca-37ad74254872",

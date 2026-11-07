@@ -126,12 +126,20 @@ export function prepareProduction({
   assert.equal(proof.result?.ok, true);
   assert.equal(proof.httpStatus, 200);
   assert.equal(proof.appBuildReadySHA256, manifest.evidenceDigests.buildReady);
-  // A preview client is enrolled only for its preview callback. Bootstrap
-  // production must never inherit either that client or its enable switch.
-  // Only independent explicit production enrollment may enable OAuth.
-  const productionVars = Object.fromEntries(
-    Object.entries(config.previews.vars).filter(([name]) => !name.startsWith("HIVE_CODER_OAUTH_")),
-  );
+  // Preview enrollment is independent: never promote its execution switches,
+  // issuer, repository policies or callback origins into production bootstrap.
+  // Only the separately reviewed production OAuth manifest may enable login.
+  const productionVars = {
+    CODER_URL: config.previews.vars.CODER_URL,
+    HIVE_RUNTIME_TARGET: "cloudflare",
+    HIVE_DISABLE_BACKGROUND_WORKERS: "true",
+    HIVE_PROJECT_DISCOVERY_ENABLED: "false",
+    HIVE_PROJECT_TASKS_ENABLED: "false",
+    HIVE_DELIVERY_ENABLED: "false",
+    HIVE_CODEX_GATEWAY_ENABLED: "false",
+    HIVE_DELIVERY_DISPATCH_ENABLED: "false",
+    HIVE_TOKEN_ROTATION_ENABLED: "false",
+  };
   const production = {
     name: "hive",
     account_id: account,

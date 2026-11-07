@@ -16,6 +16,7 @@ export function parsePhaseB(raw) {
     marker,
     start,
     incrementalBudget,
+    delivery,
     ...base
   } = raw ?? {};
   const original = parseScope({ ...base, priorForwarded: 0 }, { allowNative: true });
@@ -40,7 +41,21 @@ export function parsePhaseB(raw) {
         shortId.test(threadId)
       : taskId === null && serverInstanceId === null && threadId === null) ||
     typeof marker !== "string" ||
-    !/^HIVE_PILOT_[A-Z0-9_]{8,80}$/.test(marker)
+    !(
+      /^HIVE_PILOT_[A-Z0-9_]{8,80}$/.test(marker) ||
+      (base.workspaceId === "35dded27-d8bd-479c-a44a-f20b766349af" &&
+        marker === "HIVE_MANAGED_PILOT_20261107_20G")
+    )
+  )
+    throw Error("phase_b_scope_rejected");
+  if (
+    delivery != null &&
+    (!delivery ||
+      Array.isArray(delivery) ||
+      Object.keys(delivery).sort().join() !== "eventId,reportId,taskId" ||
+      ![delivery.taskId, delivery.reportId, delivery.eventId].every(
+        (value) => typeof value === "string" && uuid.test(value),
+      ))
   )
     throw Error("phase_b_scope_rejected");
   if (
@@ -66,6 +81,7 @@ export function parsePhaseB(raw) {
     marker,
     start,
     incrementalBudget,
+    delivery: delivery ?? null,
   };
 }
 export function phaseBPermit(scope, input, method, headers = {}, body = "") {
@@ -80,11 +96,38 @@ export function phaseBPermit(scope, input, method, headers = {}, body = "") {
       threadId,
       marker,
       start,
+      delivery,
       ...base
     } = scope;
+    const u = new URL(input);
+    if (isNativeScope(scope) && u.pathname === "/api/auth/logout") return false;
+    if (
+      delivery &&
+      u.origin === originForScope(scope) &&
+      !u.hash &&
+      !u.username &&
+      !u.password &&
+      method === "GET" &&
+      !new Headers(headers).has("Next-Action") &&
+      !new Headers(headers).has("Authorization") &&
+      !new Headers(headers).has("Content-Encoding") &&
+      !new Headers(headers).has("Upgrade")
+    ) {
+      const report = u.searchParams.get("report"),
+        exactReport =
+          [...u.searchParams.keys()].join() === "report" && report === delivery.reportId;
+      if (u.pathname === "/api/delivery/tasks") return !u.search;
+      if (u.pathname === `/api/delivery/tasks/${delivery.taskId}`) return !u.search || exactReport;
+      if (u.pathname === "/workspaces")
+        return (
+          [...u.searchParams.keys()].sort().join() === "panel,report,task" &&
+          u.searchParams.get("panel") === "delivery" &&
+          u.searchParams.get("task") === delivery.taskId &&
+          report === delivery.reportId
+        );
+    }
     if (phaseA(base, input, method, headers, body)) return true;
-    const u = new URL(input),
-      h = new Headers(headers),
+    const h = new Headers(headers),
       prefix = `/api/projects/${projectId}`;
     if (
       u.origin !== originForScope(scope) ||

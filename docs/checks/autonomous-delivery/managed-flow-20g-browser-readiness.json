@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-07T16:50:38.757298+00:00",
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+  "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+  "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+  "createdAt": "2026-10-30T06:22:11.688933Z",
+  "buildId": "722dd51f-d5ec-4c0d-91a4-d2699e2794db",
+  "templateVersionId": "0967c728-9931-448a-9e19-27fa4f995d6d",
+  "agentId": "3ee58de6-27b4-4e92-b80a-99f3a29f3a7a",
+  "browser": {
+    "chrome": "155.0.8059.79",
+    "syntheticOnly": true
+  },
+  "playwright": "1.61.1",
+  "sourceHashes": {
+    "browser.mjs": "d168e2f02853ad22b143dfe33585eb59cc234c4c4a1827e65e826814d7f384af",
+    "policy.mjs": "1da9aa15832c92f81d16a235730dbb59687be4306720e40807db7fb2239f7e4d",
+    "policy.test.mjs": "0b40daf5ba1e1cd1ce2f4925290c1b125db5a11f1cd9a4d02765aefcb9b0b3b7",
+    "phase-b.mjs": "ee3a6cf2891fb3dfeb78f99c9f40a79780b13efe9e70cbf0ba2e9b58661755d3",
+    "phase-b-policy.mjs": "503e01090cb19304b467a49fd117ef28593bc5edf587ab38f93f5aa64bd941b1",
+    "phase-b-policy.test.mjs": "92c1c48302e2fc08b30f8dd20359225e87e6a6552cf1431d65d0555e67145250",
+    "package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
+    "package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b"
+  },
+  "controllerSha256": "266bf49c92a2c0b72014349e6faa7fb2848223ce8603127f93fd9fce09a883f2",
+  "classification": "reused existing broader active Browser Testing task",
+  "existingTask": "hive-project-session-preview",
+  "startAcknowledged": true,
+  "startBuildCreatedAt": "2026-11-07T16:45:23.535297Z",
+  "freshIdentityAndRunningReadinessVerified": true,
+  "previewRequests": 0,
+  "credentialsTransferred": false,
+  "ownerCredentialCopied": false,
+  "livePhaseBPerformed": false,
+  "sameThreadConversationTerminalProof": "pending actual registered pilot thread and independent host identity join",
+  "deliveryReportNoticeProof": "pending actual completed report/event identities",
+  "workspaceRetained": true,
+  "stopOrDeletePerformed": false
+}

@@ -1653,3 +1653,18 @@ by this source checkpoint.
   before Wrangler closed, causing ENOTEMPTY from late compile-cache writes. The full 31-case
   real PostgreSQL/Workerd D10 suite passes locally. Bounded process reaping retains Docker
   cleanup even on a timeout; public readiness evidence formatting is also corrected.
+
+- Live publisher schema retirement: complete in both existing Preview databases, moderate
+  difficulty. Fresh private backups passed full archive decoding; migration 46 removed four
+  empty tables and three functions. Prior 45 migration history, unrelated rows and runtime
+  access boundaries are unchanged. One private verifier assertion was corrected and reconciled
+  read-only; no migration replay or database repair. Production was untouched.
+  [Receipt](native-publisher-retirement-preview.json).
+- The existing automatic Cloudflare build deployed the bounded manager pilot configuration
+  at `73523894`. Gateway/guardian/execution/acceptance and the retained R2 binding are present;
+  production and epic activation remain disabled. Authenticated app identity was checked.
+  [Scoped deployment observation](managed-flow-20g-preview-deployed.json).
+- GitHub CI caught Preview execution settings leaking into offline production preparation.
+  Production preparation now uses explicit minimal app settings and disabled execution rather
+  than copying Preview policies/issuer/origins. All 37 native deployment/preparation checks pass
+  locally, including the new cross-environment regression. No production setting was changed.

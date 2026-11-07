@@ -87,6 +87,35 @@ test("offline preparation pins one production Worker and leaves all scheduling/e
   assert.equal(record.production.previews, undefined);
   assert.equal(record.configDigest, digest(result.configBytes));
 });
+test("production bootstrap excludes independently enabled Preview execution and authority", () => {
+  const input = fixture();
+  input.config = structuredClone(input.config);
+  for (const name of [
+    "HIVE_PROJECT_DISCOVERY_ENABLED",
+    "HIVE_PROJECT_TASKS_ENABLED",
+    "HIVE_DELIVERY_ENABLED",
+    "HIVE_CODEX_GATEWAY_ENABLED",
+    "HIVE_GUARDIAN_ENABLED",
+    "HIVE_DELIVERY_EXECUTION_ENABLED",
+  ])
+    input.config.previews.vars[name] = "true";
+  const { record, configBytes } = prepareProduction(input);
+  for (const [name, value] of Object.entries(record.production.vars))
+    if (name.endsWith("_ENABLED")) assert.equal(value, "false", name);
+  for (const name of [
+    "HIVE_CODEX_ISSUER_KEY_ID",
+    "HIVE_CODEX_ISSUER_PUBLIC_KEY",
+    "HIVE_GUARDIAN_APPROVED_PACKAGES_JSON",
+    "HIVE_DELIVERY_REPOSITORY_POLICIES_JSON",
+    "HIVE_DELIVERY_ACCEPTANCE_PRODUCER",
+    "HIVE_CODEX_HIVE_ORIGIN",
+    "HIVE_PREVIEW_ORIGIN",
+  ])
+    assert.equal(Object.hasOwn(record.production.vars, name), false, name);
+  assert.equal(configBytes.includes("b00ste.workers.dev"), false);
+  assert.equal(record.production.r2_buckets, undefined);
+  assert.equal(record.activationAuthorized, false);
+});
 test("candidate source, dirty tree, stale evidence and wrong native proof fail closed", () => {
   for (const mutate of [
     (x) => {

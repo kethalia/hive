@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "73523894e10f07d7d5793df7f3969a1d203e77d1",
+  "cloudflareBuildId": "72117bd8-d321-492a-9852-d36be7ec8a3d",
+  "cloudflareBuildOutcome": "success",
+  "previewId": "9b772c5c22f84deeb1af85e68f819798",
+  "deploymentId": "a4dea51f-e148-446f-b473-0b28d0cbb5c0",
+  "createdOn": "2026-11-07T16:49:55.695412Z",
+  "urls": ["https://a4dea51f-hive.b00ste.workers.dev"],
+  "featureFlags": {
+    "HIVE_PROJECT_DISCOVERY_ENABLED": "true",
+    "HIVE_PROJECT_TASKS_ENABLED": "true",
+    "HIVE_DELIVERY_ENABLED": "true",
+    "HIVE_CODEX_GATEWAY_ENABLED": "true",
+    "HIVE_GUARDIAN_ENABLED": "true",
+    "HIVE_DELIVERY_EXECUTION_ENABLED": "true",
+    "HIVE_DELIVERY_ACCEPTANCE_ENABLED": "true",
+    "HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED": "true",
+    "HIVE_DELIVERY_EPICS_ENABLED": "false",
+    "HIVE_NATIVE_PRODUCTION_ACTIVE": "false"
+  },
+  "issuerPrivateBindingPresent": true,
+  "evidenceBindingType": "r2_bucket",
+  "appBuildId": "d38b84bb-f719-45b0-bc3e-d033c9339d05",
+  "authenticatedAppVersionStatus": 200,
+  "productionChanged": false,
+  "associationBasis": "Existing Workers Builds successful commit and current Preview deployment plus live app identity; operator observation, not cryptographic source attestation"
+}
