@@ -59,6 +59,31 @@ def atomic(path, value):
         os.close(fd)
 
 
+def preserve_public_config(path, state):
+    if not path.exists() and not path.is_symlink():
+        return
+    def read_checked(source):
+        fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(fd)
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1 and not info.st_mode & 0o077 and info.st_size <= 16384)
+            data = os.read(fd, 16385)
+            require(len(data) <= 16384)
+            return data
+        finally:
+            os.close(fd)
+    raw = read_checked(path)
+    history = private_directory(state / "config-history")
+    count = len(list(history.iterdir()))
+    require(count <= 256)
+    target = history / (hashlib.sha256(raw).hexdigest() + ".json")
+    if target.exists() or target.is_symlink():
+        require(read_checked(target) == raw)
+    else:
+        require(count < 256)
+        atomic(target, raw)
+
+
 def process_identity(pid):
     root = Path(f"/proc/{pid}")
     require(type(pid) is int and pid > 0 and root.stat().st_uid == os.getuid())
@@ -420,6 +445,7 @@ def install(request):
                     atomic(receipt_path, (json.dumps(receipt) + "\n").encode())
                 return {"status": "already_running", "archiveSha256": request["archiveSha256"]}
         subprocess.run(["/usr/bin/python3", str(target / "install-codex-runtime.py")], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180, check=True)
+        preserve_public_config(config_root / "codex-host.json", state)
         atomic(config_root / "codex-host.json", encoded)
         host_env = {**env, "HIVE_WORKSPACE_PROFILE": "software"}
         for name in ["CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE", "CODER_AGENT_URL"]:

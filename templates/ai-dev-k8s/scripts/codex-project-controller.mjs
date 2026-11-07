@@ -497,6 +497,198 @@ export function archiveIdleProjectState(config, receipt) {
     closeSync(lock);
   }
 }
+/** Only the installed outer calls this with its authenticated startup-only
+ * journal proof while holding the guardian flock. This does not certify ECHILD,
+ * native tree exit, or authorize checkout cleanup. */
+export function archiveBootstrapProjectState(config, proof) {
+  check(
+    [config.ownerId, config.workspaceId, config.templateId, config.buildId].every(uuid) &&
+      proof?.scope === "never_admitted_bootstrap_authorization_only" &&
+      proof.nativeTreeExited === false &&
+      proof.cleanupAuthorized === false &&
+      uuid(proof.lifetimeId) &&
+      /^[a-f0-9]{64}$/.test(proof.sourceJournalDigest),
+    "bootstrap_archive_proof_invalid",
+  );
+  privatePath(config.stateDirectory, true);
+  privatePath(config.guardianStateDirectory, true);
+  check(
+    join(config.stateDirectory, "..", "codex-host-guardian") === config.guardianStateDirectory &&
+      lstatSync(config.stateDirectory).dev === lstatSync(config.guardianStateDirectory).dev,
+    "bootstrap_archive_proof_invalid",
+  );
+  const lock = openSync(
+    join(config.stateDirectory, "controller.lock"),
+    constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    privatePath(join(config.stateDirectory, "controller.lock"));
+    execFileSync("/usr/bin/flock", ["--exclusive", "--nonblock", "3"], {
+      stdio: ["ignore", "ignore", "ignore", lock],
+      env: { PATH: "/usr/bin:/bin" },
+      timeout: 2000,
+    });
+    const retirementDigest = digest(proof),
+      archiveName = `projects-bootstrap-${proof.sourceJournalDigest}.json`,
+      archivePath = join(config.stateDirectory, archiveName),
+      statePath = join(config.stateDirectory, "projects.json"),
+      keyPath = join(config.stateDirectory, "projects.key"),
+      supervisor = join(config.stateDirectory, "..", "codex-project-supervisor");
+    const history = readdirSync(config.stateDirectory);
+    check(
+      history.length <= 256 && !history.some((name) => /^projects-(?:archive|idle)-/.test(name)),
+      "bootstrap_archive_history_present",
+    );
+    if (readdirSync(join(config.stateDirectory, "..")).includes("codex-project-supervisor")) {
+      privatePath(supervisor, true);
+      check(readdirSync(supervisor).length === 0, "bootstrap_archive_history_present");
+    }
+    privatePath(keyPath);
+    const key = readFileSync(keyPath);
+    check(key.length === 32, "journal_key_invalid");
+    const mac = (value) => createHmac("sha256", key).update(JSON.stringify(value)).digest("hex"),
+      readSigned = (path) => {
+        privatePath(path);
+        check(lstatSync(path).size <= 4 * 1024 * 1024, "bootstrap_archive_state_invalid");
+        const saved = JSON.parse(readFileSync(path));
+        check(
+          typeof saved.signature === "string" &&
+            saved.signature.length === 64 &&
+            timingSafeEqual(Buffer.from(saved.signature), Buffer.from(mac(saved.state))),
+          "journal_signature_invalid",
+        );
+        return saved.state;
+      };
+    const assertEmpty = (state, lifetimeId, worker) => {
+      check(
+        exact(state, [
+          "schemaVersion",
+          "ownerId",
+          "workspaceId",
+          "projects",
+          "guardianLifetimeId",
+          "hostProcess",
+        ]) &&
+          state.schemaVersion === 1 &&
+          state.ownerId === config.ownerId &&
+          state.workspaceId === config.workspaceId &&
+          state.projects &&
+          typeof state.projects === "object" &&
+          !Array.isArray(state.projects) &&
+          Object.keys(state.projects).length === 0 &&
+          state.guardianLifetimeId === lifetimeId &&
+          exact(state.hostProcess, [
+            "pid",
+            "startTime",
+            "bootId",
+            "executable",
+            "device",
+            "inode",
+          ]) &&
+          Object.keys(state.hostProcess).every((key) => state.hostProcess[key] === worker?.[key]),
+        "bootstrap_archive_state_invalid",
+      );
+    };
+    for (const name of history.filter(
+      (name) => name.startsWith("projects-bootstrap-") && name !== archiveName,
+    )) {
+      const match = /^projects-bootstrap-([a-f0-9]{64})\.json$/.exec(name);
+      check(match, "bootstrap_archive_history_present");
+      const prior = readSigned(join(config.stateDirectory, name)),
+        outerDir = config.guardianStateDirectory;
+      privatePath(outerDir, true);
+      check(
+        lstatSync(outerDir).dev === lstatSync(config.stateDirectory).dev,
+        "bootstrap_archive_proof_invalid",
+      );
+      const outerKeyPath = join(outerDir, "key");
+      privatePath(outerKeyPath);
+      const outerKey = readFileSync(outerKeyPath);
+      check(outerKey.length === 32, "journal_key_invalid");
+      const readOuter = (path) => {
+          privatePath(path);
+          check(lstatSync(path).size <= 2 * 1024 * 1024, "bootstrap_archive_proof_invalid");
+          const raw = readFileSync(path),
+            saved = JSON.parse(raw),
+            signature = createHmac("sha256", outerKey)
+              .update(JSON.stringify(saved.state))
+              .digest("hex");
+          check(
+            typeof saved.signature === "string" &&
+              saved.signature.length === 64 &&
+              timingSafeEqual(Buffer.from(saved.signature), Buffer.from(signature)),
+            "journal_signature_invalid",
+          );
+          return { raw, state: saved.state };
+        },
+        original = readOuter(join(outerDir, `lifetime-bootstrap-${match[1]}.json`)),
+        facts = readOuter(join(outerDir, `bootstrap-retirement-${match[1]}.json`)).state,
+        { projectEvidence, ...oldProof } = facts;
+      check(
+        createHash("sha256").update(original.raw).digest("hex") === match[1] &&
+          oldProof.scope === "never_admitted_bootstrap_authorization_only" &&
+          oldProof.nativeTreeExited === false &&
+          oldProof.cleanupAuthorized === false &&
+          oldProof.sourceJournalDigest === match[1] &&
+          digest(oldProof) === prior.retirementDigest &&
+          original.state.phase === "startupReady" &&
+          original.state.receipts.length === 0 &&
+          original.state.events.map((event) => event.name).join() ===
+            "begin,ready,launchIntent,open,startupReady" &&
+          projectEvidence?.ownerId === config.ownerId &&
+          projectEvidence.workspaceId === config.workspaceId &&
+          projectEvidence.templateId === config.templateId &&
+          uuid(projectEvidence.buildId) &&
+          projectEvidence.retirementDigest === prior.retirementDigest &&
+          projectEvidence.projectJournalDigest === digest(prior.projectState),
+        "bootstrap_archive_history_invalid",
+      );
+      assertEmpty(prior.projectState, oldProof.lifetimeId, oldProof.workerIdentity);
+    }
+    const current = readSigned(statePath),
+      archived = existsSync(archivePath) ? readSigned(archivePath) : null,
+      state = archived ? archived.projectState : current;
+    check(
+      !archived || archived.retirementDigest === retirementDigest,
+      "bootstrap_archive_proof_invalid",
+    );
+    assertEmpty(state, proof.lifetimeId, proof.workerIdentity);
+    const reset = {
+      schemaVersion: 1,
+      ownerId: config.ownerId,
+      workspaceId: config.workspaceId,
+      projects: {},
+    };
+    check(
+      digest(current) === digest(state) || (archived && digest(current) === digest(reset)),
+      "bootstrap_archive_state_changed",
+    );
+    const persist = (path, value) => {
+      writeAtomic(path, { state: value, signature: mac(value) });
+      const fd = openSync(config.stateDirectory, constants.O_RDONLY | constants.O_DIRECTORY);
+      try {
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    };
+    if (!archived) persist(archivePath, { retirementDigest, projectState: state });
+    persist(statePath, reset);
+    const storage = lstatSync(config.stateDirectory);
+    return {
+      ownerId: config.ownerId,
+      workspaceId: config.workspaceId,
+      templateId: config.templateId,
+      buildId: config.buildId,
+      retirementDigest,
+      projectJournalDigest: digest(state),
+      privateDirectoryIdentity: { device: String(storage.dev), inode: String(storage.ino) },
+    };
+  } finally {
+    closeSync(lock);
+  }
+}
 /** Dependencies are installed functions, never HTTP parameters. openRuntime must
  * return the ONE supervisor plus its registration authority for this host. */
 export function createProjectController(config, deps) {
