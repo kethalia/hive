@@ -1,4 +1,11 @@
-# Next native Preview acceptance
+# Superseded custom-publisher proposal
+
+Status: withdrawn as a rollout prerequisite on 2026-11-07. The accepted path is
+the existing Cloudflare Workers Builds integration for the single `hive` Worker.
+The extra publisher and credential requests below came from an unnecessary
+architecture expansion; do not execute this plan or request its setup tokens.
+Retained here as history, pending scoped cleanup of the disabled implementation.
+
 
 Source and local PostgreSQL proof do not establish live publication. Production
 remains under the owner's merge/cutover approval. This plan uses one Worker,

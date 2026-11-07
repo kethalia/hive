@@ -1602,3 +1602,14 @@ by this source checkpoint.
   its underlying cause and repair remain unresolved. No cluster mutation, Secret
   collection, raw logs or owner Coder credential transfer occurred.
   [Sanitized evidence](native-startup-infrastructure/primary-readonly-result.json).
+
+
+- Architecture correction, November7: the extra custom native publisher is no
+  longer a rollout prerequisite. Cloudflare already deploys the connected epic
+  branch. The additional GitHub setup and Cloudflare runtime token requests are
+  withdrawn. Existing single-Worker composition includes app/auth/job handlers;
+  currently disabled features and production scheduling/cutover remain actual
+  acceptance work. Custom-publisher code remains disabled and needs scoped cleanup;
+  its applied additive migration history must not be rewritten. Project instructions
+  now require an evidenced gap and owner agreement before adding another deployment
+  pipeline, plus approved-operation justification for new credentials.
