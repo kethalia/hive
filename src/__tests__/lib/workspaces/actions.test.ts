@@ -4,9 +4,13 @@ vi.mock("@/lib/coder/user-client", () => ({
   getCoderClientForUser: vi.fn(),
 }));
 
-const { portableRead, portableReadBound } = vi.hoisted(() => ({
+const { portableRead, portableReadBound, portableMutation } = vi.hoisted(() => ({
   portableRead: vi.fn(),
   portableReadBound: vi.fn(),
+  portableMutation: vi.fn(),
+}));
+vi.mock("@/lib/agents/portable-config.server", () => ({
+  createPortableAgentService: () => ({ execute: portableMutation }),
 }));
 vi.mock("@/lib/workspaces/read-service.server", () => ({
   createWorkspaceReadService: () => {
@@ -75,8 +79,10 @@ describe("workspace server actions", () => {
     vi.clearAllMocks();
     portableRead.mockReset();
     portableReadBound.mockReset();
+    portableMutation.mockReset();
     vi.stubEnv("HIVE_WORKSPACE_READ_ENABLED", "false");
     vi.stubEnv("HIVE_RUNTIME_TARGET", "node");
+    vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "false");
     vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example.com");
     vi.stubEnv("COOKIE_DOMAIN", "");
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -128,6 +134,69 @@ describe("workspace server actions", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it("routes Cloudflare terminal mutations through the owner-bound bridge without SSH", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "true");
+    portableMutation.mockResolvedValueOnce({ oldName: "main", newName: "review" });
+    portableMutation.mockResolvedValueOnce({ name: "review" });
+    const { renameSessionAction, killSessionAction } = await import("@/lib/actions/workspaces");
+    expect(
+      (await renameSessionAction({ workspaceId: "ws-1", oldName: "main", newName: "review" }))
+        ?.data,
+    ).toEqual({ oldName: "main", newName: "review" });
+    expect((await killSessionAction({ workspaceId: "ws-1", sessionName: "review" }))?.data).toEqual(
+      {
+        name: "review",
+      },
+    );
+    expect(portableMutation.mock.calls).toEqual([
+      [
+        { hiveUserId: MOCK_SESSION.user.id, coderUserId: MOCK_SESSION.user.coderUserId },
+        "ws-1",
+        { operation: "rename-terminal-session", oldName: "main", newName: "review" },
+      ],
+      [
+        { hiveUserId: MOCK_SESSION.user.id, coderUserId: MOCK_SESSION.user.coderUserId },
+        "ws-1",
+        { operation: "kill-terminal-session", sessionName: "review" },
+      ],
+    ]);
+    expect(mockedExec).not.toHaveBeenCalled();
+    expect(mockedGetCoderClientForUser).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to SSH or retry an uncertain terminal mutation", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "true");
+    portableMutation.mockRejectedValueOnce(new Error("outcome_unknown"));
+    const { killSessionAction } = await import("@/lib/actions/workspaces");
+    expect(
+      (await killSessionAction({ workspaceId: "ws-1", sessionName: "main" }))?.serverError,
+    ).toBe("outcome_unknown");
+    expect(portableMutation).toHaveBeenCalledTimes(1);
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("holds disabled terminal mutations and reserved clone sessions before dispatch", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    const { renameSessionAction, killSessionAction } = await import("@/lib/actions/workspaces");
+    expect(
+      (await killSessionAction({ workspaceId: "ws-1", sessionName: "main" }))?.serverError,
+    ).toBe("Generic terminal transport is disabled.");
+    vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "true");
+    expect(
+      (
+        await renameSessionAction({
+          workspaceId: "ws-1",
+          oldName: "git-clone-task",
+          newName: "main",
+        })
+      )?.serverError,
+    ).toMatch(/reserved clone/);
+    expect(portableMutation).not.toHaveBeenCalled();
+    expect(mockedExec).not.toHaveBeenCalled();
   });
 
   it("routes Cloudflare session and file reads through signed service without shell access", async () => {

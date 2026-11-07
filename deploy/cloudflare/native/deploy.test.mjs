@@ -210,3 +210,12 @@ test("CLI checks do not deploy and reject a mismatched account or production act
   assert.notEqual(run("main", ["preview", "--check"]).status, 0);
   assert.notEqual(run("codex/unenrolled", ["preview", "--check"]).status, 0);
 });
+
+test("managed Codex accounts stay absent/off by default and require explicit public enrollment", () => {
+  assert.notEqual(config.previews.vars.HIVE_CODEX_ACCOUNTS_ENABLED, "true");
+  const c = clone();
+  c.previews.vars.HIVE_CODEX_ACCOUNTS_ENABLED = "true";
+  assert.doesNotThrow(() => validateConfig(c));
+  c.previews.vars.HIVE_CODEX_ACCOUNTS_ENABLED = "arbitrary";
+  assert.throws(() => validateConfig(c));
+});

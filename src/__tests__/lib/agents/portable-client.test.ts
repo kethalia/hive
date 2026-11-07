@@ -97,6 +97,18 @@ function fixture(
   return { transport, client: new AgentBridgeClient(config, transport) };
 }
 describe("portable agent client", () => {
+  it.each([
+    { operation: "rename-terminal-session" as const, oldName: "one", newName: "two" },
+    { operation: "kill-terminal-session" as const, sessionName: "one" },
+    {
+      operation: "codex-account" as const,
+      account: { action: "connect" as const, lifetimeId, generation: 0 },
+    },
+  ])("never retries uncertain new fixed mutation $operation", async (request) => {
+    const f = fixture({ loseMutation: true });
+    await expect(f.client.execute(request)).rejects.toMatchObject({ code: "outcome_unknown" });
+    expect(f.transport).toHaveBeenCalledTimes(2);
+  });
   it("uses a verified process identity before the fixed signed operation", async () => {
     const f = fixture();
     expect(await f.client.execute({ operation: "install" })).toEqual({

@@ -3,12 +3,23 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+import { build } from "esbuild";
 import tar from "tar-stream";
 
 const defaultRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const sha = (data) => createHash("sha256").update(data).digest("hex");
 export async function agentPackage(root = defaultRoot) {
+  const account = await build({
+    entryPoints: [resolve(root, "scripts/agent-bridge/codex-account.mjs")],
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "esm",
+    target: "node24",
+    minify: true,
+  });
   const files = new Map([
+    ["codex-account.mjs", Buffer.from(account.outputFiles[0].contents)],
     ["agent-host.mjs", await readFile(resolve(root, "scripts/agent-bridge/host.mjs"))],
     ["agent-start.mjs", await readFile(resolve(root, "scripts/agent-bridge/start.mjs"))],
     ["notifications-install.py", await readFile(resolve(root, "scripts/notifications/install.py"))],

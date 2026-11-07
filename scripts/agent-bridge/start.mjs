@@ -85,6 +85,7 @@ export function readAgentStartup(
       manifest.schemaVersion === 1 &&
       exact(manifest.files, [
         "agent-host.mjs",
+        "codex-account.mjs",
         "agent-start.mjs",
         "agent-tools.py",
         "notifications-install.py",

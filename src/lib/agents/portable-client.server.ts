@@ -47,6 +47,9 @@ export type AgentBridgeTransport = (
 ) => Promise<Response>;
 const hash = (x: string | Uint8Array) => createHash("sha256").update(x).digest("hex");
 const MUTATIONS = new Set([
+  "codex-account",
+  "rename-terminal-session",
+  "kill-terminal-session",
   "install",
   "disable",
   "configure-coder",

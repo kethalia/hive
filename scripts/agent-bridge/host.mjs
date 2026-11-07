@@ -10,11 +10,15 @@ import {
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, isAbsolute, join, normalize } from "node:path";
+import { createCodexAccountManager } from "./codex-account.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY = /^(codex|claude)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const OPS = [
+  "rename-terminal-session",
+  "kill-terminal-session",
   "identity",
+  "codex-account",
   "inventory",
   "sessions",
   "install",
@@ -84,6 +88,32 @@ function validOrigin(value) {
 }
 function operationValid(v) {
   if (!v || !OPS.includes(v.operation)) return false;
+  const sessionName = (name) =>
+    typeof name === "string" &&
+    /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name) &&
+    !name.startsWith("git-clone-");
+  if (v.operation === "rename-terminal-session")
+    return (
+      exact(v, ["operation", "oldName", "newName"]) &&
+      sessionName(v.oldName) &&
+      sessionName(v.newName)
+    );
+  if (v.operation === "kill-terminal-session")
+    return exact(v, ["operation", "sessionName"]) && sessionName(v.sessionName);
+  if (v.operation === "codex-account") {
+    const a = v.account;
+    return (
+      exact(v, ["operation", "account"]) &&
+      (a?.action === "status"
+        ? exact(a, ["action"])
+        : a &&
+          ["connect", "cancel", "reconnect", "disconnect"].includes(a.action) &&
+          exact(a, ["action", "lifetimeId", "generation"]) &&
+          UUID.test(a.lifetimeId) &&
+          Number.isSafeInteger(a.generation) &&
+          a.generation >= 0)
+    );
+  }
   if (v.operation === "resume")
     return exact(v, ["operation", "key"]) && typeof v.key === "string" && KEY.test(v.key);
   if (v.operation === "install-notifications")
@@ -160,6 +190,12 @@ export function createAgentBridge(config, deps = {}) {
   const key = generateKeyPairSync("ed25519"),
     lifetimeId = randomUUID(),
     used = new Map();
+  const accounts = createCodexAccountManager({
+    home: config.home,
+    profile: config.profile,
+    lifetimeId,
+    ...(deps.accounts ?? {}),
+  });
   const helper = deps.helperPath;
   if (typeof helper !== "string" || !helper.startsWith("/"))
     throw new Error("agent_config_rejected");
@@ -207,6 +243,7 @@ export function createAgentBridge(config, deps = {}) {
     return c;
   }
   function execute(request) {
+    if (request.operation === "codex-account") return accounts.run(request.account);
     return new Promise((resolve, reject) => {
       let source, payload;
       try {
@@ -222,6 +259,7 @@ export function createAgentBridge(config, deps = {}) {
           );
           const names = [
             "agent-host.mjs",
+            "codex-account.mjs",
             "agent-start.mjs",
             "agent-tools.py",
             "notifications-install.py",
@@ -388,5 +426,11 @@ export function createAgentBridge(config, deps = {}) {
   });
   server.maxConnections = 16;
   server.maxRequestsPerSocket = 32;
-  return { server, close: () => server.close() };
+  return {
+    server,
+    close: async () => {
+      server.close();
+      await accounts.close();
+    },
+  };
 }

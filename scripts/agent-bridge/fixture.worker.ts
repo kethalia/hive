@@ -122,7 +122,32 @@ export default {
     };
     const notification = await service.execute(principal, binding.workspaceId, operation);
     const replay = await service.execute(principal, binding.workspaceId, operation);
+    const account = await service.execute(principal, binding.workspaceId, {
+      operation: "codex-account",
+      account: { action: "status" },
+    });
+    const connecting = await service.execute(principal, binding.workspaceId, {
+      operation: "codex-account",
+      account: {
+        action: "connect",
+        lifetimeId: account.lifetimeId,
+        generation: account.generation,
+      },
+    });
+    const cancelled = await service.execute(principal, binding.workspaceId, {
+      operation: "codex-account",
+      account: {
+        action: "cancel",
+        lifetimeId: connecting.lifetimeId,
+        generation: connecting.generation,
+      },
+    });
     return Response.json({
+      codexAccountFenced:
+        account.scope === "managed-native" &&
+        connecting.state === "pending" &&
+        cancelled.state === "cancelled" &&
+        cancelled.generation > connecting.generation,
       sessions: sessions.sessions,
       installed,
       disabled,
