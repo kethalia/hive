@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import tar from "tar-stream";
-import { encodeHostArchive } from "./host-archive-codec.mjs";
+import { encodeHostArchive, HOST_IMAGE_ARCHIVE_MAX_BYTES } from "./host-archive-codec.mjs";
 
 export async function hostArchive(root) {
   const temporary = await mkdtemp(join(tmpdir(), "hive-host-archive-"));
@@ -40,8 +40,10 @@ export async function hostArchive(root) {
     const archive = Buffer.concat(chunks);
     if (archive.length > 2 * 1024 * 1024) throw new Error("Host archive exceeds installer bounds");
     const compressed = encodeHostArchive(archive);
-    if (compressed.length > 160000)
-      throw new Error(`Host archive exceeds pod metadata budget (${compressed.length} > 160000)`);
+    if (compressed.length > HOST_IMAGE_ARCHIVE_MAX_BYTES)
+      throw new Error(
+        `Host image archive exceeds compressed asset bound (${compressed.length} > ${HOST_IMAGE_ARCHIVE_MAX_BYTES})`,
+      );
     return { archive, compressed, sha256: createHash("sha256").update(archive).digest("hex") };
   } finally {
     await rm(temporary, { recursive: true, force: true });

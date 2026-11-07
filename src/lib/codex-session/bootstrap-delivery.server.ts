@@ -77,6 +77,7 @@ export type HostProjectPath =
   | "/projects/resolve"
   | "/projects/resolve-ref"
   | "/projects/epic-read"
+  | "/projects/epic-merge"
   | "/projects/open"
   | "/projects/tasks/start"
   | "/projects/tasks/status"
@@ -240,6 +241,7 @@ export async function postToVerifiedWorkspaceApp(
       "/projects/resolve",
       "/projects/resolve-ref",
       "/projects/epic-read",
+      "/projects/epic-merge",
       "/projects/open",
       "/projects/tasks/start",
       "/projects/tasks/status",

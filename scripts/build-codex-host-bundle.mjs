@@ -34,6 +34,27 @@ await build({
     js: 'import { createRequire as vendorCreateRequire } from "node:module"; const require = vendorCreateRequire(import.meta.url);',
   },
 });
+const mergeBundle = await build({
+  absWorkingDir: root,
+  preserveSymlinks: true,
+  entryPoints: ["scripts/host-epic-merge.ts"],
+  tsconfigRaw: { compilerOptions: { useDefineForClassFields: false } },
+  outfile: join(out, "epic-merge-host.mjs"),
+  bundle: true,
+  minify: true,
+  platform: "node",
+  format: "esm",
+  target: "node24",
+  metafile: true,
+});
+if (
+  Object.keys(mergeBundle.metafile.inputs).some((path) =>
+    /(?:packages\/db|generated\/prisma|release-(?:cloudflare|controller|installed|lifecycle|tested-store)|projects\/host)/.test(
+      path,
+    ),
+  )
+)
+  throw new Error("Unexpected dependency in fixed GitHub merge helper");
 const source = join(root, "templates/ai-dev-k8s/scripts");
 const modules = [
   "codex-workspace-host.mjs",
@@ -96,8 +117,8 @@ const guardianArtifact = validateGuardianArtifact(
     ? resolve(process.env.HIVE_GUARDIAN_ARTIFACT_DIR)
     : join(root, "tools/native-guardian/prebuilt/linux-x64"),
 );
-// Identifier/whitespace compaction preserves runtime names and avoids syntax minification while
-// fitting the existing pod metadata budget. The artifact builder recomputes this
+// Identifier/whitespace compaction preserves runtime names without syntax minification.
+// The artifact builder recomputes this
 // exact transform before omitting any loose source from the distributable tar.
 for (const name of modules)
   writeFileSync(
@@ -130,6 +151,7 @@ const files = Object.fromEntries(
     ...modules,
     ...assets,
     "vendor/ws.mjs",
+    "epic-merge-host.mjs",
     ...(guardianArtifact ? ["codex-native-guardian"] : []),
   ].map((name) => [
     name,

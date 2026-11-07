@@ -66,6 +66,37 @@ test("trusted attestor requests purpose separated tokens and sends nonce without
     }),
   );
 });
+test("public previews require the signed OIDC proof without an extra bearer token", async () => {
+  const sent = [];
+  const fetcher = async (url, init) => {
+    if (String(url).includes("runner.actions.githubusercontent.com"))
+      return Response.json({ value: "signed.fixture.token" });
+    sent.push(init.headers);
+    return Response.json(
+      String(url).endsWith("/challenge")
+        ? {
+            challengeId: "00000000-0000-4000-8000-000000000001",
+            nonce: "b".repeat(64),
+            policyDigest: "c".repeat(64),
+            checksDigest: "d".repeat(64),
+          }
+        : { accepted: true },
+    );
+  };
+  await attestTestedTree({
+    config,
+    identity,
+    oidcUrl: "https://runner.actions.githubusercontent.com/token",
+    oidcToken: "fixture",
+    fetcher,
+    signal: AbortSignal.timeout(1000),
+  });
+  assert.equal(sent.length, 2);
+  for (const headers of sent) {
+    assert.equal(headers.Authorization, undefined);
+    assert.equal(headers["X-Hive-Release-OIDC"], "signed.fixture.token");
+  }
+});
 test("candidate test job has no OIDC and attestor depends on it", async () => {
   const workflow = await readFile(
     new URL("../../.github/workflows/controlled-tested-tree.yml", import.meta.url),

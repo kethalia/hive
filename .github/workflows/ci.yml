@@ -99,9 +99,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_acceptance_test
       - name: Validate independent intent-aware acceptance
-        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/acceptance-config.test.ts src/__tests__/lib/delivery/acceptance-contracts.test.ts src/__tests__/lib/delivery/acceptance-store.integration.test.ts src/__tests__/lib/delivery/acceptance-service.integration.test.ts src/__tests__/lib/delivery/acceptance-review.integration.test.ts src/__tests__/lib/delivery/acceptance-native.integration.test.ts src/__tests__/lib/delivery/acceptance-repair.integration.test.ts src/__tests__/lib/delivery/acceptance-completion.integration.test.ts src/__tests__/lib/delivery/epic-native-admission.integration.test.ts src/__tests__/lib/delivery/epic-readiness.integration.test.ts
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/acceptance-config.test.ts src/__tests__/lib/delivery/acceptance-contracts.test.ts src/__tests__/lib/delivery/acceptance-store.integration.test.ts src/__tests__/lib/delivery/acceptance-service.integration.test.ts src/__tests__/lib/delivery/acceptance-review.integration.test.ts src/__tests__/lib/delivery/acceptance-native.integration.test.ts src/__tests__/lib/delivery/acceptance-repair.integration.test.ts src/__tests__/lib/delivery/acceptance-completion.integration.test.ts src/__tests__/lib/delivery/epic-native-admission.integration.test.ts src/__tests__/lib/delivery/epic-readiness.integration.test.ts src/__tests__/lib/delivery/epic-merge.integration.test.ts
         env:
           HIVE_ACCEPTANCE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_acceptance_test
+          HIVE_EPIC_MERGE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_acceptance_test
       - name: Prepare isolated release journal database
         run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_release_test
       - name: Apply release journal schema

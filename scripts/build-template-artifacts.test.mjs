@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import tar from "tar-stream";
 import { templateArtifact } from "./build-template-artifacts.mjs";
+import { encodeHostArchive, HOST_IMAGE_ARCHIVE_MAX_BYTES } from "./host-archive-codec.mjs";
 
 async function fixture(t) {
   const path = await mkdtemp(join(tmpdir(), "hive-template-artifact-"));
@@ -246,6 +248,28 @@ test("a recompressed package with a stale internal file digest is rejected", asy
   await assert.rejects(templateArtifact(path), /Host package file digest mismatch/);
 });
 
+test("image XZ artifacts exceed the retired inline budget without relaxing legacy gzip or asset limits", async (t) => {
+  const { gunzipSync } = await import("node:zlib");
+  const path = await fixture(t);
+  await installFixturePackage(path, {
+    "image-only.py": `# ${randomBytes(192 * 1024).toString("base64")}\n`,
+  });
+  const gzipPath = join(path, "assets/codex-host.tar.gz");
+  const gzip = await readFile(gzipPath);
+  assert.ok(gzip.length > 160000);
+  await assert.rejects(templateArtifact(path), /compressed asset bound/);
+  const encoded = encodeHostArchive(gunzipSync(gzip));
+  assert.ok(encoded.length > 160000 && encoded.length <= HOST_IMAGE_ARCHIVE_MAX_BYTES);
+  await rm(gzipPath);
+  const imagePath = join(path, "assets/codex-host.tar.xz");
+  await writeFile(imagePath, encoded);
+  const files = await unpack((await templateArtifact(path)).archive);
+  assert.equal(files.has("scripts/image-only.py"), false);
+  assert.equal(files.has("assets/codex-host.tar.xz"), true);
+  await writeFile(imagePath, Buffer.alloc(HOST_IMAGE_ARCHIVE_MAX_BYTES + 1));
+  await assert.rejects(templateArtifact(path), /compressed asset bound/);
+});
+
 test("actual curated template fits deployment bound and every literal Terraform file remains extractable", async (t) => {
   const { cp, readFile } = await import("node:fs/promises");
   const { hostArchive } = await import("./build-codex-host-archive.mjs");
@@ -257,7 +281,7 @@ test("actual curated template fits deployment bound and every literal Terraform 
   const artifact = await templateArtifact(path),
     files = await unpack(artifact.archive);
   assert.ok(artifact.archive.length <= 1024 * 1024);
-  assert.ok(host.compressed.length <= 160000);
+  assert.ok(host.compressed.length <= HOST_IMAGE_ARCHIVE_MAX_BYTES);
   assert.equal(files.has("scripts/delivery-source-state-client.mjs"), false);
   assert.equal(files.has("scripts/codex-workspace-host.mjs"), false);
   assert.equal(files.has("scripts/codex-delivery-runtime.mjs"), false);

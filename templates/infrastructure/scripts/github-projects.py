@@ -352,13 +352,36 @@ def epic_read(value):
     return result
 
 
+def epic_merge(value):
+    if (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup")
+            or not isinstance(value.get("requestId"), str) or value.get("schemaVersion") != 1):
+        raise DiscoveryError("invalid_request")
+    node, entry = os.environ.get("HIVE_EPIC_MERGE_NODE"), os.environ.get("HIVE_EPIC_MERGE_ENTRY")
+    if not node or not entry or not os.path.isabs(node) or not os.path.isabs(entry):
+        raise DiscoveryError("discovery_unavailable")
+    token = external_token()
+    process = subprocess.run([node, entry], input=json.dumps({"request": value, "token": token}).encode(),
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             env={"PATH": "/usr/bin:/bin"}, timeout=28, check=False)
+    if process.returncode != 0 or len(process.stdout) > 16384:
+        raise DiscoveryError("discovery_unavailable")
+    result = json.loads(process.stdout)
+    if (not isinstance(result, dict) or set(result) != {"schemaVersion", "operation", "requestId", "result"}
+            or result["schemaVersion"] != 1 or result["requestId"] != value["requestId"] or result["operation"] != value["operation"]):
+        raise DiscoveryError("github_invalid_response")
+    return result
+
+
 def main():
     try:
-        raw = sys.stdin.buffer.read(REQUEST_LIMIT + 1)
-        if len(raw) > REQUEST_LIMIT:
+        raw = sys.stdin.buffer.read(12001)
+        if len(raw) > 12000:
             raise DiscoveryError("request_too_large")
         value = json.loads(raw)
-        result = (epic_read(value) if isinstance(value, dict) and value.get("operation") in ("observe_merge", "lineage")
+        if len(raw) > REQUEST_LIMIT and (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup")):
+            raise DiscoveryError("request_too_large")
+        result = (epic_merge(value) if isinstance(value, dict) and value.get("operation") in ("prepare", "dispatch", "lookup")
+                  else epic_read(value) if isinstance(value, dict) and value.get("operation") in ("observe_merge", "lineage")
                   else resolve_repository(value) if isinstance(value, dict) and value.get("operation") in ("resolve", "resolve_ref") else discover(value))
         status = 0
     except DiscoveryError as error:

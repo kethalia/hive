@@ -11,6 +11,7 @@ import {
 } from "./epic-dependency.server";
 import { readEpicGitHubForTask } from "./epic-github-read.server";
 import { observeEpicPreviewMerge } from "./epic-merge-observation.server";
+import { reconcileEpicPreviewMerge } from "./epic-merge-reconcile.server";
 import { reserveEpicStart } from "./epic-start.server";
 import { repositoryPolicyStore } from "./repository-policy.server";
 import { DeliveryConflict } from "./state";
@@ -87,6 +88,17 @@ export async function reconcileEpicStart(
       )
         continue;
       try {
+        await reconcileEpicPreviewMerge(
+          db,
+          {
+            ownerId: head.owner_id,
+            epicId: head.epic_id,
+            intentId: node.intentId,
+            readerWorkspaceId: head.workspace_id,
+            readerBuildId: head.build_id,
+          },
+          signal ?? AbortSignal.timeout(30000),
+        );
         const read: typeof readEpicGitHubForTask = (client, scope, operation, readSignal) =>
           readEpicGitHubForTask(
             client,

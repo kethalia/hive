@@ -88,8 +88,10 @@ export async function attestTestedTree({
     oidc.password ||
     !oidcToken ||
     /[\r\n]/.test(oidcToken) ||
-    !previewBearer ||
-    /[\r\n]/.test(previewBearer)
+    (previewBearer !== undefined &&
+      (typeof previewBearer !== "string" ||
+        previewBearer.length > 4096 ||
+        /[\r\n]/.test(previewBearer)))
   )
     throw Error("tested_attestor_scope");
   const request = {
@@ -120,7 +122,7 @@ export async function attestTestedTree({
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${previewBearer}`,
+          ...(previewBearer ? { Authorization: `Bearer ${previewBearer}` } : {}),
           "X-Hive-Release-OIDC": jwt.value,
           "Content-Type": "application/json",
         },

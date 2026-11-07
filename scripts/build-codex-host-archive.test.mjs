@@ -66,6 +66,14 @@ test("host archive has the same digest across checkouts sharing a dependency sto
       join(temporary, "scripts/build-native-guardian.mjs"),
     );
     await cp("scripts/host-archive-codec.mjs", join(temporary, "scripts/host-archive-codec.mjs"));
+    await cp("scripts/host-epic-merge.ts", join(temporary, "scripts/host-epic-merge.ts"));
+    await mkdir(join(temporary, "src/lib"), { recursive: true });
+    await cp("src/lib/delivery", join(temporary, "src/lib/delivery"), { recursive: true });
+    await mkdir(join(temporary, "deploy/cloudflare/app"), { recursive: true });
+    await cp(
+      "deploy/cloudflare/app/release-health.ts",
+      join(temporary, "deploy/cloudflare/app/release-health.ts"),
+    );
     await mkdir(join(temporary, "templates/ai-dev-k8s"), { recursive: true });
     await cp("templates/ai-dev-k8s/scripts", join(temporary, "templates/ai-dev-k8s/scripts"), {
       recursive: true,

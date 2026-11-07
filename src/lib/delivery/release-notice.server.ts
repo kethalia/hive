@@ -12,7 +12,12 @@ export async function appendReleaseNotice(
     releaseId: string;
     aggregateKey: string;
     aggregateVersion: number;
-    type: "release_action_held" | "release_healthy" | "release_regression" | "release_recovered";
+    type:
+      | "release_integrated"
+      | "release_action_held"
+      | "release_healthy"
+      | "release_regression"
+      | "release_recovered";
     evidenceDigest?: string;
   },
 ) {

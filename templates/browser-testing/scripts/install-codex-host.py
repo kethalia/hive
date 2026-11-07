@@ -277,7 +277,8 @@ def decode_archive(request):
         with gzip.GzipFile(fileobj=io.BytesIO(archive)) as stream:
             archive = stream.read(2 * 1024 * 1024 + 1)
     elif encoding == "xz":
-        require(len(archive) <= 160000)
+        # XZ packages are read from the pinned image, not pod annotations.
+        require(len(archive) <= 256 * 1024)
         stream = lzma.LZMADecompressor(format=lzma.FORMAT_XZ, memlimit=32 * 1024 * 1024)
         archive = stream.decompress(archive, max_length=2 * 1024 * 1024 + 1)
         require(stream.eof and not stream.unused_data)

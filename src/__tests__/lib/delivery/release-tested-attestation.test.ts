@@ -61,6 +61,32 @@ const verify = (payload: unknown, c: unknown) =>
     fetcher,
   );
 describe("trusted tested-tree OIDC", () => {
+  it("uses Workers-supported manual redirect rejection for the fixed signing keys", async () => {
+    for (const status of [302, 200]) {
+      const read: typeof fetch = async (url, init) => {
+        expect(url).toBe("https://token.actions.githubusercontent.com/.well-known/jwks");
+        expect(init?.redirect).toBe("manual");
+        if (status === 302)
+          return new Response(null, {
+            status,
+            headers: { Location: "https://elsewhere.invalid/keys" },
+          });
+        const response = Response.json({ keys: [jwk] });
+        Object.defineProperty(response, "redirected", { value: true });
+        return response;
+      };
+      await expect(
+        verifyReleaseTestToken(
+          request,
+          token(claims),
+          workflow,
+          now * 1000,
+          AbortSignal.timeout(1000),
+          read,
+        ),
+      ).rejects.toThrow("release_test_keys_unavailable");
+    }
+  });
   it("binds exact pull merge, workflow revision and audience", async () => {
     expect((await verify(request, claims)).payloadDigest).toBe(githubSourceDigest(request));
     for (const changed of [
