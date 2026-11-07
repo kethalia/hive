@@ -425,6 +425,7 @@ test("epic merge RPC has a separate signed capability, pinned sidecar and no nat
     },
     `import json,sys,os
 r=json.load(sys.stdin)
+assert len(os.environ["HIVE_EPIC_MERGE_DEADLINE_MS"]) == 13
 assert os.path.isabs(os.environ['HIVE_EPIC_MERGE_NODE']) and os.path.isabs(os.environ['HIVE_EPIC_MERGE_ENTRY'])
 assert 'CODER_SESSION_TOKEN' not in os.environ and 'GITHUB_TOKEN' not in os.environ
 print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['requestId'],'result':None}))

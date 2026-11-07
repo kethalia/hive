@@ -359,10 +359,18 @@ def epic_merge(value):
     node, entry = os.environ.get("HIVE_EPIC_MERGE_NODE"), os.environ.get("HIVE_EPIC_MERGE_ENTRY")
     if not node or not entry or not os.path.isabs(node) or not os.path.isabs(entry):
         raise DiscoveryError("discovery_unavailable")
+    raw_deadline = os.environ.get("HIVE_EPIC_MERGE_DEADLINE_MS", "")
+    if not re.fullmatch(r"[0-9]{13}", raw_deadline):
+        raise DiscoveryError("discovery_unavailable")
+    deadline = int(raw_deadline)
+    if deadline <= time.time() * 1000:
+        raise DiscoveryError("discovery_unavailable")
     token = external_token()
-    process = subprocess.run([node, entry], input=json.dumps({"request": value, "token": token}).encode(),
+    if deadline <= time.time() * 1000:
+        raise DiscoveryError("discovery_unavailable")
+    process = subprocess.run([node, entry], input=json.dumps({"request": value, "token": token, "deadlineMs": deadline}).encode(),
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                             env={"PATH": "/usr/bin:/bin"}, timeout=28, check=False)
+                             env={"PATH": "/usr/bin:/bin"}, timeout=min(28, (deadline-time.time()*1000)/1000), check=False)
     if process.returncode != 0 or len(process.stdout) > 16384:
         raise DiscoveryError("discovery_unavailable")
     result = json.loads(process.stdout)

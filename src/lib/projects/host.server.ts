@@ -73,7 +73,7 @@ export async function signedHostProjectRequest(
       scope: endpoints[path],
       jti: randomUUID(),
       iat,
-      exp: iat + 45,
+      exp: iat + (path === "/projects/epic-merge" ? 40 : 45),
       binding,
       request,
     };

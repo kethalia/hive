@@ -230,6 +230,53 @@ describe.skipIf(!url)("actual journaled preview integration via connected GitHub
       ).activeReleaseId,
     ).toBe(action.releaseId);
   }, 60000);
+  it("does not write after a verified deadline expires during read-only dispatch preflight", async () => {
+    const f = await fixture(),
+      lifecycle = new EpicPreviewMergeLifecycle(db, f.config, repositoryPolicyStore(db));
+    const scope = { ...f.scope, taskId: f.child.taskId },
+      prepared = epicMergePreparedSchema.parse(
+        await epicMergeForTask(db, f.config, scope, { operation: "prepare" }, f.signal),
+      );
+    const proof = await f.test.verifyFresh(
+      f.child.user.id,
+      f.child.taskId,
+      prepared.request,
+      f.signal,
+    );
+    const opened = await lifecycle.open({
+      id: randomUUID(),
+      ownerId: f.child.user.id,
+      taskId: f.child.taskId,
+      prepared,
+      testedAttestationDigest: proof,
+      observedAt: Date.now(),
+    });
+    await lifecycle.advance(f.child.user.id, opened.releaseId);
+    const original = mocks.host.getMockImplementation()!;
+    mocks.host.mockImplementation(async (...args) => {
+      if (args[2] !== "/projects/epic-merge" || args[3].operation !== "dispatch")
+        return original(...args);
+      let delayed = false;
+      return hostEpicMerge(
+        { request: args[3], token: "fixture-connected-secret", deadlineMs: Date.now() + 100 },
+        async (raw, init) => {
+          if (!delayed) {
+            delayed = true;
+            await new Promise((resolve) => setTimeout(resolve, 150));
+          }
+          return f.fetcher(raw, init);
+        },
+      );
+    });
+    expect(await reconcileEpicPreviewMerge(db, f.scope, f.signal, f.env)).toBe("waiting");
+    const action = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: opened.releaseId },
+    });
+    expect(action).toMatchObject({ phase: "held", remoteReference: null, receipt: null });
+    expect(f.remote.writes).toBe(0);
+    expect(await reconcileEpicPreviewMerge(db, f.scope, f.signal, f.env)).toBe("waiting");
+    expect(f.remote.writes).toBe(0);
+  }, 30000);
   it("holds a prepared action when the base changes before dispatch; main/default/rules/check/control changes grant no write", async () => {
     const f = await fixture(),
       lifecycle = new EpicPreviewMergeLifecycle(db, f.config, repositoryPolicyStore(db));

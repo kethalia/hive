@@ -24,6 +24,7 @@ export async function hostEpicMerge(raw: unknown, fetcher: typeof fetch = fetch)
   const frame = z
     .object({
       request: epicMergeRpcRequestSchema,
+      deadlineMs: z.number().int().positive().safe().optional(),
       token: z
         .string()
         .min(1)
@@ -37,12 +38,20 @@ export async function hostEpicMerge(raw: unknown, fetcher: typeof fetch = fetch)
     p = config.policy;
   if (source.repositoryId !== p.repositoryId || source.baseRef !== p.baseBranch)
     throw Error("epic_merge_scope");
-  const signal = AbortSignal.timeout(25000);
+  const remaining = (frame.deadlineMs ?? Date.now() + 25000) - Date.now();
+  if (remaining <= 0) throw Error("epic_merge_expired");
+  const signal = AbortSignal.timeout(Math.min(25000, remaining));
   const safeFetch: typeof fetch = async (input, init) => {
+    signal.throwIfAborted();
     const url = new URL(String(input));
     if (url.origin !== "https://api.github.com" || url.username || url.password || url.hash)
       throw Error("epic_merge_scope");
-    const response = await fetcher(input, { ...init, redirect: "manual" });
+    const response = await fetcher(input, {
+      ...init,
+      signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]),
+      redirect: "manual",
+    });
+    signal.throwIfAborted();
     if (response.redirected || (response.status >= 300 && response.status < 400))
       throw Error("epic_merge_redirect");
     return response;

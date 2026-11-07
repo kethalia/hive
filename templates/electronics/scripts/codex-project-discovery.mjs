@@ -110,6 +110,7 @@ export function createProjectDiscovery(config, controller) {
     constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW,
     0o600,
   );
+  const verifiedDeadlines = new WeakMap();
   let nonces = new Map(),
     closed = false,
     busy = false;
@@ -205,6 +206,7 @@ export function createProjectDiscovery(config, controller) {
     check(nonces.size < 4096 && !nonces.has(c.jti));
     nonces.set(c.jti, c.exp);
     persist();
+    verifiedDeadlines.set(r, c.exp * 1000);
     return r;
   }
   function runHelper(request) {
@@ -228,8 +230,11 @@ export function createProjectDiscovery(config, controller) {
         .filter((k) => process.env[k] !== undefined)
         .map((k) => [k, process.env[k]]),
     );
+    const deadlineMs = verifiedDeadlines.get(request);
+    if (merge) check(Number.isSafeInteger(deadlineMs) && deadlineMs > Date.now());
     if (merge)
       Object.assign(env, {
+        HIVE_EPIC_MERGE_DEADLINE_MS: String(deadlineMs),
         HIVE_EPIC_MERGE_NODE: process.execPath,
         HIVE_EPIC_MERGE_ENTRY: config.epicMergePath,
       });
@@ -255,7 +260,7 @@ export function createProjectDiscovery(config, controller) {
         kill();
         reject(new Error("discovery_unavailable"));
       };
-      const timer = setTimeout(fail, merge ? 30000 : 8000);
+      const timer = setTimeout(fail, merge ? Math.min(30000, deadlineMs - Date.now()) : 8000);
       child.on("error", fail);
       child.stdin.on("error", fail);
       child.stdout.on("data", (chunk) => {

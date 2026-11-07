@@ -117,7 +117,12 @@ async function exchangeAppCookie(
     "/guardian/bootstrap",
     "/guardian/recover-empty-close",
   ].includes(fixedPath);
-  const deadline = Date.now() + Math.min(guardianEnrollment ? 30000 : 10000, remaining);
+  const deadline =
+    Date.now() +
+    Math.min(
+      fixedPath === "/projects/epic-merge" ? 40000 : guardianEnrollment ? 30000 : 10000,
+      remaining,
+    );
   const signal = () => {
     if (Date.now() >= deadline) reject();
     return AbortSignal.timeout(deadline - Date.now());
@@ -211,7 +216,7 @@ export async function exchangeVerifiedWorkspaceVoiceCookie(
 export async function postToVerifiedWorkspaceApp(
   coder: AppAuthCoder,
   binding: AppBinding,
-  request: {
+  input: {
     path: HostProjectPath;
     body: string;
     expiresAt: number;
@@ -221,7 +226,18 @@ export async function postToVerifiedWorkspaceApp(
   },
   fetchApp: typeof fetch = fetch,
 ) {
-  request.signal?.throwIfAborted();
+  const remaining = input.expiresAt * 1000 - Date.now();
+  if (remaining < 1) reject();
+  const request = {
+    ...input,
+    signal: AbortSignal.any([
+      AbortSignal.timeout(
+        Math.min(input.path === "/projects/epic-merge" ? 40000 : 30000, remaining),
+      ),
+      ...(input.signal ? [input.signal] : []),
+    ]),
+  };
+  request.signal.throwIfAborted();
   const scopedFetch: typeof fetch = (input, init) => {
     request.signal?.throwIfAborted();
     return fetchApp(input, {
