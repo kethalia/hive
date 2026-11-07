@@ -46,7 +46,8 @@ jobs:
   migration-integration:
     name: Migration preflight / PostgreSQL
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Serial migration, recovery and real-delay lifecycle checks share this job.
+    timeout-minutes: 30
     permissions:
       contents: read
     services:
