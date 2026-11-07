@@ -248,10 +248,9 @@ const retiredTables = [
   "delivery_native_release_baselines",
 ];
 
-// Use the real historical migration files/Prisma history through 45. The
-// private snapshot omits only the new forward migration; no checksums change.
-async function beforePublisherRetirement(t) {
-  const url = await fixture(t);
+// Keep this regression at its historical boundary; later migrations have their
+// own compatibility checks and must not change this fixture's expected rows.
+async function publisherRetirementSchema(t, includeRetirement = false) {
   const snapshot = await mkdtemp(resolve(tmpdir(), "hive-retirement-45-"));
   t.after(() => rm(snapshot, { recursive: true, force: true }));
   const historicalSchema = resolve(snapshot, "schema.prisma");
@@ -259,11 +258,20 @@ async function beforePublisherRetirement(t) {
   const migrations = resolve(dirname(schemaPath), "migrations");
   await mkdir(resolve(snapshot, "migrations"));
   for (const entry of await readdir(migrations, { withFileTypes: true })) {
-    if (entry.name === "migration_lock.toml" || (entry.isDirectory() && entry.name < retirement))
+    if (
+      entry.name === "migration_lock.toml" ||
+      (entry.isDirectory() &&
+        (entry.name < retirement || (includeRetirement && entry.name === retirement)))
+    )
       await cp(resolve(migrations, entry.name), resolve(snapshot, "migrations", entry.name), {
         recursive: true,
       });
   }
+  return historicalSchema;
+}
+async function beforePublisherRetirement(t) {
+  const url = await fixture(t);
+  const historicalSchema = await publisherRetirementSchema(t);
   const result = await executePrisma({
     databaseUrl: url,
     prismaCli,
@@ -332,7 +340,11 @@ async function assertRetirementRows(url) {
 test("native publisher retirement removes only empty tables/functions and preserves all other rows/history", async (t) => {
   const url = await beforePublisherRetirement(t);
   await saveRetirementRows(url);
-  const deployed = await prisma(url, ["migrate", "deploy"]);
+  const deployed = await executePrisma({
+    databaseUrl: url,
+    prismaCli,
+    args: ["migrate", "deploy", "--schema", await publisherRetirementSchema(t, true)],
+  });
   assert.equal(deployed.code, 0, deployed.output);
   await assertRetirementRows(url);
   await sql(

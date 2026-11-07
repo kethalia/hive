@@ -36,7 +36,11 @@ const observationSchema = z
   })
   .strict();
 
-async function inspect(tx: Prisma.TransactionClient, store: RepositoryPolicyStore, scope: Scope) {
+export async function epicPreviewMergeCandidate(
+  tx: Prisma.TransactionClient,
+  store: RepositoryPolicyStore,
+  scope: Scope,
+) {
   const rows = await tx.$queryRaw<{ task_id: string; plan: unknown; plan_digest: string }[]>`
     SELECT t.id AS task_id,p.plan,p.plan_digest FROM delivery_epic_start_intents s
     JOIN delivery_epic_plan_heads h ON h.owner_id=s.owner_id AND h.epic_id=s.epic_id
@@ -112,7 +116,7 @@ export async function observeEpicPreviewMerge(
 ) {
   const snapshot = await db.$transaction(
     async (tx) => ({
-      state: await inspect(tx, store, scope),
+      state: await epicPreviewMergeCandidate(tx, store, scope),
       began: (
         await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`
       )[0].now.getTime(),
@@ -142,7 +146,7 @@ export async function observeEpicPreviewMerge(
   return db.$transaction(
     async (tx) => {
       signal?.throwIfAborted();
-      const current = await inspect(tx, store, scope);
+      const current = await epicPreviewMergeCandidate(tx, store, scope);
       if (!current || epicDigest(current) !== epicDigest(snapshot.state))
         throw new DeliveryConflict("epic_dependencies_pending");
       const now = (
@@ -217,7 +221,7 @@ export async function epicPreviewMergeReadiness(
   store: RepositoryPolicyStore,
   scope: Scope,
 ) {
-  const current = await inspect(tx, store, scope);
+  const current = await epicPreviewMergeCandidate(tx, store, scope);
   if (!current) return null;
   const event = await tx.deliveryEvent.findFirst({
     where: {

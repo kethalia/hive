@@ -53,6 +53,7 @@ export const projectScopes = Object.freeze({
   "/projects/resolve": "projects:resolve",
   "/projects/resolve-ref": "projects:resolve-ref",
   "/projects/epic-read": "projects:epic:read",
+  "/projects/epic-merge": "projects:epic:merge",
   "/projects/open": "projects:open",
   "/projects/tasks/start": "projects:task:start",
   "/projects/tasks/status": "projects:task:read",
@@ -91,7 +92,45 @@ export function validateProjectOperation(path, r) {
         number(r.expectedAccountId) &&
         validProjectBranch(r.branch),
     );
-  else if (path === "/projects/epic-read") {
+  else if (path === "/projects/epic-merge") {
+    check(
+      exact(r, [
+        "schemaVersion",
+        "requestId",
+        "config",
+        "source",
+        "gates",
+        "operation",
+        ...(r?.operation === "prepare"
+          ? r.test
+            ? ["test"]
+            : []
+          : r?.operation === "lookup"
+            ? ["identity", "reference"]
+            : ["identity"]),
+      ]) &&
+        r.schemaVersion === 1 &&
+        uuid(r.requestId) &&
+        ["prepare", "dispatch", "lookup"].includes(r.operation) &&
+        exact(r.source, [
+          "repositoryId",
+          "pullRequestId",
+          "pullNumber",
+          "headSha",
+          "baseRef",
+          "sourceBranch",
+        ]) &&
+        number(r.source.repositoryId) &&
+        number(r.source.pullRequestId) &&
+        Number.isSafeInteger(r.source.pullNumber) &&
+        r.source.pullNumber > 0 &&
+        /^[a-f0-9]{40}$/.test(r.source.headSha) &&
+        validProjectBranch(r.source.baseRef) &&
+        validProjectBranch(r.source.sourceBranch) &&
+        !["main", "master"].includes(r.source.baseRef.toLowerCase()) &&
+        Buffer.byteLength(JSON.stringify(r)) <= 12000,
+    );
+  } else if (path === "/projects/epic-read") {
     const merge = r?.operation === "observe_merge";
     check(
       exact(r, [

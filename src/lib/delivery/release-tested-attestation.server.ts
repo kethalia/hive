@@ -120,11 +120,12 @@ export async function verifyReleaseTestToken(
     throw Error("release_test_token_scope");
   const response = await fetcher("https://token.actions.githubusercontent.com/.well-known/jwks", {
     method: "GET",
-    redirect: "error",
+    redirect: "manual",
     signal,
     headers: { Accept: "application/json" },
   });
-  if (!response.ok) throw Error("release_test_keys_unavailable");
+  if (!response.ok || response.redirected || (response.status >= 300 && response.status < 400))
+    throw Error("release_test_keys_unavailable");
   const keys = z
     .object({ keys: z.array(z.object({ kid: z.string() }).passthrough()).max(100) })
     .passthrough()
