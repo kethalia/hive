@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { attestTestedTree } from "./tested-attestor.mjs";
+import { assertManagedTestSource, attestTestedTree } from "./tested-attestor.mjs";
 
 const config = {
   controllerOrigin: "https://preview.example.invalid",
@@ -108,4 +109,68 @@ test("candidate test job has no OIDC and attestor depends on it", async () => {
   assert.match(workflow, /needs: test/);
   assert.match(workflow, /claims\.job_workflow_sha !== process\.env\.TRUSTED_REVISION/);
   assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/);
+});
+
+test("managed scope is checked before candidate execution and again by the isolated attestor", async () => {
+  const workflow = await readFile(
+    new URL("../../.github/workflows/controlled-tested-tree.yml", import.meta.url),
+    "utf8",
+  );
+  const scope =
+    /- name: Verify managed source scope[\s\S]*? {8}run: \|\n([\s\S]*?) {6}- uses: actions\/checkout/
+      .exec(workflow)[1]
+      .split("\n")
+      .map((line) => (line.startsWith("          ") ? line.slice(10) : line))
+      .join("\n");
+  const uuid = "00000000-0000-4000-8000-000000000001";
+  const branch = `codex/delivery/${uuid}/${uuid}`;
+  const base = {
+    GITHUB_EVENT_NAME: "pull_request",
+    GITHUB_REPOSITORY: "kethalia/hive",
+    EXPECTED_SOURCE_BASE: "codex/delivery-system-design",
+    SOURCE_BASE: "codex/delivery-system-design",
+    SOURCE_BRANCH: branch,
+    SOURCE_REPOSITORY: "kethalia/hive",
+    BASE_REPOSITORY: "kethalia/hive",
+  };
+  for (const patch of [
+    {},
+    { SOURCE_BRANCH: "codex/delivery-system-design" },
+    { SOURCE_BRANCH: "codex/preview-integration-merge" },
+    { SOURCE_BRANCH: "codex/delivery/not-a-task/not-an-operation" },
+    { SOURCE_BRANCH: `${branch}/extra` },
+    { SOURCE_BASE: "main" },
+    { SOURCE_REPOSITORY: "other/hive" },
+    { GITHUB_EVENT_NAME: "workflow_dispatch" },
+  ]) {
+    const env = { ...base, ...patch },
+      valid = Object.keys(patch).length === 0;
+    const result = spawnSync(
+      "/usr/bin/bash",
+      ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", scope],
+      { env, encoding: "utf8" },
+    );
+    assert.equal(result.status === 0, valid, JSON.stringify(patch));
+    const event = {
+      pull_request: {
+        base: { ref: env.SOURCE_BASE, repo: { full_name: env.BASE_REPOSITORY } },
+        head: { ref: env.SOURCE_BRANCH, repo: { full_name: env.SOURCE_REPOSITORY } },
+      },
+    };
+    if (env.GITHUB_EVENT_NAME !== "pull_request") continue;
+    if (valid)
+      assert.doesNotThrow(() =>
+        assertManagedTestSource(event, env.GITHUB_REPOSITORY, env.EXPECTED_SOURCE_BASE),
+      );
+    else
+      assert.throws(() =>
+        assertManagedTestSource(event, env.GITHUB_REPOSITORY, env.EXPECTED_SOURCE_BASE),
+      );
+  }
+  assert.doesNotMatch(workflow, /vars\.HIVE_RELEASE_TESTED/);
+  assert.match(workflow, /if: \$\{\{ inputs\.attestation-enabled \}\}/);
+  assert.match(
+    workflow,
+    /HIVE_TESTED_MANAGED_SOURCE_BASE: \$\{\{ inputs\.managed-source-base \}\}/,
+  );
 });

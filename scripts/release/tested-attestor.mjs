@@ -151,8 +151,28 @@ export async function attestTestedTree({
     checksDigest: result.checksDigest,
   });
 }
+export function assertManagedTestSource(event, repository, baseBranch) {
+  const pull = event?.pull_request;
+  const uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}";
+  if (
+    !baseBranch ||
+    pull?.base?.ref !== baseBranch ||
+    pull?.head?.repo?.full_name !== repository ||
+    pull?.base?.repo?.full_name !== repository ||
+    !new RegExp(`^codex/delivery/${uuid}/${uuid}$`).test(pull?.head?.ref ?? "")
+  )
+    throw Error("tested_attestor_source");
+}
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
+  if (process.env.HIVE_TESTED_MANAGED_SOURCE_BASE) {
+    if (process.env.GITHUB_EVENT_NAME !== "pull_request") throw Error("tested_attestor_source");
+    assertManagedTestSource(
+      event,
+      process.env.GITHUB_REPOSITORY,
+      process.env.HIVE_TESTED_MANAGED_SOURCE_BASE,
+    );
+  }
   const git = (...args) =>
     execFileSync("git", args, {
       cwd: process.env.HIVE_TESTED_CANDIDATE_DIR,
