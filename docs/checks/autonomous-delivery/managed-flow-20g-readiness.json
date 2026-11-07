@@ -17,9 +17,7 @@
     "claimName": "coder-35dded27-d8bd-479c-a44a-f20b766349af-home",
     "namespace": "coder",
     "storageClass": "longhorn",
-    "accessModes": [
-      "ReadWriteOnce"
-    ]
+    "accessModes": ["ReadWriteOnce"]
   },
   "hostPathPresent": false,
   "privateHomeMountVerified": true,
@@ -32,9 +30,7 @@
       "claimName": "coder-3e2e5966-6b15-46e7-abde-f3fed711d360-home",
       "namespace": "coder",
       "storageClass": "longhorn",
-      "accessModes": [
-        "ReadWriteOnce"
-      ]
+      "accessModes": ["ReadWriteOnce"]
     },
     {
       "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
@@ -43,9 +39,7 @@
       "claimName": "coder-5390bdfc-b004-4489-96c8-2b9f1de20f1f-home",
       "namespace": "coder",
       "storageClass": "longhorn",
-      "accessModes": [
-        "ReadWriteOnce"
-      ]
+      "accessModes": ["ReadWriteOnce"]
     },
     {
       "workspaceId": "49dfbaf2-f475-4053-8c6b-2fc09d0db8bf",
@@ -54,9 +48,7 @@
       "claimName": "coder-49dfbaf2-f475-4053-8c6b-2fc09d0db8bf-home",
       "namespace": "coder",
       "storageClass": "longhorn",
-      "accessModes": [
-        "ReadWriteOnce"
-      ]
+      "accessModes": ["ReadWriteOnce"]
     }
   ],
   "primaryComparison": {
@@ -89,13 +81,7 @@
     "workerPid": 910,
     "workerStartTime": "122603326",
     "guardianPhase": "startupReady",
-    "guardianEventNames": [
-      "begin",
-      "ready",
-      "launchIntent",
-      "open",
-      "startupReady"
-    ],
+    "guardianEventNames": ["begin", "ready", "launchIntent", "open", "startupReady"],
     "admissionEventCount": 0,
     "guardianController": {
       "present": false

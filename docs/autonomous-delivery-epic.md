@@ -260,18 +260,24 @@ See the [reference audit](checks/autonomous-delivery/account-connections-roadmap
 
 ## Immediate next task
 
-The native Preview at `bfd4d88f` has accepted OAuth login/navigation and authenticated reload.
-The mixed Prisma query defect and generic operation ACK recovery are implemented; these are
-no longer implementation blockers. Generic atomic operation receipts (the `617f8cc8` checkpoint and subsequent recovery fixes)
-and explicit owner retry (`726ed4ee`) have source/test review. The [exact `bfd4d88f` image](checks/autonomous-delivery/host-preview-image-bfd4d88f.json)
-passed smoke and verified registry publication. Both Preview databases have migration 44 with verified
-native runtime grants repaired at `cd9fb52b`.
+The unnecessary custom publisher and setup-token requests have been removed. The existing
+Cloudflare Workers Builds integration remains the single deployment path for the epic branch.
+Migration 45 stays immutable; forward migration 46 safely retires its unused schema only when
+all publisher tables are empty. The premerge release and migration approval gates now accept
+current implementation/preview evidence while preserving pending production verification.
 
-Next, provision and verify the fresh isolated host against the exact immutable package/image,
-then complete the real manager/child path, source publication, independent semantic acceptance
-and factual closure on that same native deployment. Run Browser Testing Phase B for shared
-Conversation/Terminal continuity, task status and acceptance. Preserve uncertain attempts and
-held host lifetimes; earlier quarantined hosts do not supply fresh execution authority.
+A fresh isolated 20Gi test workspace is healthy on the exact reviewed immutable image/package.
+Its private volume, host identity and idle guardian state were independently checked; dedicated
+test Codex authentication is restored. The primary and earlier uncertain hosts remain preserved.
+See [workspace identity](checks/autonomous-delivery/managed-flow-20g-workspace-creation.json)
+and [readiness checks](checks/autonomous-delivery/managed-flow-20g-readiness.json).
+
+Next, enroll the reviewed docs-only manager pilot through the existing Preview configuration,
+then complete the real manager/child path, source publication and independent semantic acceptance.
+Keep writer retention and production/archive gates held until their actual conditions pass.
+Run Browser Testing Phase B for shared Conversation/Terminal continuity, task status and
+acceptance. Multi-task epic integration needs an explicit premerge readiness milestone;
+production-healthy release must never be fabricated to unblock a dependency.
 
 Finish the remaining F07/F08 account-backed parity/recovery gates and release-controller
 acceptance. Prepare production bindings, retained identities, explicit production OAuth,

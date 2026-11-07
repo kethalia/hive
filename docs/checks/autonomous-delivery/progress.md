@@ -1627,3 +1627,29 @@ by this source checkpoint.
   Longhorn reports ReplicaSchedulingFailure: insufficient storage. A smaller
   test allocation on existing cluster capacity is being checked; no cluster
   storage purchase, replica change or destructive volume repair is authorized.
+
+
+- Publisher removal completed at `b227074c`; source cleanup and forward schema retirement
+  are committed at `6500f921`. The task-created publisher branch, matching Cloudflare Preview
+  and GitHub environment are gone; the existing Hive Worker/epic Preview remain. Applied
+  migration45 is unchanged. Fourteen real PostgreSQL cases validate empty-table retirement,
+  nonempty rejection and rollback without discarding application or release records.
+- Premerge migration approval: complete implementation/validation, moderate difficulty.
+  The original full-task check created a production-before-migration cycle. The real store now
+  selects implementation/preview evidence, while separate release/job authority remains strict.
+  Nineteen composed PostgreSQL cases pass; production stays pending and execution is not granted.
+- Fresh-host preparation: complete, moderate difficulty. The old 100Gi/two-replica volume could
+  not schedule. A 20Gi workspace starts on existing capacity using the same reviewed image;
+  no cluster storage purchase or replica changes. Dedicated test authentication is restored.
+  Actual manager inference and child acceptance remain the next validation step.
+  [Identity](managed-flow-20g-workspace-creation.json), [readiness](managed-flow-20g-readiness.json).
+
+- Preview pilot configuration: source/schema validation complete. The actual installed host,
+  issuer public key, guardian package, independent evaluator descriptor and docs-only repository
+  policy match. Required evidence now includes the real PostgreSQL CI job as well as build,
+  lint, formatting and Codex review. Enrollment uses the existing Workers Builds configuration
+  and retained R2 bucket; no new service or deployment credentials.
+- CI compatibility cleanup: corrected a process shutdown race that removed temporary HOME
+  before Wrangler closed, causing ENOTEMPTY from late compile-cache writes. The full 31-case
+  real PostgreSQL/Workerd D10 suite passes locally. Bounded process reaping retains Docker
+  cleanup even on a timeout; public readiness evidence formatting is also corrected.
