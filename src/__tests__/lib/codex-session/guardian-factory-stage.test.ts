@@ -1,7 +1,10 @@
 import { expect, it, vi } from "vitest";
 
 const failure = vi.hoisted(() => new Error("private configuration detail"));
-vi.mock("@hive/db", () => ({ getDb: () => ({}) }));
+vi.mock("@hive/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hive/db")>()),
+  getDb: () => ({}),
+}));
 vi.mock("@/lib/codex-session/registered-session.server", () => ({
   registeredSessionConfig: () => {
     throw failure;
