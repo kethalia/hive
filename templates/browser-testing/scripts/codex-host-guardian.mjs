@@ -10,6 +10,7 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -75,7 +76,134 @@ function atomic(path, value) {
     closeSync(dir);
   }
 }
-async function openJournal(directory, bindingDigest, prepareIdleLifetime) {
+function bootstrapRetirement(state, bindingDigest, sourceDigest) {
+  check(
+    state.phase === "startupReady" &&
+      state.bindingDigest !== bindingDigest &&
+      state.receipts.length === 0 &&
+      state.events.map((event) => event.name).join() ===
+        "begin,ready,launchIntent,open,startupReady",
+  );
+  const [begin, ready, launch, opened, startup] = state.events.map((event) => event.value),
+    id = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/,
+    hex = /^[a-f0-9]{64}$/;
+  check(
+    id.test(begin.lifetimeId) &&
+      [begin, ready, launch, opened, startup].every(
+        (value) =>
+          value.lifetimeId === begin.lifetimeId &&
+          value.bindingDigest === state.bindingDigest &&
+          value.ownershipDigest === sha(JSON.stringify([])),
+      ) &&
+      [begin, ready, launch, startup].every(
+        (value) => Array.isArray(value.projects) && value.projects.length === 0,
+      ) &&
+      state.events.every((event) => Number.isSafeInteger(event.at) && event.at > 0) &&
+      [
+        startup.packageManifestSha256,
+        startup.nodeSha256,
+        startup.workerSha256,
+        startup.guardianSha256,
+        begin.launchSetDigest,
+      ].every((value) => hex.test(value)) &&
+      [ready, launch].every((value) => value.launchSetDigest === begin.launchSetDigest) &&
+      launch.rootId === "host-worker" &&
+      launch.generation === 1 &&
+      opened.generation === 1 &&
+      startup.generation === 1 &&
+      startup.schemaVersion === 1 &&
+      Number.isInteger(startup.port) &&
+      startup.port >= 1024 &&
+      startup.port <= 65535 &&
+      /^[A-Za-z0-9_-]{43}$/.test(startup.nonce) &&
+      startup.guardianIdentity?.parentPid === startup.outerIdentity?.pid &&
+      startup.workerIdentity?.parentPid === startup.guardianIdentity?.pid &&
+      ["pid", "startTime", "bootId", "executable", "device", "inode"].every(
+        (key) => ready.guardianIdentity?.[key] === startup.guardianIdentity?.[key],
+      ) &&
+      opened.workerPid === startup.workerIdentity?.pid &&
+      startup.type === "ready" &&
+      startup.phase === "open" &&
+      hex.test(startup.configSha256) &&
+      startup.packageManifestSha256 === begin.packageManifestSha256 &&
+      startup.nodeSha256 === begin.nodeSha256 &&
+      startup.workerSha256 === begin.workerSha256 &&
+      startup.guardianSha256 === begin.guardianSha256 &&
+      state.bindingDigest ===
+        sha(
+          JSON.stringify({
+            schemaVersion: 1,
+            configSha256: startup.configSha256,
+            packageManifestSha256: startup.packageManifestSha256,
+          }),
+        ),
+  );
+  const observations = ["outerIdentity", "guardianIdentity", "workerIdentity"].map((name) => {
+    const old = startup[name];
+    check(
+      Number.isSafeInteger(old?.pid) &&
+        old.pid > 0 &&
+        /^\d+$/.test(old.startTime) &&
+        id.test(old.bootId) &&
+        typeof old.executable === "string" &&
+        old.executable.startsWith("/") &&
+        /^\d+$/.test(old.device) &&
+        /^\d+$/.test(old.inode),
+    );
+    const boot = readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(),
+      path = `/proc/${old.pid}/stat`,
+      tick = (text) =>
+        text
+          .slice(text.lastIndexOf(") ") + 2)
+          .trim()
+          .split(/\s+/)[19];
+    check(id.test(boot));
+    let first;
+    try {
+      first = readFileSync(path, "utf8");
+    } catch (error) {
+      check(["ENOENT", "ESRCH"].includes(error?.code));
+    }
+    if (first !== undefined) {
+      const next = readFileSync(path, "utf8");
+      check(tick(first) === tick(next) && /^\d+$/.test(tick(first)));
+      const phase = (text) =>
+        text
+          .slice(text.lastIndexOf(") ") + 2)
+          .trim()
+          .split(/\s+/)[0];
+      check(
+        boot !== old.bootId ||
+          tick(first) !== old.startTime ||
+          (["Z", "X"].includes(phase(first)) && phase(first) === phase(next)),
+      );
+    }
+    return {
+      name,
+      identity: old,
+      observed: "no_live_exact_identity_in_current_namespace",
+    };
+  });
+  return {
+    schemaVersion: 1,
+    scope: "never_admitted_bootstrap_authorization_only",
+    sourceJournalDigest: sourceDigest,
+    lifetimeId: begin.lifetimeId,
+    bindingDigest: state.bindingDigest,
+    nextBindingDigest: bindingDigest,
+    configSha256: startup.configSha256,
+    workerIdentity: startup.workerIdentity,
+    identityObservations: observations,
+    nativeTreeExited: false,
+    cleanupAuthorized: false,
+  };
+}
+async function openJournal(
+  directory,
+  bindingDigest,
+  prepareIdleLifetime,
+  prepareBootstrapRetirement,
+) {
   check(resolve(directory) === directory && /^[a-f0-9]{64}$/.test(bindingDigest));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   privateFile(directory, true);
@@ -120,7 +248,8 @@ async function openJournal(directory, bindingDigest, prepareIdleLifetime) {
     let state = { schemaVersion: 1, bindingDigest, phase: "new", events: [], receipts: [] };
     if (existsSync(path)) {
       check(privateFile(path).size <= 2 * 1024 * 1024);
-      const saved = JSON.parse(readFileSync(path));
+      const encoded = readFileSync(path),
+        saved = JSON.parse(encoded);
       const expected = mac(saved.state);
       check(
         typeof saved.signature === "string" &&
@@ -128,63 +257,102 @@ async function openJournal(directory, bindingDigest, prepareIdleLifetime) {
           timingSafeEqual(Buffer.from(saved.signature), Buffer.from(expected)),
       );
       check(saved.state.schemaVersion === 1 && saved.state.receipts.length < 32);
-      if (saved.state.phase === "idleTreeExited") {
-        const exited = saved.state.events.at(-1),
-          prior = saved.state.receipts.at(-1);
-        check(exited?.name === "idleTreeExited" && exited.value?.guardianExited === true && prior);
-        const { guardianExited: _ignored, ...preExit } = exited.value;
-        check(JSON.stringify(preExit) === JSON.stringify(prior));
-        saved.state.events.push({
-          name: "idleClosed",
-          value: { lifetimeId: prior.lifetimeId, receiptId: prior.receiptId },
-          at: Date.now(),
-        });
-        saved.state.phase = "idleClosed";
-        atomic(path, { state: saved.state, signature: mac(saved.state) });
-      }
-      if (saved.state.phase === "idleClosed") {
-        const receipt = saved.state.events.at(-2),
-          closed = saved.state.events.at(-1),
-          prior = saved.state.receipts.at(-1);
-        check(receipt?.value && prior);
-        const { guardianExited: _ignored, ...preExit } = receipt.value;
+      if (saved.state.phase === "startupReady" && prepareBootstrapRetirement) {
         check(
-          receipt?.name === "idleTreeExited" &&
-            closed?.name === "idleClosed" &&
-            receipt.value?.guardianExited === true &&
-            receipt.value.finalWaitResult === "ECHILD" &&
-            receipt.value.scope === "managed_native_tree_only" &&
-            receipt.value.waitFlags === "__WALL" &&
-            receipt.value.cleanupAuthorized === false &&
-            receipt.value.projects?.length === 0 &&
-            receipt.value.decisions?.length === 0 &&
-            closed.value?.receiptId === receipt.value.receiptId &&
-            closed.value?.lifetimeId === receipt.value.lifetimeId &&
-            receipt.value.bindingDigest === saved.state.bindingDigest &&
-            JSON.stringify(preExit) === JSON.stringify(prior) &&
-            !existsSync(join(directory, "controller.json")) &&
-            !saved.state.events.some((event) =>
-              ["admissionIntent", "admissionAccepted"].includes(event.name),
-            ),
+          !readdirSync(directory).some(
+            (name) => name === "controller.json" || name.startsWith("controller-archive-"),
+          ),
         );
-        // Keep the authenticated outer journal in place until inner idle state
-        // is durably archived/reset. A crash retries the same receipt first.
-        if (prepareIdleLifetime) await prepareIdleLifetime(structuredClone(receipt.value));
-        const archive = join(directory, `lifetime-idle-${sha(readFileSync(path))}.json`);
-        check(!existsSync(archive));
-        renameSync(path, archive);
-        const dir = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+        const digest = sha(encoded),
+          proof = bootstrapRetirement(saved.state, bindingDigest, digest),
+          facts = await prepareBootstrapRetirement(structuredClone(proof)),
+          retirement = { ...proof, projectEvidence: facts },
+          factPath = join(directory, `bootstrap-retirement-${digest}.json`),
+          archivePath = join(directory, `lifetime-bootstrap-${digest}.json`);
+        if (existsSync(factPath)) {
+          privateFile(factPath);
+          const prior = JSON.parse(readFileSync(factPath));
+          check(
+            typeof prior.signature === "string" &&
+              prior.signature.length === 64 &&
+              timingSafeEqual(Buffer.from(prior.signature), Buffer.from(mac(prior.state))),
+          );
+          check(JSON.stringify(prior.state) === JSON.stringify(retirement));
+        } else atomic(factPath, { state: retirement, signature: mac(retirement) });
+        check(
+          !existsSync(join(directory, "controller.json")) && sha(readFileSync(path)) === digest,
+        );
+        check(!existsSync(archivePath));
+        renameSync(path, archivePath);
+        const fd = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
         try {
-          fsyncSync(dir);
+          fsyncSync(fd);
         } finally {
-          closeSync(dir);
+          closeSync(fd);
         }
+        // Retire unused authorization only. No ECHILD, native-tree exit or
+        // physical writer/checkout cleanup authority is manufactured here.
       } else {
-        check(
-          saved.state.bindingDigest === bindingDigest &&
-            ["closed", "treeExited"].includes(saved.state.phase),
-        );
-        state = saved.state;
+        if (saved.state.phase === "idleTreeExited") {
+          const exited = saved.state.events.at(-1),
+            prior = saved.state.receipts.at(-1);
+          check(
+            exited?.name === "idleTreeExited" && exited.value?.guardianExited === true && prior,
+          );
+          const { guardianExited: _ignored, ...preExit } = exited.value;
+          check(JSON.stringify(preExit) === JSON.stringify(prior));
+          saved.state.events.push({
+            name: "idleClosed",
+            value: { lifetimeId: prior.lifetimeId, receiptId: prior.receiptId },
+            at: Date.now(),
+          });
+          saved.state.phase = "idleClosed";
+          atomic(path, { state: saved.state, signature: mac(saved.state) });
+        }
+        if (saved.state.phase === "idleClosed") {
+          const receipt = saved.state.events.at(-2),
+            closed = saved.state.events.at(-1),
+            prior = saved.state.receipts.at(-1);
+          check(receipt?.value && prior);
+          const { guardianExited: _ignored, ...preExit } = receipt.value;
+          check(
+            receipt?.name === "idleTreeExited" &&
+              closed?.name === "idleClosed" &&
+              receipt.value?.guardianExited === true &&
+              receipt.value.finalWaitResult === "ECHILD" &&
+              receipt.value.scope === "managed_native_tree_only" &&
+              receipt.value.waitFlags === "__WALL" &&
+              receipt.value.cleanupAuthorized === false &&
+              receipt.value.projects?.length === 0 &&
+              receipt.value.decisions?.length === 0 &&
+              closed.value?.receiptId === receipt.value.receiptId &&
+              closed.value?.lifetimeId === receipt.value.lifetimeId &&
+              receipt.value.bindingDigest === saved.state.bindingDigest &&
+              JSON.stringify(preExit) === JSON.stringify(prior) &&
+              !existsSync(join(directory, "controller.json")) &&
+              !saved.state.events.some((event) =>
+                ["admissionIntent", "admissionAccepted"].includes(event.name),
+              ),
+          );
+          // Keep the authenticated outer journal in place until inner idle state
+          // is durably archived/reset. A crash retries the same receipt first.
+          if (prepareIdleLifetime) await prepareIdleLifetime(structuredClone(receipt.value));
+          const archive = join(directory, `lifetime-idle-${sha(readFileSync(path))}.json`);
+          check(!existsSync(archive));
+          renameSync(path, archive);
+          const dir = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+          try {
+            fsyncSync(dir);
+          } finally {
+            closeSync(dir);
+          }
+        } else {
+          check(
+            saved.state.bindingDigest === bindingDigest &&
+              ["closed", "treeExited"].includes(saved.state.phase),
+          );
+          state = saved.state;
+        }
       }
     }
     const record = (name, value) => {
@@ -266,6 +434,7 @@ export async function openGuardedHost(options) {
     options.stateDirectory,
     options.bindingDigest,
     options.prepareIdleLifetime,
+    options.prepareBootstrapRetirement,
   );
   const recovered = journal.snapshot();
   if (recovered.phase === "treeExited") {
