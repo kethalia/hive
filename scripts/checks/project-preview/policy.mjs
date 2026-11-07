@@ -6,6 +6,8 @@ export const NATIVE_WORKSPACE = "5390bdfc-b004-4489-96c8-2b9f1de20f1f";
 // Add a new exact pair only after the primary preserves its creation identity.
 // No caller-supplied origin or workspace selector can extend this registry.
 export const NATIVE_TARGETS = Object.freeze([
+  // Primary creation record: managed-flow-08cf-workspace-creation.json.
+  Object.freeze({ workspaceId: "868d3188-181c-466e-b067-e3ff592e79bc", origin: NATIVE_ORIGIN }),
   Object.freeze({ workspaceId: NATIVE_WORKSPACE, origin: NATIVE_ORIGIN }),
   // Primary creation record: d11-native-final-workspace-creation.json.
   // Registry membership does not assert host health or authorize enrollment.
