@@ -29,3 +29,16 @@ If the owner approves the exception, an explicitly identified software-profile
 variant will run once from the primary workspace. It will preserve the real
 profile identity rather than pretending to be an Infrastructure workspace. The
 sanitized result will be preserved here; any repair remains a separate decision.
+
+
+## Approved inspection — 2026-11-07
+
+The owner explicitly approved the read-only Rancher check from the primary.
+The software-profile variant preserved the actual profile, removed the inherited
+Coder owner credential from its environment, and ran the same fixed deployment,
+pod and event GETs. [Sanitized result](primary-readonly-result.json).
+
+The pod is scheduled on `k3s-03`, but remains Pending because Longhorn reports
+`FailedAttachVolume`: its exact home volume is not ready for workloads. Neither
+`seed-home` nor `dev` has started. The result does not establish the underlying
+Longhorn failure cause. No cluster repair, Secret read or raw log collection ran.

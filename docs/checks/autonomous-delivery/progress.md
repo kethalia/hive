@@ -1,6 +1,6 @@
 # Autonomous delivery epic execution ledger
 
-Updated: 2026-11-06. Status: implementation in progress, not release-ready.
+Updated: 2026-11-07. Status: implementation in progress, not release-ready.
 Branch: `codex/delivery-system-design`.
 
 ## Authorization and boundaries
@@ -1593,3 +1593,12 @@ by this source checkpoint.
   journal/bootstrap reads while actual fact capture still fails closed. A new
   regression plus18 journal/scheduler and15 independent acceptance/autonomous-release
   PostgreSQL cases, typecheck and formatting pass. Full CI reruns on the correction.
+
+
+- Test-host startup diagnosis: owner-approved primary read-only Rancher check
+  completed on November7. The scheduled pod's home volume cannot attach:
+  Longhorn reports the exact volume is not ready for workloads. Init and dev
+  containers have not started. This establishes a storage attachment blocker;
+  its underlying cause and repair remain unresolved. No cluster mutation, Secret
+  collection, raw logs or owner Coder credential transfer occurred.
+  [Sanitized evidence](native-startup-infrastructure/primary-readonly-result.json).
