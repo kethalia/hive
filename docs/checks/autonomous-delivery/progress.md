@@ -24,7 +24,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Fresh test and Infrastructure agents never connected; startup inspection pending | Generic operation receipt recovery and owner retry are implemented/reviewed. The `bfd4d88f` immutable image passed smoke and registry publication. Fresh `hive-native-final` has isolated storage but no connected agent; the diagnostic Infrastructure agent also timed out. No auth transfer or enrollment occurred. Global active template is unchanged. [Startup preflight](d11-native-final-readonly-preflight.json). |
+| Test workspace | Longhorn volume scheduling failure confirmed; smaller validation allocation under investigation | Generic operation receipt recovery and owner retry are implemented/reviewed. The `bfd4d88f` immutable image passed smoke and registry publication. Fresh `hive-native-final` has isolated storage but no connected agent; the diagnostic Infrastructure agent also timed out. No auth transfer or enrollment occurred. Global active template is unchanged. [Startup preflight](d11-native-final-readonly-preflight.json). |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; local proofs pass | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard and voice transports have local proofs; account-backed/browser acceptance, 24a454c adds the independently reviewed agent-tools bridge and real tmux environment regression. Account-backed integration and legacy hook parity remain. |
 | F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect and same-owner restoration passed the real Browser/app/provider flow; final production acceptance remains. [Scoped evidence](coder-oauth-live-preview.json). |
@@ -1490,7 +1490,7 @@ by this source checkpoint.
   review and four real GET200 responses pass. Actual source/action annotations are absent;
   eligibility stays unverified. No source/build/artifact/config/health/effect authority or
   atomic CAS is inferred. Production mutation guards stay in place.
-  [Source design](native-preview-release-identity.md) and [live receipt](native-preview-release-identity-live.json).
+  [Source design](retired-native-publisher/README.md) and [live receipt](retired-native-publisher/native-preview-release-identity-live.json).
 
 - Explicit Coder disconnect: implementation/local acceptance complete. The existing Settings
   Account section has confirmation/cancel and a single generation-bound submission. Claiming
@@ -1545,9 +1545,9 @@ by this source checkpoint.
   cases,32 existing release checks,30 provisioning checks and30 native publisher
   checks pass, with typecheck/schema validation and independent final review. Parent
   independently reproduced12 uploader/native wrapper tests. Dedicated PG composition
-  is wired into CI. [Local receipt](native-preview-controlled-publication-local.json),
-  [controller design](../../native-preview-release-controller.md), and
-  [next live plan](native-preview-live-plan.md). Migration45 is source-only at this
+  is wired into CI. [Local receipt](retired-native-publisher/native-preview-controlled-publication-local.json),
+  [controller design](retired-native-publisher/README.md), and
+  [next live plan](retired-native-publisher/README.md). Migration45 is source-only at this
   checkpoint; no live authority or production changes were enabled.
 
 
@@ -1569,13 +1569,13 @@ by this source checkpoint.
   Artifact-only dispatch now skips ordinary CI jobs; automatic PR checks still run.
   Protected environment and Actions variable enrollment returned403; Cloudflare
   token management also returned403. Access is requested while validation continues.
-  [Dispatch receipt](native-preview-dispatch-reachability.json).
+  [Dispatch receipt](retired-native-publisher/native-preview-dispatch-reachability.json).
 
 
 - Completed builder provenance: a fresh first-attempt artifact-only dispatch passed.
   Eight real HTTP reads verified the completed run, exact caller Git blob,
   SHA-pinned reusable workflow and immutable artifact digest; the34 MB ZIP/archive
-  parsed without candidate execution. [Scoped receipt](native-preview-completed-builder-live.json).
+  parsed without candidate execution. [Scoped receipt](retired-native-publisher/native-preview-completed-builder-live.json).
   Synthetic owner/release/config fields exercised the reader only: no semantic,
   grant, configuration enrollment or publication acceptance is implied.
 - CI cache preparation: found an independent shared-workflow defect when modules
@@ -1613,3 +1613,17 @@ by this source checkpoint.
   its applied additive migration history must not be rewritten. Project instructions
   now require an evidenced gap and owner agreement before adding another deployment
   pipeline, plus approved-operation justification for new credentials.
+
+
+- Owner-directed publisher cleanup: runtime publisher/controller/issuer routes,
+  standalone workflows, optional artifact-build CI path, fixtures and obsolete
+  setup documents removed. The existing Cloudflare branch build remains intact.
+  Prior experiment checks are archived as history, not roadmap gates. No setup
+  token files existed; the task-created hidden-input helper was removed.
+  Migration45/checksum and schema representation remain intact for compatibility;
+  no live database, primary workspace or unrelated resource was deleted.
+- Storage diagnosis followed the exact failed home volume read-only. It is a
+ 100Gi allocation with two replicas, faulted/detached and zero actual bytes.
+  Longhorn reports ReplicaSchedulingFailure: insufficient storage. A smaller
+  test allocation on existing cluster capacity is being checked; no cluster
+  storage purchase, replica change or destructive volume repair is authorized.

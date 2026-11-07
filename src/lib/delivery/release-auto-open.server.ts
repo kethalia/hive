@@ -84,6 +84,7 @@ export class ReleaseAutoOpener {
             ownerId: row.owner_id,
             taskId: row.id,
             sourceSha: row.head_sha,
+            milestone: "implementation_preview",
           }),
         );
         if (!eligible) continue;

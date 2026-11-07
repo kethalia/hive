@@ -2,32 +2,17 @@ name: CI
 
 on:
   workflow_dispatch:
-    inputs:
-      native_preview_build:
-        description: Build an immutable native Preview artifact without deployment credentials
-        required: false
-        default: false
-        type: boolean
   pull_request:
     branches: [main, codex/delivery-system-design]
   push:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.ref }}-${{ inputs.native_preview_build && 'native-build' || 'checks' }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  native-preview-build:
-    name: Controlled native Preview artifact
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.native_preview_build }}
-    permissions:
-      contents: read
-      id-token: none
-    uses: kethalia/hive/.github/workflows/controlled-native-preview-build.yml@7cdf06a8ab988a737c16eb69cf861c5acee97554
-
   build-lint-test:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.native_preview_build }}
     name: Build / Lint / Test
     permissions:
       contents: read
@@ -59,7 +44,6 @@ jobs:
     secrets: inherit
 
   migration-integration:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.native_preview_build }}
     name: Migration preflight / PostgreSQL
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -178,19 +162,7 @@ jobs:
         env:
           HIVE_AGENT_NOTIFICATION_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_agent_notification_test
 
-      - name: Prepare isolated native Preview release database
-        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_native_release_test
-      - name: Apply native Preview release schema
-        run: pnpm --filter @hive/db migrate:deploy
-        env:
-          DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_native_release_test
-      - name: Validate installed native publication and retained-baseline recovery
-        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/release-native-preview.integration.test.ts
-        env:
-          HIVE_NATIVE_RELEASE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_native_release_test
-
   quality:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.native_preview_build }}
     name: Quality
     permissions:
       contents: read
@@ -204,7 +176,6 @@ jobs:
     secrets: inherit
 
   helm-lint:
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.native_preview_build }}
     name: Helm Lint
     uses: kethalia/workflows/.github/workflows/helm-lint.yml@v4
     with:

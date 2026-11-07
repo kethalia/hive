@@ -1,10 +1,6 @@
 // Fixed application-table privileges. No model, request, or database content can
 // select additional tables. Existing unrelated role privileges are not revoked.
 const append = [
-  "delivery_native_release_artifacts",
-  "delivery_native_release_baselines",
-  "delivery_native_publication_grants",
-  "delivery_native_publication_receipts",
   "delivery_epics",
   "delivery_step_dependencies",
   "delivery_events",

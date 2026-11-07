@@ -11,10 +11,6 @@ export function isReleaseBuildTransport(
   const build = [
     "/api/internal/release-build/challenge",
     "/api/internal/release-build/attestation",
-    "/api/internal/native-release/artifact",
-    "/api/internal/native-release/grant",
-    "/api/internal/native-release/reauthorize",
-    "/api/internal/native-release/receipt",
   ].includes(url.pathname);
   const tested =
     testedEnabled === "true" &&

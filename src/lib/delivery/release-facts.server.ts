@@ -9,7 +9,6 @@ import type { CloudflareReleaseProvider } from "./release-cloudflare-provider.se
 import { verifyReleaseEvidence } from "./release-evidence.server";
 import { githubReleaseRequestSchema } from "./release-github-provider.server";
 import type { GitHubReleaseRules } from "./release-github-rules.server";
-import { nativeBaselineSchema } from "./release-native-preview-contracts";
 import type { CloudflareReleaseObserver } from "./release-observer.server";
 import { releasePolicySchema } from "./release-policy-contracts";
 import { releaseTestWorkflowSchema } from "./release-tested-attestation.server";
@@ -22,7 +21,7 @@ const configSchema = z
     targetDigest: z.string().regex(/^[a-f0-9]{64}$/),
     riskCatalogDigest: z.string().regex(/^[a-f0-9]{64}$/),
     mergeMethod: z.enum(["merge", "squash", "rebase"]),
-    baselines: z.union([releaseBaselinesSchema, nativeBaselineSchema]),
+    baselines: releaseBaselinesSchema,
     tested: z
       .object({ workflow: releaseTestWorkflowSchema, run: releaseTestRunConfigSchema })
       .strict()
@@ -42,7 +41,7 @@ const payloadSchema = z
     schemaVersion: z.literal(1),
     observedAt: z.number().int().nonnegative().safe(),
     request: githubReleaseRequestSchema,
-    baselines: z.union([releaseBaselinesSchema, nativeBaselineSchema]),
+    baselines: releaseBaselinesSchema,
     risk: z.object({ riskClass: z.enum(["application_only", "database"]) }).passthrough(),
     rules: z.unknown(),
     testedMergeSha: z.string().regex(/^[a-f0-9]{40}$/),
@@ -69,28 +68,18 @@ export class ReleaseAuthorityFacts {
     private readonly cloudflare: CloudflareReleaseProvider | null,
     private readonly observer: CloudflareReleaseObserver | null,
     private readonly testedStore?: ReleaseTestStore,
-    private readonly native?: {
-      targetDigest(): string;
-      resolveBaseline(): Promise<z.infer<typeof nativeBaselineSchema>>;
-      verifyBaseline(
-        baseline: z.infer<typeof nativeBaselineSchema>,
-        signal: AbortSignal,
-      ): Promise<string>;
-    },
   ) {
     this.config = configSchema.parse(rawConfig);
   }
   /** Carry forward the last journaled healthy deployment; the enrolled
    * bootstrap baseline is used only before the first healthy Hive release. */
   async resolveBaseline() {
-    if (this.native) return this.native.resolveBaseline();
-    // Resolving retained journal history (or the enrolled bootstrap) is a
-    // database-only read. Live provider dependencies are required by capture,
-    // which separately verifies configuration/readiness before minting facts.
+    // Retained journal history and enrolled baselines are database-only reads.
+    // Live clients are required separately by capture before minting facts.
     const rows = await this.db.$queryRaw<
       { id: string; manifest: unknown; manifest_digest: string }[]
     >`SELECT r.id,b.manifest,b.manifest_digest FROM delivery_releases r JOIN delivery_release_build_attestations b ON b.release_id=r.id AND b.owner_id=r.owner_id JOIN delivery_release_build_verifications v ON v.attestation_id=b.id AND v.owner_id=b.owner_id WHERE r.target_digest=${this.config.targetDigest} AND r.phase='healthy' ORDER BY r.created_at DESC,r.id DESC LIMIT 1`;
-    if (!rows.length) return releaseBaselinesSchema.parse(this.config.baselines);
+    if (!rows.length) return this.config.baselines;
     const row = rows[0];
     if (githubSourceDigest(row.manifest) !== row.manifest_digest)
       throw Error("release_facts_baseline");
@@ -145,9 +134,10 @@ export class ReleaseAuthorityFacts {
   async capture(raw: unknown, signal: AbortSignal) {
     if (
       this.config.riskCatalogDigest !== this.risk.configDigest() ||
-      this.config.targetDigest !== (this.native?.targetDigest() ?? this.observer?.targetDigest())
+      this.config.targetDigest !== this.observer?.targetDigest()
     )
       throw Error("release_facts_scope");
+    if (!this.cloudflare || !this.observer) throw Error("release_facts_unavailable");
     const input = inputSchema.parse(raw),
       configDigest = githubSourceDigest(this.config),
       started = (await this.db.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
@@ -168,14 +158,9 @@ export class ReleaseAuthorityFacts {
       ? await this.testedStore.verifyFresh(input.ownerId, input.taskId, input.request, signal)
       : undefined;
     const baselines = await this.resolveBaseline();
-    const legacyBaselines = this.native ? null : releaseBaselinesSchema.parse(baselines);
-    const cloudflare = this.cloudflare,
-      observer = this.observer;
-    if (!this.native && (!cloudflare || !observer)) throw Error("release_facts_unavailable");
     if (
-      legacyBaselines &&
-      cloudflare?.singleWorker() &&
-      githubSourceDigest(legacyBaselines.app) !== githubSourceDigest(legacyBaselines.auth)
+      this.cloudflare.singleWorker() &&
+      githubSourceDigest(baselines.app) !== githubSourceDigest(baselines.auth)
     )
       throw Error("release_facts_baseline");
     const before = await this.rules.inspect(input.request, signal);
@@ -183,23 +168,22 @@ export class ReleaseAuthorityFacts {
     const risk = await this.risk.inspect(input.request, signal);
     const after = await this.rules.inspect(input.request, signal);
     if (after.digest !== before.digest || signal.aborted) throw Error("release_facts_scope");
-    if (legacyBaselines && cloudflare)
-      for (const component of cloudflare.singleWorker()
-        ? (["app"] as const)
-        : (["app", "auth"] as const)) {
-        const version = await cloudflare.inspectVersion(
-          component,
-          legacyBaselines[component].versionId,
-          signal,
-        );
-        if (version.configDigest !== legacyBaselines[component].configDigest)
-          throw Error("release_facts_baseline");
-      }
+    for (const component of this.cloudflare.singleWorker()
+      ? (["app"] as const)
+      : (["app", "auth"] as const)) {
+      const version = await this.cloudflare.inspectVersion(
+        component,
+        baselines[component].versionId,
+        signal,
+      );
+      if (version.configDigest !== baselines[component].configDigest)
+        throw Error("release_facts_baseline");
+    }
     const probeInput = {
       startedAt: started.getTime(),
       endedAt: Date.now(),
       ...Object.fromEntries(
-        Object.entries(legacyBaselines ?? {}).map(([key, value]) => [
+        Object.entries(baselines).map(([key, value]) => [
           key,
           {
             deploymentId: value.deploymentId,
@@ -210,19 +194,8 @@ export class ReleaseAuthorityFacts {
         ]),
       ),
     };
-    const health = this.native
-      ? {
-          evidence: { smoke: "passed" },
-          evidenceDigest: await this.native.verifyBaseline(
-            nativeBaselineSchema.parse(baselines),
-            signal,
-          ),
-        }
-      : observer
-        ? await observer.probe(probeInput, signal)
-        : null;
-    if (!health || health.evidence.smoke !== "passed" || signal.aborted)
-      throw Error("release_facts_baseline");
+    const health = await this.observer.probe(probeInput, signal);
+    if (health.evidence.smoke !== "passed" || signal.aborted) throw Error("release_facts_baseline");
     const payload = payloadSchema.parse({
       schemaVersion: 1,
       observedAt: started.getTime(),
@@ -278,6 +251,7 @@ export class ReleaseAuthorityFacts {
             ownerId: input.ownerId,
             taskId: input.taskId,
             sourceSha: input.request.headSha,
+            milestone: "implementation_preview",
           }))
         )
           throw Error("release_facts_scope");

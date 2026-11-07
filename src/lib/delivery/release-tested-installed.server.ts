@@ -4,7 +4,6 @@ import { configuredReleasePolicies } from "./release-authority.server";
 import { GitHubReleaseChangeRisk } from "./release-change-risk.server";
 import { releaseControllerConfigSchema } from "./release-controller.server";
 import { GitHubReleaseRules } from "./release-github-rules.server";
-import { createNativePreviewReleaseController } from "./release-native-preview-controller.server";
 import { GitHubReleaseTestRunVerifier } from "./release-tested-run.server";
 import { ReleaseTestStore } from "./release-tested-store.server";
 import { repositoryPolicyStore } from "./repository-policy.server";
@@ -22,10 +21,7 @@ export function createInstalledReleaseTestStore(
     return null;
   const raw = env.HIVE_DELIVERY_RELEASE_CONFIG_JSON;
   if (!raw || Buffer.byteLength(raw) > 32768) throw Error("release_test_unavailable");
-  const candidate = JSON.parse(raw);
-  if (candidate.provider === "cloudflare-native-preview")
-    return createNativePreviewReleaseController(db, env, fetcher)?.tested ?? null;
-  const config = releaseControllerConfigSchema.parse(candidate);
+  const config = releaseControllerConfigSchema.parse(JSON.parse(raw));
   if (
     !config.authority?.tested ||
     !config.riskCatalog ||

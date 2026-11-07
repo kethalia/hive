@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { NativePreviewReleaseReader } from "./release-native-preview-reader.server";
 import {
   boundedReleaseJson,
   RELEASE_HEALTH_PATH,
@@ -289,31 +288,5 @@ export class CloudflareReleaseObserver {
       configDigest: this.configDigest(),
     };
     return { evidence, evidenceDigest: githubSourceDigest(evidence) };
-  }
-}
-
-/** Native Preview identity is a separate observation type. It cannot satisfy
- * the existing lifecycle's healthy/source/build facts or promotion receipts. */
-export class NativePreviewReleaseIdentityObserver {
-  private readonly reader: NativePreviewReleaseReader;
-  constructor(target: unknown, token: string, fetcher: typeof fetch = fetch) {
-    this.reader = new NativePreviewReleaseReader(target, token, fetcher);
-  }
-  async observeIdentity(signal: AbortSignal) {
-    try {
-      const identity = await this.reader.readCurrent(signal);
-      return {
-        kind: "native-preview-identity" as const,
-        state: "observed" as const,
-        eligibility: "unverified" as const,
-        identity,
-      };
-    } catch {
-      return {
-        kind: "native-preview-identity" as const,
-        state: "hold" as const,
-        eligibility: "unverified" as const,
-      };
-    }
   }
 }

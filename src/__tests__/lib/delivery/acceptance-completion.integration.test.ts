@@ -26,8 +26,8 @@ const db = new PrismaClient({
 });
 afterAll(() => db.$disconnect());
 afterEach(() => vi.unstubAllEnvs());
-async function fixture(realPolicy = false) {
-  const f = await acceptanceCandidateFixture(db);
+async function fixture(realPolicy = false, activationRequirement = false) {
+  const f = await acceptanceCandidateFixture(db, undefined, { activationRequirement });
   for (const name of [
     "HIVE_DELIVERY_ACCEPTANCE_ENABLED",
     "HIVE_DELIVERY_EXECUTION_ENABLED",
@@ -46,22 +46,23 @@ async function fixture(realPolicy = false) {
     sourceSha: f.publication.headSha,
     inputDigest: job.inputDigest,
     outcome: "pass",
-    requirements: [
-      {
-        id: "acceptance:behavior",
-        meaningDigest: requireIntentDigest(f.plan.requirements[0].meaning),
-        outcome: "pass",
-        rationale: "Exact reviewed source meets the immutable fixture requirement",
-        citations: [
-          {
-            entryId: "source:0",
-            artifactDigest: f.candidate.manifest.files[0].contentDigest,
-            start: 0,
-            end: 10,
-          },
-        ],
-      },
-    ],
+    requirements: f.plan.requirements.map((requirement) => ({
+      id: requirement.id,
+      meaningDigest: requireIntentDigest(requirement.meaning),
+      outcome: requirement.phase === "implementation_preview" ? "pass" : "outside_step_scope",
+      rationale: "Exact reviewed source covers only the implementation milestone",
+      citations:
+        requirement.phase === "implementation_preview"
+          ? [
+              {
+                entryId: "source:0",
+                artifactDigest: f.candidate.manifest.files[0].contentDigest,
+                start: 0,
+                end: 10,
+              },
+            ]
+          : [],
+    })),
     unresolved: [],
     rationale: "Explicit independent evaluator fixture",
   }));
@@ -188,6 +189,96 @@ describe.skipIf(!url)("controller factual completion", () => {
       ),
     ).rejects.toThrow("acceptance_completion_replay_changed");
   });
+  it("allows an explicit premerge milestone while retaining production requirements and full-task holds", async () => {
+    const f = await fixture(true, true);
+    await collectCompletionProviderFacts(db, f, f.publication.operationId);
+    const scope = { ownerId: f.user.id, taskId: f.taskId, sourceSha: f.publication.headSha };
+    expect(
+      await db.$transaction((tx) =>
+        verifyReleaseEvidence(tx, f.policies, {
+          ...scope,
+          milestone: "implementation_preview",
+        }),
+      ),
+    ).toBe(false);
+    await f.service.dispatch(f.envelope({ action: "complete_verified", terminal: f.terminal }));
+    const verify = (milestone?: "implementation_preview" | "task_complete") =>
+      db.$transaction((tx) => verifyReleaseEvidence(tx, f.policies, { ...scope, milestone }));
+    const production = await db.deliveryStep.findFirstOrThrow({
+      where: { taskId: f.taskId, acceptancePhase: "activation_production" },
+    });
+    expect(production.state).not.toBe("succeeded");
+    expect(await verify("implementation_preview")).toBe(true);
+    expect(await verify()).toBe(false);
+    expect(await verify("task_complete")).toBe(false);
+    expect(
+      await db.$transaction((tx) =>
+        verifyReleaseEvidence(tx, f.policies, {
+          ...scope,
+          sourceSha: "a".repeat(40),
+          milestone: "implementation_preview",
+        }),
+      ),
+    ).toBe(false);
+    expect(await db.deliveryStep.findUnique({ where: { id: production.id } })).toEqual(production);
+    expect(await db.deliveryEvidence.count({ where: { stepId: production.id } })).toBe(0);
+
+    // Exercise the actual opener -> factual capture -> lifecycle chain. Only
+    // external GitHub/Cloudflare/health transports are doubled by this fixture;
+    // no semantic, capture or journal verifier is replaced.
+    const release = await openReleaseFromSignedEvidence(db, f);
+    expect(
+      await db.deliveryReleaseAuthorityFact.count({
+        where: { ownerId: f.user.id, taskId: f.taskId },
+      }),
+    ).toBe(1);
+    const actions = await db.$queryRaw<{ id: string; phase: string }[]>`
+      SELECT id,phase FROM delivery_release_actions
+      WHERE release_id=${release.releaseId}::uuid AND kind='merge'`;
+    expect(actions).toHaveLength(1);
+    expect(actions[0].phase).toBe("prepared");
+    expect(await verify()).toBe(false);
+    expect(await db.deliveryStep.findUnique({ where: { id: production.id } })).toEqual(production);
+    expect(await db.deliveryEvidence.count({ where: { stepId: production.id } })).toBe(0);
+
+    // The same exact-source semantic authority remains mandatory premerge.
+    await db.deliveryEvidence.update({
+      where: { id: f.evidence.id },
+      data: { invalidatedAt: new Date() },
+    });
+    expect(await verify("implementation_preview")).toBe(false);
+    expect(
+      await new PostgresReleaseEffectJournal(db, f.user.id, release.authorize).begin(actions[0].id),
+    ).toBeNull();
+  }, 15000);
+
+  for (const state of ["failed", "canceled"] as const)
+    it(`does not waive an explicit production ${state} hold for premerge`, async () => {
+      const f = await fixture(true, true);
+      await collectCompletionProviderFacts(db, f, f.publication.operationId);
+      await f.service.dispatch(f.envelope({ action: "complete_verified", terminal: f.terminal }));
+      const scope = {
+        ownerId: f.user.id,
+        taskId: f.taskId,
+        sourceSha: f.publication.headSha,
+        milestone: "implementation_preview" as const,
+      };
+      expect(await db.$transaction((tx) => verifyReleaseEvidence(tx, f.policies, scope))).toBe(
+        true,
+      );
+      const production = await db.deliveryStep.findFirstOrThrow({
+        where: { taskId: f.taskId, acceptancePhase: "activation_production" },
+      });
+      // Explicit local provider-state fixture; no production operation runs.
+      await db.deliveryStep.update({ where: { id: production.id }, data: { state } });
+      expect(await db.$transaction((tx) => verifyReleaseEvidence(tx, f.policies, scope))).toBe(
+        false,
+      );
+      expect(await db.deliveryStep.findUnique({ where: { id: production.id } })).toMatchObject({
+        state,
+      });
+    });
+
   it("real full repository policy refuses semantic pass without independently authenticated repository gates", async () => {
     const f = await fixture();
     const service = new DeliveryAcceptanceService(db, f.store, {

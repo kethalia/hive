@@ -424,7 +424,10 @@ export async function openReleaseFromSignedEvidence(
     policies,
     productionEnabled: true,
     verifyCurrent: async (tx, c) =>
-      (await verifyReleaseEvidence(tx, f.policies, c)) &&
+      (await verifyReleaseEvidence(tx, f.policies, {
+        ...c,
+        milestone: "implementation_preview",
+      })) &&
       verifyReleaseAuthorityFact(tx, {
         ownerId: c.ownerId,
         taskId: c.taskId,
@@ -442,7 +445,10 @@ export async function openReleaseFromSignedEvidence(
     policies,
     productionEnabled: true,
     verifyOpening: async (tx, c) =>
-      (await verifyReleaseEvidence(tx, f.policies, c)) &&
+      (await verifyReleaseEvidence(tx, f.policies, {
+        ...c,
+        milestone: "implementation_preview",
+      })) &&
       verifyReleaseAuthorityFact(tx, {
         ...c,
         configDigest: authorityDigest,

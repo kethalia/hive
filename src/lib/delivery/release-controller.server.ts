@@ -16,10 +16,7 @@ import { ReleaseEffectRunner } from "./release-effect-runner.server";
 import { GitHubReleaseProvider } from "./release-github-provider.server";
 import { ReleaseLifecycle } from "./release-lifecycle.server";
 import { ReleaseObservationController } from "./release-observation-controller.server";
-import {
-  CloudflareReleaseObserver,
-  NativePreviewReleaseIdentityObserver,
-} from "./release-observer.server";
+import { CloudflareReleaseObserver } from "./release-observer.server";
 import { ReleasePlanner } from "./release-planner.server";
 import { releasePolicySchema } from "./release-policy-contracts";
 import { ReleaseScheduler } from "./release-scheduler.server";
@@ -260,32 +257,4 @@ export function createReleaseController(
     planner,
     scheduler: new ReleaseScheduler(db, githubSourceDigest(config.target), controller, planner),
   };
-}
-
-/** Deployment-only read foundation; intentionally separate from the effect
- * controller constructor. No dispatch/lifecycle/build/health authority exists. */
-export function createReleaseIdentityObservationController(
-  environment: {
-    nativePreviewIdentityEnabled?: string;
-    nativePreviewIdentityTargetJson?: string;
-    cloudflareToken?: string;
-  },
-  fetcher: typeof fetch = fetch,
-) {
-  if (environment.nativePreviewIdentityEnabled !== "true") return null;
-  try {
-    const config = environment.nativePreviewIdentityTargetJson;
-    if (!config || Buffer.byteLength(config) > 4096) throw Error();
-    const observer = new NativePreviewReleaseIdentityObserver(
-      JSON.parse(config),
-      environment.cloudflareToken ?? "",
-      fetcher,
-    );
-    return {
-      kind: "native-preview-identity" as const,
-      observeIdentity: (signal: AbortSignal) => observer.observeIdentity(signal),
-    };
-  } catch {
-    throw Error("release_native_preview_unavailable");
-  }
 }

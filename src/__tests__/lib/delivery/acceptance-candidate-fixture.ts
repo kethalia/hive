@@ -17,7 +17,7 @@ export async function acceptanceCandidateFixture(
   options: {
     producer?: typeof acceptanceFixtureProducer;
     native?: { managerThreadId?: string; parentTurnId?: string };
-    releaseRepository?: { fullName: string; baseBranch: string };
+    activationRequirement?: boolean;
   } = {},
 ) {
   let material: AcceptanceMaterialResolver;
@@ -26,7 +26,6 @@ export async function acceptanceCandidateFixture(
     (tx, scope, stored) => material.material(tx, scope, stored),
     options.producer,
     options.native,
-    options.releaseRepository,
   );
   vi.stubEnv("HIVE_GUARDIAN_ENABLED", "true");
   vi.stubEnv("HIVE_GUARDIAN_PRODUCER_ENABLED", "true");
@@ -45,6 +44,17 @@ export async function acceptanceCandidateFixture(
         intentRanges: [{ start: 0, end: Buffer.byteLength(f.originalIntent) }],
         verification: "Inspect sealed exact source and independently observed checks",
       },
+      ...(options.activationRequirement
+        ? [
+            {
+              id: "acceptance:activation",
+              meaning: "Verify the fixture behavior after production activation",
+              phase: "activation_production",
+              intentRanges: [{ start: 0, end: Buffer.byteLength(f.originalIntent) }],
+              verification: "Observe the actual production deployment and its behavior",
+            },
+          ]
+        : []),
     ],
     unresolved: [],
     rationale: "Synthetic independent output; no account inference",
@@ -127,6 +137,17 @@ export async function acceptanceCandidateFixture(
             criterionIds: ["acceptance:behavior"],
             requiredEvidenceKinds: ["review"],
           },
+          ...(options.activationRequirement
+            ? [
+                {
+                  id: randomUUID(),
+                  kind: "observe",
+                  acceptancePhase: "activation_production",
+                  criterionIds: ["acceptance:activation"],
+                  requiredEvidenceKinds: ["review", "observation"],
+                },
+              ]
+            : []),
         ],
       },
     }),
@@ -217,7 +238,7 @@ export async function acceptanceCandidateFixture(
     providerAccountId: f.project.providerAccountId,
     fullName: f.project.fullName,
     branch: `codex/delivery/${f.taskId}/${operationId}`,
-    baseBranch: options.releaseRepository?.baseBranch ?? "main",
+    baseBranch: "main",
     pullRequestId: "900",
     pullNumber: 7,
     issuedAt: Date.now() - 100,

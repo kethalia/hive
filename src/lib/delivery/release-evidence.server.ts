@@ -16,7 +16,14 @@ import { assertCompletionEvidence, DeliveryConflict, isInformationalStep } from 
 export async function verifyReleaseEvidence(
   tx: Prisma.TransactionClient,
   store: RepositoryPolicyStore,
-  scope: { ownerId: string; taskId: string; sourceSha: string },
+  scope: {
+    ownerId: string;
+    taskId: string;
+    sourceSha: string;
+    /** Only premerge callers may select the implementation milestone. Omission
+     * verifies the entire task, including production acceptance. */
+    milestone?: "implementation_preview" | "task_complete";
+  },
 ) {
   try {
     const task = await tx.deliveryTask.findUnique({
@@ -47,15 +54,43 @@ export async function verifyReleaseEvidence(
       return false;
     const acceptance = await acceptancePlanForIntent(tx, scope.ownerId, bound.binding.intentId);
     const actionable = task.steps.filter((step) => !isInformationalStep(step));
-    if (!acceptance || actionable.length === 0) return false;
-    // Revalidate immutable plan-to-step coverage at release time, including
-    // every requirement, rather than accepting legacy repository-only tasks.
+    if (
+      !acceptance ||
+      actionable.length === 0 ||
+      actionable.some(
+        (step) =>
+          !["implementation_preview", "activation_production"].includes(step.acceptancePhase),
+      ) ||
+      (scope.milestone !== undefined &&
+        !["implementation_preview", "task_complete"].includes(scope.milestone))
+    )
+      return false;
+    const selected =
+      scope.milestone === "implementation_preview"
+        ? actionable.filter((step) => step.acceptancePhase === "implementation_preview")
+        : actionable;
+    if (
+      (scope.milestone === "implementation_preview" &&
+        actionable.some(
+          (step) =>
+            step.acceptancePhase === "activation_production" &&
+            ["failed", "canceled"].includes(step.state),
+        )) ||
+      selected.length === 0 ||
+      (scope.milestone === "implementation_preview" &&
+        !acceptance.plan.requirements.some(
+          (requirement) => requirement.phase === "implementation_preview",
+        ))
+    )
+      return false;
+    // The premerge milestone defers production completion, never production
+    // plan coverage. Revalidate every immutable requirement before selecting
+    // evidence, including requirements outside this milestone.
     await bindAcceptanceTask(tx, scope.ownerId, scope.taskId, bound.binding.intentId);
     const semanticProducer = acceptanceEvidenceProducer(acceptance.digest);
     const adapters = repositoryPolicyAdapters(store),
       now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
-    for (const step of task.steps) {
-      if (isInformationalStep(step)) continue;
+    for (const step of selected) {
       if (step.state !== "succeeded") return false;
       const policyScope: ManagerPolicyScope = {
         ownerId: scope.ownerId,

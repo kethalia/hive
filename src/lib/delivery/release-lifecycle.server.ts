@@ -3,18 +3,11 @@ import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
 import { canonicalGitHubSource, githubSourceDigest } from "./github-evidence.server";
 import { isGitHubSerializationConflict } from "./github-persistence.server";
-import type { ReleaseActionIdentity } from "./release-action-journal";
 import { releaseActionIdentitySchema } from "./release-action-journal";
 import { releaseBaselinesSchema } from "./release-baseline-contracts";
 import { releaseBuildManifestSchema } from "./release-build-attestation.server";
 import { cloudflareReleaseRequestSchema } from "./release-cloudflare-provider.server";
 import { githubReleaseRequestSchema } from "./release-github-provider.server";
-import {
-  nativeBaselineSchema,
-  nativeBootstrapEnrollmentSchema,
-  nativePublicationRequestSchema,
-} from "./release-native-preview-contracts";
-import type { NativePreviewReleaseTarget } from "./release-native-preview-reader.server";
 import { appendReleaseNotice } from "./release-notice.server";
 import { releasePolicyCovers, releasePolicySchema } from "./release-policy-contracts";
 import type { RepositoryPolicyStore } from "./repository-policy-store.server";
@@ -42,43 +35,6 @@ export class ReleaseLifecycle {
       policies(): unknown;
       productionEnabled?: boolean;
       singleWorker?: boolean;
-      nativeTarget?: NativePreviewReleaseTarget;
-      nativeBootstrap?: {
-        enrollment: unknown;
-        authorityConfigDigest: string;
-        observationConfigDigest: string;
-        observationWindowMs: number;
-      };
-      verifyNativeOpening?(
-        tx: Tx,
-        scope: {
-          ownerId: string;
-          taskId: string;
-          sourceSha: string;
-          targetDigest: string;
-          riskAttestationDigest: string;
-          baselines: z.infer<typeof nativeBaselineSchema>;
-        },
-      ): Promise<boolean>;
-      verifyNativePreparation?(
-        tx: Tx,
-        ownerId: string,
-        identity: ReleaseActionIdentity,
-        snapshot: unknown,
-        completed: {
-          id: string;
-          kind: string;
-          request: Record<string, unknown>;
-          receipt: Record<string, unknown>;
-        }[],
-      ): Promise<boolean>;
-      recordNativeBaseline?(
-        tx: Tx,
-        ownerId: string,
-        releaseId: string,
-        evidence: Record<string, unknown>,
-        evidenceDigest: string,
-      ): Promise<void>;
       resolveDatabasePin?(
         tx: Tx,
         scope: { ownerId: string; taskId: string; sourceSha: string; targetDigest: string },
@@ -125,18 +81,14 @@ export class ReleaseLifecycle {
         taskId: uuid,
         policyVersionId: uuid,
         riskAttestationDigest: digest,
-        baselines: z.union([releaseBaselinesSchema, nativeBaselineSchema]),
+        baselines: releaseBaselinesSchema,
         riskClass: z.enum(["application_only", "database"]).default("application_only"),
       })
       .strict()
       .parse(raw);
-    const native = nativeBaselineSchema.safeParse(input.baselines);
-    if (native.success !== !!this.dependencies.nativeTarget) return deny();
     if (
-      !native.success &&
       this.dependencies.singleWorker &&
-      githubSourceDigest(releaseBaselinesSchema.parse(input.baselines).app) !==
-        githubSourceDigest(releaseBaselinesSchema.parse(input.baselines).auth)
+      githubSourceDigest(input.baselines.app) !== githubSourceDigest(input.baselines.auth)
     )
       return deny();
     return this.transaction(async (tx) => {
@@ -180,24 +132,16 @@ export class ReleaseLifecycle {
         )
       )
         return deny();
-      const opening = {
-        ownerId: input.ownerId,
-        taskId: input.taskId,
-        sourceSha: source.headSha,
-        targetDigest: policy.targetDigest,
-        riskAttestationDigest: input.riskAttestationDigest,
-      };
       if (
-        native.success
-          ? !(await this.dependencies.verifyNativeOpening?.(tx, {
-              ...opening,
-              baselines: native.data,
-            }))
-          : !(await this.dependencies.verifyOpening(tx, {
-              ...opening,
-              baselines: releaseBaselinesSchema.parse(input.baselines),
-              riskClass: input.riskClass,
-            }))
+        !(await this.dependencies.verifyOpening(tx, {
+          ownerId: input.ownerId,
+          taskId: input.taskId,
+          sourceSha: source.headSha,
+          targetDigest: policy.targetDigest,
+          riskAttestationDigest: input.riskAttestationDigest,
+          baselines: input.baselines,
+          riskClass: input.riskClass,
+        }))
       )
         return deny();
       const database =
@@ -212,18 +156,6 @@ export class ReleaseLifecycle {
       if (input.riskClass === "database" && !database) return deny();
       const snapshot = {
         schemaVersion: 1,
-        ...(native.success
-          ? {
-              provider: "cloudflare-native-preview",
-              native: {
-                provider: "cloudflare-native-preview",
-                target: this.dependencies.nativeTarget,
-                externalWriterPolicy: "observed-drift-hold-no-atomic-cas",
-                purpose: "publication",
-                recoveryBaseline: native.data,
-              },
-            }
-          : {}),
         ...(this.dependencies.singleWorker ? { topology: "single" as const } : {}),
         policyVersionId: policy.versionId,
         repositoryPolicyDigest: bound.binding.policyDigest,
@@ -271,89 +203,6 @@ export class ReleaseLifecycle {
       return { releaseId: input.id, generation, replay: false };
     });
   }
-  /** Initial enrollment is deployment-owned, not a model/task request. It has
-   * no recovery promise until independently accepted sampled health is stored. */
-  async openNativeBootstrap() {
-    const configured = this.dependencies.nativeBootstrap,
-      target = this.dependencies.nativeTarget;
-    if (!configured || !target) return deny();
-    const b = nativeBootstrapEnrollmentSchema.parse(configured.enrollment),
-      targetDigest = githubSourceDigest(target);
-    return this.transaction(async (tx) => {
-      await tx.$executeRaw`INSERT INTO delivery_release_targets(target_digest) VALUES (${targetDigest}) ON CONFLICT DO NOTHING`;
-      const lock = (
-        await tx.$queryRaw<
-          { active_release_id: string | null; generation: number }[]
-        >`SELECT active_release_id,generation FROM delivery_release_targets WHERE target_digest=${targetDigest} FOR UPDATE`
-      )[0];
-      const accepted = await tx.$queryRaw<
-        { observation_digest: string }[]
-      >`SELECT observation_digest FROM delivery_native_release_baselines WHERE target_digest=${targetDigest} LIMIT 1`;
-      if (accepted.length || (lock.active_release_id && lock.active_release_id !== b.releaseId))
-        return deny();
-      const sources = await tx.$queryRaw<
-        {
-          source_sha: string | null;
-          source_revision_id: string | null;
-          head_sha: string;
-          pause_requested: boolean;
-          scheduling_paused: boolean;
-        }[]
-      >`SELECT t.source_sha,t.source_revision_id,s.head_sha,t.pause_requested,t.scheduling_paused FROM delivery_tasks t JOIN delivery_source_revisions s ON s.id=${b.sourceRevisionId}::uuid AND s.owner_id=t.owner_id AND s.task_id=t.id WHERE t.id=${b.taskId}::uuid AND t.owner_id=${b.ownerId}::uuid FOR UPDATE OF t`;
-      const source = sources[0];
-      if (
-        !source ||
-        source.head_sha !== b.sourceSha ||
-        source.source_revision_id !== b.sourceRevisionId ||
-        source.source_sha !== b.sourceSha ||
-        source.pause_requested ||
-        source.scheduling_paused
-      )
-        return deny();
-      const snapshot = {
-        schemaVersion: 1,
-        provider: "cloudflare-native-preview",
-        sourceSha: b.sourceSha,
-        bootstrapApprovalDigest: githubSourceDigest(b),
-        authorityConfigDigest: configured.authorityConfigDigest,
-        observationConfigDigest: configured.observationConfigDigest,
-        observationWindowMs: configured.observationWindowMs,
-        native: {
-          provider: "cloudflare-native-preview",
-          target,
-          externalWriterPolicy: "observed-drift-hold-no-atomic-cas",
-          purpose: "bootstrap-baseline",
-          recoveryBaseline: null,
-        },
-      };
-      if (lock.active_release_id) {
-        const previous = await tx.$queryRaw<
-          { snapshot_digest: string }[]
-        >`SELECT snapshot_digest FROM delivery_releases WHERE id=${b.releaseId}::uuid AND owner_id=${b.ownerId}::uuid`;
-        if (previous[0]?.snapshot_digest !== githubSourceDigest(snapshot)) return deny();
-        return { releaseId: b.releaseId, generation: lock.generation, replay: true };
-      }
-      const resource = githubSourceDigest({
-        provider: "cloudflare-native-preview",
-        accountId: target.accountId,
-        workerName: target.workerName,
-        previewId: target.previewId,
-      });
-      await tx.$executeRaw`INSERT INTO delivery_release_target_members(resource_digest,target_digest) VALUES (${resource},${targetDigest}) ON CONFLICT DO NOTHING`;
-      const owners = await tx.$queryRaw<
-        { target_digest: string }[]
-      >`SELECT target_digest FROM delivery_release_target_members WHERE resource_digest=${resource} FOR UPDATE`;
-      if (owners[0]?.target_digest !== targetDigest) return deny();
-      await tx.$executeRaw`INSERT INTO delivery_releases(id,owner_id,task_id,source_revision_id,target_digest,policy_digest,snapshot,snapshot_digest) VALUES (${b.releaseId}::uuid,${b.ownerId}::uuid,${b.taskId}::uuid,${b.sourceRevisionId}::uuid,${targetDigest},${githubSourceDigest(b)},${canonicalGitHubSource(snapshot)}::jsonb,${githubSourceDigest(snapshot)})`;
-      await tx.$executeRaw`UPDATE delivery_release_targets SET active_release_id=${b.releaseId}::uuid,generation=generation+1 WHERE target_digest=${targetDigest}`;
-      if (
-        (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now.getTime() >=
-        b.expiresAt
-      )
-        return deny();
-      return { releaseId: b.releaseId, generation: lock.generation + 1, replay: false };
-    });
-  }
   async prepare(ownerId: string, raw: unknown) {
     uuid.parse(ownerId);
     const input = z
@@ -368,13 +217,7 @@ export class ReleaseLifecycle {
     const encoded = canonicalGitHubSource(input.request);
     if (Buffer.byteLength(encoded) > 32768) return deny();
     if (input.kind === "merge") githubReleaseRequestSchema.parse(input.request);
-    else if (input.request.provider === "cloudflare-native-preview") {
-      if (!this.dependencies.nativeTarget) return deny();
-      nativePublicationRequestSchema.parse(input.request);
-    } else {
-      if (this.dependencies.nativeTarget) return deny();
-      cloudflareReleaseRequestSchema.parse(input.request);
-    }
+    else cloudflareReleaseRequestSchema.parse(input.request);
     return this.transaction(async (tx) => {
       const rows = await tx.$queryRaw<
         {
@@ -431,19 +274,7 @@ export class ReleaseLifecycle {
         (a) => a.kind === "merge" && a.receipt?.provider === "github",
       );
       if (input.kind === "merge" && merges.length) return deny();
-      const isNative = input.request.provider === "cloudflare-native-preview";
-      if (
-        isNative &&
-        !(await this.dependencies.verifyNativePreparation?.(
-          tx,
-          ownerId,
-          identity,
-          row.snapshot,
-          completed,
-        ))
-      )
-        return deny();
-      if (input.kind === "promote" && !isNative) {
+      if (input.kind === "promote") {
         const baselines = z
           .object({ baselines: releaseBaselinesSchema })
           .passthrough()
@@ -500,7 +331,7 @@ export class ReleaseLifecycle {
           if (!stage.length) return deny();
         }
       }
-      if (input.kind === "recover" && !isNative) {
+      if (input.kind === "recover") {
         const priorPromotion = completed.filter(
           (a) => a.kind === "promote" && a.request.component === input.request.component,
         );
@@ -624,9 +455,7 @@ export class ReleaseLifecycle {
             startedAt: z.number().int().nonnegative().safe(),
             endedAt: z.number().int().nonnegative().safe(),
             smoke: z.literal("passed"),
-            metrics: this.dependencies.nativeTarget
-              ? z.literal("sampled-only")
-              : z.literal("passed"),
+            metrics: z.literal("passed"),
           })
           .passthrough()
           .safeParse(input.evidence);
@@ -651,18 +480,8 @@ export class ReleaseLifecycle {
       if (
         pending.length ||
         (input.kind === "healthy" &&
-          !(
-            this.dependencies.nativeTarget
-              ? ["native-preview"]
-              : this.dependencies.singleWorker
-                ? ["app"]
-                : ["app", "auth"]
-          ).every((component) =>
-            promotions.some((a) =>
-              component === "native-preview"
-                ? a.request.provider === "cloudflare-native-preview"
-                : a.request.component === component,
-            ),
+          !(this.dependencies.singleWorker ? ["app"] : ["app", "auth"]).every((component) =>
+            promotions.some((a) => a.request.component === component),
           )) ||
         (input.kind === "regression" && promotions.length === 0) ||
         (input.kind === "recovered" &&
@@ -673,14 +492,6 @@ export class ReleaseLifecycle {
       )
         return deny();
       await tx.$executeRaw`INSERT INTO delivery_release_observations(id,release_id,kind,evidence,evidence_digest) VALUES (${randomUUID()}::uuid,${input.releaseId}::uuid,${input.kind},${encoded}::jsonb,${evidenceDigest})`;
-      if (this.dependencies.nativeTarget && ["healthy", "recovered"].includes(input.kind))
-        await this.dependencies.recordNativeBaseline?.(
-          tx,
-          ownerId,
-          input.releaseId,
-          input.evidence,
-          evidenceDigest,
-        );
       await appendReleaseNotice(tx, {
         ownerId,
         taskId: row.task_id,
