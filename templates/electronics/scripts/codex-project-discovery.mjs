@@ -75,6 +75,9 @@ export function createProjectDiscovery(config, controller) {
       "stateDirectory",
       "helperPath",
       "helperSha256",
+      ...(config.epicMergePath || config.epicMergeSha256
+        ? ["epicMergePath", "epicMergeSha256"]
+        : []),
     ]),
   );
   check(
@@ -107,6 +110,7 @@ export function createProjectDiscovery(config, controller) {
     constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW,
     0o600,
   );
+  const verifiedDeadlines = new WeakMap();
   let nonces = new Map(),
     closed = false,
     busy = false;
@@ -202,6 +206,7 @@ export function createProjectDiscovery(config, controller) {
     check(nonces.size < 4096 && !nonces.has(c.jti));
     nonces.set(c.jti, c.exp);
     persist();
+    verifiedDeadlines.set(r, c.exp * 1000);
     return r;
   }
   function runHelper(request) {
@@ -210,11 +215,29 @@ export function createProjectDiscovery(config, controller) {
       createHash("sha256").update(readFileSync(config.helperPath)).digest("hex") ===
         config.helperSha256,
     );
+    const merge = ["prepare", "dispatch", "lookup"].includes(request.operation);
+    if (merge) {
+      check(
+        isAbsolute(config.epicMergePath) &&
+          realpathSync(config.epicMergePath) === config.epicMergePath &&
+          /^[a-f0-9]{64}$/.test(config.epicMergeSha256) &&
+          createHash("sha256").update(readFileSync(config.epicMergePath)).digest("hex") ===
+            config.epicMergeSha256,
+      );
+    }
     const env = Object.fromEntries(
       ["PATH", "HOME", "CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE", "CODER_AGENT_URL"]
         .filter((k) => process.env[k] !== undefined)
         .map((k) => [k, process.env[k]]),
     );
+    const deadlineMs = verifiedDeadlines.get(request);
+    if (merge) check(Number.isSafeInteger(deadlineMs) && deadlineMs > Date.now());
+    if (merge)
+      Object.assign(env, {
+        HIVE_EPIC_MERGE_DEADLINE_MS: String(deadlineMs),
+        HIVE_EPIC_MERGE_NODE: process.execPath,
+        HIVE_EPIC_MERGE_ENTRY: config.epicMergePath,
+      });
     return new Promise((resolve, reject) => {
       const child = spawn("/usr/bin/python3", [config.helperPath], {
         env,
@@ -237,7 +260,7 @@ export function createProjectDiscovery(config, controller) {
         kill();
         reject(new Error("discovery_unavailable"));
       };
-      const timer = setTimeout(fail, 8000);
+      const timer = setTimeout(fail, merge ? Math.min(30000, deadlineMs - Date.now()) : 8000);
       child.on("error", fail);
       child.stdin.on("error", fail);
       child.stdout.on("data", (chunk) => {
@@ -252,6 +275,16 @@ export function createProjectDiscovery(config, controller) {
         try {
           const result = JSON.parse(Buffer.concat(chunks).toString());
           if (status === 0) {
+            if (merge) {
+              check(
+                exact(result, ["schemaVersion", "operation", "requestId", "result"]) &&
+                  result.schemaVersion === 1 &&
+                  result.operation === request.operation &&
+                  result.requestId === request.requestId,
+              );
+              resolve(result);
+              return;
+            }
             if (["observe_merge", "lineage"].includes(request.operation)) {
               check(
                 result.schemaVersion === 1 &&
@@ -341,8 +374,8 @@ export function createProjectDiscovery(config, controller) {
       const result =
         request.url === "/projects/discover"
           ? await discover(value)
-          : request.url === "/projects/epic-read"
-            ? await epicRead(verifyTicket(value, request.url))
+          : ["/projects/epic-read", "/projects/epic-merge"].includes(request.url)
+            ? await epicRead(verifyTicket(value, request.url), request.url)
             : await controller?.handle(request.url, verifyTicket(value, request.url));
       check(!closed && result);
       response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
@@ -351,9 +384,9 @@ export function createProjectDiscovery(config, controller) {
       clearTimeout(timer);
     }
   }
-  async function epicRead(request) {
+  async function epicRead(request, path = "/projects/epic-read") {
     check(!closed && !busy);
-    validateProjectOperation("/projects/epic-read", request);
+    validateProjectOperation(path, request);
     busy = true;
     try {
       return await runHelper(request);

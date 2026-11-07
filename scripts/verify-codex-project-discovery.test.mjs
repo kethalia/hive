@@ -32,7 +32,7 @@ import {
   startDiscoveryGateway,
 } from "../templates/ai-dev-k8s/scripts/codex-project-discovery.mjs";
 
-function fixture(controller, helperCode) {
+function fixture(controller, helperCode, mergeCode) {
   const root = mkdtempSync(join(tmpdir(), "hive-discovery-")),
     helperPath = join(root, "helper.py"),
     issuer = generateKeyPairSync("ed25519");
@@ -59,6 +59,11 @@ function fixture(controller, helperCode) {
     helperPath,
     helperSha256: createHash("sha256").update(code).digest("hex"),
   };
+  if (mergeCode) {
+    config.epicMergePath = join(root, "epic-merge-host.mjs");
+    writeFileSync(config.epicMergePath, mergeCode, { mode: 0o600 });
+    config.epicMergeSha256 = createHash("sha256").update(mergeCode).digest("hex");
+  }
   const host = createProjectDiscovery(config, controller);
   const ticket = (patch = {}) => {
     const now = Math.floor(Date.now() / 1000),
@@ -405,6 +410,72 @@ test("exact ref tickets cannot substitute resolve scope or inject branch express
     assert.equal((await send("projects:resolve-ref", { ...request, branch: "main^" })).status, 403);
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0], { path: "/projects/resolve-ref", request });
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("epic merge RPC has a separate signed capability, pinned sidecar and no native-controller dispatch", async () => {
+  const f = fixture(
+    {
+      handle() {
+        throw Error("Must not enter native controller");
+      },
+    },
+    `import json,sys,os
+r=json.load(sys.stdin)
+assert len(os.environ["HIVE_EPIC_MERGE_DEADLINE_MS"]) == 13
+assert os.path.isabs(os.environ['HIVE_EPIC_MERGE_NODE']) and os.path.isabs(os.environ['HIVE_EPIC_MERGE_ENTRY'])
+assert 'CODER_SESSION_TOKEN' not in os.environ and 'GITHUB_TOKEN' not in os.environ
+print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['requestId'],'result':None}))
+`,
+    "// pinned fixed merge entry\n",
+  );
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const request = {
+      schemaVersion: 1,
+      requestId: randomUUID(),
+      operation: "prepare",
+      config: {},
+      gates: {},
+      source: {
+        repositoryId: "123",
+        pullRequestId: "900",
+        pullNumber: 7,
+        headSha: "a".repeat(40),
+        baseRef: "epic/fixture",
+        sourceBranch: "codex/fixture",
+      },
+    };
+    const send = (scope, value = request, path = "/projects/epic-merge") =>
+      http(`http://127.0.0.1:${gateway.port}${path}`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: f.ticket({ scope, request: value }) }),
+      });
+    assert.equal((await send("projects:epic:merge")).status, 200);
+    assert.equal((await send("projects:epic:read")).status, 403);
+    assert.equal((await send("projects:epic:merge", request, "/projects/epic-read")).status, 403);
+    assert.equal(
+      (
+        await send("projects:epic:merge", {
+          ...request,
+          source: { ...request.source, baseRef: "main" },
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (await send("projects:epic:merge", { ...request, command: "arbitrary" })).status,
+      403,
+    );
+    writeFileSync(f.config.epicMergePath, "// altered sidecar\n", { mode: 0o500 });
+    assert.equal((await send("projects:epic:merge")).status, 403);
   } finally {
     await gateway.close();
     f.close();

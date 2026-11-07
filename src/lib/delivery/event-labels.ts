@@ -20,6 +20,7 @@ const labels: Record<string, string> = {
   native_attempt_observed: "Agent execution requires attention",
   expired_attempt_reconciled: "Interrupted attempt reconciled",
   release_action_held: "Release action requires reconciliation",
+  release_integrated: "Reviewed child pull request integrated into the epic branch",
   release_healthy: "Release observation passed",
   release_regression: "Release regression detected",
   release_recovered: "Release recovery verified",

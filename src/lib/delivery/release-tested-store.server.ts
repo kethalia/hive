@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
+import { epicMergeTestEnrollmentSchema } from "./epic-merge-contracts";
 import { canonicalGitHubSource, githubSourceDigest } from "./github-evidence.server";
 import type { GitHubReleaseChangeRisk } from "./release-change-risk.server";
 import { githubReleaseRequestSchema } from "./release-github-provider.server";
@@ -16,29 +17,31 @@ import type { GitHubReleaseTestRunVerifier } from "./release-tested-run.server";
 import type { RepositoryPolicyStore } from "./repository-policy-store.server";
 
 const nonceHash = (nonce: string) => createHash("sha256").update(nonce, "hex").digest("hex");
-export function isReleaseTestControlPath(path: string) {
-  return (
-    path.startsWith(".github/workflows/") ||
-    path.startsWith(".github/actions/") ||
-    path.startsWith("scripts/release/") ||
-    path.startsWith("services/migrate/src/delivery/") ||
-    path.startsWith("src/lib/delivery/database-job-") ||
-    path.startsWith("src/lib/delivery/release-") ||
-    path.startsWith("src/lib/delivery/repository-policy") ||
-    path.startsWith("src/lib/delivery/acceptance-") ||
-    path.startsWith("src/lib/delivery/manager") ||
-    path.startsWith("src/lib/delivery/source-resolver") ||
-    path === "src/lib/delivery/state.ts" ||
-    path === "src/lib/delivery/contracts.ts" ||
-    path === "src/lib/delivery/completion-transaction.server.ts" ||
-    path.startsWith("src/app/api/internal/release-") ||
-    path === "src/proxy.ts" ||
-    /(?:^|\/)(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.pnpmfile\.[^/]+|[^/]+\.config\.[^/]+|tsconfig[^/]*\.json)$/.test(
-      path,
-    )
-  );
-}
+
+export { isReleaseTestControlPath } from "./release-control-paths";
+
+import { isReleaseTestControlPath } from "./release-control-paths";
+
 type Scope = z.infer<typeof releaseTestChallengeRequestSchema>;
+export interface ConnectedReleaseTestProvider {
+  authority(): unknown;
+  verifyConnected(
+    input: Scope,
+    scope: {
+      source: {
+        repositoryId: string;
+        pullRequestId: string;
+        pullNumber: number;
+        headSha: string;
+        baseBranch: string;
+        branch: string;
+      };
+      gates: import("./github-contracts").GitHubEvidencePolicy;
+    },
+    complete: boolean,
+    signal: AbortSignal,
+  ): Promise<void>;
+}
 /** Controller-owned nonce issuer. No token is stored. Every challenge and
  * attestation is immutable, scope-bound and single-use in PostgreSQL. */
 export class ReleaseTestStore {
@@ -46,16 +49,17 @@ export class ReleaseTestStore {
   constructor(
     private readonly db: PrismaClient,
     workflow: unknown,
-    private readonly run: GitHubReleaseTestRunVerifier,
+    private readonly run: GitHubReleaseTestRunVerifier | ConnectedReleaseTestProvider,
     private readonly repository: RepositoryPolicyStore,
     private readonly policies: () => unknown,
     private readonly targetDigest: string,
     private readonly authorityDigest: string,
-    private readonly rules: GitHubReleaseRules,
-    private readonly risk: GitHubReleaseChangeRisk,
+    private readonly rules: GitHubReleaseRules | undefined,
+    private readonly risk: GitHubReleaseChangeRisk | undefined,
     private readonly fetcher: typeof fetch = fetch,
   ) {
     this.workflow = releaseTestWorkflowSchema.parse(workflow);
+    if (!("verifyConnected" in run) && (!rules || !risk)) throw Error("release_test_unavailable");
     if (!/^[a-f0-9]{64}$/.test(targetDigest) || !/^[a-f0-9]{64}$/.test(authorityDigest))
       throw Error("release_test_unavailable");
   }
@@ -64,7 +68,7 @@ export class ReleaseTestStore {
       await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`
     )[0].now.getTime();
     const candidates = z
-      .array(releasePolicySchema)
+      .array(z.union([releasePolicySchema, epicMergeTestEnrollmentSchema]))
       .max(32)
       .parse(this.policies())
       .filter(
@@ -119,6 +123,8 @@ export class ReleaseTestStore {
     complete: boolean,
     signal: AbortSignal,
   ) {
+    if ("verifyConnected" in this.run) return this.run.verifyConnected(input, s, complete, signal);
+    if (!this.rules || !this.risk) throw Error("release_test_unavailable");
     const request = {
       repositoryId: input.repositoryId,
       pullRequestId: s.source.pullRequestId,

@@ -463,3 +463,87 @@ it("agent transport uses a fixed app endpoint and a scoped cookie", async () => 
     },
   ]);
 });
+
+it("acknowledges an eleven-second read-only merge preflight inside the full signed transport budget", async () => {
+  const f = fixture(),
+    fixedPath = "/projects/epic-merge";
+  f.coder.getApplicationAuthRedirect.mockResolvedValue(
+    `${origin + fixedPath}?coder_application_connect_api_key_35e783=encrypted`,
+  );
+  const fetcher: typeof fetch = async (_raw, init) => {
+    if (init?.method === "GET")
+      return new Response(null, {
+        status: 303,
+        headers: {
+          Location: fixedPath,
+          "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+        },
+      });
+    const signal = init?.signal;
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(done, 11000);
+      const abort = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
+        reject(signal?.reason);
+      };
+      function done() {
+        signal?.removeEventListener("abort", abort);
+        resolve();
+      }
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    });
+    return Response.json({ prepared: true });
+  };
+  expect(
+    await postToVerifiedWorkspaceApp(
+      f.coder,
+      f.issued.binding,
+      {
+        path: fixedPath,
+        body: JSON.stringify({ ticket: "signed-read-only-prepare" }),
+        expiresAt: Math.floor(Date.now() / 1000) + 40,
+      },
+      fetcher,
+    ),
+  ).toEqual({ prepared: true });
+}, 15000);
+
+it("never posts a new merge request after its signed deadline expires during authentication", async () => {
+  const f = fixture(),
+    fixedPath = "/projects/epic-merge",
+    began = Date.now();
+  let posts = 0;
+  f.coder.getApplicationAuthRedirect.mockResolvedValue(
+    `${origin + fixedPath}?coder_application_connect_api_key_35e783=encrypted`,
+  );
+  const now = vi.spyOn(Date, "now").mockReturnValue(began);
+  try {
+    await expect(
+      postToVerifiedWorkspaceApp(
+        f.coder,
+        f.issued.binding,
+        {
+          path: fixedPath,
+          body: JSON.stringify({ ticket: "expired" }),
+          expiresAt: Math.floor(began / 1000) + 2,
+        },
+        async (_raw, init) => {
+          if (init?.method === "POST") posts++;
+          now.mockReturnValue(began + 3000);
+          return new Response(null, {
+            status: 303,
+            headers: {
+              Location: fixedPath,
+              "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+            },
+          });
+        },
+      ),
+    ).rejects.toThrow();
+    expect(posts).toBe(0);
+  } finally {
+    now.mockRestore();
+  }
+});

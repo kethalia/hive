@@ -3,7 +3,7 @@ import { boundedReleaseJson } from "../../../deploy/cloudflare/app/release-healt
 import { githubSourceDigest } from "./github-evidence.server";
 import { githubReleaseRequestSchema } from "./release-github-provider.server";
 
-const configSchema = z
+export const releaseRiskConfigSchema = z
   .object({
     owner: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}$/),
     name: z.string().regex(/^[a-zA-Z0-9_.-]{1,100}$/),
@@ -52,13 +52,13 @@ const safePath = (p: string) =>
  * This does not replace CI, review, schema compatibility, or behavioral risk
  * attestation; those require their own independent authorities. */
 export class GitHubReleaseChangeRisk {
-  private readonly config: z.infer<typeof configSchema>;
+  private readonly config: z.infer<typeof releaseRiskConfigSchema>;
   constructor(
     rawConfig: unknown,
     private readonly token: string,
     private readonly fetcher: typeof fetch = fetch,
   ) {
-    this.config = configSchema.parse(rawConfig);
+    this.config = releaseRiskConfigSchema.parse(rawConfig);
     if (!token || token.length > 4096 || /[\r\n]/.test(token))
       throw new Error("release_risk_unavailable");
   }

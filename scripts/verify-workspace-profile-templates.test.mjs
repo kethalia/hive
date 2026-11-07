@@ -278,6 +278,19 @@ test("profile synchronization detects and removes obsolete shared scripts", (t) 
     join(fixtureRoot, "scripts/build-codex-host-bundle.mjs"),
   );
   cpSync(
+    join(repositoryRoot, "scripts/host-epic-merge.ts"),
+    join(fixtureRoot, "scripts/host-epic-merge.ts"),
+  );
+  mkdirSync(join(fixtureRoot, "src/lib"), { recursive: true });
+  cpSync(join(repositoryRoot, "src/lib/delivery"), join(fixtureRoot, "src/lib/delivery"), {
+    recursive: true,
+  });
+  mkdirSync(join(fixtureRoot, "deploy/cloudflare/app"), { recursive: true });
+  cpSync(
+    join(repositoryRoot, "deploy/cloudflare/app/release-health.ts"),
+    join(fixtureRoot, "deploy/cloudflare/app/release-health.ts"),
+  );
+  cpSync(
     join(repositoryRoot, "scripts/build-native-guardian.mjs"),
     join(fixtureRoot, "scripts/build-native-guardian.mjs"),
   );
