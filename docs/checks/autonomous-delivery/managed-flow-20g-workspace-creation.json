@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "35dded27-d8bd-479c-a44a-f20b766349af",
+  "workspaceName": "hive-managed-flow-20g",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-07T16:05:41.255738Z",
+  "buildId": "fe760ceb-5b53-4810-9848-22077c24ffc1",
+  "templateVersionId": "1e400654-ecba-49b7-af95-63f0926e0a77",
+  "task": "managed-cloudflare-delivery-pilot",
+  "classification": "unmanaged persistent test workspace; no automatic deletion",
+  "storage": "20Gi",
+  "ttlMs": 7200000,
+  "sameReviewedImage": "ghcr.io/kethalia/hive-base@sha256:a840cda894bbd5ac0c581a78b5623eb7c848f4446399852a4f5961515d5047c6",
+  "globalActivationChanged": false,
+  "reason": "Existing100Gi empty validation volume could not schedule; retained earlier uncertain workspaces"
+}

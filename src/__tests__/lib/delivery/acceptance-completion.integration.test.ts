@@ -4,14 +4,20 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { AcceptanceSuccessController } from "@/lib/delivery/acceptance-completion.server";
 import { acceptanceDigest, requireIntentDigest } from "@/lib/delivery/acceptance-contracts";
 import { DeliveryAcceptanceService } from "@/lib/delivery/acceptance-service.server";
+import { acceptedDatabasePlan } from "@/lib/delivery/database-job-store.server";
 import { PostgresReleaseEffectJournal } from "@/lib/delivery/release-effect-journal.server";
 import { verifyReleaseEvidence } from "@/lib/delivery/release-evidence.server";
 import { repositoryPolicyAdapters } from "@/lib/delivery/repository-policy.server";
+import {
+  databaseJobRequestSchema,
+  verifyDatabaseResponse,
+} from "../../../../services/migrate/src/delivery/wire.mjs";
 import { acceptanceCandidateFixture } from "./acceptance-candidate-fixture";
 import {
   collectCompletionProviderFacts,
   completionServices,
 } from "./acceptance-completion-fixture";
+import { databaseApprovalFixture } from "./database-job-approval-fixture";
 import { openReleaseFromSignedEvidence } from "./release-autonomous-fixture";
 
 const url = process.env.HIVE_ACCEPTANCE_TEST_DATABASE_URL;
@@ -250,6 +256,88 @@ describe.skipIf(!url)("controller factual completion", () => {
     expect(
       await new PostgresReleaseEffectJournal(db, f.user.id, release.authorize).begin(actions[0].id),
     ).toBeNull();
+  }, 15000);
+
+  it("approves a compatible migration plan from preview acceptance without granting execution or production completion", async () => {
+    const f = await fixture(true, true);
+    await collectCompletionProviderFacts(db, f, f.publication.operationId);
+    await f.service.dispatch(f.envelope({ action: "complete_verified", terminal: f.terminal }));
+    const d = databaseApprovalFixture(db, f),
+      signal = () => AbortSignal.timeout(15000);
+    const approve = () => d.store.approve(d.request, d.token(d.request), signal());
+    await expect(
+      d.store.approve(d.request, d.token({ ...d.request, sourceSha: "0".repeat(40) }), signal()),
+    ).rejects.toThrow("database_oidc_scope");
+    d.failCompatibility();
+    await expect(approve()).rejects.toThrow("database_job_authority_unavailable");
+    expect(
+      await db.deliveryEvent.count({ where: { taskId: f.taskId, type: "database_plan_approved" } }),
+    ).toBe(0);
+    d.passCompatibility();
+    const production = await db.deliveryStep.findFirstOrThrow({
+      where: { taskId: f.taskId, acceptancePhase: "activation_production" },
+    });
+    const approved = verifyDatabaseResponse(await approve(), d.request, d.catalog);
+    expect(approved.data).toMatchObject({ executionAuthorized: false });
+    const plan = await db.$transaction((tx) =>
+      acceptedDatabasePlan(
+        tx,
+        {
+          ownerId: f.user.id,
+          taskId: f.taskId,
+          sourceSha: f.publication.headSha,
+        },
+        d.catalog,
+      ),
+    );
+    expect(approved.data.planEventId).toBe(plan.id);
+    expect(approved.data.planDigest).toBe(plan.planDigest);
+    expect(await db.deliveryStep.findUnique({ where: { id: production.id } })).toEqual(production);
+    expect(await db.deliveryEvidence.count({ where: { stepId: production.id } })).toBe(0);
+    expect(
+      await db.$transaction((tx) =>
+        verifyReleaseEvidence(tx, f.policies, {
+          ownerId: f.user.id,
+          taskId: f.taskId,
+          sourceSha: f.publication.headSha,
+        }),
+      ),
+    ).toBe(false);
+
+    const job = databaseJobRequestSchema.parse({
+      schemaVersion: 1,
+      purpose: "database_job",
+      catalogId: d.catalog.id,
+      ownerId: f.user.id,
+      taskId: f.taskId,
+      sourceSha: f.publication.headSha,
+      githubRunId: "12",
+      githubRunAttempt: 1,
+      requestId: randomUUID(),
+      releaseId: randomUUID(),
+      targetDigest: d.catalog.targetDigest,
+      generation: 1,
+      planEventId: plan.id,
+      operation: "authorize",
+      action: "expand",
+    });
+    await expect(d.store.job(job, d.token(job), signal())).rejects.toThrow(
+      "database_job_authority_unavailable",
+    );
+    await db.deliveryStep.update({ where: { id: production.id }, data: { state: "failed" } });
+    await expect(approve()).rejects.toThrow("database_job_authority_unavailable");
+    await db.deliveryStep.update({
+      where: { id: production.id },
+      data: { state: production.state },
+    });
+    await db.deliveryEvidence.update({
+      where: { id: f.evidence.id },
+      data: { invalidatedAt: new Date() },
+    });
+    await expect(approve()).rejects.toThrow("database_job_authority_unavailable");
+    expect(
+      await db.deliveryEvent.count({ where: { taskId: f.taskId, type: "database_plan_approved" } }),
+    ).toBe(1);
   }, 15000);
 
   for (const state of ["failed", "canceled"] as const)

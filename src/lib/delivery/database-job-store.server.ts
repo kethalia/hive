@@ -123,7 +123,12 @@ export class DatabaseJobStore {
       request.ownerId !== catalog.ownerId ||
       rows[0].source_sha !== request.sourceSha ||
       rows[0].repository_id !== catalog.repositoryId ||
-      !(await verifyReleaseEvidence(tx, this.repositoryPolicies, request))
+      // Approval and the migration job precede production verification. Current
+      // release/target/plan authorization remains a separate job() requirement.
+      !(await verifyReleaseEvidence(tx, this.repositoryPolicies, {
+        ...request,
+        milestone: "implementation_preview",
+      }))
     )
       return fail();
   }

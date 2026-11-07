@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { PILOT_EVIDENCE_BUCKET } from "../app/delivery-pilot-bucket.mjs";
 import {
   account,
   oauthPreviewBranch,
@@ -21,7 +22,6 @@ test("isolated bootstrap and preview config have no production data or service b
     (c) => (c.services = [{ binding: "AUTH_SERVICE", service: "production" }]),
     (c) => (c.previews.services = [{ binding: "AUTH_SERVICE", service: "production" }]),
     (c) => (c.previews.r2_buckets = [{ binding: "DATA", bucket_name: "production" }]),
-    (c) => (c.previews.vars.HIVE_DELIVERY_ENABLED = "true"),
     (c) => (c.previews.vars.DATABASE_URL = "postgres://bad"),
     (c) => (c.previews.placement = { region: "aws:eu-central-1" }),
     (c) => delete c.previews.placement,
@@ -42,6 +42,84 @@ test("isolated bootstrap and preview config have no production data or service b
     "AUTH_SERVICE_SECRET",
     "HIVE_CODER_OAUTH_CLIENT_SECRET",
   ]);
+});
+test("reviewed public host and guarded-manager settings can opt in through the managed Preview", () => {
+  const c = clone();
+  Object.assign(c.previews.vars, {
+    HIVE_PROJECT_DISCOVERY_ENABLED: "true",
+    HIVE_PROJECT_TASKS_ENABLED: "true",
+    HIVE_DELIVERY_ENABLED: "true",
+    HIVE_CODEX_GATEWAY_ENABLED: "true",
+    HIVE_PUBLIC_ORIGIN: "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+    HIVE_CODEX_HIVE_ORIGIN: "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+    HIVE_CODEX_ISSUER_KEY_ID: "reviewed-existing-host",
+    HIVE_CODEX_ISSUER_PUBLIC_KEY: "public host key; validated by the existing runtime",
+    HIVE_CODEX_MANAGER_MODEL: "gpt-6.1-sol",
+    HIVE_CODEX_MANAGER_EFFORT: "high",
+    HIVE_GUARDIAN_ENABLED: "true",
+    HIVE_GUARDIAN_APPROVED_PACKAGES_JSON: "[]",
+    HIVE_DELIVERY_MANAGER_ENABLED: "true",
+    HIVE_DELIVERY_EXECUTION_ENABLED: "true",
+    HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED: "true",
+    HIVE_DELIVERY_REPOSITORY_POLICIES_JSON: "[]",
+    HIVE_DELIVERY_ACCEPTANCE_ENABLED: "true",
+    HIVE_DELIVERY_ACCEPTANCE_PRODUCER: "{}",
+    HIVE_GUARDIAN_SOURCE_APPLICATION_ENABLED: "true",
+    HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED: "true",
+  });
+  c.previews.r2_buckets = [
+    { binding: "HIVE_DELIVERY_EVIDENCE", bucket_name: PILOT_EVIDENCE_BUCKET.name },
+  ];
+  assert.doesNotThrow(() => validateConfig(c));
+  assert.equal(
+    plan({ branch: oauthPreviewBranch, target: "preview", config: c }).target,
+    "preview",
+  );
+  assert.throws(() => plan({ branch: "main", target: "production", config: c }));
+  assert.deepEqual(c.vars, { HIVE_NATIVE_MODE: "bootstrap" });
+  assert.deepEqual(c.triggers, { crons: [] });
+  assert.equal(c.previews.vars.HIVE_DELIVERY_DISPATCH_ENABLED, "false");
+  assert.equal(c.previews.vars.HIVE_TOKEN_ROTATION_ENABLED, "false");
+});
+test("Preview enrollment rejects credentials, unknown settings, production authority and resource drift", () => {
+  for (const change of [
+    (c) => (c.previews.vars.HIVE_CODEX_ISSUER_PRIVATE_KEY = "private"),
+    (c) => (c.previews.vars.HIVE_DELIVERY_RELEASE_GITHUB_TOKEN = "credential"),
+    (c) => (c.previews.vars.HIVE_UNKNOWN_SETTING = "true"),
+    (c) => (c.previews.vars.HIVE_DELIVERY_MANAGER_ENABLED = "yes"),
+    (c) => (c.previews.vars.HIVE_DELIVERY_MANAGER_ENABLED = true),
+    (c) => (c.previews.vars.HIVE_PUBLIC_ORIGIN = "https://other.invalid"),
+    (c) => (c.previews.vars.HIVE_CODEX_HIVE_ORIGIN = "https://other.invalid"),
+    (c) => (c.previews.vars.HIVE_NATIVE_MODE = "production"),
+    (c) => (c.previews.vars.HIVE_DISABLE_BACKGROUND_WORKERS = "false"),
+    (c) => (c.previews.vars.HIVE_DELIVERY_DISPATCH_ENABLED = "true"),
+    (c) => (c.previews.vars.HIVE_TOKEN_ROTATION_ENABLED = "true"),
+    (c) => (c.previews.vars.HIVE_DELIVERY_EPICS_ENABLED = "true"),
+    (c) => (c.previews.vars.HIVE_DELIVERY_RELEASE_ENABLED = "true"),
+    (c) => (c.previews.vars.HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED = "true"),
+    (c) => (c.previews.vars.HIVE_DELIVERY_DATABASE_ENABLED = "true"),
+    (c) => (c.previews.vars.HIVE_NATIVE_PRODUCTION_ACTIVE = "true"),
+    (c) => (c.previews.vars.HIVE_GUARDIAN_APPROVED_PACKAGES_JSON = "x".repeat(262145)),
+    (c) => delete c.previews.vars.HIVE_PROJECT_TASKS_ENABLED,
+    (c) =>
+      (c.previews.r2_buckets = [{ binding: "HIVE_DELIVERY_EVIDENCE", bucket_name: "production" }]),
+    (c) =>
+      (c.previews.r2_buckets = [{ binding: "OTHER", bucket_name: PILOT_EVIDENCE_BUCKET.name }]),
+    (c) =>
+      (c.previews.r2_buckets = [
+        {
+          binding: "HIVE_DELIVERY_EVIDENCE",
+          bucket_name: PILOT_EVIDENCE_BUCKET.name,
+          remote: true,
+        },
+      ]),
+    (c) => (c.previews.triggers = { crons: ["* * * * *"] }),
+    (c) => (c.previews.routes = ["production.example/*"]),
+  ]) {
+    const c = clone();
+    change(c);
+    assert.throws(() => validateConfig(c));
+  }
 });
 test("branch name preserves the provider-managed Preview identity", () => {
   const a = previewTarget("codex/example-branch");

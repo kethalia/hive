@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { assertBuildReady } from "../app/build-integrity.mjs";
+import { PILOT_EVIDENCE_BUCKET } from "../app/delivery-pilot-bucket.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../../..");
@@ -19,14 +20,70 @@ const requiredSecrets = [
   "AUTH_SERVICE_SECRET",
   "HIVE_CODER_OAUTH_CLIENT_SECRET",
 ];
-const disabled = [
+const previewFeatures = [
   "HIVE_PROJECT_DISCOVERY_ENABLED",
   "HIVE_PROJECT_TASKS_ENABLED",
   "HIVE_DELIVERY_ENABLED",
   "HIVE_CODEX_GATEWAY_ENABLED",
+];
+const disabled = [
   "HIVE_DELIVERY_DISPATCH_ENABLED",
   "HIVE_TOKEN_ROTATION_ENABLED",
+  "HIVE_DELIVERY_EPICS_ENABLED",
+  "HIVE_DELIVERY_RELEASE_ENABLED",
+  "HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED",
+  "HIVE_DELIVERY_DATABASE_ENABLED",
+  "HIVE_NATIVE_PRODUCTION_ACTIVE",
 ];
+// Public settings consumed by the existing host, project and guarded-manager
+// runtimes. Those runtimes own policy/pin validation; deployment does not add a
+// second policy schema or accept plaintext credential settings.
+const previewRuntimeVars = new Set([
+  "HIVE_CODEX_ISSUER_KEY_ID",
+  "HIVE_CODEX_ISSUER_PUBLIC_KEY",
+  "HIVE_CODEX_SOFTWARE_TEMPLATE_IDS",
+  "HIVE_CODEX_APP_SLUG",
+  "HIVE_CODEX_GATEWAY_PORT",
+  "HIVE_CODEX_SESSION_TRANSPORT",
+  "HIVE_CODEX_MANAGER_MODEL",
+  "HIVE_CODEX_MANAGER_EFFORT",
+  "HIVE_WORKSPACE_READ_ENABLED",
+  "HIVE_WORKSPACE_READ_PROFILES_JSON",
+  "HIVE_WORKSPACE_READ_ISSUER_KEY_ID",
+  "HIVE_GENERIC_TERMINAL_ENABLED",
+  "HIVE_TERMINAL_WS_URL",
+  "HIVE_CODEX_TERMINAL_ENABLED",
+  "HIVE_TERMINAL_PASTE_ENABLED",
+  "HIVE_CODEX_VOICE_ENABLED",
+  "HIVE_VOICE_TRANSPORT",
+  "HIVE_VOICE_ISSUER_KEY_ID",
+  "HIVE_VOICE_TEMPLATE_PINS_JSON",
+  "HIVE_AGENT_TOOLS_ENABLED",
+  "HIVE_WORKSPACE_ISSUER_MODE",
+  "HIVE_AGENT_TOOLS_TRANSPORT",
+  "HIVE_AGENT_TOOLS_ISSUER_KEY_ID",
+  "HIVE_AGENT_TOOLS_PINS_JSON",
+  "HIVE_GUARDIAN_ENABLED",
+  "HIVE_GUARDIAN_PRODUCER_ENABLED",
+  "HIVE_GUARDIAN_SOURCE_APPLICATION_ENABLED",
+  "HIVE_GUARDIAN_APPROVED_PACKAGES_JSON",
+  "HIVE_DELIVERY_MANAGER_ENABLED",
+  "HIVE_DELIVERY_EXECUTION_ENABLED",
+  "HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED",
+  "HIVE_DELIVERY_REPOSITORY_POLICIES_JSON",
+  "HIVE_DELIVERY_ACCEPTANCE_ENABLED",
+  "HIVE_DELIVERY_ACCEPTANCE_PRODUCER",
+  "HIVE_DELIVERY_NATIVE_ENABLED",
+  "HIVE_DELIVERY_GITHUB_SOURCE_ENABLED",
+  "HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED",
+]);
+const previewOriginVars = new Set([
+  "HIVE_PUBLIC_ORIGIN",
+  "HIVE_PREVIEW_ORIGIN",
+  "HIVE_CODEX_HIVE_ORIGIN",
+  "HIVE_WORKSPACE_READ_HIVE_ORIGIN",
+  "HIVE_AGENT_TOOLS_HIVE_ORIGIN",
+]);
 
 export function previewTarget(branch) {
   assert.equal(typeof branch, "string");
@@ -137,27 +194,49 @@ export function validateConfig(c) {
     binding: "ASSETS",
     run_worker_first: true,
   });
-  assert.deepEqual(Object.keys(c.previews).sort(), ["placement", "secrets", "vars"]);
+  assert.deepEqual(Object.keys(c.previews).sort(), [
+    "placement",
+    ...(Object.hasOwn(c.previews, "r2_buckets") ? ["r2_buckets"] : []),
+    "secrets",
+    "vars",
+  ]);
   assert.deepEqual(c.previews.placement, { region: "aws:us-east-1" });
   assert.deepEqual(c.previews.secrets, { required: requiredSecrets });
+  if (Object.hasOwn(c.previews, "r2_buckets"))
+    assert.deepEqual(c.previews.r2_buckets, [
+      { binding: "HIVE_DELIVERY_EVIDENCE", bucket_name: PILOT_EVIDENCE_BUCKET.name },
+    ]);
   const v = c.previews.vars;
-  assert.deepEqual(v, {
+  const pinned = {
     HIVE_NATIVE_MODE: "preview",
     HIVE_NATIVE_PREVIEW_ENABLED: "true",
     HIVE_PREVIEW_ACCESS_REQUIRED: "false",
     HIVE_RUNTIME_TARGET: "cloudflare",
     HIVE_DISABLE_BACKGROUND_WORKERS: "true",
-    HIVE_PROJECT_DISCOVERY_ENABLED: "false",
-    HIVE_PROJECT_TASKS_ENABLED: "false",
-    HIVE_DELIVERY_ENABLED: "false",
-    HIVE_CODEX_GATEWAY_ENABLED: "false",
     HIVE_DELIVERY_DISPATCH_ENABLED: "false",
     HIVE_TOKEN_ROTATION_ENABLED: "false",
     HIVE_CODER_OAUTH_ENABLED: "true",
     HIVE_CODER_OAUTH_CLIENT_ID: "8a255ae5-7c91-4a6a-a27a-5107e82962d4",
     CODER_URL: "https://coder.kethalia.com",
-  });
-  for (const name of disabled) assert.equal(v[name], "false");
+  };
+  assert.ok(v && typeof v === "object" && !Array.isArray(v));
+  for (const [name, value] of Object.entries(pinned)) assert.equal(v[name], value);
+  for (const name of previewFeatures) assert.ok(["true", "false"].includes(v[name]));
+  for (const name of disabled) if (Object.hasOwn(v, name)) assert.equal(v[name], "false");
+  for (const [name, value] of Object.entries(v)) {
+    assert.ok(
+      Object.hasOwn(pinned, name) ||
+        previewFeatures.includes(name) ||
+        disabled.includes(name) ||
+        previewRuntimeVars.has(name) ||
+        previewOriginVars.has(name),
+      "Unsupported public Preview setting",
+    );
+    assert.equal(typeof value, "string");
+    assert.ok(Buffer.byteLength(value) <= 262144);
+    if (name.endsWith("_ENABLED")) assert.ok(["true", "false"].includes(value));
+    if (previewOriginVars.has(name)) assert.equal(value, oauthPreviewOrigin);
+  }
 }
 export function plan({ branch, target, check = false, dryRun = false, config }) {
   validateConfig(config);
@@ -220,7 +299,12 @@ async function run() {
         assets: { ...config.assets, directory: resolve(here, config.assets.directory) },
         vars: v,
         limits: config.limits,
-        ...(p.target === "preview" ? { placement: config.previews.placement } : {}),
+        ...(p.target === "preview"
+          ? {
+              placement: config.previews.placement,
+              ...(config.previews.r2_buckets ? { r2_buckets: config.previews.r2_buckets } : {}),
+            }
+          : {}),
       };
       writeFileSync(configFile, JSON.stringify(isolated));
       execFileSync(
