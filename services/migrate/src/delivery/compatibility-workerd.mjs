@@ -227,7 +227,10 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
         ],
         { cwd: root, env: safeEnv, detached: true, stdio: ["ignore", "pipe", "pipe"] },
       );
-      children.push(child);
+      // Install before readiness: a failed or early-exiting Wrangler must also
+      // be reaped before its temporary HOME is removed.
+      const closed = new Promise((resolve) => child.once("close", resolve));
+      children.push({ child, closed });
       await ready(child, "Ready on");
       child.stdout.resume();
       child.stderr.resume();
@@ -243,15 +246,42 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
       compatibilityDigest: config.compatibilityDigest,
     };
   } finally {
-    for (const child of children) {
+    for (const { child } of children) {
       try {
         if (child.pid) process.kill(-child.pid, "SIGTERM");
       } catch {}
     }
-    if (!fixtureDatabaseUrl) {
-      try {
-        docker(["rm", "-f", pg]);
-      } catch {}
+    try {
+      await Promise.all(
+        children.map(async ({ child, closed }) => {
+          const kill = setTimeout(() => {
+            try {
+              if (child.pid) process.kill(-child.pid, "SIGKILL");
+            } catch {}
+          }, 5000);
+          let deadline;
+          try {
+            await Promise.race([
+              closed,
+              new Promise((_, reject) => {
+                deadline = setTimeout(
+                  () => reject(Error("migration_compatibility_cleanup_timeout")),
+                  10000,
+                );
+              }),
+            ]);
+          } finally {
+            clearTimeout(kill);
+            clearTimeout(deadline);
+          }
+        }),
+      );
+    } finally {
+      if (!fixtureDatabaseUrl) {
+        try {
+          docker(["rm", "-f", pg]);
+        } catch {}
+      }
     }
     await rm(directory, { recursive: true, force: true });
   }
