@@ -34,6 +34,54 @@ class Response(io.BytesIO):
 
 
 class ProjectsTests(unittest.TestCase):
+    def epic(self, change=None, operation="observe_merge"):
+        request = {"schemaVersion": 1, "requestId": "00000000-0000-4000-8000-000000000001", "operation": operation,
+                   "repositoryId": "42", "expectedAccountId": "123", "baseBranch": "epic/fixture", "headSha": "b" * 40}
+        if operation == "observe_merge":
+            request.update(pullRequestId="900", pullNumber=7, sourceBranch="codex/delivery/task/operation")
+        else:
+            request.update(baseSha="c" * 40, headSha="d" * 40)
+        metadata = repo(clone_url="https://github.com/kethalia/hive.git", permissions={"pull": True, "push": True, "admin": False})
+        pull = {"id": 900, "number": 7, "merged": True, "state": "closed", "merge_commit_sha": "c" * 40,
+                "head": {"sha": "b" * 40, "ref": request.get("sourceBranch"), "repo": {"id": 42}},
+                "base": {"ref": "epic/fixture", "repo": {"id": 42}}}
+        if change:
+            change(request, pull, metadata)
+        branch = {"ref": "refs/heads/epic/fixture", "object": {"type": "commit", "sha": "d" * 40}}
+        compare = {"status": "ahead", "base_commit": {"sha": "c" * 40}, "merge_base_commit": {"sha": "c" * 40}}
+        values = [{"id": 123}, metadata] + ([pull] if operation == "observe_merge" else []) + [branch, compare, metadata]
+        opener = unittest.mock.Mock()
+        opener.open.side_effect = [Response(value) for value in values]
+        with patch.object(discovery, "external_token", return_value="private-epic-test-token"), patch.object(
+                discovery.urllib.request, "build_opener", return_value=opener):
+            result = discovery.epic_read(request)
+        for call in opener.open.call_args_list:
+            self.assertEqual(call.args[0].get_method(), "GET")
+            self.assertTrue(call.args[0].full_url.startswith("https://api.github.com/"))
+        self.assertNotIn("private-epic-test-token", json.dumps(result))
+        return result, opener
+
+    def test_connected_account_epic_merge_and_lineage_are_exact_get_only_reads(self):
+        merged, opener = self.epic()
+        self.assertTrue(merged["merged"])
+        self.assertEqual(merged["mergeSha"], "c" * 40)
+        self.assertEqual(merged["branchHeadSha"], "d" * 40)
+        self.assertTrue(any("/pulls/7" in call.args[0].full_url for call in opener.open.call_args_list))
+        lineage, _ = self.epic(operation="lineage")
+        self.assertEqual(lineage["mergeBaseSha"], "c" * 40)
+        self.assertEqual(lineage["headSha"], "d" * 40)
+
+    def test_epic_read_rejects_wrong_source_forks_production_branch_and_unrelated_merge(self):
+        changes = [lambda request, pull, metadata: pull["head"].update(sha="e" * 40),
+                   lambda request, pull, metadata: pull["base"].update(ref="main"),
+                   lambda request, pull, metadata: pull["head"]["repo"].update(id=99),
+                   lambda request, pull, metadata: request.update(baseBranch="main"),
+                   lambda request, pull, metadata: metadata.update(default_branch="epic/fixture"),
+                   lambda request, pull, metadata: pull.update(id=901)]
+        for change in changes:
+            with self.subTest(change=change), self.assertRaises(discovery.DiscoveryError):
+                self.epic(change)
+
     def discover(self, payload, link="", request=None):
         opener = unittest.mock.Mock()
         opener.open.side_effect = [Response({"id": 123}), Response(payload, link)]

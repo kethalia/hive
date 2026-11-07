@@ -12,6 +12,7 @@ const endpoints = {
   "/projects/discover": "projects:discover",
   "/projects/resolve": "projects:resolve",
   "/projects/resolve-ref": "projects:resolve-ref",
+  "/projects/epic-read": "projects:epic:read",
   "/projects/open": "projects:open",
   "/projects/tasks/start": "projects:task:start",
   "/projects/tasks/status": "projects:task:read",

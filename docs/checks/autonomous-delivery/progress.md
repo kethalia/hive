@@ -16,7 +16,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Reconciled with current main | Authorized rebase onto `1ace8774` preserves new dock/config/template features; fresh fetch confirms no newer main. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases now have45 migrations. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
+| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases now have 46 migrations. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Local supervisor, renewal and template packaging passed; deployed acceptance pending | bada7bd renews dirty live leases and revokes expired tasks across controller phases. 4d5f703 packages the host in opt-in templates; 5698da6 adds proven pre-execution retry. Production cleanup authority remains disabled. |
@@ -619,7 +619,7 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
   bytes, inodes and timestamps and does not reserve or commit twice. Parent checks pass56
   source,33 Python,146 compiled behavioral and60 packaging tests, plus13 installer tests
   and the actual fixed installer. Optional fixture/scale cases remain explicitly skipped.
-  The initial guardian-inclusive gzip exceeded the existing160000-byte budget at165416;
+  The initial guardian-inclusive gzip exceeded the existing 160000-byte budget at165416;
   standard XZ reduces the same607744-byte tar to132420 bytes. Bounded single-stream decoding,
   exact tar hashes and legacy gzip/tar support remain; malformed/oversized inputs are tested.
   This is still disabled capability packaging. Signed server/outer application composition
@@ -972,7 +972,7 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 
 - Isolated Neon repair migration: complete. Committed9db3f5f applies repair33 after the31
   already applied migrations (32 entries total; uncommitted release migrations are excluded).
-  All45 prior table hashes and31 migration checksums are preserved; the runtime still cannot
+  All45 prior table hashes and 31 migration checksums are preserved; the runtime still cannot
   create schema. The clean Cloudflare build and auth-only local-workerd check pass against
   that database. The first evidence copy mistakenly selected an old full-app report; it is
   retained as cloudflare-auth-repair-stale-selection.json and is not evidence for9db3f5f.
@@ -1668,3 +1668,27 @@ by this source checkpoint.
   Production preparation now uses explicit minimal app settings and disabled execution rather
   than copying Preview policies/issuer/origins. All 37 native deployment/preparation checks pass
   locally, including the new cross-environment regression. No production setting was changed.
+
+- First current native pilot: checkout preparation passed; native launch blocked before any
+  Codex process/thread, high difficulty. Signed inventory/project/generation exactly matches
+  persisted state; no manager holds or old registered threads explain the rejection. The
+  three-second network/3.5-second frame budget is a likely latency issue, not proven by logs.
+  No blind retry, journal alteration or fabricated execution occurred. Ordinary user namespaces
+  work. Evidence is preserved in primary projects; stopped workspace `35dd` remains retained.
+  The existing source `390232da` passes full GitHub CI and its automatic Cloudflare build.
+  [Failed attempt](managed-flow-20g-prelaunch-hold.json). Launch-budget repair and real inference
+  remain pending; prepared Browser Phase B is not live acceptance.
+
+- D11 premerge implementation/local validation: complete, high difficulty. The composed
+  PostgreSQL flow covers immutable planning, independent completion, attributed merge-fact
+  validation, replan and admission/claim on a distinct enrolled domain. A real 31-second delay
+  no longer expires durable merge facts or duplicates events; invalidation still blocks.
+  Current branch selection, production health, archive and physical writer release stay strict.
+  Connected GitHub GETs use the existing signed Coder helper; no epic read token is required.
+- Launch transport repair: complete locally. 47 controller and 31 PostgreSQL cases pass,
+  including old-frame expiry, delayed success and lost-acknowledgement holds. The failed
+  workspace is retained rather than adopted. All five host profiles synchronize and pass
+  package checks. Packaging fits the existing 160000-byte limit with standard lossless XZ
+  encoding and compact manifest JSON; only 12 bytes of package headroom remain.
+  [Scoped local receipt](epic-preview-integration-local.json). CI/image and live model/epic
+  validation remain next; D09 autonomous merge execution is still a separate open slice.

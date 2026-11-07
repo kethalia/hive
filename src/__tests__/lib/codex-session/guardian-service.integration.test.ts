@@ -26,6 +26,7 @@ import {
 import type { VerifiedHostBinding } from "@/lib/codex-session/registration.server";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { ProjectTaskIntents } from "@/lib/projects/task-intents.server";
+import { GUARDIAN_ADMISSION_BUDGET } from "../../../../templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs";
 import { guardianFixture } from "./guardian-fixture";
 
 const url = process.env.HIVE_DELIVERY_TEST_DATABASE_URL;
@@ -52,6 +53,7 @@ async function fixture(
     signal?: AbortSignal;
     corruptProof?: boolean;
     recoverEmptyClose?: (grant: string) => Promise<unknown>;
+    beforeResolve?: () => Promise<void>;
   },
 ) {
   const issuer = generateKeyPairSync("ed25519"),
@@ -143,6 +145,7 @@ async function fixture(
     resolveWorkspace: async (p) => {
       resolutions++;
       expect(p).toEqual(principal);
+      await options?.beforeResolve?.();
       return structuredClone(binding);
     },
     transport: {
@@ -331,6 +334,78 @@ async function operationFixture(options?: Parameters<typeof fixture>[3]) {
   return { ...f, project, taskId, frame, prepare, readback, checkout, preparation };
 }
 describe.skipIf(!url)("committed guardian operation receipts / actual PostgreSQL", () => {
+  it("launch survives database latency beyond the former frame lifetime without authorizing expired frames", async () => {
+    let slow = false;
+    const f = await operationFixture({
+      beforeResolve: async () => {
+        if (slow) await db.$queryRaw`SELECT pg_sleep(3.7)::text`;
+      },
+    });
+    await f.service.execute(f.prepare);
+    await f.service.execute(f.frame("checkout", { checkout: f.checkout }, 2));
+    const admission = await db.codexGuardianAdmission.findFirstOrThrow({
+      where: { ownerId: f.user.id, runtimeId: f.runtimeId, projectId: f.project.id },
+    });
+    const nativeLaunchId = randomUUID();
+    const fields = {
+      nativeLaunchId,
+      launchIntentDigest: guardianDigest({
+        runtimeId: f.runtimeId,
+        runtimeGeneration: 2,
+        nativeLaunchId,
+        inventory: [
+          {
+            admissionId: admission.id,
+            admissionGeneration: admission.generation,
+            checkout: f.checkout,
+          },
+        ],
+      }),
+      projectIds: [f.project.id],
+    };
+    slow = true;
+    const issuedAt = Date.now();
+    await expect(
+      f.service.execute(
+        f.frame(
+          "launch",
+          {
+            ...fields,
+            issuedAt,
+            expiresAt: issuedAt + 3500,
+          },
+          2,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(RegistrationRejected);
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } }))
+        .nativeLaunchId,
+    ).toBeNull();
+    const currentIssuedAt = Date.now();
+    await expect(
+      f.service.execute(
+        f.frame(
+          "launch",
+          {
+            ...fields,
+            issuedAt: currentIssuedAt,
+            expiresAt: currentIssuedAt + GUARDIAN_ADMISSION_BUDGET.frameMs + 500,
+          },
+          2,
+        ),
+      ),
+    ).resolves.toMatchObject({ nativeLaunchId });
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.runtimeId } }))
+        .nativeLaunchId,
+    ).toBe(nativeLaunchId);
+    expect(
+      await db.codexGuardianOperationReceipt.count({
+        where: { runtimeId: f.runtimeId, action: "launch" },
+      }),
+    ).toBe(0);
+  }, 20000);
   it("records exact prepare/checkout/fence responses atomically and reads historical facts without authority extension", async () => {
     const f = await operationFixture(),
       prepared = await f.service.execute(f.prepare),

@@ -4,9 +4,15 @@ import { Prisma, type PrismaClient } from "@hive/db";
 import { startProjectTask } from "@/lib/projects/task.server";
 import { epicIsolationSchema } from "./epic-claim.server";
 import { epicDigest, epicPlanSchema } from "./epic-contracts";
-import { epicDependencyRelease } from "./epic-dependency.server";
-import { verifyEpicLineage } from "./epic-lineage.server";
+import {
+  type EpicDependencyLineage,
+  epicDependencyLineageSchema,
+  epicIntegrationDependency,
+} from "./epic-dependency.server";
+import { readEpicGitHubForTask } from "./epic-github-read.server";
+import { observeEpicPreviewMerge } from "./epic-merge-observation.server";
 import { reserveEpicStart } from "./epic-start.server";
+import { repositoryPolicyStore } from "./repository-policy.server";
 import { DeliveryConflict } from "./state";
 
 /** One bounded scheduling pass. Ambiguous starts retain their reservation and
@@ -15,7 +21,6 @@ export async function reconcileEpicStart(
   db: PrismaClient,
   rawPolicy: unknown,
   encryptionKey: string,
-  lineageToken: string,
   modelTiers: readonly { tier: string; model: string; effort: string }[],
   signal?: AbortSignal,
 ) {
@@ -82,43 +87,79 @@ export async function reconcileEpicStart(
       )
         continue;
       try {
-        const lineage: ({ dependency: string; releaseId: string; receiptDigest: string } & Awaited<
-          ReturnType<typeof verifyEpicLineage>
-        >)[] = [];
+        const read: typeof readEpicGitHubForTask = (client, scope, operation, readSignal) =>
+          readEpicGitHubForTask(
+            client,
+            { ...scope, readerWorkspaceId: head.workspace_id, readerBuildId: head.build_id },
+            operation,
+            readSignal,
+          );
+        const lineage: EpicDependencyLineage[] = [];
         for (const dependency of node.dependsOn) {
-          const completed = await db.$queryRaw<{ task_id: string }[]>`
-            SELECT t.id AS task_id
-            FROM delivery_epic_start_intents s
-            JOIN delivery_manager_bindings b ON b.owner_id=s.owner_id AND b.preparation_intent_id=s.intent_id
-            JOIN delivery_tasks t ON t.owner_id=b.owner_id AND t.manager_binding_id=b.id AND t.epic_id=s.epic_id
-            JOIN delivery_projects p ON p.owner_id=t.owner_id AND p.id=t.project_id
-            WHERE s.owner_id=${head.owner_id}::uuid AND s.epic_id=${head.epic_id}::uuid
-              AND s.intent_id=${dependency}::uuid AND s.phase='finished' LIMIT 2`;
-          if (completed.length !== 1) throw new DeliveryConflict("epic_dependencies_pending");
-          const release = await epicDependencyRelease(db, head.owner_id, completed[0].task_id);
-          let proof: Awaited<ReturnType<typeof verifyEpicLineage>>;
+          await observeEpicPreviewMerge(
+            db,
+            repositoryPolicyStore(db),
+            { ownerId: head.owner_id, epicId: head.epic_id, intentId: dependency },
+            read,
+            signal,
+          );
+          const anchor = await epicIntegrationDependency(db, repositoryPolicyStore(db), {
+            ownerId: head.owner_id,
+            epicId: head.epic_id,
+            intentId: dependency,
+          });
+          let proof: {
+            repositoryId: string;
+            base: string;
+            head: string;
+            status: "ahead" | "identical";
+            mergeBase: string;
+          };
+          const lineageBegan = (
+            await db.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`
+          )[0].now.getTime();
           try {
-            proof = await verifyEpicLineage(
+            const result = await read(
+              db,
+              { ownerId: head.owner_id, taskId: anchor.taskId },
               {
-                repositoryId: release.repositoryId,
-                base: release.mergeSha,
-                head: node.expectedRevision,
+                operation: "lineage",
+                baseSha: anchor.integrationSha,
+                headSha: node.expectedRevision,
               },
-              lineageToken,
-              fetch,
               signal,
             );
+            if (result.operation !== "lineage")
+              throw new DeliveryConflict("epic_lineage_unverified");
+            proof = {
+              repositoryId: result.repository.providerRepositoryId,
+              base: result.baseSha,
+              head: result.headSha,
+              status: result.status,
+              mergeBase: result.mergeBaseSha,
+            };
           } catch (error) {
             signal?.throwIfAborted();
             if (error instanceof DeliveryConflict) throw error;
             throw new DeliveryConflict("epic_lineage_unavailable");
           }
-          lineage.push({
-            dependency,
-            releaseId: release.releaseId,
-            receiptDigest: release.receiptDigest,
-            ...proof,
-          });
+          lineage.push(
+            epicDependencyLineageSchema.parse({
+              dependency,
+              ...proof,
+              ...(anchor.milestone === "implementation_preview"
+                ? {
+                    milestone: anchor.milestone,
+                    readinessDigest: anchor.readiness.digest,
+                    completionEventId: anchor.readiness.completionEventId,
+                    sourceReceiptDigest: anchor.readiness.sourceReceiptDigest,
+                    mergeDigest: anchor.mergeDigest,
+                    observedAt: lineageBegan,
+                    expiresAt: lineageBegan + 30000,
+                  }
+                : { releaseId: anchor.releaseId, receiptDigest: anchor.receiptDigest }),
+            }),
+          );
         }
         const reservation = await db.$transaction(
           (tx) =>

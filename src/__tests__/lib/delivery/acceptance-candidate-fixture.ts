@@ -16,8 +16,13 @@ export async function acceptanceCandidateFixture(
   text = "export const behavior = true;\n",
   options: {
     producer?: typeof acceptanceFixtureProducer;
-    native?: { managerThreadId?: string; parentTurnId?: string };
+    native?: Parameters<typeof acceptanceGuardianFixture>[3];
     activationRequirement?: boolean;
+    epic?: { id: string; isolationPolicy: unknown; encryptionKey: string };
+    headSha?: string;
+    baseBranch?: string;
+    pullRequestId?: string;
+    pullNumber?: number;
   } = {},
 ) {
   let material: AcceptanceMaterialResolver;
@@ -26,11 +31,15 @@ export async function acceptanceCandidateFixture(
     (tx, scope, stored) => material.material(tx, scope, stored),
     options.producer,
     options.native,
+    { baseBranch: options.baseBranch },
   );
   vi.stubEnv("HIVE_GUARDIAN_ENABLED", "true");
   vi.stubEnv("HIVE_GUARDIAN_PRODUCER_ENABLED", "true");
   vi.stubEnv("HIVE_GUARDIAN_APPROVED_PACKAGES_JSON", JSON.stringify(f.guardian.policy.packages));
   const service = f.service;
+  const original = await db.$transaction((tx) =>
+    f.store.originalIntent(tx, f.user.id, f.context.preparationIntentId),
+  );
   const plan = {
     schemaVersion: 1,
     kind: "plan",
@@ -58,6 +67,14 @@ export async function acceptanceCandidateFixture(
     ],
     unresolved: [],
     rationale: "Synthetic independent output; no account inference",
+    ...(original.sealed.inheritedCriteria
+      ? {
+          inheritedMappings: original.sealed.inheritedCriteria.requirements.map((requirement) => ({
+            ownerCriterionId: requirement.id,
+            childRequirementId: requirement.id,
+          })),
+        }
+      : {}),
   };
   async function claimAndFinish(
     s: DeliveryAcceptanceService,
@@ -124,12 +141,19 @@ export async function acceptanceCandidateFixture(
     ...f.dependencies,
     progressionProtocol: 1,
     authorizeTaskPolicy: repositoryPolicyAdapters(f.policies).authorizeTaskPolicy,
+    ...(options.epic
+      ? {
+          epicIsolationPolicy: options.epic.isolationPolicy,
+          epicPlanEncryptionKey: options.epic.encryptionKey,
+        }
+      : {}),
   });
   await manager.execute(
     f.managerEnvelope({
       operation: "create_task",
       payload: {
         ...f.definition,
+        ...(options.epic ? { epicId: options.epic.id } : {}),
         steps: [
           {
             id: f.stepId,
@@ -231,16 +255,16 @@ export async function acceptanceCandidateFixture(
     expectedNativeSequence: 2,
     leaseGeneration: claim.leaseGeneration,
     parentSha: f.context.revision,
-    headSha: "b".repeat(40),
+    headSha: options.headSha ?? "b".repeat(40),
     treeSha: "c".repeat(40),
     manifestDigest: acceptanceDigest(candidate.manifest),
     repositoryId: f.project.providerRepositoryId,
     providerAccountId: f.project.providerAccountId,
     fullName: f.project.fullName,
     branch: `codex/delivery/${f.taskId}/${operationId}`,
-    baseBranch: "main",
-    pullRequestId: "900",
-    pullNumber: 7,
+    baseBranch: options.baseBranch ?? "main",
+    pullRequestId: options.pullRequestId ?? "900",
+    pullNumber: options.pullNumber ?? 7,
     issuedAt: Date.now() - 100,
     expiresAt: Date.now() + 30000,
   };

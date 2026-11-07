@@ -863,6 +863,28 @@ test("crash after persisted factual reconciliation still requires a fresh fence"
     f.close();
   }
 });
+test("native launch accepts a delayed response within the existing admission budget", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const project = f.project(true);
+    await f.client.authorizeAdmission({
+      projectId: project.projectId,
+      bindingDigest: project.bindingDigest,
+    });
+    f.onTransport(async (request) => {
+      if (request.action === "launch") await new Promise((resolve) => setTimeout(resolve, 3700));
+    });
+    const approval = await f.client.metadataAuthority([{ projectId: project.projectId }]);
+    assert.equal(approval.approvals.length, 1);
+    assert.equal(f.client.status.held, false);
+    assert.equal(f.calls.filter((r) => r.action === "launch").length, 1);
+    assert.equal(f.calls.filter((r) => r.action === "operation_readback").length, 0);
+  } finally {
+    f.close();
+  }
+});
 test("one-use native launch uncertainty is never recovered as an admission receipt", async () => {
   const f = fixture();
   try {

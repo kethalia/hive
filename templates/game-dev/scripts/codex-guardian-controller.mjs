@@ -505,11 +505,14 @@ export function openGuardianController({
       );
     }
     check((action === "enroll" || uuid(state.runtimeId)) && Date.now() < deadline);
+    // Launch checks the same persisted admission inventory. Share its transport
+    // budget without treating an uncertain launch as a recoverable receipt.
     const issuedAt = Date.now(),
+      admissionTransport = admissionActions.includes(action) || action === "launch",
       networkDeadline = Math.min(
         deadline,
         issuedAt +
-          (admissionActions.includes(action)
+          (admissionTransport
             ? GUARDIAN_ADMISSION_BUDGET.frameMs
             : action === "enroll"
               ? 15000
@@ -522,7 +525,7 @@ export function openGuardianController({
         runtimeId: fields.runtimeId ?? state.runtimeId,
         eventId: randomUUID(),
         issuedAt,
-        expiresAt: admissionActions.includes(action)
+        expiresAt: admissionTransport
           ? Math.min(deadline + 500, networkDeadline + 500)
           : issuedAt + (action === "enroll" ? 20000 : action.startsWith("epic_") ? 30500 : 3500),
         action,

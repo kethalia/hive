@@ -1,5 +1,7 @@
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
+import { epicConfig } from "@/lib/delivery/epic-config.server";
+import { epicNativeAdmission } from "@/lib/delivery/epic-native-admission.server";
 import { ProjectTaskIntents } from "@/lib/projects/task-intents.server";
 import { assertTaskRecoveryOperation } from "@/lib/projects/task-recovery-store.server";
 import { type GuardianTreeReceipt, guardianTreeReceiptSchema } from "./guardian-closure-contracts";
@@ -899,6 +901,7 @@ export class GuardianAdmissionStore {
         count === projects.length &&
           admissions.every((a) => a.phase === "checkout" && a.checkoutBinding),
       );
+      let isolationValidUntil = Number.POSITIVE_INFINITY;
       for (const a of admissions) {
         await lockAdmissionIntent(tx, runtime, a);
         const holds = await tx.deliveryManagerBinding.findMany({
@@ -906,22 +909,28 @@ export class GuardianAdmissionStore {
           select: { id: true, activeAttemptId: true, blockedReason: true },
         });
         requireGuardian(holds.length === 0); // First native launch; never adopt an earlier physical writer.
-        const priorThreads = await tx.codexRegisteredThread.findMany({
-          where: { ownerId: input.ownerId, projectId: a.projectId },
-          select: { registrationId: true },
-        });
-        for (const thread of priorThreads) {
-          const closed = await tx.codexGuardianAdmission.findFirst({
-            where: {
-              ownerId: input.ownerId,
-              projectId: a.projectId,
-              registrationId: thread.registrationId,
-              runtime: { phase: "tree_closed" },
-            },
-            select: { id: true },
+        // Bound only live/uncertain registrations. Closed historical sessions
+        // remain readable without eventually exhausting native admission.
+        const priorThreads = await tx.$queryRaw<{ registrationId: string }[]>`
+          SELECT DISTINCT t.registration_id AS "registrationId" FROM codex_registered_threads t
+          WHERE t.owner_id=${input.ownerId}::uuid AND t.project_id=${a.projectId}::uuid
+          AND NOT EXISTS (SELECT 1 FROM codex_guardian_admissions a
+            JOIN codex_guardian_runtimes r ON r.owner_id=a.owner_id AND r.id=a.runtime_id
+            WHERE a.owner_id=t.owner_id AND a.project_id=t.project_id
+            AND a.registration_id=t.registration_id AND r.phase='tree_closed') LIMIT 33`;
+        const unclosed = [...new Set(priorThreads.map((thread) => thread.registrationId))];
+        requireGuardian(unclosed.length <= 32);
+        if (unclosed.length) {
+          const isolation = await epicNativeAdmission(tx, {
+            runtime,
+            admission: a,
+            priorRegistrationIds: unclosed,
+            guardianPolicy: this.options.policy,
+            isolationPolicy: epicConfig()?.isolationPolicy,
           });
-          requireGuardian(closed); // Revocation/expiry or an empty manager table is not tree-exit evidence.
-        }
+          requireGuardian(isolation);
+          isolationValidUntil = Math.min(isolationValidUntil, isolation.validUntil);
+        } // Ordinary tasks still require true tree exit; revocation/expiry is not closure.
       }
       const inventory = admissions.map((a) => ({
         admissionId: a.id,
@@ -944,6 +953,7 @@ export class GuardianAdmissionStore {
           nativeLaunchAt: now,
         },
       });
+      requireGuardian(isolationValidUntil > (await databaseNow(tx)).getTime());
       return {
         runtimeId: runtime.id,
         runtimeGeneration: runtime.generation,

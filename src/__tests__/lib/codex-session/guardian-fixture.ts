@@ -30,6 +30,8 @@ const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 export async function guardianFixture(
   db: PrismaClient,
   hooks: {
+    existing?: NativeFixtureHooks["existing"];
+    encryptionKey?: string;
     managerThreadId?: string;
     parentTurnId?: string;
     beforeIntent?: NativeFixtureHooks["beforeIntent"];
@@ -72,7 +74,7 @@ export async function guardianFixture(
 ) {
   const issuer = generateKeyPairSync("ed25519"),
     outer = generateKeyPairSync("ed25519");
-  const encryptionKey = "19".repeat(32);
+  const encryptionKey = hooks.encryptionKey ?? "19".repeat(32);
   const pin: GuardianPackagePin = {
     packageManifestSha256: "1".repeat(64),
     guardianElfSha256: "2".repeat(64),
@@ -112,6 +114,7 @@ export async function guardianFixture(
       }
     | undefined;
   const f = await nativeFixture(db, hooks.managerThreadId ?? randomUUID(), {
+    existing: hooks.existing,
     parentTurnId: hooks.parentTurnId,
     beforeIntent: hooks.beforeIntent,
     physical: hooks.physical && {

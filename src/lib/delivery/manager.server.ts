@@ -24,6 +24,7 @@ import {
 import { managerEnvelopeSchema, managerProofPayload } from "./manager-contracts";
 import { authorizeProgressionClaim } from "./progression.server";
 import { DeliveryRepository, type EvidencePolicy } from "./repository";
+import { repositoryPolicyStore } from "./repository-policy.server";
 import { resolveAttemptSource, resolveTaskSource } from "./source-resolver.server";
 import { DeliveryConflict } from "./state";
 
@@ -256,6 +257,7 @@ export class DeliveryManagerService {
                 ...pair,
               })),
             key,
+            repositoryPolicyStore(this.db),
           );
           if (command.operation === "read_epic_context")
             return {

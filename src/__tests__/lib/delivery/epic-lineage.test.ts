@@ -16,7 +16,21 @@ it("accepts a fixed-repository compare only when the base is an ancestor", async
     verifyEpicLineage({ repositoryId: "123", base, head }, "read-token", fetcher),
   ).resolves.toMatchObject({ base, head, mergeBase: base });
   expect(fetcher.mock.calls[1][0]).toContain(`/compare/${base}...${head}?per_page=1`);
-  expect(fetcher.mock.calls[1][1]).toMatchObject({ redirect: "error" });
+  expect(fetcher.mock.calls[1][1]).toMatchObject({ redirect: "manual" });
+});
+it("uses the Worker-supported manual mode and never follows redirects", async () => {
+  const fetcher = vi.fn(async (_url: unknown, init: RequestInit) => {
+    if (init.redirect !== "manual") throw Error("unsupported redirect mode");
+    return new Response(null, { status: 302, headers: { Location: "https://example.invalid" } });
+  });
+  await expect(
+    verifyEpicLineage(
+      { repositoryId: "123", base, head },
+      "fixture-read-token",
+      fetcher as typeof fetch,
+    ),
+  ).rejects.toThrow("epic_lineage_unavailable");
+  expect(fetcher).toHaveBeenCalledOnce();
 });
 it("rejects unrelated commits and changed repository identity", async () => {
   const diverged = vi

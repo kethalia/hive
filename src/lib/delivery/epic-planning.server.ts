@@ -6,8 +6,10 @@ import { acceptancePlanForIntent } from "./acceptance-policy.server";
 import { epicIsolationSchema } from "./epic-claim.server";
 import { epicDigest, epicPlanSchema, managerEpicProposalSchema } from "./epic-contracts";
 import { epicDependencyRelease } from "./epic-dependency.server";
+import { epicPreviewMergeReadiness } from "./epic-merge-observation.server";
 import { expectedEpicIntent } from "./epic-plan.server";
 import { stableDeliveryUuid } from "./manager-binding.server";
+import type { RepositoryPolicyStore } from "./repository-policy-store.server";
 import { DeliveryConflict } from "./state";
 
 export async function managerEpicContext(
@@ -17,6 +19,7 @@ export async function managerEpicContext(
   rawPolicy: unknown,
   catalog: readonly { tier: string; model: string; effort: string }[],
   encryptionKey: string,
+  repositoryPolicies?: RepositoryPolicyStore,
 ) {
   const task = await tx.deliveryTask.findUnique({
     where: { ownerId_id: { ownerId, id: taskId } },
@@ -86,7 +89,8 @@ export async function managerEpicContext(
       >`SELECT phase FROM delivery_epic_start_intents WHERE owner_id=${ownerId}::uuid AND epic_id=${task.epic.id}::uuid AND intent_id=${node.intentId}::uuid`;
       if (starts.length > 1) throw new DeliveryConflict("epic_task_unbound");
       let release = null;
-      if (starts[0]?.phase === "finished") {
+      let integrationReadiness = null;
+      if (["accepted", "finished"].includes(starts[0]?.phase)) {
         const children = await tx.deliveryTask.findMany({
           where: {
             ownerId,
@@ -97,9 +101,22 @@ export async function managerEpicContext(
           take: 2,
         });
         if (children.length !== 1) throw new DeliveryConflict("epic_task_unbound");
-        release = await epicDependencyRelease(tx, ownerId, children[0].id);
+        if (starts[0].phase === "finished")
+          release = await epicDependencyRelease(tx, ownerId, children[0].id);
+        else if (repositoryPolicies)
+          integrationReadiness = await epicPreviewMergeReadiness(tx, repositoryPolicies, {
+            ownerId,
+            epicId: task.epic.id,
+            intentId: node.intentId,
+          });
       }
-      currentTasks.push({ ...node, text, phase: starts[0]?.phase ?? "not_started", release });
+      currentTasks.push({
+        ...node,
+        text,
+        phase: starts[0]?.phase ?? "not_started",
+        release,
+        integrationReadiness,
+      });
     }
   }
   return {

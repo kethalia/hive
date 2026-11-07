@@ -12,7 +12,11 @@ export async function acceptanceGuardianFixture(
   db: PrismaClient,
   materializeReview?: ConstructorParameters<typeof AcceptanceStore>[0]["materializeReview"],
   producer = acceptanceFixtureProducer,
-  native: { managerThreadId?: string; parentTurnId?: string } = {},
+  native: Pick<
+    NonNullable<Parameters<typeof guardianFixture>[1]>,
+    "managerThreadId" | "parentTurnId" | "existing" | "physical" | "encryptionKey"
+  > = {},
+  options: { baseBranch?: string } = {},
 ) {
   let policies: RepositoryPolicyStore | undefined;
   const store = new AcceptanceStore({
@@ -46,7 +50,7 @@ export async function acceptanceGuardianFixture(
                 version: "fixture-v1",
                 authorName: "Fixture",
                 authorEmail: "fixture@example.invalid",
-                baseBranch: "main",
+                baseBranch: options.baseBranch ?? "main",
                 allowedPrefixes: ["src"],
                 maxFiles: 10,
                 maxFileBytes: 1000,
@@ -62,7 +66,10 @@ export async function acceptanceGuardianFixture(
           providerAccountId: "456",
           fullName: project.fullName,
           defaultBranch: "main",
-          defaultRevision: context.revision,
+          defaultRevision: options.baseBranch ? "a".repeat(40) : context.revision,
+          ...(options.baseBranch
+            ? { resolvedBase: { branch: options.baseBranch, revision: context.revision } }
+            : {}),
           archived: false,
           permissions: { pull: true, push: true },
         }),

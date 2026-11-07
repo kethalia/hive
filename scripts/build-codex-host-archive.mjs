@@ -40,7 +40,8 @@ export async function hostArchive(root) {
     const archive = Buffer.concat(chunks);
     if (archive.length > 2 * 1024 * 1024) throw new Error("Host archive exceeds installer bounds");
     const compressed = encodeHostArchive(archive);
-    if (compressed.length > 160000) throw new Error("Host archive exceeds pod metadata budget");
+    if (compressed.length > 160000)
+      throw new Error(`Host archive exceeds pod metadata budget (${compressed.length} > 160000)`);
     return { archive, compressed, sha256: createHash("sha256").update(archive).digest("hex") };
   } finally {
     await rm(temporary, { recursive: true, force: true });

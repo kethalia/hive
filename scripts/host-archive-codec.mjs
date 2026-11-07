@@ -6,7 +6,7 @@ const code = `import lzma,sys
 raw=sys.stdin.buffer.read(2*1024*1024+1)
 if sys.argv[1]=='encode':
     if len(raw)>2*1024*1024: raise ValueError('archive expansion bound')
-    result=lzma.compress(raw,format=lzma.FORMAT_XZ,check=lzma.CHECK_CRC64,preset=6)
+    result=lzma.compress(raw,format=lzma.FORMAT_XZ,check=lzma.CHECK_CRC64,filters=[{'id':lzma.FILTER_X86},{'id':lzma.FILTER_LZMA2,'preset':6|lzma.PRESET_EXTREME,'pb':0,'mf':lzma.MF_BT3}])
 else:
     if len(raw)>160000: raise ValueError('archive compressed bound')
     stream=lzma.LZMADecompressor(format=lzma.FORMAT_XZ,memlimit=32*1024*1024)

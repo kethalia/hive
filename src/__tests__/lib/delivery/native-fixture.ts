@@ -9,6 +9,16 @@ import { DeliveryNativeSourceService } from "@/lib/delivery/native.server";
 import { nativeProofPayload } from "@/lib/delivery/native-contracts";
 
 export interface NativeFixtureHooks {
+  /** Reuse an actual tenant/project for cross-workspace admission tests only. */
+  existing?: {
+    user: User;
+    project: DeliveryProject;
+    preparationIntentId: string;
+    requestId: string;
+    workspaceId?: string;
+    buildId?: string;
+    reuseIntent?: boolean;
+  };
   parentTurnId?: string;
   physical?: { revision: string; leaseId: string; leaseGeneration: number };
   beforeIntent?(scope: {
@@ -35,31 +45,35 @@ export async function nativeFixture(
   managerThreadId: string = randomUUID(),
   hooks: NativeFixtureHooks = {},
 ) {
-  const user = await db.user.create({
-    data: {
-      coderUrl: "https://fixture.invalid",
-      coderUserId: randomUUID(),
-      username: "native-fixture",
-      email: "fixture@example.invalid",
-    },
-  });
-  const project = await db.deliveryProject.create({
-    data: {
-      ownerId: user.id,
-      provider: "github",
-      providerRepositoryId: "123",
-      providerAccountId: "456",
-      fullName: "fixture/native",
-    },
-  });
+  const user =
+    hooks.existing?.user ??
+    (await db.user.create({
+      data: {
+        coderUrl: "https://fixture.invalid",
+        coderUserId: randomUUID(),
+        username: "native-fixture",
+        email: "fixture@example.invalid",
+      },
+    }));
+  const project =
+    hooks.existing?.project ??
+    (await db.deliveryProject.create({
+      data: {
+        ownerId: user.id,
+        provider: "github",
+        providerRepositoryId: "123",
+        providerAccountId: "456",
+        fullName: "fixture/native",
+      },
+    }));
   const keys = generateKeyPairSync("ed25519"),
     serverInstanceId = randomUUID();
   const host: RegistrationBinding = {
     coderOrigin: user.coderUrl,
     hiveUserId: user.id,
     ownerId: user.coderUserId,
-    workspaceId: randomUUID(),
-    buildId: randomUUID(),
+    workspaceId: hooks.existing?.workspaceId ?? randomUUID(),
+    buildId: hooks.existing?.buildId ?? randomUUID(),
     agentId: randomUUID(),
     templateId: randomUUID(),
     appOrigin: "https://fixture-app.invalid",
@@ -98,7 +112,7 @@ export async function nativeFixture(
   }
   const context = {
     projectId: project.id,
-    preparationIntentId: randomUUID(),
+    preparationIntentId: hooks.existing?.preparationIntentId ?? randomUUID(),
     repositoryId: "123",
     revision: "a".repeat(40),
     leaseId: randomUUID(),
@@ -106,30 +120,43 @@ export async function nativeFixture(
     ...hooks.physical,
   };
   const policyPin = await hooks.beforeIntent?.({ user, project, host, context });
-  await db.projectTaskIntent.create({
-    data: {
-      ...policyPin,
-      id: context.preparationIntentId,
-      ownerId: user.id,
-      projectId: project.id,
-      workspaceId: host.workspaceId,
-      requestId: randomUUID(),
-      requestDigest: "a".repeat(64),
-      repositoryId: "123",
-      providerAccountId: "456",
-      sourceSha: context.revision,
-      phase: "running",
-      status: {
-        schemaVersion: 1,
+  if (hooks.existing?.reuseIntent) {
+    const saved = await db.projectTaskIntent.findUniqueOrThrow({
+      where: { id: context.preparationIntentId },
+    });
+    if (
+      saved.ownerId !== user.id ||
+      saved.projectId !== project.id ||
+      saved.workspaceId !== host.workspaceId ||
+      saved.requestId !== hooks.existing.requestId ||
+      saved.sourceSha !== context.revision
+    )
+      throw Error("Existing fixture intent scope mismatch");
+  } else
+    await db.projectTaskIntent.create({
+      data: {
+        ...policyPin,
+        id: context.preparationIntentId,
+        ownerId: user.id,
         projectId: project.id,
-        taskId: context.preparationIntentId,
+        workspaceId: host.workspaceId,
+        requestId: hooks.existing?.requestId ?? randomUUID(),
+        requestDigest: "a".repeat(64),
+        repositoryId: "123",
+        providerAccountId: "456",
+        sourceSha: context.revision,
         phase: "running",
-        nativeThreadId: managerThreadId,
-        terminalSessionName: null,
-        reason: null,
+        status: {
+          schemaVersion: 1,
+          projectId: project.id,
+          taskId: context.preparationIntentId,
+          phase: "running",
+          nativeThreadId: managerThreadId,
+          terminalSessionName: null,
+          reason: null,
+        },
       },
-    },
-  });
+    });
   await hooks.beforeRegister?.({ user, project, host, keys, serverInstanceId, context });
   await register();
   const policy = {

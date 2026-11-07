@@ -32,11 +32,13 @@ import {
   startDiscoveryGateway,
 } from "../templates/ai-dev-k8s/scripts/codex-project-discovery.mjs";
 
-function fixture(controller) {
+function fixture(controller, helperCode) {
   const root = mkdtempSync(join(tmpdir(), "hive-discovery-")),
     helperPath = join(root, "helper.py"),
     issuer = generateKeyPairSync("ed25519");
-  const code = `import json,sys,os\nr=json.load(sys.stdin)\nassert 'CODER_SESSION_TOKEN' not in os.environ and 'GITHUB_TOKEN' not in os.environ and 'OPENAI_API_KEY' not in os.environ\nprint(json.dumps({'schemaVersion':1,'provider':'github','providerAccountId':'123','repositories':[],'page':r['page'],'perPage':r['perPage'],'nextPage':None}))\n`;
+  const code =
+    helperCode ??
+    `import json,sys,os\nr=json.load(sys.stdin)\nassert 'CODER_SESSION_TOKEN' not in os.environ and 'GITHUB_TOKEN' not in os.environ and 'OPENAI_API_KEY' not in os.environ\nprint(json.dumps({'schemaVersion':1,'provider':'github','providerAccountId':'123','repositories':[],'page':r['page'],'perPage':r['perPage'],'nextPage':None}))\n`;
   writeFileSync(helperPath, code, { mode: 0o600 });
   const config = {
     binding: {
@@ -122,6 +124,61 @@ test("signed pagination, exact owner/build/app and scope cannot be substituted",
       await assert.rejects(f.host.discover({ ticket: f.ticket(patch) }));
     await assert.rejects(f.host.discover({ ticket: f.ticket(), page: 2 }));
   } finally {
+    f.close();
+  }
+});
+test("signed epic GET-only helper observations use the existing account bridge and reject forged scope", async () => {
+  const code = `import json,sys,os
+r=json.load(sys.stdin)
+assert 'GITHUB_TOKEN' not in os.environ and 'CODER_SESSION_TOKEN' not in os.environ
+print(json.dumps(dict(schemaVersion=1,operation=r['operation'],requestId=r['requestId'],providerAccountId=r['expectedAccountId'],repository=dict(providerRepositoryId=r['repositoryId']),baseBranch=r['baseBranch'],headSha=r['headSha'],branchHeadSha='c'*40,pullRequestId=r['pullRequestId'],pullNumber=r['pullNumber'],sourceBranch=r['sourceBranch'],merged=True,mergeSha='c'*40)))
+`;
+  const f = fixture(
+    {
+      handle() {
+        throw Error("must not enter native controller");
+      },
+    },
+    code,
+  );
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const path = "/projects/epic-read",
+      request = {
+        schemaVersion: 1,
+        requestId: randomUUID(),
+        operation: "observe_merge",
+        repositoryId: "123",
+        expectedAccountId: "456",
+        baseBranch: "epic/fixture",
+        headSha: "b".repeat(40),
+        pullRequestId: "900",
+        pullNumber: 7,
+        sourceBranch: "codex/delivery/task/operation",
+      };
+    const send = (scope, input = request) =>
+      http(`http://127.0.0.1:${gateway.port}${path}`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: f.ticket({ scope, request: input }) }),
+      });
+    const response = await send("projects:epic:read");
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).mergeSha, "c".repeat(40));
+    assert.equal((await send("projects:resolve")).status, 403);
+    assert.equal(
+      (await send("projects:epic:read", { ...request, url: "https://example.invalid" })).status,
+      403,
+    );
+    assert.equal(
+      (await send("projects:epic:read", { ...request, operation: "merge" })).status,
+      403,
+    );
+  } finally {
+    await gateway.close();
     f.close();
   }
 });

@@ -42,7 +42,6 @@ export async function projectReconcileRoute(request: Request) {
         getDb(),
         epic.isolationPolicy,
         epic.encryptionKey,
-        epic.lineageToken,
         epic.modelTiers,
         signal,
       );

@@ -6,8 +6,12 @@ import {
   guardianMetadataEvidenceSchema,
 } from "@/lib/codex-session/guardian-contracts";
 import { epicDigest, epicPlanSchema } from "./epic-contracts";
-import { epicDependencyRelease } from "./epic-dependency.server";
-import { verifyReleaseEvidence } from "./release-evidence.server";
+import {
+  epicDependencyLineageSchema,
+  epicIntegrationDependency,
+  epicIntegrationReadyIntents,
+  matchesEpicDependency,
+} from "./epic-dependency.server";
 import { repositoryPolicyStore } from "./repository-policy.server";
 import { DeliveryConflict } from "./state";
 
@@ -71,53 +75,22 @@ export async function authorizeEpicClaim(
   if (start.length !== 1 || start[0].phase !== "accepted")
     throw new DeliveryConflict("epic_task_unbound");
   for (const dependency of node.dependsOn) {
-    const rows = await tx.deliveryTask.findMany({
-      where: {
-        ownerId,
-        epicId: task.epicId,
-        managerBinding: { is: { preparationIntentId: dependency } },
-      },
-      select: { id: true, sourceSha: true },
-      take: 2,
+    const anchor = await epicIntegrationDependency(tx, repositoryPolicyStore(db), {
+      ownerId,
+      epicId: task.epicId,
+      intentId: dependency,
     });
-    if (
-      rows.length !== 1 ||
-      !(await verifyReleaseEvidence(tx, repositoryPolicyStore(db), {
-        ownerId,
-        taskId: rows[0].id,
-        sourceSha: rows[0].sourceSha,
-      }))
-    )
-      throw new DeliveryConflict("epic_dependencies_pending");
-    const release = await epicDependencyRelease(tx, ownerId, rows[0].id);
-    const proofs = await tx.$queryRaw<{ proof: unknown; proof_digest: string }[]>`
-      SELECT proof,proof_digest FROM delivery_epic_lineage_proofs WHERE owner_id=${ownerId}::uuid
+    const proofs = await tx.$queryRaw<{ proof: unknown; proof_digest: string; created_at: Date }[]>`
+      SELECT proof,proof_digest,created_at FROM delivery_epic_lineage_proofs WHERE owner_id=${ownerId}::uuid
       AND epic_id=${task.epicId}::uuid AND intent_id=${node.intentId}::uuid
       AND dependency_intent_id=${dependency}::uuid AND plan_digest=${start[0].plan_digest}`;
-    const proof = z
-      .object({
-        dependency: z.string().uuid(),
-        releaseId: z.string().uuid(),
-        receiptDigest: z.string().regex(/^[a-f0-9]{64}$/),
-        repositoryId: z.string(),
-        base: z.string(),
-        head: z.string(),
-        status: z.enum(["ahead", "identical"]),
-        mergeBase: z.string(),
-      })
-      .strict()
-      .safeParse(proofs[0]?.proof);
+    const proof = epicDependencyLineageSchema.safeParse(proofs[0]?.proof);
     if (
       proofs.length !== 1 ||
       !proof.success ||
+      ("milestone" in proof.data && proof.data.observedAt > proofs[0].created_at.getTime()) ||
       epicDigest(proof.data) !== proofs[0].proof_digest ||
-      proof.data.dependency !== dependency ||
-      proof.data.releaseId !== release.releaseId ||
-      proof.data.receiptDigest !== release.receiptDigest ||
-      proof.data.repositoryId !== release.repositoryId ||
-      proof.data.base !== release.mergeSha ||
-      proof.data.mergeBase !== release.mergeSha ||
-      proof.data.head !== node.expectedRevision
+      !matchesEpicDependency(proof.data, dependency, node.expectedRevision, anchor)
     )
       throw new DeliveryConflict("epic_dependencies_pending");
   }
@@ -200,7 +173,15 @@ export async function authorizeEpicClaim(
     return;
   }
   const held = writers.filter((w) => w.phase === "held");
-  if (held.length >= plan.maxConcurrentTasks) throw new DeliveryConflict("epic_wip_limit");
+  const ready = await epicIntegrationReadyIntents(
+    tx,
+    repositoryPolicyStore(db),
+    ownerId,
+    task.epicId,
+    held.map((writer) => writer.intent_id),
+  );
+  if (held.filter((writer) => !ready.has(writer.intent_id)).length >= plan.maxConcurrentTasks)
+    throw new DeliveryConflict("epic_wip_limit");
   if (
     held.some(
       (w) =>

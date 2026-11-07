@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "scope": "Local D11 implementation and packaging validation; live acceptance pending",
+  "archive": {
+    "rawBytes": 754688,
+    "compressedBytes": 159988,
+    "metadataLimit": 160000,
+    "remainingBytes": 12,
+    "rawSha256": "bc6ed2631aa7e3a239362a78caa28465fd137339c4b7a0026d4b232694caea3b",
+    "compressedSha256": "7d88d91427da514df5eacbb1058fa448b6b456f0f681819d9bf5c01bdbde7dc1",
+    "packageManifestSha256": "80fa379a2dea736517ac5f29113e6d69a3758de8cea6b6ac87abc2cd21addd46",
+    "manifestFiles": 50
+  },
+  "tests": {
+    "composedPostgres": 33,
+    "delayedIntegrationSeconds": 31,
+    "epicUnits": 11,
+    "nodePassed": 85,
+    "nodeExistingOptInSkipped": 1,
+    "githubHelperPython": 17,
+    "hostCodecAndArchive": 5,
+    "profileAndArtifact": 22,
+    "launchController": 47,
+    "launchServicePostgres": 31,
+    "typecheckPassed": true,
+    "templateProfileCheckPassed": true
+  },
+  "sourceChanges": [
+    "Explicit preview readiness requires independent completion seal and current source evidence",
+    "Epics can admit coordinator and reserved nodes only on distinct currently enrolled storage domains",
+    "Actual attributed child PR merge into configured non-main branch is read via existing Coder-linked GitHub helper",
+    "Recorded merge facts survive slow preparation; fresh branch capture and all current claim guards remain mandatory",
+    "Launch uses the existing admission transport budget without adding replay authority",
+    "Standard XZ encoder and compact manifest preserve archive and decoder bounds"
+  ],
+  "providerFactsInLocalTests": "GitHub/Coder HTTP responses are controlled doubles; PostgreSQL lifecycle, native stores and source/acceptance controllers execute normally",
+  "providerMutations": false,
+  "liveModelInferencePassed": false,
+  "liveEpicPassed": false,
+  "productionChanged": false,
+  "productionHealthyOrCleanupGranted": false
+}

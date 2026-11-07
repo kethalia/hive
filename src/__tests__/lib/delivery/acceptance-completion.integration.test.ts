@@ -5,6 +5,7 @@ import { AcceptanceSuccessController } from "@/lib/delivery/acceptance-completio
 import { acceptanceDigest, requireIntentDigest } from "@/lib/delivery/acceptance-contracts";
 import { DeliveryAcceptanceService } from "@/lib/delivery/acceptance-service.server";
 import { acceptedDatabasePlan } from "@/lib/delivery/database-job-store.server";
+import { epicPreviewReadiness } from "@/lib/delivery/epic-readiness.server";
 import { PostgresReleaseEffectJournal } from "@/lib/delivery/release-effect-journal.server";
 import { verifyReleaseEvidence } from "@/lib/delivery/release-evidence.server";
 import { repositoryPolicyAdapters } from "@/lib/delivery/repository-policy.server";
@@ -198,6 +199,9 @@ describe.skipIf(!url)("controller factual completion", () => {
   it("allows an explicit premerge milestone while retaining production requirements and full-task holds", async () => {
     const f = await fixture(true, true);
     await collectCompletionProviderFacts(db, f, f.publication.operationId);
+    const readiness = () =>
+      db.$transaction((tx) => epicPreviewReadiness(tx, f.policies, f.user.id, f.taskId));
+    expect(await readiness()).toBeNull();
     const scope = { ownerId: f.user.id, taskId: f.taskId, sourceSha: f.publication.headSha };
     expect(
       await db.$transaction((tx) =>
@@ -215,6 +219,13 @@ describe.skipIf(!url)("controller factual completion", () => {
     });
     expect(production.state).not.toBe("succeeded");
     expect(await verify("implementation_preview")).toBe(true);
+    expect(await readiness()).toMatchObject({
+      milestone: "implementation_preview",
+      sourceSha: f.publication.headSha,
+      sourceRevisionId: f.terminal.sourceContext.revisionId,
+      writerHeld: true,
+      productionVerified: false,
+    });
     expect(await verify()).toBe(false);
     expect(await verify("task_complete")).toBe(false);
     expect(
@@ -253,6 +264,7 @@ describe.skipIf(!url)("controller factual completion", () => {
       data: { invalidatedAt: new Date() },
     });
     expect(await verify("implementation_preview")).toBe(false);
+    expect(await readiness()).toBeNull();
     expect(
       await new PostgresReleaseEffectJournal(db, f.user.id, release.authorize).begin(actions[0].id),
     ).toBeNull();

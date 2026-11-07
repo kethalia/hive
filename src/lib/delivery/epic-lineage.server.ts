@@ -22,12 +22,13 @@ export async function verifyEpicLineage(
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
       },
-      redirect: "error",
+      redirect: "manual",
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
         : AbortSignal.timeout(10000),
     });
-    if (!response.ok || !response.body) throw new DeliveryConflict("epic_lineage_unavailable");
+    if (response.redirected || response.status >= 300 || !response.ok || !response.body)
+      throw new DeliveryConflict("epic_lineage_unavailable");
     const reader = response.body.getReader(),
       chunks: Uint8Array[] = [];
     let size = 0;

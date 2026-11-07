@@ -140,18 +140,14 @@ const files = Object.fromEntries(
 );
 writeFileSync(
   join(out, "package-manifest.json"),
-  `${JSON.stringify(
-    {
-      schemaVersion: 1,
-      nodeMajor: 24,
-      wsVersion: ws.version,
-      nativeVersion: "0.165.0",
-      files,
-      ...(guardianArtifact ? { guardian: guardianArtifact.manifest } : {}),
-    },
-    null,
-    2,
-  )}\n`,
+  `${JSON.stringify({
+    schemaVersion: 1,
+    nodeMajor: 24,
+    wsVersion: ws.version,
+    nativeVersion: "0.165.0",
+    files,
+    ...(guardianArtifact ? { guardian: guardianArtifact.manifest } : {}),
+  })}\n`,
   { mode: 0o400, flag: "wx" },
 );
 console.log(

@@ -44,6 +44,11 @@ const policy = {
 function transaction(starts: unknown[] = []) {
   const query = vi
     .fn()
+    .mockImplementation((query) =>
+      Promise.resolve(
+        String(query).includes("clock_timestamp") ? [{ now: new Date(1900000000000) }] : [],
+      ),
+    )
     .mockResolvedValueOnce([{ plan, plan_digest: epicDigest(plan) }])
     .mockResolvedValueOnce([{ now: new Date(1900000000000) }])
     .mockResolvedValueOnce(starts);

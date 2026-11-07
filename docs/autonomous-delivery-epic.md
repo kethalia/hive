@@ -266,18 +266,22 @@ Migration 45 stays immutable; forward migration 46 safely retires its unused sch
 all publisher tables are empty. The premerge release and migration approval gates now accept
 current implementation/preview evidence while preserving pending production verification.
 
-A fresh isolated 20Gi test workspace is healthy on the exact reviewed immutable image/package.
-Its private volume, host identity and idle guardian state were independently checked; dedicated
-test Codex authentication is restored. The primary and earlier uncertain hosts remain preserved.
-See [workspace identity](checks/autonomous-delivery/managed-flow-20g-workspace-creation.json)
-and [readiness checks](checks/autonomous-delivery/managed-flow-20g-readiness.json).
+The isolated 20Gi host passed package/build/authentication checks and prepared the real
+checkout. Its first pilot then held at launch authorization, before any native Codex process
+or thread. The signed launch inventory matches server state and no older registered thread
+blocks it. Launch currently has a three-second network budget; latency/expiry is the leading
+inference, not a proven server error. User-namespace capability passed without extra privilege.
+The failed host is stopped and retained; its private evidence is preserved in the primary.
+See [attempt evidence](checks/autonomous-delivery/managed-flow-20g-prelaunch-hold.json).
 
-Next, enroll the reviewed docs-only manager pilot through the existing Preview configuration,
-then complete the real manager/child path, source publication and independent semantic acceptance.
-Keep writer retention and production/archive gates held until their actual conditions pass.
-Run Browser Testing Phase B for shared Conversation/Terminal continuity, task status and
-acceptance. Multi-task epic integration needs an explicit premerge readiness milestone;
-production-healthy release must never be fabricated to unblock a dependency.
+Next, fix and validate the bounded launch budget, package the revised host together with the
+connected-account epic merge reader, and rerun real manager/child/source/independent acceptance.
+Preserve the failed epoch rather than overwriting its authority. Browser Testing Phase B is
+prepared for shared Conversation/Terminal and Delivery report checks, but no live shared-thread
+acceptance is claimed. Production/archive gates remain held until their actual conditions pass.
+Multi-task epic integration must use explicit preview readiness, attributed real merges into
+the configured non-main epic branch, and independently enrolled storage domains; never invent
+healthy production releases or bypass source/physical-writer fences.
 
 Finish the remaining F07/F08 account-backed parity/recovery gates and release-controller
 acceptance. Prepare production bindings, retained identities, explicit production OAuth,

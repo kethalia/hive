@@ -252,7 +252,30 @@ export function createProjectDiscovery(config, controller) {
         try {
           const result = JSON.parse(Buffer.concat(chunks).toString());
           if (status === 0) {
-            if (["resolve", "resolve_ref"].includes(request.operation)) {
+            if (["observe_merge", "lineage"].includes(request.operation)) {
+              check(
+                result.schemaVersion === 1 &&
+                  result.operation === request.operation &&
+                  result.requestId === request.requestId &&
+                  result.providerAccountId === request.expectedAccountId &&
+                  result.repository?.providerRepositoryId === request.repositoryId &&
+                  result.baseBranch === request.baseBranch &&
+                  result.headSha === request.headSha &&
+                  /^[a-f0-9]{40}$/.test(result.branchHeadSha) &&
+                  (request.operation === "observe_merge"
+                    ? result.pullRequestId === request.pullRequestId &&
+                      result.pullNumber === request.pullNumber &&
+                      result.sourceBranch === request.sourceBranch &&
+                      typeof result.merged === "boolean" &&
+                      (result.merged
+                        ? /^[a-f0-9]{40}$/.test(result.mergeSha)
+                        : result.mergeSha === null)
+                    : result.baseSha === request.baseSha &&
+                      result.mergeBaseSha === request.baseSha &&
+                      result.branchHeadSha === request.headSha &&
+                      ["ahead", "identical"].includes(result.status)),
+              );
+            } else if (["resolve", "resolve_ref"].includes(request.operation)) {
               check(
                 result.schemaVersion === 1 &&
                   result.providerAccountId === request.expectedAccountId &&
@@ -318,7 +341,9 @@ export function createProjectDiscovery(config, controller) {
       const result =
         request.url === "/projects/discover"
           ? await discover(value)
-          : await controller?.handle(request.url, verifyTicket(value, request.url));
+          : request.url === "/projects/epic-read"
+            ? await epicRead(verifyTicket(value, request.url))
+            : await controller?.handle(request.url, verifyTicket(value, request.url));
       check(!closed && result);
       response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       response.end(JSON.stringify(result));
@@ -326,8 +351,19 @@ export function createProjectDiscovery(config, controller) {
       clearTimeout(timer);
     }
   }
+  async function epicRead(request) {
+    check(!closed && !busy);
+    validateProjectOperation("/projects/epic-read", request);
+    busy = true;
+    try {
+      return await runHelper(request);
+    } finally {
+      busy = false;
+    }
+  }
   return {
     discover,
+    epicRead,
     async resolveRepository(request) {
       check(
         !closed &&

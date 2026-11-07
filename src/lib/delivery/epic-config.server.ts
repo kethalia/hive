@@ -43,7 +43,6 @@ export function epicConfig() {
     isolationPolicy: epicIsolationSchema.parse(
       JSON.parse(process.env.HIVE_DELIVERY_EPIC_ISOLATION_POLICY),
     ),
-    lineageToken: process.env.HIVE_DELIVERY_EPIC_GITHUB_READ_TOKEN ?? "",
     modelTiers: epicModelTiers(),
   };
 }

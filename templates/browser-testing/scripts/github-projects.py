@@ -175,7 +175,8 @@ def github_json(token, path):
     allowed_commit = re.fullmatch(r"/repos/[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}/commits/(?:[A-Za-z0-9._~-]|%[0-9A-F]{2}){1,765}", path)
     ref_match = re.fullmatch(r"/repos/[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}/git/ref/heads/(.+)", path)
     allowed_ref = ref_match and valid_branch(ref_match.group(1))
-    if path != "/user" and not path.startswith("/user/repos?") and not allowed_repository and not allowed_commit and not allowed_ref:
+    allowed_epic_read = re.fullmatch(r"/repos/[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}/(?:pulls/[1-9][0-9]{0,15}|compare/[a-f0-9]{40}\.\.\.[a-f0-9]{40}\?per_page=1)", path)
+    if path != "/user" and not path.startswith("/user/repos?") and not allowed_repository and not allowed_commit and not allowed_ref and not allowed_epic_read:
         raise DiscoveryError("invalid_request")
     request = urllib.request.Request(f"{API_ORIGIN}{path}", headers={
         "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
@@ -281,13 +282,84 @@ def resolve_repository(value):
             "defaultRevision": commit["sha"]}
 
 
+def epic_read(value):
+    merge = isinstance(value, dict) and value.get("operation") == "observe_merge"
+    fields = {"schemaVersion", "requestId", "operation", "repositoryId", "expectedAccountId", "baseBranch", "headSha"}
+    fields |= {"pullRequestId", "pullNumber", "sourceBranch"} if merge else {"baseSha"}
+    valid_sha = lambda sha: isinstance(sha, str) and re.fullmatch(r"[a-f0-9]{40}", sha)
+    valid_id = lambda number: isinstance(number, str) and re.fullmatch(r"[1-9][0-9]{0,19}", number)
+    if (not isinstance(value, dict) or set(value) != fields or value.get("schemaVersion") != 1
+            or type(value["schemaVersion"]) is not int or value.get("operation") not in ("observe_merge", "lineage")
+            or not isinstance(value.get("requestId"), str) or not re.fullmatch(r"[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}", value["requestId"])
+            or not valid_id(value.get("repositoryId")) or not valid_id(value.get("expectedAccountId"))
+            or not valid_branch(value.get("baseBranch")) or not valid_sha(value.get("headSha"))
+            or (merge and (not valid_id(value.get("pullRequestId")) or type(value.get("pullNumber")) is not int
+                           or not 0 < value["pullNumber"] <= 9007199254740991 or not valid_branch(value.get("sourceBranch"))))
+            or (not merge and not valid_sha(value.get("baseSha")))):
+        raise DiscoveryError("invalid_request")
+    token = external_token()
+    identity, _ = github_json(token, "/user")
+    if not isinstance(identity, dict) or type(identity.get("id")) is not int or str(identity["id"]) != value["expectedAccountId"]:
+        raise DiscoveryError("github_auth_required")
+    raw, _ = github_json(token, f"/repositories/{value['repositoryId']}")
+    metadata = repository(raw)
+    if (metadata["providerRepositoryId"] != value["repositoryId"] or metadata["archived"]
+            or not metadata["permissions"]["pull"] or not metadata["permissions"]["push"]
+            or raw.get("clone_url") != metadata["htmlUrl"] + ".git"):
+        raise DiscoveryError("github_permission_denied")
+    path = f"/repos/{metadata['owner']}/{metadata['name']}"
+    result = {"schemaVersion": 1, "operation": value["operation"], "requestId": value["requestId"],
+              "providerAccountId": str(identity["id"]), "repository": metadata,
+              "baseBranch": value["baseBranch"], "headSha": value["headSha"]}
+    if merge:
+        if value["baseBranch"].lower() in ("main", "master") or value["baseBranch"] == metadata["defaultBranch"]:
+            raise DiscoveryError("invalid_request")
+        pull, _ = github_json(token, f"{path}/pulls/{value['pullNumber']}")
+        if (not isinstance(pull, dict) or type(pull.get("id")) is not int or str(pull["id"]) != value["pullRequestId"]
+                or type(pull.get("number")) is not int or pull.get("number") != value["pullNumber"] or type(pull.get("merged")) is not bool
+                or pull.get("head", {}).get("sha") != value["headSha"]
+                or pull.get("head", {}).get("ref") != value["sourceBranch"]
+                or type(pull.get("head", {}).get("repo", {}).get("id")) is not int
+                or str(pull.get("head", {}).get("repo", {}).get("id")) != value["repositoryId"]
+                or pull.get("base", {}).get("ref") != value["baseBranch"]
+                or type(pull.get("base", {}).get("repo", {}).get("id")) is not int
+                or str(pull.get("base", {}).get("repo", {}).get("id")) != value["repositoryId"]
+                or (pull["merged"] and (pull.get("state") != "closed" or not valid_sha(pull.get("merge_commit_sha"))))):
+            raise DiscoveryError("github_invalid_response")
+        result.update(pullRequestId=value["pullRequestId"], pullNumber=value["pullNumber"], sourceBranch=value["sourceBranch"],
+                      merged=pull["merged"], mergeSha=pull["merge_commit_sha"] if pull["merged"] else None)
+    branch, _ = github_json(token, f"{path}/git/ref/heads/{urllib.parse.quote(value['baseBranch'], safe='/')}")
+    if (not isinstance(branch, dict) or branch.get("ref") != "refs/heads/" + value["baseBranch"]
+            or branch.get("object", {}).get("type") != "commit" or not valid_sha(branch.get("object", {}).get("sha"))):
+        raise DiscoveryError("github_invalid_response")
+    result["branchHeadSha"] = branch["object"]["sha"]
+    base_sha = result.get("mergeSha") if merge else value["baseSha"]
+    head_sha = result["branchHeadSha"] if merge else value["headSha"]
+    if not merge and head_sha != result["branchHeadSha"]:
+        raise DiscoveryError("github_invalid_response")
+    if base_sha:
+        compare, _ = github_json(token, f"{path}/compare/{base_sha}...{head_sha}?per_page=1")
+        if (not isinstance(compare, dict) or compare.get("status") not in ("ahead", "identical")
+                or compare.get("base_commit", {}).get("sha") != base_sha
+                or compare.get("merge_base_commit", {}).get("sha") != base_sha
+                or (compare["status"] == "identical" and base_sha != head_sha)):
+            raise DiscoveryError("github_invalid_response")
+        if not merge:
+            result.update(baseSha=base_sha, status=compare["status"], mergeBaseSha=base_sha)
+    current, _ = github_json(token, f"/repositories/{value['repositoryId']}")
+    if repository(current) != metadata:
+        raise DiscoveryError("github_invalid_response")
+    return result
+
+
 def main():
     try:
         raw = sys.stdin.buffer.read(REQUEST_LIMIT + 1)
         if len(raw) > REQUEST_LIMIT:
             raise DiscoveryError("request_too_large")
         value = json.loads(raw)
-        result = resolve_repository(value) if isinstance(value, dict) and value.get("operation") in ("resolve", "resolve_ref") else discover(value)
+        result = (epic_read(value) if isinstance(value, dict) and value.get("operation") in ("observe_merge", "lineage")
+                  else resolve_repository(value) if isinstance(value, dict) and value.get("operation") in ("resolve", "resolve_ref") else discover(value))
         status = 0
     except DiscoveryError as error:
         result, status = {"schemaVersion": 1, "error": str(error)}, 1
