@@ -86,6 +86,8 @@ export function readAgentStartup(
       exact(manifest.files, [
         "agent-host.mjs",
         "codex-account.mjs",
+        "claude-account.mjs",
+        "claude-account-driver.py",
         "agent-start.mjs",
         "agent-tools.py",
         "notifications-install.py",

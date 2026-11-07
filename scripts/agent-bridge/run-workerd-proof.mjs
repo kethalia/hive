@@ -14,6 +14,8 @@ const notificationAssets = new Map([
   ["agent-tools.py", source],
   ["codex-account.mjs", Buffer.from("// pinned test account module\n")],
   ["agent-host.mjs", await readFile("scripts/agent-bridge/host.mjs")],
+  ["claude-account.mjs", Buffer.from("// pinned Claude fixture\n")],
+  ["claude-account-driver.py", Buffer.from("# pinned Claude driver fixture\n")],
   ["agent-start.mjs", await readFile("scripts/agent-bridge/start.mjs")],
   ["notifications-install.py", await readFile("scripts/notifications/install.py")],
   ["notifications-hook.py", await readFile("scripts/notifications/agent-hook.py")],
@@ -63,8 +65,40 @@ const hostConfig = {
   manifestSha256: sha(manifestBytes),
   helperSha256: sha(source),
 };
+let claudeSignedIn = false;
 const bridge = createAgentBridge(hostConfig, {
   helperPath: helper,
+  claudeAccounts: {
+    async open(_home, _fd, notify) {
+      return {
+        async call(method) {
+          if (method === "account/read")
+            return { account: claudeSignedIn ? { type: "claude" } : null };
+          if (method === "account/login/start")
+            return {
+              type: "claudeCli",
+              loginId: "workerd-cli",
+              verificationUrl: "https://claude.com/cai/oauth/authorize?state=fixture",
+            };
+          if (method === "account/login/submitCode") {
+            claudeSignedIn = true;
+            notify({
+              method: "account/login/completed",
+              params: { loginId: "workerd-cli", success: true },
+            });
+            return { accepted: true };
+          }
+          if (method === "account/login/cancel") return { status: "canceled" };
+          if (method === "account/logout") {
+            claudeSignedIn = false;
+            return {};
+          }
+          throw Error();
+        },
+        async close() {},
+      };
+    },
+  },
   accounts: {
     async open() {
       return {
@@ -159,7 +193,8 @@ try {
     JSON.parse(body).workspaceReads < 12 ||
     JSON.parse(body).notificationInstalled !== true ||
     JSON.parse(body).notificationReplay !== true ||
-    JSON.parse(body).codexAccountFenced !== true
+    JSON.parse(body).codexAccountFenced !== true ||
+    JSON.parse(body).claudeAccountFenced !== true
   )
     throw new Error(`proof failed ${response.status}: ${body.slice(0, 400)}`);
   const hooks = JSON.parse(await readFile(join(root, "custom-codex/hooks.json"), "utf8"));
@@ -179,10 +214,10 @@ try {
   await mkdir(output, { recursive: true });
   await writeFile(
     join(output, "bridge-workerd.json"),
-    `${JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(), localOnly: true, scope: "actual Workerd service/client + local signed host + pinned Python notification installer; synthetic provider reader/cookie exchange", checks: { codexAccountFenced: JSON.parse(body).codexAccountFenced, notificationInstalled: JSON.parse(body).notificationInstalled, notificationReplay: JSON.parse(body).notificationReplay, customConfigPreserved: true, wrongOwnerRejected: denied.rejected, changedBuildUncertain: changed.code === "outcome_unknown" }, realProviderRequests: 0, liveCredentialsUsed: false }, null, 2)}\n`,
+    `${JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(), localOnly: true, scope: "actual Workerd service/client + local signed host + pinned Python notification installer; synthetic provider reader/cookie exchange", checks: { claudeAccountFenced: JSON.parse(body).claudeAccountFenced, codexAccountFenced: JSON.parse(body).codexAccountFenced, notificationInstalled: JSON.parse(body).notificationInstalled, notificationReplay: JSON.parse(body).notificationReplay, customConfigPreserved: true, wrongOwnerRejected: denied.rejected, changedBuildUncertain: changed.code === "outcome_unknown" }, realProviderRequests: 0, liveCredentialsUsed: false }, null, 2)}\n`,
   );
   process.stdout.write(
-    "workerd agent owner/build, scoped cookies, signed sessions, managed Codex account fences, tracking and fixed notification installer with private receipt passed\n",
+    "workerd agent owner/build, scoped cookies, signed sessions, Codex/Claude account fences, tracking and fixed notification installer with private receipt passed\n",
   );
 } finally {
   if (child.exitCode === null && child.signalCode === null) {

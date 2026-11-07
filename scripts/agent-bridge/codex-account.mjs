@@ -64,6 +64,25 @@ export async function openAccountSession(home, fd, notify) {
       stdio: ["pipe", "pipe", "ignore", fd],
     },
   );
+  const { call, close, initialized: ready } = createAccountWire(child, notify);
+  try {
+    const initialized = await call("initialize", {
+      clientInfo: { name: "hive_managed_accounts", version: "1" },
+    });
+    if (
+      typeof initialized?.userAgent !== "string" ||
+      !/^[^/\s]+\/0\.165\.0(?:\s|$)/.test(initialized.userAgent)
+    )
+      reject();
+    ready();
+    return { call, close };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
+
+export function createAccountWire(child, notify, { codeInput = false } = {}) {
   let sequence = 0,
     buffer = "",
     ended = false;
@@ -119,6 +138,7 @@ export async function openAccountSession(home, fd, notify) {
           "account/login/start",
           "account/login/cancel",
           "account/logout",
+          ...(codeInput ? ["account/login/submitCode"] : []),
         ].includes(method) ||
         requests.size >= 4
       )
@@ -140,24 +160,19 @@ export async function openAccountSession(home, fd, notify) {
     clearTimeout(kill);
     fail();
   };
-  try {
-    const initialized = await call("initialize", {
-      clientInfo: { name: "hive_managed_accounts", version: "1" },
-    });
-    if (
-      typeof initialized?.userAgent !== "string" ||
-      !/^[^/\s]+\/0\.165\.0(?:\s|$)/.test(initialized.userAgent)
-    )
-      reject();
-    child.stdin.write(`${JSON.stringify({ method: "initialized" })}\n`);
-    return { call, close };
-  } catch (error) {
-    await close();
-    throw error;
-  }
+  return {
+    call,
+    close,
+    initialized: () => child.stdin.write(`${JSON.stringify({ method: "initialized" })}\n`),
+  };
 }
 
-export function createCodexAccountManager({
+export function createCodexAccountManager(options) {
+  return createAccountManager({ ...options, provider: "codex" });
+}
+
+export function createAccountManager({
+  provider = "codex",
   home,
   lifetimeId,
   profile,
@@ -176,7 +191,7 @@ export function createCodexAccountManager({
   let sessionEpoch = 0;
   const notifications = new Map();
   const view = () => ({
-    scope: "managed-native",
+    scope: provider === "codex" ? "managed-native" : "workspace-cli",
     lifetimeId,
     generation,
     state,
@@ -184,7 +199,9 @@ export function createCodexAccountManager({
       state === "pending" && pending
         ? {
             verificationUrl: pending.verificationUrl,
-            userCode: pending.userCode,
+            ...(provider === "codex"
+              ? { userCode: pending.userCode }
+              : { codeSubmitted: pending.codeSubmitted }),
             expiresAt: pending.expiresAt,
           }
         : null,
@@ -247,11 +264,16 @@ export function createCodexAccountManager({
     const value = await session.call("account/read", { refreshToken: false });
     if (!value || !Object.hasOwn(value, "account")) reject();
     if (value.account === null) return "signed-out";
-    if (value.account.type !== "chatgpt") return "unknown";
+    if (value.account.type !== (provider === "codex" ? "chatgpt" : "claude")) return "unknown";
     return "signed-in";
   };
   const execute = async (request) => {
-    if (closed || profile !== "software") reject();
+    if (
+      closed ||
+      !["codex", "claude"].includes(provider) ||
+      (provider === "codex" && profile !== "software")
+    )
+      reject();
     if (
       request.action !== "status" &&
       (request.lifetimeId !== lifetimeId || request.generation !== generation)
@@ -279,6 +301,24 @@ export function createCodexAccountManager({
         state = success ? current : "failed";
         await stop();
       }
+      return view();
+    }
+    if (request.action === "code") {
+      if (
+        provider !== "claude" ||
+        !pending ||
+        pending.codeSubmitted ||
+        typeof request.code !== "string" ||
+        !/^[!-~]{1,2048}$/.test(request.code)
+      )
+        throw Error("managed_auth_stale");
+      pending.codeSubmitted = true;
+      generation++;
+      const accepted = await session.call("account/login/submitCode", {
+        loginId: pending.loginId,
+        code: request.code,
+      });
+      if (accepted?.accepted !== true) reject();
       return view();
     }
     if (request.action === "connect" && pending) return view();
@@ -314,13 +354,17 @@ export function createCodexAccountManager({
       return view();
     }
     const priorGeneration = generation;
-    const result = await session.call("account/login/start", { type: "chatgptDeviceCode" });
+    const result = await session.call("account/login/start", {
+      type: provider === "codex" ? "chatgptDeviceCode" : "claudeCli",
+    });
     if (
-      result?.type !== "chatgptDeviceCode" ||
+      result?.type !== (provider === "codex" ? "chatgptDeviceCode" : "claudeCli") ||
       typeof result.loginId !== "string" ||
       result.loginId.length > 200 ||
-      result.verificationUrl !== "https://auth.openai.com/codex/device" ||
-      !/^[A-Z0-9-]{4,32}$/.test(result.userCode)
+      (provider === "codex"
+        ? result.verificationUrl !== "https://auth.openai.com/codex/device" ||
+          !/^[A-Z0-9-]{4,32}$/.test(result.userCode)
+        : !validClaudeLoginUrl(result.verificationUrl))
     )
       reject();
     generation++;
@@ -329,6 +373,7 @@ export function createCodexAccountManager({
       loginId: result.loginId,
       verificationUrl: result.verificationUrl,
       userCode: result.userCode,
+      codeSubmitted: false,
       expiresAt: now() + MAX_AGE,
       priorGeneration,
     };
@@ -358,4 +403,23 @@ export function createCodexAccountManager({
       await stop();
     },
   };
+}
+
+export function validClaudeLoginUrl(value) {
+  try {
+    const u = new URL(value);
+    return (
+      typeof value === "string" &&
+      value.length <= 8192 &&
+      u.protocol === "https:" &&
+      u.host === "claude.com" &&
+      u.pathname === "/cai/oauth/authorize" &&
+      !u.username &&
+      !u.password &&
+      !u.hash &&
+      !!u.search
+    );
+  } catch {
+    return false;
+  }
 }

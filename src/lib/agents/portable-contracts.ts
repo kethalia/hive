@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { claudeAccountRequestSchema, claudeAccountStatusSchema } from "./claude-account-contracts";
 import { codexAccountRequestSchema, codexAccountStatusSchema } from "./codex-account-contracts";
 import { agentResumeResultSchema, agentSessionKeySchema, agentToolsSnapshotSchema } from "./types";
 
@@ -8,6 +9,9 @@ export const terminalSessionNameSchema = z
   .refine((name) => !name.startsWith("git-clone-"));
 
 export const agentOperationSchema = z.discriminatedUnion("operation", [
+  z
+    .object({ operation: z.literal("claude-account"), account: claudeAccountRequestSchema })
+    .strict(),
   z
     .object({
       operation: z.literal("rename-terminal-session"),
@@ -41,6 +45,7 @@ export const agentOperationSchema = z.discriminatedUnion("operation", [
 ]);
 export type AgentOperation = z.infer<typeof agentOperationSchema>;
 export const agentResultSchemas = {
+  "claude-account": claudeAccountStatusSchema,
   "rename-terminal-session": z
     .object({ oldName: terminalSessionNameSchema, newName: terminalSessionNameSchema })
     .strict(),
@@ -97,6 +102,7 @@ export const agentReplySchema = z
     requestId: z.string().uuid(),
     lifetimeId: z.string().uuid(),
     operation: z.enum([
+      "claude-account",
       "rename-terminal-session",
       "kill-terminal-session",
       "codex-account",

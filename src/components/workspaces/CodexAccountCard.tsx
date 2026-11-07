@@ -94,7 +94,9 @@ export function CodexAccountCard({ workspaceId }: { workspaceId: string }) {
           <p>
             Enter this one-time code: <strong>{status.pending.userCode}</strong>
           </p>
-          <p className="text-sm">Waiting for authorization. This attempt expires automatically.</p>
+          <p className="text-sm">
+            Local attempt expires at {new Date(status.pending.expiresAt).toLocaleTimeString()}.
+          </p>
         </div>
       )}
       {error && <p role="alert">Account outcome is unknown. Refresh status before trying again.</p>}

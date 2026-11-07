@@ -1,12 +1,27 @@
 import { z } from "zod";
 import { getRequestSession } from "@/lib/auth/session";
 import { publicationBody } from "@/lib/templates/publication-io";
+import { claudeAccountRequestSchema, claudeAccountStatusSchema } from "./claude-account-contracts";
 import { codexAccountRequestSchema, codexAccountStatusSchema } from "./codex-account-contracts";
 import { createPortableAgentService } from "./portable-config.server";
 
 const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 export async function codexAccountRoute(request: Request, workspaceId: string) {
-  if (process.env.HIVE_CODEX_ACCOUNTS_ENABLED !== "true")
+  return workspaceAccountRoute(request, workspaceId, "codex");
+}
+export async function claudeAccountRoute(request: Request, workspaceId: string) {
+  return workspaceAccountRoute(request, workspaceId, "claude");
+}
+async function workspaceAccountRoute(
+  request: Request,
+  workspaceId: string,
+  provider: "codex" | "claude",
+) {
+  if (
+    (provider === "codex"
+      ? process.env.HIVE_CODEX_ACCOUNTS_ENABLED
+      : process.env.HIVE_CLAUDE_ACCOUNTS_ENABLED) !== "true"
+  )
     return new Response(null, { status: 404, headers });
   const origin = process.env.HIVE_PUBLIC_ORIGIN;
   if (
@@ -27,20 +42,34 @@ export async function codexAccountRoute(request: Request, workspaceId: string) {
   try {
     const bytes = await publicationBody(
       new Response(request.body, { headers: request.headers }),
-      1024,
+      provider === "codex" ? 1024 : 8192,
       AbortSignal.any([request.signal, AbortSignal.timeout(5000)]),
     );
-    const account = codexAccountRequestSchema.parse(JSON.parse(new TextDecoder().decode(bytes)));
-    const result = await createPortableAgentService().execute(
-      { hiveUserId: session.user.id, coderUserId: session.user.coderUserId },
+    const input: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    const principal = { hiveUserId: session.user.id, coderUserId: session.user.coderUserId };
+    const service = createPortableAgentService();
+    if (provider === "claude") {
+      const result = await service.execute(
+        principal,
+        workspaceId,
+        { operation: "claude-account", account: claudeAccountRequestSchema.parse(input) },
+        request.signal,
+      );
+      return Response.json(claudeAccountStatusSchema.parse(result), { headers });
+    }
+    const result = await service.execute(
+      principal,
       workspaceId,
-      { operation: "codex-account", account },
+      { operation: "codex-account", account: codexAccountRequestSchema.parse(input) },
       request.signal,
     );
     return Response.json(codexAccountStatusSchema.parse(result), { headers });
   } catch {
     // Unknown outcomes require status readback. Never claim cancel/logout from a
     // transport timeout, and never expose a provider response or credential path.
-    return Response.json({ error: "codex_account_unavailable" }, { status: 409, headers });
+    return Response.json(
+      { error: provider === "codex" ? "codex_account_unavailable" : "claude_account_unavailable" },
+      { status: 409, headers },
+    );
   }
 }

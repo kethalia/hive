@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-11-07T23:01:28.098Z",
+  "observedAt": "2026-11-07T23:45:01.383Z",
   "localOnly": true,
-  "scope": "actual Workerd service/client + local signed host + pinned Python notification installer; synthetic account process/provider reader/cookie exchange",
+  "scope": "actual Workerd service/client + local signed host + pinned Python notification installer; synthetic provider reader/cookie exchange",
   "checks": {
+    "claudeAccountFenced": true,
     "codexAccountFenced": true,
     "notificationInstalled": true,
     "notificationReplay": true,

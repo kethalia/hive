@@ -10,11 +10,13 @@ import {
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, isAbsolute, join, normalize } from "node:path";
+import { createClaudeAccountManager } from "./claude-account.mjs";
 import { createCodexAccountManager } from "./codex-account.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY = /^(codex|claude)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const OPS = [
+  "claude-account",
   "rename-terminal-session",
   "kill-terminal-session",
   "identity",
@@ -100,6 +102,26 @@ function operationValid(v) {
     );
   if (v.operation === "kill-terminal-session")
     return exact(v, ["operation", "sessionName"]) && sessionName(v.sessionName);
+  if (v.operation === "claude-account") {
+    const a = v.account;
+    return (
+      exact(v, ["operation", "account"]) &&
+      (a?.action === "status"
+        ? exact(a, ["action"])
+        : a &&
+          ["connect", "cancel", "reconnect", "disconnect", "code"].includes(a.action) &&
+          exact(a, [
+            "action",
+            "lifetimeId",
+            "generation",
+            ...(a.action === "code" ? ["code"] : []),
+          ]) &&
+          UUID.test(a.lifetimeId) &&
+          Number.isSafeInteger(a.generation) &&
+          a.generation >= 0 &&
+          (a.action !== "code" || (typeof a.code === "string" && /^[!-~]{1,2048}$/.test(a.code))))
+    );
+  }
   if (v.operation === "codex-account") {
     const a = v.account;
     return (
@@ -242,7 +264,25 @@ export function createAgentBridge(config, deps = {}) {
     used.set(c.jti, c.exp);
     return c;
   }
+  const claudeAccounts = createClaudeAccountManager({
+    home: config.home,
+    profile: config.profile,
+    lifetimeId,
+    configDirectory: environment.CLAUDE_CONFIG_DIR ?? join(config.home, ".claude"),
+    driverSource() {
+      const manifest = JSON.parse(
+        pinnedSource(join(dirname(helper), "manifest.json"), config.manifestSha256, 4096),
+      );
+      return pinnedSource(
+        join(dirname(helper), "claude-account-driver.py"),
+        manifest.files["claude-account-driver.py"],
+        32768,
+      ).toString("utf8");
+    },
+    ...(deps.claudeAccounts ?? {}),
+  });
   function execute(request) {
+    if (request.operation === "claude-account") return claudeAccounts.run(request.account);
     if (request.operation === "codex-account") return accounts.run(request.account);
     return new Promise((resolve, reject) => {
       let source, payload;
@@ -260,6 +300,8 @@ export function createAgentBridge(config, deps = {}) {
           const names = [
             "agent-host.mjs",
             "codex-account.mjs",
+            "claude-account.mjs",
+            "claude-account-driver.py",
             "agent-start.mjs",
             "agent-tools.py",
             "notifications-install.py",
@@ -430,7 +472,7 @@ export function createAgentBridge(config, deps = {}) {
     server,
     close: async () => {
       server.close();
-      await accounts.close();
+      await Promise.all([accounts.close(), claudeAccounts.close()]);
     },
   };
 }

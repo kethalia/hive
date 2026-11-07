@@ -52,22 +52,52 @@ follows. Packaging must be regenerated/reviewed by the coordinating root before
 any deployment. The native package needs `codex-managed-auth-lock.mjs`; the agent
 package needs the bundled `codex-account.mjs` plus its updated manifest/installer.
 
-## Claude follow-up
+## Claude CLI prototype
 
-Installed Claude Code 2.1.312 exposes `auth login`, `auth status --json`, and
-`auth logout`. Its [documented browser flow](https://code.claude.com/docs/en/authentication)
-can ask for a one-time code in the terminal. A native one-time-code field is not
-excluded by F10's no-terminal/no-callback-URL requirement. A wrapper around the
-**unmodified** CLI may therefore be viable, but stable bounded URL/code/stdin
-interaction and cancellation still need exact installed-interface validation;
-no private OAuth endpoints or SDK consumer-login workaround is authorized here.
+A separate default-off `HIVE_CLAUDE_ACCOUNTS_ENABLED=true` capability now uses the
+existing signed bridge and Accounts window. It executes only the **unmodified**
+official CLI's `auth login`, `auth status --json`, and `auth logout`. The
+[documented browser flow](https://code.claude.com/docs/en/authentication) opens the
+official URL and accepts one one-time code in Hive; no terminal or pasted callback
+URL is required. One bounded printable code is fed once to the exact CLI's PTY,
+then cleared from the UI. Unknown outcomes are never automatically resent. The
+CLI retains its verifier, token exchange and saved credentials. No private OAuth
+endpoint, SDK consumer login, `setup-token`, credential parser or new service is
+implemented.
 
 [Hosted CLI conditions](https://code.claude.com/docs/en/legal-and-compliance)
-allow unmodified Claude Code under their stated terms, retaining built-in auth
-methods and each user's own credentials. Separately, the
-[Agent SDK guidance](https://code.claude.com/docs/en/agent-sdk/overview) restricts
-third-party claude.ai login without approval. These are different integration
-paths. Claude remains unimplemented, so F10 remains incomplete.
+apply to this unmodified CLI path and the user's own account. The separate
+[Agent SDK restrictions](https://code.claude.com/docs/en/agent-sdk/overview) remain
+unchanged. This adapter does not use the SDK to implement consumer login.
+
+The bridge selects its existing configured `CLAUDE_CONFIG_DIR`, falling back to
+`~/.claude`; callers cannot select paths or executables. Only exact verified
+2.1.312 and 2.1.319 binaries are supported. The future image baseline is 2.1.319;
+no running workspace is upgraded. Official release manifests and signatures were
+verified against the [published signing key](https://code.claude.com/docs/en/setup#verify-the-manifest-signature).
+Sanitized [312](codex-account-local/claude-2.1.312-release.json) and
+[319](codex-account-local/claude-2.1.319-release.json) receipts record hashes.
+Unknown refreshed CLI versions hold until their interaction contract is verified.
+
+An exclusive private, no-follow lock serializes Hive account operations and is
+inherited by the CLI process. Generation, host lifetime, owner and build fences
+reject stale requests. Cancellation waits for the exact process before a fresh
+official status read. Logout changes local saved CLI credentials; unmanaged live
+CLI processes and provider-global sessions are outside that lock and revocation
+claim. No existing auth home is copied.
+
+Actual unmodified CLI probes used empty temporary config inside a network
+namespace with browser openers disabled. Both [312](codex-account-local/claude-2.1.312-framing.json)
+and [319](codex-account-local/claude-2.1.319-framing.json) exposed the expected
+official URL/code prompt, accepted one synthetic input, rejected a duplicate,
+retained the inherited lock and cancelled into fresh signed-out status. They made
+zero provider requests and created no credentials. Unit/API/component tests and
+an actual Workerd signed-transport proof use synthetic local provider results;
+none proves real sign-in, browser acceptance, provider revocation or complete F10.
+
+Coordinated packaging must add bundled `claude-account.mjs` and the fixed
+`claude-account-driver.py` to the existing agent archive/manifest, installer and
+startup checks. Profile assets remain unsynchronized pending root integration.
 
 ## F07 follow-up in this slice
 

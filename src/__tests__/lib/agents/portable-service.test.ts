@@ -61,6 +61,15 @@ beforeEach(() => {
 });
 describe("portable agent authority", () => {
   it.each([
+    {
+      operation: "claude-account" as const,
+      account: {
+        action: "code" as const,
+        lifetimeId: randomUUID(),
+        generation: 1,
+        code: "PRIVATE_CODE#STATE",
+      },
+    },
     { operation: "rename-terminal-session" as const, oldName: "one", newName: "two" },
     { operation: "kill-terminal-session" as const, sessionName: "one" },
     {

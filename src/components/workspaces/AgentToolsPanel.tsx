@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { configureAgentToolsAction, resumeAgentSessionAction } from "@/lib/actions/agent-tools";
 import { type AgentSession, agentLabels } from "@/lib/agents/types";
 import { useDiscovery } from "@/lib/discovery/queries";
+import { ClaudeAccountCard } from "./ClaudeAccountCard";
 import { CodexAccountCard } from "./CodexAccountCard";
 
 const states: Record<AgentSession["state"], string> = {
@@ -233,6 +234,10 @@ export function AgentToolsPanel({
                 </p>
               )}
             </section>
+            <ClaudeAccountCard
+              key={`claude/${workspaceId}/${buildId ?? ""}`}
+              workspaceId={workspaceId}
+            />
             <CodexAccountCard key={`${workspaceId}/${buildId ?? ""}`} workspaceId={workspaceId} />
             <details className="rounded-lg border p-3">
               <summary className="cursor-pointer text-sm font-medium">

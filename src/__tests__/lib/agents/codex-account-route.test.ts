@@ -7,7 +7,7 @@ vi.mock("@/lib/agents/portable-config.server", () => ({
   createPortableAgentService: () => ({ execute: mock.execute }),
 }));
 
-import { codexAccountRoute } from "@/lib/agents/codex-account-route.server";
+import { claudeAccountRoute, codexAccountRoute } from "@/lib/agents/codex-account-route.server";
 
 const workspaceId = randomUUID(),
   lifetimeId = randomUUID();
@@ -87,4 +87,44 @@ it("rejects credential-bearing responses and reports cancellation/transport unce
       )
     ).json(),
   ).toEqual({ error: "codex_account_unavailable" });
+});
+
+it("Claude code input is separately gated, exact-shaped, and never echoed", async () => {
+  expect((await claudeAccountRoute(request(), workspaceId)).status).toBe(404);
+  vi.stubEnv("HIVE_CLAUDE_ACCOUNTS_ENABLED", "true");
+  expect(
+    (
+      await claudeAccountRoute(
+        request({ action: "code", lifetimeId, generation: 1, code: "line1\nline2" }),
+        workspaceId,
+      )
+    ).status,
+  ).toBe(409);
+  expect(mock.execute).not.toHaveBeenCalled();
+  mock.execute.mockResolvedValue({
+    scope: "workspace-cli",
+    lifetimeId,
+    generation: 2,
+    state: "pending",
+    pending: {
+      verificationUrl: "https://claude.com/cai/oauth/authorize?state=fixture",
+      codeSubmitted: true,
+      expiresAt: Date.now() + 600000,
+    },
+  });
+  const response = await claudeAccountRoute(
+    request({ action: "code", lifetimeId, generation: 1, code: "PRIVATE_CODE#STATE" }),
+    workspaceId,
+  );
+  expect(response.status).toBe(200);
+  expect(await response.text()).not.toContain("PRIVATE_CODE");
+  expect(mock.execute).toHaveBeenCalledWith(
+    { hiveUserId: "hive-owner", coderUserId: "coder-owner" },
+    workspaceId,
+    {
+      operation: "claude-account",
+      account: { action: "code", lifetimeId, generation: 1, code: "PRIVATE_CODE#STATE" },
+    },
+    expect.any(AbortSignal),
+  );
 });

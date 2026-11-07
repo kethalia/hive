@@ -219,3 +219,12 @@ test("managed Codex accounts stay absent/off by default and require explicit pub
   c.previews.vars.HIVE_CODEX_ACCOUNTS_ENABLED = "arbitrary";
   assert.throws(() => validateConfig(c));
 });
+
+test("workspace Claude accounts require explicit public enrollment without new secrets", () => {
+  assert.notEqual(config.previews.vars.HIVE_CLAUDE_ACCOUNTS_ENABLED, "true");
+  const c = clone();
+  c.previews.vars.HIVE_CLAUDE_ACCOUNTS_ENABLED = "true";
+  assert.doesNotThrow(() => validateConfig(c));
+  c.previews.vars.HIVE_CLAUDE_ACCOUNTS_ENABLED = "arbitrary";
+  assert.throws(() => validateConfig(c));
+});

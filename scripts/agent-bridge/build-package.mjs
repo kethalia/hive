@@ -18,7 +18,21 @@ export async function agentPackage(root = defaultRoot) {
     target: "node24",
     minify: true,
   });
+  const claude = await build({
+    entryPoints: [resolve(root, "scripts/agent-bridge/claude-account.mjs")],
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "esm",
+    target: "node24",
+    minify: true,
+  });
   const files = new Map([
+    ["claude-account.mjs", Buffer.from(claude.outputFiles[0].contents)],
+    [
+      "claude-account-driver.py",
+      await readFile(resolve(root, "scripts/agent-bridge/claude-account-driver.py")),
+    ],
     ["codex-account.mjs", Buffer.from(account.outputFiles[0].contents)],
     ["agent-host.mjs", await readFile(resolve(root, "scripts/agent-bridge/host.mjs"))],
     ["agent-start.mjs", await readFile(resolve(root, "scripts/agent-bridge/start.mjs"))],
