@@ -12,6 +12,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  trusted-tested-tree:
+    name: Trusted tested tree
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.base.ref == 'codex/delivery-system-design' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'codex/delivery/')
+    permissions:
+      contents: read
+      id-token: write
+    uses: kethalia/hive/.github/workflows/controlled-tested-tree.yml@ba19f764a2347503f148c1ad9785f8af0d51b895
+    with:
+      # Enable only after this exact producer and public endpoint are enrolled.
+      attestation-enabled: false
+      trusted-revision: ba19f764a2347503f148c1ad9785f8af0d51b895
+      managed-source-base: codex/delivery-system-design
+      attestation-config-json: >-
+        {"controllerOrigin":"https://codex-delivery-system-design-hive.b00ste.workers.dev","audiencePrefix":"urn:hive:release-tested:epic-preview:","controlDigest":"57a236ccf5002b9162a7c39d4bfd0907ff67f35505eadcd5c4ac39aa41ae28ed"}
+
   build-lint-test:
     name: Build / Lint / Test
     permissions:

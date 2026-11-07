@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 import { assertManagedTestSource, attestTestedTree } from "./tested-attestor.mjs";
 
 const config = {
@@ -173,4 +175,69 @@ test("managed scope is checked before candidate execution and again by the isola
     workflow,
     /HIVE_TESTED_MANAGED_SOURCE_BASE: \$\{\{ inputs\.managed-source-base \}\}/,
   );
+});
+
+test("public caller pins the producer, opts in explicitly and skips epic/feature/main/fork PRs", async () => {
+  const caller = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
+  const job = caller.split("  trusted-tested-tree:\n")[1].split("  build-lint-test:\n")[0];
+  const pinned =
+    /uses: kethalia\/hive\/\.github\/workflows\/controlled-tested-tree\.yml@([a-f0-9]{40})/.exec(
+      job,
+    )[1];
+  assert.match(job, new RegExp(`trusted-revision: ${pinned}`));
+  assert.match(job, /attestation-enabled: false/);
+  assert.match(job, /managed-source-base: codex\/delivery-system-design/);
+  assert.match(job, /contents: read\n {6}id-token: write/);
+  assert.doesNotMatch(job, /secrets:|vars\.|contents: write|pull-requests: write/);
+  const publicConfig = JSON.parse(/attestation-config-json: >-\n\s+(\{[^\n]+\})/.exec(job)[1]);
+  const recipe = await readFile(
+    new URL("../../.github/workflows/controlled-tested-tree.yml", import.meta.url),
+  );
+  const attestor = await readFile(new URL("./tested-attestor.mjs", import.meta.url));
+  assert.equal(
+    publicConfig.controlDigest,
+    createHash("sha256")
+      .update(recipe)
+      .update(Buffer.from([0]))
+      .update(attestor)
+      .digest("hex"),
+  );
+  assert.equal(
+    publicConfig.controllerOrigin,
+    "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  );
+  assert.equal(publicConfig.audiencePrefix, "urn:hive:release-tested:epic-preview:");
+  const condition = /if: >-\n([\s\S]*?) {4}permissions:/.exec(job)[1].trim();
+  const uuid = "00000000-0000-4000-8000-000000000001",
+    branch = `codex/delivery/${uuid}/${uuid}`;
+  for (const [event, base, head, repository, expected] of [
+    ["pull_request", "codex/delivery-system-design", branch, "kethalia/hive", true],
+    ["pull_request", "main", "codex/delivery-system-design", "kethalia/hive", false],
+    [
+      "pull_request",
+      "codex/delivery-system-design",
+      "codex/preview-integration-merge",
+      "kethalia/hive",
+      false,
+    ],
+    ["pull_request", "main", branch, "kethalia/hive", false],
+    ["pull_request", "codex/delivery-system-design", branch, "other/hive", false],
+    ["workflow_dispatch", "codex/delivery-system-design", branch, "kethalia/hive", false],
+  ]) {
+    const github = {
+      event_name: event,
+      repository: "kethalia/hive",
+      event: {
+        pull_request: { base: { ref: base }, head: { ref: head, repo: { full_name: repository } } },
+      },
+    };
+    assert.equal(
+      runInNewContext(
+        condition,
+        { github, startsWith: (value, prefix) => value.startsWith(prefix) },
+        { timeout: 1000 },
+      ),
+      expected,
+    );
+  }
 });
