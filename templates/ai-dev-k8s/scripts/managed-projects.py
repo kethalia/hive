@@ -151,6 +151,88 @@ class GitDriver:
             process.stdout.close()
 
 
+class InstalledSealedHostObserver:
+    """Construction fact only. Fixed installed bytes, never a PID/request option."""
+    def __init__(self, home):
+        self.home = Path(home).resolve()
+        self.module = Path(__file__).resolve().with_name("codex-unstarted-transfer.mjs")
+
+    def __call__(self):
+        state = self.home / ".local/state/hive/codex-host-guardian"
+        manager = ManagedProjects(self.home)
+        manager.safe(state)
+        if not os.path.lexists(state):
+            return None  # Unguarded installs receive no exemption; scan strictly.
+        manager.private(state, True)
+        manager.private(state / "key")
+        manager.private(state / "lifetime.json")
+        key = (state / "key").read_bytes()
+        require(len(key) == 32 and (state / "lifetime.json").stat().st_size <= 2 * 1024 * 1024, "sealed_guardian_unavailable")
+        saved = json.loads((state / "lifetime.json").read_text())
+        encoded = json.dumps(saved["state"], separators=(",", ":"), ensure_ascii=False).encode()
+        require(hmac.compare_digest(saved["signature"], hmac.new(key, encoded, hashlib.sha256).hexdigest()), "sealed_guardian_unavailable")
+        startup = saved["state"]["events"][4]["value"]
+        install = self.home / ".local/state/hive/codex-host-install/process.json"
+        manager.private(install)
+        require(install.stat().st_size <= 65536, "sealed_guardian_unavailable")
+        archive = json.loads(install.read_text())["archiveSha256"]
+        require(isinstance(archive, str) and re.fullmatch(r"[0-9a-f]{64}", archive), "sealed_guardian_unavailable")
+        directory = self.home / ".local/share/hive/codex-host" / archive
+        require(self.module.parent == directory and self.module.resolve() == self.module, "sealed_guardian_unavailable")
+        manager.private(directory, True)
+        manifest_file = directory / "package-manifest.json"
+        manager.private(manifest_file)
+        require(manifest_file.stat().st_size <= 65536, "sealed_guardian_unavailable")
+        manifest_raw = manifest_file.read_bytes()
+        require(hashlib.sha256(manifest_raw).hexdigest() == startup["packageManifestSha256"], "sealed_guardian_package_changed")
+        manifest = json.loads(manifest_raw)
+        files = manifest.get("files")
+        require(isinstance(files, dict) and 1 <= len(files) <= 64 and self.module.name in files, "sealed_guardian_package_changed")
+        total = 0
+        for name, digest in files.items():
+            require(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", name)
+                    and all(p not in {".", ".."} for p in name.split("/"))
+                    and isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest), "sealed_guardian_package_changed")
+            file = directory / name
+            manager.private(file)
+            info = file.lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 2 * 1024 * 1024, "sealed_guardian_package_changed")
+            total += info.st_size
+            require(total <= 2 * 1024 * 1024 and hashlib.sha256(file.read_bytes()).hexdigest() == digest, "sealed_guardian_package_changed")
+        members = []
+        for member in directory.rglob("*"):
+            members.append(member)
+            require(len(members) <= 128, "sealed_guardian_package_changed")
+        require(all(not p.is_symlink() for p in members)
+                and {str(p.relative_to(directory)) for p in members if p.is_file()} == set(files) | {"package-manifest.json"}, "sealed_guardian_package_changed")
+        # No exception is needed once this exact actor is gone. This does not
+        # establish tree closure: the ordinary scanner and operation guards run.
+        actor = startup["guardianIdentity"]
+        require(type(actor.get("pid")) is int and actor["pid"] > 0, "sealed_guardian_unavailable")
+        try:
+            raw = (Path("/proc") / str(actor["pid"]) / "stat").read_text()
+            fields = raw[raw.rindex(") ") + 2:].split()
+            if fields[0] in {"Z", "X"} or fields[19] != actor["startTime"] or Path("/proc/sys/kernel/random/boot_id").read_text().strip() != actor["bootId"]:
+                return None
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            return None
+        node = Path(startup["outerIdentity"]["executable"])
+        roots = saved["state"]["events"][0]["value"]["hostRootInventory"]
+        require(node.is_absolute() and node.resolve() == node and isinstance(roots, list) and len(roots) == 1
+                and roots[0]["id"] == "host-worker" and roots[0]["role"] == "host"
+                and roots[0]["executable"] == str(node) and roots[0]["sha256"] == startup["nodeSha256"], "sealed_guardian_unavailable")
+        info = node.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
+                and info.st_size <= 256 * 1024 * 1024
+                and hashlib.sha256(node.read_bytes()).hexdigest() == startup["nodeSha256"], "sealed_guardian_unavailable")
+        code = "const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.verifySealedHostConstruction(process.argv[2])));"
+        result = subprocess.run([str(node), "--input-type=module", "-e", code, self.module.as_uri(), str(self.home)],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, timeout=2, check=True)
+        require(len(result.stdout) <= 8192, "sealed_guardian_unavailable")
+        return json.loads(result.stdout)
+
+
 class ManagedProjects:
     require_source = staticmethod(require)
 
@@ -168,6 +250,13 @@ class ManagedProjects:
         self.resolver = resolver or GitHubResolver()
         self.driver = git or GitDriver()
         self.key = None
+        self._installed_observer = None
+
+    @classmethod
+    def installed(cls, home):
+        manager = cls(home)
+        manager._installed_observer = InstalledSealedHostObserver(manager.home)
+        return manager
 
     def safe(self, path):
         require(path.is_absolute() and path.is_relative_to(self.home) and path.resolve() == path,
@@ -220,7 +309,7 @@ class ManagedProjects:
             raise ManagedError("receipt_invalid") from None
 
     @contextmanager
-    def lock(self, remount=None):
+    def lock(self, remount=None, empty_root=False):
         self.safe(self.state)
         self.state.mkdir(parents=True, mode=0o700, exist_ok=True)
         self.private(self.state, True)
@@ -240,7 +329,7 @@ class ManagedProjects:
             require(len(self.key) == 32, "receipt_key_invalid")
             root_record = self.state / "root.json"
             self.safe(self.root)
-            if remount is not None:
+            if remount is not None or empty_root:
                 require(root_record.exists() and self.root.exists(), "remount_receipt_missing")
             if not root_record.exists():
                 require(not self.root.exists(), "unmanaged_root_exists")
@@ -251,12 +340,162 @@ class ManagedProjects:
             if marker.exists():
                 pending = self.read(marker)
                 require(pending.get("phase") == "complete" or remount is not None, "remount_reconciliation_required")
-            require(root["path"] == str(self.root) and (remount is not None or root["identity"] == self.identity(self.root)), "managed_root_changed")
+            empty_marker = self.state / "empty-root.json"
+            if empty_marker.exists():
+                require(self.read(empty_marker).get("phase") == "complete" or empty_root, "empty_root_reconciliation_required")
+            require(root["path"] == str(self.root) and (remount is not None or empty_root or root["identity"] == self.identity(self.root)), "managed_root_changed")
             if remount is not None:
                 self._remount_ticket(remount)
             yield
         finally:
             os.close(fd)
+
+    @staticmethod
+    def _empty_digest(value):
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+    def _empty_encoded(self, value):
+        return json.dumps({"record": value, "signature": self.signature(value)}, sort_keys=True)
+
+    def _empty_inventory(self, guardian=None, plan=None):
+        root_file = self.state / "root.json"
+        files = sorted(self.state.glob("github-*.json"))
+        require(len(files) <= 8, "empty_root_inventory_bound")
+        require(sorted(p.name for p in self.root.iterdir()) in ([], ["github"]), "empty_root_not_empty")
+        previous = None
+        marker_file = self.state / "empty-root.json"
+        if marker_file.exists() and not plan:
+            previous = self.read(marker_file)
+            require(previous.get("phase") == "complete", "empty_root_reconciliation_required")
+        if plan:
+            previous = plan.get("previous")
+        root_raw = root_file.read_text()
+        root_record = self.read(root_file)
+        old_root = root_record
+        if plan:
+            require(root_raw in (plan["oldRootRaw"], plan["newRootRaw"]), "empty_root_record_changed")
+            old_root = json.loads(plan["oldRootRaw"])["record"]
+        base = self.root / "github"
+        if base.exists():
+            self.private(base, True)
+            require(sorted(p.name for p in base.iterdir()) == sorted(p.stem[7:] for p in files), "empty_root_unaccounted_project")
+        else:
+            require(not files, "empty_root_project_missing")
+        if previous:
+            require(set(previous["receipt"]["anchor"]["records"]["projects"]).issubset({p.stem[7:] for p in files}), "empty_root_inventory_changed")
+        expected = {x["repositoryId"]: x for x in plan["projects"]} if plan else {}
+        projects = []
+        root_old_hash = hashlib.sha256((plan["oldRootRaw"] if plan else root_raw).encode()).hexdigest()
+        for file in files:
+            repository_id = file.stem[7:]
+            project, _ = self.paths(repository_id)
+            self.private(project, True)
+            raw, record = file.read_text(), self.read(file)
+            original = record
+            if plan:
+                require(repository_id in expected, "empty_root_inventory_changed")
+                item = expected[repository_id]
+                require(raw in (item["oldRaw"], item["newRaw"]), "empty_root_record_changed")
+                original = json.loads(item["oldRaw"])["record"]
+            require(record.get("status") == "checkout_removed" and record.get("provider") == "github"
+                    and record.get("repositoryId") == repository_id
+                    and all(record.get(k) is None for k in ("lease", "checkoutIdentity", "checkoutIncarnation", "preparationId", "acceptedSource", "sourceUpdating", "sourceAppliedOperation")), "empty_root_not_empty")
+            require(sorted(p.name for p in project.iterdir()) == ["evidence"], "empty_root_checkout_present")
+            self.private(project / "evidence", True)
+            cleanup = self.read(self.state / ("cleanup-" + repository_id + ".json"))
+            binding, receipt = cleanup.get("binding"), cleanup.get("receipt")
+            require(cleanup.get("phase") == "complete" and isinstance(binding, dict) and isinstance(receipt, dict)
+                    and receipt.get("outcome") == "checkout_removed"
+                    and record.get("lastCleanup") == {k: v for k, v in receipt.items() if k != "recordDigests"}, "empty_root_cleanup_unproven")
+            mirror = self.read(project / "evidence" / ("cleanup-" + binding["cleanupRequestId"] + ".json"))
+            evidence = cleanup.get("evidence")
+            require(mirror == cleanup and isinstance(evidence, dict) and isinstance(evidence.get("authorizationToken"), str), "empty_root_cleanup_unproven")
+            old_raw = expected[repository_id]["oldRaw"] if plan else raw
+            old_hash = hashlib.sha256(old_raw.encode()).hexdigest()
+            anchor = previous["receipt"]["anchor"] if previous else None
+            if anchor and anchor["records"]["projects"].get(repository_id) == old_hash:
+                require(anchor["records"]["root"] == root_old_hash, "empty_root_anchor_changed")
+            else:
+                require(receipt["recordDigests"] == {"root": root_old_hash, "project": old_hash}, "empty_root_cleanup_record_changed")
+            current = self.identity(project)
+            require(original["projectIdentity"]["inode"] == current["inode"]
+                    and original["projectIdentity"]["device"] == old_root["identity"]["device"]
+                    and current["device"] == self.identity(self.root)["device"], "empty_root_identity_changed")
+            replacement = dict(original, projectIdentity=current)
+            projects.append({"repositoryId": repository_id, "old": {k: str(v) for k, v in original["projectIdentity"].items()},
+                             "current": {k: str(v) for k, v in current.items()}, "recordSha256": old_hash,
+                             "newRecordSha256": hashlib.sha256(self._empty_encoded(replacement).encode()).hexdigest(),
+                             "cleanupToken": evidence["authorizationToken"], "cleanupReceipt": receipt})
+        initial = not projects and previous is None
+        require(not initial or old_root["identity"] == self.identity(self.root), "empty_root_volume_provenance_missing")
+        require(old_root["path"] == str(self.root) and old_root["identity"]["inode"] == self.identity(self.root)["inode"], "empty_root_identity_changed")
+        if previous:
+            require(previous["receipt"]["anchor"]["records"]["root"] == root_old_hash, "empty_root_anchor_changed")
+        for line in Path("/proc/self/mountinfo").read_text().splitlines():
+            mounted = re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), line.split()[4])
+            require(not (mounted == str(self.root) or mounted.startswith(str(self.root) + "/")), "empty_root_nested_mount")
+        self.no_consumers(self.root, guardian)
+        new_root = dict(old_root, identity=self.identity(self.root))
+        result = {"schemaVersion": 1, "mode": "initial-current" if initial else "remount", "root": {"path": str(self.root), "old": {k: str(v) for k, v in old_root["identity"].items()},
+                  "current": {k: str(v) for k, v in self.identity(self.root).items()}, "recordSha256": root_old_hash,
+                  "newRecordSha256": hashlib.sha256(self._empty_encoded(new_root).encode()).hexdigest()}, "projects": projects}
+        if previous: result["previousEnrollment"] = previous["receipt"]["enrollmentToken"]
+        require(len(json.dumps(result).encode()) <= 16384, "empty_root_inventory_bound")
+        return result
+
+    def _inspect_empty_root(self, guardian=None, lifetime_id=None):
+        """Read-only private outer seam; never exposed by the managed CLI."""
+        if not (self.state / "root.json").exists(): return None
+        with self.lock(empty_root=True):
+            marker = self.state / "empty-root.json"
+            saved = self.read(marker) if marker.exists() else None
+            plan = saved if saved and saved.get("phase") == "pending" else None
+            if saved and saved.get("phase") == "complete" and saved["receipt"]["anchor"]["currentVolume"]["lifetimeId"] == lifetime_id:
+                require(self._empty_inventory(guardian, saved) == saved["proposal"], "empty_root_inventory_changed")
+                return saved["proposal"]
+            if not plan and self.read(self.state / "root.json")["identity"] == self.identity(self.root) and (saved or list(self.state.glob("github-*.json"))):
+                return None
+            return self._empty_inventory(guardian, plan)
+
+    def _revalidate_empty_root(self, proposal, authority):
+        """Issuer enrollment only; no lease, task, cleanup or execution grant."""
+        with self.lock(empty_root=True):
+            marker_file = self.state / "empty-root.json"
+            marker = self.read(marker_file) if marker_file.exists() else None
+            if marker and marker["phase"] == "complete" and marker["proposalDigest"] != self._empty_digest(proposal):
+                marker = None
+            if marker: require(marker["proposalDigest"] == self._empty_digest(proposal), "empty_root_replay_changed")
+            require(self._empty_inventory(authority.guardian, marker) == proposal, "empty_root_inventory_changed")
+            grant = authority.verify(proposal)
+            require(grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
+            if marker is None:
+                previous = self.read(marker_file) if marker_file.exists() else None
+                old_root = (self.state / "root.json").read_text()
+                root = self.read(self.state / "root.json")
+                root["identity"] = {k: int(v) for k, v in proposal["root"]["current"].items()}
+                records = []
+                for row in proposal["projects"]:
+                    _, file = self.paths(row["repositoryId"])
+                    old = file.read_text(); record = self.read(file)
+                    record["projectIdentity"] = {k: int(v) for k, v in row["current"].items()}
+                    records.append({"repositoryId": row["repositoryId"], "oldRaw": old, "newRaw": self._empty_encoded(record)})
+                marker = {"schemaVersion": 1, "phase": "pending", "proposalDigest": self._empty_digest(proposal), "proposal": proposal,
+                          "oldRootRaw": old_root, "newRootRaw": self._empty_encoded(root), "projects": records, "previous": {"receipt": previous["receipt"]} if previous else None}
+                require(authority.verify(proposal) == grant and grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
+                if previous:
+                    history = self.state / ("empty-root-" + previous["proposalDigest"] + ".json")
+                    if history.exists(): require(self.read(history) == previous, "empty_root_history_changed")
+                    else: self.write(history, previous)
+                self.write(marker_file, marker)
+            replacements = [(self.state / "root.json", marker["newRootRaw"])] + [(self.paths(x["repositoryId"])[1], x["newRaw"]) for x in marker["projects"]]
+            for file, raw in replacements:
+                require(authority.verify(proposal) == grant and grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
+                if file.read_text() != raw: self.write(file, json.loads(raw)["record"])
+            require(authority.verify(proposal) == grant and grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
+            marker["phase"] = "complete"
+            marker["receipt"] = grant
+            self.write(marker_file, marker)
+            return {"revalidated": True, "proposalDigest": marker["proposalDigest"], "leaseRenewed": False}
 
     def paths(self, repository_id):
         require(isinstance(repository_id, str) and re.fullmatch(r"[1-9][0-9]{0,19}", repository_id), "invalid_repository_id")
@@ -330,8 +569,10 @@ class ManagedProjects:
         require(not self.git(checkout, "stash", "list"), "checkout_has_stash")
 
     def _sealed_guardian(self, value, checkout):
+        construction = {"guardian", "outer", "sourceSha256", "guardianSha256", "constructionDigest", "cwd", "lifetimeId"}
         require(isinstance(value, dict) and value.get("sourceSha256") == "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3"
-                and value.get("expiresAt", 0) > time.time() * 1000, "sealed_guardian_unavailable")
+                and (set(value) == construction or (set(value) == construction | {"recoveryId", "expiresAt"}
+                     and value["expiresAt"] > time.time() * 1000)), "sealed_guardian_unavailable")
         identity, outer, cwd = value["guardian"], value["outer"], value["cwd"]
         require(cwd["path"] == str(self.home / ".local/share/hive/codex-host") and not Path(cwd["path"]).is_relative_to(checkout),
                 "sealed_guardian_unavailable")
@@ -394,7 +635,7 @@ class ManagedProjects:
                 self._sealed_guardian(sealed, checkout)
 
     def no_consumers(self, path, _guardian=None):
-        require(not self.process_references(path, _guardian), "checkout_in_use")
+        require(not self.process_references(path, _guardian if _guardian is not None else self._installed_observer), "checkout_in_use")
 
     def prepare(self, repository_id, task_id, requested_revision, lease_id=None, generation=None, ttl=900):
         require(identifier(task_id) and revision(requested_revision), "invalid_task_or_revision")
@@ -971,7 +1212,7 @@ def main():
         raw = sys.stdin.buffer.read(8193)
         require(len(raw) <= 8192, "request_too_large")
         # HOME/env cannot redirect production receipts or turn on fixture transports.
-        manager = ManagedProjects(pwd.getpwuid(os.getuid()).pw_dir)
+        manager = ManagedProjects.installed(pwd.getpwuid(os.getuid()).pw_dir)
         result = dispatch(manager, json.loads(raw))
         print(json.dumps({"ok": True, "data": result}))
     except ManagedError as error:

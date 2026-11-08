@@ -76,6 +76,7 @@ const modules = [
   "codex-project-controller.mjs",
   "codex-project-recovery.mjs",
   "codex-unstarted-transfer.mjs",
+  "codex-empty-root.mjs",
   "codex-project-discovery.mjs",
   "codex-project-supervisor.mjs",
   "codex-managed-auth-lock.mjs",

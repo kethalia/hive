@@ -14,6 +14,7 @@ import {
   guardianMetadataEvidenceSchema,
   guardianPreparationSchema,
 } from "./guardian-contracts";
+import { emptyRootAnchorSchema, emptyRootProposalSchema } from "./guardian-empty-root-contracts";
 import { guardianTransferContinuationSchema } from "./guardian-remount-contracts";
 import {
   guardianUnstartedTransferReceiptSchema,
@@ -80,6 +81,7 @@ export const guardianIdentityResponseSchema = z
     expiresAt: z.number().int().positive(),
     identity: guardianRuntimeIdentitySchema,
     startup: guardianStartupEvidenceSchema,
+    emptyRoot: emptyRootProposalSchema.optional(),
     unstartedTransfer: guardianUnstartedTransferSchema.optional(),
     unstartedTransferContinuation: guardianTransferContinuationSchema.optional(),
     unstartedTransferReceipt: guardianUnstartedTransferReceiptSchema.optional(),
@@ -113,6 +115,7 @@ export const guardianEnrollmentClaimsSchema = z
     bindingDigest: guardianDigestSchema,
     identityDigest: guardianDigestSchema,
     startupDigest: guardianDigestSchema,
+    emptyRoot: emptyRootAnchorSchema.optional(),
     unstartedTransfer: guardianUnstartedTransferReceiptSchema.optional(),
   })
   .strict();

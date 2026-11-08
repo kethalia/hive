@@ -11,6 +11,7 @@ import {
   requestGuardianIdentity,
 } from "./bootstrap-delivery.server";
 import { guardianDeploymentPolicy, guardianDigest } from "./guardian-contracts";
+import { readEmptyRootResource } from "./guardian-empty-root.server";
 import { verifyRemountResources } from "./guardian-remount.server";
 import {
   type GuardianOwnerTransport,
@@ -79,6 +80,31 @@ export function createGuardianService(
     return fresh.coder;
   };
   return new GuardianService(db, config, policy, encryptionKey, {
+    async readEmptyRootVolume(binding, lifetimeId) {
+      const coder = await currentCoder(binding),
+        workspace = await coder.getWorkspace(binding.workspaceId, options.signal);
+      if (
+        workspace.latest_build.id !== binding.buildId ||
+        workspace.latest_build.status !== "running" ||
+        workspace.latest_build.job.status !== "succeeded" ||
+        !workspace.latest_build.template_version_id
+      )
+        throw new RegistrationRejected();
+      const resource = readEmptyRootResource(
+        await coder.getWorkspaceResources(binding.workspaceId, binding.buildId),
+        binding.agentId,
+      );
+      const observedAt = Date.now();
+      await currentCoder(binding);
+      return {
+        ...resource,
+        templateVersionId: workspace.latest_build.template_version_id,
+        buildId: binding.buildId,
+        lifetimeId,
+        observedAt,
+        volumeDigest: guardianDigest(resource.volume),
+      };
+    },
     async assertUnstartedPredecessorStopped(binding, oldBuildId, continuation, attestation) {
       if (oldBuildId === binding.buildId) throw new RegistrationRejected();
       const coder = await currentCoder(binding);

@@ -26,6 +26,8 @@ import {
   guardianCheckoutSchema,
   guardianDigest,
 } from "./guardian-contracts";
+import { authorizeEmptyRoot } from "./guardian-empty-root.server";
+import type { EmptyRootVolume } from "./guardian-empty-root-contracts";
 import { readRemountRecoveryTicket, resolveRemountAttestation } from "./guardian-remount.server";
 import {
   type GuardianRemountAttestation,
@@ -104,6 +106,7 @@ export type GuardianProvisionStage =
   | "guardian_bootstrap"
   | "guardian_enrollment_confirmation";
 export interface GuardianServiceDependencies {
+  readEmptyRootVolume?(binding: VerifiedHostBinding, lifetimeId: string): Promise<EmptyRootVolume>;
   assertUnstartedPredecessorStopped?(
     binding: VerifiedHostBinding,
     oldBuildId: string,
@@ -384,6 +387,26 @@ export class GuardianService {
     if (!existing)
       requireGuardian(packet.startup.projects.length === 0 && packet.startup.generation === 1);
     requireGuardian(!packet.unstartedTransferContinuation || packet.unstartedTransfer);
+    requireGuardian(
+      !packet.emptyRoot ||
+        (!packet.unstartedTransfer &&
+          packet.startup.projects.length === 0 &&
+          packet.startup.generation === 1 &&
+          this.dependencies.readEmptyRootVolume),
+    );
+    const emptyRoot = packet.emptyRoot
+      ? await authorizeEmptyRoot(
+          this.db,
+          this.workspace(binding),
+          packet.emptyRoot,
+          await this.dependencies.readEmptyRootVolume!(binding, packet.identity.lifetimeId),
+          this.publicKey.export({ type: "spki", format: "pem" }).toString(),
+          this.now(),
+        )
+      : undefined;
+    requireGuardian(
+      !emptyRoot || emptyRoot.currentVolume.lifetimeId === packet.identity.lifetimeId,
+    );
     const remountAttestation =
       packet.unstartedTransferContinuation && packet.unstartedTransfer
         ? resolveRemountAttestation({
@@ -442,7 +465,11 @@ export class GuardianService {
       scope: "workspace:guardian:enroll" as const,
       jti,
       iat: issuedAt,
-      exp: Math.min(issuedAt + 60, Math.floor((remountAttestation?.expiresAt ?? Infinity) / 1000)),
+      exp: Math.min(
+        issuedAt + 60,
+        Math.floor((remountAttestation?.expiresAt ?? Infinity) / 1000),
+        Math.floor(((emptyRoot?.currentVolume.observedAt ?? Infinity) + 30000) / 1000),
+      ),
       runtimeId: runtime.id,
       hiveUserId: principal.hiveUserId,
       coderOwnerId: principal.coderUserId,
@@ -458,6 +485,7 @@ export class GuardianService {
         binding: this.workspace(binding),
       }),
       startupDigest: guardianDigest(packet.startup),
+      ...(emptyRoot ? { emptyRoot } : {}),
       ...(packet.unstartedTransfer
         ? {
             unstartedTransfer: {
@@ -479,6 +507,7 @@ export class GuardianService {
       ).toString("base64url"),
       body = Buffer.from(JSON.stringify(claims)).toString("base64url");
     const grant = `${header}.${body}.${sign(null, Buffer.from(`${header}.${body}`), this.key).toString("base64url")}`;
+    requireGuardian(claims.exp > Math.floor(this.now() / 1000));
     await store.sealGrant({
       ownerId: principal.hiveUserId,
       runtimeId: runtime.id,
@@ -489,6 +518,7 @@ export class GuardianService {
       expiresAt: new Date(claims.exp * 1000),
     });
     this.active();
+    requireGuardian(claims.exp > Math.floor(this.now() / 1000));
     await transport.bootstrap(binding, grant);
     this.active();
     this.dependencies.onProvisionStage?.("guardian_enrollment_confirmation");

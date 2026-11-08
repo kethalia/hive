@@ -29,6 +29,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyEmptyRoot, inspectEmptyRoot } from "./codex-empty-root.mjs";
 import { GUARDIAN_ADMISSION_BUDGET } from "./codex-guardian-worker.mjs";
 import {
   archiveClosedProjectState,
@@ -1618,6 +1619,7 @@ export function openGuardianController({
     const transfer = readPendingUnstartedTransfer(home);
     const s = initialize(),
       issuedAt = Date.now(),
+      emptyRoot = !transfer && !state.runtimeId ? inspectEmptyRoot(home, s.lifetimeId) : null,
       packet = {
         schemaVersion: 1,
         nonce,
@@ -1626,6 +1628,7 @@ export function openGuardianController({
         identity: identity(s),
         startup: s,
         ...(transfer ? { unstartedTransfer: transfer } : {}),
+        ...(emptyRoot ? { emptyRoot } : {}),
         ...(transfer && readUnstartedTransferContinuation(home, s)
           ? { unstartedTransferContinuation: readUnstartedTransferContinuation(home, s) }
           : {}),
@@ -1701,6 +1704,7 @@ export function openGuardianController({
             "identityDigest",
             "startupDigest",
             ...(unstarted ? ["unstartedTransfer"] : []),
+            ...(challenge.emptyRoot ? ["emptyRoot"] : []),
           ]) &&
             claims.iss === config.hiveOrigin &&
             claims.aud === "hive:workspace-guardian" &&
@@ -1725,6 +1729,10 @@ export function openGuardianController({
             digest(s) === digest(challenge.startup),
         );
         if (unstarted) check(unstartedReceiptMatches(home, claims.unstartedTransfer, unstarted, s));
+        if (challenge.emptyRoot) {
+          check(!unstarted && claims.emptyRoot?.proposalDigest === digest(challenge.emptyRoot));
+          applyEmptyRoot(home, challenge.emptyRoot, grant, claims);
+        }
         await send("enroll", { runtimeId: claims.runtimeId, grant }, (r) => {
           check(
             r?.accepted === true &&
