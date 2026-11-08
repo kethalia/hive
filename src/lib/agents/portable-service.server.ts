@@ -37,6 +37,7 @@ export type AgentBridgeServiceConfig = {
   pins: Pin[];
   cookieDomains: string[];
   home: string;
+  accountProvider?: "codex" | "claude";
 };
 export type AgentBridgeServiceDependencies = {
   coderForPrincipal(principal: RegistrationPrincipal, signal: AbortSignal): Promise<Reader>;
@@ -75,6 +76,9 @@ export class AgentBridgeService {
       const parsed = agentOperationSchema.parse(request);
       if (
         parsed.operation === "identity" ||
+        (this.config.accountProvider !== undefined &&
+          (!["codex", "claude"].includes(this.config.accountProvider) ||
+            parsed.operation !== `${this.config.accountProvider}-account`)) ||
         this.config.pins.length === 0 ||
         new Set(this.config.pins.map((p) => p.templateId)).size !== this.config.pins.length
       )

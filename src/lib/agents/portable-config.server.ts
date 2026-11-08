@@ -18,8 +18,24 @@ const pin = z
 export function portableAgentConfig(
   env: Record<string, string | undefined> = process.env,
 ): AgentBridgeServiceConfig {
-  if (env.HIVE_AGENT_TOOLS_ENABLED !== "true" || env.HIVE_AGENT_TOOLS_TRANSPORT !== "workspace-app")
+  if (env.HIVE_AGENT_TOOLS_ENABLED !== "true") throw new AgentBridgeError("unavailable");
+  return transportConfig(env);
+}
+/** The provider flag grants only its fixed account operation. */
+export function portableAccountConfig(
+  provider: "codex" | "claude",
+  env: Record<string, string | undefined> = process.env,
+): AgentBridgeServiceConfig {
+  if (
+    !["codex", "claude"].includes(provider) ||
+    env[provider === "codex" ? "HIVE_CODEX_ACCOUNTS_ENABLED" : "HIVE_CLAUDE_ACCOUNTS_ENABLED"] !==
+      "true"
+  )
     throw new AgentBridgeError("unavailable");
+  return { ...transportConfig(env), accountProvider: provider };
+}
+function transportConfig(env: Record<string, string | undefined>): AgentBridgeServiceConfig {
+  if (env.HIVE_AGENT_TOOLS_TRANSPORT !== "workspace-app") throw new AgentBridgeError("unavailable");
   try {
     const issuer = env.HIVE_AGENT_TOOLS_HIVE_ORIGIN ?? "",
       keyId = env.HIVE_AGENT_TOOLS_ISSUER_KEY_ID ?? "",
@@ -63,6 +79,12 @@ export function portableAgentConfig(
   }
 }
 export function createPortableAgentService(config = portableAgentConfig()) {
+  return agentService(config);
+}
+export function createPortableAccountService(provider: "codex" | "claude") {
+  return agentService(portableAccountConfig(provider));
+}
+function agentService(config: AgentBridgeServiceConfig) {
   return new AgentBridgeService(config, {
     async coderForPrincipal(principal, signal) {
       signal.throwIfAborted();

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const mock = vi.hoisted(() => ({ session: vi.fn(), execute: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getRequestSession: mock.session }));
 vi.mock("@/lib/agents/portable-config.server", () => ({
-  createPortableAgentService: () => ({ execute: mock.execute }),
+  createPortableAccountService: () => ({ execute: mock.execute }),
 }));
 
 import { claudeAccountRoute, codexAccountRoute } from "@/lib/agents/codex-account-route.server";

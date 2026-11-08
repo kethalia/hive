@@ -149,3 +149,29 @@ describe("portable agent authority", () => {
     expect(mocks.execute).toHaveBeenCalledTimes(1);
   });
 });
+
+it("provider-scoped account authority cannot issue another provider or a generic operation", async () => {
+  for (const provider of ["codex", "claude"] as const) {
+    const scoped = new AgentBridgeService({ ...config, accountProvider: provider }, deps);
+    await scoped.execute(principal, workspaceId, {
+      operation: provider === "codex" ? "codex-account" : "claude-account",
+      account: { action: "status" },
+    });
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+    vi.clearAllMocks();
+    for (const request of [
+      {
+        operation: provider === "codex" ? "claude-account" : "codex-account",
+        account: { action: "status" as const },
+      },
+      { operation: "install" as const },
+      { operation: "sessions" as const },
+      { operation: "inventory" as const },
+    ] as const)
+      await expect(scoped.execute(principal, workspaceId, request)).rejects.toMatchObject({
+        code: "unavailable",
+      });
+    expect(deps.coderForPrincipal).not.toHaveBeenCalled();
+    expect(mocks.execute).not.toHaveBeenCalled();
+  }
+});
