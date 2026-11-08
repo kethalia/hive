@@ -34,6 +34,10 @@ vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
+vi.mock("@/components/workspaces/GeneralWorkspace", () => ({
+  GeneralWorkspace: () => null,
+}));
+
 import { cookies } from "next/headers";
 import { getRequestSession, getSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
@@ -470,8 +474,28 @@ describe("workspace server actions", () => {
 
   it("listWorkspacesAction returns workspace list", async () => {
     const workspaces = [
-      { id: "ws-1", name: "dev", owner_name: "alice" },
-      { id: "ws-2", name: "prod", owner_name: "alice" },
+      {
+        id: "ws-1",
+        name: "dev",
+        owner_name: "alice",
+        template_id: "template-1",
+        latest_build: {
+          id: "build-1",
+          status: "running",
+          job: { status: "succeeded", error: "" },
+        },
+      },
+      {
+        id: "ws-2",
+        name: "prod",
+        owner_name: "alice",
+        template_id: "template-1",
+        latest_build: {
+          id: "build-2",
+          status: "stopped",
+          job: { status: "succeeded", error: "" },
+        },
+      },
     ];
     mockListWorkspaces.mockResolvedValueOnce({ workspaces, count: 2 });
 
@@ -480,6 +504,97 @@ describe("workspace server actions", () => {
 
     expect(mockListWorkspaces).toHaveBeenCalledWith({ owner: "me" });
     expect(result?.data).toEqual(workspaces);
+  });
+
+  it.each([
+    "list action",
+    "get action",
+    "create action",
+    "discovery JSON",
+    "server page",
+  ])("omits private provider workspace metadata from %s", async (boundary) => {
+    const publicWorkspace = {
+      id: "ws-public",
+      name: "public-dev",
+      owner_id: "owner-public",
+      owner_name: "testuser",
+      template_id: "template-1",
+      template_name: "ai-dev-k8s",
+      template_display_name: "Development",
+      template_icon: "/icon/code.svg",
+      last_used_at: "2026-11-08T00:00:00Z",
+      health: { healthy: false, failing_agents: ["agent-public"] },
+      latest_build: {
+        id: "build-public",
+        template_version_id: "version-public",
+        status: "running",
+        job: { status: "succeeded", error: "" },
+      },
+    };
+    const providerWorkspace = {
+      ...publicWorkspace,
+      future_secret: "__synthetic_private_workspace",
+      health: { ...publicWorkspace.health, future_secret: "__synthetic_private_health" },
+      latest_build: {
+        ...publicWorkspace.latest_build,
+        future_secret: "__synthetic_private_build",
+        job: {
+          ...publicWorkspace.latest_build.job,
+          future_secret: "__synthetic_private_job",
+        },
+        resources: [
+          {
+            agents: [
+              {
+                environment_variables: { CODER_SESSION_TOKEN: "__synthetic_private_token" },
+                apps: [{ command: "__synthetic_private_app_command" }],
+              },
+            ],
+          },
+        ],
+      },
+    };
+    if (["list action", "discovery JSON", "server page"].includes(boundary))
+      mockListWorkspaces.mockResolvedValueOnce({ workspaces: [providerWorkspace], count: 1 });
+    if (boundary === "get action") mockGetWorkspace.mockResolvedValueOnce(providerWorkspace);
+    if (boundary === "create action") {
+      mockCreateWorkspace.mockResolvedValueOnce(providerWorkspace);
+      mockListTemplates.mockResolvedValueOnce([{ id: "template-1", name: "ai-dev-k8s" }]);
+    }
+    const { listWorkspacesAction, getWorkspaceAction, createWorkspaceAction } = await import(
+      "@/lib/actions/workspaces"
+    );
+    let exposed: unknown;
+    if (boundary === "list action") exposed = (await listWorkspacesAction())?.data;
+    if (boundary === "get action")
+      exposed = (await getWorkspaceAction({ workspaceId: publicWorkspace.id }))?.data;
+    if (boundary === "create action")
+      exposed = (
+        await createWorkspaceAction({ templateId: publicWorkspace.template_id, name: "public-dev" })
+      )?.data;
+    if (boundary === "discovery JSON") {
+      const { GET } = await import("@/app/api/discovery/[resource]/route");
+      const response = await GET(new Request("https://hive.example/api/discovery/workspaces"), {
+        params: Promise.resolve({ resource: "workspaces" }),
+      });
+      expect(response.status).toBe(200);
+      exposed = (await response.json()).data;
+    }
+    if (boundary === "server page") {
+      const { default: WorkspacesPage } = await import("@/app/(dashboard)/workspaces/page");
+      exposed = (await WorkspacesPage()).props.children.props.initialWorkspaces;
+    }
+    const serialized = JSON.stringify(exposed);
+    expect(serialized).not.toContain("__synthetic_private_");
+    expect(JSON.parse(serialized)).toEqual(
+      boundary === "get action" || boundary === "create action"
+        ? publicWorkspace
+        : [publicWorkspace],
+    );
+    // Public projection must not mutate the server's original provider object.
+    expect(providerWorkspace.latest_build.resources[0].agents[0].environment_variables).toEqual({
+      CODER_SESSION_TOKEN: "__synthetic_private_token",
+    });
   });
 
   it("listWorkspaceTemplatesAction omits the retired orchestrator template", async () => {

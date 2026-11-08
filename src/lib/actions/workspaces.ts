@@ -26,6 +26,7 @@ import {
   getIsolatedWorkspaceAppAuthRedirect,
   getWorkspaceAppIsolationContext,
 } from "@/lib/workspaces/app-access";
+import { toPublicWorkspace } from "@/lib/workspaces/public-workspace";
 import {
   usesWorkspaceReadTransport,
   workspaceReadActions,
@@ -43,7 +44,7 @@ const WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS = 5_000;
 export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
   const client = await getCoderClientForUser(ctx.user.id);
   const result = await client.listWorkspaces({ owner: "me" });
-  return result.workspaces;
+  return result.workspaces.map(toPublicWorkspace);
 });
 
 export const listWorkspaceTemplatesAction = authActionClient.action(async ({ ctx }) => {
@@ -76,7 +77,9 @@ export const createWorkspaceAction = authActionClient
         "The orchestrator template is retired. Use ai-dev-k8s for development and orchestration.",
       );
     }
-    return client.createWorkspace(parsedInput.templateId, parsedInput.name);
+    return toPublicWorkspace(
+      await client.createWorkspace(parsedInput.templateId, parsedInput.name),
+    );
   });
 
 const workspaceLifecycleSchema = z.object({
@@ -189,7 +192,7 @@ export const getWorkspaceAction = authActionClient
   .inputSchema(getWorkspaceSchema)
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
-    return client.getWorkspace(parsedInput.workspaceId);
+    return toPublicWorkspace(await client.getWorkspace(parsedInput.workspaceId));
   });
 
 export const getWorkspaceAgentAction = authActionClient
