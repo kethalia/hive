@@ -50,9 +50,15 @@ const snapshot: AgentToolsSnapshot = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  // Accounts remain default-off in the existing panel scenarios. Its enabled
+  // behavior and workspace-switch fences have dedicated component coverage.
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
   vi.mocked(inspectAgentToolsAction).mockResolvedValue({ data: structuredClone(snapshot) });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("agent tools panel", () => {
   it("does not scan or mutate when closed", () => {

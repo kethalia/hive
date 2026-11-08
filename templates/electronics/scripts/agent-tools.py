@@ -455,6 +455,29 @@ def resume(key):
         return {"sessionName": name}
 
 
+def terminal_session(request):
+    operation = request.get("operation")
+    keys = {"operation", "oldName", "newName"} if operation == "rename-terminal-session" else {"operation", "sessionName"}
+    if operation not in ("rename-terminal-session", "kill-terminal-session") or set(request) != keys:
+        raise ValueError("Invalid terminal operation")
+    def name(value):
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value) or value.startswith("git-clone-"):
+            raise ValueError("Invalid terminal session")
+        return value
+    if operation == "rename-terminal-session":
+        old, new = name(request["oldName"]), name(request["newName"])
+        args = ["/usr/bin/tmux", "-L", "web", "rename-session", "-t", "=" + old, new]
+        result = {"oldName": old, "newName": new}
+    else:
+        target = name(request["sessionName"])
+        args = ["/usr/bin/tmux", "-L", "web", "kill-session", "-t", "=" + target]
+        result = {"name": target}
+    code, _ = run(args)
+    if code != 0:
+        raise ValueError("Terminal operation failed")
+    return result
+
+
 def main():
     os.umask(0o077)
     os.environ["PATH"] = str(Path.home() / ".local/bin") + ":" + os.environ.get("PATH", "")
@@ -468,7 +491,9 @@ def main():
     request = json.loads(sys.stdin.read(LIMIT + 1))
     operation = request.get("operation")
     try:
-        if operation == "inspect":
+        if operation in ("rename-terminal-session", "kill-terminal-session"):
+            result = terminal_session(request)
+        elif operation == "inspect":
             result = inspect()
         elif operation == "inventory":
             result = inspect_inventory()

@@ -107,6 +107,22 @@ test("signed agent bridge binds requests, executes fixed helper and rejects repl
     ok: true,
     data: { operation: "resume" },
   });
+  for (const request of [
+    { operation: "rename-terminal-session", oldName: "git-clone-reserved", newName: "safe" },
+    { operation: "rename-terminal-session", oldName: "safe", newName: "unsafe;command" },
+    { operation: "kill-terminal-session", sessionName: "prefix:window" },
+    { operation: "kill-terminal-session", sessionName: "safe", socket: "native" },
+    {
+      operation: "codex-account",
+      account: {
+        action: "connect",
+        lifetimeId: identity.lifetimeId,
+        generation: 0,
+        root: "/arbitrary",
+      },
+    },
+  ])
+    assert.equal((await post(issue(request, identity.lifetimeId).token)).status, 400);
   const badResume = issue({ operation: "resume", key: "../../arbitrary" }, identity.lifetimeId);
   assert.equal((await post(badResume.token)).status, 400);
   const invalid = issue({ operation: "install", source: "malicious" }, identity.lifetimeId);
@@ -154,6 +170,12 @@ test("fixed notification capability installs pinned assets through stdin and ref
   const files = new Map([
     ["agent-tools.py", Buffer.from('import json; print(json.dumps({"ok":True,"data":{}}))')],
     ["agent-host.mjs", await readFile(new URL("./host.mjs", import.meta.url))],
+    [
+      "codex-account.mjs",
+      Buffer.from("// Pinned account fixture, not invoked by notification tests\n"),
+    ],
+    ["claude-account.mjs", Buffer.from("// pinned Claude fixture\n")],
+    ["claude-account-driver.py", Buffer.from("# pinned Claude driver fixture\n")],
     ["agent-start.mjs", await readFile(new URL("./start.mjs", import.meta.url))],
     [
       "notifications-install.py",

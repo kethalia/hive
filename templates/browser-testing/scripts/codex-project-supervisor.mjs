@@ -23,6 +23,7 @@ import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
 import { validateAcceptanceProducer } from "./codex-acceptance-native.mjs";
+import { acquireManagedAuthLock } from "./codex-managed-auth-lock.mjs";
 import {
   NATIVE_PROFILE,
   prepareNativeNamespace,
@@ -2084,17 +2085,24 @@ export async function launchNative({
   const token = randomBytes(32).toString("hex");
   const tokenPath = join(stateDirectory, "native-token");
   atomic(tokenPath, token, true);
-  const namespace =
-    config.executionMode === "isolated"
-      ? prepareNativeNamespace({
-          home,
-          stateDirectory,
-          codexExecutable: config.codexExecutable,
-          fixtureProvider,
-          metadataApproval: approvedMetadata,
-          acceptance: config.acceptance !== undefined,
-        })
-      : null;
+  const credentialLock = acquireManagedAuthLock(home, "shared");
+  let namespace;
+  try {
+    namespace =
+      config.executionMode === "isolated"
+        ? prepareNativeNamespace({
+            home,
+            stateDirectory,
+            codexExecutable: config.codexExecutable,
+            fixtureProvider,
+            metadataApproval: approvedMetadata,
+            acceptance: config.acceptance !== undefined,
+          })
+        : null;
+  } catch (error) {
+    credentialLock.close();
+    throw error;
+  }
   if (namespace) env = namespace.env;
   const nativeArgs = [
     "app-server",
@@ -2114,6 +2122,7 @@ export async function launchNative({
     check(!signal?.aborted, "native_start_cancelled");
   } catch (error) {
     namespace?.close();
+    credentialLock.close();
     throw error;
   }
   // Linux parent-death signal survives exec; inherited flock fd prevents a second
@@ -2124,8 +2133,10 @@ export async function launchNative({
   const child = spawn("/usr/bin/python3", ["-c", guardian, String(process.pid), ...nativeCommand], {
     cwd: home,
     env,
-    stdio: ["ignore", "ignore", "ignore", lock],
+    stdio: ["ignore", "ignore", "ignore", lock, credentialLock.fd],
   });
+  child.once("close", () => credentialLock.close());
+  child.once("error", () => credentialLock.close());
   let ws;
   let closing = false;
   let callback = () => {};

@@ -10,11 +10,17 @@ import {
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, isAbsolute, join, normalize } from "node:path";
+import { createClaudeAccountManager } from "./claude-account.mjs";
+import { createCodexAccountManager } from "./codex-account.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY = /^(codex|claude)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const OPS = [
+  "claude-account",
+  "rename-terminal-session",
+  "kill-terminal-session",
   "identity",
+  "codex-account",
   "inventory",
   "sessions",
   "install",
@@ -84,6 +90,52 @@ function validOrigin(value) {
 }
 function operationValid(v) {
   if (!v || !OPS.includes(v.operation)) return false;
+  const sessionName = (name) =>
+    typeof name === "string" &&
+    /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name) &&
+    !name.startsWith("git-clone-");
+  if (v.operation === "rename-terminal-session")
+    return (
+      exact(v, ["operation", "oldName", "newName"]) &&
+      sessionName(v.oldName) &&
+      sessionName(v.newName)
+    );
+  if (v.operation === "kill-terminal-session")
+    return exact(v, ["operation", "sessionName"]) && sessionName(v.sessionName);
+  if (v.operation === "claude-account") {
+    const a = v.account;
+    return (
+      exact(v, ["operation", "account"]) &&
+      (a?.action === "status"
+        ? exact(a, ["action"])
+        : a &&
+          ["connect", "cancel", "reconnect", "disconnect", "code"].includes(a.action) &&
+          exact(a, [
+            "action",
+            "lifetimeId",
+            "generation",
+            ...(a.action === "code" ? ["code"] : []),
+          ]) &&
+          UUID.test(a.lifetimeId) &&
+          Number.isSafeInteger(a.generation) &&
+          a.generation >= 0 &&
+          (a.action !== "code" || (typeof a.code === "string" && /^[!-~]{1,2048}$/.test(a.code))))
+    );
+  }
+  if (v.operation === "codex-account") {
+    const a = v.account;
+    return (
+      exact(v, ["operation", "account"]) &&
+      (a?.action === "status"
+        ? exact(a, ["action"])
+        : a &&
+          ["connect", "cancel", "reconnect", "disconnect"].includes(a.action) &&
+          exact(a, ["action", "lifetimeId", "generation"]) &&
+          UUID.test(a.lifetimeId) &&
+          Number.isSafeInteger(a.generation) &&
+          a.generation >= 0)
+    );
+  }
   if (v.operation === "resume")
     return exact(v, ["operation", "key"]) && typeof v.key === "string" && KEY.test(v.key);
   if (v.operation === "install-notifications")
@@ -160,6 +212,12 @@ export function createAgentBridge(config, deps = {}) {
   const key = generateKeyPairSync("ed25519"),
     lifetimeId = randomUUID(),
     used = new Map();
+  const accounts = createCodexAccountManager({
+    home: config.home,
+    profile: config.profile,
+    lifetimeId,
+    ...(deps.accounts ?? {}),
+  });
   const helper = deps.helperPath;
   if (typeof helper !== "string" || !helper.startsWith("/"))
     throw new Error("agent_config_rejected");
@@ -206,7 +264,26 @@ export function createAgentBridge(config, deps = {}) {
     used.set(c.jti, c.exp);
     return c;
   }
+  const claudeAccounts = createClaudeAccountManager({
+    home: config.home,
+    profile: config.profile,
+    lifetimeId,
+    configDirectory: environment.CLAUDE_CONFIG_DIR ?? join(config.home, ".claude"),
+    driverSource() {
+      const manifest = JSON.parse(
+        pinnedSource(join(dirname(helper), "manifest.json"), config.manifestSha256, 4096),
+      );
+      return pinnedSource(
+        join(dirname(helper), "claude-account-driver.py"),
+        manifest.files["claude-account-driver.py"],
+        32768,
+      ).toString("utf8");
+    },
+    ...(deps.claudeAccounts ?? {}),
+  });
   function execute(request) {
+    if (request.operation === "claude-account") return claudeAccounts.run(request.account);
+    if (request.operation === "codex-account") return accounts.run(request.account);
     return new Promise((resolve, reject) => {
       let source, payload;
       try {
@@ -222,6 +299,9 @@ export function createAgentBridge(config, deps = {}) {
           );
           const names = [
             "agent-host.mjs",
+            "codex-account.mjs",
+            "claude-account.mjs",
+            "claude-account-driver.py",
             "agent-start.mjs",
             "agent-tools.py",
             "notifications-install.py",
@@ -388,5 +468,11 @@ export function createAgentBridge(config, deps = {}) {
   });
   server.maxConnections = 16;
   server.maxRequestsPerSocket = 32;
-  return { server, close: () => server.close() };
+  return {
+    server,
+    close: async () => {
+      server.close();
+      await Promise.all([accounts.close(), claudeAccounts.close()]);
+    },
+  };
 }

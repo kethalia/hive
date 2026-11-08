@@ -43,6 +43,10 @@ export type AgentBridgeServiceDependencies = {
   transport(coder: Reader, binding: VerifiedHostBinding): AgentBridgeTransport;
 };
 const MUTATIONS = new Set([
+  "claude-account",
+  "codex-account",
+  "rename-terminal-session",
+  "kill-terminal-session",
   "install",
   "disable",
   "configure-coder",

@@ -4,6 +4,7 @@ import { posix } from "node:path";
 import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { cookies } from "next/headers";
 import { z } from "zod";
+import { createPortableAgentService } from "@/lib/agents/portable-config.server";
 import { usesSecureSessionCookies } from "@/lib/auth/session-cookie";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
@@ -652,6 +653,20 @@ export const renameSessionAction = authActionClient
     assertGenericSessionName(parsedInput.oldName, "rename");
     assertGenericSessionName(parsedInput.newName, "rename");
 
+    if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+      if (process.env.HIVE_GENERIC_TERMINAL_ENABLED !== "true")
+        throw new Error("Generic terminal transport is disabled.");
+      return createPortableAgentService().execute(
+        { hiveUserId: ctx.user.id, coderUserId: ctx.user.coderUserId },
+        parsedInput.workspaceId,
+        {
+          operation: "rename-terminal-session",
+          oldName: parsedInput.oldName,
+          newName: parsedInput.newName,
+        },
+      );
+    }
+
     const client = await getCoderClientForUser(ctx.user.id);
     const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
 
@@ -685,6 +700,16 @@ export const killSessionAction = authActionClient
   .inputSchema(killSessionSchema)
   .action(async ({ parsedInput, ctx }) => {
     assertGenericSessionName(parsedInput.sessionName, "kill");
+
+    if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+      if (process.env.HIVE_GENERIC_TERMINAL_ENABLED !== "true")
+        throw new Error("Generic terminal transport is disabled.");
+      return createPortableAgentService().execute(
+        { hiveUserId: ctx.user.id, coderUserId: ctx.user.coderUserId },
+        parsedInput.workspaceId,
+        { operation: "kill-terminal-session", sessionName: parsedInput.sessionName },
+      );
+    }
 
     const client = await getCoderClientForUser(ctx.user.id);
     const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);

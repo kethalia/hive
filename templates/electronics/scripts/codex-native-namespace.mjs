@@ -498,7 +498,9 @@ export function prepareNativeNamespace({
       const command = [
         bwrap,
         ...base,
-        ...(holdLock ? ["--sync-fd", "3"] : []),
+        // The pinned bwrap retains each sync fd in its monitor for the sandbox
+        // lifetime. Do not replace fd3 (supervisor) when adding fd4 (auth).
+        ...(holdLock ? ["--sync-fd", "3", "--sync-fd", "4"] : []),
         "--chdir",
         cwd,
         "--",

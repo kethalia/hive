@@ -72,6 +72,7 @@ const modules = [
   "codex-project-recovery.mjs",
   "codex-project-discovery.mjs",
   "codex-project-supervisor.mjs",
+  "codex-managed-auth-lock.mjs",
   "codex-native-namespace.mjs",
   "codex-native-guardian.mjs",
   "codex-host-guardian.mjs",

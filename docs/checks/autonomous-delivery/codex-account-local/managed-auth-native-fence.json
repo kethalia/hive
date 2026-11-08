@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-07T23:01:26.306246+00:00",
+  "localOnly": true,
+  "runtimeVersion": "0.165.0",
+  "runtimeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "checks": {
+    "actualPinnedNamespaceMonitorRetainsCredentialFlock": true,
+    "wrapperMonitorAndHostCrashReleaseAfterNativeExit": true,
+    "nativeSharedLockAuthExclusiveLock": true,
+    "workspaceSwitchHidesOldCodeAndFence": true
+  },
+  "scope": "Actual local pinned app-server/namespace crash fixture, plus separate shared-lock and UI regressions. No real provider sign-in or model inference.",
+  "limitations": [
+    "Full opt-in namespace suite first socket fixture exceeds AF_UNIX path length in this long worktree; only focused crash/fence case claimed.",
+    "Account auth subprocess is synthetic in the Workerd proof.",
+    "Persistent managed runtimes remain busy until closed; live-runtime account RPC is not implemented."
+  ],
+  "realProviderRequests": 0,
+  "credentialsExported": false
+}

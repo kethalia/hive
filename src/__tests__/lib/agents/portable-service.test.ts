@@ -60,6 +60,36 @@ beforeEach(() => {
   mocks.execute.mockResolvedValue({ message: "done" });
 });
 describe("portable agent authority", () => {
+  it.each([
+    {
+      operation: "claude-account" as const,
+      account: {
+        action: "code" as const,
+        lifetimeId: randomUUID(),
+        generation: 1,
+        code: "PRIVATE_CODE#STATE",
+      },
+    },
+    { operation: "rename-terminal-session" as const, oldName: "one", newName: "two" },
+    { operation: "kill-terminal-session" as const, sessionName: "one" },
+    {
+      operation: "codex-account" as const,
+      account: { action: "connect" as const, lifetimeId: randomUUID(), generation: 0 },
+    },
+  ])("preserves owner/build denial for $operation", async (request) => {
+    mocks.resolve.mockRejectedValueOnce(Error("owner denied"));
+    await expect(service.execute(principal, workspaceId, request)).rejects.toMatchObject({
+      code: "unavailable",
+    });
+    expect(mocks.execute).not.toHaveBeenCalled();
+    mocks.resolve
+      .mockResolvedValueOnce({ binding })
+      .mockResolvedValueOnce({ binding: { ...binding, buildId: randomUUID() } });
+    await expect(service.execute(principal, workspaceId, request)).rejects.toMatchObject({
+      code: "outcome_unknown",
+    });
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+  });
   it("resolves owner-only app and matching build before and after a mutation", async () => {
     expect(await service.execute(principal, workspaceId, { operation: "install" })).toEqual({
       message: "done",
