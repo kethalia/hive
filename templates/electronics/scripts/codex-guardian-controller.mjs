@@ -30,7 +30,11 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GUARDIAN_ADMISSION_BUDGET } from "./codex-guardian-worker.mjs";
-import { archiveClosedProjectState } from "./codex-project-controller.mjs";
+import {
+  archiveClosedProjectState,
+  parkAccountMaintenanceProjectState,
+  readAccountMaintenanceArchive,
+} from "./codex-project-controller.mjs";
 
 const check = (v) => {
   if (!v) throw new Error("guardian_controller_authority_rejected");
@@ -641,6 +645,11 @@ export function openGuardianController({
       checkout: result.admission.checkoutBinding,
       preparationDigest: result.admission.preparationDigest,
       metadataPinsDigest: result.admission.metadataPinsDigest,
+      ...(state.pending?.action === "native"
+        ? { nativeReceiptEventId: state.pending.eventId }
+        : state.projects[projectId]?.nativeReceiptEventId
+          ? { nativeReceiptEventId: state.projects[projectId].nativeReceiptEventId }
+          : {}),
       ...(state.projects[projectId]?.producer
         ? { producer: state.projects[projectId].producer }
         : {}),
@@ -964,9 +973,43 @@ export function openGuardianController({
       const native = readEvidence(home, "codex-project-supervisor", "key");
       if (native.controllerRegistration?.status === "registered") {
         const evidence = nativeEvidence(value.projectId, s);
+        let maintenanceRebind;
+        if (state.accountMaintenance?.phase === "resuming") {
+          const hold = state.accountMaintenance,
+            proof = evidence.native.maintenanceResume,
+            retained = hold.projects.find((p) => p.nativeThreadId === evidence.managerThreadId),
+            history = proof?.historyProof?.[value.projectId],
+            checkout = state.projects[value.projectId].checkout,
+            managed = managedReceipt(home, checkout.repositoryId).record;
+          check(
+            retained &&
+              proof.id === hold.id &&
+              proof.requestId === hold.requestId &&
+              proof.ownerIntentRuntimeId === hold.ownerIntentRuntimeId &&
+              proof.ownerIntentEventId === hold.ownerIntentEventId &&
+              proof.parkedJournalDigest === hold.parkedJournalDigest &&
+              history?.historyDigest === retained.historyDigest &&
+              managed.lease?.id === checkout.leaseId &&
+              managed.lease.generation === checkout.leaseGeneration &&
+              managed.lease.taskId === checkout.preparationIntentId &&
+              Number.isFinite(managed.lease.expiresAt) &&
+              managed.lease.expiresAt > Date.now() / 1000 &&
+              managed.revision === checkout.revision &&
+              !managed.sourceUpdating,
+          );
+          maintenanceRebind = {
+            maintenanceId: hold.id,
+            ownerIntentRuntimeId: hold.ownerIntentRuntimeId,
+            ownerIntentEventId: hold.ownerIntentEventId,
+            parkedJournalDigest: hold.parkedJournalDigest,
+            historyDigest: retained.historyDigest,
+            leaseValidUntil: new Date(managed.lease.expiresAt * 1000).toISOString(),
+          };
+        }
         await sendAdmission(
           "native",
           {
+            ...(maintenanceRebind ? { maintenanceRebind } : {}),
             projectId: value.projectId,
             registrationId: evidence.registrationId,
             managerThreadId: evidence.managerThreadId,
@@ -1751,9 +1794,18 @@ export function openGuardianController({
     applyReserve: (value) => serial(() => application("reserve", value)),
     applyVerify: (value) => serial(() => application("verify", value)),
     applyCommit: (value) => serial(() => application("commit", value)),
-    drainReady: () =>
+    drainReady: (maintenanceId) =>
       serial(async () => {
         initialize();
+        if (state.accountMaintenance?.phase === "resuming") return false;
+        if (state.accountMaintenance?.phase === "waiting-boundary") {
+          check(
+            state.accountMaintenance.id === maintenanceId &&
+              state.accountMaintenance.phase === "waiting-boundary",
+          );
+          return true;
+        }
+        check(maintenanceId === undefined);
         const issuedAt = Date.now(),
           body = {
             schemaVersion: 1,
@@ -1789,6 +1841,311 @@ export function openGuardianController({
             typeof result.ready === "boolean",
         );
         return result.ready;
+      }),
+    requestAccountMaintenance: (grant) =>
+      serial(() => {
+        const s = initialize();
+        check(
+          typeof grant === "string" &&
+            grant.length >= 100 &&
+            grant.length <= 16384 &&
+            !state.hold &&
+            !state.pending,
+        );
+        const parts = grant.split(".");
+        check(parts.length === 3 && parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)));
+        const header = JSON.parse(Buffer.from(parts[0], "base64url")),
+          c = JSON.parse(Buffer.from(parts[1], "base64url")),
+          now = Math.floor(Date.now() / 1000);
+        check(
+          exact(header, ["alg", "typ", "kid"]) &&
+            header.alg === "EdDSA" &&
+            header.typ === "JWT" &&
+            header.kid === config.issuerKeyId &&
+            verify(
+              null,
+              Buffer.from(`${parts[0]}.${parts[1]}`),
+              issuer,
+              Buffer.from(parts[2], "base64url"),
+            ) &&
+            exact(c, [
+              "iss",
+              "aud",
+              "scope",
+              "action",
+              "jti",
+              "iat",
+              "exp",
+              "runtimeId",
+              "runtimeGeneration",
+              "lifetimeId",
+              "hiveUserId",
+              "coderOwnerId",
+              "workspaceId",
+              "buildId",
+              "maintenanceId",
+              "maintenanceVersion",
+              "ownerIntentRuntimeId",
+              "ownerIntentEventId",
+              "parkedJournalDigest",
+            ]) &&
+            c.iss === config.hiveOrigin &&
+            c.aud === "hive:workspace-guardian" &&
+            c.scope === "workspace:guardian:account-maintenance" &&
+            ["pause", "inspect-resume", "resume"].includes(c.action) &&
+            uuid(c.jti) &&
+            Number.isSafeInteger(c.iat) &&
+            Number.isSafeInteger(c.exp) &&
+            c.iat <= now &&
+            c.exp > now &&
+            c.exp - c.iat > 0 &&
+            c.exp - c.iat <= 60 &&
+            c.runtimeId === state.runtimeId &&
+            c.runtimeGeneration === state.generation &&
+            c.lifetimeId === s.lifetimeId &&
+            c.hiveUserId === config.binding.hiveUserId &&
+            c.coderOwnerId === config.binding.ownerId &&
+            c.workspaceId === config.binding.workspaceId &&
+            c.buildId === config.binding.buildId &&
+            uuid(c.maintenanceId) &&
+            positive(c.maintenanceVersion),
+        );
+        if (c.action !== "pause") {
+          check(!state.launch && !Object.keys(state.projects).length && c.runtimeGeneration === 1);
+          const parked = readAccountMaintenanceArchive(
+            {
+              stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
+              ownerId: config.binding.ownerId,
+              workspaceId: config.binding.workspaceId,
+            },
+            c.maintenanceId,
+          );
+          const archives = readdirSync(stateDirectory).filter((name) =>
+            /^controller-archive-[a-f0-9]{64}\.json$/.test(name),
+          );
+          check(archives.length <= 256);
+          const matching = [];
+          for (const name of archives) {
+            const encoded = privateRead(join(stateDirectory, name));
+            check(sha(encoded) === name.slice(19, -5));
+            const saved = JSON.parse(encoded);
+            check(
+              verify(
+                null,
+                Buffer.from(guardianCanonical(saved.state)),
+                publicKey,
+                Buffer.from(saved.signature, "base64url"),
+              ),
+            );
+            if (saved.state.accountMaintenance?.id === c.maintenanceId) matching.push(saved.state);
+          }
+          check(matching.length === 1);
+          const prior = matching[0],
+            hold = prior.accountMaintenance,
+            ps = parked.evidence.projectState;
+          check(
+            hold.phase === "parked" &&
+              hold.parkedJournalDigest === parked.parkedJournalDigest &&
+              hold.treeReceiptDigest === parked.evidence.treeReceiptDigest &&
+              prior.lifetimeId === parked.evidence.priorLifetimeId &&
+              Array.isArray(hold.snapshots) &&
+              hold.snapshots.length === Object.keys(ps.projects).length,
+          );
+          const directory = dirname(fileURLToPath(import.meta.url)),
+            manifestBytes = readFileSync(join(directory, "package-manifest.json"));
+          check(sha(manifestBytes) === packageManifestSha256);
+          const manifest = JSON.parse(manifestBytes),
+            helper = join(directory, "managed-projects.py");
+          check(sha(readFileSync(helper)) === manifest.files?.["managed-projects.py"]);
+          const inspectUntil = Date.now() + 10000;
+          const projects = Object.values(ps.projects).map((p) => {
+            const t = p.task,
+              o = hold.snapshots.find((s) => s.projectId === p.projectId),
+              n = parked.evidence.nativeRegistry.state.projects[p.projectId];
+            check(Date.now() < inspectUntil);
+            const inspection = JSON.parse(
+              execFileSync("/usr/bin/python3", [helper], {
+                input: JSON.stringify({
+                  schemaVersion: 1,
+                  operation: "inspect",
+                  provider: "github",
+                  repositoryId: p.repositoryId,
+                }),
+                encoding: "utf8",
+                timeout: Math.max(1, Math.min(2000, inspectUntil - Date.now())),
+                maxBuffer: 65536,
+                env: { PATH: "/usr/bin:/bin", HOME: home, LANG: "C.UTF-8" },
+                stdio: ["pipe", "pipe", "ignore"],
+              }),
+            );
+            check(
+              inspection.ok === true &&
+                inspection.data?.checkoutVerified === true &&
+                inspection.data.revision === t.request?.revision,
+            );
+            const managed = managedReceipt(home, p.repositoryId).record;
+            check(
+              t?.prepared &&
+                o &&
+                n?.threadId === t.nativeThreadId &&
+                t.guardianPreparation?.buildId === config.binding.buildId &&
+                t.request.requestId === o.firstPromptRequestId &&
+                n.firstPrompt?.requestId === o.firstPromptRequestId &&
+                n.firstPrompt?.digest === o.firstPromptDigest &&
+                n.firstPrompt?.phase === "accepted" &&
+                managed.status === "ready" &&
+                !managed.sourceUpdating &&
+                managed.lease?.id === t.prepared.leaseId &&
+                managed.lease.generation === t.prepared.leaseGeneration &&
+                managed.lease.taskId === t.taskId &&
+                managed.lease.expiresAt > Date.now() / 1000 &&
+                managed.revision === t.request.revision &&
+                managed.checkoutIncarnation === t.checkoutIncarnation &&
+                same(
+                  {
+                    device: String(managed.checkoutIdentity?.device),
+                    inode: String(managed.checkoutIdentity?.inode),
+                  },
+                  t.checkoutIdentity,
+                ),
+            );
+            return {
+              preparationIntentId: t.taskId,
+              nativeThreadId: t.nativeThreadId,
+              firstPromptRequestId: o.firstPromptRequestId,
+              firstPromptDigest: o.firstPromptDigest,
+              historyDigest: o.historyDigest,
+              checkoutDigest: digest(o.checkoutBinding ?? prior.projects[p.projectId].checkout),
+              leaseId: t.prepared.leaseId,
+              leaseGeneration: t.prepared.leaseGeneration,
+            };
+          });
+          if (c.action === "inspect-resume") {
+            check(
+              c.ownerIntentRuntimeId === null &&
+                c.ownerIntentEventId === null &&
+                c.parkedJournalDigest === null,
+            );
+            const issuedAt = Date.now(),
+              body = {
+                schemaVersion: 1,
+                purpose: "account-maintenance-archive",
+                ownerId: config.binding.hiveUserId,
+                workspaceId: config.binding.workspaceId,
+                buildId: config.binding.buildId,
+                maintenanceId: c.maintenanceId,
+                maintenanceVersion: c.maintenanceVersion,
+                runtimeId: state.runtimeId,
+                runtimeGeneration: state.generation,
+                requestId: c.jti,
+                issuedAt,
+                expiresAt: issuedAt + 30000,
+                parkedJournalDigest: parked.parkedJournalDigest,
+                projects,
+              };
+            return {
+              ...body,
+              proof: sign(
+                null,
+                Buffer.from(`hive-account-maintenance-archive-v1\n${guardianCanonical(body)}`),
+                key,
+              ).toString("base64url"),
+            };
+          }
+          check(
+            uuid(c.ownerIntentRuntimeId) &&
+              uuid(c.ownerIntentEventId) &&
+              c.parkedJournalDigest === parked.parkedJournalDigest,
+          );
+          state.accountMaintenance = {
+            id: c.maintenanceId,
+            version: c.maintenanceVersion,
+            phase: "resuming",
+            requestId: c.jti,
+            ownerIntentRuntimeId: c.ownerIntentRuntimeId,
+            ownerIntentEventId: c.ownerIntentEventId,
+            parkedJournalDigest: parked.parkedJournalDigest,
+            projects,
+            historyThreads: hold.snapshots.map((o) => ({
+              projectId: o.projectId,
+              threadIds: o.threadIds,
+            })),
+          };
+          save();
+          return {
+            action: "resume",
+            maintenanceId: c.maintenanceId,
+            scope: structuredClone(state.accountMaintenance),
+          };
+        }
+        check(
+          c.ownerIntentRuntimeId === null &&
+            c.ownerIntentEventId === null &&
+            c.parkedJournalDigest === null,
+        );
+        if (state.accountMaintenance?.phase === "resumed") {
+          state.accountMaintenanceHistory ??= {};
+          state.accountMaintenanceHistory[state.accountMaintenance.id] = structuredClone(
+            state.accountMaintenance,
+          );
+          delete state.accountMaintenance;
+        }
+        check(
+          !state.accountMaintenance ||
+            (state.accountMaintenance.id === c.maintenanceId &&
+              state.accountMaintenance.version === c.maintenanceVersion),
+        );
+        state.accountMaintenance ??= {
+          id: c.maintenanceId,
+          version: c.maintenanceVersion,
+          phase: "waiting-boundary",
+        };
+        save();
+        return { action: "pause", maintenanceId: c.maintenanceId };
+      }),
+    maintenanceResumeReady: () =>
+      serial(async () => {
+        initialize();
+        const hold = state.accountMaintenance;
+        check(
+          hold &&
+            ["resuming", "resumed"].includes(hold.phase) &&
+            Object.keys(state.projects).length === hold.projects.length &&
+            Object.values(state.projects).every(
+              (p) => p.phase === "native" && uuid(p.nativeReceiptEventId),
+            ),
+        );
+        const result = await send(
+          "maintenance_resume_ready",
+          {
+            maintenanceId: hold.id,
+            ownerIntentRuntimeId: hold.ownerIntentRuntimeId,
+            ownerIntentEventId: hold.ownerIntentEventId,
+          },
+          (r) => {
+            check(
+              r?.ready === true &&
+                r.maintenanceId === hold.id &&
+                r.ownerIntentRuntimeId === hold.ownerIntentRuntimeId &&
+                r.ownerIntentEventId === hold.ownerIntentEventId &&
+                Array.isArray(r.authorizations) &&
+                r.authorizations.length === hold.projects.length &&
+                new Set(r.authorizations.map((a) => a.projectId)).size === hold.projects.length &&
+                r.authorizations.every(
+                  (a) =>
+                    state.projects[a.projectId]?.nativeReceiptEventId === a.nativeReceiptEventId &&
+                    typeof a.runnable === "boolean" &&
+                    Number.isSafeInteger(a.executionEpochVersion) &&
+                    ((a.managerBindingId === null && a.executionEpochVersion === 0) ||
+                      (uuid(a.managerBindingId) && a.executionEpochVersion > 0)),
+                ),
+            );
+          },
+          "factual",
+        );
+        hold.phase = "resumed";
+        save();
+        return { ...result, runtimeId: state.runtimeId };
       }),
     requestExpiredEmptyDrain: (grant) =>
       serial(() => {
@@ -1861,6 +2218,10 @@ export function openGuardianController({
     beginDrain: () =>
       serial(() => {
         drainStartup = structuredClone(initialize(false, false, Boolean(state?.expiredEmptyDrain)));
+        if (state.accountMaintenance?.phase === "waiting-boundary") {
+          state.accountMaintenance.phase = "closing";
+          save();
+        }
       }),
     authorizeDrain: (binding, barrier) =>
       serial(async () => {
@@ -1877,6 +2238,21 @@ export function openGuardianController({
         const snapshots = binding.projects.map((p) => {
           const item = barrier.snapshots.find((v) => v.projectId === p.projectId),
             local = state.projects[p.projectId];
+          if (state.accountMaintenance?.phase === "closing") {
+            check(
+              item?.maintenanceId === state.accountMaintenance.id &&
+                local?.phase === "native" &&
+                local.preparationDigest === p.bindingDigest &&
+                item.history?.projectId === p.projectId &&
+                item.history?.managerThreadId &&
+                hex(item.history?.historyDigest),
+            );
+            return {
+              ...item.history,
+              admissionId: local.admissionId,
+              admissionGeneration: local.admissionGeneration,
+            };
+          }
           check(
             item &&
               local?.phase === "native" &&
@@ -1908,6 +2284,14 @@ export function openGuardianController({
             activeRoots: 0,
           };
         });
+        if (state.accountMaintenance?.phase === "closing") {
+          check(
+            !state.accountMaintenance.snapshots ||
+              same(state.accountMaintenance.snapshots, snapshots),
+          );
+          state.accountMaintenance.snapshots = structuredClone(snapshots);
+          save();
+        }
         if (state.expiredEmptyDrain)
           check(
             Date.now() < state.expiredEmptyDrain.expiresAt &&
@@ -1915,8 +2299,11 @@ export function openGuardianController({
               snapshots.length === 0,
           );
         const result = await sendClosure(
-          "close",
+          state.accountMaintenance?.phase === "closing" ? "maintenance_close" : "close",
           {
+            ...(state.accountMaintenance?.phase === "closing"
+              ? { maintenanceId: state.accountMaintenance.id }
+              : {}),
             barrierId: barrier.barrierId,
             ownershipDigest: binding.ownershipDigest,
             projectBindings: binding.projects,
@@ -2059,6 +2446,22 @@ export function openGuardianController({
             receipt.workerBarrier?.barrierId &&
             receipt.generation === state.generation,
         );
+        if (["closing", "parked"].includes(state.accountMaintenance?.phase)) {
+          const parked = parkAccountMaintenanceProjectState(
+            {
+              stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
+              ownerId: config.binding.ownerId,
+              workspaceId: config.binding.workspaceId,
+            },
+            receipt,
+            state.accountMaintenance.id,
+          );
+          state.accountMaintenance.phase = "parked";
+          state.accountMaintenance.parkedJournalDigest = parked.parkedJournalDigest;
+          state.accountMaintenance.treeReceiptDigest = digest(receipt);
+          save();
+          return { archived: true }; // Retained maintenance park, NEVER completion/lease release.
+        }
         const projects = receipt.projects.map((p) => p.projectId);
         const call = async (action, fields, accept = () => {}) => {
           deadline = Date.now() + 30000;
@@ -2208,6 +2611,18 @@ export function openGuardianController({
           );
           const current = saved.state,
             closure = current.epicClosure;
+          if (current.accountMaintenance?.phase === "parked") {
+            check(
+              current.lifetimeId === receipt.lifetimeId &&
+                current.generation === receipt.generation &&
+                !current.pending &&
+                !current.hold &&
+                current.accountMaintenance.phase === "parked" &&
+                current.accountMaintenance.treeReceiptDigest === digest(receipt) &&
+                hex(current.accountMaintenance.parkedJournalDigest),
+            );
+            return;
+          }
           check(
             current.lifetimeId === receipt.lifetimeId &&
               current.generation === receipt.generation &&

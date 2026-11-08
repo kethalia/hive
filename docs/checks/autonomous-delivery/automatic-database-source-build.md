@@ -55,12 +55,12 @@ still needs the existing protected environment/target role and ledger, signing k
 trusted source-build catalog and immutable dispatcher/recipe source. No such live
 execution or production database mutation is part of this validation receipt.
 
-The integrated source passed 13 composed PostgreSQL cases, one actual isolated
+The earlier source checkpoint passed 13 composed PostgreSQL cases, one actual isolated
 old/new workerd/PostgreSQL scenario and two source-input/contract cases,
 authority/transport contract checks and TypeScript.
 Generated host packages preserve the newer epic account/runtime fixes. Cross-checkout
 archive reproduction and all five profile mirrors pass with shared dependency-store
-references. The host archive is 193,564 bytes compressed (SHA-256
+references. That checkpoint's host archive was 193,564 bytes compressed (SHA-256
 `dcf0a9d53ffcb560e834e51b38795211c38354124196ac8af1e2bb2883c272df`);
 the raw tar SHA-256 is
 `960a7b3cff01a2712f2e24865abcb522cb254b1bdaefcb2854f1dda0fb000472`.
@@ -104,3 +104,14 @@ provider/deadline units and four public-authority/workflow contracts. Its pause-
 case observes an actual blocked SQL backend, commits the owner pause, and verifies
 that no SQL-authority event is created by the waiter. Full generated-package parity
 and replacement source/wrapper/caller pins follow coordinated combined integration.
+
+The final combined source integrates graceful account maintenance, recorded SQL
+outcomes and the account executable admission correction. Combined checks pass:
+17 D10 cases, 17 automatic/production cases, 36 preview/epic cases (four existing
+opt-in skips), six maintenance PostgreSQL cases, four maintenance API/wire cases,
+33 account routing/factory/UI units and 21 account executable/lock cases. Typecheck,
+30 package/codec/profile cases, deterministic archive reproduction and all five
+profile mirrors pass. The host package is 201612 bytes compressed (SHA-256 `0c4f8da7727e8aa420cc05eddda4d04f49792436f645cb40848761164cd686fc`),
+with raw tar SHA-256 `7b55ef6f8e28be09fc2b3f39b99a6670d749ecd2155ceb7d9d8453619ab62d21`. The agent bridge compressed SHA-256 is `d638b1c74de0867845f13e0c8d747a24c3203aa0d482f4d2f40ad808addea32f`.
+Only existing connected Builds publication is used; no Worker or production
+activation setting changes are included.

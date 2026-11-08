@@ -73,6 +73,11 @@ test("host archive has the same digest across checkouts sharing a dependency sto
     );
     await mkdir(join(temporary, "src/lib"), { recursive: true });
     await cp("src/lib/delivery", join(temporary, "src/lib/delivery"), { recursive: true });
+    await mkdir(join(temporary, "src/lib/codex-session"), { recursive: true });
+    await cp(
+      "src/lib/codex-session/account-maintenance-contracts.ts",
+      join(temporary, "src/lib/codex-session/account-maintenance-contracts.ts"),
+    );
     await mkdir(join(temporary, "services/migrate/src/delivery"), { recursive: true });
     for (const name of ["wire.mjs", "contracts.mjs", "source-plan-intent.mjs"])
       await cp(

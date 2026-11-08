@@ -94,9 +94,9 @@ export async function createInstalledDeliveryRuntime({
     active();
     return controller.currentProjectContext(thread);
   };
-  const context = (thread) => {
+  const context = (thread, readOnlyClaim = null) => {
     active();
-    const claim = adapter.currentSourceContext(thread),
+    const claim = readOnlyClaim ?? adapter.currentSourceContext(thread),
       physical = currentProjectContext(thread);
     check(
       claim.managerThreadId === thread &&
@@ -353,6 +353,8 @@ export async function createInstalledDeliveryRuntime({
       currentRegistration,
       currentProjectContext,
       currentServerInstanceId: () => supervisor.state.serverInstanceId,
+      maintenanceContext: (thread, turn) =>
+        supervisor.accountMaintenanceDeliveryContext?.(thread, turn) ?? null,
       registerChild: (root, child, call) => supervisor.registerChild(root, child, call),
       readNativeHistory: (value) => supervisor.readNativeHistory(value),
       drainNativeRouting: (value) => supervisor.runtime.drainManagerRouting(value),
@@ -361,6 +363,34 @@ export async function createInstalledDeliveryRuntime({
         supervisor.revalidateDeliveryBoundary(value, next, call),
       currentSource: (thread) => controller.currentSource(thread),
       ...(acceptance ? { readAcceptancePlan: (thread) => acceptance.readPlan(thread) } : {}),
+      readMaintenanceStatus: async (thread, turn) => {
+        active();
+        const selected = adapter.maintenanceSourceContext(thread, turn);
+        if (!selected)
+          return {
+            state: "no-current-claim",
+            executionAuthorized: false,
+            publicationAuthorized: false,
+            cleanupAuthorized: false,
+          };
+        const client = createDeliveryStatusClient({
+          enabled: true,
+          hiveOrigin: config.hiveOrigin,
+          hostPrivateKeyPem: key,
+          currentContext: () => {
+            const current = adapter.maintenanceSourceContext(thread, turn);
+            check(current, "maintenance_read_claim_unavailable");
+            return { ...context(thread, current), inputSourceSha: current.inputSourceSha };
+          },
+          authorizeMetadata,
+          fetchImpl: request,
+        });
+        try {
+          return await client.read(thread);
+        } finally {
+          await client.close();
+        }
+      },
       readStatus: async (claim) => {
         active();
         const status = await statusClient.read(claim.managerThreadId);

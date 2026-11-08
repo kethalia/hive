@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { maintenanceClaimContinuationSchema } from "@/lib/codex-session/account-maintenance-contracts";
+import { maintenanceClaimContinuationSchema } from "../codex-session/account-maintenance-contracts";
 
 export const sourceShaSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const sourceContextSchema = z

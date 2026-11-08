@@ -743,12 +743,62 @@ export async function openGuardedHost(options) {
               phase === "open" &&
                 hello &&
                 startupReady &&
-                Object.keys(value ?? {}).length === 0 &&
+                (Object.keys(value ?? {}).length === 0 ||
+                  (Object.keys(value).join() === "maintenanceId" &&
+                    typeof value.maintenanceId === "string" &&
+                    /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value.maintenanceId))) &&
                 typeof options.requestDrain === "function",
             );
-            const ready = await options.requestDrain();
+            const ready = await options.requestDrain(value.maintenanceId);
             check(phase === "open" && typeof ready === "boolean");
             return { ready };
+          }),
+        accountMaintenance: async (value) => {
+          const result = await enqueue(async () => {
+            check(
+              phase === "open" &&
+                hello &&
+                startupReady &&
+                Object.keys(value ?? {}).join() === "grant" &&
+                typeof value.grant === "string" &&
+                value.grant.length >= 100 &&
+                value.grant.length <= 16384 &&
+                typeof options.accountMaintenance === "function",
+            );
+            return boundedAuthority(() => options.accountMaintenance(value.grant), 25000);
+          });
+          check(phase === "open");
+          // Do not retain the outer admission queue across a worker resume: the
+          // existing prepare/checkout/metadata RPCs need that same queue.
+          if (result?.action === "pause" || result?.action === "resume") {
+            check(
+              typeof result.maintenanceId === "string" &&
+                /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(result.maintenanceId),
+            );
+            const started = await wire.request(
+              result.action === "pause" ? "beginAccountMaintenance" : "resumeAccountMaintenance",
+              result.action === "pause"
+                ? { maintenanceId: result.maintenanceId }
+                : { scope: result.scope },
+              25000,
+            );
+            check(started?.accepted === true && phase === "open");
+            return { accepted: true };
+          }
+          return result;
+        },
+        maintenanceResumeReady: (value) =>
+          enqueue(async () => {
+            check(
+              phase === "open" &&
+                hello &&
+                startupReady &&
+                Object.keys(value ?? {}).length === 0 &&
+                typeof options.maintenanceResumeReady === "function",
+            );
+            const result = await boundedAuthority(() => options.maintenanceResumeReady());
+            check(phase === "open" && result?.ready === true);
+            return result;
           }),
         recoverEmptyClose: (value) =>
           enqueue(async () => {

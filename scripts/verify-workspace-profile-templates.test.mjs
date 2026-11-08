@@ -300,6 +300,11 @@ test("profile synchronization detects and removes obsolete shared scripts", (t) 
   cpSync(join(repositoryRoot, "src/lib/delivery"), join(fixtureRoot, "src/lib/delivery"), {
     recursive: true,
   });
+  mkdirSync(join(fixtureRoot, "src/lib/codex-session"), { recursive: true });
+  cpSync(
+    join(repositoryRoot, "src/lib/codex-session/account-maintenance-contracts.ts"),
+    join(fixtureRoot, "src/lib/codex-session/account-maintenance-contracts.ts"),
+  );
   cpSync(
     join(repositoryRoot, "src/lib/provider-build.ts"),
     join(fixtureRoot, "src/lib/provider-build.ts"),
