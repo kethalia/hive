@@ -160,6 +160,9 @@ class InstalledSealedHostObserver:
     def __call__(self):
         state = self.home / ".local/state/hive/codex-host-guardian"
         manager = ManagedProjects(self.home)
+        manager.safe(state)
+        if not os.path.lexists(state):
+            return None  # Unguarded installs receive no exemption; scan strictly.
         manager.private(state, True)
         manager.private(state / "key")
         manager.private(state / "lifetime.json")
@@ -213,9 +216,12 @@ class InstalledSealedHostObserver:
                 return None
         except (FileNotFoundError, ProcessLookupError, PermissionError):
             return None
-        node = Path("/usr/local/bin/node") if Path("/usr/local/bin/node").exists() else Path("/usr/bin/node")
-        node = node.resolve()
-        info = node.stat()
+        node = Path(startup["outerIdentity"]["executable"])
+        roots = saved["state"]["events"][0]["value"]["hostRootInventory"]
+        require(node.is_absolute() and node.resolve() == node and isinstance(roots, list) and len(roots) == 1
+                and roots[0]["id"] == "host-worker" and roots[0]["role"] == "host"
+                and roots[0]["executable"] == str(node) and roots[0]["sha256"] == startup["nodeSha256"], "sealed_guardian_unavailable")
+        info = node.lstat()
         require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
                 and info.st_size <= 256 * 1024 * 1024
                 and hashlib.sha256(node.read_bytes()).hexdigest() == startup["nodeSha256"], "sealed_guardian_unavailable")

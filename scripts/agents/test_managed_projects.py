@@ -122,6 +122,46 @@ class ManagedProjectsTests(unittest.TestCase):
         self.manager.request_cleanup("123", "task-one")
         return Path(prepared["checkoutDirectory"])
 
+    def test_unguarded_installed_release_and_reuse_stay_strict_for_unknown_holder(self):
+        manager = MODULE.ManagedProjects.installed(self.home)
+        manager.resolver, manager.driver = self.manager.resolver, self.manager.driver
+        self.assertIsNone(manager._installed_observer())
+        first = manager.prepare("123", "task-one", self.sha)
+        file = manager.paths("123")[1]
+        checkout = Path(first["checkoutDirectory"])
+        def holder():
+            child = subprocess.Popen([sys.executable, "-I", "-c", "import ctypes,sys,time;f=open(sys.argv[1]);assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0;print('ready',flush=True);time.sleep(30)", str(checkout / "README.md")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            self.assertEqual(child.stdout.readline().strip(), "ready")
+            self.process_ids.add(child.pid)
+            return child
+        def stop(child):
+            child.terminate(); child.wait(timeout=3)
+            child.stdout.close(); child.stderr.close(); self.process_ids.remove(child.pid)
+        lease = first["lease"]
+        child = holder(); before = file.read_bytes()
+        try:
+            with self.assertRaisesRegex(MODULE.ManagedError, "process_inspection_unavailable"):
+                manager.release_lease("123", "task-one", lease["id"], lease["generation"], self.sha)
+            self.assertEqual(file.read_bytes(), before)
+        finally: stop(child)
+        released = manager.release_lease("123", "task-one", lease["id"], lease["generation"], self.sha)
+        self.assertEqual(manager.release_lease("123", "task-one", lease["id"], lease["generation"], self.sha), released)
+        child = holder(); before = file.read_bytes()
+        try:
+            with self.assertRaisesRegex(MODULE.ManagedError, "process_inspection_unavailable"):
+                manager.prepare("123", "task-two", self.sha)
+            self.assertEqual(file.read_bytes(), before)
+        finally: stop(child)
+        second = manager.prepare("123", "task-two", self.sha)
+        self.assertEqual(second["checkoutIncarnation"], first["checkoutIncarnation"])
+        self.assertEqual(second["lease"]["taskId"], "task-two")
+        state = self.home / ".local/state/hive/codex-host-guardian"
+        state.mkdir(mode=0o700)
+        with self.assertRaises((MODULE.ManagedError, FileNotFoundError)):
+            manager._installed_observer()
+        state.rmdir(); state.symlink_to(self.home / "missing-guard-state", target_is_directory=True)
+        with self.assertRaises(MODULE.ManagedError): manager._installed_observer()
+
     def test_prepares_exact_revision_reuses_and_rejects_other_writer(self):
         first = self.prepare()
         checkout = Path(first["checkoutDirectory"])

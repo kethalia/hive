@@ -14,8 +14,10 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1079,6 +1081,62 @@ test("unused epoch replays a crash after authenticated empty controller move", (
 });
 
 test("v1 recovery and installed two-task reuse observe the official guardian while unknown nondumpable holders block", async (t) => {
+  const nodeMetadata = (file) => {
+    try {
+      const path = realpathSync(file),
+        s = statSync(path);
+      return {
+        path,
+        uid: s.uid,
+        mode: s.mode & 0o777,
+        file: s.isFile(),
+        safe: s.isFile() && s.uid === 0 && !(s.mode & 0o022),
+      };
+    } catch {
+      return { path: file, safe: false };
+    }
+  };
+  const currentNode = nodeMetadata(process.execPath);
+  if (!currentNode.safe) {
+    const candidates = ["/usr/local/bin/node", "/usr/bin/node"].map(nodeMetadata);
+    const chosen = candidates.find((candidate) => {
+      if (!candidate.safe) return false;
+      try {
+        const major = Number(
+          execFileSync(candidate.path, ["-p", "process.versions.node.split('.')[0]"], {
+            timeout: 2000,
+          })
+            .toString()
+            .trim(),
+        );
+        candidate.major = major;
+        return major >= 20;
+      } catch {
+        return false;
+      }
+    });
+    assert.ok(
+      chosen,
+      `No supported root-owned non-writable fixture Node: ${JSON.stringify({ current: currentNode, candidates })}`,
+    );
+    t.diagnostic(
+      `Fixture Node reexec: ${JSON.stringify(chosen)}; composition only, not production Node24 readiness`,
+    );
+    execFileSync(
+      chosen.path,
+      [
+        "--test",
+        "--test-name-pattern=^v1 recovery and installed two-task reuse",
+        new URL(import.meta.url).pathname,
+      ],
+      { cwd: process.cwd(), stdio: "pipe", timeout: 30000 },
+    );
+    return;
+  }
+  assert.ok(Number(process.versions.node.split(".")[0]) >= 20, "Fixture requires Node20+ APIs");
+  t.diagnostic(
+    `Fixture Node major ${process.versions.node.split(".")[0]}, canonical UID ${currentNode.uid}, mode ${currentNode.mode.toString(8)}`,
+  );
   const buildDirectory = mkdtempSync(join(tmpdir(), "hive-observer-package-"));
   t.after(() => rmSync(buildDirectory, { recursive: true, force: true }));
   const artifact = await hostArchive(resolve("."));
