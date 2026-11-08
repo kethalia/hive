@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { createHash, randomUUID, sign } from "node:crypto";
+import { createHash, createPublicKey, randomUUID, sign, verify } from "node:crypto";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,9 +10,13 @@ import {
   expectedGuardianHostConfig,
   guardianConfigBytes,
 } from "@/lib/codex-session/guardian-config.server";
+import { authorizeEmptyRoot } from "@/lib/codex-session/guardian-empty-root.server";
 import { GuardianService } from "@/lib/codex-session/guardian-service.server";
 import type { GuardianAdmissionStore } from "@/lib/codex-session/guardian-store.server";
-import { guardianTransportProofPayload } from "@/lib/codex-session/guardian-transport-contracts";
+import {
+  guardianEnrollmentClaimsSchema,
+  guardianTransportProofPayload,
+} from "@/lib/codex-session/guardian-transport-contracts";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { epicDigest, epicPlanSchema } from "@/lib/delivery/epic-contracts";
 import { resumeAccountMaintenanceFixture } from "../codex-session/account-maintenance-fixture";
@@ -515,7 +519,7 @@ describe.skipIf(!url)("production-backed checkout cleanup, actual owned PostgreS
     ).rejects.toThrow();
   }, 60000);
 
-  it("real installed signature verifier removes only the actually bound temporary checkout, preserves project/evidence, and replays ACK without deletion", async () => {
+  it("real installed cleanup preserves evidence and ACK replay, then exact empty remount permits an ordinary fresh checkout", async () => {
     const base = mkdtempSync(join(tmpdir(), "hive-f06-installed-")),
       taskId = randomUUID(),
       leaseId = randomUUID();
@@ -608,6 +612,125 @@ describe.skipIf(!url)("production-backed checkout cleanup, actual owned PostgreS
       await expect(
         acknowledgeCheckoutCleanup(db, f.current, removed.cleanupReceipt, f.project.id),
       ).resolves.toMatchObject({ cleanupRecorded: true });
+      {
+        const newBinding = {
+            ...f.host,
+            projects: [],
+            buildId: randomUUID(),
+            agentId: randomUUID(),
+          },
+          newLifetime = randomUUID(),
+          proposal = run("empty-inspect", { lifetimeId: newLifetime }),
+          currentVolume = {
+            ...f.volume,
+            buildId: newBinding.buildId,
+            lifetimeId: newLifetime,
+            templateVersionId: randomUUID(),
+            resourceId: randomUUID(),
+            observedAt: Date.now(),
+          },
+          publicKey = createPublicKey(f.guardian.sessionConfig.privateKeyPem)
+            .export({ format: "pem", type: "spki" })
+            .toString();
+        const foreignPvcUid = randomUUID(),
+          foreignVolume = {
+            ...currentVolume.volume,
+            pvcUid: foreignPvcUid,
+            boundVolumeName: `pvc-${foreignPvcUid}`,
+          };
+        await expect(
+          authorizeEmptyRoot(
+            db,
+            newBinding,
+            proposal,
+            {
+              ...currentVolume,
+              volume: foreignVolume,
+              volumeDigest: guardianDigest(foreignVolume),
+            },
+            publicKey,
+          ),
+        ).rejects.toThrow();
+        const anchor = await authorizeEmptyRoot(db, newBinding, proposal, currentVolume, publicKey);
+        expect(proposal.projects[0].cleanupReceipt).toEqual(removed.cleanupReceipt);
+        const runtime = await f.guardian.store.reserveRuntime(newBinding, {
+          lifetimeId: newLifetime,
+          bindingDigest: "a".repeat(64),
+          outerPublicKeyPem: f.current.outerPublicKeyPem,
+          packageManifestSha256: f.current.packageManifestSha256,
+          guardianElfSha256: f.current.guardianElfSha256,
+          nodeSha256: f.current.nodeSha256,
+          policyDigest: f.current.policyDigest,
+          metadataPolicyDigest: f.current.metadataPolicyDigest,
+          configSha256: f.guardian.expectedConfigSha256(newBinding),
+        });
+        const now = Math.floor(Date.now() / 1000),
+          claims = guardianEnrollmentClaimsSchema.parse({
+            iss: f.guardian.sessionConfig.hiveOrigin,
+            aud: "hive:workspace-guardian",
+            scope: "workspace:guardian:enroll",
+            jti: randomUUID(),
+            iat: now,
+            exp: now + 30,
+            runtimeId: runtime.id,
+            hiveUserId: f.user.id,
+            coderOwnerId: newBinding.ownerId,
+            workspaceId: newBinding.workspaceId,
+            agentId: newBinding.agentId,
+            buildId: newBinding.buildId,
+            appId: newBinding.appId,
+            lifetimeId: newLifetime,
+            outerKeyFingerprint: runtime.outerKeyFingerprint,
+            bindingDigest: runtime.bindingDigest,
+            identityDigest: "b".repeat(64),
+            startupDigest: "c".repeat(64),
+            emptyRoot: anchor,
+          }),
+          header = Buffer.from(
+            JSON.stringify({ alg: "EdDSA", typ: "JWT", kid: f.guardian.sessionConfig.keyId }),
+          ).toString("base64url"),
+          body = Buffer.from(JSON.stringify(claims)).toString("base64url"),
+          enrollmentToken = `${header}.${body}.${sign(null, Buffer.from(`${header}.${body}`), f.guardian.sessionConfig.privateKeyPem).toString("base64url")}`,
+          tokenDigest = createHash("sha256").update(enrollmentToken).digest("hex");
+        // Signed owner transport/native observations are explicit fixture doubles;
+        // the cleanup ledger, authorizer, grant store, mapping and Git are real.
+        expect(
+          verify(
+            null,
+            Buffer.from(`${header}.${body}`),
+            publicKey,
+            Buffer.from(enrollmentToken.split(".")[2], "base64url"),
+          ),
+        ).toBe(true);
+        await f.guardian.store.sealGrant({
+          ownerId: f.user.id,
+          runtimeId: runtime.id,
+          id: claims.jti,
+          tokenDigest,
+          bindingDigest: guardianDigest(claims),
+          issuedAt: new Date(now * 1000),
+          expiresAt: new Date(claims.exp * 1000),
+        });
+        const mapped = run("empty-apply", {
+          proposal,
+          claims,
+          enrollmentToken,
+        });
+        expect(mapped.mapping).toMatchObject({ revalidated: true, leaseRenewed: false });
+        await f.guardian.store.enroll({
+          ownerId: f.user.id,
+          runtimeId: runtime.id,
+          grantId: claims.jti,
+          tokenDigest,
+          bindingDigest: guardianDigest(claims),
+          consumptionDigest: "d".repeat(64),
+        });
+        const fresh = run("empty-prepare", { nextTaskId: randomUUID() });
+        expect(fresh.retainedProject).toBe(true);
+        expect(fresh.cleanupReceipt).toEqual(removed.cleanupReceipt);
+        expect(fresh.prepared.checkoutIncarnation).not.toBe(physical.prepared.checkoutIncarnation);
+        expect(fresh.prepared.lease.taskId).not.toBe(taskId);
+      }
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

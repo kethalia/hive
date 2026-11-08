@@ -42,6 +42,47 @@ with mock.patch.object(Path,"iterdir",iter_processes):
             _,_,record=manager.load("123");lease=record["lease"];revision=record["revision"]
         manager.release_lease("123",request["taskId"],lease["id"],lease["generation"],revision)
         print(json.dumps(manager._inspect_cleanup("123",request["taskId"])));sys.exit(0)
+    if request["operation"] in {"empty-inspect", "empty-apply", "empty-prepare"}:
+        # Explicit kernel/mount observation double: same real paths/inodes,
+        # observed in a later epoch on the same provider volume. Old HMAC bytes
+        # and the actual signed cleanup history are never rewritten.
+        identity = manager.identity
+        manager.identity = lambda path: {**identity(path), "device": identity(path)["device"] + 1}
+        inventory = manager._empty_inventory
+        def protocol_inventory(*args, **kwargs):
+            result = inventory(*args, **kwargs)
+            # Only the fixed deployment HOME path differs in this owned fixture.
+            result["root"]["path"] = "/home/coder/projects/.hive-managed"
+            return result
+        manager._empty_inventory = protocol_inventory
+        if request["operation"] == "empty-inspect":
+            before = {str(p):p.read_bytes() for p in manager.state.glob("*.json")}
+            try:
+                manager.prepare("123", "next-epoch-task", fixture.git(source,"rev-parse","HEAD"))
+                raise AssertionError("unmapped old root admitted")
+            except fixture.MODULE.ManagedError as error:
+                assert str(error) == "managed_root_changed"
+            proposal = manager._inspect_empty_root(lifetime_id=request["lifetimeId"])
+            assert before == {str(p):p.read_bytes() for p in manager.state.glob("*.json")}
+            print(json.dumps(proposal));sys.exit(0)
+        if request["operation"] == "empty-prepare":
+            next_task = manager.prepare("123", request["nextTaskId"], fixture.git(source,"rev-parse","HEAD"))
+            assert next_task["lease"]["taskId"] == request["nextTaskId"]
+            marker = manager.read(manager.state/"cleanup-123.json")
+            print(json.dumps({"prepared":next_task,"cleanupReceipt":marker["receipt"],"retainedProject":(manager.root/"github/123/evidence").is_dir()}));sys.exit(0)
+        proposal, claims, token = request["proposal"], request["claims"], request["enrollmentToken"]
+        class EnrollmentAuthority:
+            def guardian(self):return None
+            def verify(self, actual):
+                fixture.MODULE.require(manager._empty_digest(actual) == claims["emptyRoot"]["proposalDigest"] and claims["exp"]*1000 > fixture.MODULE.time.time()*1000, "empty_root_authority_expired")
+                return {"expiresAt":claims["exp"]*1000,"enrollmentToken":token,"anchor":claims["emptyRoot"]}
+        result = manager._revalidate_empty_root(proposal, EnrollmentAuthority())
+        root_before = (manager.state / "root.json").read_bytes()
+        assert manager._inspect_empty_root(lifetime_id=claims["lifetimeId"]) == proposal
+        manager._revalidate_empty_root(proposal, EnrollmentAuthority())
+        assert (manager.state / "root.json").read_bytes() == root_before
+        marker = manager.read(manager.state/"cleanup-123.json")
+        print(json.dumps({"mapping":result,"cleanupReceipt":marker["receipt"]}));sys.exit(0)
     if request["operation"]=="cleanup":
         config=base64.b64decode(request["configBytes"]);configdir=home/".config/hive";configdir.mkdir(mode=0o700,parents=True,exist_ok=True)
         (configdir/"codex-host.json").write_bytes(config);(configdir/"codex-host.json").chmod(0o600)
