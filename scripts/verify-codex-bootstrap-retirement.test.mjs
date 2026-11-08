@@ -21,7 +21,6 @@ import { after, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import {
   applyEmptyRoot,
-  captureUnusedBootstrapRoot,
   initializeEmptyRoot,
   readUnusedBootstrapRoot,
 } from "../templates/ai-dev-k8s/scripts/codex-empty-root.mjs";
@@ -61,6 +60,38 @@ function rewrite(path, key, mutate) {
     .update(JSON.stringify(saved.state))
     .digest("hex");
   writeFileSync(path, `${JSON.stringify(saved)}\n`, { mode: 0o600 });
+}
+// Scope only this fixture's process observation; CI may host unrelated same-UID
+// nondumpable processes. Canonical /proc inspection remains fail closed. Old C
+// actors are still checked directly by the actual bootstrap retirement code.
+const captureFixtureCode = `import sys,json,os,importlib.util
+from pathlib import Path
+p=json.load(sys.stdin);spec=importlib.util.spec_from_file_location('fixture_managed',p['module']);m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m)
+original=Path.iterdir;tracked={os.getpid(),os.getppid()}
+def scoped(path):
+ return iter(Path('/proc')/str(pid) for pid in tracked) if path==Path('/proc') else original(path)
+Path.iterdir=scoped
+if p['denyTracked']:
+ readlink=os.readlink
+ def denied(path,*args,**kwargs):
+  if str(path)==f'/proc/{os.getpid()}/cwd':raise PermissionError('fixture tracked actor denied')
+  return readlink(path,*args,**kwargs)
+ os.readlink=denied
+manager=m.ManagedProjects(p['home']);print(json.dumps(manager._capture_unused_bootstrap_root()))`;
+function captureFixtureRoot(home, denyTracked = false) {
+  return JSON.parse(
+    execFileSync("/usr/bin/python3", ["-I", "-c", captureFixtureCode], {
+      input: JSON.stringify({
+        home,
+        denyTracked,
+        module: resolve("templates/ai-dev-k8s/scripts/managed-projects.py"),
+      }),
+      env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
+      timeout: 10000,
+      maxBuffer: 32768,
+      stdio: ["pipe", "pipe", "pipe"],
+    }),
+  );
 }
 async function fixture(t, unused = false) {
   const dir = mkdtempSync(join(root, "case-")),
@@ -175,7 +206,7 @@ await guard.ready({configSha256:config.sha,port:config.port});setInterval(()=>{}
             ...Object.fromEntries(
               ["ownerId", "workspaceId", "templateId", "buildId"].map((k) => [k, cfg.binding[k]]),
             ),
-            ...(unused ? { captureUnusedRoot: () => captureUnusedBootstrapRoot(home) } : {}),
+            ...(unused ? { captureUnusedRoot: () => captureFixtureRoot(home) } : {}),
           },
           proof,
         );
@@ -207,7 +238,7 @@ await guard.ready({configSha256:config.sha,port:config.port});setInterval(()=>{}
     const entry = join(dir, "outer.mjs");
     writeFileSync(
       entry,
-      `import fs from 'node:fs';import{openGuardedHost}from ${JSON.stringify(url("codex-host-guardian.mjs"))};import{archiveBootstrapProjectState}from ${JSON.stringify(url("codex-project-controller.mjs"))};import{captureUnusedBootstrapRoot}from ${JSON.stringify(url("codex-empty-root.mjs"))};import{readBootstrapConfigHistory}from ${JSON.stringify(url("codex-workspace-host-outer.mjs"))};const v=JSON.parse(fs.readFileSync(${JSON.stringify(input)}));const host=await openGuardedHost({...v.options,authorizeAdmission:async()=>{throw Error('fixture admission forbidden')},authorizeDrain:async()=>[],prepareBootstrapRetirement:proof=>{readBootstrapConfigHistory(v.home,proof.configSha256,v.config);const result=archiveBootstrapProjectState({stateDirectory:v.projectDir,guardianStateDirectory:v.guardianDir,...Object.fromEntries(['ownerId','workspaceId','templateId','buildId'].map(k=>[k,v.config.binding[k]])),...(v.unused?{captureUnusedRoot:()=>captureUnusedBootstrapRoot(v.home)}:{})},proof);if(v.crashAfterProject)process.exit(29);return result;}});console.log('ready');setInterval(()=>{},1000);`,
+      `import fs from 'node:fs';import{openGuardedHost}from ${JSON.stringify(url("codex-host-guardian.mjs"))};import{archiveBootstrapProjectState}from ${JSON.stringify(url("codex-project-controller.mjs"))};import{execFileSync}from'node:child_process';import{resolve}from'node:path';const captureFixtureCode=${JSON.stringify(captureFixtureCode)};const captureFixtureRoot=${captureFixtureRoot.toString()};import{readBootstrapConfigHistory}from ${JSON.stringify(url("codex-workspace-host-outer.mjs"))};const v=JSON.parse(fs.readFileSync(${JSON.stringify(input)}));const host=await openGuardedHost({...v.options,authorizeAdmission:async()=>{throw Error('fixture admission forbidden')},authorizeDrain:async()=>[],prepareBootstrapRetirement:proof=>{readBootstrapConfigHistory(v.home,proof.configSha256,v.config);const result=archiveBootstrapProjectState({stateDirectory:v.projectDir,guardianStateDirectory:v.guardianDir,...Object.fromEntries(['ownerId','workspaceId','templateId','buildId'].map(k=>[k,v.config.binding[k]])),...(v.unused?{captureUnusedRoot:()=>captureFixtureRoot(v.home)}:{})},proof);if(v.crashAfterProject)process.exit(29);return result;}});console.log('ready');setInterval(()=>{},1000);`,
       { mode: 0o600 },
     );
     const child = spawn(node, [entry], {
@@ -262,6 +293,7 @@ await guard.ready({configSha256:config.sha,port:config.port});setInterval(()=>{}
     key: join(guardianDir, "key"),
     projects: join(projectDir, "projects.json"),
     projectKey: join(projectDir, "projects.key"),
+    captureRoot: (denyTracked) => captureFixtureRoot(home, denyTracked),
   };
 }
 
@@ -362,6 +394,17 @@ test("unused descriptor holds a pending locator and changed current project jour
   writeFileSync(f.projects, projectRaw);
   assert(readUnusedBootstrapRoot(f.home, startup, f.next));
   await f.kill(next);
+});
+test("fixture projection still holds on a denied tracked process without changing root bytes", async (t) => {
+  const f = await fixture(t, true),
+    path = join(f.home, ".local/state/hive/managed-projects/root.json"),
+    raw = readFileSync(path);
+  assert.throws(
+    () => f.captureRoot(true),
+    (error) => error.stderr.toString().includes("process_inspection_unavailable"),
+  );
+  assert(readFileSync(path).equals(raw));
+  assert(!existsSync(join(f.projectDir, "unused-bootstrap.json")));
 });
 test("two actual abrupt bootstrap restarts retain signed history without claiming native closure", async (t) => {
   const f = await fixture(t),

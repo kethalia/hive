@@ -333,6 +333,19 @@ test("managed Preview keeps the packaged host and its exact recovery predecessor
     packages.find((p) => p.packageManifestSha256 === sha256(manifestBytes)),
     { packageManifestSha256: sha256(manifestBytes), ...expected },
   );
+  assert.deepEqual(
+    packages.find(
+      (p) =>
+        p.packageManifestSha256 ===
+        "b9659bd6eabe82f2d66240bf9a894061d231446ea6f6a083cac8863f4c5ab216",
+    ),
+    {
+      packageManifestSha256: "b9659bd6eabe82f2d66240bf9a894061d231446ea6f6a083cac8863f4c5ab216",
+      ...expected,
+      guardianElfSha256: "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+    },
+    "The unused-bootstrap predecessor remains independently approved",
+  );
   const retained = {
     guardianElfSha256: "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
     nodeSha256: "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
