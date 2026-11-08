@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PrismaClient } from "@hive/db";
+import { type Prisma, PrismaClient } from "@hive/db";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ db: undefined as unknown, host: vi.fn() }));
@@ -305,6 +305,86 @@ describe.skipIf(!url)("single Worker automatic Builds production journal", () =>
         HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED: "false",
       }),
     ).toBeNull();
+  }, 30000);
+  it("accepts two current same-build samples across a realistic five-minute cron gap", async () => {
+    const f = await fixture();
+    await f.controller.scheduler.tick(f.signal);
+    await f.controller.scheduler.tick(f.signal);
+    const action = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { release: { taskId: f.taskId } },
+    });
+    expect(await f.controller.step(f.user.id, action.id, f.signal)).toBe("observed");
+    expect(await f.controller.observe(f.user.id, action.releaseId, f.signal)).toBe("observing");
+    const first = await db.deliveryReleaseObservation.findFirstOrThrow({
+      where: { releaseId: action.releaseId },
+      orderBy: { createdAt: "asc" },
+    });
+    await db.$executeRaw`SELECT pg_sleep(1.05)`;
+    let projected = 0;
+    const transact = db.$transaction.bind(db),
+      interception = vi.spyOn(db, "$transaction");
+    // Project only the stored first-sample window clock from actual PostgreSQL.
+    // Current provider/health facts and all authority verifiers remain real;
+    // no immutable observation is changed and no five-minute test sleep is needed.
+    const injected = async (
+      work: (tx: Prisma.TransactionClient) => Promise<unknown>,
+      options?: object,
+    ) =>
+      transact(
+        async (tx) =>
+          work(
+            new Proxy(tx, {
+              get(target, key) {
+                if (key === "$queryRaw")
+                  return async (...args: Parameters<Prisma.TransactionClient["$queryRaw"]>) => {
+                    const rows = await target.$queryRaw(...args),
+                      query = args[0],
+                      sql = Array.isArray(query) ? query.join(" ").replace(/\s+/g, " ") : "";
+                    if (sql.includes("kind='automatic_health' ORDER BY created_at ASC LIMIT 1")) {
+                      const clock = await target.$queryRaw<
+                        { created_at: Date }[]
+                      >`SELECT clock_timestamp()-interval '5 minutes' AS created_at`;
+                      projected++;
+                      return (rows as { created_at: Date }[]).map((row) => ({
+                        ...row,
+                        created_at: clock[0].created_at,
+                      }));
+                    }
+                    return rows;
+                  };
+                const value = Reflect.get(target, key);
+                return typeof value === "function" ? value.bind(target) : value;
+              },
+            }),
+          ),
+        options,
+      );
+    interception.mockImplementation(injected as typeof db.$transaction);
+    try {
+      expect(await f.controller.observe(f.user.id, action.releaseId, f.signal)).toBe("healthy");
+    } finally {
+      interception.mockRestore();
+      Object.defineProperty(db, "$transaction", {
+        value: transact,
+        writable: true,
+        configurable: true,
+      });
+    }
+    expect(projected).toBe(1);
+    expect(
+      await db.deliveryReleaseObservation.findUniqueOrThrow({ where: { id: first.id } }),
+    ).toEqual(first);
+    expect(
+      (await db.deliveryRelease.findUniqueOrThrow({ where: { id: action.releaseId } })).phase,
+    ).toBe("healthy");
+    expect(
+      (
+        await db.deliveryReleaseTarget.findUniqueOrThrow({
+          where: { targetDigest: action.targetDigest },
+        })
+      ).activeReleaseId,
+    ).toBe(action.releaseId);
+    expect(f.remote.writes).toBe(1);
   }, 30000);
   it("retains the attributed202 ACK after a sixteen-second actual read-only dispatch preflight", async () => {
     const f = await fixture();

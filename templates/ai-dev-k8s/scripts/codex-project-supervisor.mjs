@@ -1866,7 +1866,10 @@ export function createNativeManagerRouter(getAdapter, reply) {
     void Promise.race([
       work,
       new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error("manager_timeout")), 15000);
+        timer = setTimeout(
+          () => reject(new Error("manager_timeout")),
+          params.arguments?.operation === "claim_step" ? 33000 : 15000,
+        );
       }),
     ])
       .then((result) => {

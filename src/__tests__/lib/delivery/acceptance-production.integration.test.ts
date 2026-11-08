@@ -45,11 +45,11 @@ afterEach(() => {
 /** Real PostgreSQL, signed manager/native/source/acceptance transitions and
  * independent-result validation. Provider reads, app health and model output
  * are explicit bounded local doubles; no account inference or provider writes. */
-async function fixture(longReview = false) {
+async function fixture(longReview = false, productionValidationOnly = true) {
   const f = await verifiedEpicPreviewFixture(db, {
     baseBranch: "main",
     activationRequirement: true,
-    productionValidationOnly: true,
+    productionValidationOnly,
     ...(longReview ? { producer: { ...acceptanceFixtureProducer, maxDurationMs: 60000 } } : {}),
   });
   vi.stubEnv("ENCRYPTION_KEY", acceptanceFixtureKey);
@@ -212,6 +212,7 @@ async function fixture(longReview = false) {
       },
     );
   async function claim() {
+    const wire = claimWire();
     const next = z
       .object({
         attemptId: z.string(),
@@ -220,7 +221,7 @@ async function fixture(longReview = false) {
         version: z.number(),
         nativeSequence: z.number(),
       })
-      .parse(await f.manager.execute(claimWire()));
+      .parse(await f.manager.execute(wire));
     const source = {
       ...f.source,
       parentTurnId: nextTurn,
@@ -254,6 +255,7 @@ async function fixture(longReview = false) {
     });
     return {
       next,
+      wire,
       source,
       terminal: {
         ...f.terminal,
@@ -348,6 +350,96 @@ async function fixture(longReview = false) {
 }
 
 describe.skipIf(!url)("production semantic acceptance in the existing engine", () => {
+  it("replays the exact signed production claim without a fresh probe, new attempt or runnable authority", async () => {
+    const f = await fixture(),
+      execution = await f.claim(),
+      probes = f.probes();
+    const result = await f.manager.execute(execution.wire);
+    expect(result).toMatchObject({
+      attemptId: execution.next.attemptId,
+      replayed: true,
+      canRun: false,
+      needsReconciliation: true,
+    });
+    expect(f.probes()).toBe(probes);
+    expect(await db.deliveryAttempt.count({ where: { stepId: f.step.id } })).toBe(1);
+    const { proof: _proof, command: _command, ...metadata } = execution.wire;
+    const altered = f.managerEnvelope(
+      {
+        operation: "claim_step",
+        payload: {
+          taskId: f.taskId,
+          stepId: f.step.id,
+          expectedVersion: f.step.version + 1,
+          requestedModel: "gpt-6.1-sol",
+          requestedEffort: "low",
+        },
+      },
+      metadata,
+    );
+    await expect(f.manager.execute(altered)).rejects.toThrow("event_replay_conflict");
+    await db.deliveryRepositoryPolicyVersion.updateMany({
+      where: { ownerId: f.user.id, projectId: f.project.id },
+      data: { revokedAt: new Date() },
+    });
+    await expect(f.manager.execute(execution.wire)).rejects.toThrow();
+    expect(f.probes()).toBe(probes);
+    expect(await db.deliveryAttempt.count({ where: { stepId: f.step.id } })).toBe(1);
+  }, 60000);
+  it("collects a current serving observation before the first production claim after the old receipt expires", async () => {
+    const f = await fixture();
+    const latest = (
+      await db.$queryRaw<{ evidence: { expiresAt: number } }[]>`
+      SELECT evidence FROM delivery_release_observations WHERE release_id=${f.action.releaseId}::uuid
+      AND kind='automatic_health' ORDER BY created_at DESC,id DESC LIMIT 1`
+    )[0];
+    await db.$executeRaw`SELECT pg_sleep(30.1)`;
+    expect(latest.evidence.expiresAt).toBeLessThan(Date.now());
+    const probes = f.probes(),
+      execution = await f.claim();
+    expect(f.probes()).toBeGreaterThan(probes);
+    expect(
+      await db.deliveryAttempt.findUniqueOrThrow({ where: { id: execution.next.attemptId } }),
+    ).toMatchObject({
+      sourceSha: f.publication.headSha,
+      outputRevisionId: null,
+      outcome: "running",
+    });
+    expect(await db.deliveryAttempt.count({ where: { stepId: f.step.id } })).toBe(1);
+    expect(f.p.remote.writes).toBe(1);
+    expect(
+      (
+        await db.deliveryReleaseTarget.findUniqueOrThrow({
+          where: { targetDigest: f.action.targetDigest },
+        })
+      ).activeReleaseId,
+    ).toBe(f.action.releaseId);
+  }, 60000);
+  it("retains unsupported, paused and serving-drift holds before admitting a production claim", async () => {
+    const unsupported = await fixture(false, false),
+      beforeUnsupported = unsupported.probes();
+    await expect(unsupported.claim()).rejects.toThrow(
+      "acceptance_production_observation_unavailable",
+    );
+    expect(unsupported.probes()).toBe(beforeUnsupported);
+    expect(await db.deliveryAttempt.count({ where: { stepId: unsupported.step.id } })).toBe(0);
+    const paused = await fixture(),
+      beforePaused = paused.probes();
+    await db.deliveryTask.update({ where: { id: paused.taskId }, data: { pauseRequested: true } });
+    await expect(paused.claim()).rejects.toThrow("task_paused");
+    expect(paused.probes()).toBe(beforePaused);
+    const drift = await fixture();
+    drift.drift();
+    await expect(drift.claim()).rejects.toThrow("acceptance_production_observation_unavailable");
+    expect(await db.deliveryAttempt.count({ where: { stepId: drift.step.id } })).toBe(0);
+    expect(
+      (
+        await db.deliveryReleaseTarget.findUniqueOrThrow({
+          where: { targetDigest: drift.action.targetDigest },
+        })
+      ).activeReleaseId,
+    ).toBe(drift.action.releaseId);
+  }, 60000);
   it("claims unchanged source, pins production input across refresh, independently completes once and releases only deployment fence", async () => {
     const f = await fixture(),
       execution = await f.claim(),

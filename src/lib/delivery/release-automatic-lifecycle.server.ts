@@ -492,11 +492,7 @@ export class AutomaticReleaseLifecycle {
       const evidenceDigest = githubSourceDigest(observation);
       await tx.$executeRaw`INSERT INTO delivery_release_observations(id,release_id,kind,evidence,evidence_digest) VALUES (${randomUUID()}::uuid,${releaseId}::uuid,'automatic_health',${canonicalGitHubSource(observation)}::jsonb,${evidenceDigest}) ON CONFLICT DO NOTHING`;
       if (row.phase === "healthy") return "healthy" as const;
-      if (
-        previous.length &&
-        now - previous[0].created_at.getTime() > this.config.observation.windowMs + 60000
-      )
-        return this.hold(tx, row, "release_regression");
+      // Scheduled samples may arrive after the minimum window; lateness alone is no regression.
       if (
         !previous.length ||
         now - previous[0].created_at.getTime() < this.config.observation.windowMs

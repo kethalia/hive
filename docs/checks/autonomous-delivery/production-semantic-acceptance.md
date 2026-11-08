@@ -19,7 +19,12 @@ fixed origin, main build UUID and provider check. Original observation bytes rem
 pinned throughout the evaluator job. Later read-only observations corroborate the
 same build without changing the model's input digest.
 
-Signed acceptance requests refresh production observations outside SQL transactions.
+The observation window is a minimum between current samples. A later cron sample
+is not itself a regression; sampled DB/auth smoke does not establish continuous
+availability between probes.
+
+Authenticated initial production claims and signed acceptance requests refresh
+production observations outside SQL transactions.
 The subsequent transaction rechecks the same fenced release, generation, policy,
 source and build and a current observation. A changed serving build or failed probe
 retains the deployment hold; it cannot be bypassed with an earlier healthy receipt.
@@ -51,3 +56,8 @@ before completion. A final boundary regression projects the real PostgreSQL cloc
 writes. Rejected authority rolls back the step, attempt, report and success event
 and retains the target fence. This is source/runtime validation, not a live production cutover
 or an account-backed semantic acceptance result.
+
+Installed publication now accepts only `automatic-main-builds` (or remains disabled).
+Legacy token configuration fails closed, and legacy upload challenge/attestation
+endpoints return 404 without reading credentials. The pure historical engines and
+artifact compatibility formats remain available to tests and retained history.

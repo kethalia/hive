@@ -144,6 +144,30 @@ export async function authorizeProductionAcceptanceClaim(
     sourceSha: task.sourceSha,
   });
 }
+/** The manager supplies this captured scope only after signed-host, guardian,
+ * checkout, current-source and target-step authorization. The provider reads
+ * precede the eventual claim transaction; they do not grant a claim or retry. */
+export async function refreshProductionForClaim(
+  db: PrismaClient,
+  scope: {
+    ownerId: string;
+    taskId: string;
+    sourceRevisionId: string;
+    sourceSha: string;
+    step: { kind: string; acceptancePhase: string; requiredEvidenceKinds: string[] };
+  },
+  signal?: AbortSignal,
+) {
+  if (process.env.HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED !== "true") return;
+  if (
+    scope.step.acceptancePhase !== "activation_production" ||
+    !["review", "validate"].includes(scope.step.kind) ||
+    !scope.step.requiredEvidenceKinds.length ||
+    scope.step.requiredEvidenceKinds.some((kind) => kind !== "review")
+  )
+    return unavailable();
+  await refreshProductionScope(db, scope, signal);
+}
 export function productionReviewCoverage(result: AcceptanceReviewResult) {
   // A source-only citation cannot establish a production observation. The
   // independent evaluator must still judge whether the narrow supplied facts
@@ -208,7 +232,6 @@ export async function refreshProductionForHost(
   });
   const attempt = binding?.currentAttempt;
   if (attempt?.step.acceptancePhase !== "activation_production") return;
-  const config = productionAcceptanceConfig();
   const task = attempt.step.task;
   const sourceRevisionId = task.sourceRevisionId;
   if (!sourceRevisionId) return unavailable();
@@ -224,16 +247,26 @@ export async function refreshProductionForHost(
     );
     return;
   }
-  // Capture the same immutable release anchor without mistaking its historical
-  // observation for a current serving assertion. The collector performs fresh reads.
-  const anchor = await db.$transaction((tx) =>
-    readProductionAcceptanceAnchor(tx, config, {
+  await refreshProductionScope(
+    db,
+    {
       ownerId: scope.ownerId,
       taskId: task.id,
       sourceRevisionId,
       sourceSha: task.sourceSha,
-    }),
+    },
+    signal,
   );
+}
+async function refreshProductionScope(
+  db: PrismaClient,
+  scope: { ownerId: string; taskId: string; sourceRevisionId: string; sourceSha: string },
+  signal?: AbortSignal,
+) {
+  const config = productionAcceptanceConfig();
+  // Capture the same immutable release anchor without mistaking its historical
+  // observation for a current serving assertion. The collector performs fresh reads.
+  const anchor = await db.$transaction((tx) => readProductionAcceptanceAnchor(tx, config, scope));
   if (!anchor) return unavailable();
   const deadline = AbortSignal.any([AbortSignal.timeout(20000), ...(signal ? [signal] : [])]);
   if (
@@ -242,7 +275,7 @@ export async function refreshProductionForHost(
       config,
       {
         ownerId: scope.ownerId,
-        taskId: task.id,
+        taskId: scope.taskId,
         releaseId: anchor.releaseId,
       },
       deadline,

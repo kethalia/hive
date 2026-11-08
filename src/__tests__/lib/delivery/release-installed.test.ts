@@ -1,124 +1,118 @@
+import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@hive/db";
 import { afterAll, expect, it } from "vitest";
-import { githubSourceDigest } from "@/lib/delivery/github-evidence.server";
 import { createInstalledReleaseController } from "@/lib/delivery/release-installed.server";
+import { createInstalledReleaseTestStore } from "@/lib/delivery/release-tested-installed.server";
 
 const db = new PrismaClient({ datasourceUrl: "postgresql://unused@127.0.0.1:1/hive_release_test" });
 afterAll(() => db.$disconnect());
-it("keeps the installed controller off unless configuration and independent authority are complete", () => {
+const flags = {
+  HIVE_DELIVERY_RELEASE_ENABLED: "true",
+  HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED: "true",
+  HIVE_DELIVERY_RELEASE_TESTED_ENABLED: "true",
+  HIVE_NATIVE_MODE: "production",
+  HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
+};
+it("keeps publication disabled before owner/native production configuration", () => {
   expect(createInstalledReleaseController(db, {})).toBeNull();
+  expect(createInstalledReleaseTestStore(db, {})).toBeNull();
   expect(() =>
     createInstalledReleaseController(db, {
       HIVE_DELIVERY_RELEASE_ENABLED: "true",
       HIVE_DELIVERY_RELEASE_CONFIG_JSON: "{}",
     }),
-  ).toThrow();
+  ).toThrow("release_controller_unavailable");
 });
-
-it("requires an independently enrolled tested-tree producer for the preview controller", () => {
-  const target = {
-    accountId: "a".repeat(32),
-    environment: "preview",
-    scripts: { app: "preview-app", auth: "preview-auth" },
-    hiveReleaseWriter: true,
+it("rejects legacy publisher/token configuration without reading credentials or performing provider IO", () => {
+  const env: Record<string, string | undefined> = {
+    ...flags,
+    HIVE_DELIVERY_RELEASE_CONFIG_JSON: JSON.stringify({
+      target: { hiveReleaseWriter: true },
+      build: { publisherConfigDigest: "f".repeat(64) },
+    }),
   };
-  const item = {
-    deploymentId: "00000000-0000-4000-8000-000000000001",
-    versionId: "00000000-0000-4000-8000-000000000002",
-    sourceSha: "b".repeat(40),
-    artifactDigest: "c".repeat(64),
-    configDigest: "d".repeat(64),
+  for (const key of [
+    "HIVE_DELIVERY_RELEASE_GITHUB_TOKEN",
+    "HIVE_DELIVERY_RELEASE_CLOUDFLARE_TOKEN",
+    "HIVE_DELIVERY_RELEASE_ANALYTICS_TOKEN",
+  ])
+    Object.defineProperty(env, key, {
+      get() {
+        throw Error("Legacy credentials must never be read");
+      },
+    });
+  const fetcher: typeof fetch = async () => {
+    throw Error("No provider IO during selection");
   };
-  const riskCatalog = { owner: "test", name: "repo", allowedPrefixes: ["src/"] };
+  expect(() => createInstalledReleaseController(db, env, fetcher)).toThrow(
+    "release_controller_unavailable",
+  );
+  expect(() => createInstalledReleaseTestStore(db, env, fetcher)).toThrow(
+    "release_test_unavailable",
+  );
+});
+it("installs only connected automatic Builds and its credential-free tested-tree producer", () => {
   const config = {
-    target,
-    github: { repositoryId: "1", owner: "test", name: "repo", allowedBaseRef: "preview" },
-    build: {
-      publisherConfigDigest: "f".repeat(64),
+    mode: "automatic-main-builds",
+    policy: {
+      schemaVersion: 1,
+      purpose: "automatic_production",
+      versionId: randomUUID(),
+      ownerId: randomUUID(),
+      repositoryId: "1",
+      providerAccountId: "2",
+      baseBranch: "main",
+      method: "squash",
+      validFrom: Date.now() - 1000,
+      expiresAt: Date.now() + 600000,
+      cutoverApproval: {
+        id: randomUUID(),
+        approvedBy: "explicit owner fixture",
+        approvedAt: Date.now() - 2000,
+      },
+      pipelineUsage: "existing-connected-builds",
+    },
+    target: { accountId: "a".repeat(32), worker: "hive", origin: "https://hive.example.invalid" },
+    risk: { owner: "test", name: "repo", allowedPrefixes: ["src/"] },
+    observation: { windowMs: 1000 },
+    tested: {
       workflow: {
-        audiencePrefix: "urn:hive:release-build:preview:",
+        audiencePrefix: "urn:hive:release-tested:installed:",
         repositoryId: "1",
         repositoryOwnerId: "2",
-        workflowRef: "test/repo/.github/workflows/upload.yml@refs/heads/preview",
+        workflowRef: `test/repo/.github/workflows/test.yml@${"1".repeat(40)}`,
         workflowSha: "1".repeat(40),
-        branchRef: "refs/heads/preview",
+        controlDigest: "a".repeat(64),
       },
-      run: { repositoryId: "1", owner: "test", name: "repo", workflowId: "3" },
-    },
-    authority: {
-      targetDigest: githubSourceDigest(target),
-      riskCatalogDigest: githubSourceDigest(riskCatalog),
-      mergeMethod: "squash",
-      baselines: {
-        app: item,
-        auth: {
-          ...item,
-          deploymentId: "00000000-0000-4000-8000-000000000003",
-          versionId: "00000000-0000-4000-8000-000000000004",
-        },
+      run: {
+        repositoryId: "1",
+        owner: "test",
+        name: "repo",
+        workflowId: "4",
+        testJobName: "fixed-tested-tree",
       },
     },
-    riskCatalog,
-    observation: {
-      origin: "https://preview.example.invalid",
-      minimumRequests: 1,
-      maxErrorRate: 0,
-      settleDelayMs: 60000,
-    },
   };
-  const env = {
-    HIVE_DELIVERY_RELEASE_ENABLED: "true",
-    HIVE_DELIVERY_RELEASE_TESTED_ENABLED: "true",
-    HIVE_DELIVERY_RELEASE_CONFIG_JSON: JSON.stringify(config),
-    HIVE_DELIVERY_RELEASE_GITHUB_TOKEN: "fixture",
-    HIVE_DELIVERY_RELEASE_CLOUDFLARE_TOKEN: "fixture",
-    HIVE_DELIVERY_RELEASE_ANALYTICS_TOKEN: "fixture",
-    HIVE_RELEASE_PROBE_SECRET: "e".repeat(64),
-    PREVIEW_BEARER: "f".repeat(64),
-  };
-  expect(() => createInstalledReleaseController(db, env)).toThrow("release_test_unavailable");
-  const tested = {
-    workflow: {
-      audiencePrefix: "urn:hive:release-tested:preview:",
-      repositoryId: "1",
-      repositoryOwnerId: "2",
-      workflowRef: "test/repo/.github/workflows/test.yml@refs/heads/preview",
-      workflowSha: "1".repeat(40),
-      controlDigest: "a".repeat(64),
-    },
-    run: {
-      repositoryId: "1",
-      owner: "test",
-      name: "repo",
-      workflowId: "4",
-      testJobName: "fixed-tested-tree",
-    },
-  };
-  const installedEnv = {
-    ...env,
-    HIVE_DELIVERY_RELEASE_CONFIG_JSON: JSON.stringify({
-      ...config,
-      authority: { ...config.authority, tested },
-    }),
-  };
-  const controller = createInstalledReleaseController(db, installedEnv, async () => {
-    throw Error("unexpected I/O");
-  });
-  expect(controller?.facts).toBeDefined();
+  const env = { ...flags, HIVE_DELIVERY_RELEASE_CONFIG_JSON: JSON.stringify(config) },
+    fetcher: typeof fetch = async () => {
+      throw Error("No provider IO during construction");
+    };
+  const controller = createInstalledReleaseController(db, env, fetcher);
   expect(controller?.scheduler).toBeDefined();
-  expect(() =>
-    createInstalledReleaseController(db, {
-      ...installedEnv,
-      HIVE_DELIVERY_RELEASE_TESTED_ENABLED: "false",
-    }),
-  ).toThrow("release_test_attestation_unavailable");
-  expect(() =>
-    createInstalledReleaseController(db, {
-      ...env,
-      HIVE_DELIVERY_RELEASE_CONFIG_JSON: JSON.stringify({
-        ...config,
-        authority: { ...config.authority, riskCatalogDigest: "0".repeat(64) },
-      }),
-    }),
-  ).toThrow();
+  expect(controller?.builds).toBeNull();
+  expect(createInstalledReleaseTestStore(db, env, fetcher)).not.toBeNull();
+  expect(
+    createInstalledReleaseController(
+      db,
+      { ...env, HIVE_NATIVE_PRODUCTION_ACTIVE: "false" },
+      fetcher,
+    ),
+  ).toBeNull();
+  expect(
+    createInstalledReleaseTestStore(
+      db,
+      { ...env, HIVE_DELIVERY_RELEASE_TESTED_ENABLED: "false" },
+      fetcher,
+    ),
+  ).toBeNull();
 });

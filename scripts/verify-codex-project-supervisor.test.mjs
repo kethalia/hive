@@ -958,6 +958,83 @@ test("native tool router separates request IDs and never answers approvals or ar
   assert.equal(replies.find((r) => r.id === 3).result.success, false);
 });
 
+test("router preserves the longer claim budget while nonclaim replies retain their existing deadline", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const replies = [],
+    releases = new Map();
+  const route = createNativeManagerRouter(
+    () => ({
+      handleToolCall: (params) =>
+        new Promise((resolve) => {
+          releases.set(params.arguments.operation, () =>
+            resolve({ contentItems: [{ type: "inputText", text: "ok" }], success: true }),
+          );
+        }),
+    }),
+    (id, result) => replies.push({ id, result }),
+  );
+  for (const [id, operation] of [
+    [1, "claim_step"],
+    [2, "report_step"],
+  ])
+    route({
+      id,
+      method: "item/tool/call",
+      params: {
+        tool: "hive_delivery",
+        namespace: null,
+        threadId: "root",
+        arguments: { operation },
+      },
+    });
+  await new Promise((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(16000);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(replies.length, 1);
+  assert.equal(replies[0].id, 2);
+  assert.equal(replies[0].result.success, false);
+  assert.equal(route.inspect().activeHandlers, 2);
+  releases.get("claim_step")();
+  releases.get("report_step")();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(replies.length, 2);
+  assert.equal(replies.find((reply) => reply.id === 1).result.success, true);
+  assert.equal(route.inspect().activeHandlers, 0);
+});
+test("a claim router timeout retains pending work until its late handler drains", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const replies = [];
+  let release;
+  const route = createNativeManagerRouter(
+    () => ({
+      handleToolCall: () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    }),
+    (id, result) => replies.push({ id, result }),
+  );
+  route({
+    id: 1,
+    method: "item/tool/call",
+    params: {
+      tool: "hive_delivery",
+      namespace: null,
+      threadId: "root",
+      arguments: { operation: "claim_step" },
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(33001);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(replies.length, 1);
+  assert.equal(replies[0].result.success, false);
+  assert.equal(route.inspect().activeHandlers, 1);
+  release({ contentItems: [{ type: "inputText", text: "late" }], success: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(replies.length, 1);
+  assert.equal(route.inspect().activeHandlers, 0);
+});
 test("router drain tracks detached observers and excludes read responses from its notification fence", async () => {
   let release;
   const observer = new Promise((resolve) => {
