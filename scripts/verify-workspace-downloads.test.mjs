@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -10,6 +10,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -196,3 +197,59 @@ for (const variant of ["game", "electronics"]) {
     assert.doesNotMatch(result.actionLog, /apt-get install .*\/download/);
   });
 }
+
+test("Coder and act release downloads retry a transient HTTP503 with bounded curl options", async (t) => {
+  for (const artifact of [
+    { name: "coder", download: "/tmp/coder.tar.gz" },
+    { name: "act", download: "/tmp/act.tar.gz" },
+  ]) {
+    await t.test(artifact.name, async (t) => {
+      const root = mkdtempSync(join(tmpdir(), "hive-release-retry-"));
+      t.after(() => rmSync(root, { recursive: true, force: true }));
+      const payload = Buffer.from("synthetic checksum-verified release download\n");
+      let requests = 0;
+      const server = createServer((_req, res) => {
+        requests++;
+        if (requests === 1) {
+          res.writeHead(503);
+          res.end("temporary vendor failure");
+        } else {
+          res.writeHead(200);
+          res.end(payload);
+        }
+      });
+      await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+      t.after(() => new Promise((resolve) => server.close(resolve)));
+      const instruction = installCommand(artifact).replaceAll(/\\\r?\n/g, " "),
+        curl = instruction.match(/\bcurl\s+[\s\S]*?(?=\s*&&|$)/)[0];
+      for (const option of [
+        "--retry 3",
+        "--retry-delay 2",
+        "--retry-max-time 90",
+        "--connect-timeout 15",
+        "--max-time 120",
+      ])
+        assert.ok(curl.includes(option));
+      assert.doesNotMatch(curl, /--retry-all-errors/);
+      const command = curl
+        .replace(
+          /https:\/\/github\.com\/[^"\s]+/,
+          `http://127.0.0.1:${server.address().port}/release`,
+        )
+        .replaceAll(artifact.download, join(root, "download"));
+      const child = spawn("sh", ["-ec", command], { stdio: ["ignore", "ignore", "pipe"] });
+      let error = "";
+      child.stderr.on("data", (bytes) => {
+        error += bytes.toString();
+      });
+      const timeout = setTimeout(() => child.kill("SIGKILL"), 15000);
+      const status = await new Promise((resolve, reject) => {
+        child.on("error", reject);
+        child.on("close", resolve);
+      }).finally(() => clearTimeout(timeout));
+      assert.equal(status, 0, error);
+      assert.equal(requests, 2);
+      assert.deepEqual(readFileSync(join(root, "download")), payload);
+    });
+  }
+});
