@@ -1,5 +1,10 @@
 import type { CodexGuardianRuntime, Prisma, PrismaClient } from "@hive/db";
+import {
+  lockAccountMaintenanceWorkspace,
+  parseAccountMaintenance,
+} from "@/lib/codex-session/account-maintenance-store.server";
 import { guardianDigest } from "@/lib/codex-session/guardian-contracts";
+import { effectiveUnstartedSuccessor } from "@/lib/codex-session/guardian-unstarted-store.server";
 import { type ProjectTaskIntents, taskRequestDigest } from "./task-intents.server";
 import {
   type RecoveryAuthorization,
@@ -50,7 +55,14 @@ async function assertEpicRecovery(tx: Tx, scope: RecoveryScope, buildId: string)
         rows[0].phase === "accepted" &&
         !rows[0].paused &&
         rows[0].workspace_id === scope.workspaceId &&
-        rows[0].build_id === buildId),
+        (await effectiveUnstartedSuccessor(tx, {
+          ownerId: scope.ownerId,
+          taskId: scope.taskId,
+          workspaceId: scope.workspaceId,
+          oldBuildId: rows[0].build_id,
+          newBuildId: buildId,
+          recoveryId: scope.recoveryId,
+        }))),
   );
 }
 export async function assertTaskRecoveryOperation(
@@ -109,15 +121,32 @@ export class ProjectTaskRecoveries {
     recoveryId: string;
   }) {
     return this.db.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: input.ownerId } });
+      check(user && user.coderUserId === input.coderOwnerId);
+      await lockAccountMaintenanceWorkspace(tx, {
+        hiveUserId: input.ownerId,
+        coderOrigin: user.coderUrl,
+        workspaceId: input.workspaceId,
+      });
       const { row, version } = await lockedIntent(tx, input.ownerId, input.taskId);
       check(row.projectId === input.projectId && row.workspaceId === input.workspaceId);
       const rows = await tx.$queryRaw<RecoveryRecord[]>`SELECT * FROM project_task_recoveries
         WHERE owner_id=${input.ownerId}::uuid AND task_id=${input.taskId}::uuid
           AND (phase<>'consumed' OR id=${input.recoveryId}::uuid) ORDER BY created_at DESC`;
-      if (rows.length) {
-        check(rows.length === 1);
-        return rows[0];
-      }
+      if (rows.length) check(rows.length === 1);
+      if (rows[0]?.phase === "consumed") return rows[0]; // Historical no-effect replay.
+      const slots = await tx.codexHostSlot.findMany({
+        where: { ownerId: input.ownerId, workspaceId: input.workspaceId },
+        select: { accountMaintenance: true },
+      });
+      check(
+        slots.every(
+          (slot) =>
+            !slot.accountMaintenance ||
+            parseAccountMaintenance(slot.accountMaintenance)?.phase === "finished",
+        ),
+      );
+      if (rows.length) return rows[0];
       if (row.phase !== "blocked") return null;
       const payload = this.intents.payload(row);
       const scope = recoveryScopeSchema.parse({

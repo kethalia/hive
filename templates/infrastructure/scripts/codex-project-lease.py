@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import pwd
 import re
+import subprocess
 import sys
 
 # Installed package bytes are immutable; helper imports must not add cache files.
@@ -118,6 +119,24 @@ class InstalledControllerAuthority:
                 and all(process_identity(value["pid"]) == value for value in wrappers), "native_process_changed")
 
 
+class InstalledUnstartedAuthority:
+    def __init__(self, home, parent_pid):
+        self.home, self.parent_pid = Path(home), parent_pid
+
+    def verify(self, project_id, expected):
+        require(re.fullmatch(r"[a-f0-9-]{36}", project_id), "invalid_project")
+        parent = process_identity(self.parent_pid)
+        code = "const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.unstartedLeaseAuthority(process.argv[2],process.argv[3],Number(process.argv[4]))));"
+        result = subprocess.run([parent["executable"], "--input-type=module", "-e", code,
+            Path(__file__).with_name("codex-unstarted-transfer.mjs").as_uri(), str(self.home), project_id, str(self.parent_pid)],
+            env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=2, check=True)
+        require(len(result.stdout) <= 4096 and process_identity(self.parent_pid) == parent, "controller_process_changed")
+        grant = json.loads(result.stdout)
+        require(grant["expected"] == expected, "renewal_binding_changed")
+        return grant
+
+
 def main():
     require(len(sys.argv) == 1, "arguments_not_supported")
     raw = sys.stdin.buffer.read(257)
@@ -129,7 +148,10 @@ def main():
     # Derive repository identity from the private signed journal, not request.
     controller = terminal.signed(home / ".local/state/hive/codex-project-controller", "projects.json", "projects.key", "state")
     repository_id = controller["projects"][request["projectId"]]["repositoryId"]
-    result = managed.ManagedProjects(home)._renew_controller_lease(repository_id, request["projectId"], InstalledControllerAuthority(home, os.getppid()))
+    if controller.get("unstartedTransfer") and not controller.get("unstartedTransferConsumed"):
+        result = managed.ManagedProjects(home)._revalidate_unstarted_lease(repository_id, request["projectId"], InstalledUnstartedAuthority(home, os.getppid()))
+    else:
+        result = managed.ManagedProjects(home)._renew_controller_lease(repository_id, request["projectId"], InstalledControllerAuthority(home, os.getppid()))
     print(json.dumps({"ok": True, "data": result}))
 
 

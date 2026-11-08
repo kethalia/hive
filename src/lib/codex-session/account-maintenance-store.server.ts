@@ -118,6 +118,12 @@ export class AccountMaintenanceStore {
     requireValue(slots.every((s) => s.coderOwnerId === binding.ownerId));
     return slots;
   }
+  private async assertNoTaskRecovery(tx: Tx, binding: RegistrationBinding) {
+    const active = await tx.$queryRaw<
+      { id: string }[]
+    >`SELECT id FROM project_task_recoveries WHERE owner_id=${binding.hiveUserId}::uuid AND scope->>'workspaceId'=${binding.workspaceId} AND phase<>'consumed' FOR SHARE`;
+    requireValue(active.length === 0);
+  }
   private async save(tx: Tx, slots: Slot[], state: AccountMaintenanceState) {
     const parsed = accountMaintenanceStateSchema.parse(state);
     for (const slot of slots)
@@ -191,6 +197,7 @@ export class AccountMaintenanceStore {
   ) {
     return this.transaction(async (tx) => {
       const slots = await this.slots(tx, binding);
+      await this.assertNoTaskRecovery(tx, binding);
       const selected = slots.find((s) => s.agentId === binding.agentId);
       requireValue(selected);
       const state = parseAccountMaintenance(selected.accountMaintenance);
@@ -223,7 +230,9 @@ export class AccountMaintenanceStore {
       const runtimes = await tx.codexGuardianRuntime.findMany({
         where: { id: { in: locked.map((r) => r.id) } },
       });
-      const open = runtimes.filter((r) => r.phase !== "tree_closed");
+      const open = runtimes.filter(
+        (r) => !["tree_closed", "authorization_retired"].includes(r.phase),
+      );
       requireValue(open.length === 1);
       const idle = open[0];
       requireValue(
@@ -452,6 +461,7 @@ export class AccountMaintenanceStore {
       const slots = await this.slots(tx, binding),
         selected = slots.find((s) => s.agentId === binding.agentId);
       requireValue(selected);
+      await this.assertNoTaskRecovery(tx, binding);
       const prior = parseAccountMaintenance(selected.accountMaintenance);
       if (prior?.id === input.requestId) {
         requireValue(
@@ -473,7 +483,7 @@ export class AccountMaintenanceStore {
       );
       const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM codex_guardian_runtimes
         WHERE owner_id=${binding.hiveUserId}::uuid AND workspace_id=${binding.workspaceId}::uuid
-        AND phase <> 'tree_closed' ORDER BY id FOR UPDATE`;
+        AND phase NOT IN ('tree_closed','authorization_retired') ORDER BY id FOR UPDATE`;
       requireValue(rows.length > 0 && rows.length <= 16);
       const runtimes = await tx.codexGuardianRuntime.findMany({
         where: { id: { in: rows.map((r) => r.id) } },
@@ -516,7 +526,7 @@ export class AccountMaintenanceStore {
         JOIN delivery_manager_bindings m ON m.owner_id=t.owner_id AND m.id=t.manager_binding_id
         WHERE t.owner_id=${binding.hiveUserId}::uuid AND m.preparation_intent_id IN
           (SELECT preparation_intent_id FROM codex_guardian_admissions WHERE owner_id=${binding.hiveUserId}::uuid AND runtime_id IN
-            (SELECT id FROM codex_guardian_runtimes WHERE owner_id=${binding.hiveUserId}::uuid AND workspace_id=${binding.workspaceId}::uuid AND phase<>'tree_closed'))
+            (SELECT id FROM codex_guardian_runtimes WHERE owner_id=${binding.hiveUserId}::uuid AND workspace_id=${binding.workspaceId}::uuid AND phase NOT IN ('tree_closed','authorization_retired')))
         ORDER BY t.id FOR UPDATE OF t`;
       requireValue(ids.length <= 32);
       const tasks = await tx.deliveryTask.findMany({

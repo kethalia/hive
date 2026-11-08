@@ -75,6 +75,7 @@ const modules = [
   "codex-process-identity.mjs",
   "codex-project-controller.mjs",
   "codex-project-recovery.mjs",
+  "codex-unstarted-transfer.mjs",
   "codex-project-discovery.mjs",
   "codex-project-supervisor.mjs",
   "codex-managed-auth-lock.mjs",

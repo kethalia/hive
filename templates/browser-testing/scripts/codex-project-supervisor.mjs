@@ -23,6 +23,7 @@ import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
 import { validateAcceptanceProducer } from "./codex-acceptance-native.mjs";
+import { GUARDIAN_ADMISSION_BUDGET } from "./codex-guardian-worker.mjs";
 import { acquireManagedAuthLock } from "./codex-managed-auth-lock.mjs";
 import {
   NATIVE_PROFILE,
@@ -283,24 +284,46 @@ export async function openSupervisor(raw, dependencies = {}) {
       };
       save();
       let timer;
+      let cancelled = false;
+      const metadataDeadline = Date.now() + GUARDIAN_ADMISSION_BUDGET.wireMs;
+      const assertMetadataCurrent = () => {
+        check(
+          !cancelled && !dependencies.signal?.aborted && Date.now() < metadataDeadline,
+          "metadata_authority_timeout",
+        );
+        executionAuthority?.assert();
+      };
       try {
         metadataApproval = validateMetadataApproval(
           await Promise.race([
             Promise.resolve().then(() =>
-              dependencies.metadataAuthority({ projects: structuredClone(config.projects) }),
+              dependencies.metadataAuthority({
+                projects: structuredClone(config.projects),
+                authorityVersion: 1,
+              }),
             ),
             new Promise((_, reject) => {
-              timer = setTimeout(() => reject(new Error("metadata_authority_timeout")), 5000);
+              timer = setTimeout(() => {
+                cancelled = true;
+                reject(new Error("metadata_authority_timeout"));
+              }, GUARDIAN_ADMISSION_BUDGET.wireMs);
             }),
           ]),
           config.projects,
+          { fresh: true },
         );
+        assertMetadataCurrent();
+      } catch (error) {
+        cancelled = true;
+        throw error;
       } finally {
         clearTimeout(timer);
       }
       executionAuthority?.assert();
       state.metadataLaunch = { phase: "reserved", approval: metadataApproval };
       save();
+      assertMetadataCurrent();
+      check(metadataApproval.authorityUntil > Date.now(), "metadata_authority_expired");
     }
     runtime = await (dependencies.runtimeFactory ?? launchNative)({
       config,
@@ -309,6 +332,7 @@ export async function openSupervisor(raw, dependencies = {}) {
       lock,
       executionAuthority,
       metadataApproval,
+      signal: dependencies.signal,
     });
     executionAuthority?.assert();
     if (executionAuthority) {
@@ -2627,7 +2651,7 @@ export async function launchNative({
     "unsupported_metadata_mode",
   );
   const approvedMetadata = config.metadataReadOnly
-    ? validateMetadataApproval(metadataApproval, config.projects)
+    ? validateMetadataApproval(metadataApproval, config.projects, { fresh: true })
     : undefined;
   await executionAuthority?.fence();
   executionAuthority?.assert();
@@ -2698,6 +2722,10 @@ export async function launchNative({
       : [config.codexExecutable, ...nativeArgs];
     executionAuthority?.assert();
     check(!signal?.aborted, "native_start_cancelled");
+    check(
+      !approvedMetadata || approvedMetadata.authorityUntil > Date.now(),
+      "metadata_authority_expired",
+    );
   } catch (error) {
     namespace?.close();
     credentialLock.close();

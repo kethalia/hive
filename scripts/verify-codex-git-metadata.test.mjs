@@ -30,6 +30,7 @@ import {
 import {
   launchNative,
   openSupervisor,
+  VERSION,
   validateSupervisorConfig,
 } from "../templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs";
 
@@ -172,6 +173,99 @@ test("metadata mode requires exact first-native authority, policy and checkout i
     /metadata_mode_downgrade_rejected/,
   );
 });
+
+function metadataConfig(f) {
+  return {
+    schemaVersion: 1,
+    profile: "software",
+    ownerId: "owner",
+    workspaceId: "workspace",
+    buildId: "build",
+    codexExecutable: "/fixture/codex",
+    codexSha256: "a".repeat(64),
+    projects: [f.project],
+    executionMode: "isolated",
+    metadataReadOnly: true,
+  };
+}
+const microtasks = async () => {
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+};
+test("metadata authority can finish after five seconds within the existing wire budget", async (t) => {
+  const f = fixture(t);
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  let calls = 0;
+  const pending = openSupervisor(metadataConfig(f), {
+    home: f.home,
+    metadataAuthority: async (request) => {
+      assert.equal(request.authorityVersion, 1);
+      await delay(9400);
+      return { ...f.approval, authorityUntil: Date.now() + 4000 };
+    },
+    runtimeFactory: async () => {
+      calls++;
+      return {
+        version: VERSION,
+        metadataPins: { metadataPolicyDigest: f.approval.metadataPolicyDigest },
+        onClose() {},
+        alive: () => true,
+        close: async () => {},
+      };
+    },
+  });
+  await microtasks();
+  t.mock.timers.tick(9400);
+  const supervisor = await pending;
+  assert.equal(calls, 1);
+  await supervisor.close();
+});
+
+for (const mode of ["timeout", "cancel", "expired-after-save"])
+  test(`metadata ${mode} prevents every runtime factory call`, async (t) => {
+    const f = fixture(t);
+    t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+    const abort = new AbortController();
+    let calls = 0;
+    let afterSave = false;
+    const pending = openSupervisor(metadataConfig(f), {
+      home: f.home,
+      signal: abort.signal,
+      executionAuthority: {
+        fence: async () => {},
+        assert() {
+          const path = join(f.home, ".local/state/hive/codex-project-supervisor/registry.json");
+          if (
+            mode === "expired-after-save" &&
+            !afterSave &&
+            existsSync(path) &&
+            JSON.parse(readFileSync(path)).state.metadataLaunch?.phase === "reserved"
+          ) {
+            afterSave = true;
+            t.mock.timers.tick(4001);
+          }
+        },
+      },
+      metadataAuthority: async () => {
+        if (mode === "timeout") await delay(26000);
+        if (mode === "cancel") abort.abort();
+        return { ...f.approval, authorityUntil: Date.now() + 4000 };
+      },
+      runtimeFactory: async () => {
+        calls++;
+        throw new Error("factory_must_not_run");
+      },
+    });
+    const rejected = assert.rejects(pending, /metadata_authority_(?:timeout|expired)/);
+    await microtasks();
+    if (mode === "timeout") {
+      t.mock.timers.tick(25000);
+      await rejected;
+      t.mock.timers.tick(1000); // The now-completed approval is history, never execution.
+      await microtasks();
+    } else await rejected;
+    assert.equal(calls, 0);
+    assert.equal(afterSave, mode === "expired-after-save");
+  });
 
 for (const kind of [
   "symlink",
@@ -414,7 +508,7 @@ test("actual native root, child, CLI and resumed thread retain read-only Git met
     home: f.home,
     metadataAuthority: async ({ projects }) => {
       assert.deepEqual(projects, [f.project]);
-      return f.approval;
+      return { ...f.approval, authorityUntil: Date.now() + 25000 };
     },
     runtimeFactory: async (args) => {
       native = await launchNative({

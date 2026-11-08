@@ -98,6 +98,10 @@ export type GuardianProvisionStage =
   | "guardian_bootstrap"
   | "guardian_enrollment_confirmation";
 export interface GuardianServiceDependencies {
+  assertUnstartedPredecessorStopped?(
+    binding: VerifiedHostBinding,
+    oldBuildId: string,
+  ): Promise<void>;
   assertMaintenanceAccountsIdle?(binding: VerifiedHostBinding): Promise<void>;
   registerMaintenanceHost?(
     binding: VerifiedHostBinding,
@@ -324,7 +328,24 @@ export class GuardianService {
     if (!existing)
       requireGuardian(packet.startup.projects.length === 0 && packet.startup.generation === 1);
     const store = this.requestStore(packet.expiresAt);
-    const runtime = await store.reserveRuntime(this.workspace(binding), packet.identity);
+    if (packet.unstartedTransfer) {
+      requireGuardian(
+        packet.startup.projects.length === 0 &&
+          packet.startup.generation === 1 &&
+          this.dependencies.assertUnstartedPredecessorStopped,
+      );
+      await this.dependencies.assertUnstartedPredecessorStopped(
+        binding,
+        packet.unstartedTransfer.oldBuildId,
+      );
+      this.active();
+      this.live(packet);
+    }
+    const runtime = await store.reserveRuntime(
+      this.workspace(binding),
+      packet.identity,
+      packet.unstartedTransfer,
+    );
     this.active();
     this.live(packet);
     if (runtime.phase === "open") {
@@ -362,6 +383,15 @@ export class GuardianService {
         binding: this.workspace(binding),
       }),
       startupDigest: guardianDigest(packet.startup),
+      ...(packet.unstartedTransfer
+        ? {
+            unstartedTransfer: {
+              transferId: packet.unstartedTransfer.transferId,
+              oldRuntimeId: packet.unstartedTransfer.oldRuntimeId,
+              proofDigest: guardianDigest(packet.unstartedTransfer),
+            },
+          }
+        : {}),
     };
     const header = Buffer.from(
         JSON.stringify({ alg: "EdDSA", typ: "JWT", kid: this.config.keyId }),
@@ -1045,6 +1075,7 @@ export class GuardianService {
         nativeLaunchId: input.nativeLaunchId,
         launchIntentDigest: input.launchIntentDigest,
         projectIds: input.projectIds,
+        authorityVersion: input.authorityVersion,
       });
     if (input.action === "native") {
       // Exact native retries are factual even if current registration state has

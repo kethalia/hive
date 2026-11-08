@@ -278,6 +278,20 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
     false,
     () => executionAuthority?.assert(),
   );
+  const inspectUnstarted = managedRunner(
+    join(directory, "managed-projects.py"),
+    pins["managed-projects.py"],
+    5000,
+    false,
+    () => controller.assertUnstartedRecovery("inspecting"),
+  );
+  const revalidateUnstarted = managedRunner(
+    join(directory, "codex-project-lease.py"),
+    pins["codex-project-lease.py"],
+    5000,
+    false,
+    () => controller.assertUnstartedRecovery("consuming"),
+  );
   let gateway,
     delivery,
     discovery,
@@ -297,6 +311,14 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       ...(guardian ? { guardian, guardianBuildId: config.binding.buildId } : {}),
       resolveRepository: (request) => discovery.resolveRepository(request),
       renewLease: (projectId) => renew({ schemaVersion: 1, projectId }),
+      inspectUnstartedCheckout: (repositoryId) =>
+        inspectUnstarted({
+          schemaVersion: 1,
+          operation: "inspect",
+          provider: "github",
+          repositoryId,
+        }),
+      revalidateUnstartedLease: (projectId) => revalidateUnstarted({ schemaVersion: 1, projectId }),
       inspectCheckout: (repositoryId) =>
         managed({ schemaVersion: 1, operation: "inspect", provider: "github", repositoryId }),
       prepareCheckout: (r) =>

@@ -16,6 +16,7 @@ import {
   type GuardianProvisionStage,
   GuardianService,
 } from "./guardian-service.server";
+import { verifyUnstartedCoderLifecycle } from "./guardian-unstarted-contracts";
 import {
   createRegisteredSessionService,
   registeredSessionConfig,
@@ -74,6 +75,21 @@ export function createGuardianService(
     return fresh.coder;
   };
   return new GuardianService(db, config, policy, encryptionKey, {
+    async assertUnstartedPredecessorStopped(binding, oldBuildId) {
+      if (oldBuildId === binding.buildId) throw new RegistrationRejected();
+      const coder = await currentCoder(binding);
+      const history = await coder.getWorkspaceBuildHistory(binding.workspaceId, options.signal);
+      if (
+        !verifyUnstartedCoderLifecycle(history, {
+          workspaceId: binding.workspaceId,
+          oldBuildId,
+          newBuildId: binding.buildId,
+        })
+      )
+        throw new RegistrationRejected();
+      const fresh = await currentCoder(binding);
+      if (fresh.getBaseUrl() !== binding.coderOrigin) throw new RegistrationRejected();
+    },
     async assertMaintenanceAccountsIdle(binding) {
       const principal = { hiveUserId: binding.hiveUserId, coderUserId: binding.ownerId };
       for (const provider of ["codex", "claude"] as const) {

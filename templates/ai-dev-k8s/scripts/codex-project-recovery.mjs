@@ -101,6 +101,8 @@ export function projectRecovery({
   absent,
   fence,
   schedule,
+  beforeFence = undefined,
+  resumeBeforeFence = undefined,
 }) {
   const scope = (p, s) => {
     check(
@@ -179,7 +181,7 @@ export function projectRecovery({
     const a = request.authorization,
       r = p.recovery;
     check(
-      r?.phase === "inspected" &&
+      (r?.phase === "inspected" || (r?.phase === "held" && resumeBeforeFence?.(p, a))) &&
         a.inspectionDigest === recoveryDigest(r.inspection) &&
         a.buildId === buildId &&
         a.lifetimeId === guardian.state.lifetimeId &&
@@ -192,6 +194,7 @@ export function projectRecovery({
       r.authorization = structuredClone(a);
       save();
       if (p.task) {
+        await beforeFence?.(p);
         p.task.phase = "preparing";
         save(); // The durable gate remains closed while obtaining a fresh fence.
         await fence(p, Boolean(p.task.prepared));

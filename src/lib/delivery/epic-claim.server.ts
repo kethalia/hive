@@ -5,6 +5,7 @@ import {
   guardianDigest,
   guardianMetadataEvidenceSchema,
 } from "@/lib/codex-session/guardian-contracts";
+import { effectiveUnstartedSuccessor } from "@/lib/codex-session/guardian-unstarted-store.server";
 import { epicDigest, epicPlanSchema } from "./epic-contracts";
 import {
   epicDependencyLineageSchema,
@@ -104,7 +105,13 @@ export async function authorizeEpicClaim(
   );
   if (
     allocations.length !== 1 ||
-    start[0].build_id !== binding.buildId ||
+    !(await effectiveUnstartedSuccessor(tx, {
+      ownerId,
+      taskId: node.intentId,
+      workspaceId: binding.workspaceId,
+      oldBuildId: start[0].build_id,
+      newBuildId: binding.buildId,
+    })) ||
     start[0].isolation_domain !== allocations[0].isolationDomain
   )
     throw new DeliveryConflict("epic_isolation_unverified");

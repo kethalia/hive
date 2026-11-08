@@ -1,0 +1,715 @@
+import assert from "node:assert/strict";
+import {
+  createHash,
+  createHmac,
+  generateKeyPairSync,
+  randomBytes,
+  randomUUID,
+  sign,
+} from "node:crypto";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { guardianCanonical } from "../templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs";
+import { processIdentity } from "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs";
+import { createProjectController } from "../templates/ai-dev-k8s/scripts/codex-project-controller.mjs";
+import { recoveryDigest } from "../templates/ai-dev-k8s/scripts/codex-project-recovery.mjs";
+import {
+  prepareUnstartedTransfer,
+  readUnstartedTransfer,
+  verifyUnstartedProject,
+} from "../templates/ai-dev-k8s/scripts/codex-unstarted-transfer.mjs";
+
+const sha = (v) => createHash("sha256").update(v).digest("hex");
+const mac = (state, key) =>
+  Buffer.from(
+    JSON.stringify({
+      state,
+      signature: createHmac("sha256", key).update(JSON.stringify(state)).digest("hex"),
+    }),
+  );
+function fixture(t) {
+  const home = mkdtempSync(join(tmpdir(), "hive-unstarted-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const root = join(home, ".local/state/hive"),
+    guard = join(root, "codex-host-guardian"),
+    projects = join(root, "codex-project-controller"),
+    native = join(root, "codex-project-supervisor");
+  for (const p of [guard, projects, native]) mkdirSync(p, { recursive: true, mode: 0o700 });
+  const keys = { guard: randomBytes(32), projects: randomBytes(32), native: randomBytes(32) },
+    keypair = generateKeyPairSync("ed25519");
+  for (const [path, raw] of [
+    [join(guard, "key"), keys.guard],
+    [join(projects, "projects.key"), keys.projects],
+    [join(native, "key"), keys.native],
+    [
+      join(guard, "controller-key.pem"),
+      keypair.privateKey.export({ format: "pem", type: "pkcs8" }),
+    ],
+  ])
+    writeFileSync(path, raw, { mode: 0o600 });
+  for (const path of [
+    join(guard, "guardian.lock"),
+    join(projects, "controller.lock"),
+    join(native, "supervisor.lock"),
+  ])
+    writeFileSync(path, "", { mode: 0o600 });
+  const oldConfig = {
+    binding: {
+      ownerId: randomUUID(),
+      hiveUserId: randomUUID(),
+      workspaceId: randomUUID(),
+      templateId: randomUUID(),
+      buildId: randomUUID(),
+      coderOrigin: "https://coder.invalid",
+    },
+    hiveOrigin: "https://hive.invalid",
+    issuerKeyId: "test",
+    issuerPublicKeyPem: "fixture",
+    guardianEnabled: true,
+    nativeIsolationEnabled: true,
+  };
+  const oldConfigRaw = Buffer.from(JSON.stringify(oldConfig)),
+    config = structuredClone(oldConfig);
+  config.binding.buildId = randomUUID();
+  const configSha256 = "e".repeat(64),
+    packageManifestSha256 = "f".repeat(64),
+    oldManifest = "7eb52d53f4c6664743d4da182ff35dbe042bde53017647d18209b4eb885180c7";
+  const bindingDigest = sha(
+    JSON.stringify({
+      schemaVersion: 1,
+      configSha256: sha(oldConfigRaw),
+      packageManifestSha256: oldManifest,
+    }),
+  );
+  const dead = {
+    pid: 2147483000,
+    startTime: "1",
+    bootId: randomUUID(),
+    executable: process.execPath,
+    device: "1",
+    inode: "1",
+  };
+  const startup = {
+    lifetimeId: randomUUID(),
+    generation: 1,
+    projects: [],
+    bindingDigest,
+    packageManifestSha256: oldManifest,
+    configSha256: sha(oldConfigRaw),
+    guardianSha256: "a".repeat(64),
+    nodeSha256: "b".repeat(64),
+    outerIdentity: dead,
+    guardianIdentity: { ...dead, pid: dead.pid + 1 },
+    workerIdentity: { ...dead, pid: dead.pid + 2 },
+  };
+  const projectId = randomUUID(),
+    taskId = randomUUID(),
+    requestId = randomUUID(),
+    leaseId = randomUUID();
+  const request = {
+    schemaVersion: 1,
+    projectId,
+    repositoryId: "123",
+    expectedAccountId: "456",
+    taskId,
+    requestId,
+    revision: "c".repeat(40),
+    model: "gpt-6.1-sol",
+    effort: "low",
+    text: "original task text",
+  };
+  const prepared = {
+    projectId,
+    repositoryId: "123",
+    taskId,
+    leaseId,
+    leaseGeneration: 1,
+    model: request.model,
+    effort: request.effort,
+  };
+  const preparation = {
+    schemaVersion: 1,
+    stage: "preparation",
+    ownerId: oldConfig.binding.ownerId,
+    workspaceId: oldConfig.binding.workspaceId,
+    buildId: oldConfig.binding.buildId,
+    projectId,
+    repositoryId: "123",
+    providerAccountId: "456",
+    taskId,
+    requestId,
+    baseSha: request.revision,
+    requestDigest: sha(JSON.stringify(request)),
+  };
+  const checkout = {
+    projectId,
+    preparationIntentId: taskId,
+    repositoryId: "123",
+    revision: request.revision,
+    leaseId,
+    leaseGeneration: 1,
+    checkoutIncarnation: randomUUID(),
+    checkoutIdentity: { device: "1", inode: "2" },
+  };
+  const admissionId = randomUUID(),
+    approval = {
+      projectId,
+      repositoryId: "123",
+      taskId,
+      leaseId,
+      leaseGeneration: 1,
+      checkoutIncarnation: checkout.checkoutIncarnation,
+      checkoutIdentity: checkout.checkoutIdentity,
+      revision: request.revision,
+      admissionId,
+      admissionGeneration: 2,
+      firstNative: true,
+    };
+  const identity = {
+    lifetimeId: startup.lifetimeId,
+    bindingDigest,
+    outerPublicKeyPem: keypair.publicKey.export({ format: "pem", type: "spki" }).toString(),
+    packageManifestSha256: oldManifest,
+    guardianElfSha256: startup.guardianSha256,
+    nodeSha256: startup.nodeSha256,
+    policyDigest: "d".repeat(64),
+    metadataPolicyDigest: "e".repeat(64),
+    configSha256: startup.configSha256,
+  };
+  const controller = {
+    schemaVersion: 1,
+    lifetimeId: startup.lifetimeId,
+    runtimeId: randomUUID(),
+    identityDigest: sha(guardianCanonical(identity)),
+    generation: 2,
+    projects: { [projectId]: { phase: "checkout", admissionId, admissionGeneration: 2, checkout } },
+    applications: {},
+    pending: null,
+    hold: false,
+    sequence: 13,
+    chainDigest: "0".repeat(64),
+    launch: {
+      runtimeId: null,
+      runtimeGeneration: 2,
+      policyDigest: identity.policyDigest,
+      metadataPolicyDigest: identity.metadataPolicyDigest,
+      nativeLaunchId: randomUUID(),
+      launchIntentDigest: "f".repeat(64),
+      approvals: [approval],
+    },
+  };
+  controller.launch.runtimeId = controller.runtimeId;
+  const project = {
+    schemaVersion: 1,
+    ownerId: oldConfig.binding.ownerId,
+    workspaceId: oldConfig.binding.workspaceId,
+    guardianLifetimeId: startup.lifetimeId,
+    hostProcess: startup.workerIdentity,
+    projects: {
+      [projectId]: {
+        projectId,
+        repositoryId: "123",
+        expectedAccountId: "456",
+        task: {
+          taskId,
+          request,
+          digest: sha(JSON.stringify(request)),
+          phase: "blocked",
+          reason: "native_unavailable",
+          nativeCreationAttempted: false,
+          firstPromptSubmissionAttempted: false,
+          nativeThreadId: null,
+          terminalSessionName: null,
+          prepared,
+          guardianPreparation: preparation,
+          guardianPrepared: {
+            schemaVersion: 1,
+            preparationDigest: sha(JSON.stringify(preparation)),
+            projectId,
+            repositoryId: "123",
+            taskId,
+            revision: request.revision,
+            leaseId,
+            leaseGeneration: 1,
+            checkoutIncarnation: checkout.checkoutIncarnation,
+            checkoutIdentity: checkout.checkoutIdentity,
+          },
+          guardianAdmission: { fixture: true },
+          checkoutIdentity: checkout.checkoutIdentity,
+          checkoutIncarnation: checkout.checkoutIncarnation,
+        },
+      },
+    },
+  };
+  const supervisor = {
+    schemaVersion: 1,
+    ownerId: oldConfig.binding.ownerId,
+    workspaceId: oldConfig.binding.workspaceId,
+    buildId: oldConfig.binding.buildId,
+    status: "starting",
+    hostProcess: startup.workerIdentity,
+    projects: {},
+    nativeProcess: null,
+    executionIdentity: null,
+    metadataLaunch: {
+      phase: "reservationRequested",
+      projectsDigest: sha(JSON.stringify([prepared])),
+    },
+  };
+  const admitted = {
+    phase: "open",
+    lifetimeId: startup.lifetimeId,
+    generation: 2,
+    bindingDigest,
+    projects: [{ projectId, bindingDigest: sha(JSON.stringify(preparation)) }],
+  };
+  const outer = {
+    schemaVersion: 1,
+    bindingDigest,
+    phase: "admissionAccepted",
+    receipts: [],
+    events: [
+      "begin",
+      "ready",
+      "launchIntent",
+      "open",
+      "startupReady",
+      "admissionIntent",
+      "admissionAccepted",
+    ].map((name, i) => ({
+      name,
+      at: i + 1,
+      value: i === 4 ? startup : i === 6 ? admitted : { lifetimeId: startup.lifetimeId },
+    })),
+  };
+  const save = () => {
+    writeFileSync(join(guard, "lifetime.json"), mac(outer, keys.guard), { mode: 0o600 });
+    writeFileSync(
+      join(guard, "controller.json"),
+      JSON.stringify({
+        state: controller,
+        signature: sign(
+          null,
+          Buffer.from(guardianCanonical(controller)),
+          keypair.privateKey,
+        ).toString("base64url"),
+      }),
+      { mode: 0o600 },
+    );
+    writeFileSync(join(projects, "projects.json"), mac(project, keys.projects), { mode: 0o600 });
+    writeFileSync(join(native, "registry.json"), mac(supervisor, keys.native), { mode: 0o600 });
+  };
+  save();
+  const run = () =>
+    prepareUnstartedTransfer({
+      home,
+      config,
+      configSha256,
+      packageManifestSha256,
+      outerRaw: readFileSync(join(guard, "lifetime.json")),
+      nextBindingDigest: sha(
+        JSON.stringify({ schemaVersion: 1, configSha256, packageManifestSha256 }),
+      ),
+      oldConfigRaw,
+    });
+  return {
+    home,
+    root,
+    guard,
+    projects,
+    native,
+    config,
+    project,
+    controller,
+    supervisor,
+    outer,
+    save,
+    run,
+    projectId,
+    taskId,
+    keys,
+  };
+}
+
+test("reservation-only transfer preserves the exact task, lease and lock inodes before the new constructor", async (t) => {
+  const f = fixture(t),
+    original = JSON.stringify(f.project.projects[f.projectId].task),
+    locks = [join(f.projects, "controller.lock"), join(f.native, "supervisor.lock")].map(
+      (p) => lstatSync(p).ino,
+    ),
+    proof = f.run();
+  assert.equal(readUnstartedTransfer(f.home).transferId, proof.transferId);
+  assert.equal(existsSync(join(f.guard, "controller.json")), false);
+  assert.equal(existsSync(join(f.native, "registry.json")), false);
+  const held = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state;
+  assert.equal(JSON.stringify(held.projects[f.projectId].task), original);
+  assert.deepEqual(
+    [join(f.projects, "controller.lock"), join(f.native, "supervisor.lock")].map(
+      (p) => lstatSync(p).ino,
+    ),
+    locks,
+  );
+  assert.equal(
+    verifyUnstartedProject(f.home, held, held.projects[f.projectId], f.config.binding.buildId)
+      .transferId,
+    proof.transferId,
+  );
+  assert.deepEqual(
+    f.run(),
+    proof,
+    "interrupted active-file advancement replays exact archived bytes",
+  );
+  const guardian = {
+    state: { phase: "open", lifetimeId: randomUUID(), generation: 1, projects: [] },
+    admit() {
+      throw Error("unexpected admit");
+    },
+    executionFence() {
+      throw Error("unexpected fence");
+    },
+    assertAdmission() {
+      throw Error("unexpected assert");
+    },
+  };
+  const c = createProjectController(
+    {
+      stateDirectory: f.projects,
+      ownerId: f.config.binding.ownerId,
+      workspaceId: f.config.binding.workspaceId,
+      model: "gpt-6.1-sol",
+      effort: "low",
+    },
+    { guardian, guardianBuildId: f.config.binding.buildId },
+  );
+  await assert.rejects(c.handle("/projects/open", {}), /retry_not_available/);
+  const after = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state;
+  assert.equal(JSON.stringify(after.projects[f.projectId].task), original);
+  await c.close();
+});
+
+test("single-project transfer descriptors leave the signed inspection inside the unchanged32KiB frame", (t) => {
+  const f = fixture(t),
+    proof = f.run();
+  // Footprint only: widen supported descriptor values without claiming these
+  // synthetic widths form a separately signed/authorized predecessor.
+  const max = (value, key = "") =>
+    Array.isArray(value)
+      ? value.map((v) => max(v))
+      : value && typeof value === "object"
+        ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, max(v, k)]))
+        : ["device", "inode"].includes(key)
+          ? "9".repeat(24)
+          : ["repositoryId", "providerAccountId"].includes(key)
+            ? "9".repeat(20)
+            : value;
+  const widened = max(proof);
+  assert.ok(Buffer.byteLength(JSON.stringify(widened)) <= 16384);
+  const response = {
+    schemaVersion: 1,
+    scope: {
+      recoveryId: randomUUID(),
+      ownerId: proof.ownerId,
+      coderOwnerId: proof.coderOwnerId,
+      projectId: proof.projectId,
+      taskId: proof.taskId,
+      workspaceId: proof.workspaceId,
+      originalRequestId: proof.requestId,
+      intentVersion: "v".repeat(64),
+      intentDigest: "a".repeat(64),
+      hostRequestDigest: proof.hostRequestDigest,
+      repositoryId: "9".repeat(20),
+      providerAccountId: "9".repeat(20),
+      revision: proof.sourceSha,
+    },
+    inspection: {
+      outcome: "existing_preexecution",
+      taskFingerprint: "a".repeat(64),
+      buildId: proof.newBuildId,
+      lifetimeId: randomUUID(),
+      guardianGeneration: 1,
+    },
+    identity: {
+      schemaVersion: 1,
+      nonce: "a".repeat(64),
+      issuedAt: Date.now(),
+      expiresAt: Date.now() + 30000,
+      identity: {
+        outerPublicKeyPem: "k".repeat(512),
+        ...Object.fromEntries(
+          Array.from({ length: 9 }, (_, i) => [`boundedIdentity${i}`, "a".repeat(64)]),
+        ),
+      },
+      startup: {
+        ...f.outer.events[4].value,
+        outerIdentity: {
+          ...f.outer.events[4].value.outerIdentity,
+          executable: `/${"x".repeat(511)}`,
+        },
+        guardianIdentity: {
+          ...f.outer.events[4].value.guardianIdentity,
+          executable: `/${"x".repeat(511)}`,
+        },
+        workerIdentity: {
+          ...f.outer.events[4].value.workerIdentity,
+          executable: `/${"x".repeat(511)}`,
+        },
+      },
+      unstartedTransfer: widened,
+      proof: "a".repeat(86),
+    },
+  };
+  assert.ok(Buffer.byteLength(JSON.stringify(response)) < 32768);
+});
+
+for (const mode of [
+  "reserved",
+  "native",
+  "prompt",
+  "thread",
+  "project",
+  "hold",
+  "pending",
+  "package",
+  "key",
+  "build",
+  "history",
+])
+  test(`unstarted transfer holds ${mode} before advancing active journals`, (t) => {
+    const f = fixture(t);
+    if (mode === "reserved") f.supervisor.metadataLaunch.phase = "reserved";
+    if (mode === "native") f.supervisor.nativeProcess = { pid: 123 };
+    if (mode === "prompt")
+      f.project.projects[f.projectId].task.firstPromptSubmissionAttempted = true;
+    if (mode === "thread") f.project.projects[f.projectId].task.nativeThreadId = "already-started";
+    if (mode === "project") f.supervisor.projects.unknown = {};
+    if (mode === "hold") f.controller.hold = true;
+    if (mode === "pending") f.controller.pending = { action: "launch" };
+    if (mode === "package") f.outer.events[4].value.packageManifestSha256 = "0".repeat(64);
+    if (mode === "build") f.supervisor.buildId = randomUUID();
+    f.save();
+    if (mode === "key")
+      writeFileSync(
+        join(f.guard, "controller-key.pem"),
+        generateKeyPairSync("ed25519").privateKey.export({ format: "pem", type: "pkcs8" }),
+      );
+    if (mode === "history")
+      writeFileSync(join(f.native, "registry-old.json"), "{}", { mode: 0o600 });
+    const before = readFileSync(join(f.projects, "projects.json"));
+    assert.throws(f.run, /unstarted_transfer_rejected/);
+    assert.ok(readFileSync(join(f.projects, "projects.json")).equals(before));
+    assert.equal(existsSync(join(f.guard, "unstarted-transfer.json")), false);
+    assert.equal(existsSync(join(f.guard, "controller.json")), true);
+  });
+
+for (const name of [
+  "outer.json",
+  "controller.json",
+  "project.json",
+  "supervisor.json",
+  "config.json",
+  "proof.json",
+])
+  for (const mutation of ["tamper", "delete"])
+    test(`current identity and recovery hold after archived ${name} ${mutation}`, async (t) => {
+      const f = fixture(t),
+        proof = f.run(),
+        archive = join(f.guard, `unstarted-${proof.transferId}`),
+        path = join(archive, name);
+      const guardian = {
+        state: { phase: "open", lifetimeId: randomUUID(), generation: 1, projects: [] },
+        admit() {},
+        executionFence() {},
+        assertAdmission() {},
+      };
+      const controller = createProjectController(
+        {
+          stateDirectory: f.projects,
+          ownerId: f.config.binding.ownerId,
+          workspaceId: f.config.binding.workspaceId,
+          model: "gpt-6.1-sol",
+          effort: "low",
+        },
+        { guardian, guardianBuildId: f.config.binding.buildId },
+      );
+      if (mutation === "delete") rmSync(path);
+      else writeFileSync(path, "{}");
+      assert.throws(() => readUnstartedTransfer(f.home));
+      const active = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state;
+      assert.throws(() =>
+        verifyUnstartedProject(
+          f.home,
+          active,
+          active.projects[f.projectId],
+          f.config.binding.buildId,
+        ),
+      );
+      await controller.close();
+    });
+
+test("an exact live predecessor actor holds before any active journal changes", (t) => {
+  const f = fixture(t);
+  f.outer.events[4].value.outerIdentity = processIdentity(process.pid);
+  f.save();
+  assert.throws(f.run, /unstarted_transfer_rejected/);
+  assert.equal(existsSync(join(f.guard, "unstarted-transfer.json")), false);
+});
+
+test("normal stop's exact controller-abort journal retires only the proven unused reservation", (t) => {
+  const f = fixture(t),
+    admitted = f.outer.events[6].value;
+  f.outer.events.push({
+    name: "indeterminate",
+    at: 8,
+    value: { ...admitted, reason: "guardian_controller_abort" },
+  });
+  f.outer.phase = "indeterminate";
+  f.save();
+  assert.equal(f.run().oldRuntimeId, f.controller.runtimeId);
+});
+test("other uncertain outer termination remains held", (t) => {
+  const f = fixture(t),
+    admitted = f.outer.events[6].value;
+  f.outer.events.push({
+    name: "indeterminate",
+    at: 8,
+    value: { ...admitted, reason: "guardian_admission_uncertain" },
+  });
+  f.outer.phase = "indeterminate";
+  f.save();
+  assert.throws(f.run, /unstarted_transfer_rejected/);
+});
+
+test("owner inspect and consume require authenticated retirement, retain request and lease, and replay without scheduling twice", async (t) => {
+  const f = fixture(t),
+    original = structuredClone(f.project.projects[f.projectId].task),
+    proof = f.run();
+  const lifetimeId = randomUUID();
+  let opens = 0,
+    admits = 0,
+    renewCalls = 0,
+    leaseWrites = 0;
+  const guardian = {
+    state: { phase: "open", lifetimeId, generation: 1, projects: [] },
+    identity: async () => ({ identity: { lifetimeId }, startup: { generation: 1 } }),
+    admit: async (value) => {
+      admits++;
+      guardian.state.projects = [value];
+      return { projectId: value.projectId, generation: 1 };
+    },
+    executionFence: async (token) => token,
+    assertAdmission() {},
+  };
+  const ready = {
+    status: "ready",
+    checkoutVerified: true,
+    revision: original.request.revision,
+    checkoutIncarnation: original.checkoutIncarnation,
+    checkoutIdentity: original.checkoutIdentity,
+    lease: {
+      taskId: original.taskId,
+      id: original.prepared.leaseId,
+      generation: original.prepared.leaseGeneration,
+      expiresAt: Date.now() / 1000 - 7200,
+    },
+  };
+  const c = createProjectController(
+    {
+      stateDirectory: f.projects,
+      ownerId: f.config.binding.ownerId,
+      workspaceId: f.config.binding.workspaceId,
+      model: "gpt-6.1-sol",
+      effort: "low",
+    },
+    {
+      guardian,
+      guardianBuildId: f.config.binding.buildId,
+      inspectCheckout: async () => ready,
+      inspectUnstartedCheckout: async () => ready,
+      revalidateUnstartedLease: async () => {
+        renewCalls++;
+        if (renewCalls === 1) {
+          leaseWrites++;
+          throw Error("fixture_lease_ack_lost");
+        }
+        return {
+          ...ready,
+          renewalSequence: 1,
+          lease: { ...ready.lease, expiresAt: Date.now() / 1000 + 3600 },
+        };
+      },
+      openRuntime: async () => {
+        opens++;
+        throw Error("fixture_stop_before_native");
+      },
+    },
+  );
+  const scope = {
+    recoveryId: randomUUID(),
+    ownerId: proof.ownerId,
+    coderOwnerId: proof.coderOwnerId,
+    projectId: proof.projectId,
+    taskId: proof.taskId,
+    workspaceId: proof.workspaceId,
+    originalRequestId: proof.requestId,
+    intentVersion: "fixture-version",
+    intentDigest: "a".repeat(64),
+    hostRequestDigest: proof.hostRequestDigest,
+    repositoryId: proof.repositoryId,
+    providerAccountId: proof.providerAccountId,
+    revision: proof.sourceSha,
+  };
+  const request = { schemaVersion: 1, scope };
+  await assert.rejects(
+    c.handle("/projects/tasks/recovery-inspect", request),
+    /retry_not_available/,
+  );
+  assert.equal(admits, 0);
+  assert.equal(opens, 0);
+  guardian.state.unstartedTransfer = {
+    transferId: proof.transferId,
+    oldRuntimeId: proof.oldRuntimeId,
+    proofDigest: recoveryDigest(proof),
+  };
+  const inspection = await c.handle("/projects/tasks/recovery-inspect", request);
+  const authorization = {
+    inspectionDigest: recoveryDigest(inspection.inspection),
+    authorizedVersion: "fixture-authorized",
+    buildId: f.config.binding.buildId,
+    lifetimeId,
+    expiresAt: Date.now() + 30000,
+  };
+  const consume = { ...request, authorization };
+  await assert.rejects(
+    c.handle("/projects/tasks/recovery-consume", consume),
+    /fixture_lease_ack_lost/,
+  );
+  const receipt = await c.handle("/projects/tasks/recovery-consume", consume);
+  assert.deepEqual(await c.handle("/projects/tasks/recovery-consume", consume), receipt);
+  await c.close();
+  const active = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state,
+    task = active.projects[f.projectId].task;
+  assert.deepEqual(task.request, original.request);
+  assert.deepEqual(task.prepared, original.prepared);
+  assert.equal(task.nativeCreationAttempted, false);
+  assert.equal(task.firstPromptSubmissionAttempted, false);
+  assert.equal(task.guardianPreparation.buildId, f.config.binding.buildId);
+  assert.deepEqual(
+    active.unstartedTransferHistory.guardianPreparation,
+    original.guardianPreparation,
+  );
+  assert.equal(active.unstartedTransferConsumed, true);
+  assert.equal(admits, 1);
+  assert.equal(leaseWrites, 1);
+  assert.equal(renewCalls, 2);
+  assert.ok(opens <= 1);
+});

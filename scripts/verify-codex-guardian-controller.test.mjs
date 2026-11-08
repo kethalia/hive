@@ -308,6 +308,7 @@ function fixture() {
           metadataPolicyDigest: packet.identity.metadataPolicyDigest,
           nativeLaunchId: body.nativeLaunchId,
           launchIntentDigest: body.launchIntentDigest,
+          ...(body.authorityVersion === 1 ? { authorityUntil: body.expiresAt } : {}),
           approvals: [
             {
               projectId: admission.projectId,
@@ -881,6 +882,34 @@ test("native launch accepts a delayed response within the existing admission bud
     assert.equal(f.client.status.held, false);
     assert.equal(f.calls.filter((r) => r.action === "launch").length, 1);
     assert.equal(f.calls.filter((r) => r.action === "operation_readback").length, 0);
+  } finally {
+    f.close();
+  }
+});
+test("metadata reservation includes queue time and never dispatches after queued authority expires", async (t) => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const project = f.project(true),
+      target = { projectId: project.projectId, bindingDigest: project.bindingDigest };
+    await f.client.authorizeAdmission(target);
+    t.mock.timers.enable({ apis: ["Date"] });
+    f.onTransport((request) => {
+      if (request.action === "fence") t.mock.timers.tick(5500);
+    });
+    const fences = Array.from({ length: 4 }, () => f.client.authorizeAdmission(target));
+    const reservation = assert.rejects(
+      f.client.metadataAuthority([{ projectId: project.projectId }], { authorityVersion: 1 }),
+    );
+    await Promise.all(fences);
+    await reservation;
+    assert.equal(f.calls.filter((r) => r.action === "launch").length, 0);
+    assert.equal(
+      f.client.status.held,
+      false,
+      "expired queued work did not create a pending external request",
+    );
   } finally {
     f.close();
   }

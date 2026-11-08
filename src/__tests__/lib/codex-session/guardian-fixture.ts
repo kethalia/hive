@@ -47,6 +47,7 @@ export async function guardianFixture(
       gitIdentity: { device: string; inode: string };
     };
     policyDigest?: string;
+    packageManifestSha256?: string;
     namespaceReceiptDigest?: (value: {
       fixture: Awaited<ReturnType<typeof nativeFixture>>;
       launch: Awaited<ReturnType<GuardianAdmissionStore["reserveNativeLaunch"]>>;
@@ -62,6 +63,7 @@ export async function guardianFixture(
       key: KeyObject,
     ) => GuardianOperationReceiptInput;
     beforeNativeLaunch?: (stage: {
+      outerPrivateKey: KeyObject;
       store: GuardianAdmissionStore;
       ownerId: string;
       runtimeId: string;
@@ -76,7 +78,7 @@ export async function guardianFixture(
     outer = generateKeyPairSync("ed25519");
   const encryptionKey = hooks.encryptionKey ?? "19".repeat(32);
   const pin: GuardianPackagePin = {
-    packageManifestSha256: "1".repeat(64),
+    packageManifestSha256: hooks.packageManifestSha256 ?? "1".repeat(64),
     guardianElfSha256: "2".repeat(64),
     nodeSha256: "3".repeat(64),
     protocol: "guardian-v1" as const,
@@ -231,6 +233,7 @@ export async function guardianFixture(
         checkout,
       });
       await hooks.beforeNativeLaunch?.({
+        outerPrivateKey: outer.privateKey,
         store,
         ownerId: user.id,
         runtimeId: runtime.id,

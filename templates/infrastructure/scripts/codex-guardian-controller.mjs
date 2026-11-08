@@ -35,6 +35,7 @@ import {
   parkAccountMaintenanceProjectState,
   readAccountMaintenanceArchive,
 } from "./codex-project-controller.mjs";
+import { readPendingUnstartedTransfer } from "./codex-unstarted-transfer.mjs";
 
 const check = (v) => {
   if (!v) throw new Error("guardian_controller_authority_rejected");
@@ -460,9 +461,10 @@ export function openGuardianController({
     );
     return s;
   };
-  const serial = (operation, timeout = 3000) => {
+  const serial = (operation, timeout = 3000, submittedDeadline) => {
     const pending = queue.then(() => {
-      deadline = Date.now() + timeout;
+      deadline = submittedDeadline ?? Date.now() + timeout;
+      check(Date.now() < deadline);
       admissionRecoveryUsed = false;
       return operation();
     });
@@ -1524,6 +1526,7 @@ export function openGuardianController({
         typeof originalEnrollment.grant === "string",
     );
     const claims = JSON.parse(Buffer.from(originalEnrollment.grant.split(".")[1], "base64url"));
+    const unstarted = readPendingUnstartedTransfer(home);
     check(
       uuid(claims.jti) &&
         uuid(originalEnrollment.runtimeId) &&
@@ -1534,6 +1537,14 @@ export function openGuardianController({
           digest({ identity: identity(s), binding: { ...config.binding, projects: [] } }) &&
         claims.startupDigest === digest(s),
     );
+    if (unstarted)
+      check(
+        same(claims.unstartedTransfer, {
+          transferId: unstarted.transferId,
+          oldRuntimeId: unstarted.oldRuntimeId,
+          proofDigest: digest(unstarted),
+        }),
+      );
     const now = Date.now(),
       body = {
         schemaVersion: 1,
@@ -1599,6 +1610,7 @@ export function openGuardianController({
       state.generation = 1;
       state.pending = null;
       state.hold = false;
+      if (unstarted) state.unstartedTransferReceipt = structuredClone(claims.unstartedTransfer);
       save();
     } finally {
       clearTimeout(timer);
@@ -1606,6 +1618,7 @@ export function openGuardianController({
     }
   }
   function issueIdentity(nonce) {
+    const transfer = readPendingUnstartedTransfer(home);
     const s = initialize(),
       issuedAt = Date.now(),
       packet = {
@@ -1615,6 +1628,10 @@ export function openGuardianController({
         expiresAt: issuedAt + 30000,
         identity: identity(s),
         startup: s,
+        ...(transfer ? { unstartedTransfer: transfer } : {}),
+        ...(state.unstartedTransferReceipt
+          ? { unstartedTransferReceipt: state.unstartedTransferReceipt }
+          : {}),
       };
     challenge = structuredClone(packet);
     return {
@@ -1643,6 +1660,7 @@ export function openGuardianController({
     bootstrap(grant) {
       return serial(async () => {
         const s = initialize();
+        const unstarted = readPendingUnstartedTransfer(home);
         check(challenge && !state.runtimeId && typeof grant === "string" && grant.length <= 16384);
         const parts = grant.split(".");
         check(parts.length === 3 && parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)));
@@ -1682,6 +1700,7 @@ export function openGuardianController({
             "bindingDigest",
             "identityDigest",
             "startupDigest",
+            ...(unstarted ? ["unstartedTransfer"] : []),
           ]) &&
             claims.iss === config.hiveOrigin &&
             claims.aud === "hive:workspace-guardian" &&
@@ -1705,6 +1724,14 @@ export function openGuardianController({
             Date.now() < challenge.expiresAt &&
             digest(s) === digest(challenge.startup),
         );
+        if (unstarted)
+          check(
+            same(claims.unstartedTransfer, {
+              transferId: unstarted.transferId,
+              oldRuntimeId: unstarted.oldRuntimeId,
+              proofDigest: digest(unstarted),
+            }),
+          );
         await send("enroll", { runtimeId: claims.runtimeId, grant }, (r) => {
           check(
             r?.accepted === true &&
@@ -1713,72 +1740,94 @@ export function openGuardianController({
           );
           state.runtimeId = r.runtimeId;
           state.generation = r.runtimeGeneration;
+          if (unstarted) state.unstartedTransferReceipt = structuredClone(claims.unstartedTransfer);
         });
         challenge = null;
-        return { enrolled: true, runtimeId: state.runtimeId };
+        return {
+          enrolled: true,
+          runtimeId: state.runtimeId,
+          ...(state.unstartedTransferReceipt
+            ? { unstartedTransfer: state.unstartedTransferReceipt }
+            : {}),
+        };
       }, 15000);
     },
     authorizeAdmission: (v) => serial(() => admission(v), GUARDIAN_ADMISSION_BUDGET.controllerMs),
-    metadataAuthority: (projects) =>
-      serial(async () => {
-        initialize();
-        check(
-          Array.isArray(projects) && projects.length > 0 && projects.length <= 32 && !state.launch,
-        );
-        const ids = projects.map((p) => p.projectId).sort();
-        check(
-          new Set(ids).size === ids.length &&
-            ids.join() === Object.keys(state.projects).sort().join(),
-        );
-        for (const id of ids) {
-          const evidence = controllerProject(id, startup());
-          await admission({
-            projectId: id,
-            bindingDigest: sha(JSON.stringify(evidence.preparation)),
+    metadataAuthority: (projects, { authorityVersion } = {}) =>
+      serial(
+        async () => {
+          initialize();
+          check(authorityVersion === undefined || authorityVersion === 1);
+          check(
+            Array.isArray(projects) &&
+              projects.length > 0 &&
+              projects.length <= 32 &&
+              !state.launch,
+          );
+          const ids = projects.map((p) => p.projectId).sort();
+          check(
+            new Set(ids).size === ids.length &&
+              ids.join() === Object.keys(state.projects).sort().join(),
+          );
+          for (const id of ids) {
+            const evidence = controllerProject(id, startup());
+            await admission({
+              projectId: id,
+              bindingDigest: sha(JSON.stringify(evidence.preparation)),
+            });
+          }
+          const inventory = ids.map((id) => {
+            const a = state.projects[id];
+            check(a.phase === "checkout");
+            return {
+              admissionId: a.admissionId,
+              admissionGeneration: a.admissionGeneration,
+              checkout: a.checkout,
+            };
           });
-        }
-        const inventory = ids.map((id) => {
-          const a = state.projects[id];
-          check(a.phase === "checkout");
-          return {
-            admissionId: a.admissionId,
-            admissionGeneration: a.admissionGeneration,
-            checkout: a.checkout,
-          };
-        });
-        const nativeLaunchId = randomUUID(),
-          launchIntentDigest = digest({
-            runtimeId: state.runtimeId,
-            runtimeGeneration: state.generation,
-            nativeLaunchId,
-            inventory,
-          });
-        const answer = await send(
-          "launch",
-          { nativeLaunchId, launchIntentDigest, projectIds: ids },
-          (r) => {
-            check(
-              r?.runtimeId === state.runtimeId &&
-                r.runtimeGeneration === state.generation &&
-                r.nativeLaunchId === nativeLaunchId &&
-                r.launchIntentDigest === launchIntentDigest &&
-                r.policyDigest === GUARDIAN_CONTROLLER_POLICY_DIGEST &&
-                r.metadataPolicyDigest === GUARDIAN_CONTROLLER_POLICY.metadataPolicyDigest &&
-                r.approvals?.length === ids.length &&
-                r.approvals.every(
-                  (a, i) =>
-                    a.firstNative === true &&
-                    a.projectId === ids[i] &&
-                    a.admissionId === inventory[i].admissionId &&
-                    a.admissionGeneration === inventory[i].admissionGeneration &&
-                    a.checkoutIncarnation === inventory[i].checkout.checkoutIncarnation,
-                ),
-            );
-            state.launch = r;
-          },
-        );
-        return answer;
-      }, GUARDIAN_ADMISSION_BUDGET.controllerMs),
+          const nativeLaunchId = randomUUID(),
+            launchIntentDigest = digest({
+              runtimeId: state.runtimeId,
+              runtimeGeneration: state.generation,
+              nativeLaunchId,
+              inventory,
+            });
+          const answer = await send(
+            "launch",
+            {
+              nativeLaunchId,
+              launchIntentDigest,
+              projectIds: ids,
+              ...(authorityVersion === 1 ? { authorityVersion } : {}),
+            },
+            (r) => {
+              check(
+                r?.runtimeId === state.runtimeId &&
+                  r.runtimeGeneration === state.generation &&
+                  r.nativeLaunchId === nativeLaunchId &&
+                  r.launchIntentDigest === launchIntentDigest &&
+                  r.policyDigest === GUARDIAN_CONTROLLER_POLICY_DIGEST &&
+                  r.metadataPolicyDigest === GUARDIAN_CONTROLLER_POLICY.metadataPolicyDigest &&
+                  (authorityVersion !== 1 ||
+                    (Number.isSafeInteger(r.authorityUntil) && r.authorityUntil > Date.now())) &&
+                  r.approvals?.length === ids.length &&
+                  r.approvals.every(
+                    (a, i) =>
+                      a.firstNative === true &&
+                      a.projectId === ids[i] &&
+                      a.admissionId === inventory[i].admissionId &&
+                      a.admissionGeneration === inventory[i].admissionGeneration &&
+                      a.checkoutIncarnation === inventory[i].checkout.checkoutIncarnation,
+                  ),
+              );
+              state.launch = r;
+            },
+          );
+          return answer;
+        },
+        GUARDIAN_ADMISSION_BUDGET.controllerMs,
+        Date.now() + GUARDIAN_ADMISSION_BUDGET.controllerMs,
+      ),
     currentMetadata: (projectId) =>
       serial(async () => {
         try {

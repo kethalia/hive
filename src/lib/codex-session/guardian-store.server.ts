@@ -44,6 +44,8 @@ import {
   producerScopeSchema,
 } from "./guardian-contracts";
 import type { GuardianOperationEnvelope } from "./guardian-transport-contracts";
+import type { GuardianUnstartedTransfer } from "./guardian-unstarted-contracts";
+import { retireUnstartedAuthorization } from "./guardian-unstarted-store.server";
 import type { RegistrationBinding } from "./registration.server";
 import { lockActiveRegistration, RegistrationRejected } from "./registration-store.server";
 
@@ -517,7 +519,11 @@ export class GuardianAdmissionStore {
       return receipt;
     });
   }
-  async reserveRuntime(binding: RegistrationBinding, identity: GuardianRuntimeIdentity) {
+  async reserveRuntime(
+    binding: RegistrationBinding,
+    identity: GuardianRuntimeIdentity,
+    unstartedTransfer?: GuardianUnstartedTransfer,
+  ) {
     requireGuardian(
       this.options.policy.enabled &&
         identity.configSha256 === this.options.expectedConfigSha256(binding),
@@ -532,6 +538,13 @@ export class GuardianAdmissionStore {
         kind: "enroll",
         empty: binding.projects.length === 0,
       });
+      if (unstartedTransfer)
+        await retireUnstartedAuthorization(tx, {
+          binding,
+          identity,
+          transfer: unstartedTransfer,
+          policy: this.options.policy,
+        });
       const candidate = await tx.codexHostSlot.upsert({
         where: {
           ownerId_coderOrigin_workspaceId_agentId: {
@@ -552,7 +565,11 @@ export class GuardianAdmissionStore {
       });
       const slot = await lockGuardianSlot(tx, user.id, candidate.id);
       const existing = await tx.codexGuardianRuntime.findFirst({
-        where: { ownerId: user.id, slotId: slot.id, phase: { not: "tree_closed" } },
+        where: {
+          ownerId: user.id,
+          slotId: slot.id,
+          phase: { notIn: ["tree_closed", "authorization_retired"] },
+        },
       });
       if (existing) {
         const { runtime: current, now } = await lockGuardianRuntime(tx, user.id, existing.id);
@@ -1000,6 +1017,7 @@ export class GuardianAdmissionStore {
     nativeLaunchId: string;
     launchIntentDigest: string;
     projectIds: string[];
+    authorityVersion?: 1;
   }) {
     return this.transaction(async (tx) => {
       const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
@@ -1147,6 +1165,12 @@ export class GuardianAdmissionStore {
         },
       });
       requireGuardian(isolationValidUntil > (await databaseNow(tx)).getTime());
+      const authorityUntil = Math.min(
+        runtime.authorityUntil.getTime(),
+        isolationValidUntil,
+        this.options.authorizationExpiresAt ?? Number.POSITIVE_INFINITY,
+      );
+      requireGuardian(authorityUntil > (await databaseNow(tx)).getTime());
       return {
         runtimeId: runtime.id,
         runtimeGeneration: runtime.generation,
@@ -1154,6 +1178,7 @@ export class GuardianAdmissionStore {
         metadataPolicyDigest: runtime.metadataPolicyDigest,
         nativeLaunchId: input.nativeLaunchId,
         launchIntentDigest: expected,
+        ...(input.authorityVersion === 1 ? { authorityUntil } : {}),
         approvals: inventory.map(({ admissionId, admissionGeneration, checkout }) => ({
           projectId: checkout.projectId,
           repositoryId: checkout.repositoryId,

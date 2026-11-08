@@ -19,7 +19,9 @@ import { openGuardedHost, verifyGuardianPackage } from "./codex-host-guardian.mj
 import {
   archiveBootstrapProjectState,
   archiveIdleProjectState,
+  verifyBootstrapProjectHistory,
 } from "./codex-project-controller.mjs";
+import { prepareUnstartedTransfer } from "./codex-unstarted-transfer.mjs";
 import { readInstalledHostStartup, validateHostConfig } from "./codex-workspace-host.mjs";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
@@ -231,6 +233,32 @@ export async function startInstalledGuardedHost() {
             },
             proof,
           );
+        },
+        prepareUnstartedRetirement: (proof) => {
+          const old = JSON.parse(proof.outerRaw).state.events?.[4]?.value;
+          readBootstrapConfigHistory(home, old?.configSha256, config);
+          return prepareUnstartedTransfer({
+            home,
+            config,
+            configSha256,
+            packageManifestSha256: challenge.packageManifestSha256,
+            ...proof,
+            oldConfigRaw: readFileSync(
+              join(
+                home,
+                ".local/state/hive/codex-host-install/config-history",
+                `${old.configSha256}.json`,
+              ),
+            ),
+            verifyBootstrapHistory: () =>
+              verifyBootstrapProjectHistory({
+                stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
+                guardianStateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
+                ownerId: config.binding.ownerId,
+                workspaceId: config.binding.workspaceId,
+                templateId: config.binding.templateId,
+              }),
+          });
         },
         prepareNextLifetime: recoverPrevious
           ? async (receipt) => {
