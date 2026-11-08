@@ -43,9 +43,19 @@ export function useRuntimeConfig(): RuntimeConfig {
   const deliveryEnabled = providedConfig
     ? providedConfig.deliveryEnabled
     : getClientRuntimeConfig().deliveryEnabled;
+  const capabilitiesKey = JSON.stringify(
+    (providedConfig
+      ? providedConfig.workspaceCapabilities
+      : getClientRuntimeConfig().workspaceCapabilities) ?? null,
+  );
+  const workspaceCapabilities = useMemo(
+    () => JSON.parse(capabilitiesKey) as RuntimeConfig["workspaceCapabilities"] | null,
+    [capabilitiesKey],
+  );
   return useMemo(
     () => ({
       terminalWsUrl,
+      ...(workspaceCapabilities ? { workspaceCapabilities } : {}),
       ...(projectTasksEnabled ? { projectTasksEnabled } : {}),
       ...(deliveryEnabled ? { deliveryEnabled } : {}),
       ...(codexVoiceEnabled ? { codexVoiceEnabled } : {}),
@@ -53,6 +63,7 @@ export function useRuntimeConfig(): RuntimeConfig {
     }),
     [
       terminalWsUrl,
+      workspaceCapabilities,
       codexVoiceEnabled,
       projectDiscoveryEnabled,
       projectTasksEnabled,

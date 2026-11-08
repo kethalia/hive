@@ -121,11 +121,17 @@ const discoveryPaths = new Set([
   "/api/discovery/agent",
   "/api/discovery/templates",
 ]);
-export function isPortableDiscovery(request: Request, agentToolsEnabled = false): boolean {
+export function isPortableDiscovery(
+  request: Request,
+  agentToolsEnabled = false,
+  workspaceReadEnabled = false,
+): boolean {
   const path = new URL(request.url).pathname;
   return (
     request.method === "GET" &&
-    (discoveryPaths.has(path) || (agentToolsEnabled && path === "/api/discovery/agent-tools"))
+    (discoveryPaths.has(path) ||
+      (agentToolsEnabled && path === "/api/discovery/agent-tools") ||
+      (workspaceReadEnabled && path === "/api/discovery/sessions"))
   );
 }
 

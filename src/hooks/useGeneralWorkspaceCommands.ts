@@ -2,7 +2,11 @@
 
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CommandPaletteAction } from "@/components/terminal/CommandPalette";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
+import type {
+  CommandPaletteAction,
+  CommandPalettePage,
+} from "@/components/terminal/CommandPalette";
 import { useWindowCreationPages } from "@/hooks/useWindowCreationPages";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { discoveryOptions } from "@/lib/discovery/queries";
@@ -13,6 +17,8 @@ import { matchesProjectSearch } from "@/lib/terminal/command-search";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
 import type { GeneralPane } from "@/lib/workspaces/general-workspace";
 import { repositories, repositoryTerminalPane } from "@/lib/workspaces/terminal-selection";
+
+const NO_TEMPLATES: string[] = [];
 
 export function useGeneralWorkspaceCommands({
   workspaces,
@@ -29,6 +35,11 @@ export function useGeneralWorkspaceCommands({
   initialWorkspaceId?: string;
   additionalActions?: CommandPaletteAction[];
 }) {
+  const { workspaceCapabilities } = useRuntimeConfig();
+  const portable = workspaceCapabilities !== undefined;
+  const terminalEnabled = !portable || workspaceCapabilities.terminalEnabled;
+  const readTemplates = workspaceCapabilities?.readTemplateIds ?? NO_TEMPLATES;
+  const projectTemplates = workspaceCapabilities?.projectTemplateIds ?? NO_TEMPLATES;
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -37,6 +48,8 @@ export function useGeneralWorkspaceCommands({
     initialWorkspaceId,
     open,
     onOpenPane,
+    allowProjectClone: !portable,
+    allowTerminalCreation: terminalEnabled,
   });
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -48,60 +61,87 @@ export function useGeneralWorkspaceCommands({
   const targets = JSON.stringify(
     workspaces
       .filter((w) => w.latest_build.status === "running")
-      .map((w) => [w.id, w.latest_build.id])
+      .map((w) => [w.id, w.latest_build.id, w.template_id ?? null])
       .sort(),
   );
   const selected = useMemo(
     () =>
-      (JSON.parse(targets) as [string, string][]).map(([workspaceId, buildId]) => ({
-        workspaceId,
-        buildId,
-      })),
+      (JSON.parse(targets) as [string, string, string | null][]).map(
+        ([workspaceId, buildId, templateId]) => ({
+          workspaceId,
+          buildId,
+          templateId,
+        }),
+      ),
     [targets],
   );
   const sessions = useQueries({
     queries: selected.map((target) => ({
       ...discoveryOptions("sessions", target),
-      enabled: open,
-      refetchInterval: open ? 5_000 : (false as const),
+      enabled:
+        open &&
+        (!portable || Boolean(target.templateId && readTemplates.includes(target.templateId))),
+      refetchInterval:
+        open &&
+        (!portable || Boolean(target.templateId && readTemplates.includes(target.templateId)))
+          ? 5_000
+          : (false as const),
     })),
     combine: (results) => results.map(({ data, error, isPending }) => ({ data, error, isPending })),
   });
   const clones = useQueries({
     queries: selected.map((target) => ({
       ...discoveryOptions("repositories", target),
-      enabled: open,
-      refetchInterval: open ? 60_000 : (false as const),
+      enabled: open && !portable,
+      refetchInterval: open && !portable ? 60_000 : (false as const),
     })),
     combine: (results) => results.map(({ data, error, isPending }) => ({ data, error, isPending })),
   });
-  const loading = open && [...sessions, ...clones].some((result) => result.isPending);
+  const loading =
+    open &&
+    selected.some(
+      (target, index) =>
+        ((!portable || Boolean(target.templateId && readTemplates.includes(target.templateId))) &&
+          sessions[index].isPending) ||
+        (!portable && clones[index].isPending),
+    );
   const data = useMemo(
     () =>
       selected.map((target, index) => {
-        const denied = [sessions[index].error, clones[index].error].some(isDiscoveryDenied);
+        const denied = (
+          portable ? [sessions[index].error] : [sessions[index].error, clones[index].error]
+        ).some(isDiscoveryDenied);
+        const readConfigured =
+          !portable || Boolean(target.templateId && readTemplates.includes(target.templateId));
         return {
           workspaceId: target.workspaceId,
-          sessions: denied
-            ? []
-            : (sessions[index].data ?? [])
-                .map((session) => session.name)
-                .filter((name) => !isCloneTerminalSessionName(name)),
-          repositories: denied ? [] : repositories(clones[index].data?.nodes ?? []),
+          sessions:
+            !readConfigured || denied
+              ? []
+              : (sessions[index].data ?? [])
+                  .map((session) => session.name)
+                  .filter((name) => !isCloneTerminalSessionName(name)),
+          repositories: portable || denied ? [] : repositories(clones[index].data?.nodes ?? []),
+          readConfigured,
           error:
-            sessions[index].error || clones[index].error
-              ? "Could not refresh some results. Previously loaded results are still shown. Retry to update them."
+            (readConfigured && sessions[index].error) || (!portable && clones[index].error)
+              ? portable
+                ? "Could not refresh terminals. Review workspace setup or retry."
+                : "Could not refresh some results. Previously loaded results are still shown. Retry to update them."
               : undefined,
         };
       }),
-    [selected, sessions, clones],
+    [selected, sessions, clones, portable, readTemplates],
   );
 
   const retryWorkspace = useCallback(
     (workspaceId: string) => {
       const target = selected.find((item) => item.workspaceId === workspaceId);
       if (!target) return;
-      for (const resource of ["sessions", "repositories"] as const) {
+      if (portable && (!target.templateId || !readTemplates.includes(target.templateId))) return;
+      for (const resource of portable
+        ? (["sessions"] as const)
+        : (["sessions", "repositories"] as const)) {
         void client
           .fetchQuery({
             ...discoveryOptions(resource, target, true),
@@ -110,7 +150,7 @@ export function useGeneralWorkspaceCommands({
           .catch(() => {});
       }
     },
-    [client, selected],
+    [client, selected, portable, readTemplates],
   );
 
   const run = useCallback(
@@ -268,16 +308,18 @@ export function useGeneralWorkspaceCommands({
           description: workspace.name,
           group: "Terminals",
           value: `${sessionName} ${workspace.name}`,
-          rightLabel: "Open",
+          rightLabel: terminalEnabled ? "Open" : "Setup",
           icon: "terminal",
           disabled: busy,
           onSelect: () =>
-            onOpenPane({
-              kind: "terminal",
-              workspaceId: workspace.id,
-              sessionName,
-              label: sessionName,
-            }),
+            terminalEnabled
+              ? onOpenPane({
+                  kind: "terminal",
+                  workspaceId: workspace.id,
+                  sessionName,
+                  label: sessionName,
+                })
+              : { page: "terminal-capability" },
         });
       }
       for (const app of apps) {
@@ -300,18 +342,51 @@ export function useGeneralWorkspaceCommands({
             }),
         });
       }
+      if (portable && !found?.readConfigured)
+        results.push({
+          id: `terminal-setup:${workspace.id}`,
+          label: `Terminal discovery · ${workspace.name}`,
+          description:
+            "Session listing is not configured for this workspace. Review its template and Hive configuration.",
+          group: "Terminals",
+          icon: "search",
+          onSelect: () =>
+            onOpenPane({
+              kind: "hive",
+              tool: "templates",
+              workspaceId: workspace.id,
+              label: "Templates",
+            }),
+        });
       if (found?.error)
         results.push({
           id: `retry-terminals:${workspace.id}`,
           label: `Retry terminals in ${workspace.name}`,
           description: found.error,
           group: "Terminals",
-          value: `retry terminals repositories ${workspace.name}`,
+          value: portable
+            ? `retry terminals ${workspace.name}`
+            : `retry terminals repositories ${workspace.name}`,
           icon: "search",
           closeOnSelect: false,
           onSelect: () => {
             retryWorkspace(workspace.id);
           },
+        });
+      if (portable && found?.error)
+        results.push({
+          id: `terminal-review:${workspace.id}`,
+          label: `Review terminal setup · ${workspace.name}`,
+          description: "Check this workspace's template and current Hive configuration.",
+          group: "Terminals",
+          icon: "search",
+          onSelect: () =>
+            onOpenPane({
+              kind: "hive",
+              tool: "templates",
+              workspaceId: workspace.id,
+              label: "Templates",
+            }),
         });
       return results;
     });
@@ -320,24 +395,50 @@ export function useGeneralWorkspaceCommands({
         id: "new-terminal",
         label: "Create terminal",
         aliases: ["new terminal", "create terminal", "create session", "shell"],
-        description: "Open a named terminal session",
         group: "Terminals",
         value: "new session terminal",
         icon: "plus",
         disabled: busy,
-        onSelect: () => beginCreation("terminal"),
+        description: terminalEnabled
+          ? "Open a named terminal session"
+          : "Terminal connections are not enabled in this Hive preview. Review setup before connecting.",
+        onSelect: () =>
+          terminalEnabled ? beginCreation("terminal") : { page: "terminal-capability" },
       },
       ...resultsByWorkspace.filter((action) => action.group === "Terminals"),
       {
         id: "new-project",
-        label: "New project",
-        aliases: ["clone repository", "new repository", "create project", "clone"],
-        description: "Clone a GitHub organization/repository",
+        label: portable ? "Browse GitHub projects" : "New project",
+        aliases: portable
+          ? ["repositories", "github", "open project"]
+          : ["clone repository", "new repository", "create project", "clone"],
+        description: portable
+          ? "Choose a connected repository; checkout begins only when a task starts"
+          : "Clone a GitHub organization/repository",
         group: "Projects",
         value: "new project clone github repository",
         icon: "plus",
         disabled: busy,
-        onSelect: () => beginCreation("project"),
+        onSelect: () => {
+          if (!portable) return beginCreation("project");
+          const selected =
+            workspaces.find(
+              (w) =>
+                w.id === initialWorkspaceId &&
+                w.latest_build.status === "running" &&
+                projectTemplates.includes(w.template_id),
+            ) ??
+            workspaces.find(
+              (w) =>
+                w.latest_build.status === "running" && projectTemplates.includes(w.template_id),
+            );
+          onOpenPane({
+            kind: "hive",
+            tool: "projects",
+            label: "Projects",
+            ...(selected ? { workspaceId: selected.id } : {}),
+          });
+        },
       },
       ...resultsByWorkspace.filter((action) => action.group === "Projects"),
       ...resultsByWorkspace.filter(
@@ -356,22 +457,67 @@ export function useGeneralWorkspaceCommands({
     startWorkspace,
     retryWorkspace,
     beginCreation,
+    portable,
+    terminalEnabled,
+    projectTemplates,
+    initialWorkspaceId,
   ]);
+
+  const pages = useMemo<Record<string, CommandPalettePage>>(
+    () => ({
+      ...creationPages,
+      "terminal-capability": {
+        title: "Terminal setup",
+        searchPlaceholder: "Terminal connections are not enabled for this Hive preview",
+        actions: [
+          {
+            id: "terminal-enrollment",
+            label: "Terminal connections need deployment enrollment",
+            description:
+              "The operator must enable the existing terminal relay. Updating a workspace alone does not enable it.",
+            group: "Status",
+            disabled: true,
+            onSelect: () => {},
+          },
+          {
+            id: "terminal-workspaces",
+            label: "Manage Coder workspaces",
+            group: "Setup",
+            onSelect: () =>
+              onOpenPane({ kind: "hive", tool: "workspaces", label: "Coder workspaces" }),
+          },
+          {
+            id: "terminal-templates",
+            label: "Review workspace templates",
+            description:
+              "Listing existing sessions also requires workspace support to be configured.",
+            group: "Setup",
+            onSelect: () => onOpenPane({ kind: "hive", tool: "templates", label: "Templates" }),
+          },
+        ],
+      },
+    }),
+    [creationPages, onOpenPane],
+  );
 
   useEffect(
     () =>
       registerGlobalCommandPaletteSource({
         id: "general-workspace",
         handlesWorkspaces: true,
-        pages: creationPages,
+        pages,
         actions: [...actions, ...(additionalActions ?? [])],
         searchValue: query,
         onSearchValueChange: setQuery,
         onOpenChange: setOpen,
         searchPlaceholder: "Search Hive…",
         emptyText: "No matching windows or commands.",
-        loadingText: loading ? "Loading terminals and repositories…" : undefined,
+        loadingText: loading
+          ? portable
+            ? "Loading terminals…"
+            : "Loading terminals and repositories…"
+          : undefined,
       }),
-    [actions, query, loading, additionalActions, creationPages],
+    [actions, query, loading, additionalActions, pages, portable],
   );
 }

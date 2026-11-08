@@ -216,6 +216,7 @@ export function createAppWorker(
             request,
             env.HIVE_AGENT_TOOLS_ENABLED === "true" &&
               env.HIVE_AGENT_TOOLS_TRANSPORT === "workspace-app",
+            env.HIVE_WORKSPACE_READ_ENABLED === "true",
           )) ||
         (pathname === "/api/projects" &&
           !(
