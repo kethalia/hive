@@ -1,4 +1,4 @@
-import { getDb, type PrismaClient } from "@hive/db";
+import { captureRequestDatabaseFactory, getDb, type PrismaClient } from "@hive/db";
 import { withReleaseDeadline } from "../../../deploy/cloudflare/app/release-health";
 import { DatabaseJobStore } from "./database-job-store.server";
 import { githubSourceDigest } from "./github-evidence.server";
@@ -71,6 +71,7 @@ export function createInstalledDatabaseJobStore(
   if (!raw || Buffer.byteLength(raw) > 262144 || !key || key.length > 8192)
     throw Error("database_job_unavailable");
   const catalogs: unknown = JSON.parse(raw);
+  const createBackgroundRequest = captureRequestDatabaseFactory();
   return new DatabaseJobStore(
     db,
     repositoryPolicyStore(db),
@@ -215,17 +216,16 @@ export function createInstalledDatabaseJobStore(
       return observed.authorityExpiresAt;
     },
     async (scope) => {
+      // Report facts are already committed. Missing scoped capability holds advancement.
+      if (!createBackgroundRequest) return;
       const hardDeadline = Date.now() + 25000,
         workDeadline = hardDeadline - 5000,
         controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.max(1, workDeadline - Date.now()));
-      let database:
-        | ReturnType<typeof import("@hive/db/cloudflare")["createCloudflareDatabaseRequest"]>
-        | undefined;
+      let database: ReturnType<typeof createBackgroundRequest> | undefined;
       try {
-        const { createCloudflareDatabaseRequest } = await import("@hive/db/cloudflare");
         controller.signal.throwIfAborted();
-        database = createCloudflareDatabaseRequest(env.DATABASE_URL, {
+        database = createBackgroundRequest({
           queryTimeoutMillis: 2500,
           connectionTimeoutMillis: 2500,
           transactionTimeoutMillis: 5000,

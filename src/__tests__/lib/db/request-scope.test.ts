@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@hive/db";
-import { createDatabaseRequest, getDb } from "@hive/db";
+import { captureRequestDatabaseFactory, createDatabaseRequest, getDb } from "@hive/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -62,5 +62,38 @@ describe("database request isolation", () => {
     const otherCopy = await import("../../../../packages/db/src/request-scope");
     request.run(() => expect(otherCopy.getRequestDb()).toBe(client));
     await request.close();
+  });
+});
+
+describe("captured independent database lifetimes", () => {
+  it("captures only a live capability and creates a separate sibling after the parent is closed", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    const parentClient = fixture(),
+      siblingClient = fixture();
+    const factory = vi.fn(() => createDatabaseRequest(() => siblingClient.client));
+    const parent = createDatabaseRequest(() => parentClient.client, factory);
+    expect(captureRequestDatabaseFactory()).toBeUndefined();
+    const captured = parent.run(() => {
+      expect(getDb()).toBe(parentClient.client);
+      return captureRequestDatabaseFactory();
+    });
+    expect(captured).toBe(factory);
+    await parent.close();
+    expect(parent.run(captureRequestDatabaseFactory)).toBeUndefined();
+    const bounds = {
+      queryTimeoutMillis: 2500,
+      transactionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 2500,
+    };
+    const sibling = captured!(bounds);
+    sibling.run(() => expect(getDb()).toBe(siblingClient.client));
+    expect(factory).toHaveBeenCalledWith(bounds);
+    expect(siblingClient.disconnect).not.toHaveBeenCalled();
+    expect(parentClient.disconnect).toHaveBeenCalledTimes(1);
+    await sibling.close();
+    expect(siblingClient.disconnect).toHaveBeenCalledTimes(1);
+    const ordinary = createDatabaseRequest(() => parentClient.client);
+    expect(ordinary.run(captureRequestDatabaseFactory)).toBeUndefined();
+    await ordinary.close();
   });
 });
