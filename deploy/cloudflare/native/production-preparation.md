@@ -150,12 +150,27 @@ and policy names are individually allowlisted. Existing runtime validators still
 check their contents. Enabling the host gateway requires its already enrolled
 issuer secret name. Read/voice/agent-tools can use the existing shared-host issuer
 or their separately named, already enrolled dedicated issuers. Only these known
-issuer secret names may be retained in ongoing configuration; no values are accepted. R2 is limited to one
+issuer secret names may be retained in ongoing configuration; no values are accepted.
+Project preparation also conditionally requires the existing private
+`HIVE_PROJECT_TASK_RECONCILE_SECRET` name when `HIVE_PROJECT_TASKS_ENABLED=true`
+for the same-Worker jobs-to-app wake. Its value stays separate from the auth-service
+secret and is never an enrollment input. `HIVE_TEMPLATE_LOG_VIEW_ENABLED` explicitly
+enables the existing authenticated detailed-log route; absence keeps it off. R2 is limited to one
 explicitly approved production evidence bucket. The only allowed schedules are
 `* * * * *` and `*/5 * * * *`, and each must be explicitly listed after scheduler
 handover. Absent capability flags remain off, including dispatch and rotation;
 ongoing owner enrollment can explicitly enable them. No extra service, database binding, arbitrary route, executable path or credential input is
 accepted.
+
+## Free-tier scheduling boundary
+
+Neon Free includes 100 CU-hours per project per month and suspends after five
+inactive minutes. Continuous minute-level SQL polling can prevent suspension;
+at the minimum 0.25 CU, 24 hours × 30 days consumes about 180 CU-hours before
+other work. Thus standing production cron is a real cutover/capacity decision,
+not a free-tier guarantee. Keep runtime flags and schedules off until the owner
+approves the concrete cadence and budget; never upgrade or add costs automatically.
+Source: [official Neon plans](https://neon.com/docs/introduction/plans).
 
 ## Publication and acceptance
 

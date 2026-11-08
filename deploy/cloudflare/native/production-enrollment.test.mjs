@@ -577,3 +577,37 @@ test("remote main advancing during slow observation produces zero deployment eff
   assert.equal(effects, 0);
   assert.deepEqual(order, ["remote-main", "build-ready", "observed-parent", "remote-main"]);
 });
+
+test("existing project wake requires its named remote secret and template logs require explicit enrollment", () => {
+  const base = fixture().parse();
+  assert.equal(base.config.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED, "false");
+  const f = fixture("ongoing-main");
+  f.enrollment.configuration.vars.HIVE_PROJECT_TASKS_ENABLED = "true";
+  retarget(f);
+  assert.throws(f.parse);
+  f.enrollment.configuration.secretNames.push("HIVE_PROJECT_TASK_RECONCILE_SECRET");
+  retarget(f);
+  const enabled = f.parse();
+  assert.ok(enabled.config.secrets.required.includes("HIVE_PROJECT_TASK_RECONCILE_SECRET"));
+  assert.equal(enabled.config.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED, "false");
+  f.enrollment.configuration.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED = "true";
+  retarget(f);
+  assert.equal(f.parse().config.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED, "true");
+  f.enrollment.configuration.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED = "false";
+  retarget(f);
+  assert.equal(f.parse().config.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED, "false");
+  f.enrollment.configuration.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED = "invalid";
+  retarget(f);
+  assert.throws(f.parse);
+  delete f.enrollment.configuration.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED;
+  f.enrollment.configuration.secretNames = f.enrollment.configuration.secretNames.map((name) =>
+    name === "HIVE_PROJECT_TASK_RECONCILE_SECRET"
+      ? "HIVE_PROJECT_TASK_RECONCILE_SECRET_OTHER"
+      : name,
+  );
+  retarget(f);
+  assert.throws(f.parse);
+  f.enrollment.configuration.secretNames.push("HIVE_PROJECT_TASK_RECONCILE_SECRET");
+  retarget(f);
+  assert.throws(f.parse); // extra/wrong secret name still rejected
+});
