@@ -6,6 +6,10 @@ import {
   acceptancePlanResultSchema,
   acceptanceReviewResultSchema,
 } from "./acceptance-contracts";
+import {
+  productionReviewCoverage,
+  verifyStoredProductionAcceptance,
+} from "./acceptance-production.server";
 import { DeliveryConflict } from "./state";
 
 type Tx = Prisma.TransactionClient;
@@ -107,9 +111,14 @@ export async function authorizeAcceptanceEvidence(
     )
       return reject();
     if (
-      scope.acceptancePhase !== "implementation_preview" ||
+      !["implementation_preview", "activation_production"].includes(scope.acceptancePhase) ||
       (requireCoverage && result.outcome !== "pass")
     )
       return reject();
+    if (scope.acceptancePhase === "activation_production") {
+      await verifyStoredProductionAcceptance(tx, scope, job.material);
+      productionReviewCoverage(result);
+      if (evidence.verificationMode !== "production") return reject();
+    }
   }
 }

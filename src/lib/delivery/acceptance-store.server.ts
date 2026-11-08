@@ -19,6 +19,7 @@ import {
   validateReview,
 } from "./acceptance-contracts";
 import { acceptanceEvidenceProducer } from "./acceptance-policy.server";
+import { productionReviewCoverage } from "./acceptance-production.server";
 import {
   ACCEPTANCE_PROMPT_DIGEST,
   ACCEPTANCE_SCHEMA_DIGEST,
@@ -549,10 +550,9 @@ export class AcceptanceStore {
           material.scope.sourceSha,
         "acceptance_evidence_scope",
       );
-      requireValue(
-        material.review.phase === "implementation_preview",
-        "acceptance_production_observation_unavailable",
-      );
+      const production = material.review.phase === "activation_production";
+      if (production)
+        productionReviewCoverage(result as import("./acceptance-contracts").AcceptanceReviewResult);
       const record = {
         id: job.id,
         ownerId: job.ownerId,
@@ -563,8 +563,10 @@ export class AcceptanceStore {
         kind: "review",
         status:
           result.outcome === "pass" ? "passed" : result.outcome === "fail" ? "failed" : "unknown",
-        verificationMode: "integration",
-        environment: "codex-independent-readonly",
+        verificationMode: production ? "production" : "integration",
+        environment: production
+          ? "codex-independent-production-observation"
+          : "codex-independent-readonly",
         sourceSha: material.scope.sourceSha,
         criterionIds: [...material.review.criterionIds],
         objectKey: `database/acceptance/${job.ownerId}/${job.id}`,

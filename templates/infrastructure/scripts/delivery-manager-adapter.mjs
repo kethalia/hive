@@ -663,9 +663,11 @@ export function createDeliveryManagerAdapter(options) {
         Date.now() +
         (sourceProtocol && params?.arguments?.operation === "publish_source"
           ? 125000
-          : progression
-            ? 12000
-            : 10000);
+          : progression && params?.arguments?.operation === "claim_step"
+            ? 30000
+            : progression
+              ? 12000
+              : 10000);
       check(
         params?.tool === "hive_delivery" &&
           (params.namespace === null || params.namespace === undefined) &&
@@ -1051,7 +1053,13 @@ export function createDeliveryManagerAdapter(options) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...value, proof }),
               signal: AbortSignal.timeout(
-                Math.max(1, Math.min(progression ? 3000 : 10000, deadline - Date.now())),
+                Math.max(
+                  1,
+                  Math.min(
+                    progression ? (command.operation === "claim_step" ? 28000 : 3000) : 10000,
+                    deadline - Date.now(),
+                  ),
+                ),
               ),
             });
           } catch (error) {

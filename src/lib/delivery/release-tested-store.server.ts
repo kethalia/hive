@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
 import { epicMergeTestEnrollmentSchema } from "./epic-merge-contracts";
 import { canonicalGitHubSource, githubSourceDigest } from "./github-evidence.server";
+import { automaticTestEnrollmentSchema } from "./release-automatic-contracts";
 import type { GitHubReleaseChangeRisk } from "./release-change-risk.server";
 import { githubReleaseRequestSchema } from "./release-github-provider.server";
 import type { GitHubReleaseRules } from "./release-github-rules.server";
@@ -57,7 +58,14 @@ export class ReleaseTestStore {
     private readonly rules: GitHubReleaseRules | undefined,
     private readonly risk: GitHubReleaseChangeRisk | undefined,
     private readonly fetcher: typeof fetch = fetch,
+    private readonly attestationLifetimeMs = 600000,
   ) {
+    if (
+      !Number.isSafeInteger(attestationLifetimeMs) ||
+      attestationLifetimeMs < 1000 ||
+      attestationLifetimeMs > 600000
+    )
+      throw Error("release_test_lifetime_invalid");
     this.workflow = releaseTestWorkflowSchema.parse(workflow);
     if (!("verifyConnected" in run) && (!rules || !risk)) throw Error("release_test_unavailable");
     if (!/^[a-f0-9]{64}$/.test(targetDigest) || !/^[a-f0-9]{64}$/.test(authorityDigest))
@@ -68,7 +76,13 @@ export class ReleaseTestStore {
       await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`
     )[0].now.getTime();
     const candidates = z
-      .array(z.union([releasePolicySchema, epicMergeTestEnrollmentSchema]))
+      .array(
+        z.union([
+          releasePolicySchema,
+          epicMergeTestEnrollmentSchema,
+          automaticTestEnrollmentSchema,
+        ]),
+      )
       .max(32)
       .parse(this.policies())
       .filter(
@@ -265,7 +279,7 @@ export class ReleaseTestStore {
           signal.aborted
         )
           throw Error("release_test_scope");
-        const expiry = new Date(row.now.getTime() + 10 * 60 * 1000);
+        const expiry = new Date(row.now.getTime() + this.attestationLifetimeMs);
         await tx.$executeRaw`INSERT INTO delivery_release_test_attestations(id,owner_id,task_id,challenge_id,payload,payload_digest,attestation_jti_digest,workflow_digest,expires_at) VALUES (${randomUUID()}::uuid,${scope.ownerId}::uuid,${scope.taskId}::uuid,${challengeId}::uuid,${canonicalGitHubSource(input)}::jsonb,${githubSourceDigest(input)},${verified.jtiDigest},${workflowDigest},${expiry})`;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

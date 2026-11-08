@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Add connected Builds production-release and final acceptance fences to existing Preview databases",
+  "sourceCommit": "078e8b67386795162b5a362fbf2cb9f103dc24c3",
+  "completedAt": "2026-11-08T02:07:15.338398+00:00",
+  "productionChanged": false,
+  "newResourcesOrCredentialsCreated": false,
+  "applicationDeploymentPerformed": false,
+  "databases": [
+    {
+      "database": "hive_app_preview",
+      "state": "verified",
+      "runtimeRole": "hive_app_runtime",
+      "startedAt": "2026-11-08T02:06:42.669439+00:00",
+      "finishedAt": "2026-11-08T02:07:00.640748+00:00",
+      "completedMigrations": 48,
+      "prior47HistoryPreserved": true,
+      "existingRowsPreserved": true,
+      "legacyPurposeDefaultVerified": true,
+      "runtimeGrantsVerified": true,
+      "oldAppRoleCanConnectNative": false,
+      "backup": {
+        "bytes": 397432,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false
+      },
+      "automaticReleaseGuards": {
+        "automaticPurpose": true,
+        "automaticObservation": true,
+        "finalizedFence": true
+      },
+      "rowComparison": "Original row fingerprints and all 47 prior migration rows/checksums preserved"
+    },
+    {
+      "database": "hive_native_preview",
+      "state": "verified",
+      "runtimeRole": "hive_native_runtime",
+      "startedAt": "2026-11-08T02:07:02.739940+00:00",
+      "finishedAt": "2026-11-08T02:07:15.278492+00:00",
+      "completedMigrations": 48,
+      "prior47HistoryPreserved": true,
+      "existingRowsPreserved": true,
+      "legacyPurposeDefaultVerified": true,
+      "runtimeGrantsVerified": true,
+      "oldAppRoleCanConnectNative": false,
+      "backup": {
+        "bytes": 435114,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false
+      },
+      "automaticReleaseGuards": {
+        "automaticPurpose": true,
+        "automaticObservation": true,
+        "finalizedFence": true
+      },
+      "rowComparison": "Original row fingerprints and all 47 prior migration rows/checksums preserved"
+    }
+  ]
+}

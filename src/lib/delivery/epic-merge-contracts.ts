@@ -135,7 +135,7 @@ export const epicMergeRpcResultSchema = z
   .object({
     schemaVersion: z.literal(1),
     requestId: id,
-    operation: z.enum(["prepare", "dispatch", "lookup"]),
+    operation: z.enum(["prepare", "dispatch", "lookup", "builds"]),
     result: z.unknown(),
   })
   .strict();

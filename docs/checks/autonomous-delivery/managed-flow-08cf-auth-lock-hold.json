@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T02:08:18.610846+00:00",
+  "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+  "buildId": "c690f1ff-7bde-47ec-9e7f-63ed17190d45",
+  "templateVersionId": "1ea7db80-eaf4-46f2-b081-482836f14b34",
+  "hostEpochId": "ec6c5037-d5a4-43ab-9878-4d8d4579c8df",
+  "sourceCommit": "99ec8ee3559e484f97b056ba23c999b19d1abd1d",
+  "automaticRestartHealthy": true,
+  "signedBootstrapRetirements": 2,
+  "currentAndHistoricalHmacVerified": true,
+  "credentialTransfer": "rejected before destination creation",
+  "credentialCacheWritten": false,
+  "nativeModelStarted": false,
+  "home": {
+    "uid": 0,
+    "gid": 1000,
+    "mode": "02775",
+    "privateWorkspaceVolume": true
+  },
+  "cause": "Initial HOME rejected by managed auth lock despite valid Coder fsGroup ownership",
+  "sourceFixPullRequest": 418,
+  "installedFilesOrHomePermissionsChanged": false,
+  "nextGate": "Reviewed replacement image and exact installed package proof before retrying dedicated test cache restore"
+}

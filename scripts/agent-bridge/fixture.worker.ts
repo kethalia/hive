@@ -122,7 +122,84 @@ export default {
     };
     const notification = await service.execute(principal, binding.workspaceId, operation);
     const replay = await service.execute(principal, binding.workspaceId, operation);
+    const account = await service.execute(principal, binding.workspaceId, {
+      operation: "codex-account",
+      account: { action: "status" },
+    });
+    const connecting = await service.execute(principal, binding.workspaceId, {
+      operation: "codex-account",
+      account: {
+        action: "connect",
+        lifetimeId: account.lifetimeId,
+        generation: account.generation,
+      },
+    });
+    const cancelled = await service.execute(principal, binding.workspaceId, {
+      operation: "codex-account",
+      account: {
+        action: "cancel",
+        lifetimeId: connecting.lifetimeId,
+        generation: connecting.generation,
+      },
+    });
+    const claude = await service.execute(principal, binding.workspaceId, {
+      operation: "claude-account",
+      account: { action: "status" },
+    });
+    const cliPending = await service.execute(principal, binding.workspaceId, {
+      operation: "claude-account",
+      account: { action: "connect", lifetimeId: claude.lifetimeId, generation: claude.generation },
+    });
+    const cliCode = await service.execute(principal, binding.workspaceId, {
+      operation: "claude-account",
+      account: {
+        action: "code",
+        lifetimeId: cliPending.lifetimeId,
+        generation: cliPending.generation,
+        code: "SYNTHETIC_CODE#STATE",
+      },
+    });
+    const cliConnected = await service.execute(principal, binding.workspaceId, {
+      operation: "claude-account",
+      account: { action: "status" },
+    });
+    const cliDisconnected = await service.execute(principal, binding.workspaceId, {
+      operation: "claude-account",
+      account: {
+        action: "disconnect",
+        lifetimeId: cliConnected.lifetimeId,
+        generation: cliConnected.generation,
+      },
+    });
+    const cliAgain = await service.execute(principal, binding.workspaceId, {
+      operation: "claude-account",
+      account: {
+        action: "connect",
+        lifetimeId: cliDisconnected.lifetimeId,
+        generation: cliDisconnected.generation,
+      },
+    });
+    const cliCancelled = await service.execute(principal, binding.workspaceId, {
+      operation: "claude-account",
+      account: {
+        action: "cancel",
+        lifetimeId: cliAgain.lifetimeId,
+        generation: cliAgain.generation,
+      },
+    });
     return Response.json({
+      claudeAccountFenced:
+        claude.scope === "workspace-cli" &&
+        cliPending.state === "pending" &&
+        cliCode.pending?.codeSubmitted === true &&
+        cliConnected.state === "signed-in" &&
+        cliDisconnected.state === "signed-out" &&
+        cliCancelled.state === "cancelled",
+      codexAccountFenced:
+        account.scope === "managed-native" &&
+        connecting.state === "pending" &&
+        cancelled.state === "cancelled" &&
+        cancelled.generation > connecting.generation,
       sessions: sessions.sessions,
       installed,
       disabled,

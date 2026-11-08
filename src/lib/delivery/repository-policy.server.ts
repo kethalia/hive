@@ -5,6 +5,7 @@ import {
   authorizeAcceptanceEvidence,
   bindAcceptanceTask,
 } from "./acceptance-policy.server";
+import { productionAcceptanceStepMaterial } from "./acceptance-production.server";
 import { currentRepairReservation } from "./acceptance-repair.server";
 
 import { githubSourceDigest } from "./github-evidence.server";
@@ -105,6 +106,16 @@ export function repositoryPolicyAdapters(
     };
     const resolved = resolveConfiguredGitHubManagerPolicy(scope, configured);
     if (!tx) throw new DeliveryConflict("repository_policy_transaction_required");
+    const production =
+      scope.acceptancePhase === "activation_production"
+        ? await productionAcceptanceStepMaterial(tx, {
+            ownerId: scope.ownerId,
+            taskId: scope.taskId,
+            stepId: scope.stepId,
+            sourceSha: scope.sourceSha,
+            sourceRevisionId: publication.id,
+          })
+        : null;
     const acceptance = independentAcceptance
       ? await acceptancePlanForIntent(tx, scope.ownerId, bound.binding.intentId)
       : null;
@@ -112,17 +123,19 @@ export function repositoryPolicyAdapters(
     const supports = (id: string, kind: string) =>
       acceptance &&
       kind === "review" &&
-      scope.acceptancePhase === "implementation_preview" &&
+      (scope.acceptancePhase === "implementation_preview" || !!production) &&
       acceptance.plan.requirements.some((r) => r.id === id && r.phase === scope.acceptancePhase);
     const pending = bound.projection.pendingRequirements.filter(
       (p) => p.stepId === scope.stepId && !supports(p.criterionId, p.kind),
     );
-    const evidencePolicy = semanticProducer
-      ? {
-          ...resolved.policy,
-          trustedProducers: [...resolved.policy.trustedProducers, semanticProducer],
-        }
-      : resolved.policy;
+    const evidencePolicy = production
+      ? { ...resolved.policy, trustedProducers: semanticProducer ? [semanticProducer] : [] }
+      : semanticProducer
+        ? {
+            ...resolved.policy,
+            trustedProducers: [...resolved.policy.trustedProducers, semanticProducer],
+          }
+        : resolved.policy;
     return {
       ...resolved,
       policy: evidencePolicy,
@@ -137,6 +150,13 @@ export function repositoryPolicyAdapters(
           ? {
               acceptancePlanDigest: acceptance.row.planDigest,
               acceptanceProducer: acceptance.digest,
+            }
+          : {}),
+        ...(production
+          ? {
+              productionRelease: production.releaseId,
+              productionSnapshot: production.snapshotDigest,
+              productionBuild: production.buildDigest,
             }
           : {}),
       }),
@@ -155,7 +175,7 @@ export function repositoryPolicyAdapters(
         await resolved.authorizeReferences(
           transaction,
           ids.filter((id) => !semanticIds.includes(id)),
-          requireCoverage,
+          requireCoverage && !production,
         );
         if (acceptance)
           await authorizeAcceptanceEvidence(
@@ -172,6 +192,38 @@ export function repositoryPolicyAdapters(
           const now = (
             await transaction.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`
           )[0].now;
+          if (production) {
+            // Mandatory repository checks are authenticated through the sealed
+            // merge/test/readiness proof. Their integration rows are never
+            // relabeled as production evidence for this observation-only step.
+            await productionAcceptanceStepMaterial(
+              transaction,
+              {
+                ownerId: scope.ownerId,
+                taskId: scope.taskId,
+                stepId: scope.stepId,
+                sourceSha: scope.sourceSha,
+                sourceRevisionId: publication.id,
+              },
+              production,
+            );
+            if (pending.length) throw new DeliveryConflict(pending[0].reason);
+            if (!semanticProducer) throw new DeliveryConflict("acceptance_evaluator_unavailable");
+            assertCompletionEvidence({
+              ownerId: scope.ownerId,
+              stepId: scope.stepId,
+              sourceSha: scope.sourceSha,
+              acceptancePhase: scope.acceptancePhase,
+              criterionIds: scope.criterionIds,
+              requiredKinds: ["review"],
+              policyVersion: resolved.policy.version,
+              trustedProducers: [semanticProducer],
+              now,
+              maxAgeMs: resolved.policy.maxAgeMs,
+              evidence,
+            });
+            return;
+          }
           // Provenance coverage alone does not establish that every mandatory
           // repository check/review passed, is current, and meets phase quality.
           const groups = [

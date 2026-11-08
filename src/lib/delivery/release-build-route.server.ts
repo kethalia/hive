@@ -44,22 +44,11 @@ export async function releaseBuildRoute(
   }
 }
 
-/** Runtime entry used by the fixed internal routes. Disabled means no DB or
- * credential lookup; malformed enabled configuration is unavailable. */
-export async function installedReleaseBuildRoute(
+/** Legacy upload attestations cannot be installed by flags or token config.
+ * The pure adapter above remains available for historical protocol fixtures. */
+export function installedReleaseBuildRoute(
   request: Request,
   operation: "challenge" | "attestation",
 ) {
-  if (process.env.HIVE_DELIVERY_RELEASE_ENABLED !== "true")
-    return releaseBuildRoute(request, operation, null);
-  try {
-    const [{ getDb }, { createInstalledReleaseController }] = await Promise.all([
-      import("@hive/db"),
-      import("./release-installed.server"),
-    ]);
-    const controller = createInstalledReleaseController(getDb());
-    return releaseBuildRoute(request, operation, controller?.builds ?? null);
-  } catch {
-    return new Response(null, { status: 503, headers: { "Cache-Control": "private, no-store" } });
-  }
+  return releaseBuildRoute(request, operation, null);
 }

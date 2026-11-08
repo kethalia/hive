@@ -7,6 +7,10 @@ import {
   acceptanceJobScopeSchema,
   acceptancePlanResultSchema,
 } from "./acceptance-contracts";
+import {
+  PRODUCTION_ACCEPTANCE_ENTRY,
+  productionAcceptanceStepMaterial,
+} from "./acceptance-production.server";
 import type { AcceptanceMaterial, AcceptanceStore } from "./acceptance-store.server";
 import { canonicalGitHubSource } from "./github-evidence.server";
 import type { ManagerPolicyScope, ResolvedManagerEvidencePolicy } from "./manager.server";
@@ -26,7 +30,7 @@ export class AcceptanceMaterialResolver {
       tx: Tx,
     ) => Promise<ResolvedManagerEvidencePolicy | null>,
   ) {}
-  async current(tx: Tx, ownerId: string, managerBindingId: string) {
+  async current(tx: Tx, ownerId: string, managerBindingId: string, pinnedProduction?: unknown) {
     const binding = await tx.deliveryManagerBinding.findUniqueOrThrow({
       where: { ownerId_id: { ownerId, id: managerBindingId } },
     });
@@ -45,6 +49,35 @@ export class AcceptanceMaterialResolver {
     );
     const revision = bound.task.currentSourceRevision;
     check(revision.headSha === bound.task.sourceSha);
+    const isProduction = attempt.step.acceptancePhase === "activation_production";
+    if (isProduction && pinnedProduction === undefined) {
+      // Reuse the reviewed immutable artifact while the current serving guard
+      // refreshes independently. A changing nonce must not spawn new model jobs.
+      const job = await tx.deliveryAcceptanceJob.findFirst({
+        where: {
+          ownerId,
+          taskId: bound.task.id,
+          kind: "review",
+          phase: { in: ["queued", "leased", "started", "completed"] },
+          scope: { path: ["attemptId"], equals: attempt.id },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      pinnedProduction = (job?.material as { production?: unknown } | null)?.production;
+    }
+    const production = isProduction
+      ? await productionAcceptanceStepMaterial(
+          tx,
+          {
+            ownerId,
+            taskId: bound.task.id,
+            stepId: attempt.stepId,
+            sourceRevisionId: revision.id,
+            sourceSha: revision.headSha,
+          },
+          pinnedProduction,
+        )
+      : null;
     const plan = await tx.deliveryAcceptancePlan.findFirst({
       where: { ownerId, intentId: binding.preparationIntentId },
       orderBy: { createdAt: "asc" },
@@ -126,6 +159,8 @@ export class AcceptanceMaterialResolver {
       policy,
       facts,
       evidence,
+      production,
+      factsDigest: acceptanceDigest(production ? { facts, production } : facts),
     };
   }
   async prepare(
@@ -158,10 +193,16 @@ export class AcceptanceMaterialResolver {
       sourceSha: current.revision.headSha,
       sourceVersion: current.revision.version,
       sourceTreeSha: current.revision.treeSha,
-      evidenceDigest: acceptanceDigest(current.facts),
-      artifactDigest: acceptanceDigest(candidate),
+      evidenceDigest: current.factsDigest,
+      artifactDigest: acceptanceDigest(
+        current.production ? { candidate, production: current.production } : candidate,
+      ),
     };
-    const job = await store.enqueue(tx, scope, candidate);
+    const job = await store.enqueue(
+      tx,
+      scope,
+      current.production ? { candidate, production: current.production } : candidate,
+    );
     return { phase: job.phase, jobId: job.id };
   }
   verifyCandidate(raw: unknown, manifestDigest: string) {
@@ -191,7 +232,13 @@ export class AcceptanceMaterialResolver {
       where: { ownerId_id: { ownerId: scope.ownerId, id: scope.taskId } },
     });
     check(task.managerBindingId);
-    const current = await this.current(tx, scope.ownerId, task.managerBindingId);
+    const wrapped = stored as { candidate?: unknown; production?: unknown } | null;
+    const current = await this.current(
+      tx,
+      scope.ownerId,
+      task.managerBindingId,
+      wrapped?.production,
+    );
     check(
       current.attempt.id === scope.attemptId &&
         current.attempt.stepId === scope.stepId &&
@@ -199,10 +246,17 @@ export class AcceptanceMaterialResolver {
         current.revision.headSha === scope.sourceSha &&
         current.revision.version === scope.sourceVersion &&
         current.plan.planDigest === scope.planDigest &&
-        acceptanceDigest(current.facts) === scope.evidenceDigest,
+        current.factsDigest === scope.evidenceDigest,
     );
-    const candidate = this.verifyCandidate(stored, current.revision.manifestDigest);
-    check(acceptanceDigest(candidate) === scope.artifactDigest);
+    const candidate = this.verifyCandidate(
+      current.production ? wrapped?.candidate : stored,
+      current.revision.manifestDigest,
+    );
+    check(
+      acceptanceDigest(
+        current.production ? { candidate, production: current.production } : candidate,
+      ) === scope.artifactDigest,
+    );
     const artifacts = candidate.contents.map((file, index) => ({
       entryId: `source:${index}`,
       path: file.path,
@@ -218,12 +272,27 @@ export class AcceptanceMaterialResolver {
       digest: sha(factsText),
       bytes: Buffer.byteLength(factsText),
     });
+    if (current.production) {
+      const text = canonicalGitHubSource({
+        ...current.production,
+        coverageLimit:
+          "Observed fixed-origin build, database and authentication configuration/crypto smoke only. No business behavior, account login, historical-key continuity or arbitrary configuration correctness is established.",
+      });
+      artifacts.push({
+        entryId: PRODUCTION_ACCEPTANCE_ENTRY,
+        path: "production-observations",
+        text,
+        digest: sha(text),
+        bytes: Buffer.byteLength(text),
+      });
+    }
     return {
       evidencePolicyVersion: current.policy.policy.version,
       payload: {
         kind: "review",
-        contextLimit:
-          "sealed_changed_files_only; unchanged source and production observations not supplied",
+        contextLimit: current.production
+          ? "sealed_changed_files_and_scoped_production_observations_only; unobserved business behavior and configuration claims must remain insufficient"
+          : "sealed_changed_files_only; unchanged source and production observations not supplied",
         sourceSha: scope.sourceSha,
         parentSha: current.revision.inputSha,
         treeSha: current.revision.treeSha,

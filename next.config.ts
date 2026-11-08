@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { NextConfig } from "next";
 import { version } from "./package.json";
+import { readProviderBuildIdentity } from "./scripts/release/provider-build-identity.mjs";
 import {
   buildContentSecurityPolicy,
   buildPermissionsPolicy,
@@ -18,6 +19,11 @@ const nextConfig: NextConfig = {
   generateBuildId: async () => appBuildId,
   env: {
     NEXT_PUBLIC_HIVE_APP_VERSION: version,
+    NEXT_PUBLIC_HIVE_PROVIDER_BUILD: JSON.stringify(
+      cloudflareBuild
+        ? readProviderBuildIdentity()
+        : { schemaVersion: 1, status: "unavailable", reason: "non_provider_build" },
+    ),
     NEXT_PUBLIC_HIVE_APP_BUILD: process.env.NODE_ENV === "production" ? appBuildId : "development",
     ...(cloudflareBuild
       ? { HIVE_RUNTIME_TARGET: "cloudflare", HIVE_DISABLE_BACKGROUND_WORKERS: "true" }

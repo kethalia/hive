@@ -6,9 +6,11 @@ const digest = z.string().regex(/^[a-f0-9]{64}$/);
 type Controller = {
   step(ownerId: string, actionId: string, signal: AbortSignal): Promise<unknown>;
   observe(ownerId: string, releaseId: string, signal: AbortSignal): Promise<unknown>;
-  builds: { verifyRun(ownerId: string, releaseId: string, signal: AbortSignal): Promise<unknown> };
+  builds: {
+    verifyRun(ownerId: string, releaseId: string, signal: AbortSignal): Promise<unknown>;
+  } | null;
 };
-type Row = { id: string; owner_id: string };
+type Row = { id: string; owner_id: string; purpose?: string };
 /** Fixed-target pump for existing durable records. Every effect still goes
  * through controller fencing and independent authorization; this does not
  * create releases, select source, waive policy or turn uncertainty into retry.
@@ -48,7 +50,7 @@ export class ReleaseScheduler {
       if (parent.aborted) return { status: "aborted" as const, ...counts };
       const actions = await this.db.$queryRaw<
         Row[]
-      >`SELECT a.id,r.owner_id FROM delivery_release_actions a JOIN delivery_releases r ON r.id=a.release_id JOIN delivery_release_targets t ON t.target_digest=r.target_digest WHERE r.target_digest=${this.targetDigest} AND t.active_release_id=r.id AND r.phase IN ('active','held') AND a.phase IN ('prepared','effect_started','held') AND a.id>${this.actionCursor}::uuid ORDER BY a.id LIMIT 8`;
+      >`SELECT a.id,r.owner_id,r.purpose FROM delivery_release_actions a JOIN delivery_releases r ON r.id=a.release_id JOIN delivery_release_targets t ON t.target_digest=r.target_digest WHERE r.target_digest=${this.targetDigest} AND t.active_release_id=r.id AND r.phase IN ('active','held') AND a.phase IN ('prepared','effect_started','held') AND a.id>${this.actionCursor}::uuid ORDER BY a.id LIMIT 8`;
       if (!actions.length) this.actionCursor = "00000000-0000-0000-0000-000000000000";
       for (const row of actions) {
         if (parent.aborted) break;
@@ -69,7 +71,7 @@ export class ReleaseScheduler {
           await withReleaseDeadline(
             (signal) => this.controller.step(row.owner_id, row.id, signal),
             parent,
-            15000,
+            row.purpose === "automatic_production" ? 40000 : 15000,
           );
           counts.actions++;
         } catch {
@@ -105,16 +107,22 @@ export class ReleaseScheduler {
         }
       }
       if (parent.aborted) return { status: "aborted" as const, ...counts };
-      const builds = await this.db.$queryRaw<
-        Row[]
-      >`SELECT r.id,r.owner_id FROM delivery_releases r JOIN delivery_release_targets t ON t.target_digest=r.target_digest JOIN delivery_release_build_attestations b ON b.release_id=r.id AND b.owner_id=r.owner_id LEFT JOIN delivery_release_build_verifications v ON v.attestation_id=b.id AND v.owner_id=b.owner_id WHERE r.target_digest=${this.targetDigest} AND r.phase='active' AND t.active_release_id=r.id AND v.id IS NULL AND r.id>${this.verificationCursor}::uuid ORDER BY r.id LIMIT 8`;
+      const verifier = this.controller.builds;
+      const builds = verifier
+        ? await this.db.$queryRaw<
+            Row[]
+          >`SELECT r.id,r.owner_id FROM delivery_releases r JOIN delivery_release_targets t ON t.target_digest=r.target_digest JOIN delivery_release_build_attestations b ON b.release_id=r.id AND b.owner_id=r.owner_id LEFT JOIN delivery_release_build_verifications v ON v.attestation_id=b.id AND v.owner_id=b.owner_id WHERE r.target_digest=${this.targetDigest} AND r.phase='active' AND t.active_release_id=r.id AND v.id IS NULL AND r.id>${this.verificationCursor}::uuid ORDER BY r.id LIMIT 8`
+        : [];
       if (!builds.length) this.verificationCursor = "00000000-0000-0000-0000-000000000000";
       for (const row of builds) {
         if (parent.aborted) break;
         this.verificationCursor = row.id;
         try {
           await withReleaseDeadline(
-            (signal) => this.controller.builds.verifyRun(row.owner_id, row.id, signal),
+            (signal) => {
+              if (!verifier) throw Error("release_build_verifier_unavailable");
+              return verifier.verifyRun(row.owner_id, row.id, signal);
+            },
             parent,
             15000,
           );
@@ -126,7 +134,7 @@ export class ReleaseScheduler {
       if (parent.aborted) return { status: "aborted" as const, ...counts };
       const observations = await this.db.$queryRaw<
         Row[]
-      >`SELECT r.id,r.owner_id FROM delivery_releases r JOIN delivery_release_targets t ON t.target_digest=r.target_digest WHERE r.target_digest=${this.targetDigest} AND r.phase IN ('active','held') AND t.active_release_id=r.id AND r.id>${this.observationCursor}::uuid AND EXISTS (SELECT 1 FROM delivery_release_actions a WHERE a.release_id=r.id AND a.kind IN ('promote','recover') AND a.phase='observed') ORDER BY r.id LIMIT 8`;
+      >`SELECT r.id,r.owner_id FROM delivery_releases r JOIN delivery_release_targets t ON t.target_digest=r.target_digest WHERE r.target_digest=${this.targetDigest} AND (r.phase IN ('active','held') OR (r.purpose='automatic_production' AND r.phase='healthy')) AND t.active_release_id=r.id AND r.id>${this.observationCursor}::uuid AND EXISTS (SELECT 1 FROM delivery_release_actions a WHERE a.release_id=r.id AND (a.kind IN ('promote','recover') OR (r.purpose='automatic_production' AND a.kind='merge')) AND a.phase='observed') ORDER BY r.id LIMIT 8`;
       if (!observations.length) this.observationCursor = "00000000-0000-0000-0000-000000000000";
       for (const row of observations) {
         if (parent.aborted) break;

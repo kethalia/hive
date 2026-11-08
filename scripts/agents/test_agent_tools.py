@@ -26,6 +26,29 @@ SPEC.loader.exec_module(tools)
 
 
 class AgentToolsTests(unittest.TestCase):
+    def test_fixed_terminal_mutations_use_exact_targets_and_never_shell(self):
+        with patch.object(tools, "run", return_value=(0, "private-output")) as command:
+            self.assertEqual(tools.terminal_session({"operation": "rename-terminal-session", "oldName": "one", "newName": "one-more"}), {"oldName": "one", "newName": "one-more"})
+            command.assert_called_once_with(["/usr/bin/tmux", "-L", "web", "rename-session", "-t", "=one", "one-more"])
+        with patch.object(tools, "run", return_value=(0, "private-output")) as command:
+            self.assertEqual(tools.terminal_session({"operation": "kill-terminal-session", "sessionName": "one"}), {"name": "one"})
+            command.assert_called_once_with(["/usr/bin/tmux", "-L", "web", "kill-session", "-t", "=one"])
+
+    def test_terminal_mutations_reject_reserved_names_and_ambiguous_or_injected_targets(self):
+        for name in ("git-clone-owner", "-option", "one:window", "one;touch bad", "a/b", "x" * 129, "", "a\n"):
+            with self.subTest(name=name), patch.object(tools, "run") as command:
+                with self.assertRaises(ValueError):
+                    tools.terminal_session({"operation": "kill-terminal-session", "sessionName": name})
+                command.assert_not_called()
+        with patch.object(tools, "run") as command:
+            with self.assertRaises(ValueError):
+                tools.terminal_session({"operation": "kill-terminal-session", "sessionName": "one", "socket": "native"})
+            command.assert_not_called()
+        with patch.object(tools, "run", return_value=(1, "sensitive-error")) as command:
+            with self.assertRaises(ValueError):
+                tools.terminal_session({"operation": "kill-terminal-session", "sessionName": "one"})
+            self.assertEqual(command.call_count, 1)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

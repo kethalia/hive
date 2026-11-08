@@ -47,6 +47,7 @@ export async function epicPreviewReadiness(
   store: RepositoryPolicyStore,
   ownerId: string,
   taskId: string,
+  pinned?: { attemptId: string; completionEventId: string; writerAttemptId: string },
 ) {
   await tx.$queryRaw`SELECT t.id FROM delivery_tasks t JOIN delivery_manager_bindings b
     ON b.owner_id=t.owner_id AND b.id=t.manager_binding_id
@@ -75,12 +76,19 @@ export async function epicPreviewReadiness(
   const writer = await tx.deliveryAttempt.findUnique({
     where: { ownerId_id: { ownerId, id: binding.activeAttemptId } },
   });
-  if (!writer || writer.managerBindingId !== binding.id || writer.quiescedAt) return null;
+  if (
+    !writer ||
+    writer.managerBindingId !== binding.id ||
+    writer.quiescedAt ||
+    (pinned && writer.id !== pinned.writerAttemptId)
+  )
+    return null;
+  const completionAttemptId = pinned?.attemptId ?? binding.currentAttemptId;
   const event = await tx.deliveryEvent.findUnique({
     where: {
       ownerId_aggregateKey_aggregateVersion: {
         ownerId,
-        aggregateKey: `acceptance-success/${binding.currentAttemptId}`,
+        aggregateKey: `acceptance-success/${completionAttemptId}`,
         aggregateVersion: 1,
       },
     },
@@ -91,7 +99,8 @@ export async function epicPreviewReadiness(
     !saved.success ||
     event.type !== "acceptance_success_completed" ||
     event.taskId !== taskId ||
-    event.attemptId !== binding.currentAttemptId ||
+    event.attemptId !== completionAttemptId ||
+    (pinned && event.id !== pinned.completionEventId) ||
     acceptanceDigest(saved.data.identity) !== event.requestDigest
   )
     return null;
@@ -118,9 +127,12 @@ export async function epicPreviewReadiness(
     terminal.taskId !== taskId ||
     terminal.managerBindingId !== binding.id ||
     terminal.managerThreadId !== binding.nativeThreadId ||
-    terminal.attemptId !== binding.currentAttemptId ||
-    terminal.cursorVersion !== binding.cursorVersion ||
-    terminal.nativeSequence !== binding.nativeSequence ||
+    terminal.attemptId !== completionAttemptId ||
+    (pinned
+      ? terminal.cursorVersion > binding.cursorVersion ||
+        terminal.nativeSequence > binding.nativeSequence
+      : terminal.cursorVersion !== binding.cursorVersion ||
+        terminal.nativeSequence !== binding.nativeSequence) ||
     event.stepId !== terminal.stepId
   )
     return null;
@@ -153,11 +165,36 @@ export async function epicPreviewReadiness(
     report.eventId !== receipt.eventId
   )
     return null;
-  const cohort = await tx.deliveryAttempt.findMany({
+  const allMembers = await tx.deliveryAttempt.findMany({
     where: { ownerId, managerBindingId: binding.id, runtimeBindingDigest: { not: null } },
+    include: { step: true },
     take: 21,
   });
+  const cohort = [];
+  for (const member of allMembers) {
+    const runtime = nativeRuntimeBindingSchema.safeParse(member.runtimeBinding);
+    if (!runtime.success) return null;
+    if (terminal.cohort.some((entry) => entry.childThreadId === runtime.data.nativeThreadId))
+      cohort.push(member);
+    else if (
+      !pinned ||
+      member.step.taskId !== taskId ||
+      member.step.acceptancePhase !== "activation_production" ||
+      !["validate", "review"].includes(member.step.kind) ||
+      member.sourceSha !== source.headSha ||
+      member.outputRevisionId ||
+      runtime.data.sourceSha !== source.headSha ||
+      runtime.data.serverInstanceId !== binding.serverInstanceId ||
+      runtime.data.managerThreadId !== binding.nativeThreadId ||
+      runtime.data.workspaceId !== binding.workspaceId ||
+      runtime.data.buildId !== binding.buildId ||
+      !attempt.finishedAt ||
+      member.startedAt < attempt.finishedAt
+    )
+      return null;
+  }
   if (
+    allMembers.length > 20 ||
     cohort.length > 20 ||
     cohort.length !== terminal.cohort.length ||
     new Set(terminal.cohort.map((member) => member.childThreadId)).size !==

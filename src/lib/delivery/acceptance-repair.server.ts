@@ -15,6 +15,7 @@ import {
 } from "./acceptance-repair-contracts";
 import type { AcceptanceAuthority, AcceptanceStore } from "./acceptance-store.server";
 import { repositoryGateDescriptors } from "./repository-policy-contracts";
+import { resolveAttemptSource } from "./source-resolver.server";
 import { assertCompletionEvidence, DeliveryConflict } from "./state";
 
 type Tx = Prisma.TransactionClient;
@@ -193,6 +194,50 @@ export class AcceptanceRepairController {
     }
     const current = await this.material.current(tx, authority.ownerId, managerBindingId);
     const { attempt, bound, revision, plan, content, facts } = current;
+    if (current.production) {
+      // Production observations can pass or hold. They cannot authorize an
+      // implementation repair against a build that has already been deployed.
+      const source = await resolveAttemptSource(tx, authority.ownerId, bound.task.id, attempt.id);
+      check(
+        !attempt.outputRevisionId &&
+          source.acceptedSha === revision.headSha &&
+          ["review", "validate"].includes(attempt.step.kind) &&
+          attempt.outcome === "running" &&
+          attempt.step.state === "running",
+      );
+      const jobs = await tx.deliveryAcceptanceJob.findMany({
+        where: {
+          ownerId: authority.ownerId,
+          intentId: authority.preparationIntentId,
+          kind: "review",
+          phase: "completed",
+          producerDigest: this.store.producerDigest,
+        },
+        orderBy: { completedAt: "desc" },
+        take: 16,
+      });
+      const review = jobs.find((job) => {
+        const scope = acceptanceJobScopeSchema.parse(job.scope);
+        return (
+          scope.attemptId === attempt.id &&
+          scope.sourceRevisionId === revision.id &&
+          scope.sourceSha === revision.headSha &&
+          scope.sourceVersion === revision.version &&
+          scope.planDigest === plan.planDigest &&
+          scope.evidenceDigest === current.factsDigest
+        );
+      });
+      const result = review ? acceptanceReviewResultSchema.parse(review.result) : null;
+      return {
+        phase: review && result?.outcome === "pass" ? "passed" : "held",
+        ...(review && result?.outcome === "pass"
+          ? { jobId: review.id, resultDigest: review.resultDigest }
+          : { reason: "production_semantics_unverified" }),
+        executionAuthorized: false,
+        publicationAuthorized: false,
+        cleanupAuthorized: false,
+      };
+    }
     const locked = await tx.$queryRaw<
       { id: string }[]
     >`SELECT id FROM delivery_tasks WHERE owner_id=${authority.ownerId}::uuid AND id=${bound.task.id}::uuid FOR UPDATE`;

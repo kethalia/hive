@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-07T23:00:07.450335+00:00",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "worker": "hive",
+  "workerTag": "4d36354d2c86462e971b32a875e8b549",
+  "operation": "existing preview base commands condition on enrolled epic branch",
+  "enrolledBranch": "codex/delivery-system-design",
+  "buildCommand": "if [ \"$WORKERS_CI_BRANCH\" = \"codex/delivery-system-design\" ]; then pnpm build:cloudflare; else echo \"Preview not enrolled for this branch; source checks run in GitHub CI.\"; fi",
+  "deployCommand": "if [ \"$WORKERS_CI_BRANCH\" = \"codex/delivery-system-design\" ]; then node deploy/cloudflare/native/deploy.mjs preview; else echo \"Preview publication skipped: branch has no enrolled Coder callback.\"; fi",
+  "providerReadbackMatches": true,
+  "productionSettingsUnchanged": true,
+  "repositoryConnectionUnchanged": true,
+  "previewsRemainEnabled": true,
+  "newPipelineOrToken": false,
+  "liveNextBranchBuildAcceptancePending": false,
+  "existingImplementationPreviewId": "2fd6f180cd494cb1b71d3a622433557f",
+  "existingImplementationSettingsAligned": true,
+  "observedSkipBuild": {
+    "id": "e3702f25-26b7-4036-a601-5f9aba84c8af",
+    "commit": "3ec07fad4786a70494c64647215ef639297a400d",
+    "result": "successful build with no Preview URL; publication intentionally skipped"
+  }
+}

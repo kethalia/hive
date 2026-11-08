@@ -19,6 +19,14 @@ const instructions = dockerfile.match(/^RUN .*?(?:\\\n.*?)*$/gm) ?? [];
 const evidence = JSON.parse(
   readFileSync(new URL("../docs/checks/security/workspace-image-artifacts.json", import.meta.url)),
 );
+const claudeRelease = JSON.parse(
+  readFileSync(
+    new URL(
+      "../docs/checks/autonomous-delivery/codex-account-local/claude-2.1.319-release.json",
+      import.meta.url,
+    ),
+  ),
+);
 const artifacts = [
   { name: "notesmd-cli", download: "/tmp/notesmd-cli.tar.gz", archive: true },
   { name: "act", download: "/tmp/act.tar.gz", archive: true },
@@ -124,7 +132,17 @@ test("workspace builds never execute the mutable Claude installer or resolve a r
 
 for (const artifact of artifacts) {
   test(`${artifact.name} pin matches the independently verified vendor artifact`, () => {
-    const record = evidence.artifacts.find((record) => record.name === artifact.name);
+    const record =
+      artifact.name === "claude"
+        ? claudeRelease.artifact
+        : evidence.artifacts.find((record) => record.name === artifact.name);
+    if (artifact.name === "claude") {
+      assert.equal(claudeRelease.manifestSignature.gpgValidSig, true);
+      assert.equal(
+        claudeRelease.manifestSignature.fingerprint,
+        "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+      );
+    }
     assert.equal(record.matches_vendor_checksum, true);
     const command = installCommand(artifact);
     assert.ok(command.includes(record.sha256));

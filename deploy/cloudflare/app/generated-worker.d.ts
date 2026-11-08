@@ -11,3 +11,8 @@ declare module "*.open-next/cloudflare/hive-portable-actions.mjs" {
   };
   export default manifest;
 }
+
+declare module "*.open-next/cloudflare/hive-provider-build.mjs" {
+  const identity: import("../../../src/lib/provider-build").ProviderBuildIdentity;
+  export default identity;
+}

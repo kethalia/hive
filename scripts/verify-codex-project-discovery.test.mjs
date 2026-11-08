@@ -32,7 +32,7 @@ import {
   startDiscoveryGateway,
 } from "../templates/ai-dev-k8s/scripts/codex-project-discovery.mjs";
 
-function fixture(controller, helperCode, mergeCode) {
+function fixture(controller, helperCode, mergeCode, productionCode) {
   const root = mkdtempSync(join(tmpdir(), "hive-discovery-")),
     helperPath = join(root, "helper.py"),
     issuer = generateKeyPairSync("ed25519");
@@ -63,6 +63,11 @@ function fixture(controller, helperCode, mergeCode) {
     config.epicMergePath = join(root, "epic-merge-host.mjs");
     writeFileSync(config.epicMergePath, mergeCode, { mode: 0o600 });
     config.epicMergeSha256 = createHash("sha256").update(mergeCode).digest("hex");
+  }
+  if (productionCode) {
+    config.productionReleasePath = join(root, "production-release-host.mjs");
+    writeFileSync(config.productionReleasePath, productionCode, { mode: 0o600 });
+    config.productionReleaseSha256 = createHash("sha256").update(productionCode).digest("hex");
   }
   const host = createProjectDiscovery(config, controller);
   const ticket = (patch = {}) => {
@@ -476,6 +481,83 @@ print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['re
     );
     writeFileSync(f.config.epicMergePath, "// altered sidecar\n", { mode: 0o500 });
     assert.equal((await send("projects:epic:merge")).status, 403);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("production merge/read capability uses its own pinned entry and cannot expand epic main authority", async () => {
+  const f = fixture(
+    {
+      handle() {
+        throw Error("Not a native action");
+      },
+    },
+    `import json,sys,os
+r=json.load(sys.stdin)
+assert os.environ['HIVE_EPIC_MERGE_ENTRY'].endswith('production-release-host.mjs')
+assert 'GITHUB_TOKEN' not in os.environ and len(os.environ['HIVE_EPIC_MERGE_DEADLINE_MS'])==13
+print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['requestId'],'result':None}))
+`,
+    "// epic-only pinned entry\n",
+    "// production-only pinned entry\n",
+  );
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const request = {
+      schemaVersion: 1,
+      requestId: randomUUID(),
+      operation: "prepare",
+      config: {},
+      gates: {},
+      source: {
+        repositoryId: "123",
+        pullRequestId: "900",
+        pullNumber: 7,
+        headSha: "a".repeat(40),
+        baseRef: "main",
+        sourceBranch: "codex/fixture",
+      },
+    };
+    const send = (scope, value = request, path = "/projects/production-release") =>
+      http(`http://127.0.0.1:${gateway.port}${path}`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: f.ticket({ scope, request: value }) }),
+      });
+    assert.equal((await send("projects:release:production")).status, 200);
+    assert.equal((await send("projects:epic:merge")).status, 403);
+    assert.equal(
+      (await send("projects:release:production", request, "/projects/epic-merge")).status,
+      403,
+    );
+    assert.equal((await send("projects:epic:merge", request, "/projects/epic-merge")).status, 403);
+    assert.equal(
+      (
+        await send("projects:release:production", {
+          ...request,
+          operation: "builds",
+          mergeSha: "b".repeat(40),
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await send("projects:release:production", {
+          ...request,
+          operation: "dispatch",
+          identity: {},
+        })
+      ).status,
+      403,
+    );
+    writeFileSync(f.config.productionReleasePath, "// replaced companion\n", { mode: 0o500 });
+    assert.equal((await send("projects:release:production")).status, 403);
   } finally {
     await gateway.close();
     f.close();

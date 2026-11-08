@@ -7,6 +7,11 @@ import {
   epicMergeTarget,
 } from "../src/lib/delivery/epic-merge-contracts";
 import { githubSourceDigest } from "../src/lib/delivery/github-evidence.server";
+import {
+  automaticBuildsReadSchema,
+  automaticReleaseRpcSchema,
+  automaticReleaseTarget,
+} from "../src/lib/delivery/release-automatic-contracts";
 import { GitHubReleaseChangeRisk } from "../src/lib/delivery/release-change-risk.server";
 import { isReleaseTestControlPath } from "../src/lib/delivery/release-control-paths";
 import { releaseGitHubMerged } from "../src/lib/delivery/release-github-merged.server";
@@ -20,19 +25,47 @@ import { GitHubReleaseTestRunVerifier } from "../src/lib/delivery/release-tested
 
 // Only the fixed workspace helper invokes this entry. Credentials travel over
 // its private local stdin pipe and are never returned in the signed RPC result.
-export async function hostEpicMerge(raw: unknown, fetcher: typeof fetch = fetch) {
-  const frame = z
-    .object({
-      request: epicMergeRpcRequestSchema,
-      deadlineMs: z.number().int().positive().safe().optional(),
-      token: z
-        .string()
-        .min(1)
-        .max(4096)
-        .refine((v) => !/[\r\n]/.test(v)),
-    })
-    .strict()
-    .parse(raw);
+const tokenSchema = z
+  .string()
+  .min(1)
+  .max(4096)
+  .refine((v) => !/[\r\n]/.test(v));
+export function hostEpicMerge(raw: unknown, fetcher: typeof fetch = fetch) {
+  return runConnectedMerge(
+    z
+      .object({
+        request: epicMergeRpcRequestSchema,
+        token: tokenSchema,
+        deadlineMs: z.number().int().positive().safe().optional(),
+      })
+      .strict()
+      .parse(raw),
+    fetcher,
+  );
+}
+export function hostProductionRelease(raw: unknown, fetcher: typeof fetch = fetch) {
+  return runConnectedMerge(
+    z
+      .object({
+        request: automaticReleaseRpcSchema,
+        token: tokenSchema,
+        deadlineMs: z.number().int().positive().safe().optional(),
+      })
+      .strict()
+      .parse(raw),
+    fetcher,
+  );
+}
+async function runConnectedMerge(
+  frame: {
+    request:
+      | import("../src/lib/delivery/epic-merge-contracts").EpicMergeRpcRequest
+      | import("../src/lib/delivery/release-automatic-contracts").AutomaticReleaseRpc;
+    token: string;
+    deadlineMs?: number;
+  },
+  fetcher: typeof fetch,
+) {
   const { request: rpc, token } = frame,
     { config, source } = rpc,
     p = config.policy;
@@ -92,10 +125,13 @@ export async function hostEpicMerge(raw: unknown, fetcher: typeof fetch = fetch)
       throw Error("epic_merge_expired");
   };
   inTime();
+  const production = "mode" in config;
   if (
     String(repository.id) !== p.repositoryId ||
-    p.baseBranch === repository.default_branch ||
-    ["main", "master"].includes(p.baseBranch.toLowerCase())
+    (production
+      ? p.baseBranch !== "main" || repository.default_branch !== "main"
+      : p.baseBranch === repository.default_branch ||
+        ["main", "master"].includes(p.baseBranch.toLowerCase()))
   )
     throw Error("epic_merge_scope");
   const scope = { owner: config.risk.owner, name: config.risk.name };
@@ -161,10 +197,86 @@ export async function hostEpicMerge(raw: unknown, fetcher: typeof fetch = fetch)
     if (githubSourceDigest(await metadata()) !== githubSourceDigest(repository))
       throw Error("epic_merge_scope");
     inTime();
+    if (
+      production &&
+      rpc.operation === "dispatch" &&
+      (!("authorityExpiresAt" in rpc) ||
+        !rpc.authorityExpiresAt ||
+        Date.now() >= rpc.authorityExpiresAt)
+    )
+      throw Error("release_authority_expired");
     return { tested, classified };
   };
   let result: unknown;
-  if (rpc.operation === "prepare") {
+  if (rpc.operation === "builds") {
+    const pull = (await get(
+      `/repos/${config.risk.owner}/${config.risk.name}/pulls/${source.pullNumber}`,
+    )) as Record<string, unknown>;
+    const checked = z
+      .object({
+        id: z.number().int().positive().safe(),
+        number: z.literal(source.pullNumber),
+        merged: z.literal(true),
+        merge_commit_sha: z.literal(rpc.mergeSha),
+        head: z.object({
+          sha: z.literal(source.headSha),
+          ref: z.literal(source.sourceBranch),
+          repo: z.object({ id: z.number().int().positive().safe() }),
+        }),
+        base: z.object({
+          ref: z.literal("main"),
+          repo: z.object({ id: z.number().int().positive().safe() }),
+        }),
+      })
+      .parse(pull);
+    if (
+      String(checked.id) !== source.pullRequestId ||
+      String(checked.head.repo.id) !== p.repositoryId ||
+      String(checked.base.repo.id) !== p.repositoryId
+    )
+      throw Error("release_build_scope");
+    const response = await safeFetch(
+      `https://api.github.com/repos/${config.risk.owner}/${config.risk.name}/commits/${rpc.mergeSha}/check-runs?per_page=100`,
+      {
+        method: "GET",
+        signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      },
+    );
+    if (!response.ok || /rel\s*=\s*"?next"?/i.test(response.headers.get("link") ?? ""))
+      throw Error("release_build_scope");
+    const checks = z
+      .object({
+        total_count: z.number().int().nonnegative().max(99),
+        check_runs: z.array(z.record(z.unknown())).max(99),
+      })
+      .parse(await boundedReleaseJson(response, 1048576, signal));
+    if (checks.total_count !== checks.check_runs.length) throw Error("release_build_scope");
+    result = automaticBuildsReadSchema.parse({
+      schemaVersion: 1,
+      repositoryId: p.repositoryId,
+      sourceSha: rpc.mergeSha,
+      checks: checks.check_runs
+        .filter(
+          (c) => (c.app as { id?: unknown })?.id === 85455 && c.name === "Workers Builds: hive",
+        )
+        .map((c) => ({
+          id: String(c.id),
+          name: c.name,
+          headSha: c.head_sha,
+          appId: String((c.app as { id: number }).id),
+          appSlug: (c.app as { slug: string }).slug,
+          buildUuid: c.external_id,
+          status: c.status,
+          conclusion: c.conclusion,
+          detailsUrl: c.details_url,
+        })),
+    });
+  } else if (rpc.operation === "prepare") {
     const { sourceBranch: _branch, ...sourceScope } = source;
     const discovered = await new GitHubReleaseSourceDiscovery(
       { ...scope, repositoryId: p.repositoryId, baseRef: p.baseBranch, method: p.method },
@@ -198,10 +310,20 @@ export async function hostEpicMerge(raw: unknown, fetcher: typeof fetch = fetch)
       testedTreeSha: observed.tested.treeSha,
     });
   } else {
-    if (rpc.identity.targetDigest !== epicMergeTarget(config)) throw Error("epic_merge_scope");
+    if (
+      rpc.identity.targetDigest !==
+      (production ? automaticReleaseTarget(config) : epicMergeTarget(config))
+    )
+      throw Error("epic_merge_scope");
     verifySource(githubReleaseRequestSchema.parse(rpc.identity.request));
     const provider = new GitHubReleaseProvider(
-      { ...scope, repositoryId: p.repositoryId, allowedBaseRef: p.baseBranch, mode: "preview" },
+      {
+        ...scope,
+        repositoryId: p.repositoryId,
+        allowedBaseRef: p.baseBranch,
+        mode: production ? "production" : "preview",
+        productionEnabled: production,
+      },
       token,
       async (request) => {
         try {
