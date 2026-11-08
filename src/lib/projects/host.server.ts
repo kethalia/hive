@@ -14,6 +14,7 @@ const endpoints = {
   "/projects/resolve-ref": "projects:resolve-ref",
   "/projects/epic-read": "projects:epic:read",
   "/projects/epic-merge": "projects:epic:merge",
+  "/projects/production-release": "projects:release:production",
   "/projects/open": "projects:open",
   "/projects/tasks/start": "projects:task:start",
   "/projects/tasks/status": "projects:task:read",
@@ -73,7 +74,8 @@ export async function signedHostProjectRequest(
       scope: endpoints[path],
       jti: randomUUID(),
       iat,
-      exp: iat + (path === "/projects/epic-merge" ? 40 : 45),
+      exp:
+        iat + (["/projects/epic-merge", "/projects/production-release"].includes(path) ? 40 : 45),
       binding,
       request,
     };

@@ -78,6 +78,9 @@ export function createProjectDiscovery(config, controller) {
       ...(config.epicMergePath || config.epicMergeSha256
         ? ["epicMergePath", "epicMergeSha256"]
         : []),
+      ...(config.productionReleasePath || config.productionReleaseSha256
+        ? ["productionReleasePath", "productionReleaseSha256"]
+        : []),
     ]),
   );
   check(
@@ -209,20 +212,22 @@ export function createProjectDiscovery(config, controller) {
     verifiedDeadlines.set(r, c.exp * 1000);
     return r;
   }
-  function runHelper(request) {
+  function runHelper(request, path) {
     check(!closed);
     check(
       createHash("sha256").update(readFileSync(config.helperPath)).digest("hex") ===
         config.helperSha256,
     );
-    const merge = ["prepare", "dispatch", "lookup"].includes(request.operation);
+    const merge = ["prepare", "dispatch", "lookup", "builds"].includes(request.operation);
+    const production = path === "/projects/production-release";
+    const mergePath = production ? config.productionReleasePath : config.epicMergePath;
+    const mergeHash = production ? config.productionReleaseSha256 : config.epicMergeSha256;
     if (merge) {
       check(
-        isAbsolute(config.epicMergePath) &&
-          realpathSync(config.epicMergePath) === config.epicMergePath &&
-          /^[a-f0-9]{64}$/.test(config.epicMergeSha256) &&
-          createHash("sha256").update(readFileSync(config.epicMergePath)).digest("hex") ===
-            config.epicMergeSha256,
+        isAbsolute(mergePath) &&
+          realpathSync(mergePath) === mergePath &&
+          /^[a-f0-9]{64}$/.test(mergeHash) &&
+          createHash("sha256").update(readFileSync(mergePath)).digest("hex") === mergeHash,
       );
     }
     const env = Object.fromEntries(
@@ -236,7 +241,7 @@ export function createProjectDiscovery(config, controller) {
       Object.assign(env, {
         HIVE_EPIC_MERGE_DEADLINE_MS: String(deadlineMs),
         HIVE_EPIC_MERGE_NODE: process.execPath,
-        HIVE_EPIC_MERGE_ENTRY: config.epicMergePath,
+        HIVE_EPIC_MERGE_ENTRY: mergePath,
       });
     return new Promise((resolve, reject) => {
       const child = spawn("/usr/bin/python3", [config.helperPath], {
@@ -374,7 +379,11 @@ export function createProjectDiscovery(config, controller) {
       const result =
         request.url === "/projects/discover"
           ? await discover(value)
-          : ["/projects/epic-read", "/projects/epic-merge"].includes(request.url)
+          : [
+                "/projects/epic-read",
+                "/projects/epic-merge",
+                "/projects/production-release",
+              ].includes(request.url)
             ? await epicRead(verifyTicket(value, request.url), request.url)
             : await controller?.handle(request.url, verifyTicket(value, request.url));
       check(!closed && result);
@@ -389,7 +398,7 @@ export function createProjectDiscovery(config, controller) {
     validateProjectOperation(path, request);
     busy = true;
     try {
-      return await runHelper(request);
+      return await runHelper(request, path);
     } finally {
       busy = false;
     }

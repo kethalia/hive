@@ -59,11 +59,12 @@ describe("bounded host result API", () => {
     expect(mocks.execute).not.toHaveBeenCalled();
     expect(mocks.service).not.toHaveBeenCalled();
   });
-  it("passes only the bounded signed body to the service and never caches replies", async () => {
+  it("passes the bounded signed body and request cancellation without caching replies", async () => {
     const value = { signed: "body" };
-    const result = await POST(request(JSON.stringify(value)));
+    const input = request(JSON.stringify(value));
+    const result = await POST(input);
     expect(result.status).toBe(200);
-    expect(mocks.execute).toHaveBeenCalledWith(value);
+    expect(mocks.execute).toHaveBeenCalledWith(value, input.signal);
     expect(result.headers.get("Cache-Control")).toBe("private, no-store");
   });
   it("returns bounded conflict/auth codes and redacts internal failures", async () => {

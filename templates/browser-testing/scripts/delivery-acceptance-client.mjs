@@ -50,6 +50,16 @@ export function createAcceptanceClient({
   );
   const key = createPrivateKey(hostPrivateKeyPem);
   check(key.asymmetricKeyType === "ed25519");
+  const requestBudget = (action) =>
+    [
+      "prepare_review",
+      "claim_acceptance",
+      "start_acceptance",
+      "finish_acceptance",
+      "complete_verified",
+    ].includes(action)
+      ? 28000
+      : 10000;
   async function execute(action, fields, signal) {
     signal.throwIfAborted();
     check(
@@ -82,7 +92,7 @@ export function createAcceptanceClient({
     const body = canonical({ ...unsigned, proof });
     check(Buffer.byteLength(body) <= 262144);
     const controller = new AbortController(),
-      timeout = setTimeout(() => controller.abort(), 10000);
+      timeout = setTimeout(() => controller.abort(), requestBudget(action));
     const combined = AbortSignal.any([controller.signal, ...(signal ? [signal] : [])]);
     let reader, onAbort;
     const stopped = new Promise((_, reject) => {
@@ -152,7 +162,7 @@ export function createAcceptanceClient({
   }
   async function request(action, fields) {
     const deadline = new AbortController(),
-      timer = setTimeout(() => deadline.abort(), 10000);
+      timer = setTimeout(() => deadline.abort(), requestBudget(action));
     const signal = AbortSignal.any([deadline.signal, ...(lifetime ? [lifetime] : [])]);
     let abort;
     const stopped = new Promise((_, reject) => {

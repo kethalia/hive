@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, open, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildTemplateArtifacts } from "../../../scripts/build-template-artifacts.mjs";
+import { readProviderBuildIdentity } from "../../../scripts/release/provider-build-identity.mjs";
 import {
   EMPTY_ENV_MODULE,
   READY_FILE,
@@ -27,6 +28,7 @@ let staged = false;
 let inputs;
 try {
   try {
+    readProviderBuildIdentity();
     await unlink(READY_FILE).catch((error) => {
       if (error.code !== "ENOENT") throw error;
     });
@@ -71,6 +73,10 @@ try {
   }
   if (process.exitCode === 0) {
     await writePortableActions();
+    await writeFile(
+      ".open-next/cloudflare/hive-provider-build.mjs",
+      `export default Object.freeze(${JSON.stringify(readProviderBuildIdentity())});\n`,
+    );
     await writeBuildReady(inputs);
   }
 } finally {

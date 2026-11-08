@@ -3,6 +3,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
+import { authorizeProductionAcceptanceClaim } from "./acceptance-production.server";
 import { currentRepairReservation } from "./acceptance-repair.server";
 import { completeStepInTransaction } from "./completion-transaction.server";
 import {
@@ -506,8 +507,12 @@ export class DeliveryRepository {
       });
       if (!step) throw new DeliveryConflict("step_not_found");
       if (step.version !== input.expectedVersion) throw new DeliveryConflict("version_conflict");
-      if (step.kind === "release" || step.acceptancePhase === "activation_production")
-        throw new DeliveryConflict("release_disabled");
+      if (step.kind === "release") throw new DeliveryConflict("release_disabled");
+      if (step.acceptancePhase === "activation_production") {
+        if (process.env.HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED !== "true")
+          throw new DeliveryConflict("release_disabled");
+        await authorizeProductionAcceptanceClaim(tx, ownerId, task, step);
+      }
       if (!["pending", "ready"].includes(step.state))
         throw new DeliveryConflict(
           step.state === "running" ? "reconciliation_required" : "step_not_ready",

@@ -48,7 +48,7 @@ export async function POST(request: Request) {
             ]
           : []),
     });
-    return Response.json(await manager.execute(value), {
+    return Response.json(await manager.execute(value, request.signal), {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {

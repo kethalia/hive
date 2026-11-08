@@ -343,6 +343,43 @@ function progressingAdapter(t, overrides = {}) {
   return { ...f, adapter, options, posts, starts, native, call, claim };
 }
 
+test("a signed claim tolerates the bounded production read without retrying or extending its wire authority", {
+  timeout: 20000,
+}, async (t) => {
+  const f = progressingAdapter(t);
+  await f.adapter.close();
+  let requests = 0;
+  const adapter = createDeliveryManagerAdapter({
+    ...f.options,
+    fetchImpl: async (url, init) => {
+      const value = JSON.parse(init.body);
+      assert.equal(value.command.operation, "claim_step");
+      assert(value.expiresAt - value.issuedAt <= 30000);
+      requests++;
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, 13100);
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(Error("claim_transport_aborted"));
+        };
+        init.signal.addEventListener("abort", onAbort, { once: true });
+        if (init.signal.aborted) onAbort();
+      });
+      return f.options.fetchImpl(url, init);
+    },
+  });
+  t.after(() => adapter.close());
+  const result = await adapter.handleToolCall({
+    ...f.request,
+    arguments: {
+      operation: "claim_step",
+      payload: { taskId: randomUUID(), stepId: randomUUID() },
+    },
+  });
+  assert.equal(result.success, true);
+  assert.equal(requests, 1);
+  assert.equal(f.posts.length, 1);
+});
 test("protocol one advances via signed host-only boundary without resetting its native sequence or physical anchor", async (t) => {
   const f = progressingAdapter(t),
     taskId = randomUUID(),

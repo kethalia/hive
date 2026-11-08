@@ -12,11 +12,14 @@ import {
   acceptanceEvidenceProducer,
   authorizeAcceptanceEvidence,
 } from "./acceptance-policy.server";
+import { productionAcceptanceConfig } from "./acceptance-production.server";
 import type { AcceptanceAuthority } from "./acceptance-store.server";
 import { completeStepInTransaction } from "./completion-transaction.server";
 import { nativeRuntimeBindingSchema } from "./contracts";
 import type { ManagerPolicyScope, ResolvedManagerEvidencePolicy } from "./manager.server";
 import { NATIVE_OBSERVER_PRODUCER } from "./native-contracts";
+import { finalizeProductionAcceptance } from "./release-automatic-acceptance.server";
+import { resolveAttemptSource } from "./source-resolver.server";
 import { DeliveryConflict } from "./state";
 
 type Tx = Prisma.TransactionClient;
@@ -41,6 +44,10 @@ export class AcceptanceSuccessController {
     check(configured, "acceptance_completion_disabled");
     const current = await this.material.current(tx, authority.ownerId, managerBindingId),
       { binding, attempt, bound, revision, plan } = current;
+    const production = attempt.step.acceptancePhase === "activation_production";
+    const accepted = production
+      ? await resolveAttemptSource(tx, authority.ownerId, bound.task.id, attempt.id)
+      : null;
     await tx.$queryRaw`SELECT id FROM delivery_tasks WHERE owner_id=${authority.ownerId}::uuid AND id=${bound.task.id}::uuid FOR UPDATE`;
     const clock = async () =>
       (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
@@ -65,7 +72,9 @@ export class AcceptanceSuccessController {
         bound.task.id === terminal.taskId &&
         bound.task.projectId === authority.projectId &&
         attempt.stepId === terminal.stepId &&
-        attempt.outputRevisionId === revision.id &&
+        (production
+          ? !attempt.outputRevisionId && accepted?.acceptedSha === revision.headSha
+          : attempt.outputRevisionId === revision.id) &&
         revision.id === terminal.sourceContext.revisionId &&
         revision.version === terminal.sourceContext.version &&
         revision.headSha === terminal.sourceContext.headSha &&
@@ -73,8 +82,10 @@ export class AcceptanceSuccessController {
         !bound.task.pauseRequested &&
         !bound.task.schedulingPaused &&
         attempt.leaseExpiresAt > now &&
-        ["implement", "review", "validate"].includes(attempt.step.kind) &&
-        attempt.step.acceptancePhase === "implementation_preview" &&
+        (production ? ["review", "validate"] : ["implement", "review", "validate"]).includes(
+          attempt.step.kind,
+        ) &&
+        (production || attempt.step.acceptancePhase === "implementation_preview") &&
         !attempt.step.requiredEvidenceKinds.some((k) => ["change", "migration"].includes(k)),
     );
     const claim = await tx.deliveryEvent.findFirstOrThrow({
@@ -309,6 +320,8 @@ export class AcceptanceSuccessController {
         payload: json({ identity, receipt, evidenceIds: ids }),
       },
     });
+    if (current.production)
+      await finalizeProductionAcceptance(tx, productionAcceptanceConfig(), current.production);
     return {
       phase: "completed",
       scope: terminalIdentity(terminal),

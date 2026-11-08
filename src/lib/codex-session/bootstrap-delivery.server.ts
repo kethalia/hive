@@ -78,6 +78,7 @@ export type HostProjectPath =
   | "/projects/resolve-ref"
   | "/projects/epic-read"
   | "/projects/epic-merge"
+  | "/projects/production-release"
   | "/projects/open"
   | "/projects/tasks/start"
   | "/projects/tasks/status"
@@ -117,12 +118,9 @@ async function exchangeAppCookie(
     "/guardian/bootstrap",
     "/guardian/recover-empty-close",
   ].includes(fixedPath);
+  const merge = ["/projects/epic-merge", "/projects/production-release"].includes(fixedPath);
   const deadline =
-    Date.now() +
-    Math.min(
-      fixedPath === "/projects/epic-merge" ? 40000 : guardianEnrollment ? 30000 : 10000,
-      remaining,
-    );
+    Date.now() + Math.min(merge ? 40000 : guardianEnrollment ? 30000 : 10000, remaining);
   const signal = () => {
     if (Date.now() >= deadline) reject();
     return AbortSignal.timeout(deadline - Date.now());
@@ -228,12 +226,13 @@ export async function postToVerifiedWorkspaceApp(
 ) {
   const remaining = input.expiresAt * 1000 - Date.now();
   if (remaining < 1) reject();
+  const budget = ["/projects/epic-merge", "/projects/production-release"].includes(input.path)
+    ? 40000
+    : 30000;
   const request = {
     ...input,
     signal: AbortSignal.any([
-      AbortSignal.timeout(
-        Math.min(input.path === "/projects/epic-merge" ? 40000 : 30000, remaining),
-      ),
+      AbortSignal.timeout(Math.min(budget, remaining)),
       ...(input.signal ? [input.signal] : []),
     ]),
   };
@@ -258,6 +257,7 @@ export async function postToVerifiedWorkspaceApp(
       "/projects/resolve-ref",
       "/projects/epic-read",
       "/projects/epic-merge",
+      "/projects/production-release",
       "/projects/open",
       "/projects/tasks/start",
       "/projects/tasks/status",

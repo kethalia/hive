@@ -10,7 +10,15 @@ type Operations = Pick<
   typeof domain,
   "performLogin" | "deleteSession" | "getSessionById" | "getTokenStatus" | "getDecryptedCoderToken"
 > &
-  Partial<Pick<typeof domain, "startCoderOAuth" | "completeCoderOAuth" | "disconnectCoderOAuth">>;
+  Partial<
+    Pick<
+      typeof domain,
+      | "startCoderOAuth"
+      | "completeCoderOAuth"
+      | "disconnectCoderOAuth"
+      | "readAuthenticationReadiness"
+    >
+  >;
 
 class BodyError extends Error {
   constructor(
@@ -84,6 +92,10 @@ export function createFetchAuthHandler(
       return error(401, "Service authentication required", "SERVICE_UNAUTHORIZED");
     }
     try {
+      if (request.method === "GET" && pathname === "/readiness") {
+        if (!operations.readAuthenticationReadiness) return json({ status: "unavailable" }, 503);
+        return json(await operations.readAuthenticationReadiness({ signal: request.signal }));
+      }
       if (request.method === "POST" && pathname === "/oauth/disconnect") {
         const input = await body(request);
         if (!isCoderDisconnectOperation(input) || !operations.disconnectCoderOAuth)

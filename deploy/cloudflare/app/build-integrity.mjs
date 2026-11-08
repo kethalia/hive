@@ -12,6 +12,7 @@ const sourcePaths = [
   "src",
   "templates",
   "scripts/build-template-artifacts.mjs",
+  "scripts/release/provider-build-identity.mjs",
   "packages",
   "public",
   "services/auth/src",

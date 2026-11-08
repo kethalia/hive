@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { releaseBuildRoute } from "@/lib/delivery/release-build-route.server";
+import { describe, expect, it, vi } from "vitest";
+import {
+  installedReleaseBuildRoute,
+  releaseBuildRoute,
+} from "@/lib/delivery/release-build-route.server";
 import type { ReleaseBuildStore } from "@/lib/delivery/release-build-store.server";
 
 const make = (body: string, authorization = "fixture.jwt.token") =>
@@ -40,4 +43,19 @@ describe("release build endpoint adapter", () => {
     expect(await response.json()).toEqual({ releaseId: "scope" });
     expect(seen).toEqual({ body: { runId: "1" }, token: "fixture.jwt.token" });
   });
+});
+
+it("cannot enable installed upload producers using legacy flags and credentials", async () => {
+  vi.stubEnv("HIVE_DELIVERY_RELEASE_ENABLED", "true");
+  vi.stubEnv(
+    "HIVE_DELIVERY_RELEASE_CONFIG_JSON",
+    JSON.stringify({ target: { hiveReleaseWriter: true } }),
+  );
+  vi.stubEnv("HIVE_DELIVERY_RELEASE_CLOUDFLARE_TOKEN", "fixture-unused-token");
+  try {
+    for (const operation of ["challenge", "attestation"] as const)
+      expect((await installedReleaseBuildRoute(make("{}"), operation)).status).toBe(404);
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });

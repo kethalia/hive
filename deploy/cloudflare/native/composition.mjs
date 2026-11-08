@@ -1,8 +1,14 @@
 // Compose services inside this invocation: a Preview must never inherit another
 // Worker's production service binding or another invocation's environment.
-export function createNativeWorker({ app, auth, jobs }) {
+export function createNativeWorker({
+  app,
+  auth,
+  jobs,
+  buildIdentity = { schemaVersion: 1, status: "unavailable", reason: "non_provider_build" },
+}) {
+  const compiledBuildIdentity = Object.freeze({ ...buildIdentity });
   function wired(env, context) {
-    const local = { ...env };
+    const local = { ...env, HIVE_NATIVE_BUILD_IDENTITY: compiledBuildIdentity };
     const call = (handler) => (input, init) => {
       const request = new Request(input, init);
       return handler.fetch(request, local, context);

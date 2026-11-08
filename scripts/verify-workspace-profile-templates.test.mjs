@@ -281,10 +281,18 @@ test("profile synchronization detects and removes obsolete shared scripts", (t) 
     join(repositoryRoot, "scripts/host-epic-merge.ts"),
     join(fixtureRoot, "scripts/host-epic-merge.ts"),
   );
+  cpSync(
+    join(repositoryRoot, "scripts/host-production-release.ts"),
+    join(fixtureRoot, "scripts/host-production-release.ts"),
+  );
   mkdirSync(join(fixtureRoot, "src/lib"), { recursive: true });
   cpSync(join(repositoryRoot, "src/lib/delivery"), join(fixtureRoot, "src/lib/delivery"), {
     recursive: true,
   });
+  cpSync(
+    join(repositoryRoot, "src/lib/provider-build.ts"),
+    join(fixtureRoot, "src/lib/provider-build.ts"),
+  );
   mkdirSync(join(fixtureRoot, "deploy/cloudflare/app"), { recursive: true });
   cpSync(
     join(repositoryRoot, "deploy/cloudflare/app/release-health.ts"),

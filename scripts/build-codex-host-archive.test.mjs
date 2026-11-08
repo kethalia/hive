@@ -67,8 +67,13 @@ test("host archive has the same digest across checkouts sharing a dependency sto
     );
     await cp("scripts/host-archive-codec.mjs", join(temporary, "scripts/host-archive-codec.mjs"));
     await cp("scripts/host-epic-merge.ts", join(temporary, "scripts/host-epic-merge.ts"));
+    await cp(
+      "scripts/host-production-release.ts",
+      join(temporary, "scripts/host-production-release.ts"),
+    );
     await mkdir(join(temporary, "src/lib"), { recursive: true });
     await cp("src/lib/delivery", join(temporary, "src/lib/delivery"), { recursive: true });
+    await cp("src/lib/provider-build.ts", join(temporary, "src/lib/provider-build.ts"));
     await mkdir(join(temporary, "deploy/cloudflare/app"), { recursive: true });
     await cp(
       "deploy/cloudflare/app/release-health.ts",

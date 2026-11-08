@@ -1,3 +1,4 @@
+import { authServiceHeaders } from "@hive/auth";
 import { getDb } from "@hive/db";
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
 import type { HostCallbackCapabilities } from "../../../src/lib/codex-session/host-callback-transport";
@@ -6,6 +7,7 @@ import {
   projectReconcilePath,
 } from "../../../src/lib/projects/reconcile-transport";
 import { isAgentNotificationCallback } from "./agent-notifications";
+import { type AutomaticHealthEnvironment, automaticWorkerHealth } from "./automatic-health";
 import { genericTerminalPath } from "./generic-terminal-relay";
 import { type GenericTerminalEnvironment, genericTerminalRelay } from "./generic-terminal-runtime";
 import { isHostCallbackTransport } from "./host-callback";
@@ -28,14 +30,20 @@ import {
 import { projectRelayPath } from "./project-relay";
 import { type ProjectRelayEnvironment, projectRelay } from "./project-relay-runtime";
 import { runProjectTaskReconciliation } from "./project-tasks";
-import { RELEASE_HEALTH_PATH, releaseAuthReadiness, releaseHealth } from "./release-health";
+import {
+  boundedReleaseJson,
+  RELEASE_HEALTH_PATH,
+  releaseAuthReadiness,
+  releaseHealth,
+} from "./release-health";
 import { runReleaseSchedule } from "./release-scheduled";
 import { runRequestLifetime } from "./request-lifetime";
 import { isPortableTemplatePublication } from "./template-publications";
 import { type TerminalPasteEnvironment, terminalPastePath } from "./terminal-paste-runtime";
 import { type VoiceEnvironment, voicePath, voiceRuntime } from "./voice-runtime";
 
-type Environment = ProjectRelayEnvironment &
+type Environment = AutomaticHealthEnvironment &
+  ProjectRelayEnvironment &
   GenericTerminalEnvironment &
   TerminalPasteEnvironment &
   VoiceEnvironment &
@@ -135,25 +143,55 @@ export function createAppWorker(
           transactionTimeoutMillis: 3000,
         });
         return runRequestLifetime(database, context, () =>
-          releaseHealth(
-            request,
-            env,
-            "app",
-            async () => {
-              const result = await getDb().$queryRaw<{ value: number }[]>`SELECT 1 AS value`;
-              return result.length === 1 && Number(result[0].value) === 1;
-            },
-            async () => {
-              if (!env.AUTH_SERVICE || !env.HIVE_RELEASE_PROBE_SECRET)
-                throw new Error("auth unavailable");
-              const service = env.AUTH_SERVICE;
-              return releaseAuthReadiness(
-                (probe) => service.fetch(probe),
-                env.HIVE_RELEASE_PROBE_SECRET,
-                request.signal,
-              );
-            },
-          ),
+          env.HIVE_NATIVE_HEALTH_ENABLED === "true"
+            ? automaticWorkerHealth(
+                request,
+                env,
+                async () => {
+                  const result = await getDb().$queryRaw<{ value: number }[]>`SELECT 1 AS value`;
+                  return result.length === 1 && Number(result[0].value) === 1;
+                },
+                async (signal) => {
+                  if (!env.AUTH_SERVICE || !env.AUTH_SERVICE_SECRET) return false;
+                  const response = await env.AUTH_SERVICE.fetch(
+                    new Request("https://auth.internal/readiness", {
+                      signal,
+                      headers: authServiceHeaders(env.AUTH_SERVICE_SECRET),
+                    }),
+                  );
+                  try {
+                    if (!response.ok || response.redirected) return false;
+                    const payload = await boundedReleaseJson(response, 1024, signal);
+                    return (
+                      !!payload &&
+                      typeof payload === "object" &&
+                      (payload as { status?: unknown }).status === "ready" &&
+                      (payload as { coverage?: unknown }).coverage === "db-config-crypto-smoke"
+                    );
+                  } finally {
+                    void response.body?.cancel().catch(() => {});
+                  }
+                },
+              )
+            : releaseHealth(
+                request,
+                env,
+                "app",
+                async () => {
+                  const result = await getDb().$queryRaw<{ value: number }[]>`SELECT 1 AS value`;
+                  return result.length === 1 && Number(result[0].value) === 1;
+                },
+                async () => {
+                  if (!env.AUTH_SERVICE || !env.HIVE_RELEASE_PROBE_SECRET)
+                    throw new Error("auth unavailable");
+                  const service = env.AUTH_SERVICE;
+                  return releaseAuthReadiness(
+                    (probe) => service.fetch(probe),
+                    env.HIVE_RELEASE_PROBE_SECRET,
+                    request.signal,
+                  );
+                },
+              ),
         );
       }
       if (genericTerminalPath(request))

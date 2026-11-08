@@ -8,6 +8,7 @@ import {
 } from "@/lib/codex-session/registration-store.server";
 import type { AcceptanceSuccessController } from "./acceptance-completion.server";
 import { acceptanceProofPayload, acceptanceRequestSchema } from "./acceptance-contracts";
+import { refreshProductionForHost } from "./acceptance-production.server";
 import type { AcceptanceRepairController } from "./acceptance-repair.server";
 import type { AcceptanceAuthority, AcceptanceStore } from "./acceptance-store.server";
 import { canonicalGitHubSource } from "./github-evidence.server";
@@ -42,7 +43,7 @@ export class DeliveryAcceptanceService {
       ): Promise<void>;
     },
   ) {}
-  async dispatch(value: unknown) {
+  async dispatch(value: unknown, signal?: AbortSignal) {
     const wire = JSON.parse(canonicalGitHubSource(value));
     const input = acceptanceRequestSchema.parse(wire);
     const authenticated = await authenticateCheckoutHost(
@@ -51,6 +52,27 @@ export class DeliveryAcceptanceService {
       input,
       acceptanceProofPayload(wire),
     );
+    if (
+      [
+        "prepare_review",
+        "claim_acceptance",
+        "start_acceptance",
+        "finish_acceptance",
+        "complete_verified",
+      ].includes(input.action)
+    ) {
+      await refreshProductionForHost(
+        this.db,
+        {
+          ownerId: authenticated.ownerId,
+          managerThreadId: input.managerThreadId,
+          serverInstanceId: input.serverInstanceId,
+          projectId: input.checkoutBinding.projectId,
+          preparationIntentId: input.checkoutBinding.preparationIntentId,
+        },
+        signal,
+      );
+    }
     for (let retry = 0; ; retry++) {
       try {
         return await this.db.$transaction(

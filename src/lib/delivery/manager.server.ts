@@ -7,6 +7,7 @@ import type { RegistrationBinding } from "@/lib/codex-session/registration.serve
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
 import { inheritedAcceptanceCriteriaSchema } from "./acceptance-contracts";
 import { acceptancePlanForIntent } from "./acceptance-policy.server";
+import { refreshProductionForClaim } from "./acceptance-production.server";
 import { repairWriterHeld } from "./acceptance-repair.server";
 import type { SourceContext } from "./contracts";
 import { bindEpicAcceptance } from "./epic-acceptance";
@@ -156,7 +157,7 @@ export class DeliveryManagerService {
     private readonly dependencies: ManagerDependencies,
   ) {}
 
-  async execute(value: unknown) {
+  async execute(value: unknown, signal?: AbortSignal) {
     const input = managerEnvelopeSchema.parse(value);
     const wire = value as Record<string, unknown>;
     const registered = await authenticateCheckoutHost(
@@ -166,6 +167,33 @@ export class DeliveryManagerService {
       managerProofPayload(wire),
     );
     const ownerId = registered.ownerId;
+    const productionClaimReplay = async (
+      tx: Prisma.TransactionClient,
+      managerBindingId: string,
+    ) => {
+      if (
+        input.command.operation !== "claim_step" ||
+        process.env.HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED !== "true"
+      )
+        return false;
+      const prior = await tx.deliveryEvent.findUnique({
+        where: { ownerId_id: { ownerId, id: input.eventId } },
+      });
+      if (prior?.type !== "attempt_started" || !prior.attemptId) return false;
+      const attempt = await tx.deliveryAttempt.findUnique({
+        where: { ownerId_id: { ownerId, id: prior.attemptId } },
+        include: { step: true },
+      });
+      if (attempt?.step.acceptancePhase !== "activation_production") return false;
+      if (
+        prior.taskId !== input.command.payload.taskId ||
+        prior.stepId !== input.command.payload.stepId ||
+        attempt.managerBindingId !== managerBindingId ||
+        attempt.stepId !== prior.stepId
+      )
+        throw new DeliveryConflict("event_replay_conflict");
+      return true;
+    };
     const thread = await this.db.codexRegisteredThread.findFirst({
       where: {
         ownerId,
@@ -299,6 +327,78 @@ export class DeliveryManagerService {
       (input.command.operation === "fail_attempt" && input.command.payload.evidenceIds.length > 0)
         ? input.command
         : null;
+    if (
+      input.command.operation === "claim_step" &&
+      process.env.HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED === "true"
+    ) {
+      const command = input.command;
+      const captured = await this.db.$transaction(
+        async (tx) => {
+          const host = await lockManagerCheckout(tx, input, registered, {
+            guardianPolicy: this.dependencies.guardianPolicy,
+            progressionProtocol: this.dependencies.progressionProtocol,
+          });
+          if (host.binding.id !== expected.id) throw new RegistrationRejected();
+          const task = await tx.deliveryTask.findUnique({
+            where: { ownerId_id: { ownerId, id: command.payload.taskId } },
+          });
+          const step = await tx.deliveryStep.findUnique({
+            where: {
+              ownerId_taskId_id: {
+                ownerId,
+                taskId: command.payload.taskId,
+                id: command.payload.stepId,
+              },
+            },
+          });
+          if (
+            !task ||
+            !step ||
+            task.projectId !== host.thread.projectId ||
+            task.conversationId !== host.thread.conversationId ||
+            task.managerBindingId !== host.binding.id
+          )
+            throw new RegistrationRejected();
+          if (step.acceptancePhase !== "activation_production") return null;
+          // This only skips a read-only freshness collection. The existing
+          // progression/repository replay still compares the entire claim.
+          if (await productionClaimReplay(tx, host.binding.id)) return null;
+          if (task.pauseRequested || task.schedulingPaused)
+            throw new DeliveryConflict("task_paused");
+          if (step.version !== command.payload.expectedVersion)
+            throw new DeliveryConflict("version_conflict");
+          if (!["pending", "ready"].includes(step.state))
+            throw new DeliveryConflict("step_not_ready");
+          const source = await resolveTaskSource(tx, ownerId, task.id, input.sourceContext, true);
+          if (!source.context) throw new DeliveryConflict("source_context_stale");
+          await this.dependencies.authorizeTaskPolicy?.(tx, ownerId, task.id, "claim_step");
+          await requireAppliedSourceForAction(tx, {
+            ownerId,
+            managerBindingId: host.binding.id,
+            taskId: task.id,
+            action: "execution",
+            parentTurnId: input.nativeTurnId,
+          });
+          return {
+            ownerId,
+            taskId: task.id,
+            sourceRevisionId: source.context.revisionId,
+            sourceSha: source.headSha,
+            step: {
+              kind: step.kind,
+              acceptancePhase: step.acceptancePhase,
+              requiredEvidenceKinds: step.requiredEvidenceKinds,
+            },
+          };
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout: 10000,
+          maxWait: 5000,
+        },
+      );
+      if (captured) await refreshProductionForClaim(this.db, captured, signal);
+    }
     let selectedPolicy: ResolvedManagerEvidencePolicy | null = null;
     const resolvePolicy = this.dependencies.resolveEvidencePolicy;
     if (resultCommand && resolvePolicy) {
@@ -369,7 +469,12 @@ export class DeliveryManagerService {
             tx,
             ownerId,
             task.id,
-            input.command.operation,
+            // A server-matched historical claim receipt grants no execution.
+            // Keep current repository/revocation checks, while the existing
+            // progression/repository replay validates its full request digest.
+            (await productionClaimReplay(tx, scope.binding.id))
+              ? "claim_step_replay"
+              : input.command.operation,
           );
         } else if (input.sourceContext) {
           throw new DeliveryConflict("source_context_stale");
