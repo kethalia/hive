@@ -45,7 +45,6 @@ test("trusted attestor requests purpose separated tokens and sends nonce without
       identity,
       oidcUrl: "https://runner.actions.githubusercontent.com/token",
       oidcToken: "fixture",
-      previewBearer: "fixture",
       fetcher,
       signal: AbortSignal.timeout(1000),
     }),
@@ -63,7 +62,6 @@ test("trusted attestor requests purpose separated tokens and sends nonce without
       identity,
       oidcUrl: "https://runner.actions.githubusercontent.com/token",
       oidcToken: "fixture",
-      previewBearer: "fixture",
       fetcher,
       signal: AbortSignal.timeout(1000),
     }),
@@ -109,6 +107,7 @@ test("candidate test job has no OIDC and attestor depends on it", async () => {
   assert.match(testJob, /id-token: none/);
   assert.doesNotMatch(testJob, /HIVE_RELEASE_PREVIEW_BEARER|id-token: write/);
   assert.match(workflow, /needs: test/);
+  assert.doesNotMatch(workflow, /HIVE_RELEASE_PREVIEW_BEARER|secrets:/);
   assert.match(workflow, /claims\.job_workflow_sha !== process\.env\.TRUSTED_REVISION/);
   assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/);
 });
