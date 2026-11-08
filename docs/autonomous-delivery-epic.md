@@ -19,15 +19,16 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 ## Work queue
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
-Current implementation checkpoint (2026-11-05): the epic has been rebased onto main
-`1ace8774118b99b28856347edd51410c4f0a0774`, preserving the recent dock and workspace changes.
-Controlled release and database-job implementations are committed; an actual old/new Hive
-Worker pair exercised isolated Neon reads/writes, interrupted backfill recovery and integrity
-checks. Deployment observations and authorization in that pilot remain fixtures. Epic planning,
-closure and workspace reuse have local integration evidence; the installed multi-task pilot
-remains open. The persistent test workspace now runs the corrected f811 image and its guarded host is healthy.
-A second isolated workspace has a healthy host but exposed a first-boot CLI installation race;
-that template fix is in progress. Neither workspace has yet run the current multi-task pilot.
+Current implementation checkpoint (2026-11-08): the epic preserves released main
+`1ace8774118b99b28856347edd51410c4f0a0774`. Preview task integration, automatic
+production Builds observation, independent production acceptance, and explicit owner-gated
+production Builds deployment are integrated after CI/review. Both existing Preview databases
+have migration48; production remains unchanged. The retained private 20Gi test host restarts
+automatically with signed history preserved. A source fix for Coder fsGroup HOME account
+locking is in review before the current manager/child pilot. Database source-build delivery
+and graceful account maintenance/resume are still being implemented and validated. Installed
+multi-task, shared Conversation/Terminal browser acceptance, background wake approval and
+final production cutover remain open.
 
 A read-only production capture has now been restored and upgraded both locally and in a separate
 Neon Free rehearsal database: all eight original tables (88 rows) match their fingerprints,
@@ -230,7 +231,7 @@ invalidated, and same-owner OAuth restoration creates only a new session. The du
 survives cache clearing and the stale-time synthetic focus check; native tab focus is not
 claimed. [Disconnect evidence](checks/autonomous-delivery/coder-oauth-disconnect-live.json).
 Final production acceptance remains a gate.
-F10 implementation is now active in PR #414: Codex and Claude cards use the
+F10 base implementation from PR #414 is integrated: Codex and Claude cards use the
 existing signed workspace bridge and supported official CLI flows. Focused local
 checks pass; final package integration and real provider/browser acceptance remain
 open. Account changes cannot mutate credentials while a managed runtime holds
@@ -281,20 +282,22 @@ different builds. Both stopped hosts and their evidence remain retained.
 See the [original attempt](checks/autonomous-delivery/managed-flow-20g-prelaunch-hold.json)
 and [restart record](checks/autonomous-delivery/managed-flow-08cf-restart-20261107.json).
 
-Next, integrate the reviewed restart/account/release changes, publish the exact
-combined image through the existing workflow, and validate it on the retained
-test host before real manager/child/source/independent acceptance. Browser Testing
-Phase B is prepared for shared Conversation/Terminal and Delivery reports; no live
-shared-thread acceptance is claimed. Production/archive gates remain held.
-Multi-task epic integration must use explicit preview readiness, attributed real merges into
-the configured non-main epic branch, and independently enrolled storage domains; never invent
-healthy production releases or bypass source/physical-writer fences.
+Restart/account/release source is now integrated. The exact combined recovery/account
+image passed installed checks and two signed bootstrap-only restarts. Credential transfer
+then exposed a valid Coder fsGroup HOME rejected by the account lock, before any cache write
+or model start. PR #418 repairs that source; publish and verify its immutable image before
+the real manager/child/source/independent acceptance pilot. Browser Testing Phase B is
+prepared; live shared-thread acceptance remains pending. [Hold](checks/autonomous-delivery/managed-flow-08cf-auth-lock-hold.json).
 
-PR #412 integrates preview task PRs into the epic using existing connected-account
-authority. PR #415 implements automatic production Builds observation and
-independent semantic acceptance with thirteen passing composed PostgreSQL checks;
-it remains under review and does not authorize production activation. D10 is
-extending the existing controlled database workflow to this source-build path.
+PR #412 supplies preview epic integration. PR #415 is integrated after full CI/current
+Codex review, with seventeen composed PostgreSQL checks covering connected Builds and
+independent production acceptance. PR #417 makes the existing Builds command deployable
+only after separate explicit first-cutover/ongoing owner enrollment; no enrollment is active.
+Both Preview databases have [migration48](checks/autonomous-delivery/neon-preview-migration48.json).
+D10 extends the existing controlled database workflow to this path; its first composed
+real-PostgreSQL flow passes with simulated providers, while negative/race tests and integration
+remain. GitHub ruleset compatibility and exact protected-target settings also need acceptance;
+no repository protection has been changed.
 
 Finish the remaining F07/F08/F10 account-backed parity/recovery gates and release-controller
 acceptance. F07 still needs a browser-independent preparation wake; the
