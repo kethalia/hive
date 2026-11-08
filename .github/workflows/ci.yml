@@ -128,6 +128,8 @@ jobs:
           POSTGRES_USER: hive
           POSTGRES_PASSWORD: hive-test-password
           POSTGRES_DB: hive_migrate_test
+          # Match Neon's password pipeline only in this isolated synthetic fixture.
+          POSTGRES_HOST_AUTH_METHOD: password
         ports:
           - 5432:5432
         options: >-

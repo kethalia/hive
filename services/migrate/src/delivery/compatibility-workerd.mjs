@@ -5,6 +5,10 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { artifactDigest, readReleaseArtifact } from "../../../../scripts/release/artifact.mjs";
+import {
+  compatibilityDatabaseTransport,
+  startSourceCompatibilityWorker,
+} from "./compatibility-ws.mjs";
 import { digest, requireValue } from "./contracts.mjs";
 import { sourceBuildCompatibilitySchema, workerdCompatibilitySchema } from "./wire.mjs";
 
@@ -105,7 +109,9 @@ export async function runWorkerdCompatibility(
     suffix = randomBytes(12).toString("hex"),
     pg = `hive-d10-${suffix}`,
     password = randomBytes(24).toString("hex"),
-    children = [];
+    children = [],
+    sourceWorkers = [];
+  let databaseTransport;
   const docker = (args) =>
     execFileSync("docker", args, {
       encoding: "utf8",
@@ -151,6 +157,7 @@ export async function runWorkerdCompatibility(
         "127.0.0.1::5432",
         "-e",
         "POSTGRES_USER=hive",
+        ...(single ? ["-e", "POSTGRES_HOST_AUTH_METHOD=password"] : []),
         "-e",
         `POSTGRES_PASSWORD=${password}`,
         "-e",
@@ -187,12 +194,33 @@ export async function runWorkerdCompatibility(
       HIVE_NEW_APP: `http://127.0.0.1:${ports[1]}`,
     };
     const scenarioRun = (action) =>
-      execFileSync(process.execPath, [scenario, action], {
-        env: scenarioEnv,
-        stdio: "ignore",
-        timeout: 120000,
+      new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [scenario, action], {
+          env: scenarioEnv,
+          stdio: "ignore",
+          detached: true,
+        });
+        const closed = new Promise((done) => child.once("close", done));
+        children.push({ child, closed });
+        const timer = setTimeout(() => {
+          try {
+            process.kill(-child.pid, "SIGKILL");
+          } catch {}
+        }, 120000);
+        child.once("error", () => {
+          clearTimeout(timer);
+          reject(Error("migration_compatibility_scenario_failed"));
+        });
+        child.once("close", (code) => {
+          clearTimeout(timer);
+          code === 0 ? resolve() : reject(Error("migration_compatibility_scenario_failed"));
+        });
       });
-    scenarioRun("prepare");
+    await scenarioRun("prepare");
+    if (single)
+      databaseTransport = await compatibilityDatabaseTransport(databaseUrl, {
+        knownTrustFixture: !!fixtureDatabaseUrl && !new URL(fixtureDatabaseUrl).password,
+      });
     const isolatedKeys = single
       ? Object.fromEntries(
           [
@@ -244,6 +272,20 @@ export async function runWorkerdCompatibility(
             HIVE_TOKEN_ROTATION_ENABLED: "false",
           }
         : {};
+      if (single) {
+        sourceWorkers.push(
+          await startSourceCompatibilityWorker({
+            files,
+            directory: base,
+            port: ports[index],
+            bindings: { DATABASE_URL: databaseUrl, ...isolated },
+            date: config.compatibilityDate,
+            transport: databaseTransport,
+            version: index,
+          }),
+        );
+        continue;
+      }
       await writeFile(
         path,
         JSON.stringify({
@@ -283,12 +325,21 @@ export async function runWorkerdCompatibility(
       child.stdout.resume();
       child.stderr.resume();
     }
-    scenarioRun("verify");
+    await scenarioRun("verify");
+    if (single)
+      requireValue(
+        databaseTransport.counts.every((stats) => stats.queries > 0),
+        "migration_compatibility_application_database_unverified",
+      );
     return {
       schemaVersion: single ? 2 : 1,
       ...(single
         ? {
             kind: "automatic-source-build",
+            applicationDatabase: {
+              transport: "isolated-neon-websocket",
+              queries: databaseTransport.counts.map((stats) => stats.queries),
+            },
             sourceBuild: {
               baseline: config.baseline,
               candidate: config.candidate,
@@ -306,43 +357,53 @@ export async function runWorkerdCompatibility(
       compatibilityDigest: config.compatibilityDigest,
     };
   } finally {
-    for (const { child } of children) {
-      try {
-        if (child.pid) process.kill(-child.pid, "SIGTERM");
-      } catch {}
-    }
     try {
-      await Promise.all(
-        children.map(async ({ child, closed }) => {
-          const kill = setTimeout(() => {
-            try {
-              if (child.pid) process.kill(-child.pid, "SIGKILL");
-            } catch {}
-          }, 5000);
-          let deadline;
-          try {
-            await Promise.race([
-              closed,
-              new Promise((_, reject) => {
-                deadline = setTimeout(
-                  () => reject(Error("migration_compatibility_cleanup_timeout")),
-                  10000,
-                );
-              }),
-            ]);
-          } finally {
-            clearTimeout(kill);
-            clearTimeout(deadline);
-          }
-        }),
-      );
+      await Promise.all(sourceWorkers.map((worker) => worker.dispose()));
     } finally {
-      if (!fixtureDatabaseUrl) {
+      try {
+        if (databaseTransport) await databaseTransport.close();
+      } finally {
+        for (const { child } of children) {
+          try {
+            if (child.pid && child.exitCode === null && child.signalCode === null)
+              process.kill(-child.pid, "SIGTERM");
+          } catch {}
+        }
         try {
-          docker(["rm", "-f", pg]);
-        } catch {}
+          await Promise.all(
+            children.map(async ({ child, closed }) => {
+              const kill = setTimeout(() => {
+                try {
+                  if (child.pid && child.exitCode === null && child.signalCode === null)
+                    process.kill(-child.pid, "SIGKILL");
+                } catch {}
+              }, 5000);
+              let deadline;
+              try {
+                await Promise.race([
+                  closed,
+                  new Promise((_, reject) => {
+                    deadline = setTimeout(
+                      () => reject(Error("migration_compatibility_cleanup_timeout")),
+                      10000,
+                    );
+                  }),
+                ]);
+              } finally {
+                clearTimeout(kill);
+                clearTimeout(deadline);
+              }
+            }),
+          );
+        } finally {
+          if (!fixtureDatabaseUrl) {
+            try {
+              docker(["rm", "-f", pg]);
+            } catch {}
+          }
+        }
+        await rm(directory, { recursive: true, force: true });
       }
     }
-    await rm(directory, { recursive: true, force: true });
   }
 }

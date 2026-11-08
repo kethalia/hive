@@ -74,6 +74,7 @@ test("typed database dispatch reuses CI with an immutable recipe pin and skips u
     ci,
     /HIVE_D10_SOURCE_BUILD_TEST_DATABASE_URL: postgresql:\/\/hive:hive-test-password@localhost:5432\/hive_d10_test/,
   );
+  assert.match(ci, /POSTGRES_HOST_AUTH_METHOD: password/);
   assert.match(ci, /default: validate/);
   assert.match(ci, /format\('hive-database\/\{0\}\/\{1\}'/);
   assert.match(ci, /cancel-in-progress: \$\{\{ inputs.operation != 'database' \}\}/);
