@@ -33,12 +33,15 @@ import type { VerifiedHostBinding } from "@/lib/codex-session/registration.serve
 import { PrismaRegistrationStore } from "@/lib/codex-session/registration-store.server";
 import wire from "../../../../scripts/fixtures/unused-bootstrap-root.json";
 
-const url = process.env.HIVE_UNUSED_BOOTSTRAP_TEST_DATABASE_URL;
+const url =
+  process.env.HIVE_UNUSED_BOOTSTRAP_TEST_DATABASE_URL ??
+  process.env.HIVE_DELIVERY_TEST_DATABASE_URL;
 if (
   url &&
-  (new URL(url).hostname !== "127.0.0.1" || new URL(url).pathname !== "/hive_unused_bootstrap_test")
+  (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname) ||
+    !["/hive_unused_bootstrap_test", "/hive_delivery_test"].includes(new URL(url).pathname))
 )
-  throw Error("Owned unused-bootstrap fixture only");
+  throw Error("Owned unused-bootstrap or CI delivery fixture only");
 const db = new PrismaClient({
   datasourceUrl: url ?? "postgresql://unused@127.0.0.1:1/hive_unused_bootstrap_test",
 });
