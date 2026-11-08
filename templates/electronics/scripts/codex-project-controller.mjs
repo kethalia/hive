@@ -24,14 +24,16 @@ import {
   renameSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
 import { processIdentity } from "./codex-process-identity.mjs";
 import {
   projectRecovery,
+  recoveryDigest,
   recoveryHeld,
   recoveryScopes,
   validateRecoveryRequest,
 } from "./codex-project-recovery.mjs";
+import { verifyUnstartedProject } from "./codex-unstarted-transfer.mjs";
 
 const check = (v, code = "project_request_rejected") => {
   if (!v) throw new Error(code);
@@ -660,63 +662,7 @@ export function archiveBootstrapProjectState(config, proof) {
         "bootstrap_archive_state_invalid",
       );
     };
-    for (const name of history.filter(
-      (name) => name.startsWith("projects-bootstrap-") && name !== archiveName,
-    )) {
-      const match = /^projects-bootstrap-([a-f0-9]{64})\.json$/.exec(name);
-      check(match, "bootstrap_archive_history_present");
-      const prior = readSigned(join(config.stateDirectory, name)),
-        outerDir = config.guardianStateDirectory;
-      privatePath(outerDir, true);
-      check(
-        lstatSync(outerDir).dev === lstatSync(config.stateDirectory).dev,
-        "bootstrap_archive_proof_invalid",
-      );
-      const outerKeyPath = join(outerDir, "key");
-      privatePath(outerKeyPath);
-      const outerKey = readFileSync(outerKeyPath);
-      check(outerKey.length === 32, "journal_key_invalid");
-      const readOuter = (path) => {
-          privatePath(path);
-          check(lstatSync(path).size <= 2 * 1024 * 1024, "bootstrap_archive_proof_invalid");
-          const raw = readFileSync(path),
-            saved = JSON.parse(raw),
-            signature = createHmac("sha256", outerKey)
-              .update(JSON.stringify(saved.state))
-              .digest("hex");
-          check(
-            typeof saved.signature === "string" &&
-              saved.signature.length === 64 &&
-              timingSafeEqual(Buffer.from(saved.signature), Buffer.from(signature)),
-            "journal_signature_invalid",
-          );
-          return { raw, state: saved.state };
-        },
-        original = readOuter(join(outerDir, `lifetime-bootstrap-${match[1]}.json`)),
-        facts = readOuter(join(outerDir, `bootstrap-retirement-${match[1]}.json`)).state,
-        { projectEvidence, ...oldProof } = facts;
-      check(
-        createHash("sha256").update(original.raw).digest("hex") === match[1] &&
-          oldProof.scope === "never_admitted_bootstrap_authorization_only" &&
-          oldProof.nativeTreeExited === false &&
-          oldProof.cleanupAuthorized === false &&
-          oldProof.sourceJournalDigest === match[1] &&
-          digest(oldProof) === prior.retirementDigest &&
-          original.state.phase === "startupReady" &&
-          original.state.receipts.length === 0 &&
-          original.state.events.map((event) => event.name).join() ===
-            "begin,ready,launchIntent,open,startupReady" &&
-          projectEvidence?.ownerId === config.ownerId &&
-          projectEvidence.workspaceId === config.workspaceId &&
-          projectEvidence.templateId === config.templateId &&
-          uuid(projectEvidence.buildId) &&
-          projectEvidence.retirementDigest === prior.retirementDigest &&
-          projectEvidence.projectJournalDigest === digest(prior.projectState) &&
-          (!prior.projectEvidence || digest(prior.projectEvidence) === digest(projectEvidence)),
-        "bootstrap_archive_history_invalid",
-      );
-      assertEmpty(prior.projectState, oldProof.lifetimeId, oldProof.workerIdentity);
-    }
+    verifyBootstrapProjectHistory(config, archiveName);
     const current = readSigned(statePath),
       archived = existsSync(archivePath) ? readSigned(archivePath) : null,
       state = archived ? archived.projectState : current;
@@ -784,6 +730,124 @@ export function archiveBootstrapProjectState(config, proof) {
     closeSync(lock);
   }
 }
+/** Read-only chain verification under the existing project/outer locks. */
+export function verifyBootstrapProjectHistory(config, archiveName = null) {
+  const history = readdirSync(config.stateDirectory),
+    projectNames = [],
+    guardianNames = [];
+  check(history.length <= 256, "bootstrap_archive_history_present");
+  privatePath(join(config.stateDirectory, "projects.key"));
+  const key = readFileSync(join(config.stateDirectory, "projects.key"));
+  check(key.length === 32, "journal_key_invalid");
+  const readSigned = (path) => {
+    privatePath(path);
+    check(lstatSync(path).size <= 4 * 1024 * 1024, "bootstrap_archive_state_invalid");
+    const saved = JSON.parse(readFileSync(path)),
+      expected = createHmac("sha256", key).update(JSON.stringify(saved.state)).digest("hex");
+    check(
+      typeof saved.signature === "string" &&
+        saved.signature.length === 64 &&
+        timingSafeEqual(Buffer.from(saved.signature), Buffer.from(expected)),
+      "journal_signature_invalid",
+    );
+    return saved.state;
+  };
+  const assertEmpty = (state, lifetimeId, worker) => {
+    check(
+      exact(state, [
+        "schemaVersion",
+        "ownerId",
+        "workspaceId",
+        "projects",
+        "guardianLifetimeId",
+        "hostProcess",
+      ]) &&
+        state.schemaVersion === 1 &&
+        state.ownerId === config.ownerId &&
+        state.workspaceId === config.workspaceId &&
+        state.projects &&
+        typeof state.projects === "object" &&
+        !Array.isArray(state.projects) &&
+        Object.keys(state.projects).length === 0 &&
+        state.guardianLifetimeId === lifetimeId &&
+        exact(state.hostProcess, ["pid", "startTime", "bootId", "executable", "device", "inode"]) &&
+        Object.keys(state.hostProcess).every((k) => state.hostProcess[k] === worker?.[k]),
+      "bootstrap_archive_state_invalid",
+    );
+  };
+  for (const name of history.filter(
+    (name) => name.startsWith("projects-bootstrap-") && name !== archiveName,
+  )) {
+    const match = /^projects-bootstrap-([a-f0-9]{64})\.json$/.exec(name);
+    check(match, "bootstrap_archive_history_present");
+    const prior = readSigned(join(config.stateDirectory, name)),
+      outerDir = config.guardianStateDirectory;
+    privatePath(outerDir, true);
+    check(
+      lstatSync(outerDir).dev === lstatSync(config.stateDirectory).dev,
+      "bootstrap_archive_proof_invalid",
+    );
+    const outerKeyPath = join(outerDir, "key");
+    privatePath(outerKeyPath);
+    const outerKey = readFileSync(outerKeyPath);
+    check(outerKey.length === 32, "journal_key_invalid");
+    const readOuter = (path) => {
+        privatePath(path);
+        check(lstatSync(path).size <= 2 * 1024 * 1024, "bootstrap_archive_proof_invalid");
+        const raw = readFileSync(path),
+          saved = JSON.parse(raw),
+          signature = createHmac("sha256", outerKey)
+            .update(JSON.stringify(saved.state))
+            .digest("hex");
+        check(
+          typeof saved.signature === "string" &&
+            saved.signature.length === 64 &&
+            timingSafeEqual(Buffer.from(saved.signature), Buffer.from(signature)),
+          "journal_signature_invalid",
+        );
+        return { raw, state: saved.state };
+      },
+      original = readOuter(join(outerDir, `lifetime-bootstrap-${match[1]}.json`)),
+      facts = readOuter(join(outerDir, `bootstrap-retirement-${match[1]}.json`)).state,
+      { projectEvidence, ...oldProof } = facts;
+    check(
+      createHash("sha256").update(original.raw).digest("hex") === match[1] &&
+        oldProof.scope === "never_admitted_bootstrap_authorization_only" &&
+        oldProof.nativeTreeExited === false &&
+        oldProof.cleanupAuthorized === false &&
+        oldProof.sourceJournalDigest === match[1] &&
+        digest(oldProof) === prior.retirementDigest &&
+        original.state.phase === "startupReady" &&
+        original.state.receipts.length === 0 &&
+        original.state.events.map((event) => event.name).join() ===
+          "begin,ready,launchIntent,open,startupReady" &&
+        projectEvidence?.ownerId === config.ownerId &&
+        projectEvidence.workspaceId === config.workspaceId &&
+        projectEvidence.templateId === config.templateId &&
+        uuid(projectEvidence.buildId) &&
+        projectEvidence.retirementDigest === prior.retirementDigest &&
+        projectEvidence.projectJournalDigest === digest(prior.projectState) &&
+        (!prior.projectEvidence || digest(prior.projectEvidence) === digest(projectEvidence)),
+      "bootstrap_archive_history_invalid",
+    );
+    assertEmpty(prior.projectState, oldProof.lifetimeId, oldProof.workerIdentity);
+    projectNames.push(name);
+    guardianNames.push(
+      `lifetime-bootstrap-${match[1]}.json`,
+      `bootstrap-retirement-${match[1]}.json`,
+    );
+    const pendingName = `bootstrap-pending-${match[1]}.json`;
+    if (existsSync(join(outerDir, pendingName))) {
+      check(
+        digest(readOuter(join(outerDir, pendingName)).state) === digest(oldProof),
+        "bootstrap_archive_history_invalid",
+      );
+      guardianNames.push(pendingName);
+    }
+  }
+  return { projectNames, guardianNames };
+}
+
 /** Dependencies are installed functions, never HTTP parameters. openRuntime must
  * return the ONE supervisor plus its registration authority for this host. */
 /** Installed outer only, AFTER its authenticated actual ECHILD receipt and DB
@@ -1179,6 +1243,15 @@ export function createProjectController(config, deps) {
   if (guardian) {
     // A new guardian must not retroactively certify an earlier worker's tasks.
     try {
+      if (state.unstartedTransfer && !state.unstartedTransferConsumed) {
+        check(Object.keys(state.projects).length === 1, "retry_not_available");
+        verifyUnstartedProject(
+          resolvePath(config.stateDirectory, "../../../.."),
+          state,
+          Object.values(state.projects)[0],
+          deps.guardianBuildId,
+        );
+      }
       check(
         !state.guardianBarrier &&
           (!state.guardianLifetimeId || state.guardianLifetimeId === guardian.state.lifetimeId) &&
@@ -1203,6 +1276,7 @@ export function createProjectController(config, deps) {
     if (guardian) check(guardian.state.phase === "open", "controller_admission_closed");
   }
   function assertSourceInputOpen(p) {
+    check(!state.unstartedTransfer || state.unstartedTransferConsumed, "retry_not_available");
     check(!recoveryHeld(p), "retry_not_available");
     const a = p.task?.sourceApplication;
     check(
@@ -1572,7 +1646,21 @@ export function createProjectController(config, deps) {
       t.firstPromptSubmissionAttempted === false && typeof t.nativeCreationAttempted === "boolean",
       "retry_not_available",
     );
-    const inspected = await deps.inspectCheckout(p.repositoryId);
+    const unstarted = state.unstartedTransfer && !state.unstartedTransferConsumed;
+    if (unstarted && !guardian.state.unstartedTransfer) {
+      const transfer = verifyUnstartedProject(
+        resolvePath(config.stateDirectory, "../../../.."),
+        state,
+        p,
+        deps.guardianBuildId,
+      );
+      await guardian.identity(
+        recoveryDigest({ transferId: transfer.transferId, taskId: transfer.taskId }),
+      );
+    }
+    const inspected = unstarted
+      ? await deps.inspectUnstartedCheckout(p.repositoryId)
+      : await deps.inspectCheckout(p.repositoryId);
     if (!t.prepared) {
       check(
         !t.nativeCreationAttempted &&
@@ -1582,8 +1670,37 @@ export function createProjectController(config, deps) {
         "retry_not_available",
       );
     } else {
+      if (unstarted) {
+        const transfer = verifyUnstartedProject(
+          resolvePath(config.stateDirectory, "../../../.."),
+          state,
+          p,
+          deps.guardianBuildId,
+        );
+        if (!guardian.state.unstartedTransfer)
+          await guardian.identity(
+            recoveryDigest({ transferId: transfer.transferId, taskId: transfer.taskId }),
+          );
+        check(
+          guardian.state.unstartedTransfer?.transferId === transfer.transferId &&
+            guardian.state.unstartedTransfer.oldRuntimeId === transfer.oldRuntimeId &&
+            guardian.state.unstartedTransfer.proofDigest === recoveryDigest(transfer),
+          "retry_not_available",
+        );
+        check(
+          !runtime &&
+            (guardian.state.projects.length === 0 ||
+              (state.unstartedTransferHistory &&
+                guardian.state.projects.length === 1 &&
+                guardian.state.projects[0].projectId === p.projectId &&
+                guardian.state.projects[0].bindingDigest === digest(t.guardianPreparation))) &&
+            !t.nativeCreationAttempted &&
+            !t.nativeThreadId,
+          "retry_not_available",
+        );
+      }
       check(
-        runtime &&
+        (runtime || unstarted) &&
           inspected?.status === "ready" &&
           inspected.checkoutVerified === true &&
           inspected.revision === t.request.revision &&
@@ -1591,11 +1708,13 @@ export function createProjectController(config, deps) {
           inspected.lease?.taskId === t.taskId &&
           inspected.lease.id === t.prepared.leaseId &&
           inspected.lease.generation === t.prepared.leaseGeneration &&
-          inspected.lease.expiresAt > Date.now() / 1000,
+          (unstarted || inspected.lease.expiresAt > Date.now() / 1000),
         "retry_not_available",
       );
       // Missing native history is never evidence that no input occurred.
-      const proof = await runtime.supervisor.provePreExecution(p.projectId, t.taskId);
+      const proof = unstarted
+        ? { threadId: null }
+        : await runtime.supervisor.provePreExecution(p.projectId, t.taskId);
       check(
         proof.threadId === (t.nativeThreadId ?? null) &&
           (proof.threadId || t.nativeCreationAttempted === false),
@@ -1650,6 +1769,88 @@ export function createProjectController(config, deps) {
     prove: proveRecovery,
     fence,
     schedule,
+    resumeBeforeFence: (p, a) =>
+      Boolean(
+        state.unstartedTransfer &&
+          !state.unstartedTransferConsumed &&
+          p.recovery?.authorization &&
+          recoveryDigest(p.recovery.authorization) === recoveryDigest(a),
+      ),
+    resumeInspection: (p) => {
+      const history = state.unstartedTransferHistory;
+      if (!state.unstartedTransfer || state.unstartedTransferConsumed || !history) return;
+      check(
+        history.recoveryId === p.recovery.scope.recoveryId &&
+          history.authorizationDigest === recoveryDigest(p.recovery.authorization) &&
+          history.inspectionDigest === recoveryDigest(p.recovery.inspection),
+        "retry_not_available",
+      );
+      return p.recovery.inspection; // Initial inspected intent is history; proveRecovery just rechecked current facts.
+    },
+    beforeFence: async (p) => {
+      if (!state.unstartedTransfer || state.unstartedTransferConsumed) return;
+      const proof = verifyUnstartedProject(
+          resolvePath(config.stateDirectory, "../../../.."),
+          state,
+          p,
+          deps.guardianBuildId,
+        ),
+        t = p.task;
+      check(
+        p.recovery?.phase === "consuming" &&
+          p.recovery.authorization?.buildId === deps.guardianBuildId,
+        "retry_not_available",
+      );
+      const renewed = await deps.revalidateUnstartedLease(p.projectId);
+      check(p.recovery.authorization.expiresAt > Date.now(), "retry_not_available");
+      check(
+        renewed?.lease?.id === t.prepared.leaseId &&
+          renewed.lease.generation === t.prepared.leaseGeneration &&
+          renewed.lease.taskId === t.taskId &&
+          renewed.lease.expiresAt > Date.now() / 1000 &&
+          renewed.revision === t.request.revision &&
+          renewed.checkoutIncarnation === t.checkoutIncarnation &&
+          recoveryDigest(renewed.checkoutIdentity) === recoveryDigest(t.checkoutIdentity),
+        "retry_not_available",
+      );
+      if (state.unstartedTransferHistory) {
+        check(
+          renewed.renewalSequence === state.unstartedTransferHistory.renewalSequence,
+          "retry_not_available",
+        );
+        return; // The same renewal receipt is factual; never rewrite original authority history.
+      }
+      state.unstartedTransferHistory = {
+        proof,
+        recoveryId: p.recovery.scope.recoveryId,
+        guardianPreparation: structuredClone(t.guardianPreparation),
+        guardianPrepared: structuredClone(t.guardianPrepared),
+        guardianAdmission: structuredClone(t.guardianAdmission),
+        authorizationDigest: recoveryDigest(p.recovery.authorization),
+        inspectionDigest: recoveryDigest(p.recovery.inspection),
+        originalTaskDigest: recoveryDigest(t),
+        renewalSequence: renewed.renewalSequence,
+      };
+      t.guardianPreparation = { ...t.guardianPreparation, buildId: deps.guardianBuildId };
+      t.guardianPrepared = {
+        ...t.guardianPrepared,
+        preparationDigest: digest(t.guardianPreparation),
+      };
+      delete t.guardianAdmission;
+      t.renewalSequence = renewed.renewalSequence;
+      save(); // Original authority remains in immutable archives and history, never reused.
+    },
+    afterFence: (p) => {
+      if (!state.unstartedTransfer || state.unstartedTransferConsumed) return;
+      check(
+        p.recovery?.phase === "consumed" &&
+          state.unstartedTransferHistory &&
+          state.unstartedTransferHistory.authorizationDigest ===
+            recoveryDigest(p.recovery.authorization),
+        "retry_not_available",
+      );
+      state.unstartedTransferConsumed = true; // Persisted atomically with the final recovery receipt by projectRecovery.
+    },
     absent: async (p) => {
       check(
         !p.task && !guardian.state.projects.some((v) => v.projectId === p.projectId),
@@ -1671,6 +1872,16 @@ export function createProjectController(config, deps) {
   return {
     async handle(path, r) {
       assertOpen();
+      if (state.unstartedTransfer && !state.unstartedTransferConsumed)
+        check(
+          [
+            "/projects/resolve",
+            "/projects/resolve-ref",
+            "/projects/tasks/status",
+            ...Object.keys(recoveryScopes),
+          ].includes(path),
+          "retry_not_available",
+        );
       validateProjectOperation(path, r);
       if (
         state.accountMaintenance &&
@@ -2152,6 +2363,40 @@ export function createProjectController(config, deps) {
       if (guardian)
         for (const p of Object.values(state.projects))
           if (p.task?.guardianPreparation) assertAdmission(p.projectId);
+    },
+    assertUnstartedRecovery(phase) {
+      assertOpen();
+      const p = Object.values(state.projects)[0];
+      check(
+        guardian &&
+          !runtime &&
+          Object.keys(state.projects).length === 1 &&
+          (phase === "inspecting"
+            ? ["inspecting", "inspected", "held"].includes(p.recovery?.phase)
+            : p.recovery?.phase === "consuming"),
+        "retry_not_available",
+      );
+      const proof = verifyUnstartedProject(
+        resolvePath(config.stateDirectory, "../../../.."),
+        state,
+        p,
+        deps.guardianBuildId,
+      );
+      if (p.recovery.phase === "held")
+        check(
+          p.recovery.authorization?.expiresAt > Date.now() &&
+            p.recovery.authorization.buildId === deps.guardianBuildId &&
+            p.recovery.authorization.lifetimeId === guardian.state.lifetimeId,
+          "retry_not_available",
+        );
+      check(
+        guardian.state.unstartedTransfer?.transferId === proof.transferId &&
+          guardian.state.unstartedTransfer.oldRuntimeId === proof.oldRuntimeId &&
+          guardian.state.unstartedTransfer.proofDigest === recoveryDigest(proof),
+        "retry_not_available",
+      );
+      if (phase === "consuming")
+        check(p.recovery.authorization?.expiresAt > Date.now(), "retry_not_available");
     },
     async fenceRuntimeExecution() {
       assertOpen();

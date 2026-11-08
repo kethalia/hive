@@ -290,7 +290,8 @@ export async function connectGuardianWorker({
   let closedBarrierId = null;
   let phase = "starting",
     binding,
-    wire;
+    wire,
+    unstartedTransfer;
   const projects = new Map();
   const tokens = new Map();
   let pendingAuthority = 0,
@@ -443,7 +444,12 @@ export async function connectGuardianWorker({
       ready = true;
     },
     get state() {
-      return structuredClone({ phase, ...binding, projects: [...projects.values()] });
+      return structuredClone({
+        phase,
+        ...binding,
+        projects: [...projects.values()],
+        ...(unstartedTransfer ? { unstartedTransfer } : {}),
+      });
     },
     async requestDrain(maintenanceId) {
       check(phase === "open");
@@ -475,6 +481,8 @@ export async function connectGuardianWorker({
       check(phase === "open" && typeof nonce === "string" && digest.test(nonce));
       const result = await wire.request("identity", { nonce }, 25000);
       check(phase === "open");
+      if (result?.unstartedTransferReceipt)
+        unstartedTransfer = structuredClone(result.unstartedTransferReceipt);
       return result;
     },
     async bootstrap(grant) {
@@ -486,9 +494,19 @@ export async function connectGuardianWorker({
       );
       const result = await wire.request("bootstrap", { grant }, 25000);
       check(phase === "open" && result?.enrolled === true);
+      if (result.unstartedTransfer) {
+        check(
+          Object.keys(result.unstartedTransfer).sort().join() ===
+            "oldRuntimeId,proofDigest,transferId" &&
+            uuid.test(result.unstartedTransfer.transferId) &&
+            uuid.test(result.unstartedTransfer.oldRuntimeId) &&
+            digest.test(result.unstartedTransfer.proofDigest),
+        );
+        unstartedTransfer = structuredClone(result.unstartedTransfer);
+      }
       return result;
     },
-    async metadataAuthority({ projects: inventory }) {
+    async metadataAuthority({ projects: inventory, authorityVersion }) {
       check(
         phase === "open" &&
           Array.isArray(inventory) &&
@@ -502,7 +520,11 @@ export async function connectGuardianWorker({
           projectIds.length === projects.size &&
           projectIds.every((p) => projects.has(p)),
       );
-      const result = await authorityRequest("metadataAuthority", { projectIds });
+      check(authorityVersion === undefined || authorityVersion === 1);
+      const result = await authorityRequest("metadataAuthority", {
+        projectIds,
+        ...(authorityVersion === 1 ? { authorityVersion } : {}),
+      });
       check(phase === "open");
       return result;
     },

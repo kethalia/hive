@@ -203,6 +203,7 @@ async function openJournal(
   bindingDigest,
   prepareIdleLifetime,
   prepareBootstrapRetirement,
+  prepareUnstartedRetirement,
 ) {
   check(resolve(directory) === directory && /^[a-f0-9]{64}$/.test(bindingDigest));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -257,7 +258,31 @@ async function openJournal(
           timingSafeEqual(Buffer.from(saved.signature), Buffer.from(expected)),
       );
       check(saved.state.schemaVersion === 1 && saved.state.receipts.length < 32);
-      if (saved.state.phase === "startupReady" && prepareBootstrapRetirement) {
+      if (
+        ["admissionAccepted", "indeterminate"].includes(saved.state.phase) &&
+        prepareUnstartedRetirement
+      ) {
+        const proof = await prepareUnstartedRetirement({
+          outerRaw: encoded,
+          nextBindingDigest: bindingDigest,
+        });
+        check(
+          proof.oldJournalDigests.lifetime === sha(encoded) &&
+            proof.oldLifetimeId === saved.state.events[0].value.lifetimeId &&
+            proof.newBuildId !== proof.oldBuildId &&
+            !existsSync(join(directory, "controller.json")) &&
+            sha(readFileSync(path)) === sha(encoded),
+        );
+        const archive = join(directory, `lifetime-unstarted-${proof.transferId}.json`);
+        check(!existsSync(archive));
+        renameSync(path, archive);
+        const fd = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+        try {
+          fsyncSync(fd);
+        } finally {
+          closeSync(fd);
+        }
+      } else if (saved.state.phase === "startupReady" && prepareBootstrapRetirement) {
         check(
           !readdirSync(directory).some(
             (name) => name === "controller.json" || name.startsWith("controller-archive-"),
@@ -455,6 +480,7 @@ export async function openGuardedHost(options) {
     options.bindingDigest,
     options.prepareIdleLifetime,
     options.prepareBootstrapRetirement,
+    options.prepareUnstartedRetirement,
   );
   const recovered = journal.snapshot();
   if (recovered.phase === "treeExited") {
@@ -870,13 +896,21 @@ export async function openGuardedHost(options) {
               }),
           ]),
         ),
-        metadataAuthority: (value) =>
-          enqueue(async () => {
+        metadataAuthority: (value) => {
+          const metadataDeadline = Date.now() + GUARDIAN_ADMISSION_BUDGET.outerMs;
+          return enqueue(async () => {
             check(
               phase === "open" &&
                 hello &&
                 startupReady &&
-                Object.keys(value ?? {}).join() === "projectIds" &&
+                (Object.keys(value ?? {})
+                  .sort()
+                  .join() === "projectIds" ||
+                  (Object.keys(value ?? {})
+                    .sort()
+                    .join() === "authorityVersion,projectIds" &&
+                    value.authorityVersion === 1)) &&
+                Date.now() < metadataDeadline &&
                 Array.isArray(value.projectIds) &&
                 value.projectIds.length > 0 &&
                 value.projectIds.length <= 32 &&
@@ -888,12 +922,17 @@ export async function openGuardedHost(options) {
                 typeof options.metadataAuthority === "function",
             );
             const result = await boundedAuthority(
-              () => options.metadataAuthority(value.projectIds.map((projectId) => ({ projectId }))),
-              GUARDIAN_ADMISSION_BUDGET.outerMs,
+              () =>
+                options.metadataAuthority(
+                  value.projectIds.map((projectId) => ({ projectId })),
+                  { authorityVersion: value.authorityVersion },
+                ),
+              Math.max(1, metadataDeadline - Date.now()),
             );
-            check(phase === "open");
+            check(phase === "open" && Date.now() < metadataDeadline);
             return result;
-          }),
+          });
+        },
       },
       unavailable,
     );

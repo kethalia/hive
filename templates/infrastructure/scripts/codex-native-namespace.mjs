@@ -55,7 +55,7 @@ const uuid = (value) =>
   typeof value === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value);
 const sha256 = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const positive = (value) => Number.isSafeInteger(value) && value > 0;
-export function validateMetadataApproval(value, projects) {
+export function validateMetadataApproval(value, projects, { fresh = false } = {}) {
   check(
     strict(value, [
       "runtimeId",
@@ -65,6 +65,7 @@ export function validateMetadataApproval(value, projects) {
       "nativeLaunchId",
       "launchIntentDigest",
       "approvals",
+      ...(fresh ? ["authorityUntil"] : []),
     ]) &&
       uuid(value.runtimeId) &&
       positive(value.runtimeGeneration) &&
@@ -77,6 +78,7 @@ export function validateMetadataApproval(value, projects) {
       projects.length > 0 &&
       projects.length <= 32,
   );
+  if (fresh) check(Number.isSafeInteger(value.authorityUntil) && value.authorityUntil > Date.now());
   const seen = new Set();
   for (const approval of value.approvals) {
     check(

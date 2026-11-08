@@ -531,6 +531,48 @@ class ManagedProjects:
             self.write(receipt, record)
             return self.summary(project, record)
 
+    def _revalidate_unstarted_lease(self, repository_id, project_id, authority, ttl=3600):
+        """Private owner recovery only; expiry never releases the retained writer."""
+        require(authority is not None and type(ttl) is int and 30 <= ttl <= 3600, "renewal_authority_required")
+        with self.lock():
+            project, receipt, record = self.load(repository_id)
+            lease = record.get("lease")
+            require(record["status"] == "ready" and lease and not record.get("sourceUpdating")
+                    and not record.get("acceptedSource"), "renewal_binding_changed")
+            expected = {"repositoryId": repository_id, "taskId": lease["taskId"], "leaseId": lease["id"],
+                        "leaseGeneration": lease["generation"], "revision": record["revision"],
+                        "checkoutIncarnation": record["checkoutIncarnation"], "checkoutIdentity": {key: str(value) for key, value in record["checkoutIdentity"].items()}}
+            grant = authority.verify(project_id, expected)
+            require(grant["expiresAt"] > time.time() * 1000, "renewal_authority_expired")
+            prior = record.get("unstartedRevalidation")
+            require(not grant.get("replayOnly") or prior, "renewal_replay_conflict")
+            if prior:
+                require(prior["transferId"] == grant["transferId"] and prior["recoveryId"] == grant["recoveryId"]
+                        and prior["proofDigest"] == grant["proofDigest"] and prior["expected"] == expected
+                        and prior["renewalSequence"] == record.get("renewalSequence")
+                        and prior["newLease"] == lease, "renewal_replay_conflict")
+            sequence = record.get("renewalSequence", 0)
+            require(type(sequence) is int and 0 <= sequence < 9007199254740991
+                    and (prior or sequence == grant["renewalSequence"]), "renewal_binding_changed")
+            self.checkout_valid(project / "checkout", record)
+            require(self.git(project / "checkout", "rev-parse", "HEAD") == record["revision"], "renewal_source_changed")
+            self.clean(project / "checkout")
+            self.no_consumers(project / "checkout")
+            require(authority.verify(project_id, expected) == grant and grant["expiresAt"] > time.time() * 1000,
+                    "renewal_authority_expired")
+            if prior:
+                return self.summary(project, record)  # Current physical proof, no second extension.
+            original = dict(lease)
+            now = time.time()
+            lease["expiresAt"] = now + ttl
+            record["renewalSequence"] = sequence + 1
+            record["lastRenewedAt"] = now
+            record["unstartedRevalidation"] = {"transferId": grant["transferId"], "recoveryId": grant["recoveryId"],
+                "proofDigest": grant["proofDigest"], "expected": expected, "previousLease": original,
+                "newLease": dict(lease), "renewalSequence": sequence + 1}
+            self.write(receipt, record)
+            return self.summary(project, record)
+
     def release_lease(self, repository_id, task_id, lease_id, generation, expected_revision):
         require(revision(expected_revision), "invalid_revision")
         with self.lock():

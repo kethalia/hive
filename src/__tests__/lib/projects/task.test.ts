@@ -419,3 +419,77 @@ it("guarded owner recovery stages inspection and CAS before consume, and resumes
   expect(mock.host.mock.calls[0][2]).toBe("/projects/tasks/recovery-consume");
   expect(mock.guardianProvision).not.toHaveBeenCalled();
 });
+
+it("retries a persisted authorized recovery directly after an admission/fence transport failure", async () => {
+  const { guardianDigest } = await import("@/lib/codex-session/guardian-contracts");
+  vi.stubEnv("HIVE_GUARDIAN_ENABLED", "true");
+  const coderUserId = "55555555-5555-4555-8555-555555555555";
+  const scope = {
+    recoveryId: requestId,
+    ownerId: user.id,
+    coderOwnerId: coderUserId,
+    projectId,
+    taskId,
+    workspaceId,
+    originalRequestId: requestId,
+    intentVersion: "original-blocked-version",
+    intentDigest: "a".repeat(64),
+    hostRequestDigest: "b".repeat(64),
+    repositoryId: "123",
+    providerAccountId: "456",
+    revision: "c".repeat(40),
+  };
+  const inspection = {
+    outcome: "existing_preexecution",
+    taskFingerprint: "d".repeat(64),
+    buildId: "66666666-6666-4666-8666-666666666666",
+    lifetimeId: "77777777-7777-4777-8777-777777777777",
+    guardianGeneration: 1,
+  };
+  const authorization = {
+    inspectionDigest: guardianDigest(inspection),
+    authorizedVersion: "persisted-authorized-version",
+    buildId: inspection.buildId,
+    lifetimeId: inspection.lifetimeId,
+    expiresAt: Date.now() + 30000,
+  };
+  const authorized = { id: requestId, phase: "authorized", scope, inspection, authorization };
+  const before = JSON.stringify(authorized);
+  mock.snapshot.mockResolvedValue({
+    row: {
+      id: taskId,
+      projectId,
+      workspaceId,
+      phase: "preparing",
+      repositoryId: "123",
+      providerAccountId: "456",
+    },
+    version: authorization.authorizedVersion,
+  });
+  mock.get.mockResolvedValue({ id: taskId, projectId, phase: "preparing", status: null });
+  mock.recoveryBegin.mockResolvedValue(authorized);
+  mock.host.mockRejectedValueOnce(new Error("synthetic admission/fence outcome unknown"));
+  const principal = { ...user, coderUserId },
+    request = { workspaceId, taskId, requestId };
+  await expect(retryProjectTask(principal, projectId, request)).rejects.toThrow();
+  expect(mock.recoveryFinish).not.toHaveBeenCalled();
+  const receipt = { receipt: "same-authorized-recovery-ack" };
+  mock.host.mockResolvedValueOnce(receipt);
+  expect((await retryProjectTask(principal, projectId, request)).phase).toBe("preparing");
+  expect(mock.host.mock.calls).toEqual(
+    [0, 1].map(() => [
+      principal,
+      workspaceId,
+      "/projects/tasks/recovery-consume",
+      { schemaVersion: 1, scope, authorization },
+      { expectedBuildId: authorization.buildId },
+    ]),
+  );
+  expect(mock.guardianProvision).not.toHaveBeenCalled();
+  expect(mock.guardianIdentity).not.toHaveBeenCalled();
+  expect(mock.recoveryAuthorize).not.toHaveBeenCalled();
+  expect(mock.recoveryFinish).toHaveBeenCalledExactlyOnceWith(authorized, receipt);
+  expect(mock.enqueue).not.toHaveBeenCalled();
+  expect(JSON.stringify(authorized)).toBe(before);
+  expect(JSON.stringify(mock.host.mock.calls)).not.toContain(input.text);
+});

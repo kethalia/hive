@@ -179,6 +179,10 @@ export class CoderClient {
   }
 
   /** Fetch a workspace by ID. */
+  async getWorkspaceBuildHistory(workspaceId: string, signal?: AbortSignal): Promise<unknown> {
+    return this.request(`/api/v2/workspaces/${workspaceId}/builds?limit=16`, { signal });
+  }
+
   async getWorkspace(workspaceId: string, signal?: AbortSignal): Promise<CoderWorkspace> {
     return this.request<CoderWorkspace>(`/api/v2/workspaces/${workspaceId}`, { signal });
   }

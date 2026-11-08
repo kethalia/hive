@@ -14,6 +14,10 @@ import {
   guardianMetadataEvidenceSchema,
   guardianPreparationSchema,
 } from "./guardian-contracts";
+import {
+  guardianUnstartedTransferReceiptSchema,
+  guardianUnstartedTransferSchema,
+} from "./guardian-unstarted-contracts";
 
 const uuid = z.string().uuid();
 const boundedId = z.string().regex(/^[A-Za-z0-9_.:-]{1,160}$/);
@@ -75,6 +79,8 @@ export const guardianIdentityResponseSchema = z
     expiresAt: z.number().int().positive(),
     identity: guardianRuntimeIdentitySchema,
     startup: guardianStartupEvidenceSchema,
+    unstartedTransfer: guardianUnstartedTransferSchema.optional(),
+    unstartedTransferReceipt: guardianUnstartedTransferReceiptSchema.optional(),
     proof: signature,
   })
   .strict();
@@ -105,6 +111,7 @@ export const guardianEnrollmentClaimsSchema = z
     bindingDigest: guardianDigestSchema,
     identityDigest: guardianDigestSchema,
     startupDigest: guardianDigestSchema,
+    unstartedTransfer: guardianUnstartedTransferReceiptSchema.optional(),
   })
   .strict();
 export type GuardianEnrollmentClaims = z.infer<typeof guardianEnrollmentClaimsSchema>;
@@ -294,6 +301,7 @@ export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
       ...common,
       ...generation,
       action: z.literal("launch"),
+      authorityVersion: z.literal(1).optional(),
       nativeLaunchId: uuid,
       launchIntentDigest: guardianDigestSchema,
       projectIds: z.array(uuid).min(1).max(32),

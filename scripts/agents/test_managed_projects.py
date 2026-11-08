@@ -498,6 +498,95 @@ class ManagedProjectsTests(unittest.TestCase):
                 MODULE.require(project_id == "project-fixture" and actual == expected, "renewal_binding_changed")
         return Authority()
 
+    def unstarted_replay_fixture(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        expected = {"repositoryId": "123", "taskId": "task", "leaseId": value["lease"]["id"],
+            "leaseGeneration": value["lease"]["generation"], "revision": self.sha,
+            "checkoutIncarnation": value["checkoutIncarnation"], "checkoutIdentity": value["checkoutIdentity"]}
+        grant = {"transferId": "transfer-fixture", "recoveryId": "owner-recovery-fixture", "proofDigest": "a" * 64,
+            "expiresAt": MODULE.time.time() * 1000 + 30000, "renewalSequence": 0, "expected": expected}
+        class Authority:
+            def verify(inner, project_id, actual):
+                MODULE.require(actual == expected, "renewal_binding_changed")
+                return grant
+        result = self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority())
+        return result, Authority()
+
+    def test_unstarted_replay_rejects_changed_checkout_identity(self):
+        value, authority = self.unstarted_replay_fixture()
+        checkout = Path(value["checkoutDirectory"])
+        checkout.rename(checkout.with_name("retained-original"))
+        checkout.mkdir()
+        with self.assertRaisesRegex(MODULE.ManagedError, "checkout_identity_changed"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+
+    def test_unstarted_replay_rejects_changed_head(self):
+        value, authority = self.unstarted_replay_fixture()
+        checkout = Path(value["checkoutDirectory"])
+        (checkout / "README.md").write_text("another source\n")
+        git(checkout, "add", "README.md")
+        git(checkout, "commit", "-m", "test: changed fixture source")
+        with self.assertRaisesRegex(MODULE.ManagedError, "renewal_source_changed"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+
+    def test_unstarted_replay_rejects_new_checkout_consumer(self):
+        value, authority = self.unstarted_replay_fixture()
+        child = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(10)"], cwd=value["checkoutDirectory"])
+        self.process_ids.add(child.pid)
+        try:
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_in_use"):
+                self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        finally:
+            child.terminate()
+            child.wait(timeout=3)
+
+    def test_unstarted_owner_revalidation_preserves_identity_and_replays_once(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        with self.manager.lock():
+            _, receipt, record = self.manager.load("123")
+            record["lease"]["expiresAt"] = MODULE.time.time() - 7200
+            original = dict(record["lease"])
+            self.manager.write(receipt, record)
+        expected = {"repositoryId": "123", "taskId": "task", "leaseId": original["id"],
+            "leaseGeneration": original["generation"], "revision": self.sha,
+            "checkoutIncarnation": value["checkoutIncarnation"], "checkoutIdentity": value["checkoutIdentity"]}
+        grant = {"transferId": "transfer-fixture", "recoveryId": "owner-recovery-fixture", "proofDigest": "a" * 64,
+            "expiresAt": MODULE.time.time() * 1000 + 30000, "renewalSequence": 0, "expected": expected}
+        class Authority:
+            def verify(inner, project_id, actual):
+                MODULE.require(project_id == "project-fixture" and actual == expected, "renewal_binding_changed")
+                return grant
+        renewed = self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority())
+        self.assertEqual({k: v for k, v in renewed["lease"].items() if k != "expiresAt"},
+                         {k: v for k, v in original.items() if k != "expiresAt"})
+        self.assertGreater(renewed["lease"]["expiresAt"], MODULE.time.time())
+        self.assertEqual(renewed["checkoutIncarnation"], value["checkoutIncarnation"])
+        self.assertEqual(self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority()), renewed)
+        with self.manager.lock():
+            _, _, record = self.manager.load("123")
+            self.assertEqual(record["unstartedRevalidation"]["previousLease"], original)
+            self.assertEqual(record["renewalSequence"], 1)
+        grant["recoveryId"] = "different-recovery"
+        with self.assertRaisesRegex(MODULE.ManagedError, "renewal_replay_conflict"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority())
+
+    def test_unstarted_owner_authority_expiry_during_locked_validation_cannot_extend(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        calls = 0
+        grant = {"transferId": "transfer-fixture", "recoveryId": "owner-recovery-fixture", "proofDigest": "a" * 64,
+            "expiresAt": MODULE.time.time() * 1000 + 30000, "renewalSequence": 0}
+        class Authority:
+            def verify(inner, project_id, actual):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    grant["expiresAt"] = MODULE.time.time() * 1000 - 1
+                return grant
+        with self.assertRaisesRegex(MODULE.ManagedError, "renewal_authority_expired"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority())
+        self.assertEqual(self.manager.inspect("123")["lease"], value["lease"])
+        self.assertEqual(self.manager.inspect("123")["renewalSequence"], 0)
+
     def test_renewal_preserves_dirty_untracked_ignored_work_and_lease_identity(self):
         value = self.manager.prepare("123", "task", self.sha)
         checkout = Path(value["checkoutDirectory"])

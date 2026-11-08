@@ -20,24 +20,23 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
 Current implementation checkpoint (2026-11-08): the epic preserves released main
-`1ace8774118b99b28856347edd51410c4f0a0774`. Preview task integration, automatic
-production Builds observation, independent production acceptance, and explicit owner-gated
-production Builds deployment are integrated after CI/review. Both existing Preview databases
-have migration48; production remains unchanged. The retained private 20Gi test host restarts
-automatically with signed history preserved. A source fix for Coder fsGroup HOME account
-locking is in review before the current manager/child pilot. Database source-build delivery
-and graceful account maintenance/resume are still being implemented and validated. Installed
-multi-task, shared Conversation/Terminal browser acceptance, background wake approval and
-final production cutover remain open.
+`1ace8774118b99b28856347edd51410c4f0a0774` and is integrated through `f861b372`.
+The existing single Worker automatically deploys the branch Preview. Database job and
+account-maintenance implementation, scoped account cards and request-bound Cloudflare
+callback execution passed CI/review; both Preview databases have 50 migrations with
+original rows, history and grants preserved. The reviewed test-host image starts normally,
+and actual dedicated Codex account status passes through Hive. The current managed pilot
+is blocked before model execution by a metadata reservation timeout; exact-task recovery
+is under implementation and independent review. Shared Conversation/Terminal browser
+acceptance, live multi-task coordination, background wake approval and final cutover remain open.
 
-A read-only production capture has now been restored and upgraded both locally and in a separate
-Neon Free rehearsal database: all eight original tables (88 rows) match their fingerprints,
-and all 39 migrations are present. The actual Worker application/session proof and local backup recovery also pass within the
-recorded limits. Original production keys/session continuity, streaming and final cutover
-checks remain open. The raw data stays in private files and the isolated database; only redacted
-proof is committed. The previous private Cloudflare browser pilot covered login, repository
-search/enrollment, layout and logout; current-build shared-session and full baseline acceptance
-remain pending. No production cutover has occurred.
+The November 5 production capture has been restored and upgraded locally through all 50
+migrations. Its 81 original application rows and original migration history match; a decoded
+upgraded backup is retained privately. Earlier bounded Worker/session and backup-recovery
+proofs remain scoped evidence. Fresh production capture, original encryption/cookie key
+continuity, streaming and final cutover checks remain open. The real browser checkpoint
+covers OAuth login, repository search/enrollment, layout and logout; current-build shared
+sessions and full baseline acceptance remain pending. No production cutover has occurred.
 
 Current step reports and blockers: [execution ledger](checks/autonomous-delivery/progress.md). Each task follows Understand → Implement → Review →
 Validate, adding Release/Observe when it changes deployed behavior. Record attempts, issues,

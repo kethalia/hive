@@ -1,5 +1,6 @@
 import type { CodexGuardianAdmission, CodexGuardianRuntime, Prisma } from "@hive/db";
 import type { GuardianPolicy } from "@/lib/codex-session/guardian-contracts";
+import { effectiveUnstartedSuccessor } from "@/lib/codex-session/guardian-unstarted-store.server";
 import { epicIsolationSchema } from "./epic-claim.server";
 import { epicDigest, epicPlanSchema } from "./epic-contracts";
 
@@ -36,7 +37,13 @@ export async function epicNativeAdmission(
     starts.length !== 1 ||
     !["reserved", "accepted"].includes(starts[0].phase) ||
     starts[0].workspace_id !== runtime.workspaceId ||
-    starts[0].build_id !== runtime.buildId
+    !(await effectiveUnstartedSuccessor(tx, {
+      ownerId: runtime.ownerId,
+      taskId: admission.preparationIntentId,
+      workspaceId: runtime.workspaceId,
+      oldBuildId: starts[0].build_id,
+      newBuildId: runtime.buildId,
+    }))
   )
     return false;
   const start = starts[0];
@@ -105,7 +112,13 @@ export async function epicNativeAdmission(
       AND s.intent_id=${intentId}::uuid AND s.workspace_id=${workspaceId}::uuid FOR SHARE OF s`;
     if (
       pins.length !== 1 ||
-      pins[0].build_id !== buildId ||
+      !(await effectiveUnstartedSuccessor(tx, {
+        ownerId: runtime.ownerId,
+        taskId: intentId,
+        workspaceId,
+        oldBuildId: pins[0].build_id,
+        newBuildId: buildId,
+      })) ||
       pins[0].isolation_domain !== isolationDomain ||
       !["reserved", "accepted"].includes(pins[0].phase) ||
       epicDigest(pins[0].plan) !== pins[0].plan_digest
