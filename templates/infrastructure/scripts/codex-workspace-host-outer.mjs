@@ -21,7 +21,11 @@ import {
   archiveIdleProjectState,
   verifyBootstrapProjectHistory,
 } from "./codex-project-controller.mjs";
-import { prepareUnstartedTransfer } from "./codex-unstarted-transfer.mjs";
+import {
+  prepareUnstartedTransfer,
+  prepareUnusedEpochHop,
+  readPendingUnstartedTransfer,
+} from "./codex-unstarted-transfer.mjs";
 import { readInstalledHostStartup, validateHostConfig } from "./codex-workspace-host.mjs";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
@@ -233,6 +237,25 @@ export async function startInstalledGuardedHost() {
             },
             proof,
           );
+        },
+        prepareUnusedEpochRetirement: (facts) => {
+          if (!readPendingUnstartedTransfer(home)) return null;
+          const old = JSON.parse(facts.outerRaw).state.events?.[4]?.value;
+          readBootstrapConfigHistory(home, old?.configSha256, config);
+          return prepareUnusedEpochHop({
+            home,
+            config,
+            configSha256,
+            packageManifestSha256: challenge.packageManifestSha256,
+            ...facts,
+            oldConfigRaw: readFileSync(
+              join(
+                home,
+                ".local/state/hive/codex-host-install/config-history",
+                `${old.configSha256}.json`,
+              ),
+            ),
+          });
         },
         prepareUnstartedRetirement: (proof) => {
           const old = JSON.parse(proof.outerRaw).state.events?.[4]?.value;

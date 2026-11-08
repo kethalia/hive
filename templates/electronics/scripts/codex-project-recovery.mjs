@@ -1,5 +1,6 @@
 // Owner-authenticated recovery only. Inspection is not execution authority.
 import { createHash } from "node:crypto";
+import { validateRemountTicket } from "./codex-unstarted-transfer.mjs";
 
 const check = (v) => {
   if (!v) throw new Error("retry_not_available");
@@ -36,10 +37,11 @@ export function validateRecoveryRequest(path, request) {
     exact(
       request,
       path.endsWith("inspect")
-        ? ["schemaVersion", "scope"]
+        ? ["schemaVersion", "scope", ...(request.continuity ? ["continuity"] : [])]
         : ["schemaVersion", "scope", "authorization"],
     ) && request.schemaVersion === 1,
   );
+  if (request.continuity) validateRemountTicket(request.continuity);
   const s = request.scope;
   check(
     exact(s, [
@@ -142,6 +144,7 @@ export function projectRecovery({
       buildId,
       lifetimeId: guardian.state.lifetimeId,
       guardianGeneration: guardian.state.generation,
+      ...(p.recovery?.remount ? { remount: structuredClone(p.recovery.remount) } : {}),
     };
   };
   return async (path, p, request) => {
@@ -164,11 +167,19 @@ export function projectRecovery({
     if (path.endsWith("inspect")) {
       check(recoveryHeld(p) || (p.recoveryCount ?? 0) < 32);
       if (!recoveryHeld(p)) {
-        p.recovery = { phase: "inspecting", scope: structuredClone(s) };
+        p.recovery = {
+          phase: "inspecting",
+          scope: structuredClone(s),
+          ...(request.continuity ? { continuity: structuredClone(request.continuity) } : {}),
+        };
         p.recoveryCount = (p.recoveryCount ?? 0) + 1;
         save(); // Gate every input/spawn before any asynchronous inspection.
       }
       check(["inspecting", "inspected"].includes(p.recovery.phase));
+      check(
+        recoveryDigest(request.continuity ?? null) ===
+          recoveryDigest(p.recovery.continuity ?? null),
+      );
       const inspected = await facts(p, s);
       if (p.recovery.inspection)
         check(recoveryDigest(inspected) === recoveryDigest(p.recovery.inspection));

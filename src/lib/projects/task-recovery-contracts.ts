@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { guardianRemountInspectionSchema } from "../codex-session/guardian-remount-contracts";
 
 const uuid = z.string().uuid();
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
@@ -22,6 +23,7 @@ export const recoveryScopeSchema = z
 export const recoveryInspectionSchema = z
   .object({
     outcome: z.enum(["task_absent", "existing_preexecution"]),
+    remount: guardianRemountInspectionSchema.optional(),
     taskFingerprint: digest,
     buildId: uuid,
     lifetimeId: uuid,

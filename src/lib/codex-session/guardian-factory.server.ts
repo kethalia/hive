@@ -11,12 +11,16 @@ import {
   requestGuardianIdentity,
 } from "./bootstrap-delivery.server";
 import { guardianDeploymentPolicy, guardianDigest } from "./guardian-contracts";
+import { verifyRemountResources } from "./guardian-remount.server";
 import {
   type GuardianOwnerTransport,
   type GuardianProvisionStage,
   GuardianService,
 } from "./guardian-service.server";
-import { verifyUnstartedCoderLifecycle } from "./guardian-unstarted-contracts";
+import {
+  verifyUnstartedCoderLifecycle,
+  verifyUnusedEpochCoderLifecycle,
+} from "./guardian-unstarted-contracts";
 import {
   createRegisteredSessionService,
   registeredSessionConfig,
@@ -75,18 +79,39 @@ export function createGuardianService(
     return fresh.coder;
   };
   return new GuardianService(db, config, policy, encryptionKey, {
-    async assertUnstartedPredecessorStopped(binding, oldBuildId) {
+    async assertUnstartedPredecessorStopped(binding, oldBuildId, continuation, attestation) {
       if (oldBuildId === binding.buildId) throw new RegistrationRejected();
       const coder = await currentCoder(binding);
       const history = await coder.getWorkspaceBuildHistory(binding.workspaceId, options.signal);
       if (
-        !verifyUnstartedCoderLifecycle(history, {
-          workspaceId: binding.workspaceId,
-          oldBuildId,
-          newBuildId: binding.buildId,
-        })
+        continuation
+          ? !attestation ||
+            !verifyUnusedEpochCoderLifecycle(history, {
+              workspaceId: binding.workspaceId,
+              oldBuildId,
+              heldBuildId: continuation.unusedEpochHop.buildId,
+              newBuildId: binding.buildId,
+            })
+          : !verifyUnstartedCoderLifecycle(history, {
+              workspaceId: binding.workspaceId,
+              oldBuildId,
+              newBuildId: binding.buildId,
+            })
       )
         throw new RegistrationRejected();
+      if (continuation && attestation) {
+        const workspace = await coder.getWorkspace(binding.workspaceId, options.signal);
+        if (
+          workspace.latest_build.id !== binding.buildId ||
+          workspace.latest_build.template_version_id !== attestation.finalTemplateVersionId
+        )
+          throw new RegistrationRejected();
+        verifyRemountResources(
+          await coder.getWorkspaceResources(binding.workspaceId, binding.buildId),
+          attestation,
+          binding.agentId,
+        );
+      }
       const fresh = await currentCoder(binding);
       if (fresh.getBaseUrl() !== binding.coderOrigin) throw new RegistrationRejected();
     },

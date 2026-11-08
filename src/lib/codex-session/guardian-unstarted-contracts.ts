@@ -72,8 +72,15 @@ export const guardianUnstartedTransferSchema = z
   .strict()
   .refine((v) => Buffer.byteLength(guardianCanonical(v)) <= 16384);
 export const guardianUnstartedTransferReceiptSchema = z
-  .object({ transferId: uuid, oldRuntimeId: uuid, proofDigest: guardianDigestSchema })
-  .strict();
+  .object({
+    transferId: uuid,
+    oldRuntimeId: uuid,
+    proofDigest: guardianDigestSchema,
+    continuationDigest: guardianDigestSchema.optional(),
+    attestationDigest: guardianDigestSchema.optional(),
+  })
+  .strict()
+  .refine((v) => Boolean(v.continuationDigest) === Boolean(v.attestationDigest));
 export type GuardianUnstartedTransfer = z.infer<typeof guardianUnstartedTransferSchema>;
 
 /** Coder status belongs to that build's job/transition, not later builds. Require
@@ -81,6 +88,7 @@ export type GuardianUnstartedTransfer = z.infer<typeof guardianUnstartedTransfer
 export function verifyUnstartedCoderLifecycle(
   raw: unknown,
   scope: { workspaceId: string; oldBuildId: string; newBuildId: string },
+  historical = false,
 ) {
   const result = z
     .array(
@@ -117,7 +125,7 @@ export function verifyUnstartedCoderLifecycle(
     before.transition === "start" &&
     before.job.status === "succeeded" &&
     after.transition === "start" &&
-    after.status === "running" &&
+    (historical || after.status === "running") &&
     after.job.status === "succeeded" &&
     after.build_number === before.build_number + 2 &&
     stop.length === 1 &&
@@ -125,5 +133,36 @@ export function verifyUnstartedCoderLifecycle(
     stop[0].status === "stopped" &&
     stop[0].job.status === "succeeded" &&
     Math.max(...rows.map((r) => r.build_number)) === after.build_number
+  );
+}
+
+/** One extra unused start only. Each stop/start edge is independently proven;
+ * no arbitrary build omission or additional intermediate is accepted. */
+export function verifyUnusedEpochCoderLifecycle(
+  raw: unknown,
+  scope: { workspaceId: string; oldBuildId: string; heldBuildId: string; newBuildId: string },
+) {
+  const parsed = z
+    .array(z.object({ id: uuid, build_number: z.number().int().positive() }).passthrough())
+    .max(16)
+    .safeParse(raw);
+  if (!parsed.success) return false;
+  const held = parsed.data.find((r) => r.id === scope.heldBuildId);
+  if (!held) return false;
+  return (
+    verifyUnstartedCoderLifecycle(
+      parsed.data.filter((r) => r.build_number <= held.build_number),
+      {
+        workspaceId: scope.workspaceId,
+        oldBuildId: scope.oldBuildId,
+        newBuildId: scope.heldBuildId,
+      },
+      true,
+    ) &&
+    verifyUnstartedCoderLifecycle(raw, {
+      workspaceId: scope.workspaceId,
+      oldBuildId: scope.heldBuildId,
+      newBuildId: scope.newBuildId,
+    })
   );
 }

@@ -220,7 +220,7 @@ class ManagedProjects:
             raise ManagedError("receipt_invalid") from None
 
     @contextmanager
-    def lock(self):
+    def lock(self, remount=None):
         self.safe(self.state)
         self.state.mkdir(parents=True, mode=0o700, exist_ok=True)
         self.private(self.state, True)
@@ -240,12 +240,20 @@ class ManagedProjects:
             require(len(self.key) == 32, "receipt_key_invalid")
             root_record = self.state / "root.json"
             self.safe(self.root)
+            if remount is not None:
+                require(root_record.exists() and self.root.exists(), "remount_receipt_missing")
             if not root_record.exists():
                 require(not self.root.exists(), "unmanaged_root_exists")
                 self.root.mkdir(parents=True, mode=0o700)
                 self.write(root_record, {"schemaVersion": 1, "path": str(self.root), "identity": self.identity(self.root), "createdAt": time.time()})
             root = self.read(root_record)
-            require(root["path"] == str(self.root) and root["identity"] == self.identity(self.root), "managed_root_changed")
+            marker = self.state / "unstarted-remount.json"
+            if marker.exists():
+                pending = self.read(marker)
+                require(pending.get("phase") == "complete" or remount is not None, "remount_reconciliation_required")
+            require(root["path"] == str(self.root) and (remount is not None or root["identity"] == self.identity(self.root)), "managed_root_changed")
+            if remount is not None:
+                self._remount_ticket(remount)
             yield
         finally:
             os.close(fd)
@@ -321,35 +329,72 @@ class ManagedProjects:
         require(not self.git(checkout, "status", "--porcelain=v1", "--untracked-files=all", "--ignored=matching"), "checkout_has_work")
         require(not self.git(checkout, "stash", "list"), "checkout_has_stash")
 
-    def process_references(self, checkout):
-        prefix = str(checkout)
-        for process in Path("/proc").iterdir():
-            if not process.name.isdigit():
-                continue
-            owned = False
-            try:
-                owned = process.stat().st_uid == os.getuid()
-                if not owned:
-                    continue
-                for link in [process / "cwd", process / "exe", *(process / "fd").iterdir()]:
-                    try:
-                        target = os.readlink(link).removesuffix(" (deleted)")
-                    except FileNotFoundError:
-                        continue
-                    if target == prefix or target.startswith(prefix + "/"):
-                        return True
-                for mapping in (process / "maps").read_text().splitlines():
-                    parts = mapping.split(maxsplit=5)
-                    if len(parts) == 6 and (parts[5] == prefix or parts[5].startswith(prefix + "/")):
-                        return True
-            except (FileNotFoundError, ProcessLookupError):
-                continue
-            except PermissionError:
-                require(not owned, "process_inspection_unavailable")
-        return False
+    def _sealed_guardian(self, value, checkout):
+        require(isinstance(value, dict) and value.get("sourceSha256") == "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3"
+                and value.get("expiresAt", 0) > time.time() * 1000, "sealed_guardian_unavailable")
+        identity, outer, cwd = value["guardian"], value["outer"], value["cwd"]
+        require(cwd["path"] == str(self.home / ".local/share/hive/codex-host") and not Path(cwd["path"]).is_relative_to(checkout),
+                "sealed_guardian_unavailable")
+        self.private(Path(cwd["path"]), True)
+        require(self.identity(Path(cwd["path"])) == {k: int(cwd[k]) for k in ("device", "inode")}, "sealed_guardian_changed")
+        proc = Path("/proc") / str(identity["pid"])
+        raw = (proc / "stat").read_text(); fields = raw[raw.rindex(") ") + 2:].split()
+        uids = next((line.split()[1:] for line in (proc / "status").read_text().splitlines() if line.startswith("Uid:")), [])
+        require(fields[0] not in {"Z", "X"} and fields[19] == identity["startTime"] and int(fields[1]) == outer["pid"]
+                and identity["parentPid"] == outer["pid"] and len(uids) == 4 and all(int(v) == os.getuid() for v in uids)
+                and Path("/proc/sys/kernel/random/boot_id").read_text().strip() == identity["bootId"], "sealed_guardian_changed")
+        parent = Path("/proc") / str(outer["pid"])
+        parent_stat = (parent / "stat").read_text(); parent_fields = parent_stat[parent_stat.rindex(") ") + 2:].split()
+        parent_uids = next((line.split()[1:] for line in (parent / "status").read_text().splitlines() if line.startswith("Uid:")), [])
+        require(parent_fields[0] not in {"Z", "X"} and parent_fields[19] == outer["startTime"]
+                and outer["bootId"] == identity["bootId"] and len(parent_uids) == 4 and all(int(v) == os.getuid() for v in parent_uids),
+                "sealed_guardian_changed")
+        return identity["pid"]
 
-    def no_consumers(self, path):
-        require(not self.process_references(path), "checkout_in_use")
+    def process_references(self, checkout, _guardian=None):
+        prefix = str(checkout)
+        sealed = _guardian() if _guardian is not None else None
+        guardian_pid = self._sealed_guardian(sealed, checkout) if sealed else None
+        try:
+            for process in Path("/proc").iterdir():
+                if not process.name.isdigit(): continue
+                owned = None
+                try:
+                    # A nondumpable same-real-UID process can have root-owned
+                    # proc inodes. Status UIDs, not directory owner, decide scope.
+                    with (process / "status").open() as source: status = source.read(65537)
+                    require(len(status) <= 65536, "process_inspection_unavailable")
+                    uids = next((line.split()[1:] for line in status.splitlines() if line.startswith("Uid:")), [])
+                    require(len(uids) == 4 and all(v.isdigit() for v in uids), "process_inspection_unavailable")
+                    owned = any(int(v) == os.getuid() for v in uids)
+                    if not owned: continue
+                    exempt = int(process.name) == guardian_pid
+                    links = [process / "cwd", process / "exe"]
+                    try: links.extend((process / "fd").iterdir())
+                    except PermissionError: require(exempt, "process_inspection_unavailable")
+                    for link in links:
+                        try: target = os.readlink(link).removesuffix(" (deleted)")
+                        except FileNotFoundError: continue
+                        except PermissionError:
+                            require(exempt, "process_inspection_unavailable"); continue
+                        if target == prefix or target.startswith(prefix + "/"): return True
+                    try: mappings = (process / "maps").read_text().splitlines()
+                    except PermissionError:
+                        require(exempt, "process_inspection_unavailable"); mappings = []
+                    for mapping in mappings:
+                        parts = mapping.split(maxsplit=5)
+                        if len(parts) == 6 and (parts[5] == prefix or parts[5].startswith(prefix + "/")): return True
+                except (FileNotFoundError, ProcessLookupError): continue
+                except PermissionError:
+                    require(owned is False, "process_inspection_unavailable")
+            return False
+        finally:
+            if sealed:
+                require(_guardian() == sealed, "sealed_guardian_changed")
+                self._sealed_guardian(sealed, checkout)
+
+    def no_consumers(self, path, _guardian=None):
+        require(not self.process_references(path, _guardian), "checkout_in_use")
 
     def prepare(self, repository_id, task_id, requested_revision, lease_id=None, generation=None, ttl=900):
         require(identifier(task_id) and revision(requested_revision), "invalid_task_or_revision")
@@ -531,9 +576,160 @@ class ManagedProjects:
             self.write(receipt, record)
             return self.summary(project, record)
 
+    @staticmethod
+    def _remount_digest(value):
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+    @staticmethod
+    def _remount_identity(value):
+        require(isinstance(value, dict) and set(value) == {"device", "inode"}
+                and all(isinstance(v, str) and re.fullmatch(r"[0-9]{1,24}", v) for v in value.values()), "remount_identity_invalid")
+        return {k: int(v) for k, v in value.items()}
+
+    def _remount_ticket(self, ticket):
+        require(isinstance(ticket, dict) and ticket.get("expiresAt", 0) > time.time() * 1000
+                and all(isinstance(ticket.get(k), str) and re.fullmatch(r"[a-f0-9]{64}", ticket[k])
+                        for k in ["attestationDigest", "continuationDigest", "originalProofDigest"]), "remount_authority_invalid")
+        mapping = ticket["mapping"]
+        old, current = mapping["old"], mapping["current"]
+        require(set(old) == set(current) == {"root", "project", "checkout"}, "remount_identity_invalid")
+        for group in [old, current]:
+            for value in group.values(): self._remount_identity(value)
+            require(len({v["device"] for v in group.values()}) == 1, "remount_volume_changed")
+        require(old["root"]["device"] != current["root"]["device"]
+                and all(old[k]["inode"] == current[k]["inode"] for k in old), "remount_volume_changed")
+        require(ticket["volume"]["mountPath"] == str(self.home) and ticket["volume"]["subPath"] == ""
+                and ticket["volume"]["subPathExpr"] == "" and ticket["volume"]["readOnly"] is False
+                and ticket["volume"]["claimReadOnly"] is False, "remount_volume_changed")
+        return mapping
+
+    def _remount_mount(self, paths, device):
+        mounts = []
+        for row in Path("/proc/self/mountinfo").read_text().splitlines():
+            fields = row.split(); require(len(fields) >= 6, "remount_mount_unknown")
+            point = fields[4].replace("\\040", " ").replace("\\011", "\t").replace("\\134", "\\")
+            mounts.append((fields[0], fields[2], fields[3], point))
+        selected = []
+        for path in [self.home, *paths]:
+            matches = [m for m in mounts if str(path) == m[3] or str(path).startswith(m[3].rstrip("/") + "/")]
+            require(matches, "remount_mount_unknown")
+            selected.append(max(matches, key=lambda m: len(m[3])))
+        require(len(set(selected)) == 1 and selected[0][3] == str(self.home)
+                and selected[0][1] == f"{os.major(device)}:{os.minor(device)}", "remount_mount_changed")
+
+    def _remount_records(self, repository_id, ticket, guardian=None):
+        mapping = self._remount_ticket(ticket)
+        project, receipt = self.paths(repository_id)
+        paths = {"root": self.root, "project": project, "checkout": project / "checkout"}
+        for key, path in paths.items():
+            self.private(path, True)
+            require(self.identity(path) == self._remount_identity(mapping["current"][key]), "remount_identity_changed")
+        self._remount_mount(list(paths.values()), int(mapping["current"]["root"]["device"]))
+        require([x.name for x in self.state.glob("github-*.json")] == [receipt.name], "remount_competing_repository")
+        root_file = self.state / "root.json"
+        marker_file = self.state / "unstarted-remount.json"
+        marker = self.read(marker_file) if marker_file.exists() else None
+        if marker:
+            require(marker["mappingDigest"] == self._remount_digest(mapping) and marker["attestationDigest"] == ticket["attestationDigest"]
+                    and marker["continuationDigest"] == ticket["continuationDigest"] and marker["recoveryId"] == ticket["recoveryId"], "remount_replay_conflict")
+            for file, old, new, old_raw, new_raw in [
+                    (root_file, marker["oldRoot"], marker["newRoot"], marker["oldRootRaw"], marker["newRootRaw"]),
+                    (receipt, marker["oldProject"], marker["newProject"], marker["oldProjectRaw"], marker["newProjectRaw"])]:
+                actual = self.read(file)
+                require(actual in [old, new] and file.read_bytes() in [old_raw.encode(), new_raw.encode()], "remount_replay_conflict")
+            require(hashlib.sha256(marker["oldRootRaw"].encode()).hexdigest() == mapping["oldRootRecordSha256"]
+                    and hashlib.sha256(marker["oldProjectRaw"].encode()).hexdigest() == mapping["oldProjectRecordSha256"], "remount_receipt_changed")
+            root, record = marker["oldRoot"], marker["oldProject"]
+        else:
+            for file, key in [(root_file, "oldRootRecordSha256"), (receipt, "oldProjectRecordSha256")]:
+                self.private(file)
+                require(hashlib.sha256(file.read_bytes()).hexdigest() == mapping[key], "remount_receipt_changed")
+            root, record = self.read(root_file), self.read(receipt)
+        require(root["path"] == str(self.root) and root["identity"] == self._remount_identity(mapping["old"]["root"])
+                and record["projectIdentity"] == self._remount_identity(mapping["old"]["project"])
+                and record["checkoutIdentity"] == self._remount_identity(mapping["old"]["checkout"])
+                and record["status"] == "ready" and not record.get("sourceUpdating") and not record.get("acceptedSource")
+                and record["lease"]["taskId"] == ticket["taskId"] and record["repositoryId"] == repository_id,
+                "remount_binding_changed")
+        lease = record["lease"]
+        require(self._remount_digest({"id": lease["id"], "taskId": lease["taskId"], "generation": lease["generation"],
+                "expiresAtMillis": int(lease["expiresAt"] * 1000)}) == mapping["oldLeaseDigest"], "remount_lease_changed")
+        physical = dict(record, checkoutIdentity=self._remount_identity(mapping["current"]["checkout"]))
+        self.checkout_valid(project / "checkout", physical)
+        require(self.git(project / "checkout", "rev-parse", "HEAD") == record["revision"], "renewal_source_changed")
+        self.clean(project / "checkout"); self.no_consumers(project / "checkout", guardian)
+        return project, receipt, root, record, marker
+
+    def _inspect_unstarted_checkout(self, repository_id, project_id, authority):
+        ticket = authority.continuity(project_id, "inspecting")
+        if ticket is None: return self.inspect(repository_id)
+        guardian = (lambda: authority.guardian(project_id)) if hasattr(authority, "guardian") else None
+        with self.lock(remount=ticket):
+            project, _, _, record, _ = self._remount_records(repository_id, ticket, guardian)
+            require(authority.continuity(project_id, "inspecting") == ticket, "remount_authority_changed")
+            self._remount_ticket(ticket)
+            return {**self.summary(project, record), "checkoutVerified": True, "remount": {
+                "attestationDigest": ticket["attestationDigest"], "continuationDigest": ticket["continuationDigest"],
+                "mappingDigest": self._remount_digest(ticket["mapping"]), "volumeDigest": self._remount_digest(ticket["volume"]),
+                "mapping": ticket["mapping"]}}
+
+    def _revalidate_unstarted_remount(self, repository_id, project_id, authority, ticket, ttl):
+        guardian = (lambda: authority.guardian(project_id)) if hasattr(authority, "guardian") else None
+        with self.lock(remount=ticket):
+            project, receipt, root, record, marker = self._remount_records(repository_id, ticket, guardian)
+            lease = record["lease"]
+            expected = {"repositoryId": repository_id, "taskId": lease["taskId"], "leaseId": lease["id"],
+                "leaseGeneration": lease["generation"], "revision": record["revision"], "checkoutIncarnation": record["checkoutIncarnation"],
+                "checkoutIdentity": ticket["mapping"]["old"]["checkout"]}
+            grant = authority.verify(project_id, expected)
+            require(grant["expiresAt"] > time.time() * 1000 and authority.continuity(project_id, "consuming") == ticket,
+                    "remount_authority_changed")
+            if not marker:
+                require(not grant.get("replayOnly"), "remount_replay_conflict")
+                require(not record.get("unstartedRevalidation") and (record.get("renewalSequence", 0) == grant["renewalSequence"]), "remount_replay_conflict")
+                new_root = dict(root, identity=self._remount_identity(ticket["mapping"]["current"]["root"]))
+                new_record = json.loads(json.dumps(record)); now = time.time()
+                new_record["projectIdentity"] = self._remount_identity(ticket["mapping"]["current"]["project"])
+                new_record["checkoutIdentity"] = self._remount_identity(ticket["mapping"]["current"]["checkout"])
+                new_record["lease"]["expiresAt"] = now + ttl
+                new_record["renewalSequence"] = record.get("renewalSequence", 0) + 1
+                new_record["lastRenewedAt"] = now
+                new_record["unstartedRevalidation"] = {"transferId": grant["transferId"], "recoveryId": grant["recoveryId"],
+                    "proofDigest": grant["proofDigest"], "expected": expected, "previousLease": dict(lease),
+                    "newLease": dict(new_record["lease"]), "renewalSequence": new_record["renewalSequence"],
+                    "remountDigest": self._remount_digest(ticket["mapping"]), "attestationDigest": ticket["attestationDigest"]}
+                marker = {"schemaVersion": 1, "phase": "pending", "mappingDigest": self._remount_digest(ticket["mapping"]),
+                    "attestationDigest": ticket["attestationDigest"], "continuationDigest": ticket["continuationDigest"],
+                    "recoveryId": ticket["recoveryId"], "oldRoot": root, "newRoot": new_root,
+                    "oldProject": record, "newProject": new_record,
+                    "oldRootRaw": (self.state / "root.json").read_text(), "oldProjectRaw": receipt.read_text(),
+                    "newRootRaw": json.dumps({"record": new_root, "signature": self.signature(new_root)}, sort_keys=True),
+                    "newProjectRaw": json.dumps({"record": new_record, "signature": self.signature(new_record)}, sort_keys=True)}
+                require(authority.verify(project_id, expected) == grant and grant["expiresAt"] > time.time() * 1000,
+                        "renewal_authority_expired")
+                self._remount_ticket(ticket)
+                self.write(self.state / "unstarted-remount.json", marker)
+            require(authority.verify(project_id, expected) == grant and authority.continuity(project_id, "consuming") == ticket
+                    and grant["expiresAt"] > time.time() * 1000, "renewal_authority_expired")
+            self._remount_records(repository_id, ticket, guardian)
+            if marker["phase"] == "complete": return self.summary(project, marker["newProject"])
+            for file, replacement in [(self.state / "root.json", marker["newRoot"]), (receipt, marker["newProject"])]:
+                require(authority.verify(project_id, expected) == grant and grant["expiresAt"] > time.time() * 1000,
+                        "renewal_authority_expired")
+                self._remount_ticket(ticket)
+                self.write(file, replacement)
+            require(authority.verify(project_id, expected) == grant and grant["expiresAt"] > time.time() * 1000,
+                    "renewal_authority_expired")
+            self._remount_ticket(ticket)
+            self.write(self.state / "unstarted-remount.json", dict(marker, phase="complete"))
+            return self.summary(project, marker["newProject"])
+
     def _revalidate_unstarted_lease(self, repository_id, project_id, authority, ttl=3600):
         """Private owner recovery only; expiry never releases the retained writer."""
         require(authority is not None and type(ttl) is int and 30 <= ttl <= 3600, "renewal_authority_required")
+        continuity = authority.continuity(project_id, "consuming") if hasattr(authority, "continuity") else None
+        if continuity is not None:
+            return self._revalidate_unstarted_remount(repository_id, project_id, authority, continuity, ttl)
         with self.lock():
             project, receipt, record = self.load(repository_id)
             lease = record.get("lease")

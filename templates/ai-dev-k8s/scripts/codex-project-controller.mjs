@@ -1659,8 +1659,18 @@ export function createProjectController(config, deps) {
       );
     }
     const inspected = unstarted
-      ? await deps.inspectUnstartedCheckout(p.repositoryId)
+      ? await deps.inspectUnstartedCheckout(p.repositoryId, p.projectId)
       : await deps.inspectCheckout(p.repositoryId);
+    if (inspected?.remount) {
+      check(
+        p.recovery?.continuity &&
+          inspected.remount.attestationDigest === p.recovery.continuity.attestationDigest &&
+          recoveryDigest(inspected.remount.mapping) ===
+            recoveryDigest(p.recovery.continuity.mapping),
+        "retry_not_available",
+      );
+      p.recovery.remount = structuredClone(inspected.remount);
+    }
     if (!t.prepared) {
       check(
         !t.nativeCreationAttempted &&
@@ -1810,7 +1820,10 @@ export function createProjectController(config, deps) {
           renewed.lease.expiresAt > Date.now() / 1000 &&
           renewed.revision === t.request.revision &&
           renewed.checkoutIncarnation === t.checkoutIncarnation &&
-          recoveryDigest(renewed.checkoutIdentity) === recoveryDigest(t.checkoutIdentity),
+          recoveryDigest(renewed.checkoutIdentity) ===
+            recoveryDigest(
+              p.recovery.inspection.remount?.mapping.current.checkout ?? t.checkoutIdentity,
+            ),
         "retry_not_available",
       );
       if (state.unstartedTransferHistory) {
@@ -1829,12 +1842,20 @@ export function createProjectController(config, deps) {
         authorizationDigest: recoveryDigest(p.recovery.authorization),
         inspectionDigest: recoveryDigest(p.recovery.inspection),
         originalTaskDigest: recoveryDigest(t),
+        ...(p.recovery.inspection.remount
+          ? { remount: structuredClone(p.recovery.inspection.remount) }
+          : {}),
         renewalSequence: renewed.renewalSequence,
       };
+      if (p.recovery.inspection.remount)
+        t.checkoutIdentity = structuredClone(
+          p.recovery.inspection.remount.mapping.current.checkout,
+        );
       t.guardianPreparation = { ...t.guardianPreparation, buildId: deps.guardianBuildId };
       t.guardianPrepared = {
         ...t.guardianPrepared,
         preparationDigest: digest(t.guardianPreparation),
+        checkoutIdentity: structuredClone(t.checkoutIdentity),
       };
       delete t.guardianAdmission;
       t.renewalSequence = renewed.renewalSequence;

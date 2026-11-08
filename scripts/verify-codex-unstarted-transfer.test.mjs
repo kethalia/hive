@@ -25,8 +25,11 @@ import { processIdentity } from "../templates/ai-dev-k8s/scripts/codex-process-i
 import { createProjectController } from "../templates/ai-dev-k8s/scripts/codex-project-controller.mjs";
 import { recoveryDigest } from "../templates/ai-dev-k8s/scripts/codex-project-recovery.mjs";
 import {
+  effectiveUnstartedBuild,
   prepareUnstartedTransfer,
+  prepareUnusedEpochHop,
   readUnstartedTransfer,
+  readUnstartedTransferContinuation,
   unstartedLeaseAuthority,
   verifyUnstartedProject,
 } from "../templates/ai-dev-k8s/scripts/codex-unstarted-transfer.mjs";
@@ -39,7 +42,7 @@ const mac = (state, key) =>
       signature: createHmac("sha256", key).update(JSON.stringify(state)).digest("hex"),
     }),
   );
-function fixture(t) {
+function fixture(t, { intermediate = false } = {}) {
   const home = mkdtempSync(join(tmpdir(), "hive-unstarted-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const root = join(home, ".local/state/hive"),
@@ -83,8 +86,10 @@ function fixture(t) {
   const oldConfigRaw = Buffer.from(JSON.stringify(oldConfig)),
     config = structuredClone(oldConfig);
   config.binding.buildId = randomUUID();
-  const configSha256 = "e".repeat(64),
-    packageManifestSha256 = "f".repeat(64),
+  const configSha256 = intermediate ? sha(JSON.stringify(config)) : "e".repeat(64),
+    packageManifestSha256 = intermediate
+      ? "b16854fee6f44c96652c5b8bd64b9b3025e28037f93ab4bfe86c9bd218dd4efe"
+      : "f".repeat(64),
     oldManifest = "7eb52d53f4c6664743d4da182ff35dbe042bde53017647d18209b4eb885180c7";
   const bindingDigest = sha(
     JSON.stringify({
@@ -592,12 +597,14 @@ test("other uncertain outer termination remains held", (t) => {
   assert.throws(f.run, /unstarted_transfer_rejected/);
 });
 
-for (const failure of ["lease_ack", "admission", "fence"])
+for (const failure of ["lease_ack", "admission", "fence", "remount_admission", "remount_fence"])
   test(`owner consume recovers ${failure} failure once without changing request or lease`, async (t) => {
     const f = fixture(t),
       original = structuredClone(f.project.projects[f.projectId].task),
       proof = f.run();
-    const lifetimeId = randomUUID();
+    const lifetimeId = randomUUID(),
+      remount = failure.startsWith("remount_"),
+      mode = failure.replace("remount_", "");
     let opens = 0,
       admits = 0,
       renewCalls = 0,
@@ -615,7 +622,7 @@ for (const failure of ["lease_ack", "admission", "fence"])
       identity: async () => ({ identity: { lifetimeId }, startup: { generation: 1 } }),
       admit: async (value) => {
         admits++;
-        if (failure === "admission" && admits === 1) throw Error("fixture_admission_failed");
+        if (mode === "admission" && admits === 1) throw Error("fixture_admission_failed");
         guardian.state.generation = 2;
         guardian.state.projects = [value];
         return {
@@ -629,7 +636,7 @@ for (const failure of ["lease_ack", "admission", "fence"])
       },
       executionFence: async (token) => {
         fences++;
-        if (failure === "fence" && fences === 1) throw Error("fixture_fence_failed");
+        if (mode === "fence" && fences === 1) throw Error("fixture_fence_failed");
         return token;
       },
       assertAdmission() {},
@@ -663,10 +670,11 @@ for (const failure of ["lease_ack", "admission", "fence"])
         revalidateUnstartedLease: async () => {
           renewCalls++;
           if (renewCalls === 1) leaseWrites++;
-          if (failure === "lease_ack" && renewCalls === 1) throw Error("fixture_lease_ack_lost");
+          if (mode === "lease_ack" && renewCalls === 1) throw Error("fixture_lease_ack_lost");
           return {
             ...ready,
             renewalSequence: 1,
+            ...(remount ? { checkoutIdentity: ready.remount.mapping.current.checkout } : {}),
             lease: { ...ready.lease, expiresAt: Date.now() / 1000 + 3600 },
           };
         },
@@ -692,6 +700,63 @@ for (const failure of ["lease_ack", "admission", "fence"])
       revision: proof.sourceSha,
     };
     const request = { schemaVersion: 1, scope };
+    if (remount) {
+      const old = original.checkoutIdentity,
+        current = { ...old, device: String(Number(old.device) + 1) },
+        mapping = {
+          old: { root: { ...old, inode: "10" }, project: { ...old, inode: "11" }, checkout: old },
+          current: {
+            root: { ...current, inode: "10" },
+            project: { ...current, inode: "11" },
+            checkout: current,
+          },
+          oldRootRecordSha256: "d".repeat(64),
+          oldProjectRecordSha256: "e".repeat(64),
+          oldLeaseDigest: "f".repeat(64),
+        };
+      const volume = {
+        pvcUid: randomUUID(),
+        pvcName: "fixture-home",
+        namespace: "coder",
+        storageClass: "longhorn",
+        capacity: "20Gi",
+        boundVolumeName: "pvc-fixture",
+        accessModes: ["ReadWriteOnce"],
+        containerName: "dev",
+        podVolumeName: "home",
+        mountPath: "/home/coder",
+        subPath: "",
+        subPathExpr: "",
+        readOnly: false,
+        claimReadOnly: false,
+      };
+      request.continuity = {
+        attestationDigest: "a".repeat(64),
+        continuationDigest: "b".repeat(64),
+        originalProofDigest: recoveryDigest(proof),
+        recoveryId: scope.recoveryId,
+        ownerId: scope.ownerId,
+        workspaceId: scope.workspaceId,
+        projectId: scope.projectId,
+        taskId: scope.taskId,
+        final: {
+          buildId: f.config.binding.buildId,
+          lifetimeId,
+          configSha256: proof.newConfigSha256,
+          packageManifestSha256: proof.newPackageManifestSha256,
+        },
+        volume,
+        mapping,
+        expiresAt: Date.now() + 60000,
+      };
+      ready.remount = {
+        attestationDigest: request.continuity.attestationDigest,
+        continuationDigest: request.continuity.continuationDigest,
+        mappingDigest: recoveryDigest(mapping),
+        volumeDigest: recoveryDigest(volume),
+        mapping,
+      };
+    }
     await assert.rejects(
       c.handle("/projects/tasks/recovery-inspect", request),
       /retry_not_available/,
@@ -704,6 +769,12 @@ for (const failure of ["lease_ack", "admission", "fence"])
       proofDigest: recoveryDigest(proof),
     };
     const inspection = await c.handle("/projects/tasks/recovery-inspect", request);
+    if (remount)
+      assert.deepEqual(
+        await c.handle("/projects/tasks/recovery-inspect", request),
+        inspection,
+        "lost inspection ACK replays exact stable continuity/inspection",
+      );
     const authorization = {
       inspectionDigest: recoveryDigest(inspection.inspection),
       authorizedVersion: "fixture-authorized",
@@ -711,7 +782,7 @@ for (const failure of ["lease_ack", "admission", "fence"])
       lifetimeId,
       expiresAt: Date.now() + 30000,
     };
-    const consume = { ...request, authorization };
+    const consume = { schemaVersion: 1, scope, authorization };
     await assert.rejects(
       c.handle("/projects/tasks/recovery-consume", consume),
       /fixture_(?:lease_ack_lost|admission_failed|fence_failed)/,
@@ -720,7 +791,7 @@ for (const failure of ["lease_ack", "admission", "fence"])
     assert.equal(Boolean(held.unstartedTransferConsumed), false);
     assert.equal(held.projects[f.projectId].recovery.phase, "held");
     assert.deepEqual(held.projects[f.projectId].task.request, original.request);
-    if (failure !== "lease_ack") {
+    if (mode !== "lease_ack") {
       assert.equal(
         held.projects[f.projectId].task.guardianPreparation.buildId,
         f.config.binding.buildId,
@@ -736,7 +807,7 @@ for (const failure of ["lease_ack", "admission", "fence"])
         ),
       );
     }
-    if (failure === "fence") {
+    if (mode === "fence" && !remount) {
       const projectPath = join(f.projects, "projects.json"),
         originalHeld = readFileSync(projectPath),
         consuming = structuredClone(held),
@@ -807,7 +878,12 @@ for (const failure of ["lease_ack", "admission", "fence"])
       original.guardianPreparation,
     );
     assert.equal(active.unstartedTransferConsumed, true);
-    assert.equal(admits, failure === "admission" ? 2 : 1);
+    if (remount) {
+      assert.deepEqual(task.checkoutIdentity, ready.remount.mapping.current.checkout);
+      assert.deepEqual(task.guardianPrepared.checkoutIdentity, task.checkoutIdentity);
+      assert.deepEqual(active.unstartedTransferHistory.remount, ready.remount);
+    }
+    assert.equal(admits, mode === "admission" ? 2 : 1);
     assert.equal(leaseWrites, 1);
     assert.equal(renewCalls, 2);
     assert.ok(opens <= 1);
@@ -835,3 +911,163 @@ for (const tampered of [false, true])
       assert.equal(existsSync(`${active}.unstarted-tmp`), false);
     }
   });
+
+function unusedHopFixture(t) {
+  const f = fixture(t, { intermediate: true }),
+    proof = f.run(),
+    oldConfigRaw = Buffer.from(JSON.stringify(f.config)),
+    lifetimeId = randomUUID(),
+    ps = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state,
+    oldStart = {
+      ...f.outer.events[4].value,
+      lifetimeId,
+      configSha256: sha(oldConfigRaw),
+      packageManifestSha256: proof.newPackageManifestSha256,
+      projects: [],
+      ownershipDigest: sha(JSON.stringify([])),
+    };
+  ps.guardianLifetimeId = lifetimeId;
+  writeFileSync(join(f.projects, "projects.json"), mac(ps, f.keys.projects));
+  const state = {
+    schemaVersion: 1,
+    bindingDigest: oldStart.bindingDigest,
+    phase: "startupReady",
+    receipts: [],
+    events: ["begin", "ready", "launchIntent", "open", "startupReady"].map((name) => ({
+      name,
+      value: oldStart,
+    })),
+  };
+  writeFileSync(join(f.guard, "lifetime.json"), mac(state, f.keys.guard));
+  const config = structuredClone(f.config);
+  config.binding.buildId = randomUUID();
+  const configRaw = Buffer.from(JSON.stringify(config)),
+    args = {
+      home: f.home,
+      config,
+      configSha256: sha(configRaw),
+      packageManifestSha256: "d".repeat(64),
+      outerRaw: readFileSync(join(f.guard, "lifetime.json")),
+      oldConfigRaw,
+    };
+  return { ...f, proof, lifetimeId, args, configRaw, oldStart };
+}
+test("one unused held epoch preserves original proof and uses an independently observed final endpoint", (t) => {
+  const f = unusedHopFixture(t),
+    original = readFileSync(join(f.guard, "unstarted-transfer.json")),
+    task = JSON.stringify(f.project.projects[f.projectId].task),
+    hop = prepareUnusedEpochHop(f.args);
+  assert.equal(hop.hop.buildId, f.proof.newBuildId);
+  assert.equal(hop.hop.oldJournalDigests.supervisor, null);
+  assert.equal(hop.hop.oldJournalDigests.controller, null);
+  assert.deepEqual(readFileSync(join(f.guard, "unstarted-transfer.json")), original);
+  const held = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state;
+  assert.equal(JSON.stringify(held.projects[f.projectId].task), task);
+  assert.equal(held.guardianLifetimeId, undefined);
+  assert.equal(effectiveUnstartedBuild(f.home, f.proof), f.args.config.binding.buildId);
+  assert.deepEqual(
+    prepareUnusedEpochHop(f.args),
+    hop,
+    "exact pre-start archive replay is idempotent",
+  );
+  mkdirSync(join(f.home, ".config/hive"), { recursive: true, mode: 0o700 });
+  writeFileSync(join(f.home, ".config/hive/codex-host.json"), f.configRaw, { mode: 0o600 });
+  const final = {
+      lifetimeId: randomUUID(),
+      configSha256: f.args.configSha256,
+      packageManifestSha256: f.args.packageManifestSha256,
+    },
+    wire = readUnstartedTransferContinuation(f.home, final);
+  assert.equal(wire.originalProofDigest, recoveryDigest(f.proof));
+  assert.equal(wire.finalSuccessor.lifetimeId, final.lifetimeId);
+  assert.equal(Object.hasOwn(wire, "attestationDigest"), false);
+  assert.ok(Buffer.byteLength(JSON.stringify(wire)) < 4096);
+  assert.throws(
+    () =>
+      prepareUnusedEpochHop({
+        ...f.args,
+        config: { ...f.args.config, binding: { ...f.args.config.binding, buildId: randomUUID() } },
+      }),
+    /unstarted_transfer_rejected/,
+  );
+});
+for (const bad of ["live-actor", "native-controller", "changed-task", "unknown-package"])
+  test(`unused held epoch rejects ${bad} before changing original active project`, (t) => {
+    const f = unusedHopFixture(t);
+    if (bad === "live-actor") {
+      const s = JSON.parse(f.args.outerRaw).state;
+      s.events[4].value.outerIdentity = processIdentity(process.pid);
+      f.args.outerRaw = mac(s, f.keys.guard);
+    } else if (bad === "native-controller") {
+      const c = {
+        lifetimeId: f.lifetimeId,
+        generation: 1,
+        runtimeId: randomUUID(),
+        pending: null,
+        hold: false,
+        launch: null,
+        projects: {},
+        applications: {},
+      };
+      writeFileSync(
+        join(f.guard, "controller.json"),
+        JSON.stringify({
+          state: c,
+          signature: sign(null, Buffer.from(guardianCanonical(c)), f.keypair.privateKey).toString(
+            "base64url",
+          ),
+        }),
+        { mode: 0o600 },
+      );
+    } else if (bad === "changed-task") {
+      const state = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state;
+      state.projects[f.projectId].task.nativeCreationAttempted = true;
+      writeFileSync(join(f.projects, "projects.json"), mac(state, f.keys.projects));
+    } else {
+      f.args.oldConfigRaw = Buffer.from("{}");
+    }
+    const before = readFileSync(join(f.projects, "projects.json"));
+    assert.throws(() => prepareUnusedEpochHop(f.args), /unstarted_transfer_rejected/);
+    assert.deepEqual(readFileSync(join(f.projects, "projects.json")), before);
+    assert.equal(existsSync(join(f.guard, "unstarted-epoch-hop.json")), false);
+  });
+test("unused epoch archive tampering holds identity construction", (t) => {
+  const f = unusedHopFixture(t),
+    hop = prepareUnusedEpochHop(f.args),
+    file = join(f.guard, `unused-epoch-${hop.hop.lifetimeId}`, "project.json");
+  writeFileSync(file, "{}");
+  assert.throws(() => effectiveUnstartedBuild(f.home, f.proof), /unstarted_transfer_rejected/);
+});
+
+test("unused epoch replays a crash after authenticated empty controller move", (t) => {
+  const f = unusedHopFixture(t),
+    c = {
+      schemaVersion: 1,
+      lifetimeId: f.lifetimeId,
+      generation: 1,
+      runtimeId: null,
+      pending: null,
+      hold: false,
+      launch: null,
+      projects: {},
+      applications: {},
+    };
+  writeFileSync(
+    join(f.guard, "controller.json"),
+    JSON.stringify({
+      state: c,
+      signature: sign(null, Buffer.from(guardianCanonical(c)), f.keypair.privateKey).toString(
+        "base64url",
+      ),
+    }),
+    { mode: 0o600 },
+  );
+  const result = prepareUnusedEpochHop(f.args);
+  assert.equal(existsSync(join(f.guard, "controller.json")), false);
+  assert.equal(typeof result.hop.oldJournalDigests.controller, "string");
+  assert.deepEqual(
+    prepareUnusedEpochHop(f.args),
+    result,
+    "same outer lifetime is still active before journal rename",
+  );
+});

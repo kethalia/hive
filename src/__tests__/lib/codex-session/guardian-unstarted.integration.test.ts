@@ -2,7 +2,10 @@ import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { type Prisma, PrismaClient } from "@hive/db";
 import { afterAll, describe, expect, it } from "vitest";
 import { accountMaintenanceStateSchema } from "@/lib/codex-session/account-maintenance-contracts";
-import { AccountMaintenanceStore } from "@/lib/codex-session/account-maintenance-store.server";
+import {
+  AccountMaintenanceStore,
+  lockAccountMaintenanceWorkspace,
+} from "@/lib/codex-session/account-maintenance-store.server";
 import {
   expectedGuardianHostConfig,
   guardianConfigSha256,
@@ -12,6 +15,16 @@ import {
   guardianDigest,
   preparationDigest,
 } from "@/lib/codex-session/guardian-contracts";
+import {
+  readRemountRecoveryTicket,
+  resolveRemountAttestation,
+  verifyRemountResources,
+} from "@/lib/codex-session/guardian-remount.server";
+import {
+  guardianRemountAttestationSchema,
+  guardianTransferContinuationSchema,
+  UNUSED_INTERMEDIATE_MANIFEST,
+} from "@/lib/codex-session/guardian-remount-contracts";
 import { GuardianService } from "@/lib/codex-session/guardian-service.server";
 import { GuardianAdmissionStore } from "@/lib/codex-session/guardian-store.server";
 import {
@@ -270,6 +283,114 @@ async function fixture(begin = true) {
     env,
   };
 }
+async function remountFixture() {
+  const f = await fixture();
+  f.newIdentity.guardianElfSha256 = "8".repeat(64);
+  f.policy.packages[1].guardianElfSha256 = f.newIdentity.guardianElfSha256;
+  const heldBuildId = randomUUID(),
+    heldLifetimeId = randomUUID();
+  f.proof = guardianUnstartedTransferSchema.parse({
+    ...f.proof,
+    newBuildId: heldBuildId,
+    newConfigSha256: "9".repeat(64),
+    newPackageManifestSha256: UNUSED_INTERMEDIATE_MANIFEST,
+  });
+  const continuation = guardianTransferContinuationSchema.parse({
+    schemaVersion: 2,
+    originalProofDigest: guardianDigest(f.proof),
+    unusedEpochHop: {
+      schemaVersion: 1,
+      buildId: heldBuildId,
+      lifetimeId: heldLifetimeId,
+      configSha256: f.proof.newConfigSha256,
+      packageManifestSha256: UNUSED_INTERMEDIATE_MANIFEST,
+      originalProofDigest: guardianDigest(f.proof),
+      oldJournalDigests: {
+        lifetime: "1".repeat(64),
+        project: "2".repeat(64),
+        config: "3".repeat(64),
+        supervisor: null,
+        controller: null,
+      },
+      neverEnrolled: true,
+      nativeCreationAttempted: false,
+      firstPromptSubmissionAttempted: false,
+    },
+    finalSuccessor: {
+      buildId: f.newBinding.buildId,
+      lifetimeId: f.newIdentity.lifetimeId,
+      configSha256: f.newIdentity.configSha256,
+      packageManifestSha256: f.newIdentity.packageManifestSha256,
+    },
+  });
+  const oldCheckout = f.proof.checkout.checkoutIdentity;
+  const old = {
+    root: { device: oldCheckout.device, inode: "12" },
+    project: { device: oldCheckout.device, inode: "13" },
+    checkout: oldCheckout,
+  };
+  const pvcUid = randomUUID();
+  const attestation = guardianRemountAttestationSchema.parse({
+    schemaVersion: 1,
+    purpose: "unused-checkout-remount",
+    ownerId: f.f.ownerId,
+    coderOwnerId: f.newBinding.ownerId,
+    workspaceId: f.newBinding.workspaceId,
+    templateId: f.newBinding.templateId,
+    projectId: f.proof.projectId,
+    taskId: f.proof.taskId,
+    originalProofDigest: guardianDigest(f.proof),
+    oldBuildId: f.old.buildId,
+    oldLifetimeId: f.old.lifetimeId,
+    held: {
+      buildId: heldBuildId,
+      lifetimeId: heldLifetimeId,
+      configSha256: f.proof.newConfigSha256,
+      packageManifestSha256: UNUSED_INTERMEDIATE_MANIFEST,
+    },
+    heldJournalDigests: continuation.unusedEpochHop.oldJournalDigests,
+    final: continuation.finalSuccessor,
+    finalTemplateVersionId: randomUUID(),
+    volume: {
+      pvcUid,
+      pvcName: `coder-${f.newBinding.workspaceId}-home`,
+      namespace: "coder",
+      storageClass: "longhorn",
+      capacity: "20Gi",
+      accessModes: ["ReadWriteOnce"],
+      boundVolumeName: `pvc-${pvcUid}`,
+      containerName: "dev",
+      podVolumeName: "home",
+      mountPath: "/home/coder",
+      subPath: "",
+      subPathExpr: "",
+      readOnly: false,
+      claimReadOnly: false,
+    },
+    mapping: {
+      old,
+      current: Object.fromEntries(
+        Object.entries(old).map(([k, v]) => [k, { ...v, device: "99999" }]),
+      ),
+      oldRootRecordSha256: "4".repeat(64),
+      oldProjectRecordSha256: "5".repeat(64),
+      oldLeaseDigest: "6".repeat(64),
+    },
+    expiresAt: Date.now() + 120000,
+  });
+  f.policy.packages.push({
+    ...f.policy.packages[0],
+    packageManifestSha256: UNUSED_INTERMEDIATE_MANIFEST,
+  });
+  const store = new GuardianAdmissionStore(db, {
+    policy: f.policy,
+    encryptionKey: "19".repeat(32),
+    expectedConfigSha256: () => f.newIdentity.configSha256,
+  });
+  const reserve = () =>
+    store.reserveRuntime(f.newBinding, f.newIdentity, f.proof, continuation, [attestation]);
+  return { ...f, store, reserve, continuation, attestation };
+}
 function eventData(f: Awaited<ReturnType<typeof fixture>>) {
   const response = {
     runtime: { id: f.old.id, ownerId: f.old.ownerId, generation: f.old.generation },
@@ -311,11 +432,23 @@ function eventData(f: Awaited<ReturnType<typeof fixture>>) {
     outerKeyFingerprint: f.old.outerKeyFingerprint,
   };
 }
-function ownerService(f: Awaited<ReturnType<typeof fixture>>, stopped = true) {
+function ownerService(
+  f: Awaited<ReturnType<typeof fixture>> & {
+    continuation?: ReturnType<typeof guardianTransferContinuationSchema.parse>;
+    attestation?: ReturnType<typeof guardianRemountAttestationSchema.parse>;
+  },
+  stopped = true,
+) {
   let enrollmentClaim: unknown;
+  let identityBytes = 0;
   let service: GuardianService;
   service = new GuardianService(db, f.config, f.policy, "19".repeat(32), {
-    env: f.env,
+    env: {
+      ...f.env,
+      ...(f.attestation
+        ? { HIVE_GUARDIAN_REMOUNT_ATTESTATIONS_JSON: JSON.stringify([f.attestation]) }
+        : {}),
+    },
     resolveWorkspace: async (p) => {
       expect(p).toEqual({
         hiveUserId: f.f.ownerId,
@@ -344,6 +477,7 @@ function ownerService(f: Awaited<ReturnType<typeof fixture>>, stopped = true) {
           expiresAt: Date.now() + 30000,
           identity: f.newIdentity,
           unstartedTransfer: f.proof,
+          ...(f.continuation ? { unstartedTransferContinuation: f.continuation } : {}),
           startup: {
             schemaVersion: 1 as const,
             type: "ready" as const,
@@ -376,6 +510,7 @@ function ownerService(f: Awaited<ReturnType<typeof fixture>>, stopped = true) {
           Buffer.from(guardianIdentityProofPayload(packet)),
           f.f.outerPrivateKey,
         ).toString("base64url");
+        identityBytes = Buffer.byteLength(JSON.stringify(packet));
         return packet;
       },
       async bootstrap(_b, value) {
@@ -405,6 +540,9 @@ function ownerService(f: Awaited<ReturnType<typeof fixture>>, stopped = true) {
   });
   return {
     service,
+    get identityBytes() {
+      return identityBytes;
+    },
     get enrollmentClaim() {
       return enrollmentClaim;
     },
@@ -568,6 +706,568 @@ async function addEpic(f: Awaited<ReturnType<typeof fixture>>) {
   return epic;
 }
 describe.skipIf(!url)("unused metadata authority retirement, actual local PostgreSQL", () => {
+  it("one unused epoch plus exact operator volume enrollment preserves original proof and yields one final successor", async () => {
+    const f = await remountFixture();
+    const state = f.proof.predecessorController.state;
+    state.padding = "x".repeat(8192 - Buffer.byteLength(guardianCanonical(state)) - 15);
+    f.proof.predecessorController.signature = sign(
+      null,
+      Buffer.from(guardianCanonical(state)),
+      f.f.outerPrivateKey,
+    ).toString("base64url");
+    f.proof.oldJournalDigests.controller = hash(
+      `${JSON.stringify(f.proof.predecessorController)}\n`,
+    );
+    f.continuation.originalProofDigest = guardianDigest(f.proof);
+    f.continuation.unusedEpochHop.originalProofDigest = guardianDigest(f.proof);
+    f.attestation.originalProofDigest = guardianDigest(f.proof);
+    expect(guardianUnstartedTransferSchema.safeParse(f.proof).success).toBe(true);
+    const before = structuredClone(f.proof),
+      concurrent = await Promise.all([f.reserve(), f.reserve()]),
+      r = concurrent[0];
+    expect(concurrent[1].id).toBe(r.id);
+    expect(r.guardianElfSha256).toBe(f.newIdentity.guardianElfSha256);
+    expect(r.guardianElfSha256).not.toBe(f.old.guardianElfSha256);
+    expect((await f.reserve()).id).toBe(r.id);
+    const e = await db.codexGuardianOperationReceipt.findUniqueOrThrow({
+      where: {
+        ownerId_runtimeId_eventId: {
+          ownerId: f.f.ownerId,
+          runtimeId: f.old.id,
+          eventId: f.proof.transferId,
+        },
+      },
+    });
+    const t = (e.response as Prisma.JsonObject).retirement as Prisma.JsonObject;
+    expect(t.proof).toEqual(before);
+    expect(t.continuation).toEqual(f.continuation);
+    expect(t.attestationDigest).toBe(guardianDigest(f.attestation));
+    expect(t.nativeTreeExited).toBe(false);
+    expect(t.writerReleased).toBe(false);
+    expect(
+      await db.codexGuardianRuntime.count({
+        where: { ownerId: f.f.ownerId, buildId: f.continuation.unusedEpochHop.buildId },
+      }),
+    ).toBe(0);
+    const current = ownerService(f);
+    await expect(
+      current.service.provision(current.principal, f.old.workspaceId),
+    ).resolves.toMatchObject({ enrolled: true });
+    expect(current.identityBytes).toBeLessThan(32768);
+    expect(current.identityBytes).toBeGreaterThan(10000);
+    console.info(
+      "Maximal predecessor controller with signed remount identity bytes:",
+      current.identityBytes,
+    );
+    expect(current.enrollmentClaim).toMatchObject({
+      continuationDigest: guardianDigest(f.continuation),
+      attestationDigest: guardianDigest(f.attestation),
+    });
+    expect(
+      await effectiveUnstartedSuccessor(db, {
+        ownerId: f.f.ownerId,
+        taskId: f.proof.taskId,
+        workspaceId: f.proof.workspaceId,
+        oldBuildId: f.old.buildId,
+        newBuildId: f.newBinding.buildId,
+        recoveryId: f.recoveryInput.recoveryId,
+      }),
+    ).toBe(true);
+    const scope = f.recovery!.scope,
+      env = { HIVE_GUARDIAN_REMOUNT_ATTESTATIONS_JSON: JSON.stringify([f.attestation]) };
+    const ticket = await readRemountRecoveryTicket(db, env, scope);
+    expect(ticket?.mapping).toEqual(f.attestation.mapping);
+    expect(await readRemountRecoveryTicket(db, env, scope)).toEqual(ticket);
+    await expect(readRemountRecoveryTicket(db, {}, scope)).rejects.toThrow();
+    verifyRemountResources(
+      [
+        {
+          id: randomUUID(),
+          name: "workspace",
+          type: "kubernetes_deployment_v1",
+          agents: [{ id: f.newBinding.agentId } as never],
+          metadata: [{ key: "hive_home_volume_v1", value: JSON.stringify(f.attestation.volume) }],
+        },
+      ],
+      f.attestation,
+      f.newBinding.agentId,
+    );
+    expect(await db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.before.id } })).toEqual(
+      f.before,
+    );
+    const epic = await addEpic(f),
+      recoveries = new ProjectTaskRecoveries(db, f.intents, env);
+    const opened = await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: r.id } });
+    const inspection = {
+      outcome: "existing_preexecution" as const,
+      taskFingerprint: "5".repeat(64),
+      buildId: opened.buildId,
+      lifetimeId: opened.lifetimeId,
+      guardianGeneration: opened.generation,
+      remount: {
+        attestationDigest: ticket!.attestationDigest,
+        continuationDigest: ticket!.continuationDigest,
+        mappingDigest: guardianDigest(ticket!.mapping),
+        volumeDigest: guardianDigest(ticket!.volume),
+        mapping: ticket!.mapping,
+      },
+    };
+    await expect(
+      recoveries.authorize(
+        f.recovery!,
+        { ...inspection, remount: { ...inspection.remount, mappingDigest: "0".repeat(64) } },
+        opened,
+        async () => {},
+      ),
+    ).rejects.toThrow();
+    const authorized = await recoveries.authorize(f.recovery!, inspection, opened, async () => {});
+    expect(authorized.authorization!.expiresAt).toBeLessThanOrEqual(f.attestation.expiresAt);
+    const preparation = { ...f.proof.preparation, buildId: opened.buildId };
+    const prepared = await f.store.prepare({
+      ownerId: f.f.ownerId,
+      runtimeId: opened.id,
+      runtimeGeneration: opened.generation,
+      preparation,
+      preparationDigest: preparationDigest(preparation),
+    });
+    await expect(
+      f.store.bindCheckout({
+        ownerId: f.f.ownerId,
+        runtimeId: opened.id,
+        runtimeGeneration: prepared.runtime.generation,
+        checkout: f.proof.checkout,
+      }),
+    ).rejects.toThrow();
+    const mapped = {
+      ...f.proof.checkout,
+      checkoutIdentity: f.attestation.mapping.current.checkout,
+    };
+    await expect(
+      f.store.bindCheckout({
+        ownerId: f.f.ownerId,
+        runtimeId: opened.id,
+        runtimeGeneration: prepared.runtime.generation,
+        checkout: { ...mapped, leaseGeneration: mapped.leaseGeneration + 1 },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      f.store.bindCheckout({
+        ownerId: f.f.ownerId,
+        runtimeId: opened.id,
+        runtimeGeneration: prepared.runtime.generation,
+        checkout: mapped,
+      }),
+    ).resolves.toMatchObject({ admission: { checkoutBinding: mapped } });
+    const receipt = {
+      schemaVersion: 1,
+      recoveryId: f.recovery!.id,
+      scopeDigest: guardianDigest(scope),
+      inspectionDigest: authorized.authorization!.inspectionDigest,
+      authorizationDigest: guardianDigest(authorized.authorization),
+      outcome: inspection.outcome,
+      buildId: opened.buildId,
+      lifetimeId: opened.lifetimeId,
+    };
+    await recoveries.finish(authorized, receipt);
+    await recoveries.finish(authorized, receipt);
+    expect(
+      (
+        await db.$queryRaw<
+          { build_id: string }[]
+        >`SELECT build_id FROM delivery_epic_start_intents WHERE owner_id=${f.f.ownerId}::uuid AND epic_id=${epic.id}::uuid`
+      )[0].build_id,
+    ).toBe(f.old.buildId);
+  });
+  it("missing, foreign, expired or changed volume enrollment cannot retire the old reservation", async () => {
+    const f = await remountFixture();
+    const resolve = (enrollments: unknown[]) =>
+      resolveRemountAttestation({
+        proof: f.proof,
+        continuation: f.continuation,
+        binding: f.newBinding,
+        identity: f.newIdentity,
+        policy: f.policy,
+        enrollments: enrollments as [typeof f.attestation],
+      });
+    for (const entries of [
+      [],
+      [{ ...f.attestation, workspaceId: randomUUID() }],
+      [{ ...f.attestation, expiresAt: Date.now() - 1 }],
+      [{ ...f.attestation, final: { ...f.attestation.final, buildId: randomUUID() } }],
+      [
+        {
+          ...f.attestation,
+          mapping: {
+            ...f.attestation.mapping,
+            old: {
+              ...f.attestation.mapping.old,
+              checkout: { ...f.attestation.mapping.old.checkout, inode: "987" },
+            },
+          },
+        },
+      ],
+    ])
+      expect(() => resolve(entries)).toThrow();
+    const resources = [
+      {
+        id: randomUUID(),
+        name: "workspace",
+        type: "kubernetes_deployment_v1",
+        metadata: [
+          {
+            key: "hive_home_volume_v1",
+            value: JSON.stringify({ ...f.attestation.volume, subPath: "foreign" }),
+          },
+        ],
+      },
+    ];
+    expect(() => verifyRemountResources(resources, f.attestation, f.newBinding.agentId)).toThrow();
+    expect(() =>
+      verifyRemountResources(
+        [
+          {
+            id: randomUUID(),
+            name: "workspace",
+            type: "kubernetes_deployment_v1",
+            agents: [{ id: randomUUID() } as never],
+            metadata: [{ key: "hive_home_volume_v1", value: JSON.stringify(f.attestation.volume) }],
+          },
+        ],
+        f.attestation,
+        f.newBinding.agentId,
+      ),
+    ).toThrow();
+    await expect(
+      f.store.reserveRuntime(f.newBinding, f.newIdentity, f.proof, f.continuation, []),
+    ).rejects.toThrow();
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.old.id } })).phase,
+    ).toBe("open");
+  });
+  it("forward SQL rejects null/foreign hop envelopes atomically, and any intermediate runtime history holds", async () => {
+    const f = await remountFixture();
+    const event = eventData(f),
+      base = structuredClone(event.response) as unknown as { retirement: Record<string, unknown> };
+    Object.assign(base.retirement, {
+      continuation: f.continuation,
+      continuationDigest: guardianDigest(f.continuation),
+      attestation: f.attestation,
+      attestationDigest: guardianDigest(f.attestation),
+    });
+    const mutations = [
+      (t: typeof base) => {
+        (t.retirement.continuation as typeof f.continuation).unusedEpochHop.lifetimeId =
+          null as unknown as string;
+        (t.retirement.attestation as typeof f.attestation).held.lifetimeId =
+          null as unknown as string;
+      },
+      (t: typeof base) => {
+        for (const key of ["root", "project", "checkout"] as const)
+          (t.retirement.attestation as typeof f.attestation).mapping.current[key].device =
+            "nonnumeric";
+      },
+      (t: typeof base) => {
+        t.retirement.continuation = null;
+      },
+      (t: typeof base) => {
+        (t.retirement.continuation as typeof f.continuation).finalSuccessor.buildId = randomUUID();
+      },
+      (t: typeof base) => {
+        (t.retirement.attestation as typeof f.attestation).volume.readOnly = true as false;
+      },
+      (t: typeof base) => {
+        (t.retirement.attestation as typeof f.attestation).mapping.oldLeaseDigest =
+          null as unknown as string;
+      },
+      (t: typeof base) => {
+        (t.retirement.continuation as typeof f.continuation).unusedEpochHop.neverEnrolled =
+          false as true;
+      },
+    ];
+    for (const mutate of mutations) {
+      const response = structuredClone(base);
+      mutate(response);
+      await expect(
+        db.$transaction((tx) =>
+          tx.codexGuardianOperationReceipt.create({
+            data: {
+              ...event,
+              response: response as unknown as Prisma.InputJsonObject,
+              responseDigest: guardianDigest(response),
+            },
+          }),
+        ),
+      ).rejects.toThrow();
+    }
+    await db.$transaction(async (tx) => {
+      const slot = await tx.codexHostSlot.create({
+        data: {
+          ownerId: f.f.ownerId,
+          coderOrigin: f.newBinding.coderOrigin,
+          coderOwnerId: f.newBinding.ownerId,
+          workspaceId: f.newBinding.workspaceId,
+          agentId: randomUUID(),
+        },
+      });
+      await tx.codexGuardianRuntime.create({
+        data: {
+          ...f.old,
+          binding: {
+            ...f.newBinding,
+            agentId: slot.agentId,
+            buildId: f.continuation.unusedEpochHop.buildId,
+          } as unknown as Prisma.InputJsonObject,
+          id: randomUUID(),
+          slotId: slot.id,
+          buildId: f.continuation.unusedEpochHop.buildId,
+          lifetimeId: f.continuation.unusedEpochHop.lifetimeId,
+          phase: "reserved",
+          nativeLaunchId: null,
+          nativeLaunchDigest: null,
+          nativeLaunchAt: null,
+          enrolledAt: null,
+          generation: 1,
+          serverInstanceId: null,
+          hostKeyFingerprint: null,
+          producerApproved: false,
+        },
+      });
+    });
+    await expect(f.reserve()).rejects.toThrow();
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.old.id } })).phase,
+    ).toBe("open");
+    expect(
+      await db.codexGuardianOperationReceipt.count({
+        where: { ownerId: f.f.ownerId, action: "authorization_retired" },
+      }),
+    ).toBe(0);
+  });
+  it("late SQL past operator continuity expiry rolls back intent and recovery authorization together", async () => {
+    const f = await remountFixture();
+    f.attestation.expiresAt = Date.now() + 1300;
+    const current = ownerService(f);
+    await current.service.provision(current.principal, f.old.workspaceId);
+    const runtime = await db.codexGuardianRuntime.findFirstOrThrow({
+      where: { ownerId: f.f.ownerId, lifetimeId: f.newIdentity.lifetimeId },
+    });
+    const env = { HIVE_GUARDIAN_REMOUNT_ATTESTATIONS_JSON: JSON.stringify([f.attestation]) },
+      ticket = (await readRemountRecoveryTicket(db, env, f.recovery!.scope))!;
+    const recoveries = new ProjectTaskRecoveries(db, f.intents, env),
+      inspection = {
+        outcome: "existing_preexecution",
+        taskFingerprint: "5".repeat(64),
+        buildId: runtime.buildId,
+        lifetimeId: runtime.lifetimeId,
+        guardianGeneration: runtime.generation,
+        remount: {
+          attestationDigest: ticket.attestationDigest,
+          continuationDigest: ticket.continuationDigest,
+          mappingDigest: guardianDigest(ticket.mapping),
+          volumeDigest: guardianDigest(ticket.volume),
+          mapping: ticket.mapping,
+        },
+      };
+    await db.$executeRawUnsafe(
+      `CREATE FUNCTION remount_expiry_${f.f.ownerId.replaceAll("-", "")}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id='${f.recovery!.id}'::uuid AND NEW.phase='authorized' THEN PERFORM pg_sleep(1.4); END IF; RETURN NEW; END $$`,
+    );
+    const name = `remount_expiry_${f.f.ownerId.replaceAll("-", "")}`;
+    await db.$executeRawUnsafe(
+      `CREATE TRIGGER ${name} BEFORE UPDATE ON project_task_recoveries FOR EACH ROW EXECUTE FUNCTION ${name}()`,
+    );
+    try {
+      await expect(
+        recoveries.authorize(f.recovery!, inspection, runtime, async () => {}),
+      ).rejects.toThrow();
+    } finally {
+      await db.$executeRawUnsafe(`DROP TRIGGER ${name} ON project_task_recoveries`);
+      await db.$executeRawUnsafe(`DROP FUNCTION ${name}()`);
+    }
+    expect(await db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.before.id } })).toEqual(
+      f.before,
+    );
+    expect(
+      (
+        await db.$queryRaw<
+          { phase: string; authorization: unknown }[]
+        >`SELECT phase,"authorization" FROM project_task_recoveries WHERE id=${f.recovery!.id}::uuid`
+      )[0],
+    ).toEqual({ phase: "inspecting", authorization: null });
+  });
+  it("workspace advisory serializes an intermediate authority commit before final retirement", async () => {
+    const f = await remountFixture();
+    let release!: () => void, ready!: () => void;
+    const gate = new Promise<void>((r) => {
+        release = r;
+      }),
+      entered = new Promise<void>((r) => {
+        ready = r;
+      });
+    const intermediate = db.$transaction(async (tx) => {
+      await lockAccountMaintenanceWorkspace(tx, f.newBinding);
+      const slot = await tx.codexHostSlot.create({
+        data: {
+          ownerId: f.f.ownerId,
+          coderOrigin: f.newBinding.coderOrigin,
+          coderOwnerId: f.newBinding.ownerId,
+          workspaceId: f.newBinding.workspaceId,
+          agentId: randomUUID(),
+        },
+      });
+      await tx.codexGuardianRuntime.create({
+        data: {
+          ...f.old,
+          binding: {
+            ...f.newBinding,
+            agentId: slot.agentId,
+            buildId: f.continuation.unusedEpochHop.buildId,
+          } as unknown as Prisma.InputJsonObject,
+          id: randomUUID(),
+          slotId: slot.id,
+          buildId: f.continuation.unusedEpochHop.buildId,
+          lifetimeId: f.continuation.unusedEpochHop.lifetimeId,
+          phase: "reserved",
+          nativeLaunchId: null,
+          nativeLaunchDigest: null,
+          nativeLaunchAt: null,
+          enrolledAt: null,
+          generation: 1,
+          serverInstanceId: null,
+          hostKeyFingerprint: null,
+          producerApproved: false,
+        },
+      });
+      ready();
+      await gate;
+    });
+    await entered;
+    let settled = false;
+    const pending = f.reserve().then(
+      () => {
+        settled = true;
+        return "unexpected";
+      },
+      () => {
+        settled = true;
+        return "held";
+      },
+    );
+    try {
+      await new Promise((r) => setTimeout(r, 30));
+      expect(settled).toBe(false);
+    } finally {
+      release();
+    }
+    await intermediate;
+    expect(await pending).toBe("held");
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: f.old.id } })).phase,
+    ).toBe("open");
+    expect(
+      await db.codexGuardianOperationReceipt.count({
+        where: { ownerId: f.f.ownerId, action: "authorization_retired" },
+      }),
+    ).toBe(0);
+  });
+  it("final retirement wins against a queued stale ordinary intermediate reservation without resurrection", async () => {
+    const f = await remountFixture();
+    let release!: () => void, ready!: () => void;
+    const gate = new Promise<void>((r) => {
+        release = r;
+      }),
+      entered = new Promise<void>((r) => {
+        ready = r;
+      });
+    // Retain a real transaction just after all real store writes, before COMMIT.
+    // No verifier/controller is replaced; only the commit scheduling is controlled.
+    const delayed = new Proxy(db, {
+      get(target, key) {
+        if (key !== "$transaction") return Reflect.get(target, key);
+        return (work: (tx: Prisma.TransactionClient) => Promise<unknown>, options: unknown) =>
+          target.$transaction(async (tx) => {
+            const result = await work(tx);
+            ready();
+            await gate;
+            return result;
+          }, options as never);
+      },
+    });
+    const finalStore = new GuardianAdmissionStore(delayed, {
+      policy: f.policy,
+      encryptionKey: "19".repeat(32),
+      expectedConfigSha256: () => f.newIdentity.configSha256,
+    });
+    const final = finalStore.reserveRuntime(f.newBinding, f.newIdentity, f.proof, f.continuation, [
+      f.attestation,
+    ]);
+    await entered;
+    const h = f.continuation.unusedEpochHop,
+      heldBinding = { ...f.newBinding, buildId: h.buildId, agentId: randomUUID() },
+      heldIdentity = {
+        ...f.newIdentity,
+        lifetimeId: h.lifetimeId,
+        configSha256: h.configSha256,
+        packageManifestSha256: h.packageManifestSha256,
+      };
+    const intermediate = new GuardianAdmissionStore(db, {
+      policy: f.policy,
+      encryptionKey: "19".repeat(32),
+      expectedConfigSha256: () => h.configSha256,
+    });
+    let settled = false;
+    const pending = intermediate.reserveRuntime(heldBinding, heldIdentity).then(
+      () => {
+        settled = true;
+        return "unexpected";
+      },
+      () => {
+        settled = true;
+        return "held";
+      },
+    );
+    try {
+      await new Promise((r) => setTimeout(r, 30));
+      expect(settled).toBe(false);
+    } finally {
+      release();
+    }
+    const successor = await final;
+    expect(await pending).toBe("held");
+    await expect(intermediate.reserveRuntime(heldBinding, heldIdentity)).rejects.toThrow();
+    await expect(
+      new PrismaRegistrationStore(db).reserve({
+        grantId: randomUUID(),
+        binding: heldBinding,
+        expiresAt: Math.floor(Date.now() / 1000) + 30,
+      }),
+    ).rejects.toThrow();
+    expect(
+      await db.codexGuardianRuntime.count({ where: { ownerId: f.f.ownerId, buildId: h.buildId } }),
+    ).toBe(0);
+    expect(
+      await db.codexGuardianOperationReceipt.count({
+        where: { ownerId: f.f.ownerId, action: "authorization_retired" },
+      }),
+    ).toBe(1);
+    expect((await f.reserve()).id).toBe(successor.id);
+    const registration = new PrismaRegistrationStore(db),
+      grantId = randomUUID();
+    const generation = await registration.reserve({
+      grantId,
+      binding: f.newBinding,
+      expiresAt: Math.floor(Date.now() / 1000) + 30,
+    });
+    await registration.seal({ grantId, generation, grantDigest: hash(randomUUID()) });
+    await expect(
+      db.codexRegistrationGrant.update({
+        where: { id: grantId },
+        data: { binding: heldBinding as unknown as Prisma.InputJsonObject },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.codexGuardianRuntime.update({ where: { id: successor.id }, data: { buildId: h.buildId } }),
+    ).rejects.toThrow();
+  });
   it("owner recovery atomically retires only old authorization, reserves once and preserves encrypted intent/history", async () => {
     const f = await fixture(),
       runtime = await f.reserve();
@@ -671,6 +1371,24 @@ describe.skipIf(!url)("unused metadata authority retirement, actual local Postgr
     expect(after.ciphertext).toEqual(f.before.ciphertext);
     expect(after.requestDigest).toBe(f.before.requestDigest);
     const native = await bindSyntheticSuccessor(f, opened);
+    const registered = await db.codexHostRegistration.findFirstOrThrow({
+      where: { ownerId: f.f.ownerId, buildId: f.newBinding.buildId },
+    });
+    await expect(
+      db.codexHostRegistration.update({
+        where: { id: registered.id },
+        data: { buildId: randomUUID() },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.codexHostRegistration.update({
+        where: { id: registered.id },
+        data: {
+          binding: { ...f.newBinding, buildId: randomUUID() } as unknown as Prisma.InputJsonObject,
+        },
+      }),
+    ).rejects.toThrow();
+
     const maintenance = await new AccountMaintenanceStore(db).request(f.newBinding, {
       requestId: randomUUID(),
       expectedVersion: 0,

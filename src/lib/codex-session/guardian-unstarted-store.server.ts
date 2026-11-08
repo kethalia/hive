@@ -6,6 +6,11 @@ import {
   guardianDigest,
   preparationDigest,
 } from "./guardian-contracts";
+import { assertUnusedIntermediate, resolveRemountAttestation } from "./guardian-remount.server";
+import type {
+  GuardianRemountAttestation,
+  GuardianTransferContinuation,
+} from "./guardian-remount-contracts";
 import type { GuardianRuntimeIdentity } from "./guardian-store.server";
 import {
   type GuardianUnstartedTransfer,
@@ -89,10 +94,28 @@ export async function retireUnstartedAuthorization(
     identity: GuardianRuntimeIdentity;
     transfer: GuardianUnstartedTransfer;
     policy: GuardianPolicy;
+    continuation?: GuardianTransferContinuation;
+    remountAttestations?: readonly GuardianRemountAttestation[];
   },
 ) {
   const p = guardianUnstartedTransferSchema.parse(input.transfer),
     b = input.binding;
+  const continuation = input.continuation;
+  const attestation = continuation
+    ? resolveRemountAttestation({
+        proof: p,
+        continuation,
+        binding: b,
+        identity: input.identity,
+        policy: input.policy,
+        enrollments: input.remountAttestations ?? [],
+      })
+    : undefined;
+  const endpoint = continuation?.finalSuccessor ?? {
+    buildId: p.newBuildId,
+    configSha256: p.newConfigSha256,
+    packageManifestSha256: p.newPackageManifestSha256,
+  };
   check(
     input.policy.enabled &&
       input.policy.producerEnabled &&
@@ -100,9 +123,9 @@ export async function retireUnstartedAuthorization(
       p.coderOwnerId === b.ownerId &&
       p.workspaceId === b.workspaceId &&
       p.templateId === b.templateId &&
-      p.newBuildId === b.buildId &&
-      p.newConfigSha256 === input.identity.configSha256 &&
-      p.newPackageManifestSha256 === input.identity.packageManifestSha256 &&
+      endpoint.buildId === b.buildId &&
+      endpoint.configSha256 === input.identity.configSha256 &&
+      endpoint.packageManifestSha256 === input.identity.packageManifestSha256 &&
       p.oldBuildId !== b.buildId &&
       p.oldLifetimeId !== input.identity.lifetimeId &&
       b.projects.length === 0,
@@ -126,11 +149,16 @@ export async function retireUnstartedAuthorization(
         prior.requestDigest === proofDigest &&
         r.phase === "authorization_retired" &&
         retirement.newLifetimeId === input.identity.lifetimeId &&
+        guardianDigest(retirement.continuation ?? null) === guardianDigest(continuation ?? null) &&
+        (attestation
+          ? retirement.attestationDigest === guardianDigest(attestation)
+          : !retirement.attestationDigest) &&
         guardianDigest(retirement.newBinding) === guardianDigest(b) &&
         guardianDigest(retirement.newIdentity) === guardianDigest(input.identity),
     );
     return;
   }
+  if (continuation) await assertUnusedIntermediate(tx, p.ownerId, p.workspaceId, continuation);
   check(
     r.phase === "open" &&
       r.operationReceiptsEnabled &&
@@ -301,6 +329,14 @@ export async function retireUnstartedAuthorization(
       purpose: "unused-metadata-authorization",
       proofDigest,
       proof: p,
+      ...(continuation && attestation
+        ? {
+            continuation,
+            continuationDigest: guardianDigest(continuation),
+            attestation,
+            attestationDigest: guardianDigest(attestation),
+          }
+        : {}),
       recoveryId: recovery.id,
       intentDigest: intent.requestDigest,
       newLifetimeId: input.identity.lifetimeId,
@@ -350,7 +386,7 @@ export async function effectiveUnstartedSuccessor(
   if (input.oldBuildId === input.newBuildId) return true;
   const rows = await tx.$queryRaw<
     { response: Prisma.JsonObject; phase: string; build_id: string }[]
-  >`SELECT e.response,r.phase,r.build_id FROM codex_guardian_operation_receipts e JOIN codex_guardian_runtimes r ON r.owner_id=e.owner_id AND r.id=e.runtime_id WHERE e.owner_id=${input.ownerId}::uuid AND e.action='authorization_retired' AND e.response->'retirement'->'proof'->>'taskId'=${input.taskId} AND e.response->'retirement'->'proof'->>'workspaceId'=${input.workspaceId} AND e.response->'retirement'->'proof'->>'oldBuildId'=${input.oldBuildId} AND e.response->'retirement'->'proof'->>'newBuildId'=${input.newBuildId}`;
+  >`SELECT e.response,r.phase,r.build_id FROM codex_guardian_operation_receipts e JOIN codex_guardian_runtimes r ON r.owner_id=e.owner_id AND r.id=e.runtime_id WHERE e.owner_id=${input.ownerId}::uuid AND e.action='authorization_retired' AND e.response->'retirement'->'proof'->>'taskId'=${input.taskId} AND e.response->'retirement'->'proof'->>'workspaceId'=${input.workspaceId} AND e.response->'retirement'->'proof'->>'oldBuildId'=${input.oldBuildId} AND e.response->'retirement'->'newBinding'->>'buildId'=${input.newBuildId}`;
   if (rows.length !== 1) return false;
   const e = rows[0],
     retirement = e.response.retirement as Prisma.JsonObject;

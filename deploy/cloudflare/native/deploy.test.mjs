@@ -320,6 +320,7 @@ test("managed Preview keeps the packaged host and its exact recovery predecessor
   };
   for (const digest of [
     "7eb52d53f4c6664743d4da182ff35dbe042bde53017647d18209b4eb885180c7",
+    "b16854fee6f44c96652c5b8bd64b9b3025e28037f93ab4bfe86c9bd218dd4efe",
     "36895da38fa1ff06c43e60cdfc37c67d084cafb2649b809c0a14726455b544aa",
     "80fa379a2dea736517ac5f29113e6d69a3758de8cea6b6ac87abc2cd21addd46",
     "5ac58e3b8a6b14c25ec8e376bc7a6f88a92094ae00e5fe88f6e538157cb7d3a4",

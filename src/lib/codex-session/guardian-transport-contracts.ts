@@ -14,6 +14,7 @@ import {
   guardianMetadataEvidenceSchema,
   guardianPreparationSchema,
 } from "./guardian-contracts";
+import { guardianTransferContinuationSchema } from "./guardian-remount-contracts";
 import {
   guardianUnstartedTransferReceiptSchema,
   guardianUnstartedTransferSchema,
@@ -80,6 +81,7 @@ export const guardianIdentityResponseSchema = z
     identity: guardianRuntimeIdentitySchema,
     startup: guardianStartupEvidenceSchema,
     unstartedTransfer: guardianUnstartedTransferSchema.optional(),
+    unstartedTransferContinuation: guardianTransferContinuationSchema.optional(),
     unstartedTransferReceipt: guardianUnstartedTransferReceiptSchema.optional(),
     proof: signature,
   })

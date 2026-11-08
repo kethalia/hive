@@ -1778,3 +1778,70 @@ by this source checkpoint.
   confirmed no restored tables and the missing schema before a bounded restore resumed.
   Live Preview remains at50 and production is unchanged. Fresh capture and original key
   continuity remain open. [Scoped proof](production-data-capture/20261108-schema51-rehearsal.json).
+
+### November 8 reviewed recovery deployment and remount finding
+
+- **Implement / Review: PR427 complete, high difficulty.** The metadata reservation wait
+  now follows the existing bounded controller allowance, checks cancellation and authority
+  expiry before native creation, and supports authenticated retirement of an exact unused
+  reservation. The original task, prompt, source and signed history remain intact. Review
+  found two replay/consumption issues; both were corrected before current-head CI and Codex
+  review passed. Merge: `47058ab4`. This does not authorize checkout cleanup or imply native
+  tree closure.
+- **Validate: migration51 applied to both existing Preview databases, moderate difficulty.**
+  Private backups decoded successfully; original rows, all prior50 ledger entries/checksums,
+  runtime grants and application/native isolation match. No production database changed.
+  [Live upgrade receipt](neon-preview51-live-upgrade.json).
+- **Implement / Review / Deploy: PR428 complete, moderate difficulty.** Source configuration
+  now retains the reviewed host packages and account bridge, so automatic branch deployments
+  preserve their enrollment. Bounded retries cover the three demonstrated common release
+  downloads; checksum verification remains mandatory. Current-head CI and Codex review passed.
+  The existing connected Workers Build deployed epic `a95a1a7e`; no custom publisher or new
+  deployment token was introduced.
+- **Validate: installed recovery held at remount identity, high difficulty.** The exact
+  source image and all54 host package members verify on the retained20Gi volume. Native
+  loopback health is200 and signed startup/history verification passes up to the checkout
+  identity gate. The checkout inode, incarnation and lease identifiers match, but Linux
+  device ID changed2272→2112 after the normal remount. The strict verifier stops there;
+  later gates and the owner retry have not run. A narrowly authorized identity transition
+  is being designed; no journal, lease, expectation or installed code was patched. No model
+  or first prompt has started, and current shared-session browser acceptance remains open.
+  [Installed hold receipt](managed-flow-a95-remount-hold.json).
+- **Independent infrastructure issues remain open.** The optional code-server installer
+  returned HTTP503, leaving global workspace health false despite native-host health200.
+  The all-profile image workflow passed CLI, Browser and Electronics, but Game exhausted
+  the bounded Coder download timeout and Infrastructure encountered a release HTTP504.
+  The dedicated reviewed CLI image publication succeeded. These observations do not prove
+  a global vendor outage. Infrastructure workspace agents also failed to connect, including
+  a fresh disposable; no Rancher request or production-key retrieval occurred. The disposable
+  was deleted through the signed wrapper; its final receipt reconciliation encounters Coder's
+  HTTP410 response and remains a separate helper issue. Persistent workspaces were retained.
+- **F05 follow-up identified: ordinary empty-root restart remains open.** Persistent
+  `root.json` and project identities survive completed checkout cleanup and still pin the
+  previous Linux device ID. The exact unused-task recovery cannot authorize arbitrary later
+  remounts or executed-task recovery. After this slice, add stable-volume-bound per-epoch
+  revalidation for an empty inventory with no lease or consumer, retaining normal path/inode
+  checks. Active/native-history cases retain their authenticated recovery/barrier requirements.
+  Publishing stable volume metadata alone is not permission to remap identities.
+
+- **Validate: schema51→52 production-capture rehearsal passed, moderate difficulty.**
+  A new owned local database restored the retained schema51 archive and ran the real
+  migration runner. All81 original application rows/column fingerprints and prior51
+  migration records match, all52 checksums match, and the upgraded backup decoded before
+  removal of that database. The default public schema was retained during restore. This
+  is local rehearsal, without production keys or any live database mutation.
+  [Scoped receipt](production-data-capture/20261108-schema52-rehearsal.json).
+- **Validate: independent remount server suite passed, high difficulty.** Forty checks,
+  including16 actual PostgreSQL cases, exercise signed provisioning, exact remount
+  authorization, altered mappings, expiry and both concurrency orderings. Review caught
+  an old-snapshot race and late intermediate enrollment; a narrow transaction adjustment
+  and immutable retirement fence now reject both orderings. Applied migration51 is
+  unchanged. The existing official native-guardian workflow built the reviewed cwd fix;
+  source, recipe, compiler and downloaded artifact hashes independently match. Host
+  integration and live recovery remain separate gates.
+  [Scoped receipt](unused-checkout-remount-local.json).
+- **F06 implementation remains open.** The private removal validation seam still has an
+  explicitly unimplemented production controller adapter. Wire existing preservation,
+  closure and cleanup authority through the supported transport, including the exact
+  sealed outer guardian context; the unused-task remount grant cannot authorize cleanup.
+  Fixture checks are not production cleanup acceptance.

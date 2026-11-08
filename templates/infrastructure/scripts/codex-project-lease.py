@@ -123,6 +123,29 @@ class InstalledUnstartedAuthority:
     def __init__(self, home, parent_pid):
         self.home, self.parent_pid = Path(home), parent_pid
 
+    def continuity(self, project_id, phase):
+        require(re.fullmatch(r"[a-f0-9-]{36}", project_id) and phase in {"inspecting", "consuming"}, "invalid_project")
+        parent = process_identity(self.parent_pid)
+        code = "const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.unstartedRemountAuthority(process.argv[2],process.argv[3],Number(process.argv[4]),process.argv[5])));"
+        result = subprocess.run([parent["executable"], "--input-type=module", "-e", code,
+            Path(__file__).with_name("codex-unstarted-transfer.mjs").as_uri(), str(self.home), project_id, str(self.parent_pid), phase],
+            env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=2, check=True)
+        require(len(result.stdout) <= 8192 and process_identity(self.parent_pid) == parent, "controller_process_changed")
+        return json.loads(result.stdout)
+
+    def guardian(self, project_id):
+        controller = terminal.signed(self.home / ".local/state/hive/codex-project-controller", "projects.json", "projects.key", "state")
+        phase = "consuming" if controller["projects"][project_id]["recovery"]["phase"] == "consuming" else "inspecting"
+        parent = process_identity(self.parent_pid)
+        code = "const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.unstartedRemountGuardianAuthority(process.argv[2],process.argv[3],Number(process.argv[4]),process.argv[5])));"
+        result = subprocess.run([parent["executable"], "--input-type=module", "-e", code,
+            Path(__file__).with_name("codex-unstarted-transfer.mjs").as_uri(), str(self.home), project_id, str(self.parent_pid), phase],
+            env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=2, check=True)
+        require(len(result.stdout) <= 8192 and process_identity(self.parent_pid) == parent, "controller_process_changed")
+        return json.loads(result.stdout)
+
     def verify(self, project_id, expected):
         require(re.fullmatch(r"[a-f0-9-]{36}", project_id), "invalid_project")
         parent = process_identity(self.parent_pid)
@@ -142,15 +165,20 @@ def main():
     raw = sys.stdin.buffer.read(257)
     require(len(raw) <= 256, "request_too_large")
     request = json.loads(raw)
-    require(isinstance(request, dict) and set(request) == {"schemaVersion", "projectId"}
+    require(isinstance(request, dict) and set(request) in [{"schemaVersion", "projectId"}, {"schemaVersion", "projectId", "operation"}]
             and type(request["schemaVersion"]) is int and request["schemaVersion"] == 1, "invalid_request")
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
     # Derive repository identity from the private signed journal, not request.
     controller = terminal.signed(home / ".local/state/hive/codex-project-controller", "projects.json", "projects.key", "state")
     repository_id = controller["projects"][request["projectId"]]["repositoryId"]
-    if controller.get("unstartedTransfer") and not controller.get("unstartedTransferConsumed"):
+    if request.get("operation") == "inspect-unstarted":
+        require(controller.get("unstartedTransfer") and not controller.get("unstartedTransferConsumed"), "unstarted_inspection_required")
+        result = managed.ManagedProjects(home)._inspect_unstarted_checkout(repository_id, request["projectId"], InstalledUnstartedAuthority(home, os.getppid()))
+    elif controller.get("unstartedTransfer") and not controller.get("unstartedTransferConsumed"):
+        require("operation" not in request, "invalid_request")
         result = managed.ManagedProjects(home)._revalidate_unstarted_lease(repository_id, request["projectId"], InstalledUnstartedAuthority(home, os.getppid()))
     else:
+        require("operation" not in request, "invalid_request")
         result = managed.ManagedProjects(home)._renew_controller_lease(repository_id, request["projectId"], InstalledControllerAuthority(home, os.getppid()))
     print(json.dumps({"ok": True, "data": result}))
 

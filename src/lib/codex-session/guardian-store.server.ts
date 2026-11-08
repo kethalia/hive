@@ -43,6 +43,11 @@ import {
   preparationDigest,
   producerScopeSchema,
 } from "./guardian-contracts";
+import { assertRemountCheckout } from "./guardian-remount.server";
+import type {
+  GuardianRemountAttestation,
+  GuardianTransferContinuation,
+} from "./guardian-remount-contracts";
 import type { GuardianOperationEnvelope } from "./guardian-transport-contracts";
 import type { GuardianUnstartedTransfer } from "./guardian-unstarted-contracts";
 import { retireUnstartedAuthorization } from "./guardian-unstarted-store.server";
@@ -407,7 +412,11 @@ export class GuardianAdmissionStore {
     private readonly db: PrismaClient,
     private readonly options: GuardianStoreOptions,
   ) {}
-  private transaction<T>(work: (tx: Tx) => Promise<T>) {
+  private transaction<T>(
+    work: (tx: Tx) => Promise<T>,
+    isolationLevel: Prisma.TransactionIsolationLevel = Prisma.TransactionIsolationLevel
+      .Serializable,
+  ) {
     const assertCurrent = () => {
       this.options.signal?.throwIfAborted();
       if (this.options.authorizationExpiresAt !== undefined)
@@ -495,7 +504,7 @@ export class GuardianAdmissionStore {
           return result;
         },
         {
-          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          isolationLevel,
           timeout,
           maxWait,
         },
@@ -523,119 +532,140 @@ export class GuardianAdmissionStore {
     binding: RegistrationBinding,
     identity: GuardianRuntimeIdentity,
     unstartedTransfer?: GuardianUnstartedTransfer,
+    continuation?: GuardianTransferContinuation,
+    remountAttestations: readonly GuardianRemountAttestation[] = [],
   ) {
     requireGuardian(
       this.options.policy.enabled &&
         identity.configSha256 === this.options.expectedConfigSha256(binding),
     );
     const keyFingerprint = fingerprint(identity.outerPublicKeyPem);
-    return this.transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id: binding.hiveUserId } });
-      requireGuardian(
-        user && user.coderUserId === binding.ownerId && user.coderUrl === binding.coderOrigin,
-      );
-      await assertAccountMaintenanceAdmission(tx, binding, {
-        kind: "enroll",
-        empty: binding.projects.length === 0,
-      });
-      if (unstartedTransfer)
-        await retireUnstartedAuthorization(tx, {
-          binding,
-          identity,
-          transfer: unstartedTransfer,
-          policy: this.options.policy,
+    return this.transaction(
+      async (tx) => {
+        const remountDeadline = async () => {
+          if (!continuation) return;
+          const matching = remountAttestations.filter(
+            (a) => a.ownerId === binding.hiveUserId && a.taskId === unstartedTransfer?.taskId,
+          );
+          requireGuardian(
+            matching.length === 1 && matching[0].expiresAt > (await databaseNow(tx)).getTime(),
+          );
+        };
+        const user = await tx.user.findUnique({ where: { id: binding.hiveUserId } });
+        requireGuardian(
+          user && user.coderUserId === binding.ownerId && user.coderUrl === binding.coderOrigin,
+        );
+        await assertAccountMaintenanceAdmission(tx, binding, {
+          kind: "enroll",
+          empty: binding.projects.length === 0,
         });
-      const candidate = await tx.codexHostSlot.upsert({
-        where: {
-          ownerId_coderOrigin_workspaceId_agentId: {
+        requireGuardian(!continuation || unstartedTransfer);
+        if (unstartedTransfer)
+          await retireUnstartedAuthorization(tx, {
+            binding,
+            identity,
+            transfer: unstartedTransfer,
+            continuation,
+            remountAttestations,
+            policy: this.options.policy,
+          });
+        const candidate = await tx.codexHostSlot.upsert({
+          where: {
+            ownerId_coderOrigin_workspaceId_agentId: {
+              ownerId: user.id,
+              coderOrigin: binding.coderOrigin,
+              workspaceId: binding.workspaceId,
+              agentId: binding.agentId,
+            },
+          },
+          create: {
             ownerId: user.id,
             coderOrigin: binding.coderOrigin,
+            coderOwnerId: user.coderUserId,
             workspaceId: binding.workspaceId,
             agentId: binding.agentId,
           },
-        },
-        create: {
-          ownerId: user.id,
-          coderOrigin: binding.coderOrigin,
-          coderOwnerId: user.coderUserId,
-          workspaceId: binding.workspaceId,
-          agentId: binding.agentId,
-        },
-        update: {},
-      });
-      const slot = await lockGuardianSlot(tx, user.id, candidate.id);
-      const existing = await tx.codexGuardianRuntime.findFirst({
-        where: {
-          ownerId: user.id,
-          slotId: slot.id,
-          phase: { notIn: ["tree_closed", "authorization_retired"] },
-        },
-      });
-      if (existing) {
-        const { runtime: current, now } = await lockGuardianRuntime(tx, user.id, existing.id);
-        requireGuardian(
-          current.lifetimeId === identity.lifetimeId &&
-            current.outerKeyFingerprint === keyFingerprint &&
-            current.bindingDigest === identity.bindingDigest &&
-            current.configSha256 === identity.configSha256 &&
-            current.buildId === binding.buildId &&
-            current.packageManifestSha256 === identity.packageManifestSha256 &&
-            current.guardianElfSha256 === identity.guardianElfSha256 &&
-            current.nodeSha256 === identity.nodeSha256 &&
-            current.policyDigest === identity.policyDigest &&
-            current.metadataPolicyDigest === identity.metadataPolicyDigest &&
-            guardianDigest(current.binding) === guardianDigest(binding) &&
-            current.authorityUntil > now,
-        );
-        approvedRuntime(current, this.options.policy);
-        let registrationExpiresAt: Date | undefined;
-        if (current.phase === "open") {
-          openRuntime(current, now, current.generation, this.options.policy);
-          if (current.nativeLaunchId) requireGuardian(this.options.policy.producerEnabled);
-          if (current.serverInstanceId)
-            requireGuardian(current.producerApproved && slot.activeRegistrationId);
-          if (slot.activeRegistrationId) {
-            const { registration } = await lockActiveRegistration(tx, {
-              ownerId: user.id,
-              registrationId: slot.activeRegistrationId,
-            });
-            registrationExpiresAt = registration.expiresAt;
-            requireGuardian(
-              current.nativeLaunchId &&
-                registration.slotId === slot.id &&
-                registration.buildId === current.buildId &&
-                (!current.serverInstanceId ||
-                  (registration.serverInstanceId === current.serverInstanceId &&
-                    registration.hostKeyFingerprint === current.hostKeyFingerprint)),
-            );
+          update: {},
+        });
+        const slot = await lockGuardianSlot(tx, user.id, candidate.id);
+        const existing = await tx.codexGuardianRuntime.findFirst({
+          where: {
+            ownerId: user.id,
+            slotId: slot.id,
+            phase: { notIn: ["tree_closed", "authorization_retired"] },
+          },
+        });
+        if (existing) {
+          const { runtime: current, now } = await lockGuardianRuntime(tx, user.id, existing.id);
+          requireGuardian(
+            current.lifetimeId === identity.lifetimeId &&
+              current.outerKeyFingerprint === keyFingerprint &&
+              current.bindingDigest === identity.bindingDigest &&
+              current.configSha256 === identity.configSha256 &&
+              current.buildId === binding.buildId &&
+              current.packageManifestSha256 === identity.packageManifestSha256 &&
+              current.guardianElfSha256 === identity.guardianElfSha256 &&
+              current.nodeSha256 === identity.nodeSha256 &&
+              current.policyDigest === identity.policyDigest &&
+              current.metadataPolicyDigest === identity.metadataPolicyDigest &&
+              guardianDigest(current.binding) === guardianDigest(binding) &&
+              current.authorityUntil > now,
+          );
+          approvedRuntime(current, this.options.policy);
+          let registrationExpiresAt: Date | undefined;
+          if (current.phase === "open") {
+            openRuntime(current, now, current.generation, this.options.policy);
+            if (current.nativeLaunchId) requireGuardian(this.options.policy.producerEnabled);
+            if (current.serverInstanceId)
+              requireGuardian(current.producerApproved && slot.activeRegistrationId);
+            if (slot.activeRegistrationId) {
+              const { registration } = await lockActiveRegistration(tx, {
+                ownerId: user.id,
+                registrationId: slot.activeRegistrationId,
+              });
+              registrationExpiresAt = registration.expiresAt;
+              requireGuardian(
+                current.nativeLaunchId &&
+                  registration.slotId === slot.id &&
+                  registration.buildId === current.buildId &&
+                  (!current.serverInstanceId ||
+                    (registration.serverInstanceId === current.serverInstanceId &&
+                      registration.hostKeyFingerprint === current.hostKeyFingerprint)),
+              );
+            }
           }
+          const fresh = await databaseNow(tx);
+          requireGuardian(
+            current.authorityUntil > fresh &&
+              (!registrationExpiresAt || registrationExpiresAt > fresh),
+          );
+          await remountDeadline();
+          return current;
         }
-        const fresh = await databaseNow(tx);
-        requireGuardian(
-          current.authorityUntil > fresh &&
-            (!registrationExpiresAt || registrationExpiresAt > fresh),
-        );
-        return current;
-      }
-      // No native registration can be retroactively reclassified as guardian-owned.
-      requireGuardian(!slot.activeRegistrationId);
-      const now = await databaseNow(tx);
-      const row = await tx.codexGuardianRuntime.create({
-        data: {
-          ownerId: user.id,
-          slotId: slot.id,
-          ...identity,
-          outerKeyFingerprint: keyFingerprint,
-          binding: binding as unknown as Prisma.InputJsonObject,
-          workspaceId: binding.workspaceId,
-          buildId: binding.buildId,
-          authorityUntil: new Date(now.getTime() + 60000),
-          operationReceiptsEnabled: true,
-        },
-      });
-      approvedRuntime(row, this.options.policy);
-      return row;
-    });
+        // No native registration can be retroactively reclassified as guardian-owned.
+        requireGuardian(!slot.activeRegistrationId);
+        const now = await databaseNow(tx);
+        const row = await tx.codexGuardianRuntime.create({
+          data: {
+            ownerId: user.id,
+            slotId: slot.id,
+            ...identity,
+            outerKeyFingerprint: keyFingerprint,
+            binding: binding as unknown as Prisma.InputJsonObject,
+            workspaceId: binding.workspaceId,
+            buildId: binding.buildId,
+            authorityUntil: new Date(now.getTime() + 60000),
+            operationReceiptsEnabled: true,
+          },
+        });
+        approvedRuntime(row, this.options.policy);
+        await remountDeadline();
+        return row;
+      },
+      continuation
+        ? Prisma.TransactionIsolationLevel.ReadCommitted
+        : Prisma.TransactionIsolationLevel.Serializable,
+    );
   }
   async sealGrant(input: {
     ownerId: string;
@@ -993,6 +1023,7 @@ export class GuardianAdmissionStore {
         requireGuardian(guardianDigest(admission.checkoutBinding) === guardianDigest(checkout));
         return { runtime, admission, replayed: true };
       }
+      await assertRemountCheckout(tx, runtime, checkout);
       requireGuardian(admission.phase === "preparation");
       const next = await tx.codexGuardianAdmission.update({
         where: { id: admission.id },

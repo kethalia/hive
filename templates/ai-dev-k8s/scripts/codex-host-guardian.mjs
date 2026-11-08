@@ -204,6 +204,7 @@ async function openJournal(
   prepareIdleLifetime,
   prepareBootstrapRetirement,
   prepareUnstartedRetirement,
+  prepareUnusedEpochRetirement,
 ) {
   check(resolve(directory) === directory && /^[a-f0-9]{64}$/.test(bindingDigest));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -258,7 +259,29 @@ async function openJournal(
           timingSafeEqual(Buffer.from(saved.signature), Buffer.from(expected)),
       );
       check(saved.state.schemaVersion === 1 && saved.state.receipts.length < 32);
-      if (
+      const unusedEpoch = prepareUnusedEpochRetirement
+        ? await prepareUnusedEpochRetirement({
+            outerRaw: encoded,
+            nextBindingDigest: bindingDigest,
+          })
+        : null;
+      if (unusedEpoch) {
+        check(
+          unusedEpoch.hop.oldJournalDigests.lifetime === sha(encoded) &&
+            unusedEpoch.hop.lifetimeId === saved.state.events[4].value.lifetimeId &&
+            sha(readFileSync(path)) === sha(encoded) &&
+            !existsSync(join(directory, "controller.json")),
+        );
+        const archive = join(directory, `lifetime-unused-${unusedEpoch.hop.lifetimeId}.json`);
+        check(!existsSync(archive));
+        renameSync(path, archive);
+        const fd = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+        try {
+          fsyncSync(fd);
+        } finally {
+          closeSync(fd);
+        }
+      } else if (
         ["admissionAccepted", "indeterminate"].includes(saved.state.phase) &&
         prepareUnstartedRetirement
       ) {
@@ -481,6 +504,7 @@ export async function openGuardedHost(options) {
     options.prepareIdleLifetime,
     options.prepareBootstrapRetirement,
     options.prepareUnstartedRetirement,
+    options.prepareUnusedEpochRetirement,
   );
   const recovered = journal.snapshot();
   if (recovered.phase === "treeExited") {

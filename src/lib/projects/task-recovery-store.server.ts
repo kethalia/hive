@@ -5,6 +5,7 @@ import {
 } from "@/lib/codex-session/account-maintenance-store.server";
 import { guardianDigest } from "@/lib/codex-session/guardian-contracts";
 import { effectiveUnstartedSuccessor } from "@/lib/codex-session/guardian-unstarted-store.server";
+import { readRemountRecoveryTicket } from "../codex-session/guardian-remount.server";
 import { type ProjectTaskIntents, taskRequestDigest } from "./task-intents.server";
 import {
   type RecoveryAuthorization,
@@ -111,6 +112,7 @@ export class ProjectTaskRecoveries {
   constructor(
     private db: PrismaClient,
     private intents: ProjectTaskIntents,
+    private env: Record<string, string | undefined> = process.env,
   ) {}
   async begin(input: {
     ownerId: string;
@@ -221,10 +223,28 @@ export class ProjectTaskRecoveries {
           ? !admission
           : !admission || admission.preparationIntentId === s.taskId,
       );
+      const continuity = await readRemountRecoveryTicket(tx, this.env, s);
+      if (continuity) {
+        check(
+          i.outcome === "existing_preexecution" &&
+            i.remount &&
+            i.remount.attestationDigest === continuity.attestationDigest &&
+            i.remount.continuationDigest === continuity.continuationDigest &&
+            i.remount.mappingDigest === guardianDigest(continuity.mapping) &&
+            i.remount.volumeDigest === guardianDigest(continuity.volume) &&
+            guardianDigest(i.remount.mapping) === guardianDigest(continuity.mapping) &&
+            current.buildId === continuity.final.buildId &&
+            current.lifetimeId === continuity.final.lifetimeId,
+        );
+      } else check(!i.remount);
       await policy(tx);
       await assertEpicRecovery(tx, s, i.buildId);
       const [clock] = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`;
-      const expiresAt = Math.min(clock.now.getTime() + 60000, current.authorityUntil.getTime());
+      const expiresAt = Math.min(
+        clock.now.getTime() + 60000,
+        current.authorityUntil.getTime(),
+        continuity?.expiresAt ?? Infinity,
+      );
       check(expiresAt > clock.now.getTime() + 1000);
       const [changed] = await tx.$queryRaw<{ version: string }[]>`UPDATE project_task_intents
         SET phase=${i.outcome === "task_absent" ? "queued" : "preparing"},lease_id=NULL,lease_until=NULL,failure_count=0,
@@ -240,6 +260,8 @@ export class ProjectTaskRecoveries {
       });
       await tx.$executeRaw`UPDATE project_task_recoveries SET phase='authorized',inspection=${JSON.stringify(i)}::jsonb,
         "authorization"=${JSON.stringify(authorization)}::jsonb WHERE owner_id=${s.ownerId}::uuid AND id=${r.id}::uuid`;
+      const [finalClock] = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`;
+      check(finalClock.now.getTime() < expiresAt);
       return { ...r, phase: "authorized" as const, inspection: i, authorization };
     });
   }

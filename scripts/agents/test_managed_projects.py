@@ -587,6 +587,142 @@ class ManagedProjectsTests(unittest.TestCase):
         self.assertEqual(self.manager.inspect("123")["lease"], value["lease"])
         self.assertEqual(self.manager.inspect("123")["renewalSequence"], 0)
 
+    def remount_fixture(self):
+        import copy
+        value = self.manager.prepare("123", "task", self.sha)
+        with self.manager.lock():
+            project, receipt, record = self.manager.load("123")
+            root_file = self.manager.state / "root.json"
+            root = self.manager.read(root_file)
+            paths = {"root": self.manager.root, "project": project, "checkout": project / "checkout"}
+            current = {k: {x: str(n) for x, n in self.manager.identity(v).items()} for k, v in paths.items()}
+            old = copy.deepcopy(current)
+            for identity in old.values(): identity["device"] = str(int(identity["device"]) + 100)
+            root["identity"]["device"] += 100
+            record["projectIdentity"]["device"] += 100
+            record["checkoutIdentity"]["device"] += 100
+            record["lease"]["expiresAt"] = MODULE.time.time() - 7200
+            self.manager.write(root_file, root); self.manager.write(receipt, record)
+            lease = dict(record["lease"])
+        mapping = {"old": old, "current": current,
+            "oldRootRecordSha256": hashlib.sha256(root_file.read_bytes()).hexdigest(),
+            "oldProjectRecordSha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+            "oldLeaseDigest": self.manager._remount_digest({"id": lease["id"], "taskId": lease["taskId"],
+                "generation": lease["generation"], "expiresAtMillis": int(lease["expiresAt"] * 1000)})}
+        ticket = {"attestationDigest": "a" * 64, "continuationDigest": "b" * 64, "originalProofDigest": "c" * 64,
+            "recoveryId": "recovery", "taskId": "task", "mapping": mapping, "expiresAt": MODULE.time.time() * 1000 + 30000,
+            "volume": {"mountPath": str(self.home), "subPath": "", "subPathExpr": "", "readOnly": False, "claimReadOnly": False}}
+        expected = {"repositoryId": "123", "taskId": "task", "leaseId": lease["id"], "leaseGeneration": lease["generation"],
+            "revision": self.sha, "checkoutIncarnation": value["checkoutIncarnation"], "checkoutIdentity": old["checkout"]}
+        grant = {"transferId": "transfer", "recoveryId": "recovery", "proofDigest": "c" * 64,
+            "expiresAt": ticket["expiresAt"], "renewalSequence": 0, "expected": expected}
+        class Authority:
+            def continuity(inner, project_id, phase):
+                self.assertEqual(project_id, "project-fixture")
+                self.assertIn(phase, {"inspecting", "consuming"})
+                return copy.deepcopy(ticket)
+            def verify(inner, project_id, actual):
+                self.assertEqual(actual, expected)
+                return copy.deepcopy(grant)
+        self.remount_mount_patch = mock.patch.object(self.manager, "_remount_mount")
+        self.remount_mount_patch.start(); self.addCleanup(self.remount_mount_patch.stop)
+        return value, Authority(), ticket, grant, receipt
+
+    def test_remount_owner_mapping_is_read_only_until_consume_and_replays_once(self):
+        old, authority, ticket, grant, receipt = self.remount_fixture()
+        before = receipt.read_bytes()
+        with self.assertRaisesRegex(MODULE.ManagedError, "managed_root_changed"):
+            self.manager.inspect("123")
+        inspected = self.manager._inspect_unstarted_checkout("123", "project-fixture", authority)
+        self.assertEqual(receipt.read_bytes(), before)
+        self.assertTrue(inspected["checkoutVerified"])
+        self.assertEqual(inspected["remount"]["mappingDigest"], self.manager._remount_digest(ticket["mapping"]))
+        result = self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        self.assertEqual(result["checkoutIdentity"], ticket["mapping"]["current"]["checkout"])
+        self.assertEqual(result["lease"]["id"], old["lease"]["id"])
+        self.assertEqual(result["lease"]["generation"], old["lease"]["generation"])
+        self.assertEqual(result["checkoutIncarnation"], old["checkoutIncarnation"])
+        self.assertEqual(result["renewalSequence"], 1)
+        completed = receipt.read_bytes()
+        self.assertEqual(self.manager._revalidate_unstarted_lease("123", "project-fixture", authority), result)
+        self.assertEqual(receipt.read_bytes(), completed)
+        self.assertEqual(self.manager.inspect("123")["checkoutIdentity"], result["checkoutIdentity"])
+
+    def test_remount_crash_between_records_holds_generic_operations_and_replays_exact_plan(self):
+        _, authority, _, _, receipt = self.remount_fixture()
+        original_write = self.manager.write
+        def fault(path, record):
+            if path == receipt: raise OSError("fixture_crash_before_project_replace")
+            return original_write(path, record)
+        with mock.patch.object(self.manager, "write", side_effect=fault):
+            with self.assertRaisesRegex(OSError, "fixture_crash"):
+                self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_reconciliation_required"):
+            self.manager.inspect("123")
+        result = self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        self.assertEqual(result["renewalSequence"], 1)
+        self.assertEqual(self.manager._revalidate_unstarted_lease("123", "project-fixture", authority), result)
+
+    def test_remount_expiry_after_root_replace_cannot_write_project_or_completion(self):
+        _, authority, _, grant, receipt = self.remount_fixture()
+        before = receipt.read_bytes(); original_write = self.manager.write
+        def expire(path, record):
+            result = original_write(path, record)
+            if path == self.manager.state / "root.json": grant["expiresAt"] = MODULE.time.time() * 1000 - 1
+            return result
+        with mock.patch.object(self.manager, "write", side_effect=expire):
+            with self.assertRaisesRegex(MODULE.ManagedError, "renewal_authority_expired"):
+                self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        self.assertEqual(receipt.read_bytes(), before)
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_reconciliation_required"):
+            self.manager.inspect("123")
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_authority_changed"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+
+    def test_remount_rejects_changed_inode_and_receipt_before_any_write(self):
+        _, authority, ticket, _, receipt = self.remount_fixture()
+        before = receipt.read_bytes()
+        ticket["mapping"]["current"]["checkout"]["inode"] = "1"
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_volume_changed"):
+            self.manager._inspect_unstarted_checkout("123", "project-fixture", authority)
+        self.assertEqual(receipt.read_bytes(), before)
+        self.assertFalse((self.manager.state / "unstarted-remount.json").exists())
+
+    def test_remount_replay_cannot_restore_old_receipts_to_extend_again(self):
+        _, authority, _, grant, receipt = self.remount_fixture()
+        root_file = self.manager.state / "root.json"
+        old_root, old_project = root_file.read_bytes(), receipt.read_bytes()
+        self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        grant["replayOnly"] = True  # Actual controller retains completed rebinding history.
+        root_file.write_bytes(old_root); receipt.write_bytes(old_project)
+        (self.manager.state / "unstarted-remount.json").unlink()
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_replay_conflict"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        self.assertEqual(receipt.read_bytes(), old_project)
+        self.assertFalse((self.manager.state / "unstarted-remount.json").exists())
+
+    def test_remount_scan_rejects_arbitrary_same_uid_nondumpable_holder(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        code = "import os,ctypes,sys,time; f=open(sys.argv[1]); assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0; print('ready',flush=True); time.sleep(30)"
+        child = subprocess.Popen([sys.executable, "-I", "-c", code, str(Path(value["checkoutDirectory"]) / "README.md")],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.process_ids.add(child.pid)
+        try:
+            self.assertEqual(child.stdout.readline().strip(), "ready")
+            with self.assertRaisesRegex(MODULE.ManagedError, "process_inspection_unavailable|checkout_in_use"):
+                self.manager.no_consumers(Path(value["checkoutDirectory"]))
+        finally:
+            child.terminate(); child.wait(timeout=3); child.stdout.close(); child.stderr.close()
+
+    def test_remount_mount_scope_rejects_nested_mount(self):
+        # Pure mount-table fixture: real production still parses its own /proc.
+        self.remount_mount_patch = None
+        rows = "1 0 8:1 / / rw - ext4 /dev/root rw\n2 1 8:2 / /home/coder rw - ext4 /dev/home rw\n3 2 8:3 / /home/coder/projects rw - ext4 /dev/other rw\n"
+        manager = MODULE.ManagedProjects("/home/coder")
+        with mock.patch.object(Path, "read_text", return_value=rows):
+            with self.assertRaisesRegex(MODULE.ManagedError, "remount_mount_changed"):
+                manager._remount_mount([Path("/home/coder/projects/.hive-managed")], os.makedev(8, 2))
+
     def test_renewal_preserves_dirty_untracked_ignored_work_and_lease_identity(self):
         value = self.manager.prepare("123", "task", self.sha)
         checkout = Path(value["checkoutDirectory"])

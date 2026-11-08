@@ -665,3 +665,90 @@ test("sole host guardian pins its own cwd before activation makes metadata priva
     await cleanAbort(guardian);
   }
 });
+
+test("remount scanner exempts only the sealed pinned host kernel and still rejects readable checkout references", async () => {
+  const home = mkdtempSync(join(scratch, "remount-home-")),
+    packageRoot = join(home, ".local/share/hive/codex-host"),
+    checkout = join(home, "projects/checkout");
+  const { mkdirSync } = await import("node:fs");
+  mkdirSync(packageRoot, { recursive: true, mode: 0o700 });
+  mkdirSync(checkout, { recursive: true, mode: 0o700 });
+  const config = configuration({ projects: [] });
+  config.roots = [{ ...config.roots[0], role: "host", workerChannel: true, cwd: packageRoot }];
+  const guardian = await openNativeGuardian(config);
+  try {
+    const { processIdentity } = await import(
+        "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs"
+      ),
+      g = guardian.state.guardianIdentity,
+      cwd = statSync(packageRoot),
+      descriptor = {
+        guardian: { ...g, parentPid: process.pid },
+        outer: processIdentity(process.pid),
+        sourceSha256: hash(resolve("templates/ai-dev-k8s/scripts/codex-native-guardian.c")),
+        guardianSha256: hash(executable),
+        constructionDigest: config.events[0].data.launchSetDigest,
+        cwd: { path: packageRoot, device: String(cwd.dev), inode: String(cwd.ino) },
+        lifetimeId: guardian.state.lifetimeId,
+        recoveryId: randomUUID(),
+        expiresAt: Date.now() + 30000,
+      };
+    const code = String.raw`import pathlib,json,sys,importlib.util,os,copy
+from unittest import mock
+p=json.load(sys.stdin);spec=importlib.util.spec_from_file_location('fixture_managed',p['source']);m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m)
+manager=m.ManagedProjects(p['home']);checkout=pathlib.Path(p['checkout']);sealed=p['descriptor'];pid=sealed['guardian']['pid'];real_iterdir=pathlib.Path.iterdir
+# Isolate only this test-owned guardian and scanner; production enumerates all.
+def inventory(path):
+ if path==pathlib.Path('/proc'):return iter([path/str(pid),path/str(os.getpid())])
+ return real_iterdir(path)
+with mock.patch.object(pathlib.Path,'iterdir',inventory):
+ try:manager.no_consumers(checkout);raise AssertionError('generic scanner admitted nondumpable process')
+ except m.ManagedError as error:assert str(error)=='process_inspection_unavailable'
+ manager.no_consumers(checkout,lambda:sealed)
+ old_kernel=copy.deepcopy(sealed);old_kernel['sourceSha256']='644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108'
+ try:manager.no_consumers(checkout,lambda:old_kernel);raise AssertionError('old kernel construction admitted')
+ except m.ManagedError as error:assert str(error)=='sealed_guardian_unavailable'
+ import subprocess
+ (checkout/'fixture.txt').write_text('fixture')
+ child=subprocess.Popen([sys.executable,'-I','-c',"import ctypes,sys,time;f=open(sys.argv[1]);assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0;print('ready',flush=True);time.sleep(30)",str(checkout/'fixture.txt')],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+ try:
+  assert child.stdout.readline().strip()=='ready'
+  def with_unknown(path):
+   if path==pathlib.Path('/proc'):return iter([path/str(pid),path/str(child.pid),path/str(os.getpid())])
+   return real_iterdir(path)
+  with mock.patch.object(pathlib.Path,'iterdir',with_unknown):
+   try:manager.no_consumers(checkout,lambda:sealed);raise AssertionError('unknown nondumpable holder admitted')
+   except m.ManagedError as error:assert str(error)=='process_inspection_unavailable'
+ finally:child.terminate();child.wait(timeout=3);child.stdout.close();child.stderr.close()
+ stale=copy.deepcopy(sealed);stale['guardian']['startTime']='1'
+ try:manager.no_consumers(checkout,lambda:stale);raise AssertionError('stale identity admitted')
+ except m.ManagedError as error:assert str(error)=='sealed_guardian_changed'
+ real_readlink=os.readlink
+ def changed(path):
+  if str(path)==f'/proc/{pid}/cwd':return str(checkout)
+  return real_readlink(path)
+ with mock.patch.object(os,'readlink',changed):
+  try:manager.no_consumers(checkout,lambda:sealed);raise AssertionError('readable checkout reference ignored')
+  except m.ManagedError as error:assert str(error)=='checkout_in_use'
+print(json.dumps({'genericNondumpableHeld':True,'sealedKernelOnly':True,'staleIdentityHeld':True,'readableCheckoutReferenceHeld':True,'unknownNondumpableHeldWithExemption':True,'oldKernelConstructionHeld':True}))`;
+    const result = execFileSync(python, ["-I", "-c", code], {
+      input: JSON.stringify({
+        source: resolve("templates/ai-dev-k8s/scripts/managed-projects.py"),
+        home,
+        checkout,
+        descriptor,
+      }),
+      timeout: 5000,
+    });
+    assert.deepEqual(JSON.parse(result), {
+      genericNondumpableHeld: true,
+      sealedKernelOnly: true,
+      staleIdentityHeld: true,
+      readableCheckoutReferenceHeld: true,
+      unknownNondumpableHeldWithExemption: true,
+      oldKernelConstructionHeld: true,
+    });
+  } finally {
+    await cleanAbort(guardian);
+  }
+});
