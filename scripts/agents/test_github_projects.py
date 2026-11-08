@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import urllib.error
 from unittest.mock import patch
@@ -34,6 +35,29 @@ class Response(io.BytesIO):
 
 
 class ProjectsTests(unittest.TestCase):
+    def test_merge_sidecar_uses_only_private_stdin_and_sanitized_result(self):
+        deadline = int(time.time()*1000)+30000
+        request = {"schemaVersion": 1, "requestId": "fixture", "operation": "prepare"}
+        response = {"schemaVersion": 1, "requestId": "fixture", "operation": "prepare", "result": None}
+        completed = subprocess.CompletedProcess([], 0, json.dumps(response).encode())
+        with patch.dict(os.environ, {"HIVE_EPIC_MERGE_NODE": "/fixed/node", "HIVE_EPIC_MERGE_ENTRY": "/fixed/merge.mjs", "HIVE_EPIC_MERGE_DEADLINE_MS": str(deadline), "GITHUB_TOKEN": "never-forward"}, clear=True), patch.object(
+                discovery, "external_token", return_value="private-connected-token"), patch.object(discovery.subprocess, "run", return_value=completed) as run:
+            self.assertEqual(discovery.epic_merge(request), response)
+        self.assertEqual(run.call_args.args[0], ["/fixed/node", "/fixed/merge.mjs"])
+        self.assertNotIn("private-connected-token", str(run.call_args.args))
+        self.assertEqual(run.call_args.kwargs["env"], {"PATH": "/usr/bin:/bin"})
+        self.assertEqual(json.loads(run.call_args.kwargs["input"]), {"request": request, "token": "private-connected-token", "deadlineMs": deadline})
+        self.assertEqual(run.call_args.kwargs["stderr"], subprocess.DEVNULL)
+        self.assertNotIn("private-connected-token", json.dumps(response))
+        with patch.dict(os.environ, {}, clear=True), patch.object(discovery, "external_token") as token:
+            with self.assertRaises(discovery.DiscoveryError):
+                discovery.epic_merge(request)
+            token.assert_not_called()
+        with patch.dict(os.environ, {"HIVE_EPIC_MERGE_NODE":"/fixed/node", "HIVE_EPIC_MERGE_ENTRY":"/fixed/merge.mjs", "HIVE_EPIC_MERGE_DEADLINE_MS":str(int(time.time()*1000)-1)}, clear=True), patch.object(discovery,"external_token") as token:
+            with self.assertRaises(discovery.DiscoveryError):
+                discovery.epic_merge(request)
+            token.assert_not_called()
+
     def epic(self, change=None, operation="observe_merge"):
         request = {"schemaVersion": 1, "requestId": "00000000-0000-4000-8000-000000000001", "operation": operation,
                    "repositoryId": "42", "expectedAccountId": "123", "baseBranch": "epic/fixture", "headSha": "b" * 40}

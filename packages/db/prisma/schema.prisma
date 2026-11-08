@@ -1199,6 +1199,7 @@ model DeliveryRelease {
   snapshot Json
   snapshotDigest String @map("snapshot_digest")
   phase String @default("active")
+  purpose String @default("deployment")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   source DeliverySourceRevision @relation(fields: [ownerId, taskId, sourceRevisionId], references: [ownerId, taskId, id], onDelete: Restrict, onUpdate: NoAction)
   target DeliveryReleaseTarget @relation("ReleaseTarget", fields: [targetDigest], references: [targetDigest], onDelete: Restrict, onUpdate: NoAction)

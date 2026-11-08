@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { transform } from "esbuild";
 import tar from "tar-stream";
-import { decodeHostArchive } from "./host-archive-codec.mjs";
+import { decodeHostArchive, HOST_IMAGE_ARCHIVE_MAX_BYTES } from "./host-archive-codec.mjs";
 
 export const templateNames = [
   "ai-dev-k8s",
@@ -26,8 +26,10 @@ async function deduplicateHostSources(files) {
   if (!packed.length) return files;
   if (packed.length !== 1) throw new Error("Ambiguous host archive encoding");
   const compressed = packed[0];
-  if (compressed.content.length > 160000) throw new Error("Host archive exceeds metadata bounds");
-  const archive = compressed.path.endsWith(".xz")
+  const xz = compressed.path.endsWith(".xz");
+  if (compressed.content.length > (xz ? HOST_IMAGE_ARCHIVE_MAX_BYTES : 160000))
+    throw new Error("Host image archive exceeds compressed asset bound");
+  const archive = xz
     ? decodeHostArchive(compressed.content)
     : gunzipSync(compressed.content, { maxOutputLength: 2 * 1024 * 1024 });
   const expected = files.find((file) => file.path === "assets/codex-host.tar.sha256");

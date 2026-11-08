@@ -436,6 +436,8 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
         stateDirectory: discoveryDirectory,
         helperPath: join(directory, "github-projects.py"),
         helperSha256: pins["github-projects.py"],
+        epicMergePath: join(directory, "epic-merge-host.mjs"),
+        epicMergeSha256: pins["epic-merge-host.mjs"],
       },
       controller,
     );

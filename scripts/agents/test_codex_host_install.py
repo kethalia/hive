@@ -37,6 +37,43 @@ def archive(entries):
 
 
 class HostInstallerTests(unittest.TestCase):
+    def test_image_archive_growth_does_not_increase_pod_annotation_payload(self):
+        bootstrap_spec = importlib.util.spec_from_file_location(
+            "image_bootstrap", ROOT / "docker/hive-base/hive-template-bootstrap.py")
+        bootstrap = importlib.util.module_from_spec(bootstrap_spec)
+        bootstrap_spec.loader.exec_module(bootstrap)
+        raw = os.urandom(192 * 1024)
+        packed = lzma.compress(raw, format=lzma.FORMAT_XZ)
+        self.assertGreater(len(packed), 160000)
+        script = (ROOT / "templates/ai-dev-k8s/scripts/install-codex-host.py").read_bytes()
+        annotation = json.dumps({
+            "schemaVersion": 1,
+            "imageInstallerSha256": hashlib.sha256(script).hexdigest(),
+            "imageArchiveSha256": hashlib.sha256(packed).hexdigest(),
+            "archiveSha256": hashlib.sha256(raw).hexdigest(),
+            "archiveEncoding": "xz",
+            "config": {"enabled": False},
+        }).encode()
+        self.assertLess(len(annotation), 16384)
+        assets = {"install-codex-host.py": script, "codex-host.tar.xz": packed}
+
+        def read_image(path, limit):
+            value = assets[path.name]
+            self.assertLessEqual(len(value), limit)
+            return value
+
+        restored_script, packet = bootstrap.prepare("host", annotation, read=read_image)
+        self.assertEqual(restored_script, script)
+        self.assertEqual(installer.decode_archive(json.loads(packet)), raw)
+        self.assertNotIn("archive", json.loads(annotation))
+
+    def test_image_archive_still_has_a_compressed_input_bound(self):
+        packed = lzma.compress(os.urandom(256 * 1024), format=lzma.FORMAT_XZ)
+        self.assertGreater(len(packed), 256 * 1024)
+        with self.assertRaises(RuntimeError):
+            installer.decode_archive({
+                "archive": base64.b64encode(packed).decode(), "archiveEncoding": "xz"})
+
     def test_guardian_rollover_receipt_requires_latest_unfenced_authenticated_lifetime(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
