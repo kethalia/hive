@@ -33,7 +33,14 @@ stand in for the existing ECHILD receipt.
 Project history is archived before the empty current journal is reset. Signed
 retirement facts are persisted before the old outer journal is archived. A crash
 between these steps can retry against the same facts without discarding history
-or duplicating retirement. Consecutive unused restarts verify earlier bootstrap
+or duplicating retirement, including when the retry belongs to a different Coder
+build. Before changing project state, the guardian seals the original pending
+retirement proof. A later build independently revalidates the original startup-only
+journal and process identities, then resumes the authenticated pending proof.
+The original project evidence and attempted replacement binding remain historical;
+they grant no execution authority to that earlier replacement build. The new build
+still validates the old public configuration against its own scope and opens only
+its own fresh lifetime. Consecutive unused restarts verify earlier bootstrap
 archives against their signed outer facts and original signed journals. Native,
 idle/task archives, pending controller state, admission attempts, missing scope
 material or tampered evidence still hold the workspace for review.

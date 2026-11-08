@@ -264,8 +264,28 @@ async function openJournal(
           ),
         );
         const digest = sha(encoded),
-          proof = bootstrapRetirement(saved.state, bindingDigest, digest),
-          facts = await prepareBootstrapRetirement(structuredClone(proof)),
+          currentProof = bootstrapRetirement(saved.state, bindingDigest, digest),
+          pendingPath = join(directory, `bootstrap-pending-${digest}.json`);
+        let proof = currentProof;
+        if (existsSync(pendingPath)) {
+          check(privateFile(pendingPath).size <= 32768);
+          const prior = JSON.parse(readFileSync(pendingPath)),
+            { nextBindingDigest: priorNext, ...priorSource } = prior.state ?? {},
+            { nextBindingDigest: _currentNext, ...currentSource } = currentProof;
+          check(
+            typeof prior.signature === "string" &&
+              prior.signature.length === 64 &&
+              timingSafeEqual(Buffer.from(prior.signature), Buffer.from(mac(prior.state))) &&
+              /^[a-f0-9]{64}$/.test(priorNext) &&
+              priorNext !== saved.state.bindingDigest &&
+              JSON.stringify(priorSource) === JSON.stringify(currentSource),
+          );
+          // This is the original retirement attempt, not authority for its
+          // replacement build. Independently rechecking A above allows C to
+          // finish B's interrupted archive without rewriting its signed facts.
+          proof = prior.state;
+        } else atomic(pendingPath, { state: proof, signature: mac(proof) });
+        const facts = await prepareBootstrapRetirement(structuredClone(proof)),
           retirement = { ...proof, projectEvidence: facts },
           factPath = join(directory, `bootstrap-retirement-${digest}.json`),
           archivePath = join(directory, `lifetime-bootstrap-${digest}.json`);

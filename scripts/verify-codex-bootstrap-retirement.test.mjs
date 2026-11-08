@@ -289,6 +289,98 @@ test("crash after the inner reset retries without duplicate retirement or loss o
   );
   await f.kill(next);
 });
+for (const sealedFacts of [false, true]) {
+  test(`a different build resumes an actual interrupted bootstrap retirement (outer facts sealed: ${sealedFacts})`, async (t) => {
+    const f = await fixture(t),
+      raw = readFileSync(f.lifetime);
+    await f.start(f.next, true);
+    const pending = readdirSync(f.guardianDir).find((name) =>
+        name.startsWith("bootstrap-pending-"),
+      ),
+      pendingPath = join(f.guardianDir, pending),
+      pendingBytes = readFileSync(pendingPath),
+      projectArchive = readdirSync(f.projectDir).find((name) =>
+        name.startsWith("projects-bootstrap-"),
+      ),
+      projectBytes = readFileSync(join(f.projectDir, projectArchive)),
+      proof = JSON.parse(pendingBytes).state,
+      projectEvidence = JSON.parse(projectBytes).state.projectEvidence;
+    assert.equal(projectEvidence.buildId, f.next.binding.buildId);
+    const factPath = join(f.guardianDir, `bootstrap-retirement-${sha(raw)}.json`);
+    if (sealedFacts) {
+      // Fault boundary after the original outer fact write but before rename.
+      const state = { ...proof, projectEvidence };
+      writeFileSync(
+        factPath,
+        JSON.stringify({
+          state,
+          signature: createHmac("sha256", readFileSync(f.key))
+            .update(JSON.stringify(state))
+            .digest("hex"),
+        }),
+        { mode: 0o600 },
+      );
+    }
+    const factBytes = sealedFacts ? readFileSync(factPath) : null;
+    const configC = { ...f.next, binding: { ...f.next.binding, buildId: randomUUID() } },
+      currentPins = f.options(configC),
+      third = await f.start(configC);
+    assert.notEqual(currentPins.bindingDigest, proof.nextBindingDigest);
+    assert(readFileSync(pendingPath).equals(pendingBytes));
+    assert(readFileSync(join(f.projectDir, projectArchive)).equals(projectBytes));
+    if (factBytes) assert(readFileSync(factPath).equals(factBytes));
+    assert.equal(
+      JSON.parse(readFileSync(factPath)).state.projectEvidence.buildId,
+      f.next.binding.buildId,
+    );
+    const archived = readdirSync(f.guardianDir).filter((name) =>
+      name.startsWith("lifetime-bootstrap-"),
+    );
+    assert.equal(archived.length, 1);
+    assert(readFileSync(join(f.guardianDir, archived[0])).equals(raw));
+    const current = JSON.parse(readFileSync(f.lifetime)).state;
+    assert.equal(current.bindingDigest, currentPins.bindingDigest);
+    assert.equal(current.phase, "startupReady");
+    assert.equal(current.receipts.length, 0);
+    assert.deepEqual(
+      current.events.map((event) => event.name),
+      ["begin", "ready", "launchIntent", "open", "startupReady"],
+    );
+    await f.kill(third);
+  });
+}
+for (const failure of ["signature", "foreign_lifetime", "old_binding"]) {
+  test(`interrupted retirement rejects altered pending proof: ${failure}`, async (t) => {
+    const f = await fixture(t);
+    await f.start(f.next, true);
+    const pending = readdirSync(f.guardianDir).find((name) =>
+        name.startsWith("bootstrap-pending-"),
+      ),
+      path = join(f.guardianDir, pending);
+    if (failure === "signature") {
+      const saved = JSON.parse(readFileSync(path));
+      saved.signature = "0".repeat(64);
+      writeFileSync(path, JSON.stringify(saved));
+    } else
+      rewrite(path, f.key, (state) => {
+        if (failure === "foreign_lifetime") state.lifetimeId = randomUUID();
+        else state.nextBindingDigest = state.bindingDigest;
+      });
+    const outer = readFileSync(f.lifetime),
+      project = readFileSync(f.projects);
+    await assert.rejects(
+      openGuardedHost(
+        f.options({ ...f.next, binding: { ...f.next.binding, buildId: randomUUID() } }),
+      ),
+    );
+    assert(readFileSync(f.lifetime).equals(outer));
+    assert(readFileSync(f.projects).equals(project));
+    assert.equal(
+      readdirSync(f.guardianDir).filter((name) => name.startsWith("lifetime-bootstrap-")).length,
+      0,
+    );
+  });
+}
 test("a tampered earlier bootstrap archive cannot authorize a later restart", async (t) => {
   const f = await fixture(t),
     next = await f.start(f.next);

@@ -680,7 +680,8 @@ export function archiveBootstrapProjectState(config, proof) {
           projectEvidence.templateId === config.templateId &&
           uuid(projectEvidence.buildId) &&
           projectEvidence.retirementDigest === prior.retirementDigest &&
-          projectEvidence.projectJournalDigest === digest(prior.projectState),
+          projectEvidence.projectJournalDigest === digest(prior.projectState) &&
+          (!prior.projectEvidence || digest(prior.projectEvidence) === digest(projectEvidence)),
         "bootstrap_archive_history_invalid",
       );
       assertEmpty(prior.projectState, oldProof.lifetimeId, oldProof.workerIdentity);
@@ -712,10 +713,8 @@ export function archiveBootstrapProjectState(config, proof) {
         closeSync(fd);
       }
     };
-    if (!archived) persist(archivePath, { retirementDigest, projectState: state });
-    persist(statePath, reset);
     const storage = lstatSync(config.stateDirectory);
-    return {
+    const evidence = archived?.projectEvidence ?? {
       ownerId: config.ownerId,
       workspaceId: config.workspaceId,
       templateId: config.templateId,
@@ -724,6 +723,32 @@ export function archiveBootstrapProjectState(config, proof) {
       projectJournalDigest: digest(state),
       privateDirectoryIdentity: { device: String(storage.dev), inode: String(storage.ino) },
     };
+    check(
+      (!archived || archived.projectEvidence) &&
+        exact(evidence, [
+          "ownerId",
+          "workspaceId",
+          "templateId",
+          "buildId",
+          "retirementDigest",
+          "projectJournalDigest",
+          "privateDirectoryIdentity",
+        ]) &&
+        evidence.ownerId === config.ownerId &&
+        evidence.workspaceId === config.workspaceId &&
+        evidence.templateId === config.templateId &&
+        uuid(evidence.buildId) &&
+        evidence.retirementDigest === retirementDigest &&
+        evidence.projectJournalDigest === digest(state) &&
+        exact(evidence.privateDirectoryIdentity, ["device", "inode"]) &&
+        evidence.privateDirectoryIdentity.device === String(storage.dev) &&
+        evidence.privateDirectoryIdentity.inode === String(storage.ino),
+      "bootstrap_archive_proof_invalid",
+    );
+    if (!archived)
+      persist(archivePath, { retirementDigest, projectState: state, projectEvidence: evidence });
+    persist(statePath, reset);
+    return evidence;
   } finally {
     closeSync(lock);
   }
