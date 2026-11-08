@@ -10,6 +10,7 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 
 import { POST } from "@/app/api/auth/terminal-ticket/route";
+import { getServerRuntimeConfig, resolveTerminalWsUrl } from "@/lib/runtime-config";
 
 const origin = "https://hive.example",
   secret = "b".repeat(64);
@@ -55,6 +56,30 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("Cloudflare generic terminal ticket issuer", () => {
+  it("the configured Worker root resolves to the browser WebSocket and the same ticket audience", async () => {
+    const config = getServerRuntimeConfig();
+    expect(config.terminalWsUrl).toBe("/");
+    const browserBase = resolveTerminalWsUrl(config.terminalWsUrl, {
+      host: new URL(origin).host,
+      protocol: "https:",
+    });
+    expect(browserBase).toBe("wss://hive.example");
+    const req = request();
+    const result = await POST(
+      new Request(req, {
+        body: JSON.stringify({ url: `${browserBase}${target}` }),
+      }),
+    );
+    expect(result.status).toBe(200);
+    expect(
+      verifyTerminalTicket((await result.json()).ticket, secret, {
+        audience: new URL(origin).host,
+        origin,
+        requestTarget: target,
+      }),
+    ).toMatchObject({ sessionId: session.sessionId });
+    expect(auth).toHaveBeenCalledOnce();
+  });
   it("uses only current cookie session and issues exact same-origin request-bound admission", async () => {
     const result = await POST(request());
     expect(result.status).toBe(200);

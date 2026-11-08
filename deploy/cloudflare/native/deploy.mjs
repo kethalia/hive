@@ -235,6 +235,8 @@ export function validateConfig(c) {
   assert.ok(v && typeof v === "object" && !Array.isArray(v));
   for (const [name, value] of Object.entries(pinned)) assert.equal(v[name], value);
   for (const name of previewFeatures) assert.ok(["true", "false"].includes(v[name]));
+  if (Object.hasOwn(v, "HIVE_TERMINAL_WS_URL") || v.HIVE_GENERIC_TERMINAL_ENABLED === "true")
+    assert.equal(v.HIVE_TERMINAL_WS_URL, "/", "Preview terminals require the same-Worker root URL");
   for (const name of disabled) if (Object.hasOwn(v, name)) assert.equal(v[name], "false");
   for (const [name, value] of Object.entries(v)) {
     assert.ok(

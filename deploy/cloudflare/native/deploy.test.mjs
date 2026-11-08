@@ -129,6 +129,28 @@ test("Preview enrollment rejects credentials, unknown settings, production autho
     assert.throws(() => validateConfig(c));
   }
 });
+test("enabled Preview terminals require the same-Worker URL and disabled enrollment remains optional", () => {
+  const c = clone();
+  c.previews.vars.HIVE_GENERIC_TERMINAL_ENABLED = "true";
+  c.previews.vars.HIVE_TERMINAL_WS_URL = "/";
+  assert.doesNotThrow(() => validateConfig(c));
+  for (const value of [
+    undefined,
+    "",
+    "https://other.invalid",
+    "wss://other.invalid",
+    "/ws",
+    "//other.invalid",
+  ]) {
+    const invalid = structuredClone(c);
+    if (value === undefined) delete invalid.previews.vars.HIVE_TERMINAL_WS_URL;
+    else invalid.previews.vars.HIVE_TERMINAL_WS_URL = value;
+    assert.throws(() => validateConfig(invalid));
+  }
+  c.previews.vars.HIVE_GENERIC_TERMINAL_ENABLED = "false";
+  delete c.previews.vars.HIVE_TERMINAL_WS_URL;
+  assert.doesNotThrow(() => validateConfig(c));
+});
 test("branch name preserves the provider-managed Preview identity", () => {
   const a = previewTarget("codex/example-branch");
   assert.deepEqual(a, previewTarget("codex/example-branch"));
