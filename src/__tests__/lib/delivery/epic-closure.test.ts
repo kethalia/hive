@@ -44,8 +44,13 @@ it("issues an archive token only for the exact closed lease and retained source"
     checkoutIdentity: { device: "12", inode: "13" },
     releasedAt: Date.now(),
   };
-  let query = 0;
+  let query = 0,
+    writes = 0,
+    barrierPurpose = "completion";
   const db = {
+    codexGuardianBarrier: {
+      findUnique: async () => ({ purpose: barrierPurpose }),
+    },
     codexGuardianAdmission: {
       findFirst: async () => ({
         checkoutBinding: checkout,
@@ -73,7 +78,10 @@ it("issues an archive token only for the exact closed lease and retained source"
             ? [{ artifact_digest: "d".repeat(64) }]
             : [{ receipt_digest: epicDigest(release), runtime_id: u(1) }];
     },
-    $executeRaw: async () => 1,
+    $executeRaw: async () => {
+      writes++;
+      return 1;
+    },
   } as unknown as PrismaClient;
   const result = await submitEpicRelease(db, runtime, u(8), release, pem);
   const [encoded, signature] = result.token.split(".");
@@ -96,4 +104,12 @@ it("issues an archive token only for the exact closed lease and retained source"
   await expect(
     submitEpicRelease(db, runtime, u(8), { ...release, leaseGeneration: 2 }, pem),
   ).rejects.toThrow("epic_release_scope_changed");
+  barrierPurpose = "account-maintenance";
+  query = 0;
+  writes = 0;
+  await expect(submitEpicRelease(db, runtime, u(8), release, pem)).rejects.toThrow(
+    "epic_completion_closure_required",
+  );
+  expect(query).toBe(0);
+  expect(writes).toBe(0);
 });
