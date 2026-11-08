@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+  "workspaceName": "hive-managed-flow-08cf",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-07T18:47:25.146316Z",
+  "buildId": "9933c878-831c-4edf-baf7-fee9f1bbc5c3",
+  "templateVersionId": "86834e24-6be5-4fd2-985c-23d1de969713",
+  "task": "managed-cloudflare-delivery-pilot-fixed-launch",
+  "classification": "unmanaged isolated test; retain unless exact cleanup authorized",
+  "disposable": false,
+  "automaticDeletionAuthorized": false,
+  "storage": "20Gi",
+  "ttlMs": 7200000,
+  "image": "ghcr.io/kethalia/hive-base@sha256:22fce3aa20b2c70c9c84e82f5b4fd0d584a7b564c32940853127fd2c7c37df34",
+  "sourceCommit": "08cf34f168b711a3fffff7d8edeb549c3c505078",
+  "globalActivationChanged": false,
+  "creationProvenance": "Primary software workspace own acknowledged Coder create action; not a specialist handoff"
+}
