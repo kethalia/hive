@@ -294,11 +294,13 @@ export function createAccountManager({
         await stop();
         return view();
       }
-      const current = await account();
+      await account();
       if (notifications.has(pending.loginId)) {
         const success = notifications.get(pending.loginId);
         generation++;
-        state = success ? current : "failed";
+        // Completion may follow the stale read response in the same transport
+        // callback. Only a subsequent official read can settle saved credentials.
+        state = success ? await account() : "failed";
         await stop();
       }
       return view();

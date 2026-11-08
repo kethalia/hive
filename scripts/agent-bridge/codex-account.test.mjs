@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import test from "node:test";
-import { createCodexAccountManager } from "./codex-account.mjs";
+import {
+  createAccountManager,
+  createAccountWire,
+  createCodexAccountManager,
+} from "./codex-account.mjs";
 
 function fixture({ signedIn = false, busy = false } = {}) {
   const calls = [],
@@ -126,3 +132,74 @@ test("a managed native lock prevents account process creation and all credential
     await f.manager.close();
   }
 });
+
+for (const provider of ["codex", "claude"]) {
+  test(`${provider} reads fresh credentials after stale response and completion share one data callback`, async () => {
+    const lifetimeId = randomUUID();
+    let reads = 0;
+    const manager = createAccountManager({
+      provider,
+      home: "/unused",
+      profile: "software",
+      lifetimeId,
+      acquire: () => ({ fd: 3, close() {} }),
+      async open(_home, _fd, notify) {
+        const child = new EventEmitter();
+        child.stdin = new PassThrough();
+        child.stdout = new PassThrough();
+        child.kill = () => {
+          queueMicrotask(() => child.emit("close"));
+          return true;
+        };
+        child.stdin.on("data", (bytes) => {
+          const request = JSON.parse(bytes.toString());
+          let result;
+          if (request.method === "account/login/start") {
+            result =
+              provider === "codex"
+                ? {
+                    type: "chatgptDeviceCode",
+                    loginId: "exact-login",
+                    verificationUrl: "https://auth.openai.com/codex/device",
+                    userCode: "ABCD-1234",
+                  }
+                : {
+                    type: "claudeCli",
+                    loginId: "exact-login",
+                    verificationUrl: "https://claude.com/cai/oauth/authorize?state=fixture",
+                  };
+          } else if (request.method === "account/read") {
+            reads++;
+            if (reads === 1) {
+              child.stdout.write(
+                JSON.stringify({ id: request.id, result: { account: null } }) +
+                  "\n" +
+                  JSON.stringify({
+                    method: "account/login/completed",
+                    params: { loginId: "exact-login", success: true },
+                  }) +
+                  "\n",
+              );
+              return;
+            }
+            result = { account: { type: provider === "codex" ? "chatgpt" : "claude" } };
+          } else throw Error("unexpected RPC");
+          child.stdout.write(`${JSON.stringify({ id: request.id, result })}\n`);
+        });
+        return createAccountWire(child, notify);
+      },
+    });
+    try {
+      assert.equal(
+        (await manager.run({ action: "connect", lifetimeId, generation: 0 })).state,
+        "pending",
+      );
+      const value = await manager.run({ action: "status" });
+      assert.equal(reads, 2);
+      assert.equal(value.state, "signed-in");
+      assert.equal(value.pending, null);
+    } finally {
+      await manager.close();
+    }
+  });
+}

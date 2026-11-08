@@ -10,7 +10,7 @@ import unittest
 
 DRIVER = Path(__file__).resolve().parents[1] / "agent-bridge/claude-account-driver.py"
 FAKE = '''#!/usr/bin/python3
-import json,os,sys
+import json,os,sys,time
 from pathlib import Path
 p=Path(os.environ['CLAUDE_CONFIG_DIR']); args=sys.argv[1:]
 with (p/'argv').open('a') as f:f.write(json.dumps(args)+'\\n')
@@ -21,7 +21,10 @@ if args==['auth','logout']:
 if args==['auth','login']:
  (p/'login-pid').write_text(str(os.getpid()))
  if (p/'oversized').exists(): print('x'*70000,flush=True);sys.exit(1)
- print('https://claude.com/cai/oauth/authorize?state=fixture',flush=True)
+ if (p/'split-url').exists():
+  sys.stdout.write('https://claude.com/cai/oauth/authorize?state=fix');sys.stdout.flush();time.sleep(0.15)
+  print('ture&code_challenge=complete',flush=True)
+ else: print('https://claude.com/cai/oauth/authorize?state=fixture',flush=True)
  print('Paste code here > ',end='',flush=True)
  code=sys.stdin.readline().strip();print(code,flush=True)
  if code=='SECRET_TEST_CODE#STATE':(p/'signed-in').touch();sys.exit(0)
@@ -94,6 +97,13 @@ class ClaudeDriverTests(unittest.TestCase):
         self.assertTrue(all(call in (["auth", "login"], ["auth", "logout"], ["auth", "status", "--json"]) for call in calls))
         self.assertNotIn("SECRET_TEST_CODE", json.dumps(self.frames))
         self.assertNotIn("must-not-export", json.dumps(self.frames))
+
+    def test_split_pty_url_waits_for_a_terminating_delimiter(self):
+        (self.root / "split-url").touch()
+        pending = self.call("account/login/start")["result"]
+        self.assertEqual(pending["verificationUrl"],
+                         "https://claude.com/cai/oauth/authorize?state=fixture&code_challenge=complete")
+        self.call("account/login/cancel", {"loginId": pending["loginId"]})
 
     def test_cancel_waits_for_exact_child_and_late_code_cannot_reopen_it(self):
         pending = self.call("account/login/start")["result"]

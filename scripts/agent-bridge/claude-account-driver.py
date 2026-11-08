@@ -116,7 +116,7 @@ def pump():
         if len(output) > LIMIT: raise ValueError()
         text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output.decode("utf-8", errors="replace"))
         if login_url is None:
-            links = [url for url in re.findall(r"https://[^\s\x1b]+", text) if valid_url(url)]
+            links = [url for url in re.findall(r"https://[^\s\x1b]+(?=[\s\x1b])", text) if valid_url(url)]
             if len(set(links)) == 1: login_url = links[0]
         ready = ready or (login_url is not None and "Paste code here" in text)
     if child.poll() is not None and not notified:
