@@ -1197,9 +1197,7 @@ export function unstartedRemountAuthority(home, projectId, parentPid, phase) {
   return ticket;
 }
 
-export function unstartedRemountGuardianAuthority(home, projectId, parentPid, phase) {
-  const ticket = unstartedRemountAuthority(home, projectId, parentPid, phase);
-  check(ticket);
+export function verifySealedHostConstruction(home) {
   const guard = join(home, ".local/state/hive/codex-host-guardian"),
     life = hmac(read(join(guard, "lifetime.json")), read(join(guard, "key"), 32)),
     startup = life.events[4].value,
@@ -1216,7 +1214,7 @@ export function unstartedRemountGuardianAuthority(home, projectId, parentPid, ph
     cwd = privatePath(packageRoot, true),
     sourceSha256 = "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3";
   check(
-    sha(manifestRaw) === ticket.final.packageManifestSha256 &&
+    sha(manifestRaw) === startup.packageManifestSha256 &&
       manifest.guardian.sourceSha256 === sourceSha256 &&
       manifest.guardian.elfSha256 === startup.guardianSha256 &&
       manifest.files["codex-native-guardian"] === startup.guardianSha256 &&
@@ -1258,9 +1256,51 @@ export function unstartedRemountGuardianAuthority(home, projectId, parentPid, ph
     constructionDigest: begin.launchSetDigest,
     cwd: { path: packageRoot, device: String(cwd.dev), inode: String(cwd.ino) },
     lifetimeId: startup.lifetimeId,
-    recoveryId: ticket.recoveryId,
-    expiresAt: ticket.expiresAt,
   };
+}
+
+export function unstartedRemountGuardianAuthority(home, projectId, parentPid, phase) {
+  const ticket = unstartedRemountAuthority(home, projectId, parentPid, phase);
+  check(ticket);
+  const construction = verifySealedHostConstruction(home);
+  check(
+    construction.lifetimeId === ticket.final.lifetimeId &&
+      same(unstartedRemountAuthority(home, projectId, parentPid, phase), ticket) &&
+      ticket.expiresAt > Date.now(),
+  );
+  return { ...construction, recoveryId: ticket.recoveryId, expiresAt: ticket.expiresAt };
+}
+
+export function unstartedRecoveryGuardianAuthority(home, projectId, parentPid) {
+  const dir = join(home, ".local/state/hive/codex-project-controller"),
+    state = hmac(read(join(dir, "projects.json"), 4194304), read(join(dir, "projects.key"), 32)),
+    p = state.projects?.[projectId];
+  check(
+    p?.recovery?.phase === "consuming" &&
+      !p.recovery.continuity &&
+      !p.recovery.inspection?.remount &&
+      !state.unstartedTransferHistory?.remount &&
+      !readUnstartedTransferContinuation(
+        home,
+        hmac(
+          read(join(home, ".local/state/hive/codex-host-guardian/lifetime.json")),
+          read(join(home, ".local/state/hive/codex-host-guardian/key"), 32),
+        ).events[4].value,
+      ) &&
+      p.task.nativeCreationAttempted === false &&
+      p.task.firstPromptSubmissionAttempted === false &&
+      !p.task.nativeThreadId &&
+      !p.task.terminalSessionName &&
+      !p.task.sourceApplication,
+  );
+  const grant = unstartedLeaseAuthority(home, projectId, parentPid),
+    construction = verifySealedHostConstruction(home);
+  check(
+    construction.lifetimeId === p.recovery.authorization.lifetimeId &&
+      grant.expiresAt > Date.now() &&
+      same(unstartedLeaseAuthority(home, projectId, parentPid), grant),
+  );
+  return { ...construction, recoveryId: grant.recoveryId, expiresAt: grant.expiresAt };
 }
 
 export function unstartedLeaseAuthority(home, projectId, parentPid) {

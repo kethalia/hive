@@ -138,9 +138,10 @@ class InstalledUnstartedAuthority:
         controller = terminal.signed(self.home / ".local/state/hive/codex-project-controller", "projects.json", "projects.key", "state")
         phase = "consuming" if controller["projects"][project_id]["recovery"]["phase"] == "consuming" else "inspecting"
         parent = process_identity(self.parent_pid)
-        code = "const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.unstartedRemountGuardianAuthority(process.argv[2],process.argv[3],Number(process.argv[4]),process.argv[5])));"
+        code = "const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(process.argv[6]==='remount'?m.unstartedRemountGuardianAuthority(process.argv[2],process.argv[3],Number(process.argv[4]),process.argv[5]):m.unstartedRecoveryGuardianAuthority(process.argv[2],process.argv[3],Number(process.argv[4]))));"
         result = subprocess.run([parent["executable"], "--input-type=module", "-e", code,
-            Path(__file__).with_name("codex-unstarted-transfer.mjs").as_uri(), str(self.home), project_id, str(self.parent_pid), phase],
+            Path(__file__).with_name("codex-unstarted-transfer.mjs").as_uri(), str(self.home), project_id, str(self.parent_pid), phase,
+            "remount" if controller["projects"][project_id]["recovery"].get("continuity") else "unstarted"],
             env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=2, check=True)
         require(len(result.stdout) <= 8192 and process_identity(self.parent_pid) == parent, "controller_process_changed")

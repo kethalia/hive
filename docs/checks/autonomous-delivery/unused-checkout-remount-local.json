@@ -124,5 +124,36 @@
       "ordinary empty managed-root restart remapping",
       "executed-task cleanup sealed-kernel context"
     ]
+  },
+  "nonRemountRecoveryCorrection": {
+    "reviewFinding": "PR429 discussion_r4506336472: ordinary owner-authorized never-started renewal lacked a sealed guardian context",
+    "scope": "separate original-v1 and remount never-started authority; shared construction evidence grants no authority",
+    "sourceReview": "independent bounded review clear",
+    "transferSuitePassed": 43,
+    "managedProjectsSuitePassed": 43,
+    "archiveCodecTemplateAndDeployTestsPassed": 28,
+    "canonicalProfileCheck": "passed (4 variants)",
+    "actualIntegration": "official pinned kernel + packaged InstalledUnstartedAuthority + real Git/HMAC lease; unknown nondumpable holder denies without writes; one renewal and byte-identical replay",
+    "processInventory": "explicit test-owned proc inventory; no live workspace acceptance claim",
+    "package": {
+      "manifestSha256": "2b0c11b1ac6a24d48194080bd0f25d2efee827a40d5be9af440a89eb365a8f18",
+      "rawSha256": "f94e0611781c8e215a9f2be53eb091c26decffe546b39121f650c2d6cc01ad5f",
+      "compressedSha256": "23973b1d76fac99fe6d4690e659bab6ab8a85d8c43444dfa605aca0bebeaa7df",
+      "compressedBytes": 213816,
+      "rawBytes": 1284608,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "staticPreviewPinChange": "replaces only unpublished ca5d package; six historical approved tuples unchanged",
+    "migration51And52AndKernelUnchanged": true,
+    "genericCleanupAuthorityChanged": false,
+    "providerOrLiveRecoveryEffects": false
   }
 }

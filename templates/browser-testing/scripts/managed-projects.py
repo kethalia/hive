@@ -730,6 +730,7 @@ class ManagedProjects:
         continuity = authority.continuity(project_id, "consuming") if hasattr(authority, "continuity") else None
         if continuity is not None:
             return self._revalidate_unstarted_remount(repository_id, project_id, authority, continuity, ttl)
+        guardian = (lambda: authority.guardian(project_id)) if hasattr(authority, "guardian") else None
         with self.lock():
             project, receipt, record = self.load(repository_id)
             lease = record.get("lease")
@@ -753,7 +754,7 @@ class ManagedProjects:
             self.checkout_valid(project / "checkout", record)
             require(self.git(project / "checkout", "rev-parse", "HEAD") == record["revision"], "renewal_source_changed")
             self.clean(project / "checkout")
-            self.no_consumers(project / "checkout")
+            self.no_consumers(project / "checkout", guardian)
             require(authority.verify(project_id, expected) == grant and grant["expiresAt"] > time.time() * 1000,
                     "renewal_authority_expired")
             if prior:
