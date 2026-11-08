@@ -412,6 +412,39 @@ export class GuardianService {
       });
       return { slot, state: parseAccountMaintenance(slot.accountMaintenance) };
     };
+    const ownerResume = async ({ slot, state }: Awaited<ReturnType<typeof selected>>) => {
+      requireGuardian(
+        state?.phase === "resuming" &&
+          state.resumeRequestId &&
+          state.resumeIntentRuntimeId &&
+          state.resumeIntentEventId &&
+          state.idleRuntimeId,
+      );
+      const receipt = await this.db.codexGuardianOperationReceipt.findUniqueOrThrow({
+        where: {
+          ownerId_runtimeId_eventId: {
+            ownerId: principal.hiveUserId,
+            runtimeId: state.resumeIntentRuntimeId,
+            eventId: state.resumeIntentEventId,
+          },
+        },
+      });
+      requireGuardian(receipt.action === "maintenance_resume_intent");
+      const scope = maintenanceOwnerResumeSchema.parse(
+        (receipt.response as Prisma.JsonObject).maintenance,
+      );
+      requireGuardian(
+        scope.ownerId === principal.hiveUserId &&
+          scope.workspaceId === workspaceId &&
+          scope.buildId === binding.buildId &&
+          scope.slotId === slot.id &&
+          scope.maintenanceId === state.id &&
+          scope.requestId === state.resumeRequestId &&
+          scope.idleRuntimeId === state.idleRuntimeId &&
+          scope.maintenanceVersion === slot.accountMaintenanceVersion,
+      );
+      return scope;
+    };
     const deliver = async (action: "pause" | "inspect-resume" | "resume", requestId: string) => {
       const { slot, state } = await selected();
       requireGuardian(state && state.buildId === binding.buildId);
@@ -428,9 +461,11 @@ export class GuardianService {
       const runtime = candidates[0];
       if (action === "pause")
         requireGuardian(
-          state.runtimes.some(
-            (r) => r.runtimeId === runtime.id && r.runtimeGeneration === runtime.generation,
-          ),
+          state.id === requestId &&
+            ["requested", "waiting-boundary"].includes(state.phase) &&
+            state.runtimes.some(
+              (r) => r.runtimeId === runtime.id && r.runtimeGeneration === runtime.generation,
+            ),
         );
       else
         requireGuardian(
@@ -445,19 +480,13 @@ export class GuardianService {
             state.resumeIntentRuntimeId &&
             state.resumeIntentEventId,
         );
-        const receipt = await this.db.codexGuardianOperationReceipt.findUniqueOrThrow({
-          where: {
-            ownerId_runtimeId_eventId: {
-              ownerId: principal.hiveUserId,
-              runtimeId: state.resumeIntentRuntimeId,
-              eventId: state.resumeIntentEventId,
-            },
-          },
-        });
-        requireGuardian(receipt.action === "maintenance_resume_intent");
-        parkedJournalDigest = maintenanceOwnerResumeSchema.parse(
-          (receipt.response as Prisma.JsonObject).maintenance,
-        ).parkedJournalDigest;
+        const scope = await ownerResume({ slot, state });
+        requireGuardian(
+          scope.requestId === requestId &&
+            scope.idleRuntimeId === runtime.id &&
+            scope.idleRuntimeGeneration === runtime.generation,
+        );
+        parkedJournalDigest = scope.parkedJournalDigest;
       }
       const now = Math.floor(this.now() / 1000),
         claims = accountMaintenanceGrantSchema.parse({
@@ -492,16 +521,6 @@ export class GuardianService {
     };
     if (input.action === "request") {
       await store.request(this.workspace(binding), input);
-      const { state } = await selected();
-      if (state?.phase === "requested" || state?.phase === "waiting-boundary") {
-        const result = await deliver("pause", input.requestId);
-        requireGuardian(
-          z
-            .object({ accepted: z.literal(true) })
-            .strict()
-            .safeParse(result).success,
-        );
-      }
     } else if (input.action === "resume") {
       const { state } = await selected();
       if (state?.phase === "ready") {
@@ -513,35 +532,70 @@ export class GuardianService {
           await deliver("inspect-resume", input.requestId),
         );
       } else requireGuardian(state?.resumeRequestId === input.requestId);
-      const result = await deliver("resume", input.requestId);
+    }
+    const reconcileDelivery = async () => {
+      const selection = await selected();
+      const { state } = selection;
+      let result: unknown;
+      if (state?.phase === "requested" || state?.phase === "waiting-boundary") {
+        // The durable owner intent supplies identity after a lost request/ACK.
+        // Status never creates a new pause or resume request.
+        result = await deliver("pause", state.id);
+      } else if (state?.phase === "resuming") {
+        requireGuardian(
+          state.resumeRequestId &&
+            state.resumeIntentRuntimeId &&
+            state.resumeIntentEventId &&
+            state.idleRuntimeId,
+        );
+        await ownerResume(selection);
+        const idle = await this.db.codexGuardianRuntime.findUniqueOrThrow({
+          where: { ownerId_id: { ownerId: principal.hiveUserId, id: state.idleRuntimeId } },
+        });
+        requireGuardian(idle.buildId === binding.buildId);
+        // An accepted host resume prepares admissions before its ACK. Those
+        // persisted facts must go through registration/receipt readback below,
+        // never a second launch command against the advanced actor.
+        if (
+          idle.phase !== "open" ||
+          idle.generation !== 1 ||
+          idle.nativeLaunchId ||
+          idle.serverInstanceId ||
+          idle.producerApproved
+        )
+          return;
+        result = await deliver("resume", state.resumeRequestId);
+      } else return;
       requireGuardian(
         z
           .object({ accepted: z.literal(true) })
           .strict()
           .safeParse(result).success,
       );
-    }
+    };
+    if (input.action === "status") {
+      try {
+        await reconcileDelivery();
+      } catch {
+        // Return the saved hold after transport/ACK loss so UI polling remains
+        // available. No failure is interpreted as a new effect or success.
+      }
+    } else await reconcileDelivery();
     const current = await selected();
     if (
       current.state?.phase === "resuming" &&
       !current.slot.activeRegistrationId &&
       this.dependencies.registerMaintenanceHost
     ) {
-      requireGuardian(current.state.resumeIntentRuntimeId && current.state.resumeIntentEventId);
-      const receipt = await this.db.codexGuardianOperationReceipt.findUniqueOrThrow({
-        where: {
-          ownerId_runtimeId_eventId: {
-            ownerId: principal.hiveUserId,
-            runtimeId: current.state.resumeIntentRuntimeId,
-            eventId: current.state.resumeIntentEventId,
-          },
-        },
-      });
-      requireGuardian(receipt.action === "maintenance_resume_intent");
-      const scope = maintenanceOwnerResumeSchema.parse(
-        (receipt.response as Prisma.JsonObject).maintenance,
-      );
-      await this.dependencies.registerMaintenanceHost(binding, scope.projects);
+      const scope = await ownerResume(current);
+      if (input.action === "status") {
+        try {
+          await this.dependencies.registerMaintenanceHost(binding, scope.projects);
+        } catch {
+          // Same immutable receipt/project request identities are retried by a
+          // later status; never repeat the first prompt or owner continuation.
+        }
+      } else await this.dependencies.registerMaintenanceHost(binding, scope.projects);
     }
     return store.status(this.workspace(binding));
   }

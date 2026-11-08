@@ -31,7 +31,12 @@ export async function resumeAccountMaintenanceFixture(
   f: Scope,
   withTask: boolean | "successful",
   hooks: {
-    beforeResume?: (context: { denied: () => Promise<unknown> }) => Promise<void>;
+    beforeResume?: (context: {
+      denied: () => Promise<unknown>;
+      binding: RegistrationBinding;
+      input: { requestId: string; expectedVersion: number; maintenanceId: string };
+      archive: unknown;
+    }) => Promise<void>;
     beforeFinalize?: (context: { denied: () => Promise<unknown> }) => Promise<void>;
   } = {},
 ) {
@@ -250,6 +255,9 @@ export async function resumeAccountMaintenanceFixture(
   ).rejects.toThrow();
   await hooks.beforeResume?.({
     denied: () => f.store.requestResume(emptyBinding, resume, archive),
+    binding: emptyBinding,
+    input: resume,
+    archive,
   });
   const resumed = await f.store.requestResume(emptyBinding, resume, archive);
   expect(resumed.state).toBe("resuming");

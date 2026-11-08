@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { AccountMaintenanceCard } from "@/components/workspaces/AccountMaintenanceCard";
 
@@ -17,6 +17,7 @@ const view = (state = "available") => ({
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 it("requires explicit confirmation, never requests turn cancellation and holds uncertain actions", async () => {
   const fetcher = vi
@@ -76,4 +77,71 @@ it("workspace switch hides old maintenance and discards a late old response", as
   expect(
     screen.queryByRole("button", { name: "Pause for account changes" }),
   ).not.toBeInTheDocument();
+});
+
+it.each([
+  {
+    initial: "available",
+    button: "Pause for account changes",
+    pending: "requested",
+    final: "ready",
+    action: "request",
+  },
+  {
+    initial: "ready",
+    button: "Resume retained work",
+    pending: "resuming",
+    final: "finished",
+    action: "resume",
+  },
+])("status polling recovers a lost initial $action response without repeating the owner command", async ({
+  initial,
+  button,
+  pending,
+  final,
+  action,
+}) => {
+  vi.useFakeTimers();
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(
+      Response.json({ ...view(initial), maintenanceId: initial === "ready" ? runtimeId : null }),
+    )
+    .mockRejectedValueOnce(Error("owner POST response lost after persistence"))
+    .mockRejectedValueOnce(Error("status transport still unavailable"))
+    .mockResolvedValueOnce(
+      Response.json({ ...view(pending), maintenanceId: runtimeId, version: 3 }),
+    )
+    .mockResolvedValueOnce(Response.json({ ...view(final), maintenanceId: runtimeId, version: 4 }));
+  vi.stubGlobal("fetch", fetcher);
+  let unmount!: () => void;
+  await act(async () => {
+    unmount = render(<AccountMaintenanceCard workspaceId="first" />).unmount;
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: button }));
+  });
+  expect(screen.getByRole("alert")).toHaveTextContent("outcome is unknown");
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  expect(screen.getByRole("alert")).toHaveTextContent("outcome is unknown");
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  expect(screen.getByRole("status")).toHaveTextContent(pending);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  const commands = fetcher.mock.calls.map((c) => JSON.parse(c[1].body));
+  expect(commands.map((c) => c.action)).toEqual(["status", action, "status", "status", "status"]);
+  expect(commands.filter((c) => c.requestId)).toHaveLength(1);
+  expect(fetcher).toHaveBeenCalledTimes(5);
+  unmount();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10000);
+  });
+  expect(fetcher).toHaveBeenCalledTimes(5);
 });

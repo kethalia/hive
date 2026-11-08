@@ -60,14 +60,18 @@ export function AccountMaintenanceCard({ workspaceId }: { workspaceId: string })
   }, [send]);
   useEffect(() => {
     if (
-      !status ||
-      !["requested", "waiting-boundary", "closing", "resuming"].includes(status.state) ||
-      pending
+      pending ||
+      (error !== workspaceId &&
+        (!status ||
+          !["requested", "waiting-boundary", "closing", "resuming"].includes(status.state)))
     )
       return;
+    // A browser can lose the owner POST response after server persistence.
+    // Poll only status until its durable state is known; never resend the owner
+    // mutation or generate another request identity from an uncertain outcome.
     const timer = setInterval(() => void send({ action: "status" }), 5000);
     return () => clearInterval(timer);
-  }, [status, pending, send]);
+  }, [status, pending, send, error, workspaceId]);
   if (!status && error !== workspaceId) return null;
   const canPause = Boolean(
     status?.runtimeId &&
