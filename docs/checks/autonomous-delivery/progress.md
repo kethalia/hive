@@ -24,7 +24,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Retained and normally stopped before original-task recovery | Exact workspace868d, owner, template and creation identity match. The original unused task and signed journals remain intact on the original20Gi PVC. Normal autostop47145851 succeeded; no model or first prompt has run. Install one final combined image before the single-hop recovery pilot. |
+| Test workspace | Corrected combined image installed; exact recovery held before native execution | PR431 passed full CI/Codex review and merged at dc770715. Installed image12c0861/packageb965 has all55 runtime members verified on the original20Gi PVC. Build6d1f/epoch01ce is connected/ready; original task, expired lease and signed histories remain intact. Exact remount enrollment/readiness and original-task retry remain pending. |
 | D11 epic coordination | Implementation/composed validation passed; live epic pending | Distinct enrolled domains, real-merge corroboration through connected GitHub, immutable source lineage and slow preparation pass actual PostgreSQL composition. Production/archive/writer release remain held. [Local receipt](epic-preview-integration-local.json). |
 | D09 controlled delivery | Production-flow and deployment-gate source integrated; live acceptance pending | PR415 passed full CI/current Codex review and merged at `078e8b67`; seventeen composed PostgreSQL cases passed. PR417 passed CI/review and merged at `50d38bed`; 44 combined deployment checks pass. First-cutover and ongoing approvals remain absent/off. Migration48 is verified on both Preview databases with prior rows/history preserved. Effective GitHub ruleset compatibility and required target protection remain gates; no provider rules were changed. |
 | D10 migrations/backfills | Combined source merged into epic; live installed/production acceptance remain | PR423 merged into the epic at `f05af0bd` after successful CI run `42453520491` and current-head Codex review. Its caller `1a490e02` selects immutable source `768eff79` and wrapper `b8376b76`. Two distinct native-composition artifacts exercise unchanged PrismaNeon CRUD, sessions, ciphertext and assets against one restricted fixture; both trust and password authentication pass. Bounded transport checks reject wrong database/user and require completed SQL before credit. Source-bound callback recovery and immutable paused-task factual reports pass composed PostgreSQL checks. Setup migrations49/50 are verified on both existing Preview databases after decoded backups; original rows, prior48 history and runtime grants are unchanged. This is distinct from controlled production job acceptance. Genuine postmerge main-serving and production job acceptance remain. [Live upgrade](neon-preview49-50-live-upgrade.json). |
@@ -1890,3 +1890,27 @@ by this source checkpoint.
   CI and Codex review remain pending. An incomplete preservation unit fixture also now
   includes real-shaped epoch-zero history plus manager/child session records; its
   retention assertions pass without weakening production authority.
+
+### November8 reviewed lifecycle installation and first cold pull
+
+- **Implement / Review / Deploy: PR431 merged, high difficulty.** The combined
+  cleanup/empty-root source and its delayed-archive correction passed full CI42497762476
+  and current-head Codex review. Epic merge `dc770715` has the identical reviewed tree.
+  Existing Workers Builds serves that commit with authenticated app-version readback
+  and the corrected seven-package enrollment; production activation remains off.
+- **Validate: immutable image and retained host installed, moderate difficulty.**
+  The dedicated CLI publication and all-five-profile smoke workflow pass. Independent
+  registry/config/source/runtime/asset proof matches image12c0861. Its inactive template
+  starts only the retained test workspace on the original20Gi volume; global activation
+  is unchanged. All55 installed host members, Node/SDK/guardian pins and four HMAC
+  bootstrap histories match. [Installed receipt](managed-flow-dc770-installed.json).
+- **Diagnose: delayed initial agent connection explained, low difficulty.** A scoped
+  read-only Rancher pod/event check showed volume attachment succeeded and the first
+  978MB image pull took5m15.201s. The five-minute observation ended before startup; the
+  pod then became Ready with zero container restarts and the Coder agent connected.
+  No restart, node access or speculative code correction was needed for this delay.
+- **Recovery remains held.** Native app-server/tmux counts are zero, original task and
+  source are unchanged, and no first prompt or identity mapping has run. Independent
+  review clears the exact one-task/one-held-epoch public continuity attestation.
+  Canonical Preview enrollment and fresh strict pre-retry checks precede the single
+  ordinary owner retry; these installation facts do not claim live task completion.
