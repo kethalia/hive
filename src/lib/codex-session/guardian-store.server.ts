@@ -697,6 +697,163 @@ export class GuardianAdmissionStore {
         : Prisma.TransactionIsolationLevel.Serializable,
     );
   }
+  /** First enrollment after an explicitly proven unused bootstrap. The semantic
+   * UUID binds the complete stable service-verified proof; it is not authority.
+   * First reservation and grant are committed together. A replay reconstructs
+   * and verifies the ONE existing grant, never creates a replacement deadline. */
+  async reserveUnusedBootstrap(
+    binding: RegistrationBinding,
+    identity: GuardianRuntimeIdentity,
+    semanticDigest: string,
+    observedAt: number,
+    signGrant: (
+      runtime: CodexGuardianRuntime,
+      grant: { id: string; issuedAt: Date; expiresAt: Date },
+    ) => {
+      token: string;
+      bindingDigest: string;
+    },
+  ) {
+    requireGuardian(
+      /^[a-f0-9]{64}$/.test(semanticDigest) &&
+        this.options.policy.enabled &&
+        identity.configSha256 === this.options.expectedConfigSha256(binding),
+    );
+    const bytes = createHash("sha256")
+      .update("hive-unused-bootstrap-reservation-v1\n")
+      .update(guardianDigest({ binding, identity, semanticDigest }))
+      .digest()
+      .subarray(0, 16);
+    bytes[6] = (bytes[6] & 15) | 0x80;
+    bytes[8] = (bytes[8] & 63) | 0x80;
+    const hex = bytes.toString("hex"),
+      id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    return this.transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: binding.hiveUserId } });
+      requireGuardian(
+        user && user.coderUserId === binding.ownerId && user.coderUrl === binding.coderOrigin,
+      );
+      await assertAccountMaintenanceAdmission(tx, binding, { kind: "enroll", empty: true });
+      const scope = {
+        ownerId: binding.hiveUserId,
+        coderOrigin: binding.coderOrigin,
+        workspaceId: binding.workspaceId,
+      };
+      const slots = await tx.codexHostSlot.findMany({ where: scope });
+      requireGuardian(
+        slots.every((s) => !s.activeRegistrationId && s.generation === 0 && !s.accountMaintenance),
+      );
+      const slotIds = slots.map((s) => s.id);
+      const histories = await Promise.all([
+        tx.codexHostRegistration.count({
+          where: { ownerId: binding.hiveUserId, slotId: { in: slotIds } },
+        }),
+        tx.codexRegistrationGrant.count({
+          where: { ownerId: binding.hiveUserId, slotId: { in: slotIds } },
+        }),
+      ]);
+      requireGuardian(histories.every((n) => n === 0));
+      const runtimes = await tx.codexGuardianRuntime.findMany({
+        where: { ownerId: binding.hiveUserId, workspaceId: binding.workspaceId },
+      });
+      requireGuardian(runtimes.length <= 1 && runtimes.every((r) => r.id === id));
+      const now = await databaseNow(tx);
+      requireGuardian(
+        Number.isSafeInteger(observedAt) &&
+          observedAt <= now.getTime() &&
+          now.getTime() - observedAt <= 30000,
+      );
+      let runtime = runtimes[0];
+      let stored:
+        | Awaited<ReturnType<typeof tx.codexGuardianEnrollmentGrant.findMany>>[number]
+        | undefined;
+      if (runtime) {
+        requireGuardian(
+          Object.entries(identity).every(
+            ([k, v]) => runtime[k as keyof CodexGuardianRuntime] === v,
+          ) &&
+            guardianDigest(runtime.binding) === guardianDigest(binding) &&
+            runtime.outerKeyFingerprint === fingerprint(identity.outerPublicKeyPem) &&
+            ["reserved", "open"].includes(runtime.phase) &&
+            runtime.generation === 1 &&
+            !runtime.nativeLaunchId &&
+            !runtime.nativeLaunchDigest &&
+            !runtime.nativeLaunchAt &&
+            runtime.operationReceiptsEnabled &&
+            !runtime.producerApproved &&
+            !runtime.serverInstanceId &&
+            !runtime.hostKeyFingerprint &&
+            !runtime.closedBarrierId &&
+            runtime.authorityUntil > now,
+        );
+        const [grants, admissions, operations] = await Promise.all([
+          tx.codexGuardianEnrollmentGrant.findMany({
+            where: { ownerId: binding.hiveUserId, runtimeId: id },
+          }),
+          tx.codexGuardianAdmission.count({
+            where: { ownerId: binding.hiveUserId, runtimeId: id },
+          }),
+          tx.codexGuardianOperationReceipt.count({
+            where: { ownerId: binding.hiveUserId, runtimeId: id },
+          }),
+        ]);
+        requireGuardian(grants.length === 1 && admissions === 0 && operations === 0);
+        stored = grants[0];
+        requireGuardian(
+          stored.expiresAt > now &&
+            (runtime.phase === "reserved" ? !stored.consumedAt : !!stored.consumedAt),
+        );
+      } else {
+        const slot = await tx.codexHostSlot.upsert({
+          where: {
+            ownerId_coderOrigin_workspaceId_agentId: { ...scope, agentId: binding.agentId },
+          },
+          create: { ...scope, coderOwnerId: binding.ownerId, agentId: binding.agentId },
+          update: {},
+        });
+        runtime = await tx.codexGuardianRuntime.create({
+          data: {
+            id,
+            ownerId: binding.hiveUserId,
+            slotId: slot.id,
+            ...identity,
+            outerKeyFingerprint: fingerprint(identity.outerPublicKeyPem),
+            binding: binding as unknown as Prisma.InputJsonObject,
+            workspaceId: binding.workspaceId,
+            buildId: binding.buildId,
+            authorityUntil: new Date(now.getTime() + 60000),
+            operationReceiptsEnabled: true,
+          },
+        });
+      }
+      approvedRuntime(runtime, this.options.policy);
+      const grant = stored ?? {
+        id: randomUUID(),
+        issuedAt: new Date(observedAt),
+        expiresAt: new Date(
+          Math.floor(Math.min(observedAt + 30000, runtime.authorityUntil.getTime()) / 1000) * 1000,
+        ),
+      };
+      const signed = signGrant(runtime, grant);
+      const tokenDigest = createHash("sha256").update(signed.token).digest("hex");
+      if (stored)
+        requireGuardian(
+          stored.tokenDigest === tokenDigest && stored.bindingDigest === signed.bindingDigest,
+        );
+      else
+        await tx.codexGuardianEnrollmentGrant.create({
+          data: {
+            ...grant,
+            ownerId: binding.hiveUserId,
+            runtimeId: runtime.id,
+            tokenDigest,
+            bindingDigest: signed.bindingDigest,
+          },
+        });
+      requireGuardian(grant.expiresAt > (await databaseNow(tx)));
+      return { runtime, grant: signed.token };
+    });
+  }
   /** Service-verified current identity and owner inspection only. Generic reserve
    * never calls this; one retained event permits one bounded deadline change. */
   async resumeUnusedRecovery(

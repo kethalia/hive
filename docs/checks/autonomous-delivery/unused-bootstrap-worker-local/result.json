@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T23:08:28.092062+00:00",
+  "baseCommit": "9d08a10ba4cf56f5bcc510288fcda05b2dd7f001",
+  "scope": "Worker and contract implementation only; host implementation tested separately",
+  "database": {
+    "host": "127.0.0.1",
+    "port": 55439,
+    "name": "hive_unused_bootstrap_test",
+    "createdForThisTask": true,
+    "migrations": 53,
+    "sharedServerReset": false,
+    "otherDatabasesChanged": false
+  },
+  "validation": {
+    "typecheck": true,
+    "diffCheck": true,
+    "biomeErrors": 0,
+    "preexistingBiomeWarnings": 3,
+    "passed": 50,
+    "failed": 0,
+    "suites": [
+      {
+        "file": "guardian-empty-root.integration.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "guardian-service.integration.test.ts",
+        "status": "passed",
+        "tests": 31
+      },
+      {
+        "file": "guardian-unused-bootstrap.integration.test.ts",
+        "status": "passed",
+        "tests": 12
+      }
+    ]
+  },
+  "invariants": {
+    "explicitUnusedBootstrapProof": true,
+    "completeCurrentVolumeSchemaUnchanged": true,
+    "historicalPvcIdentityIsNotGuardianVolume": true,
+    "predecessorPackageMustRemainApproved": true,
+    "workspaceHistoryCheckedUnderAdvisoryLock": true,
+    "reservationAndGrantAtomic": true,
+    "exactSameGrantReplay": true,
+    "noGrantRenewalOnExpiry": true,
+    "competingAgentSlotsTested": true,
+    "noSchemaChange": true,
+    "noNewEndpoint": true,
+    "contradictoryHistoricalPvRejected": true
+  },
+  "limitations": [
+    "Worker lost-ack fixture simulates host mapping; actual filesystem archive/remount tests are in the separate host implementation.",
+    "No live canary restart or enrollment was attempted."
+  ],
+  "sourceDigests": {
+    "src/__tests__/lib/codex-session/guardian-empty-root.integration.test.ts": "53c5f55dd7a0cf6b5e5ce1d839acd2df0ed22503dd8f2ccbafd393df3721b95e",
+    "src/__tests__/lib/codex-session/guardian-service.integration.test.ts": "5c691843b949ef8456d3aa23335217e671a71202058fcbe7cae9f1ff780d41ec",
+    "src/lib/codex-session/guardian-empty-root-contracts.ts": "20f66d82490612f2027349c8fc3b3a835cb3b09a1c90a8e73ee32a0296944db1",
+    "src/lib/codex-session/guardian-empty-root.server.ts": "a9c72383b7c5069204878f1403fa7c51092787599dc8066ebcd6a7b65f87372e",
+    "src/lib/codex-session/guardian-factory.server.ts": "f969ca06bbbc1b1bb1fdc0b9ae006c5024e35c22b4284f41a19ea48c58b193a5",
+    "src/lib/codex-session/guardian-service.server.ts": "3799f6201c7ed3e2c1388993de9348d0f07422dbca1f6fb083126a9ba4fc44bb",
+    "src/lib/codex-session/guardian-store.server.ts": "f89f18e95d066240aa1663e629d3bce268e6e000084adb5f98161c2542fff555",
+    "scripts/fixtures/unused-bootstrap-root.json": "ff5cc6671513db880ca1b0510312c9108b65ae6219166675faf1282f0344b210",
+    "src/__tests__/lib/codex-session/guardian-unused-bootstrap.integration.test.ts": "6c296fd169ef4ed54f0ca3fb2fedae9e60d972362aca19ca205b079f1c305d7a"
+  },
+  "productionAccepted": false,
+  "providerOrLiveDatabaseChanged": false,
+  "workspaceLifecycleActions": false
+}

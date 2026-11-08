@@ -28,8 +28,12 @@ import {
   guardianCheckoutSchema,
   guardianDigest,
 } from "./guardian-contracts";
-import { authorizeEmptyRoot } from "./guardian-empty-root.server";
-import type { EmptyRootVolume } from "./guardian-empty-root-contracts";
+import {
+  authorizeEmptyRoot,
+  authorizeUnusedBootstrapRoot,
+  type UnusedBootstrapSource,
+} from "./guardian-empty-root.server";
+import type { EmptyRootVolume, UnusedBootstrap } from "./guardian-empty-root-contracts";
 import { readRemountRecoveryTicket, resolveRemountAttestation } from "./guardian-remount.server";
 import {
   type GuardianRemountAttestation,
@@ -114,6 +118,10 @@ export interface GuardianServiceDependencies {
     lifetimeId: string,
   ): Promise<CheckoutVolumeEvidence>;
   readEmptyRootVolume?(binding: VerifiedHostBinding, lifetimeId: string): Promise<EmptyRootVolume>;
+  readUnusedBootstrapSource?(
+    binding: VerifiedHostBinding,
+    proof: UnusedBootstrap,
+  ): Promise<UnusedBootstrapSource>;
   assertUnstartedPredecessorStopped?(
     binding: VerifiedHostBinding,
     oldBuildId: string,
@@ -506,6 +514,101 @@ export class GuardianService {
           packet.startup.generation === 1 &&
           this.dependencies.readEmptyRootVolume),
     );
+    if (packet.emptyRoot?.mode === "initial-unused-remount") {
+      requireGuardian(
+        this.dependencies.readUnusedBootstrapSource &&
+          this.dependencies.readEmptyRootVolume &&
+          packet.emptyRoot.unusedBootstrap &&
+          this.policy.packages.some(
+            (p) =>
+              p.packageManifestSha256 ===
+              packet.emptyRoot?.unusedBootstrap?.oldPackageManifestSha256,
+          ),
+      );
+      const volume = await this.dependencies.readEmptyRootVolume(
+        binding,
+        packet.identity.lifetimeId,
+      );
+      const source = await this.dependencies.readUnusedBootstrapSource(
+        binding,
+        packet.emptyRoot.unusedBootstrap,
+      );
+      const anchor = authorizeUnusedBootstrapRoot(
+        this.workspace(binding),
+        packet.emptyRoot,
+        volume,
+        packet.identity,
+        source,
+        this.now(),
+      );
+      this.live(packet);
+      const { observedAt: _observed, ...stableVolume } = volume;
+      const semanticDigest = guardianDigest({
+        binding: this.workspace(binding),
+        identity: packet.identity,
+        startup: packet.startup,
+        proposal: packet.emptyRoot,
+        volume: stableVolume,
+        source,
+      });
+      const result = await this.requestStore(
+        Math.min(packet.expiresAt, volume.observedAt + 30000),
+      ).reserveUnusedBootstrap(
+        this.workspace(binding),
+        packet.identity,
+        semanticDigest,
+        volume.observedAt,
+        (runtime, saved) => {
+          const claims = guardianEnrollmentClaimsSchema.parse({
+            iss: this.config.hiveOrigin,
+            aud: "hive:workspace-guardian",
+            scope: "workspace:guardian:enroll",
+            jti: saved.id,
+            iat: Math.floor(saved.issuedAt.getTime() / 1000),
+            exp: Math.floor(saved.expiresAt.getTime() / 1000),
+            runtimeId: runtime.id,
+            hiveUserId: principal.hiveUserId,
+            coderOwnerId: principal.coderUserId,
+            workspaceId: binding.workspaceId,
+            agentId: binding.agentId,
+            buildId: binding.buildId,
+            appId: binding.appId,
+            lifetimeId: runtime.lifetimeId,
+            outerKeyFingerprint: runtime.outerKeyFingerprint,
+            bindingDigest: runtime.bindingDigest,
+            identityDigest: guardianDigest({
+              identity: packet.identity,
+              binding: this.workspace(binding),
+            }),
+            startupDigest: guardianDigest(packet.startup),
+            emptyRoot: {
+              ...anchor,
+              currentVolume: { ...anchor.currentVolume, observedAt: saved.issuedAt.getTime() },
+            },
+          });
+          const header = Buffer.from(
+            JSON.stringify({ alg: "EdDSA", typ: "JWT", kid: this.config.keyId }),
+          ).toString("base64url");
+          const body = Buffer.from(JSON.stringify(claims)).toString("base64url");
+          return {
+            token: `${header}.${body}.${sign(null, Buffer.from(`${header}.${body}`), this.key).toString("base64url")}`,
+            bindingDigest: guardianDigest(claims),
+          };
+        },
+      );
+      this.active();
+      this.live(packet);
+      if (result.runtime.phase !== "open") {
+        this.dependencies.onProvisionStage?.("guardian_bootstrap");
+        await transport.bootstrap(binding, result.grant);
+      }
+      this.dependencies.onProvisionStage?.("guardian_enrollment_confirmation");
+      const confirmed = await this.db.codexGuardianRuntime.findUniqueOrThrow({
+        where: { id: result.runtime.id },
+      });
+      requireGuardian(confirmed.phase === "open" && confirmed.enrolledAt);
+      return { runtimeId: confirmed.id, enrolled: true };
+    }
     const emptyRoot = packet.emptyRoot
       ? await authorizeEmptyRoot(
           this.db,
