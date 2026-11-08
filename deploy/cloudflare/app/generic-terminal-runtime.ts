@@ -53,7 +53,14 @@ const workspaceSchema = z.object({
     id: uuid,
     status: z.string(),
     resources: z
-      .array(z.object({ agents: z.array(z.object({ id: uuid, status: z.string() })).max(100) }))
+      .array(
+        z.object({
+          agents: z
+            .array(z.object({ id: uuid, status: z.string() }))
+            .max(100)
+            .default([]),
+        }),
+      )
       .max(100),
   }),
 });

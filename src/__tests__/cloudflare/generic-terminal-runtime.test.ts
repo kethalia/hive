@@ -69,6 +69,7 @@ function fixture(source?: "oauth") {
       resources: [{ agents: [{ id: agentId, status: "connected" }] }],
     },
   };
+  const workspaceReply: { value: unknown } = { value: workspace };
   const auth = vi.fn<typeof fetch>(async (input, init) => {
     expect(new Headers(init?.headers).get("Authorization")).toBe(`Bearer ${"a".repeat(64)}`);
     expect(init?.redirect).toBe("manual");
@@ -88,7 +89,7 @@ function fixture(source?: "oauth") {
     expect(init?.redirect).toBe("manual");
     const path = new URL(String(input)).pathname;
     if (path === "/api/v2/users/me") return Response.json({ id: coderId });
-    if (path === `/api/v2/workspaces/${workspaceId}`) return Response.json(workspace);
+    if (path === `/api/v2/workspaces/${workspaceId}`) return Response.json(workspaceReply.value);
     if (path.endsWith("/extend")) return new Response(null, { status: 304 });
     throw new Error("Unexpected provider path");
   });
@@ -118,6 +119,7 @@ function fixture(source?: "oauth") {
     session,
     credential,
     workspace,
+    workspaceReply,
     auth,
     provider,
     env,
@@ -199,6 +201,74 @@ describe("fixed private terminal authorization", () => {
     expect(f.auth).toHaveBeenCalledTimes(2);
     expect(f.provider).toHaveBeenCalledTimes(2);
     await f.deps.extend(await f.authorize(), f.target, new AbortController().signal);
+  });
+  it("authorizes the observed eight-resource shape with agentless environment and PVC resources", async () => {
+    const f = fixture("oauth");
+    f.workspaceReply.value = {
+      ...f.workspace,
+      latest_build: {
+        ...f.workspace.latest_build,
+        resources: [
+          {
+            type: "kubernetes_deployment_v1",
+            name: "workspace",
+            agents: [{ id: agentId, status: "connected" }],
+          },
+          ...Array.from({ length: 6 }, (_, index) => ({
+            type: "coder_env",
+            name: `fixture-env-${index}`,
+          })),
+          { type: "kubernetes_persistent_volume_claim_v1", name: "home" },
+        ],
+      },
+    };
+    expect(await f.authorize()).toMatchObject({ userId, coderUserId: coderId, buildId, agentId });
+    expect(f.provider).toHaveBeenCalledTimes(2);
+  });
+  it.each([
+    ["no selected agent", [{ type: "coder_env" }, { agents: [] }]],
+    [
+      "duplicate selected agent",
+      [
+        { agents: [{ id: agentId, status: "connected" }] },
+        { agents: [{ id: agentId, status: "connected" }] },
+      ],
+    ],
+    ["disconnected agent", [{ agents: [{ id: agentId, status: "disconnected" }] }]],
+    ["null agents", [{ agents: null }]],
+    ["object agents", [{ agents: {} }]],
+    ["string agents", [{ agents: "invalid" }]],
+    ["null agent member", [{ agents: [null] }]],
+    ["malformed agent member", [{ agents: [{ id: agentId, status: 1 }] }]],
+    [
+      "too many resources",
+      [
+        { agents: [{ id: agentId, status: "connected" }] },
+        ...Array.from({ length: 100 }, () => ({})),
+      ],
+    ],
+    [
+      "too many agents",
+      [
+        {
+          agents: [
+            { id: agentId, status: "connected" },
+            ...Array.from({ length: 100 }, (_, index) => ({
+              id: `70000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+              status: "connected",
+            })),
+          ],
+        },
+      ],
+    ],
+  ])("rejects %s without treating malformed resources as agentless", async (_kind, resources) => {
+    const f = fixture();
+    f.workspaceReply.value = {
+      ...f.workspace,
+      latest_build: { ...f.workspace.latest_build, resources },
+    };
+    await expect(f.authorize()).rejects.toThrow();
+    expect(f.provider.mock.calls.every(([url]) => !String(url).includes("/pty"))).toBe(true);
   });
   it.each([
     "owner",
