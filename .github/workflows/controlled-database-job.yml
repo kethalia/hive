@@ -37,7 +37,7 @@ on:
 # Patched to an immutable reviewed source commit after the source checkpoint.
 # This literal, not any workflow/catalog input, selects executable recipe and enrollment.
 env:
-  HIVE_DATABASE_TRUSTED_RECIPE_SHA: 'ce53b08c39173cbad72f6fb5ff4f9585dd6b57c7'
+  HIVE_DATABASE_TRUSTED_RECIPE_SHA: '898ed70a2a317c508a240c5c06757a7f27ead6a8'
 jobs:
   source-input:
     if: ${{ inputs.enabled && inputs.operation == 'approve' }}
