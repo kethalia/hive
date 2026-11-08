@@ -3,7 +3,7 @@ import { getRequestSession } from "@/lib/auth/session";
 import { publicationBody } from "@/lib/templates/publication-io";
 import { claudeAccountRequestSchema, claudeAccountStatusSchema } from "./claude-account-contracts";
 import { codexAccountRequestSchema, codexAccountStatusSchema } from "./codex-account-contracts";
-import { createPortableAgentService } from "./portable-config.server";
+import { createPortableAccountService } from "./portable-config.server";
 
 const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 export async function codexAccountRoute(request: Request, workspaceId: string) {
@@ -47,7 +47,7 @@ async function workspaceAccountRoute(
     );
     const input: unknown = JSON.parse(new TextDecoder().decode(bytes));
     const principal = { hiveUserId: session.user.id, coderUserId: session.user.coderUserId };
-    const service = createPortableAgentService();
+    const service = createPortableAccountService(provider);
     if (provider === "claude") {
       const result = await service.execute(
         principal,
