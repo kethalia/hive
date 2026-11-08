@@ -19,7 +19,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases are upgraded through migration52 with prior rows/history and runtime privileges unchanged. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
-| F05/F06 checkout lifecycle | Reviewed unused-task recovery merged; cleanup and empty-root source combining | PR429 supplies exact retained-volume remount recovery and the sealed installed process observer. Separate F05/F06 local checks pass; their composed cleanup→remount→next-task flow, one combined image and live acceptance remain. No live cleanup or original-task retry has run. |
+| F05/F06 checkout lifecycle | Combined source/package and local lifecycle validated; CI/live acceptance pending | PR429 supplies exact retained-volume remount recovery and the sealed installed process observer. Independent composed cleanup→remount→next-task checks and the combined host package pass; full CI, image installation and live acceptance remain. No live cleanup or original-task retry has run. |
 | D02/D03 persistence | Foundation, recovery and informational reports validated locally | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation. 2e3c10e adds informational reported outcomes separate from verified acceptance, with two additive local migrations and PostgreSQL CI coverage. |
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
@@ -1870,9 +1870,13 @@ by this source checkpoint.
   that case on PR429. An explicit30s case timeout now matches adjacent integration tests;
   the unchanged assertions pass against actual local PostgreSQL in3.23s. Production
   callback/provider deadlines are unchanged.
-- **F05/F06 composition remains in progress.** Separate source and local checks pass;
-  combined cleanup, stable-volume empty-root remount, next-task preparation and
-  never-started recovery are being validated together before one final package/image.
+- **F05/F06 source and local composition validated, high difficulty.** Independent
+  actual PostgreSQL/installed-helper checks connect signed cleanup, retained history,
+  stable-volume empty-root enrollment and remapping to ordinary next-task preparation.
+  Provider, native-kernel and device observations remain explicit test doubles.
+  [Composed receipt](checkout-cleanup-empty-root-local.json). The56-member combined host
+  package and all mirrored profiles pass31 focused package/template/deployment checks;
+  full CI, reviewed image installation and live lifecycle acceptance remain pending.
   The original persistent pilot normally stopped at build `47145851`; its original
- 20Gi volume, unused task and signed histories remain retained. The published PR429
+  20Gi volume, unused task and signed histories remain retained. The published PR429
   image has not been installed, avoiding an extra intermediate execution epoch.

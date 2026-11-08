@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "scope": "independent local F06 cleanup to F05 empty-root enrollment and ordinary next-task preparation",
+  "canonicalSourceCheckpoint": "1648071d109d0253848e0ed9443b94f05f612240",
+  "checkoutHeadBefore": "c961a7f4d1e66ef5b12fd6aa46780bb6a0034931",
+  "checkoutHeadAfter": "c961a7f4d1e66ef5b12fd6aa46780bb6a0034931",
+  "canonicalSourceFilesUnchangedDuringRun": true,
+  "validatedAt": "2026-11-08T15:45:43.279224+00:00",
+  "test": {
+    "file": "src/__tests__/lib/delivery/checkout-cleanup.integration.test.ts",
+    "name": "real installed cleanup preserves evidence and ACK replay, then exact empty remount permits an ordinary fresh checkout",
+    "passed": 1,
+    "failed": 0,
+    "otherFileCasesSkippedByNarrowFilter": 6,
+    "caseDurationMs": 7363,
+    "logSha256": "cf59ffde41a6876132f8b7b0c2cfff297eacb213973e2067ad5e1930e3f06a26",
+    "ownedLocalPostgres": true,
+    "fixtureResetPerformed": false
+  },
+  "stages": [
+    {
+      "stage": "positive completion and closure ledger",
+      "asserted": "actual local PostgreSQL semantic results, production finalization, preservation, lease release, archive and closed runtime form the cleanup boundary"
+    },
+    {
+      "stage": "installed cleanup authorization",
+      "asserted": "actual issuer cleanup claims and installed OpenSSL signature verifier reject wrong domain, signature, expiry and build before deletion",
+      "negativeVariants": 4
+    },
+    {
+      "stage": "physical cleanup and acknowledgement",
+      "asserted": "only owned temporary checkout removed; project/evidence retained; exact cleanup replay identical; actual cleanup-completed event recorded"
+    },
+    {
+      "stage": "next-epoch inspection",
+      "asserted": "ordinary preparation fails against unmapped root without writes; read-only proposal preserves exact signed cleanup receipt and original raw records"
+    },
+    {
+      "stage": "empty-root authority",
+      "asserted": "actual authorizer accepts same-volume completed history and rejects a fully shaped different PVC plus its matching digest",
+      "negativeVariants": 1
+    },
+    {
+      "stage": "enrollment and mapping",
+      "asserted": "real signed enrollment schema/signature and PostgreSQL grant sealing precede identity-only local mapping; exact mapping replay leaves root bytes unchanged; real grant consumption follows mapping; leaseRenewed=false"
+    },
+    {
+      "stage": "ordinary next task",
+      "asserted": "fresh local checkout incarnation differs; different task owns the lease; original cleanup receipt and project evidence remain retained"
+    }
+  ],
+  "aggregateDatabaseReadback": {
+    "ownerCount": 1,
+    "eventCounts": {
+      "checkout_cleanup_completed": 1,
+      "github_source_challenge": 1,
+      "native_attempt_observed": 2,
+      "production_acceptance_finalized": 1,
+      "native_boundary_consumed": 1,
+      "checkout_lease_released": 1,
+      "acceptance_success_completed": 2,
+      "checkout_preserved": 1,
+      "checkout_cleanup_authorized": 1,
+      "task_created": 1,
+      "checkout_cleanup_identity": 1,
+      "release_healthy": 1,
+      "checkout_archived": 1,
+      "native_runtime_started": 2,
+      "attempt_started": 2,
+      "source_advanced": 1,
+      "github_evidence_observed": 1,
+      "github_source_consumed": 1,
+      "native_root_boundary": 1,
+      "step_completed": 2
+    },
+    "runtimePhaseCounts": {
+      "open": 1,
+      "tree_closed": 1
+    },
+    "consumedEnrollmentGrants": 2,
+    "admissions": 1
+  },
+  "realComponents": [
+    "owned temporary filesystem and local Git clone/fetch/removal",
+    "HMAC root/project/cleanup journals and retained evidence",
+    "installed cleanup verifier and Ed25519/OpenSSL signature checks",
+    "PostgreSQL semantic/completion/closure/archive/cleanup events",
+    "empty-root authorizer and enrollment seal/consume",
+    "identity replacement and idempotent replay algorithm",
+    "ordinary managed preparation after mapping"
+  ],
+  "explicitDoubles": [
+    "Git transport is redirected to the fixture local bare repository",
+    "provider Build/GitHub/R2/Coder resource and owner transport facts are fixtures",
+    "native tree receipt and process closure observations are explicit fixtures, not a measured kernel ECHILD",
+    "mount device is projected to a later epoch; actual directory paths/inodes and original receipt bytes remain unchanged",
+    "temporary HOME is projected only at the transport inventory boundary after local validation",
+    "test-owned process inventory and injected enrollment authority represent the existing verified controller boundary",
+    "semantic evaluator results are fixture input; no live model evaluation occurs"
+  ],
+  "orderingReview": {
+    "lockOrder": "outer/controller serialization then managed lock",
+    "allPurposePendingGuardsRetained": [
+      "cleanup deleting",
+      "unstarted remount pending",
+      "empty-root pending"
+    ],
+    "unstartedTransferExcludedFromEmptyRoot": true,
+    "mappingBeforeEnrollmentCommit": true,
+    "constructionFactDoesNotGrantBusinessAuthority": true
+  },
+  "liveAcceptance": false,
+  "actualCoderStopStartPerformed": false,
+  "actualFilesystemRemountPerformed": false,
+  "providerMutationsPerformed": false,
+  "modelInferencePerformed": false,
+  "productionChanged": false,
+  "generatedArtifactsOrPinsChangedByValidator": false,
+  "remainingAcceptance": "live provider lifecycle and genuine postmerge completion/cutover remain separately gated; this is composed local protocol evidence"
+}
