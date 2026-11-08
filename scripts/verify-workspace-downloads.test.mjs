@@ -198,58 +198,77 @@ for (const variant of ["game", "electronics"]) {
   });
 }
 
-test("Coder and act release downloads retry a transient HTTP503 with bounded curl options", async (t) => {
-  for (const artifact of [
-    { name: "coder", download: "/tmp/coder.tar.gz" },
-    { name: "act", download: "/tmp/act.tar.gz" },
-  ]) {
-    await t.test(artifact.name, async (t) => {
-      const root = mkdtempSync(join(tmpdir(), "hive-release-retry-"));
-      t.after(() => rmSync(root, { recursive: true, force: true }));
-      const payload = Buffer.from("synthetic checksum-verified release download\n");
-      let requests = 0;
-      const server = createServer((_req, res) => {
-        requests++;
-        if (requests === 1) {
-          res.writeHead(503);
-          res.end("temporary vendor failure");
-        } else {
-          res.writeHead(200);
-          res.end(payload);
-        }
-      });
-      await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-      t.after(() => new Promise((resolve) => server.close(resolve)));
-      const instruction = installCommand(artifact).replaceAll(/\\\r?\n/g, " "),
-        curl = instruction.match(/\bcurl\s+[\s\S]*?(?=\s*&&|$)/)[0];
-      for (const option of [
-        "--retry 3",
-        "--retry-delay 2",
-        "--retry-max-time 90",
-        "--connect-timeout 15",
-        "--max-time 120",
-      ])
-        assert.ok(curl.includes(option));
-      assert.doesNotMatch(curl, /--retry-all-errors/);
-      const command = curl
-        .replace(
-          /https:\/\/github\.com\/[^"\s]+/,
-          `http://127.0.0.1:${server.address().port}/release`,
-        )
-        .replaceAll(artifact.download, join(root, "download"));
-      const child = spawn("sh", ["-ec", command], { stdio: ["ignore", "ignore", "pipe"] });
-      let error = "";
-      child.stderr.on("data", (bytes) => {
-        error += bytes.toString();
-      });
-      const timeout = setTimeout(() => child.kill("SIGKILL"), 15000);
-      const status = await new Promise((resolve, reject) => {
-        child.on("error", reject);
-        child.on("close", resolve);
-      }).finally(() => clearTimeout(timeout));
-      assert.equal(status, 0, error);
-      assert.equal(requests, 2);
-      assert.deepEqual(readFileSync(join(root, "download")), payload);
-    });
+const retryArtifacts = [
+  { name: "coder", download: "/tmp/coder.tar.gz" },
+  { name: "act", download: "/tmp/act.tar.gz" },
+  { name: "notesmd-cli", download: "/tmp/notesmd-cli.tar.gz" },
+];
+async function retryFixture(t, artifact, failure, permanent = false) {
+  const root = mkdtempSync(join(tmpdir(), "hive-release-retry-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const payload = Buffer.from("synthetic checksum-verified release download\n");
+  let requests = 0;
+  const server = createServer((req, res) => {
+    requests++;
+    if (permanent || requests === 1) {
+      if (failure === "reset") req.socket.resetAndDestroy();
+      else {
+        res.writeHead(503);
+        res.end("temporary vendor failure");
+      }
+    } else {
+      res.writeHead(200);
+      res.end(payload);
+    }
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const instruction = installCommand(artifact).replaceAll(/\\\r?\n/g, " "),
+    curl = instruction.match(/\bcurl\s+[\s\S]*?(?=\s*&&|$)/)[0];
+  for (const option of [
+    "--retry 3",
+    "--retry-all-errors",
+    "--retry-delay 2",
+    "--retry-max-time 90",
+    "--connect-timeout 15",
+    "--max-time 120",
+  ])
+    assert.ok(curl.includes(option));
+  const command = curl
+    .replace(/https:\/\/github\.com\/[^"\s]+/, `http://127.0.0.1:${server.address().port}/release`)
+    .replaceAll(artifact.download, join(root, "download"));
+  const started = performance.now();
+  const child = spawn("sh", ["-ec", command], {
+    stdio: ["ignore", "ignore", "pipe"],
+    env: { PATH: process.env.PATH, CURL_HOME: root, NO_PROXY: "127.0.0.1", no_proxy: "127.0.0.1" },
+  });
+  let error = "";
+  child.stderr.on("data", (bytes) => {
+    error += bytes.toString();
+  });
+  const timeout = setTimeout(() => child.kill("SIGKILL"), 15000);
+  const result = await new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code, signal) => resolve({ code, signal }));
+  }).finally(() => clearTimeout(timeout));
+  assert.equal(result.signal, null, "curl must stop itself within its retry bound");
+  if (failure === "reset")
+    assert.match(error, /curl: \(56\)/, "exercise the observed receive-error category");
+  if (permanent) {
+    assert.notEqual(result.code, 0);
+    assert.equal(requests, 4, "one attempt plus at most three retries");
+    assert.ok(performance.now() - started < 12000);
+  } else {
+    assert.equal(result.code, 0, error);
+    assert.equal(requests, 2);
+    assert.deepEqual(readFileSync(join(root, "download")), payload);
   }
-});
+}
+for (const failure of ["503", "reset"]) {
+  test(`pinned release downloads recover a transient ${failure} within bounded retries`, async (t) => {
+    for (const artifact of retryArtifacts)
+      await t.test(artifact.name, (t) => retryFixture(t, artifact, failure));
+  });
+}
+test("permanent release connection resets exhaust three retries without falling back", (t) =>
+  retryFixture(t, retryArtifacts[0], "reset", true));
