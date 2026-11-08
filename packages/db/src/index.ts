@@ -2,7 +2,7 @@ import { Prisma, PrismaClient } from "./generated/prisma/client";
 import { getRequestDb } from "./request-scope";
 
 export type * from "./generated/prisma/client";
-export { createDatabaseRequest } from "./request-scope";
+export { captureRequestDatabaseFactory, createDatabaseRequest } from "./request-scope";
 export { Prisma, PrismaClient };
 
 let client: PrismaClient | null = null;

@@ -5,7 +5,7 @@ import { getRequestDb } from "./request-scope";
 // Node client eagerly initializes native-engine paths before getDb() is called.
 export type * from "./generated/prisma/client";
 export { Prisma, PrismaClient } from "./generated/prisma-workerd/client";
-export { createDatabaseRequest } from "./request-scope";
+export { captureRequestDatabaseFactory, createDatabaseRequest } from "./request-scope";
 
 export function getDb(): NodePrismaClient {
   const client = getRequestDb();

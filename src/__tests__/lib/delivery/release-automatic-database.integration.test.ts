@@ -8,36 +8,40 @@ const mocks = vi.hoisted(() => ({
   opened: 0,
   closed: 0,
   host: vi.fn(),
+  factoryAvailable: true,
 }));
-vi.mock("@hive/db", async (original) => ({
-  ...(await original<typeof import("@hive/db")>()),
-  getDb: () => mocks.active ?? mocks.db,
-}));
-vi.mock("@/lib/projects/host.server", () => ({ signedHostProjectRequest: mocks.host }));
-vi.mock("@hive/db/cloudflare", async () => {
-  const { PrismaClient: RealClient } = await import("@hive/db");
+vi.mock("@hive/db", async (original) => {
+  const actual = await original<typeof import("@hive/db")>();
   return {
-    createCloudflareDatabaseRequest: (url: string) => {
-      const own = new RealClient({ datasourceUrl: url });
-      mocks.opened++;
-      return {
-        async run<T>(operation: () => Promise<T>) {
-          const old = mocks.active;
-          mocks.active = own;
-          try {
-            return await operation();
-          } finally {
-            mocks.active = old;
+    ...actual,
+    getDb: () => mocks.active ?? mocks.db,
+    captureRequestDatabaseFactory: () =>
+      mocks.factoryAvailable
+        ? () => {
+            const own = new actual.PrismaClient({
+              datasourceUrl: process.env.HIVE_AUTOMATIC_DATABASE_TEST_DATABASE_URL,
+            });
+            mocks.opened++;
+            return {
+              async run<T>(operation: () => Promise<T>) {
+                const old = mocks.active;
+                mocks.active = own;
+                try {
+                  return await operation();
+                } finally {
+                  mocks.active = old;
+                }
+              },
+              async close() {
+                await own.$disconnect();
+                mocks.closed++;
+              },
+            };
           }
-        },
-        async close() {
-          await own.$disconnect();
-          mocks.closed++;
-        },
-      };
-    },
+        : undefined,
   };
 });
+vi.mock("@/lib/projects/host.server", () => ({ signedHostProjectRequest: mocks.host }));
 
 import {
   readProductionAcceptanceAnchor,
@@ -68,6 +72,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   mocks.host.mockReset();
+  mocks.factoryAvailable = true;
   expect(mocks.opened).toBe(mocks.closed);
 });
 async function readyForMerge(options: { testedLifetimeMs?: number; grantMs?: number } = {}) {
@@ -654,6 +659,43 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
       ).status,
     ).not.toBe(200);
   }, 30000);
+  it("keeps authenticated report facts while absent request capability holds background advancement", async () => {
+    const f = await automaticDatabaseFixture(db, url!, mocks.host);
+    await f.controller.lifecycle.advance(f.user.id, f.release.id);
+    const approval = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: f.release.id, phase: "prepared" },
+    });
+    await f.controller.step(f.user.id, approval.id, f.signal);
+    await f.runJob(f.jobs[0]);
+    await f.controller.step(f.user.id, approval.id, f.signal);
+    f.followups.length = 0;
+    await f.controller.lifecycle.advance(f.user.id, f.release.id);
+    const advance = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: f.release.id, phase: "prepared" },
+    });
+    await f.controller.step(f.user.id, advance.id, f.signal);
+    mocks.factoryAvailable = false;
+    await f.runJob(f.jobs[1]);
+    const facts = await db.deliveryEvent.count({
+      where: { taskId: f.taskId, type: "database_job_observed" },
+    });
+    expect(facts).toBeGreaterThan(0);
+    const opened = mocks.opened;
+    const priorPhase = (
+      await db.deliveryReleaseAction.findUniqueOrThrow({ where: { id: advance.id } })
+    ).phase;
+    expect(["effect_started", "held"]).toContain(priorPhase);
+    await f.followups.shift()!();
+    expect(mocks.opened).toBe(opened);
+    expect(
+      await db.deliveryEvent.count({ where: { taskId: f.taskId, type: "database_job_observed" } }),
+    ).toBe(facts);
+    expect(
+      (await db.deliveryReleaseAction.findUniqueOrThrow({ where: { id: advance.id } })).phase,
+    ).toBe(priorPhase);
+    expect(f.jobs).toHaveLength(2);
+    expect(f.remote.writes).toBe(0);
+  });
   it("cancels a stalled callback provider within its work budget and closes its own SQL client", async () => {
     const f = await automaticDatabaseFixture(db, url!, mocks.host);
     await f.controller.lifecycle.advance(f.user.id, f.release.id);

@@ -65,6 +65,86 @@ describe("agent tools panel", () => {
     render(<AgentToolsPanel workspaceId={id} open={false} onOpenSession={vi.fn()} />);
     expect(inspectAgentToolsAction).not.toHaveBeenCalled();
     expect(configureAgentToolsAction).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "unavailable",
+    "loading",
+  ])("shows independently scoped accounts when generic inventory is %s", async (state) => {
+    if (state === "unavailable")
+      vi.mocked(inspectAgentToolsAction).mockResolvedValue({
+        serverError: "Generic agent tools are disabled",
+      });
+    else vi.mocked(inspectAgentToolsAction).mockReturnValue(new Promise(() => {}));
+    const fetcher = vi.fn(async (path: string, _options: RequestInit) => {
+      if (path.endsWith("/codex-account"))
+        return Response.json({
+          scope: "managed-native",
+          lifetimeId: id,
+          generation: 1,
+          state: "signed-out",
+          pending: null,
+        });
+      if (path.endsWith("/claude-account"))
+        return Response.json({
+          scope: "workspace-cli",
+          lifetimeId: id,
+          generation: 1,
+          state: "signed-out",
+          pending: null,
+        });
+      if (path.endsWith("/account-maintenance"))
+        return Response.json({
+          schemaVersion: 1,
+          version: 0,
+          maintenanceId: null,
+          state: "available",
+          holdReason: null,
+          runtimeId: id,
+          runtimeGeneration: 1,
+        });
+      throw Error("unexpected account path");
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const open = vi.fn();
+    render(<AgentToolsPanel workspaceId={id} open onOpenSession={open} />);
+    expect(
+      await screen.findByRole("region", { name: "Managed Codex account" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("region", { name: "Workspace Claude account" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Account maintenance" })).toBeInTheDocument();
+    expect(fetcher.mock.calls.map((c) => c[0]).sort()).toEqual(
+      ["account-maintenance", "claude-account", "codex-account"]
+        .map((name) => `/api/workspaces/${id}/${name}`)
+        .sort(),
+    );
+    for (const call of fetcher.mock.calls) {
+      expect(JSON.parse(call[1].body as string)).toEqual({
+        action: "status",
+      });
+    }
+    expect(screen.queryByRole("region", { name: "Recent agent sessions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enable tracking" })).not.toBeInTheDocument();
+    expect(configureAgentToolsAction).not.toHaveBeenCalled();
+    expect(resumeAgentSessionAction).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("keeps disabled scoped account cards hidden independently of generic inventory", async () => {
+    vi.mocked(inspectAgentToolsAction).mockResolvedValue({
+      serverError: "Generic agent tools are disabled",
+    });
+    render(<AgentToolsPanel workspaceId={id} open onOpenSession={vi.fn()} />);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(screen.queryByRole("region", { name: "Managed Codex account" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Workspace Claude account" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Account maintenance" })).not.toBeInTheDocument();
+    expect(configureAgentToolsAction).not.toHaveBeenCalled();
   });
 
   it("searches session metadata and resumes the selected ID only", async () => {

@@ -1,7 +1,23 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { PrismaClient } from "./generated/prisma/client";
 
-type RequestDatabase = { create: () => PrismaClient; client?: PrismaClient; closed: boolean };
+export type DatabaseRequestBounds = {
+  queryTimeoutMillis: number;
+  transactionTimeoutMillis: number;
+  statementTimeoutMillis?: number;
+  connectionTimeoutMillis?: number;
+};
+export type DatabaseRequest = {
+  run<T>(operation: () => T): T;
+  close(): Promise<void>;
+};
+export type SiblingDatabaseFactory = (bounds?: DatabaseRequestBounds) => DatabaseRequest;
+type RequestDatabase = {
+  create: () => PrismaClient;
+  sibling?: SiblingDatabaseFactory;
+  client?: PrismaClient;
+  closed: boolean;
+};
 const STORE = Symbol.for("hive.database.request-context.v1");
 // OpenNext and the custom Worker can bundle this module separately. Sharing the
 // ALS instance, rather than a client, preserves one request boundary across them.
@@ -19,8 +35,17 @@ export function getRequestDb(): PrismaClient | undefined {
   return context.client;
 }
 
-export function createDatabaseRequest(create: () => PrismaClient) {
-  const context: RequestDatabase = { create, closed: false };
+/** Capture only while live; the bound factory creates independent later lifetimes. */
+export function captureRequestDatabaseFactory(): SiblingDatabaseFactory | undefined {
+  const context = storage.getStore();
+  return context && !context.closed ? context.sibling : undefined;
+}
+
+export function createDatabaseRequest(
+  create: () => PrismaClient,
+  sibling?: SiblingDatabaseFactory,
+): DatabaseRequest {
+  const context: RequestDatabase = { create, sibling, closed: false };
   return {
     run<T>(operation: () => T): T {
       return storage.run(context, operation);

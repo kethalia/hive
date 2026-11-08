@@ -471,6 +471,7 @@ test("ongoing enrollment explicitly enables existing roadmap capabilities while 
   const flags = [
     "HIVE_NATIVE_HEALTH_ENABLED",
     "HIVE_CODEX_ACCOUNTS_ENABLED",
+    "HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED",
     "HIVE_CLAUDE_ACCOUNTS_ENABLED",
     "HIVE_AGENT_TOOLS_ENABLED",
     "HIVE_WORKSPACE_READ_ENABLED",

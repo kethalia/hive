@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T06:24:49.172421+00:00",
+  "scope": "existing-free-neon-preview-databases-only",
+  "sourceCommit": "1a490e02efdb7bc477477e075474308d963d5851",
+  "ciRunId": 42453520491,
+  "codexReviewReceiptId": 6718099812,
+  "migrationsApplied": [
+    "20261108010000_automatic_database_jobs",
+    "20261108020000_account_maintenance"
+  ],
+  "migrationChecksums": {
+    "20261108010000_automatic_database_jobs": "6249bceec4ecc0c7c212b5da5b1e469c89e0676c3cfd26e2e987e75cf7bcd409",
+    "20261108020000_account_maintenance": "955c21e6b5476331336aed763845d2aeedd9338b97d56dcb2b977b8e9dd6554f"
+  },
+  "databases": {
+    "hive_app_preview": {
+      "fromMigrations": 48,
+      "toMigrations": 50,
+      "originalApplicationTables": 72,
+      "originalApplicationRows": 7,
+      "allOriginalColumnFingerprintsPreserved": true,
+      "allPrior48MigrationRowsPreserved": true,
+      "all50ChecksumsMatch": true,
+      "backupBytes": 380521,
+      "fullArchiveDecodeVerified": true,
+      "requiredRuntimePrivilegesPresent": true,
+      "existingRuntimePrivilegesUnchanged": true
+    },
+    "hive_native_preview": {
+      "fromMigrations": 48,
+      "toMigrations": 50,
+      "originalApplicationTables": 72,
+      "originalApplicationRows": 48,
+      "allOriginalColumnFingerprintsPreserved": true,
+      "allPrior48MigrationRowsPreserved": true,
+      "all50ChecksumsMatch": true,
+      "backupBytes": 412912,
+      "fullArchiveDecodeVerified": true,
+      "requiredRuntimePrivilegesPresent": true,
+      "existingRuntimePrivilegesUnchanged": true
+    }
+  },
+  "oldAppRoleCannotConnectNativeDatabase": true,
+  "productionDatabaseChanged": false,
+  "installedHostOrBrowserAcceptanceClaimed": false
+}

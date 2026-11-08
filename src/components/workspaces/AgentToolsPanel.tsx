@@ -162,6 +162,19 @@ export function AgentToolsPanel({
         className="min-h-0 space-y-5 overflow-y-auto overscroll-contain pr-1"
         data-mobile-scroll-allow="true"
       >
+        {open ? (
+          <>
+            <AccountMaintenanceCard
+              key={`maintenance/${workspaceId}/${buildId ?? ""}`}
+              workspaceId={workspaceId}
+            />
+            <ClaudeAccountCard
+              key={`claude/${workspaceId}/${buildId ?? ""}`}
+              workspaceId={workspaceId}
+            />
+            <CodexAccountCard key={`${workspaceId}/${buildId ?? ""}`} workspaceId={workspaceId} />
+          </>
+        ) : null}
         {snapshot ? (
           <>
             <section aria-label="Recent agent sessions" className="space-y-3">
@@ -235,15 +248,6 @@ export function AgentToolsPanel({
                 </p>
               )}
             </section>
-            <AccountMaintenanceCard
-              key={`maintenance/${workspaceId}/${buildId ?? ""}`}
-              workspaceId={workspaceId}
-            />
-            <ClaudeAccountCard
-              key={`claude/${workspaceId}/${buildId ?? ""}`}
-              workspaceId={workspaceId}
-            />
-            <CodexAccountCard key={`${workspaceId}/${buildId ?? ""}`} workspaceId={workspaceId} />
             <details className="rounded-lg border p-3">
               <summary className="cursor-pointer text-sm font-medium">
                 Agent setup and integrations

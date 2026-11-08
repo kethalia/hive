@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T05:42:00.388611+00:00",
+  "scope": "isolated-local-production-capture-current-schema-rehearsal",
+  "migrationSourceCommit": "92021172c1fae8c2988ab831c40755568ce0a5e5",
+  "originalReadOnlyProductionCaptureSha256": "00025c4d48ff2bce6c086ebf49b63bfbb605d3f3e8ae4965c125d18ed798bf27",
+  "restoredUpgradedBackupSha256": "6bf181decccd5183c9b6e6b0890d7271a322ec2ab519d840d577fbfa02d008d1",
+  "sourceSchemaMigrations": 39,
+  "targetSchemaMigrations": 50,
+  "prior39HistoryPreserved": true,
+  "all50ChecksumsMatch": true,
+  "originalApplicationTablesCompared": 7,
+  "originalApplicationRowsCompared": 81,
+  "originalMigrationRowsCompared": 7,
+  "allOriginalColumnFingerprintsMatchBeforeAndAfter": true,
+  "runtimeRoleSelected": "hive_native_runtime",
+  "productionKeysReadOrDecrypted": false,
+  "liveProductionChanged": false,
+  "livePreviewChanged": false,
+  "limits": [
+    "A November5 read-only capture, not the final maintenance-boundary capture.",
+    "Does not prove original encryption/cookie key continuity, provider login or application acceptance.",
+    "All effects confined to a new root-owned local PostgreSQL17 test database."
+  ],
+  "cleanup": {
+    "observedAt": "2026-11-08T05:46:25.076004+00:00",
+    "localTestDatabaseRemoved": true,
+    "upgradedBackupSha256": "d3fabb4525a77350ddf35b12c1296a06f5c035b62a77e22b6ed3cf400f3136e0",
+    "backupBytes": 416701,
+    "fullArchiveDecodeVerified": true,
+    "sharedPostgresServerStopped": false,
+    "liveDatabasesChanged": false
+  }
+}
