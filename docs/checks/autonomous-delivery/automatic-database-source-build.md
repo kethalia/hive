@@ -54,3 +54,12 @@ migration 47 and frozen migration 48 remain byte-for-byte unchanged. Live enroll
 still needs the existing protected environment/target role and ledger, signing key,
 trusted source-build catalog and immutable dispatcher/recipe source. No such live
 execution or production database mutation is part of this validation receipt.
+
+The integrated source passed 13 composed PostgreSQL cases, three actual isolated
+workerd/source-output cases, authority/transport contract checks and TypeScript.
+Generated host packages preserve the newer epic account/runtime fixes. Cross-checkout
+archive reproduction and all five profile mirrors pass with shared dependency-store
+references. The host archive is 193,564 bytes compressed (SHA-256
+`dcf0a9d53ffcb560e834e51b38795211c38354124196ac8af1e2bb2883c272df`);
+the raw tar SHA-256 is
+`960a7b3cff01a2712f2e24865abcb522cb254b1bdaefcb2854f1dda0fb000472`.

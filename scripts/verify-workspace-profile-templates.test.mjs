@@ -285,6 +285,17 @@ test("profile synchronization detects and removes obsolete shared scripts", (t) 
     join(repositoryRoot, "scripts/host-production-release.ts"),
     join(fixtureRoot, "scripts/host-production-release.ts"),
   );
+  mkdirSync(join(fixtureRoot, "services/migrate/src/delivery"), { recursive: true });
+  for (const name of ["wire.mjs", "contracts.mjs", "source-plan-intent.mjs"])
+    cpSync(
+      join(repositoryRoot, "services/migrate/src/delivery", name),
+      join(fixtureRoot, "services/migrate/src/delivery", name),
+    );
+  symlinkSync(
+    join(repositoryRoot, "services/migrate/node_modules"),
+    join(fixtureRoot, "services/migrate/node_modules"),
+    "dir",
+  );
   mkdirSync(join(fixtureRoot, "src/lib"), { recursive: true });
   cpSync(join(repositoryRoot, "src/lib/delivery"), join(fixtureRoot, "src/lib/delivery"), {
     recursive: true,

@@ -167,7 +167,12 @@ export function createProjectDiscovery(config, controller) {
     check(
       exact(value, ["ticket"]) &&
         typeof value.ticket === "string" &&
-        value.ticket.length <= (path === "/projects/tasks/start" ? 98304 : 16384),
+        value.ticket.length <=
+          (path === "/projects/production-release"
+            ? 147456
+            : path === "/projects/tasks/start"
+              ? 98304
+              : 16384),
     );
     const parts = value.ticket.split(".");
     check(parts.length === 3 && parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)));
@@ -204,6 +209,10 @@ export function createProjectDiscovery(config, controller) {
       exact(c.binding, bindingKeys) && bindingKeys.every((k) => c.binding[k] === config.binding[k]),
     );
     const r = c.request;
+    check(
+      (path === "/projects/production-release" && r?.operation === "database") ||
+        value.ticket.length <= (path === "/projects/tasks/start" ? 98304 : 16384),
+    );
     validateProjectOperation(path, r);
     nonces = new Map([...nonces].filter(([, expiry]) => expiry > now));
     check(nonces.size < 4096 && !nonces.has(c.jti));
@@ -218,7 +227,9 @@ export function createProjectDiscovery(config, controller) {
       createHash("sha256").update(readFileSync(config.helperPath)).digest("hex") ===
         config.helperSha256,
     );
-    const merge = ["prepare", "dispatch", "lookup", "builds"].includes(request.operation);
+    const merge = ["prepare", "dispatch", "lookup", "builds", "database"].includes(
+      request.operation,
+    );
     const production = path === "/projects/production-release";
     const mergePath = production ? config.productionReleasePath : config.epicMergePath;
     const mergeHash = production ? config.productionReleaseSha256 : config.epicMergeSha256;
@@ -362,7 +373,12 @@ export function createProjectDiscovery(config, controller) {
         request.headers["content-type"]?.split(";")[0] === "application/json" &&
         !request.headers["content-encoding"],
     );
-    const limit = request.url === "/projects/tasks/start" ? 98304 : 20000;
+    const limit =
+      request.url === "/projects/production-release"
+        ? 151552
+        : request.url === "/projects/tasks/start"
+          ? 98304
+          : 20000;
     const length = request.headers["content-length"];
     check(!length || (/^\d+$/.test(length) && Number(length) <= limit));
     const timer = setTimeout(() => request.destroy(), 5000),
