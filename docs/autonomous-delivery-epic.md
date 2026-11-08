@@ -267,6 +267,14 @@ See the [reference audit](checks/autonomous-delivery/account-connections-roadmap
 
 ## Immediate next task
 
+Current frontier (November8): PR429 exact unused-task/remount recovery and PR430 bounded
+Infrastructure downloads are integrated into the epic. Combine F05 empty-root revalidation
+with F06 production-evidence-bound cleanup and validate cleanup→retained history→remount→
+next task before publishing one final workspace image. The original pilot is normally stopped,
+with its unused task and journals preserved; no first prompt has run. Both Preview databases
+are upgraded through migration52. Live recovery, shared-thread browser acceptance and account
+maintenance remain gates. The historical checkpoints below are not current installed acceptance.
+
 The unnecessary custom publisher and setup-token requests have been removed. The existing
 Cloudflare Workers Builds integration remains the single deployment path for the epic branch.
 Migration 45 stays immutable; forward migration 46 safely retires its unused schema only when

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "scope": "existing isolated application and native Preview databases only",
+  "completedAt": "2026-11-08T15:35:38.256832+00:00",
+  "sourceCommit": "de72f6a8fac9a36380da993b7fd35c5ec705a745",
+  "review": {
+    "pr": 429,
+    "ciRun": 42491051603,
+    "codexSummaryComment": 6721890889
+  },
+  "migration": {
+    "name": "20261108040000_unused_epoch_remount",
+    "sha256": "416c14dd05a717264a3a9be68943610c051e137199ab95b159a6940e84066c87"
+  },
+  "databases": [
+    {
+      "name": "hive_app_preview",
+      "beforeMigrationCount": 51,
+      "afterMigrationCount": 52,
+      "tableCount": 72,
+      "preservedApplicationRows": 7,
+      "originalRowsAndTableInventoryPreserved": true,
+      "prior51MigrationRecordsPreserved": true,
+      "all52ChecksumsMatch": true,
+      "runtimeTablePrivilegesUnchanged": true,
+      "applicationRoleCannotConnectToNative": true,
+      "backupBytes": 429003,
+      "backupSha256": "6f2426965eb541840f91c8edd99e69f8e4bc77dee693e50e381a648b431c76c0",
+      "backupFullyDecodedBeforeUpgrade": true
+    },
+    {
+      "name": "hive_native_preview",
+      "beforeMigrationCount": 51,
+      "afterMigrationCount": 52,
+      "tableCount": 72,
+      "preservedApplicationRows": 66,
+      "originalRowsAndTableInventoryPreserved": true,
+      "prior51MigrationRecordsPreserved": true,
+      "all52ChecksumsMatch": true,
+      "runtimeTablePrivilegesUnchanged": true,
+      "applicationRoleCannotConnectToNative": true,
+      "backupBytes": 473175,
+      "backupSha256": "171e201866ac951e2f8c9f96e6cb4d69b4dd613777f920cc0777bd5374960195",
+      "backupFullyDecodedBeforeUpgrade": true
+    }
+  ],
+  "productionChanged": false,
+  "newDatabaseOrProjectCreated": false,
+  "liveTaskRetried": false,
+  "credentialsIncluded": false
+}
