@@ -36,3 +36,25 @@ test("source compatibility stays in the existing controlled workflow with creden
   for (const match of workflow.matchAll(/uses: ([^\s]+)/g))
     assert.match(match[1], /@[a-f0-9]{40}$/);
 });
+
+test("typed database dispatch reuses CI with an immutable recipe pin and skips unrelated jobs", async () => {
+  const ci = await readFile(
+    new URL("../../../../.github/workflows/ci.yml", import.meta.url),
+    "utf8",
+  );
+  assert.match(ci, /options: \[validate, database\]/);
+  assert.match(ci, /default: validate/);
+  assert.match(ci, /format\('hive-database\/\{0\}\/\{1\}'/);
+  assert.match(ci, /cancel-in-progress: \$\{\{ inputs.operation != 'database' \}\}/);
+  assert.match(
+    ci,
+    /uses: kethalia\/hive\/\.github\/workflows\/controlled-database-job.yml@b11dd01ba7db090e1b7ee0eb75a6043b81982b51/,
+  );
+  assert.match(ci, /fromJSON\(inputs.database-catalog-json\).automaticExecutionEnabled == true/);
+  for (const job of ["build-lint-test", "migration-integration", "quality", "helm-lint"])
+    assert.ok(ci.includes(`  ${job}:\n    if: \${{ inputs.operation != 'database' }}`));
+  assert.doesNotMatch(
+    ci,
+    /HIVE_DELIVERY_DATABASE_GITHUB_TOKEN|CLOUDFLARE.*TOKEN|controlled-worker-upload/,
+  );
+});

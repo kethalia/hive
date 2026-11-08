@@ -1,17 +1,67 @@
 name: CI
+run-name: ${{ inputs.operation == 'database' && format('hive-database/{0}/{1}', inputs.database-dispatch-id, inputs.database-stage) || '' }}
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [validate, database]
+        default: validate
+      database-stage:
+        type: choice
+        options: [approve, advance, activate]
+        default: approve
+      database-dispatch-id:
+        type: string
+        default: ""
+      database-trusted-revision:
+        type: string
+        default: ""
+      database-catalog-json:
+        type: string
+        default: ""
+      database-approval-json:
+        type: string
+        default: ""
+      database-job-json:
+        type: string
+        default: ""
+      database-compatibility-digest:
+        type: string
+        default: ""
   pull_request:
     branches: [main, codex/delivery-system-design]
   push:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ inputs.database-dispatch-id || 'source' }}
+  cancel-in-progress: ${{ inputs.operation != 'database' }}
 
 jobs:
+  automatic-database:
+    name: Automatic database
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.operation == 'database' &&
+      inputs.database-trusted-revision == 'b11dd01ba7db090e1b7ee0eb75a6043b81982b51' &&
+      fromJSON(inputs.database-catalog-json).automaticExecutionEnabled == true
+    permissions:
+      contents: read
+      id-token: write
+    uses: kethalia/hive/.github/workflows/controlled-database-job.yml@b11dd01ba7db090e1b7ee0eb75a6043b81982b51
+    with:
+      enabled: true
+      operation: ${{ inputs.database-stage }}
+      trusted-revision: b11dd01ba7db090e1b7ee0eb75a6043b81982b51
+      dispatch-id: ${{ inputs.database-dispatch-id }}
+      catalog-json: ${{ inputs.database-catalog-json }}
+      approval-json: ${{ inputs.database-approval-json }}
+      job-json: ${{ inputs.database-job-json }}
+      compatibility-config-json: ${{ toJSON(fromJSON(inputs.database-catalog-json).compatibilityTest.config) }}
+      compatibility-digest: ${{ inputs.database-compatibility-digest }}
+    secrets:
+      HIVE_DATABASE_URL: ${{ secrets.HIVE_DATABASE_URL }}
   trusted-tested-tree:
     name: Trusted tested tree
     if: >-
@@ -32,6 +82,7 @@ jobs:
         {"controllerOrigin":"https://codex-delivery-system-design-hive.b00ste.workers.dev","audiencePrefix":"urn:hive:release-tested:epic-preview:","controlDigest":"57a236ccf5002b9162a7c39d4bfd0907ff67f35505eadcd5c4ac39aa41ae28ed"}
 
   build-lint-test:
+    if: ${{ inputs.operation != 'database' }}
     name: Build / Lint / Test
     permissions:
       contents: read
@@ -63,6 +114,7 @@ jobs:
     secrets: inherit
 
   migration-integration:
+    if: ${{ inputs.operation != 'database' }}
     name: Migration preflight / PostgreSQL
     runs-on: ubuntu-latest
     # Serial migration, recovery and real-delay lifecycle checks share this job.
@@ -194,6 +246,7 @@ jobs:
           HIVE_AGENT_NOTIFICATION_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_agent_notification_test
 
   quality:
+    if: ${{ inputs.operation != 'database' }}
     name: Quality
     permissions:
       contents: read
@@ -207,6 +260,7 @@ jobs:
     secrets: inherit
 
   helm-lint:
+    if: ${{ inputs.operation != 'database' }}
     name: Helm Lint
     uses: kethalia/workflows/.github/workflows/helm-lint.yml@v4
     with:
