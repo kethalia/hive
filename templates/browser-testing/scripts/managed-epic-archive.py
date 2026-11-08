@@ -61,7 +61,7 @@ def main():
         def verify(self, evidence, expected):
             require(evidence == token and expected["repositoryId"] == claims["repositoryId"] and expected["taskId"] == claims["taskId"] and expected["leaseId"] == claims["leaseId"] and expected["leaseGeneration"] == claims["leaseGeneration"] and expected["checkoutIncarnation"] == claims["checkoutIncarnation"] and expected["revision"] == claims["acceptedSourceSha"])
             return {"binding": expected, "treeReceiptDigest": claims["treeReceiptDigest"], "preservationDigest": claims["preservationDigest"], "leaseReleaseDigest": claims["leaseReleaseDigest"]}
-    result = managed.ManagedProjects(home)._archive_accepted_source(claims["repositoryId"], claims["taskId"], token, Authority())
+    result = managed.ManagedProjects.installed(home)._archive_accepted_source(claims["repositoryId"], claims["taskId"], token, Authority())
     print(json.dumps(result, separators=(",", ":")))
 
 if __name__ == "__main__":

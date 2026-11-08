@@ -124,5 +124,108 @@
       "ordinary empty managed-root restart remapping",
       "executed-task cleanup sealed-kernel context"
     ]
+  },
+  "nonRemountRecoveryCorrection": {
+    "reviewFinding": "PR429 discussion_r4506336472: ordinary owner-authorized never-started renewal lacked a sealed guardian context",
+    "scope": "separate original-v1 and remount never-started authority; shared construction evidence grants no authority",
+    "sourceReview": "independent bounded review clear",
+    "transferSuitePassed": 43,
+    "managedProjectsSuitePassed": 43,
+    "archiveCodecTemplateAndDeployTestsPassed": 28,
+    "canonicalProfileCheck": "passed (4 variants)",
+    "actualIntegration": "official pinned kernel + packaged InstalledUnstartedAuthority + real Git/HMAC lease; unknown nondumpable holder denies without writes; one renewal and byte-identical replay",
+    "processInventory": "explicit test-owned proc inventory; no live workspace acceptance claim",
+    "package": {
+      "manifestSha256": "2b0c11b1ac6a24d48194080bd0f25d2efee827a40d5be9af440a89eb365a8f18",
+      "rawSha256": "f94e0611781c8e215a9f2be53eb091c26decffe546b39121f650c2d6cc01ad5f",
+      "compressedSha256": "23973b1d76fac99fe6d4690e659bab6ab8a85d8c43444dfa605aca0bebeaa7df",
+      "compressedBytes": 213816,
+      "rawBytes": 1284608,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "staticPreviewPinChange": "replaces only unpublished ca5d package; six historical approved tuples unchanged",
+    "migration51And52AndKernelUnchanged": true,
+    "genericCleanupAuthorityChanged": false,
+    "providerOrLiveRecoveryEffects": false
+  },
+  "ordinaryInstalledScannerCorrection": {
+    "reviewFinding": "PR429 discussion_r4506422017: ordinary installed checkout reuse lacked construction observer",
+    "authority": "construction is a process fact only; existing repository, lease, request and archive authority unchanged",
+    "wiring": [
+      "installed prepare/reuse/interrupted staging",
+      "installed lease release and replay",
+      "installed signed source archive"
+    ],
+    "defaultStandaloneManagers": "strict; no implicit observer",
+    "liveUnknownProcesses": "strict; unknown same-UID nondumpable processes and readable checkout references denied",
+    "preImportProvenance": "startup-bound manifest; bounded regular private nonsymlink members and full local import graph verified before Node import",
+    "integration": "actual official kernel + built current package; v1 recovery; first-task release/replay; second-task same-checkout/incarnation reuse; unknown prctl0 holder and altered module/dependency rejected before writes; dead actor gives no exemption and full strict scan",
+    "fixtures": "test-owned proc inventory and local Git; no live workspace claim",
+    "independentSourceReview": "clear",
+    "focusedChecks": {
+      "transferAndArchivePassed": 44,
+      "managedProjectsPassed": 43,
+      "officialKernelScannerPassed": 1
+    },
+    "package": {
+      "manifestSha256": "d7b8befcef4cd9fa193a58d8b8a6e22b5aa3d7325ea8c7d86d49d84bd0839dcf",
+      "rawSha256": "f40397787aae4946a2ecfdd2cc914418028e5dd9a7b86e3595a425d3e65a6e1a",
+      "compressedSha256": "40d55c12c752b344bd948f783f8f8897177148a10741de0a913e06b2e1d03dd9",
+      "compressedBytes": 214728,
+      "rawBytes": 1290240,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "schemaAndElfUnchanged": true,
+    "liveEffects": false,
+    "finalArchiveAndRuntimeChecksPassed": 72,
+    "canonicalProfileCheck": "passed (4 variants)"
+  },
+  "unguardedAndFixtureCorrection": {
+    "reviewFinding": "PR429 discussion_r4506474815",
+    "absentGuardedState": "canonical path plus lexists absence only; strict full process scan, no exception/closure",
+    "partialDanglingOrCorruptState": "held",
+    "productionNode": "authenticated startup outer executable plus sole sealed root executable/SHA; canonical root-owned non-writable matching file",
+    "confirmedCIRegression": "job128751935374: setup-node executable owner/mode violated native pin before observer execution",
+    "testOnlyReexec": "already available root-owned non-writable canonical Node20+; fail with bounded stat/version diagnostic if unavailable, no skip/download/production guard relaxation",
+    "localActualFixtureNodeMajor": 24,
+    "focusedPythonTestsPassed": 44,
+    "transferAndArchiveTestsPassed": 44,
+    "independentSourceReview": "clear",
+    "package": {
+      "manifestSha256": "1fc0022618d461032e1df1f510d3dd663aa00882268403810ebc36ebfc7d7bd1",
+      "rawSha256": "a948931002dbaaf03468c8025bec4c1ed04a2077c608cdcd6ae2ca55f9f31f32",
+      "compressedSha256": "d853c2008814c15fe9a03e46b8eb91f8b0afa849574a08f83f8dbd85a95cd582",
+      "compressedBytes": 214856,
+      "rawBytes": 1290752,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "schemaAndElfUnchanged": true,
+    "liveEffects": false,
+    "finalPackagedRuntimeTestsPassed": 72,
+    "canonicalProfiles": "4 variants synchronized"
   }
 }

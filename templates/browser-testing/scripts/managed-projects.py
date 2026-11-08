@@ -151,6 +151,88 @@ class GitDriver:
             process.stdout.close()
 
 
+class InstalledSealedHostObserver:
+    """Construction fact only. Fixed installed bytes, never a PID/request option."""
+    def __init__(self, home):
+        self.home = Path(home).resolve()
+        self.module = Path(__file__).resolve().with_name("codex-unstarted-transfer.mjs")
+
+    def __call__(self):
+        state = self.home / ".local/state/hive/codex-host-guardian"
+        manager = ManagedProjects(self.home)
+        manager.safe(state)
+        if not os.path.lexists(state):
+            return None  # Unguarded installs receive no exemption; scan strictly.
+        manager.private(state, True)
+        manager.private(state / "key")
+        manager.private(state / "lifetime.json")
+        key = (state / "key").read_bytes()
+        require(len(key) == 32 and (state / "lifetime.json").stat().st_size <= 2 * 1024 * 1024, "sealed_guardian_unavailable")
+        saved = json.loads((state / "lifetime.json").read_text())
+        encoded = json.dumps(saved["state"], separators=(",", ":"), ensure_ascii=False).encode()
+        require(hmac.compare_digest(saved["signature"], hmac.new(key, encoded, hashlib.sha256).hexdigest()), "sealed_guardian_unavailable")
+        startup = saved["state"]["events"][4]["value"]
+        install = self.home / ".local/state/hive/codex-host-install/process.json"
+        manager.private(install)
+        require(install.stat().st_size <= 65536, "sealed_guardian_unavailable")
+        archive = json.loads(install.read_text())["archiveSha256"]
+        require(isinstance(archive, str) and re.fullmatch(r"[0-9a-f]{64}", archive), "sealed_guardian_unavailable")
+        directory = self.home / ".local/share/hive/codex-host" / archive
+        require(self.module.parent == directory and self.module.resolve() == self.module, "sealed_guardian_unavailable")
+        manager.private(directory, True)
+        manifest_file = directory / "package-manifest.json"
+        manager.private(manifest_file)
+        require(manifest_file.stat().st_size <= 65536, "sealed_guardian_unavailable")
+        manifest_raw = manifest_file.read_bytes()
+        require(hashlib.sha256(manifest_raw).hexdigest() == startup["packageManifestSha256"], "sealed_guardian_package_changed")
+        manifest = json.loads(manifest_raw)
+        files = manifest.get("files")
+        require(isinstance(files, dict) and 1 <= len(files) <= 64 and self.module.name in files, "sealed_guardian_package_changed")
+        total = 0
+        for name, digest in files.items():
+            require(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", name)
+                    and all(p not in {".", ".."} for p in name.split("/"))
+                    and isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest), "sealed_guardian_package_changed")
+            file = directory / name
+            manager.private(file)
+            info = file.lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 2 * 1024 * 1024, "sealed_guardian_package_changed")
+            total += info.st_size
+            require(total <= 2 * 1024 * 1024 and hashlib.sha256(file.read_bytes()).hexdigest() == digest, "sealed_guardian_package_changed")
+        members = []
+        for member in directory.rglob("*"):
+            members.append(member)
+            require(len(members) <= 128, "sealed_guardian_package_changed")
+        require(all(not p.is_symlink() for p in members)
+                and {str(p.relative_to(directory)) for p in members if p.is_file()} == set(files) | {"package-manifest.json"}, "sealed_guardian_package_changed")
+        # No exception is needed once this exact actor is gone. This does not
+        # establish tree closure: the ordinary scanner and operation guards run.
+        actor = startup["guardianIdentity"]
+        require(type(actor.get("pid")) is int and actor["pid"] > 0, "sealed_guardian_unavailable")
+        try:
+            raw = (Path("/proc") / str(actor["pid"]) / "stat").read_text()
+            fields = raw[raw.rindex(") ") + 2:].split()
+            if fields[0] in {"Z", "X"} or fields[19] != actor["startTime"] or Path("/proc/sys/kernel/random/boot_id").read_text().strip() != actor["bootId"]:
+                return None
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            return None
+        node = Path(startup["outerIdentity"]["executable"])
+        roots = saved["state"]["events"][0]["value"]["hostRootInventory"]
+        require(node.is_absolute() and node.resolve() == node and isinstance(roots, list) and len(roots) == 1
+                and roots[0]["id"] == "host-worker" and roots[0]["role"] == "host"
+                and roots[0]["executable"] == str(node) and roots[0]["sha256"] == startup["nodeSha256"], "sealed_guardian_unavailable")
+        info = node.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
+                and info.st_size <= 256 * 1024 * 1024
+                and hashlib.sha256(node.read_bytes()).hexdigest() == startup["nodeSha256"], "sealed_guardian_unavailable")
+        code = "const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.verifySealedHostConstruction(process.argv[2])));"
+        result = subprocess.run([str(node), "--input-type=module", "-e", code, self.module.as_uri(), str(self.home)],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, timeout=2, check=True)
+        require(len(result.stdout) <= 8192, "sealed_guardian_unavailable")
+        return json.loads(result.stdout)
+
+
 class ManagedProjects:
     require_source = staticmethod(require)
 
@@ -168,6 +250,13 @@ class ManagedProjects:
         self.resolver = resolver or GitHubResolver()
         self.driver = git or GitDriver()
         self.key = None
+        self._installed_observer = None
+
+    @classmethod
+    def installed(cls, home):
+        manager = cls(home)
+        manager._installed_observer = InstalledSealedHostObserver(manager.home)
+        return manager
 
     def safe(self, path):
         require(path.is_absolute() and path.is_relative_to(self.home) and path.resolve() == path,
@@ -330,8 +419,10 @@ class ManagedProjects:
         require(not self.git(checkout, "stash", "list"), "checkout_has_stash")
 
     def _sealed_guardian(self, value, checkout):
+        construction = {"guardian", "outer", "sourceSha256", "guardianSha256", "constructionDigest", "cwd", "lifetimeId"}
         require(isinstance(value, dict) and value.get("sourceSha256") == "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3"
-                and value.get("expiresAt", 0) > time.time() * 1000, "sealed_guardian_unavailable")
+                and (set(value) == construction or (set(value) == construction | {"recoveryId", "expiresAt"}
+                     and value["expiresAt"] > time.time() * 1000)), "sealed_guardian_unavailable")
         identity, outer, cwd = value["guardian"], value["outer"], value["cwd"]
         require(cwd["path"] == str(self.home / ".local/share/hive/codex-host") and not Path(cwd["path"]).is_relative_to(checkout),
                 "sealed_guardian_unavailable")
@@ -394,7 +485,7 @@ class ManagedProjects:
                 self._sealed_guardian(sealed, checkout)
 
     def no_consumers(self, path, _guardian=None):
-        require(not self.process_references(path, _guardian), "checkout_in_use")
+        require(not self.process_references(path, _guardian if _guardian is not None else self._installed_observer), "checkout_in_use")
 
     def prepare(self, repository_id, task_id, requested_revision, lease_id=None, generation=None, ttl=900):
         require(identifier(task_id) and revision(requested_revision), "invalid_task_or_revision")
@@ -730,6 +821,7 @@ class ManagedProjects:
         continuity = authority.continuity(project_id, "consuming") if hasattr(authority, "continuity") else None
         if continuity is not None:
             return self._revalidate_unstarted_remount(repository_id, project_id, authority, continuity, ttl)
+        guardian = (lambda: authority.guardian(project_id)) if hasattr(authority, "guardian") else None
         with self.lock():
             project, receipt, record = self.load(repository_id)
             lease = record.get("lease")
@@ -753,7 +845,7 @@ class ManagedProjects:
             self.checkout_valid(project / "checkout", record)
             require(self.git(project / "checkout", "rev-parse", "HEAD") == record["revision"], "renewal_source_changed")
             self.clean(project / "checkout")
-            self.no_consumers(project / "checkout")
+            self.no_consumers(project / "checkout", guardian)
             require(authority.verify(project_id, expected) == grant and grant["expiresAt"] > time.time() * 1000,
                     "renewal_authority_expired")
             if prior:
@@ -970,7 +1062,7 @@ def main():
         raw = sys.stdin.buffer.read(8193)
         require(len(raw) <= 8192, "request_too_large")
         # HOME/env cannot redirect production receipts or turn on fixture transports.
-        manager = ManagedProjects(pwd.getpwuid(os.getuid()).pw_dir)
+        manager = ManagedProjects.installed(pwd.getpwuid(os.getuid()).pw_dir)
         result = dispatch(manager, json.loads(raw))
         print(json.dumps({"ok": True, "data": result}))
     except ManagedError as error:

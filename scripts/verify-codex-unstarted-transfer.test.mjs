@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   createHash,
   createHmac,
@@ -13,14 +14,17 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { guardianCanonical } from "../templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs";
+import { openNativeGuardian } from "../templates/ai-dev-k8s/scripts/codex-native-guardian.mjs";
 import { processIdentity } from "../templates/ai-dev-k8s/scripts/codex-process-identity.mjs";
 import { createProjectController } from "../templates/ai-dev-k8s/scripts/codex-project-controller.mjs";
 import { recoveryDigest } from "../templates/ai-dev-k8s/scripts/codex-project-recovery.mjs";
@@ -31,8 +35,10 @@ import {
   readUnstartedTransfer,
   readUnstartedTransferContinuation,
   unstartedLeaseAuthority,
+  unstartedRecoveryGuardianAuthority,
   verifyUnstartedProject,
 } from "../templates/ai-dev-k8s/scripts/codex-unstarted-transfer.mjs";
+import { hostArchive } from "./build-codex-host-archive.mjs";
 
 const sha = (v) => createHash("sha256").update(v).digest("hex");
 const mac = (state, key) =>
@@ -42,7 +48,7 @@ const mac = (state, key) =>
       signature: createHmac("sha256", key).update(JSON.stringify(state)).digest("hex"),
     }),
   );
-function fixture(t, { intermediate = false } = {}) {
+function fixture(t, { intermediate = false, currentPackageManifest = null } = {}) {
   const home = mkdtempSync(join(tmpdir(), "hive-unstarted-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const root = join(home, ".local/state/hive"),
@@ -87,9 +93,11 @@ function fixture(t, { intermediate = false } = {}) {
     config = structuredClone(oldConfig);
   config.binding.buildId = randomUUID();
   const configSha256 = intermediate ? sha(JSON.stringify(config)) : "e".repeat(64),
-    packageManifestSha256 = intermediate
-      ? "b16854fee6f44c96652c5b8bd64b9b3025e28037f93ab4bfe86c9bd218dd4efe"
-      : "f".repeat(64),
+    packageManifestSha256 =
+      currentPackageManifest ??
+      (intermediate
+        ? "b16854fee6f44c96652c5b8bd64b9b3025e28037f93ab4bfe86c9bd218dd4efe"
+        : "f".repeat(64)),
     oldManifest = "7eb52d53f4c6664743d4da182ff35dbe042bde53017647d18209b4eb885180c7";
   const bindingDigest = sha(
     JSON.stringify({
@@ -1070,4 +1078,411 @@ test("unused epoch replays a crash after authenticated empty controller move", (
     result,
     "same outer lifetime is still active before journal rename",
   );
+});
+
+test("v1 recovery and installed two-task reuse observe the official guardian while unknown nondumpable holders block", async (t) => {
+  const nodeMetadata = (file) => {
+    try {
+      const path = realpathSync(file),
+        s = statSync(path);
+      return {
+        path,
+        uid: s.uid,
+        mode: s.mode & 0o777,
+        file: s.isFile(),
+        safe: s.isFile() && s.uid === 0 && !(s.mode & 0o022),
+      };
+    } catch {
+      return { path: file, safe: false };
+    }
+  };
+  const currentNode = nodeMetadata(process.execPath);
+  if (!currentNode.safe) {
+    const candidates = ["/usr/local/bin/node", "/usr/bin/node"].map(nodeMetadata);
+    const supported = (candidate) => {
+      if (!candidate.safe) return false;
+      try {
+        const major = Number(
+          execFileSync(candidate.path, ["-p", "process.versions.node.split('.')[0]"], {
+            timeout: 2000,
+          })
+            .toString()
+            .trim(),
+        );
+        candidate.major = major;
+        return major >= 20;
+      } catch {
+        return false;
+      }
+    };
+    let chosen = candidates.find(supported);
+    if (!chosen && process.env.GITHUB_ACTIONS === "true") {
+      // Hosted runner Node files can be world-writable. Prepare only our own
+      // fixture with production-like ownership; the test process stays unprivileged.
+      const fixtureDirectory = mkdtempSync(join(tmpdir(), "hive-owned-node-")),
+        fixtureNode = join(fixtureDirectory, "node"),
+        sourceDigest = sha(readFileSync(currentNode.path));
+      t.after(() => rmSync(fixtureDirectory, { recursive: true, force: true }));
+      execFileSync(
+        "/usr/bin/sudo",
+        [
+          "-n",
+          "/usr/bin/install",
+          "-o",
+          "0",
+          "-g",
+          "0",
+          "-m",
+          "0555",
+          "--",
+          currentNode.path,
+          fixtureNode,
+        ],
+        { stdio: "pipe", timeout: 10000 },
+      );
+      assert.equal(sha(readFileSync(fixtureNode)), sourceDigest);
+      assert.equal(sha(readFileSync(currentNode.path)), sourceDigest);
+      const preparedNode = nodeMetadata(fixtureNode);
+      candidates.push(preparedNode);
+      if (supported(preparedNode)) chosen = preparedNode;
+    }
+    assert.ok(
+      chosen,
+      `No supported root-owned non-writable fixture Node: ${JSON.stringify({ current: currentNode, candidates })}`,
+    );
+    t.diagnostic(
+      `Fixture Node reexec: ${JSON.stringify(chosen)}; composition only, not production Node24 readiness`,
+    );
+    execFileSync(
+      chosen.path,
+      [
+        "--test",
+        "--test-name-pattern=^v1 recovery and installed two-task reuse",
+        new URL(import.meta.url).pathname,
+      ],
+      { cwd: process.cwd(), stdio: "pipe", timeout: 30000 },
+    );
+    return;
+  }
+  assert.ok(Number(process.versions.node.split(".")[0]) >= 20, "Fixture requires Node20+ APIs");
+  t.diagnostic(
+    `Fixture Node major ${process.versions.node.split(".")[0]}, canonical UID ${currentNode.uid}, mode ${currentNode.mode.toString(8)}`,
+  );
+  const buildDirectory = mkdtempSync(join(tmpdir(), "hive-observer-package-"));
+  t.after(() => rmSync(buildDirectory, { recursive: true, force: true }));
+  const artifact = await hostArchive(resolve("."));
+  const archive = join(buildDirectory, "host.tar.xz");
+  writeFileSync(archive, artifact.compressed);
+  const python = "/usr/bin/python3",
+    manifest = JSON.parse(
+      execFileSync(python, [
+        "-I",
+        "-c",
+        "import lzma,tarfile,io,json,sys,hashlib;b=tarfile.open(fileobj=io.BytesIO(lzma.decompress(open(sys.argv[1],'rb').read()))).extractfile('package-manifest.json').read();print(json.dumps({'digest':hashlib.sha256(b).hexdigest()}))",
+        archive,
+      ]),
+    );
+  const f = fixture(t, { currentPackageManifest: manifest.digest }),
+    original = f.project.projects[f.projectId].task,
+    packageRoot = join(f.home, ".local/share/hive/codex-host"),
+    managedSource = resolve("templates/ai-dev-k8s/scripts/managed-projects.py");
+  const prepared = JSON.parse(
+    execFileSync(
+      python,
+      [
+        "-I",
+        "-c",
+        String.raw`import pathlib,sys,json,lzma,tarfile,io,hashlib,os,importlib.util,subprocess,time
+p=json.load(sys.stdin);home=pathlib.Path(p['home']);raw=lzma.decompress(pathlib.Path(p['archive']).read_bytes());directory=home/'.local/share/hive/codex-host'/hashlib.sha256(raw).hexdigest();directory.mkdir(parents=True,mode=0o700);directory.parent.chmod(0o700)
+with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+ for member in archive:
+  assert member.isfile() and not member.name.startswith('/') and '..' not in pathlib.PurePath(member.name).parts
+  dest=directory/member.name;dest.parent.mkdir(parents=True,exist_ok=True,mode=0o700);dest.write_bytes(archive.extractfile(member).read());dest.chmod(0o400 if member.name.endswith('.json') else 0o500)
+(home/'.local/state/hive/codex-host-install').mkdir(mode=0o700);(home/'.local/state/hive/codex-host-install/process.json').write_text(json.dumps({'archiveSha256':hashlib.sha256(raw).hexdigest()}));(home/'.local/state/hive/codex-host-install/process.json').chmod(0o600)
+spec=importlib.util.spec_from_file_location('fixture_managed',p['source']);m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m);manager=m.ManagedProjects(home)
+with manager.lock():
+ project,receipt=manager.paths('123');project.mkdir(parents=True,mode=0o700);checkout=project/'checkout';checkout.mkdir(mode=0o700)
+ def git(*args):return subprocess.check_output(['git','-C',str(checkout),'-c','user.name=Fixture','-c','user.email=fixture@example.com',*args],stderr=subprocess.DEVNULL).decode().strip()
+ git('init','-b','main');git('remote','add','origin','https://github.com/owner/repository.git');(checkout/'README.md').write_text('fixture\n');git('add','.');git('commit','-m','test: fixture');revision=git('rev-parse','HEAD')
+ record={'provider':'github','repositoryId':'123','canonicalUrl':'https://github.com/owner/repository.git','projectIdentity':manager.identity(project),'checkoutIdentity':manager.identity(checkout),'checkoutIncarnation':p['incarnation'],'status':'ready','revision':revision,'leaseGeneration':p['generation'],'lease':{'id':p['leaseId'],'taskId':p['taskId'],'generation':p['generation'],'expiresAt':time.time()-7200},'renewalSequence':0,'lastTaskId':p['taskId'],'stages':[],'cleanupRequests':[],'gitConfigPolicy':1,'gitConfigDigest':manager.config_digest(checkout/'.git/config')}
+ manager.write(receipt,record)
+ print(json.dumps({'directory':str(directory),'revision':revision,'checkoutIdentity':{k:str(v) for k,v in record['checkoutIdentity'].items()},'recordFile':str(receipt)}))`,
+      ],
+      {
+        input: JSON.stringify({
+          home: f.home,
+          archive,
+          source: managedSource,
+          taskId: original.taskId,
+          leaseId: original.prepared.leaseId,
+          generation: original.prepared.leaseGeneration,
+          incarnation: original.checkoutIncarnation,
+        }),
+      },
+    ),
+  );
+  original.request.revision = prepared.revision;
+  original.digest = sha(JSON.stringify(original.request));
+  original.guardianPreparation.baseSha = prepared.revision;
+  original.guardianPreparation.requestDigest = original.digest;
+  original.guardianPrepared.revision = prepared.revision;
+  original.guardianPrepared.preparationDigest = sha(JSON.stringify(original.guardianPreparation));
+  Object.assign(original.checkoutIdentity, prepared.checkoutIdentity);
+  f.controller.projects[f.projectId].checkout.revision = prepared.revision;
+  f.controller.launch.approvals[0].revision = prepared.revision;
+  f.outer.events[6].value.projects[0].bindingDigest = sha(
+    JSON.stringify(original.guardianPreparation),
+  );
+  f.save();
+  const proof = f.run();
+  const journalEvents = {},
+    journal = Object.fromEntries(
+      [
+        "begin",
+        "ready",
+        "launchIntent",
+        "admissionIntent",
+        "admissionAccepted",
+        "closeIntent",
+        "acceptReceipt",
+        "indeterminate",
+      ].map((name) => [
+        name,
+        async (value) => {
+          journalEvents[name] = value;
+        },
+      ]),
+    ),
+    node = process.execPath,
+    guardianBinary = join(prepared.directory, "codex-native-guardian"),
+    guardian = await openNativeGuardian({
+      executable: guardianBinary,
+      sha256: sha(readFileSync(guardianBinary)),
+      bindingDigest: "a".repeat(64),
+      projects: [],
+      roots: [
+        {
+          id: "host-worker",
+          role: "host",
+          workerChannel: true,
+          executable: node,
+          sha256: sha(readFileSync(node)),
+          cwd: packageRoot,
+          args: [join(prepared.directory, "codex-workspace-host-worker.mjs")],
+          env: { PATH: "/usr/bin:/bin" },
+        },
+      ],
+      journal,
+      authorizeDrain: async () => [],
+    });
+  try {
+    const lifetimeId = guardian.state.lifetimeId,
+      startup = {
+        ...journalEvents.begin,
+        lifetimeId,
+        configSha256: proof.newConfigSha256,
+        packageManifestSha256: proof.newPackageManifestSha256,
+        guardianSha256: sha(readFileSync(guardianBinary)),
+        nodeSha256: sha(readFileSync(node)),
+        outerIdentity: { ...processIdentity(process.pid), parentPid: process.ppid },
+        guardianIdentity: { ...guardian.state.guardianIdentity, parentPid: process.pid },
+        workerIdentity: processIdentity(process.pid),
+      },
+      life = {
+        schemaVersion: 1,
+        bindingDigest: "a".repeat(64),
+        phase: "startupReady",
+        receipts: [],
+        events: ["begin", "ready", "launchIntent", "open", "startupReady"].map((name) => ({
+          name,
+          value: startup,
+        })),
+      };
+    writeFileSync(join(f.guard, "lifetime.json"), mac(life, f.keys.guard));
+    const state = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state,
+      p = state.projects[f.projectId],
+      scope = {
+        recoveryId: randomUUID(),
+        ownerId: proof.ownerId,
+        coderOwnerId: proof.coderOwnerId,
+        workspaceId: proof.workspaceId,
+        projectId: proof.projectId,
+        taskId: proof.taskId,
+        hostRequestDigest: proof.hostRequestDigest,
+        originalRequestId: proof.requestId,
+        revision: proof.sourceSha,
+      },
+      inspection = {
+        outcome: "existing_preexecution",
+        taskFingerprint: recoveryDigest(p.task),
+        buildId: proof.newBuildId,
+        lifetimeId,
+        guardianGeneration: 1,
+      };
+    state.hostProcess = processIdentity(process.pid);
+    state.guardianLifetimeId = lifetimeId;
+    p.recovery = {
+      phase: "consuming",
+      scope,
+      inspection,
+      authorization: {
+        buildId: proof.newBuildId,
+        lifetimeId,
+        inspectionDigest: recoveryDigest(inspection),
+        expiresAt: Date.now() + 30000,
+      },
+    };
+    writeFileSync(join(f.projects, "projects.json"), mac(state, f.keys.projects));
+    const current = {
+      lifetimeId,
+      runtimeId: randomUUID(),
+      generation: 1,
+      pending: null,
+      hold: false,
+      launch: null,
+      projects: {},
+      unstartedTransferReceipt: {
+        transferId: proof.transferId,
+        oldRuntimeId: proof.oldRuntimeId,
+        proofDigest: recoveryDigest(proof),
+      },
+    };
+    writeFileSync(
+      join(f.guard, "controller.json"),
+      JSON.stringify({
+        state: current,
+        signature: sign(
+          null,
+          Buffer.from(guardianCanonical(current)),
+          f.keypair.privateKey,
+        ).toString("base64url"),
+      }),
+      { mode: 0o600 },
+    );
+    const result = JSON.parse(
+      execFileSync(
+        python,
+        [
+          "-I",
+          "-c",
+          String.raw`import pathlib,importlib.util,sys,os,json,subprocess,copy
+from unittest import mock
+sys.dont_write_bytecode=True
+p=json.load(sys.stdin);spec=importlib.util.spec_from_file_location('fixture_lease',p['leaseSource']);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);manager=m.managed.ManagedProjects(p['home']);authority=m.InstalledUnstartedAuthority(p['home'],os.getppid());checkout=pathlib.Path(p['checkout']);original=pathlib.Path(p['recordFile']).read_bytes();extra=None;real_iterdir=pathlib.Path.iterdir
+# Test-owned process inventory only; production enumerates every process.
+def inventory(path):
+ if path==pathlib.Path('/proc'):return iter(path/str(v) for v in [os.getpid(),os.getppid(),p['guardianPid'],*([extra] if extra else [])])
+ return real_iterdir(path)
+with mock.patch.object(pathlib.Path,'iterdir',inventory):
+ child=subprocess.Popen([sys.executable,'-I','-c',"import ctypes,sys,time;f=open(sys.argv[1]);assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0;print('ready',flush=True);time.sleep(30)",str(checkout/'README.md')],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+ try:
+  assert child.stdout.readline().strip()=='ready';extra=child.pid
+  try:manager._revalidate_unstarted_lease('123',p['projectId'],authority);raise AssertionError('unknown nondumpable holder admitted')
+  except m.managed.ManagedError as error:assert str(error)=='process_inspection_unavailable'
+  assert pathlib.Path(p['recordFile']).read_bytes()==original
+ finally:child.terminate();child.wait(timeout=3);child.stdout.close();child.stderr.close();extra=None
+ first=manager._revalidate_unstarted_lease('123',p['projectId'],authority);saved=pathlib.Path(p['recordFile']).read_bytes();second=manager._revalidate_unstarted_lease('123',p['projectId'],authority);assert first==second and pathlib.Path(p['recordFile']).read_bytes()==saved
+ assert first['renewalSequence']==1 and first['lease']['id']==p['leaseId'] and first['lease']['generation']==p['generation'] and first['checkoutIncarnation']==p['incarnation']
+ installed=m.managed.ManagedProjects.installed(p['home'])
+ class Resolver:
+  def resolve(self,repository):return m.managed.VerifiedRepository(repository,'https://github.com/owner/repository.git')
+ installed.resolver=Resolver()
+ lease=first['lease'];released=installed.release_lease('123',lease['taskId'],lease['id'],lease['generation'],first['revision']);after_release=pathlib.Path(p['recordFile']).read_bytes()
+ assert installed.release_lease('123',lease['taskId'],lease['id'],lease['generation'],first['revision'])==released and pathlib.Path(p['recordFile']).read_bytes()==after_release
+ for name in ['codex-unstarted-transfer.mjs','codex-process-identity.mjs']:
+  member=pathlib.Path(p['leaseSource']).with_name(name);raw=member.read_bytes();mode=member.stat().st_mode&0o777
+  try:
+   member.chmod(0o700);member.write_bytes(raw+b'\n// stale fixture member\n')
+   real_run=m.managed.subprocess.run
+   def checked_run(command,*args,**kwargs):
+    assert '--input-type=module' not in command,'unverified module executed'
+    return real_run(command,*args,**kwargs)
+   with mock.patch.object(m.managed.subprocess,'run',side_effect=checked_run):
+    try:installed.prepare('123','second-task',first['revision']);raise AssertionError('changed package admitted')
+    except m.managed.ManagedError as error:assert str(error)=='sealed_guardian_package_changed'
+   assert pathlib.Path(p['recordFile']).read_bytes()==after_release
+  finally:member.write_bytes(raw);member.chmod(mode)
+ child=subprocess.Popen([sys.executable,'-I','-c',"import ctypes,sys,time;f=open(sys.argv[1]);assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0;print('ready',flush=True);time.sleep(30)",str(checkout/'README.md')],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+ try:
+  assert child.stdout.readline().strip()=='ready';extra=child.pid
+  try:installed.prepare('123','second-task',first['revision']);raise AssertionError('unknown holder bypassed ordinary prepare')
+  except m.managed.ManagedError as error:assert str(error)=='process_inspection_unavailable'
+  assert pathlib.Path(p['recordFile']).read_bytes()==after_release
+ finally:child.terminate();child.wait(timeout=3);child.stdout.close();child.stderr.close();extra=None
+ second_task=installed.prepare('123','second-task',first['revision'])
+ assert second_task['lease']['taskId']=='second-task' and second_task['lease']['generation']>lease['generation'] and second_task['checkoutIdentity']==first['checkoutIdentity'] and second_task['checkoutIncarnation']==first['checkoutIncarnation']
+ try:manager.no_consumers(checkout);raise AssertionError('plain manager acquired installed observer')
+ except m.managed.ManagedError as error:assert str(error)=='process_inspection_unavailable'
+ print(json.dumps({'nonRemountOwnerRecovery':True,'actualInstalledAuthority':True,'unknownNondumpableHeld':True,'oneRenewal':True,'noNativeOrPrompt':True,'installedReleaseReplay':True,'twoTaskCheckoutReuse':True,'plainManagerStrict':True,'packageTamperRejectedBeforeImport':True}))`,
+        ],
+        {
+          input: JSON.stringify({
+            leaseSource: join(prepared.directory, "codex-project-lease.py"),
+            home: f.home,
+            checkout: dirname(prepared.recordFile).replace(
+              "/.local/state/hive/managed-projects",
+              "/projects/.hive-managed/github/123/checkout",
+            ),
+            recordFile: prepared.recordFile,
+            projectId: f.projectId,
+            guardianPid: guardian.state.guardianIdentity.pid,
+            leaseId: original.prepared.leaseId,
+            generation: original.prepared.leaseGeneration,
+            incarnation: original.checkoutIncarnation,
+          }),
+          timeout: 10000,
+        },
+      ),
+    );
+    assert.deepEqual(result, {
+      nonRemountOwnerRecovery: true,
+      actualInstalledAuthority: true,
+      unknownNondumpableHeld: true,
+      oneRenewal: true,
+      noNativeOrPrompt: true,
+      installedReleaseReplay: true,
+      twoTaskCheckoutReuse: true,
+      plainManagerStrict: true,
+      packageTamperRejectedBeforeImport: true,
+    });
+    for (const invalid of ["continuity", "native", "expired"]) {
+      const altered = structuredClone(state),
+        task = altered.projects[f.projectId];
+      if (invalid === "continuity")
+        task.recovery.continuity = { attestationDigest: "a".repeat(64) };
+      if (invalid === "native") task.task.nativeCreationAttempted = true;
+      if (invalid === "expired") task.recovery.authorization.expiresAt = Date.now() - 1;
+      writeFileSync(join(f.projects, "projects.json"), mac(altered, f.keys.projects));
+      assert.throws(
+        () => unstartedRecoveryGuardianAuthority(f.home, f.projectId, process.pid),
+        /unstarted_transfer_rejected/,
+      );
+    }
+    writeFileSync(join(f.projects, "projects.json"), mac(state, f.keys.projects));
+  } finally {
+    await guardian.abort();
+  }
+  const closedScan = execFileSync(
+    python,
+    [
+      "-I",
+      "-c",
+      String.raw`import pathlib,importlib.util,sys,json,os
+from unittest import mock
+sys.dont_write_bytecode=True
+p=json.load(sys.stdin);spec=importlib.util.spec_from_file_location('installed_managed',p['module']);m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m);manager=m.ManagedProjects.installed(p['home']);real=pathlib.Path.iterdir
+with mock.patch.object(pathlib.Path,'iterdir',lambda path:iter(path/str(pid) for pid in [os.getpid(),os.getppid()]) if path==pathlib.Path('/proc') else real(path)):
+ assert manager._installed_observer() is None
+ manager.no_consumers(pathlib.Path(p['checkout']))
+ print('strict-scan-after-exit')`,
+    ],
+    {
+      input: JSON.stringify({
+        module: join(prepared.directory, "managed-projects.py"),
+        home: f.home,
+        checkout: join(f.home, "projects/.hive-managed/github/123/checkout"),
+      }),
+    },
+  );
+  assert.equal(closedScan.toString().trim(), "strict-scan-after-exit");
 });
