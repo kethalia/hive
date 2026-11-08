@@ -238,13 +238,13 @@ export async function openGenericTerminalRelay(
     const listen = (
       socket: RelaySocket,
       event: "message" | "close" | "error",
-      callback: (value: { data?: unknown }) => void,
+      callback: (value: { data?: unknown; code?: number }) => void,
     ) => {
       if (event === "message") {
         socket.addEventListener("message", callback);
         listeners.push({ socket, event, listener: callback });
       } else {
-        const listener = () => callback({});
+        const listener = (value?: { code?: number }) => callback({ code: value?.code });
         if (event === "close") socket.addEventListener("close", listener);
         else socket.addEventListener("error", listener);
         listeners.push({ socket, event, listener });
@@ -316,7 +316,14 @@ export async function openGenericTerminalRelay(
       }
     });
     for (const socket of [server, upstream]) {
-      listen(socket, "close", () => finish(1013, "Terminal peer closed"));
+      listen(socket, "close", (event) => {
+        // A normal PTY exit is final; reconnecting would recreate the exited session.
+        const normalExit = socket === upstream && event.code === 1000;
+        finish(
+          normalExit ? 1000 : 1013,
+          normalExit ? "Terminal session closed" : "Terminal peer closed",
+        );
+      });
       listen(socket, "error", () => finish(1011, "Terminal transport unavailable"));
     }
     server.binaryType = "arraybuffer";

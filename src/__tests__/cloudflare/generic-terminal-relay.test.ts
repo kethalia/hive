@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { classifyTerminalClose } from "@/hooks/useTerminalWebSocket";
 import { GenericTerminalFailure } from "@/lib/terminal/generic-auth.server";
 import {
   GENERIC_TERMINAL_LIFETIME_MS,
@@ -88,6 +89,57 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("generic reconnecting PTY relay", () => {
+  it("preserves a normal upstream exit as a final close for the actual hook classifier", async () => {
+    const f = fixture();
+    await f.open();
+    await vi.advanceTimersByTimeAsync(0);
+    f.upstream.emit("close", {
+      code: 1000,
+      reason: "synthetic private provider detail unauthorized",
+      wasClean: true,
+    });
+    expect(f.server.close).toHaveBeenCalledWith(1000, "Terminal session closed");
+    expect(f.upstream.close).toHaveBeenCalledWith(1000, "Terminal session closed");
+    const [code, reason] = f.server.close.mock.calls[0];
+    expect(classifyTerminalClose({ code, reason, wasClean: true })).toMatchObject({
+      closeCategory: "terminal-closed",
+      failureCategory: "terminal-closed",
+      recoverable: false,
+    });
+    await vi.advanceTimersByTimeAsync(GENERIC_TERMINAL_LIFETIME_MS);
+    expect(f.server.close).toHaveBeenCalledOnce();
+    expect(f.deps.onClosed).toHaveBeenCalledOnce();
+    expect(f.deps.authorize).toHaveBeenCalledTimes(2);
+  });
+  it.each([
+    undefined,
+    1001,
+    1006,
+    1008,
+    1011,
+    1013,
+  ])("keeps upstream close %s retryable without forwarding its reason", async (upstreamCode) => {
+    const f = fixture();
+    await f.open();
+    f.upstream.emit("close", {
+      code: upstreamCode,
+      reason: "synthetic private provider detail unauthorized",
+    });
+    expect(f.server.close).toHaveBeenCalledWith(1013, "Terminal peer closed");
+    const [code, reason] = f.server.close.mock.calls[0];
+    expect(classifyTerminalClose({ code, reason, wasClean: true })).toMatchObject({
+      closeCategory: "transient",
+      recoverable: true,
+    });
+  });
+  it("keeps an upstream socket error retryable for the actual hook classifier", async () => {
+    const f = fixture();
+    await f.open();
+    f.upstream.emit("error");
+    expect(f.server.close).toHaveBeenCalledWith(1011, "Terminal transport unavailable");
+    const [code, reason] = f.server.close.mock.calls[0];
+    expect(classifyTerminalClose({ code, reason, wasClean: true }).recoverable).toBe(true);
+  });
   it.each([
     4401, 4403,
   ] as const)("closes an established attachment with authorization code %s", async (code) => {
