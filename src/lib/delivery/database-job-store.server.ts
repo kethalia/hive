@@ -316,15 +316,23 @@ export class DatabaseJobStore {
   }
   async job(raw: unknown, token: string, signal: AbortSignal) {
     const request = databaseJobRequestSchema.parse(raw),
-      catalog = this.catalog(request.catalogId, Date.now()),
-      identity = await verifyDatabaseJobIdentity(
-        request,
-        token,
-        catalog,
-        Date.now(),
-        signal,
-        this.fetcher,
-      );
+      catalog = this.catalog(request.catalogId, Date.now());
+    const compatibility = catalog.compatibilityTest?.config;
+    if (
+      compatibility &&
+      "kind" in compatibility &&
+      compatibility.kind === "automatic-source-build" &&
+      (catalog.automaticExecutionEnabled !== true || !request.dispatchId)
+    )
+      return fail();
+    const identity = await verifyDatabaseJobIdentity(
+      request,
+      token,
+      catalog,
+      Date.now(),
+      signal,
+      this.fetcher,
+    );
     return this.db.$transaction(
       async (tx) => {
         const rows = await tx.$queryRaw<

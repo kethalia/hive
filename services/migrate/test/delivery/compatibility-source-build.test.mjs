@@ -1,0 +1,234 @@
+import assert from "node:assert/strict";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { artifactDigest, packReleaseArtifact } from "../../../../scripts/release/artifact.mjs";
+import { runSourceBuildCompatibility } from "../../src/delivery/compatibility-source-build.mjs";
+import { digest } from "../../src/delivery/contracts.mjs";
+import { databaseCatalogSchema, sourceBuildCompatibilitySchema } from "../../src/delivery/wire.mjs";
+
+const hash = (c) => c.repeat(64),
+  sha = (c) => c.repeat(40);
+function fixture() {
+  const plan = {
+    schemaVersion: 1,
+    id: randomUUID(),
+    sourceSha: sha("b"),
+    oldAppDigest: hash("c"),
+    newAppDigest: hash("d"),
+    compatibilityDigest: hash("e"),
+    beforeSchemaDigest: hash("f"),
+    afterSchemaDigest: hash("a"),
+    batchSize: 10,
+    statementTimeoutMs: 1000,
+    lockTimeoutMs: 100,
+    schemaSql: "SELECT 1",
+    expandSql: ["SELECT 1"],
+    highWaterSql: "SELECT 1",
+    batchSql: "SELECT 1",
+    integritySql: "SELECT 1",
+    integrityTables: [{ schema: "public", name: "fixture" }],
+  };
+  const id = randomUUID(),
+    config = {
+      schemaVersion: 2,
+      kind: "automatic-source-build",
+      catalogId: id,
+      planDigest: digest(plan),
+      sourceSha: plan.sourceSha,
+      oldAppDigest: plan.oldAppDigest,
+      newAppDigest: plan.newAppDigest,
+      compatibilityDigest: plan.compatibilityDigest,
+      postgresImage: `registry.example/db@sha256:${hash("a")}`,
+      baseline: {
+        sourceSha: sha("a"),
+        treeSha: sha("c"),
+        providerBuildUuid: randomUUID(),
+        branch: "main",
+      },
+      candidate: {
+        headSha: plan.sourceSha,
+        baseSha: sha("a"),
+        mergeSha: sha("d"),
+        treeSha: sha("e"),
+        policyDigest: hash("a"),
+        checksDigest: hash("b"),
+        controlDigest: hash("c"),
+      },
+      scenarioPath: "scripts/release/compatibility/fixture.mjs",
+      scenarioDigest: hash("a"),
+      compatibilityDate: "2026-10-29",
+    };
+  const catalog = {
+    schemaVersion: 1,
+    id,
+    ownerId: randomUUID(),
+    repositoryId: "1",
+    repositoryOwnerId: "2",
+    environmentKey: "production",
+    targetDigest: hash("b"),
+    targetId: randomUUID(),
+    databaseName: "hive_d10_test",
+    databaseHost: "db.example",
+    databasePort: 5432,
+    workflowRef: `test/repo/.github/workflows/controlled-database-job.yml@${sha("f")}`,
+    workflowSha: sha("f"),
+    dispatcherSha: sha("e"),
+    branchRef: "refs/heads/main",
+    authorityOrigin: "https://hive.example",
+    authorityPublicKeyPem: "fixture-public-key".repeat(4),
+    validFrom: 1000,
+    expiresAt: 2000,
+    automaticPlan: plan,
+    compatibilityTest: {
+      config,
+      repositoryOwner: "test",
+      repositoryName: "repo",
+      workflowId: "3",
+      jobName: "fixed-database-compatibility",
+    },
+  };
+  return { config, catalog, plan };
+}
+test("source-build mode pins plan intent while keeping omitted execution disabled and legacy digests unchanged", () => {
+  const { config, catalog } = fixture(),
+    parsed = databaseCatalogSchema.parse(catalog);
+  assert.equal(parsed.automaticExecutionEnabled, undefined);
+  assert.deepEqual(sourceBuildCompatibilitySchema.parse(config), config);
+  for (const mutate of [
+    (c) => {
+      c.compatibilityTest.config.candidate.baseSha = sha("f");
+    },
+    (c) => {
+      c.compatibilityTest.config.candidate.headSha = sha("f");
+    },
+    (c) => {
+      c.automaticPlan.expandSql = ["SELECT 2"];
+    },
+    (c) => {
+      c.compatibilityTest.config.newAppDigest = hash("f");
+    },
+    (c) => {
+      c.compatibilityTest.config.baseline.artifactDigest = hash("f");
+    },
+    (c) => {
+      delete c.automaticPlan;
+    },
+  ]) {
+    const changed = structuredClone(catalog);
+    mutate(changed);
+    assert.throws(() => databaseCatalogSchema.parse(changed));
+  }
+  const { automaticPlan: _plan, compatibilityTest: _test, ...legacy } = catalog;
+  assert.deepEqual(databaseCatalogSchema.parse(legacy), legacy);
+  assert.equal(digest(databaseCatalogSchema.parse(legacy)), digest(legacy));
+  assert.throws(() => databaseCatalogSchema.parse({ ...legacy, automaticExecutionEnabled: true }));
+});
+test("source-build reader rejects links and mismatched real local artifact bytes before any scenario/process runs", async () => {
+  const { config } = fixture(),
+    root = await mkdtemp(join(tmpdir(), "hive-d10-source-test-"));
+  const scenarioName = `source_${randomUUID().replaceAll("-", "")}.mjs`,
+    scenarioPath = `scripts/release/compatibility/${scenarioName}`;
+  const scenario = Buffer.from("throw Error('Scenario must not run for changed artifacts');\n"),
+    files = new Map([
+      ["app/worker.js", Buffer.from("throw Error('Never import candidate in trusted Node');")],
+    ]);
+  await mkdir("scripts/release/compatibility", { recursive: true });
+  await writeFile(scenarioPath, scenario);
+  try {
+    const bound = {
+      ...config,
+      scenarioPath,
+      scenarioDigest: createHash("sha256").update(scenario).digest("hex"),
+      oldAppDigest: artifactDigest(files, "app"),
+    };
+    await mkdir(join(root, "old"));
+    await mkdir(join(root, "new"));
+    await writeFile(join(root, "old", "release.tar"), await packReleaseArtifact(files));
+    await symlink(join(root, "old", "release.tar"), join(root, "new", "release.tar"));
+    await assert.rejects(
+      runSourceBuildCompatibility(bound, { artifactDirectory: root }),
+      /artifact_path/,
+    );
+    await rm(join(root, "new", "release.tar"));
+    await writeFile(join(root, "new", "release.tar"), await packReleaseArtifact(files));
+    await assert.rejects(
+      runSourceBuildCompatibility(bound, { artifactDirectory: root }),
+      /artifact_changed/,
+    );
+    await assert.rejects(
+      runSourceBuildCompatibility(
+        { ...bound, scenarioDigest: hash("f") },
+        { artifactDirectory: root },
+      ),
+      /scenario_changed/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(scenarioPath, { force: true });
+  }
+});
+
+test("actual single-Worker local artifacts preserve both versions and assets against isolated PostgreSQL", {
+  skip: !process.env.HIVE_D10_SOURCE_BUILD_TEST_DATABASE_URL,
+  timeout: 120000,
+}, async () => {
+  const { config } = fixture(),
+    root = await mkdtemp(join(tmpdir(), "hive-d10-source-live-test-"));
+  const scenarioPath = `scripts/release/compatibility/source_live_${randomUUID().replaceAll("-", "")}.mjs`;
+  const scenario = Buffer.from(`import {execFileSync} from 'node:child_process';
+const sql=(statement)=>execFileSync('/usr/bin/psql',[process.env.DATABASE_URL,'-X','-v','ON_ERROR_STOP=1','-c',statement],{stdio:'ignore'});
+if(process.argv[2]==='prepare') sql("CREATE TABLE source_build_fixture (id int primary key, value text, added text); INSERT INTO source_build_fixture VALUES (1,'baseline','expanded')");
+else { for(const [origin,version] of [[process.env.HIVE_OLD_APP,'old'],[process.env.HIVE_NEW_APP,'new']]) { const r=await fetch(origin+'/version'); if(await r.text()!==version) throw Error('wrong local version'); const asset=await fetch(origin+'/proof.txt'); if(await asset.text()!=='asset-'+version) throw Error('missing local assets'); } sql("DO $$ BEGIN IF (SELECT count(*) FROM source_build_fixture WHERE value='baseline' AND added='expanded')<>1 THEN RAISE EXCEPTION 'invariant failed'; END IF; END $$"); }
+`);
+  const artifact = async (version) => {
+    const files = new Map([
+      [
+        "app/worker.js",
+        Buffer.from(
+          `export default {fetch(request,env){return new URL(request.url).pathname==='/version'?new Response('${version}'):env.ASSETS.fetch(request)}};`,
+        ),
+      ],
+      ["assets/proof.txt", Buffer.from(`asset-${version}`)],
+    ]);
+    return { bytes: await packReleaseArtifact(files), digest: artifactDigest(files, "app") };
+  };
+  await mkdir("scripts/release/compatibility", { recursive: true });
+  await writeFile(scenarioPath, scenario);
+  try {
+    const old = await artifact("old"),
+      next = await artifact("new");
+    for (const [label, archive] of [
+      ["old", old],
+      ["new", next],
+    ]) {
+      await mkdir(join(root, label));
+      await writeFile(join(root, label, "release.tar"), archive.bytes);
+    }
+    const actual = {
+      ...config,
+      oldAppDigest: old.digest,
+      newAppDigest: next.digest,
+      scenarioPath,
+      scenarioDigest: createHash("sha256").update(scenario).digest("hex"),
+    };
+    const result = await runSourceBuildCompatibility(actual, {
+      artifactDirectory: root,
+      fixtureDatabaseUrl: process.env.HIVE_D10_SOURCE_BUILD_TEST_DATABASE_URL,
+    });
+    assert.equal(result.kind, "automatic-source-build");
+    assert.equal(result.oldAppDigest, old.digest);
+    assert.equal(result.newAppDigest, next.digest);
+    assert.deepEqual(result.sourceBuild, {
+      baseline: actual.baseline,
+      candidate: actual.candidate,
+      artifactMeaning: "local-compatibility-test",
+    });
+    assert.equal(result.catalogDigest, digest(actual));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(scenarioPath, { force: true });
+  }
+});

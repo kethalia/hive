@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { artifactDigest, readReleaseArtifact } from "../../../../scripts/release/artifact.mjs";
 import { digest, requireValue } from "./contracts.mjs";
-import { workerdCompatibilitySchema } from "./wire.mjs";
+import { sourceBuildCompatibilitySchema, workerdCompatibilitySchema } from "./wire.mjs";
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 async function download(url, fetcher) {
@@ -62,8 +62,14 @@ async function ready(child, text) {
 }
 /** The only executable scenario is pinned in the reviewed workflow checkout.
  * Candidate release archives are data until loaded inside workerd. */
-export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDatabaseUrl } = {}) {
-  const config = workerdCompatibilitySchema.parse(raw);
+export async function runWorkerdCompatibility(
+  raw,
+  { fetcher = fetch, fixtureDatabaseUrl, sourceArtifacts } = {},
+) {
+  const single = raw?.kind === "automatic-source-build";
+  const config = single
+    ? sourceBuildCompatibilitySchema.parse(raw)
+    : workerdCompatibilitySchema.parse(raw);
   const root = await realpath(process.cwd()),
     scenario = await realpath(resolve(root, config.scenarioPath));
   requireValue(
@@ -71,15 +77,26 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
       sha256(await readFile(scenario)) === config.scenarioDigest,
     "migration_compatibility_scenario_changed",
   );
-  const [oldFiles, newFiles] = await Promise.all([
-    download(config.oldArtifactUrl, fetcher),
-    download(config.newArtifactUrl, fetcher),
-  ]);
+  const [oldFiles, newFiles] = single
+    ? await Promise.all(
+        ["old", "new"].map((name) => {
+          requireValue(
+            sourceArtifacts?.[name] instanceof Buffer,
+            "migration_source_artifacts_missing",
+          );
+          return readReleaseArtifact(sourceArtifacts[name], { topology: "single" });
+        }),
+      )
+    : await Promise.all([
+        download(config.oldArtifactUrl, fetcher),
+        download(config.newArtifactUrl, fetcher),
+      ]);
   requireValue(
     artifactDigest(oldFiles, "app") === config.oldAppDigest &&
       artifactDigest(newFiles, "app") === config.newAppDigest &&
-      artifactDigest(oldFiles, "auth") === config.oldAuthDigest &&
-      artifactDigest(newFiles, "auth") === config.newAuthDigest,
+      (single ||
+        (artifactDigest(oldFiles, "auth") === config.oldAuthDigest &&
+          artifactDigest(newFiles, "auth") === config.newAuthDigest)),
     "migration_compatibility_artifact_changed",
   );
   const directory = await mkdtemp(join(tmpdir(), "hive-d10-workerd-")),
@@ -104,7 +121,8 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
     if (fixtureDatabaseUrl) {
       const u = new URL(fixtureDatabaseUrl);
       requireValue(
-        ["localhost", "127.0.0.1"].includes(u.hostname) && u.pathname === "/hive_d10_test",
+        ["localhost", "127.0.0.1"].includes(u.hostname) &&
+          /^\/hive_d10_test(?:_[a-z0-9_]+)?$/.test(u.pathname),
         "migration_compatibility_fixture_scope",
       );
       databaseUrl = fixtureDatabaseUrl;
@@ -184,17 +202,18 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
       const path = join(base, "wrangler.json"),
         authPath = join(base, "auth.json"),
         authName = `hive-d10-auth-${suffix}-${index}`;
-      await writeFile(
-        authPath,
-        JSON.stringify({
-          name: authName,
-          main: join(base, "auth/worker.js"),
-          compatibility_date: config.compatibilityDate,
-          compatibility_flags: ["nodejs_compat"],
-          no_bundle: true,
-          vars: { DATABASE_URL: databaseUrl },
-        }),
-      );
+      if (!single)
+        await writeFile(
+          authPath,
+          JSON.stringify({
+            name: authName,
+            main: join(base, "auth/worker.js"),
+            compatibility_date: config.compatibilityDate,
+            compatibility_flags: ["nodejs_compat"],
+            no_bundle: true,
+            vars: { DATABASE_URL: databaseUrl },
+          }),
+        );
       await writeFile(
         path,
         JSON.stringify({
@@ -204,7 +223,7 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
           compatibility_flags: ["nodejs_compat"],
           no_bundle: true,
           vars: { DATABASE_URL: databaseUrl },
-          services: [{ binding: "AUTH_SERVICE", service: authName }],
+          ...(single ? {} : { services: [{ binding: "AUTH_SERVICE", service: authName }] }),
           assets: { directory: join(base, "assets"), binding: "ASSETS", run_worker_first: true },
         }),
       );
@@ -216,8 +235,7 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
           "dev",
           "--config",
           path,
-          "--config",
-          authPath,
+          ...(!single ? ["--config", authPath] : []),
           "--ip",
           "127.0.0.1",
           "--port",
@@ -237,7 +255,17 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
     }
     scenarioRun("verify");
     return {
-      schemaVersion: 1,
+      schemaVersion: single ? 2 : 1,
+      ...(single
+        ? {
+            kind: "automatic-source-build",
+            sourceBuild: {
+              baseline: config.baseline,
+              candidate: config.candidate,
+              artifactMeaning: "local-compatibility-test",
+            },
+          }
+        : {}),
       catalogDigest: digest(config),
       planDigest: config.planDigest,
       sourceSha: config.sourceSha,

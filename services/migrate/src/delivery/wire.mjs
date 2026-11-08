@@ -62,9 +62,52 @@ export const workerdCompatibilitySchema = z
     compatibilityDate: z.string().regex(/^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/),
   })
   .strict();
+/** Local artifacts are compatibility-test data, never uploaded Worker versions.
+ * The baseline serving build and the independently tested candidate tree have
+ * separate identities; a future provider build UUID is never guessed. */
+export const sourceBuildCompatibilitySchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    kind: z.literal("automatic-source-build"),
+    catalogId: uuid,
+    planDigest: hash,
+    sourceSha: sha,
+    oldAppDigest: hash,
+    newAppDigest: hash,
+    compatibilityDigest: hash,
+    postgresImage: image,
+    baseline: z
+      .object({
+        sourceSha: sha,
+        treeSha: sha,
+        providerBuildUuid: uuid,
+        branch: z.literal("main"),
+      })
+      .strict(),
+    candidate: z
+      .object({
+        headSha: sha,
+        baseSha: sha,
+        mergeSha: sha,
+        treeSha: sha,
+        policyDigest: hash,
+        checksDigest: hash,
+        controlDigest: hash,
+      })
+      .strict(),
+    scenarioPath: z.string().regex(/^scripts\/release\/compatibility\/[A-Za-z0-9_-]+\.mjs$/),
+    scenarioDigest: hash,
+    compatibilityDate: z.string().regex(/^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.sourceSha !== v.candidate.headSha || v.baseline.sourceSha !== v.candidate.baseSha)
+      ctx.addIssue({ code: "custom", message: "Source-build compatibility tree mismatch" });
+  });
 export const compatibilityConfigSchema = z.union([
   containerCompatibilitySchema,
   workerdCompatibilitySchema,
+  sourceBuildCompatibilitySchema,
 ]);
 
 export const databaseCatalogSchema = z
@@ -94,6 +137,12 @@ export const databaseCatalogSchema = z
     authorityPublicKeyPem: z.string().min(40).max(4096),
     validFrom: stamp,
     expiresAt: stamp,
+    // This opt-in applies only to automatic source-build jobs; omitted is disabled.
+    automaticExecutionEnabled: z.boolean().optional(),
+    automaticPlan: z
+      .unknown()
+      .transform((v) => validatePlan(v))
+      .optional(),
     compatibilityTest: z
       .object({
         config: compatibilityConfigSchema,
@@ -108,7 +157,25 @@ export const databaseCatalogSchema = z
   .strict()
   .refine(
     (v) => v.expiresAt > v.validFrom && !v.branchRef.includes("..") && !v.branchRef.includes("//"),
-  );
+  )
+  .superRefine((v, ctx) => {
+    const config = v.compatibilityTest?.config;
+    if (config?.kind === "automatic-source-build") {
+      const plan = v.automaticPlan;
+      if (
+        !plan ||
+        config.catalogId !== v.id ||
+        config.planDigest !== digest(plan) ||
+        config.sourceSha !== plan.sourceSha ||
+        config.oldAppDigest !== plan.oldAppDigest ||
+        config.newAppDigest !== plan.newAppDigest ||
+        config.compatibilityDigest !== plan.compatibilityDigest
+      )
+        ctx.addIssue({ code: "custom", message: "Automatic plan intent mismatch" });
+    } else if (v.automaticPlan !== undefined || v.automaticExecutionEnabled !== undefined) {
+      ctx.addIssue({ code: "custom", message: "Automatic options require source-build mode" });
+    }
+  });
 const common = {
   schemaVersion: z.literal(1),
   catalogId: uuid,
@@ -117,6 +184,8 @@ const common = {
   sourceSha: sha,
   githubRunId: provider,
   githubRunAttempt: z.number().int().positive().safe(),
+  // Present only for journaled automatic jobs; legacy workload receipts stay byte-compatible.
+  dispatchId: uuid.optional(),
 };
 export const databasePlanApprovalSchema = z
   .object({
