@@ -43,6 +43,13 @@ export async function reconcileEpicStart(
       JOIN delivery_tasks t ON t.owner_id=p.owner_id AND t.id=p.authored_by_task_id
       JOIN delivery_manager_bindings b ON b.owner_id=t.owner_id AND b.id=t.manager_binding_id
       WHERE NOT t.pause_requested AND NOT t.scheduling_paused
+        AND EXISTS (
+          SELECT 1 FROM jsonb_to_recordset(${JSON.stringify(policy.workspaces)}::jsonb)
+            AS enrollment("ownerId" uuid,"workspaceId" uuid,"buildId" uuid,"validUntil" bigint)
+          WHERE enrollment."ownerId"=h.owner_id AND enrollment."workspaceId"=b.workspace_id
+            AND enrollment."buildId"=b.build_id
+            AND enrollment."validUntil">extract(epoch FROM statement_timestamp())*1000
+        )
     ), ranked AS (
       SELECT *,row_number() OVER (ORDER BY epic_id)-1 AS position,count(*) OVER () AS total FROM eligible
     )

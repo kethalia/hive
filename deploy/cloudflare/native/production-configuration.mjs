@@ -103,6 +103,7 @@ const featureNames = [
   "HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED",
   "HIVE_TEMPLATE_NOTIFICATION_DISPATCH_ENABLED",
   "HIVE_TEMPLATE_PUBLICATION_ENABLED",
+  "HIVE_TEMPLATE_LOG_VIEW_ENABLED",
   "HIVE_DELIVERY_RELEASE_SCHEDULER_ENABLED",
 ];
 const fixedPublic = {
@@ -236,19 +237,25 @@ export function validateManagedProductionConfiguration(configuration, mode, conf
     "ENCRYPTION_KEY",
     "HIVE_CODER_OAUTH_CLIENT_SECRET",
   ];
-  const optionalIssuers = [
+  const optionalSecrets = [
     "HIVE_CODEX_ISSUER_PRIVATE_KEY",
     "HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY",
     "HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY",
     "HIVE_VOICE_ISSUER_PRIVATE_KEY",
+    "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+    "HIVE_DELIVERY_DATABASE_SIGNING_KEY",
   ];
   assert.ok(Array.isArray(configuration.secretNames));
   assert.equal(new Set(configuration.secretNames).size, configuration.secretNames.length);
   for (const name of configuration.secretNames)
     assert.ok(
-      secrets.includes(name) || (mode === "ongoing-main" && optionalIssuers.includes(name)),
+      secrets.includes(name) || (mode === "ongoing-main" && optionalSecrets.includes(name)),
     );
   for (const name of secrets) assert.ok(configuration.secretNames.includes(name));
+  if (configuration.vars.HIVE_DELIVERY_DATABASE_ENABLED === "true")
+    assert.ok(configuration.secretNames.includes("HIVE_DELIVERY_DATABASE_SIGNING_KEY"));
+  if (configuration.vars.HIVE_PROJECT_TASKS_ENABLED === "true")
+    assert.ok(configuration.secretNames.includes("HIVE_PROJECT_TASK_RECONCILE_SECRET"));
   if (configuration.vars.HIVE_CODEX_GATEWAY_ENABLED === "true")
     assert.ok(configuration.secretNames.includes("HIVE_CODEX_ISSUER_PRIVATE_KEY"));
   const shared = configuration.vars.HIVE_WORKSPACE_ISSUER_MODE === "shared-host";
