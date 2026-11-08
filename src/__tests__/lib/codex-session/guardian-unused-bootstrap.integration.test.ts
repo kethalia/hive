@@ -1,7 +1,10 @@
 import { createHash, generateKeyPairSync, type KeyObject, randomUUID, sign } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { PrismaClient } from "@hive/db";
 import { afterAll, describe, expect, it } from "vitest";
 import type { WorkspaceResource } from "@/lib/coder/types";
+import { lockAccountMaintenanceWorkspace } from "@/lib/codex-session/account-maintenance-store.server";
 import {
   expectedGuardianHostConfig,
   guardianConfigSha256,
@@ -321,6 +324,21 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
     expect(claims.emptyRoot.unusedBootstrapDigest).toBe(guardianDigest(f.proposal.unusedBootstrap));
     expect(await rows(f)).toHaveLength(1);
     expect(await db.codexGuardianEnrollmentGrant.count({ where: { ownerId: f.user.id } })).toBe(1);
+    expect((await rows(f))[0].unusedBootstrapPredecessorBuildId).toBe(
+      f.proposal.unusedBootstrap!.oldBuildId,
+    );
+    // Exercise the installed host's actual predicate used by
+    // resumeAccountMaintenance(ownerIntentRuntimeId), not a copied regex.
+    const source = readFileSync(
+      "templates/ai-dev-k8s/scripts/codex-project-controller.mjs",
+      "utf8",
+    );
+    const predicate = source.match(/const uuid = ([\s\S]*?);/);
+    expect(predicate).not.toBeNull();
+    const hostUuid = runInNewContext(`(${predicate![1]})`) as (v: string) => boolean;
+    expect(f.runtimeId[14]).toBe("5");
+    expect(hostUuid(f.runtimeId)).toBe(true);
+    expect(hostUuid(`${f.runtimeId.slice(0, 14)}8${f.runtimeId.slice(15)}`)).toBe(false);
   });
 
   it("replays the exact original grant after mapping before enrollment acknowledgement", async () => {
@@ -417,6 +435,7 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
         { ...f.binding, projects: [] },
         f.identity,
         "c".repeat(64),
+        f.proposal.unusedBootstrap!.oldBuildId,
         Date.now(),
         () => {
           throw Error("fixture signing failure");
@@ -436,7 +455,12 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
       expectedConfigSha256: () => f.identity.configSha256,
     });
     await oldStore.reserveRuntime(
-      { ...f.binding, agentId: randomUUID(), projects: [] },
+      {
+        ...f.binding,
+        buildId: f.proposal.unusedBootstrap!.oldBuildId,
+        agentId: randomUUID(),
+        projects: [],
+      },
       { ...f.identity, lifetimeId: randomUUID() },
     );
     await expect(provision(f)).rejects.toThrow();
@@ -448,7 +472,12 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
     const f = await fixture(undefined, undefined, undefined, { unusedBootstrap: true });
     await new PrismaRegistrationStore(db).reserve({
       grantId: randomUUID(),
-      binding: { ...f.binding, agentId: randomUUID(), projects: [] },
+      binding: {
+        ...f.binding,
+        buildId: f.proposal.unusedBootstrap!.oldBuildId,
+        agentId: randomUUID(),
+        projects: [],
+      },
       expiresAt: Math.floor(Date.now() / 1000) + 30,
     });
     await expect(provision(f)).rejects.toThrow();
@@ -474,6 +503,7 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
         { ...f.binding, agentId: randomUUID(), projects: [] },
         { ...f.identity, lifetimeId: randomUUID() },
         c.repeat(64),
+        f.proposal.unusedBootstrap!.oldBuildId,
         Date.now(),
         signGrant,
       ),
@@ -485,6 +515,244 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
     ).toHaveLength(1);
     expect(await rows(f)).toHaveLength(1);
     expect(await db.codexGuardianEnrollmentGrant.count({ where: { ownerId: f.user.id } })).toBe(1);
+  });
+
+  const ordinaryStore = (f: Awaited<ReturnType<typeof fixture>>) =>
+    new GuardianAdmissionStore(db, {
+      policy: f.policy,
+      encryptionKey: "19".repeat(32),
+      expectedConfigSha256: () => f.identity.configSha256,
+    });
+  const reserveOther = (
+    f: Awaited<ReturnType<typeof fixture>>,
+    kind: "guardian" | "legacy",
+    buildId = f.proposal.unusedBootstrap!.oldBuildId,
+    workspaceId = f.binding.workspaceId,
+  ) => {
+    const binding = { ...f.binding, buildId, workspaceId, agentId: randomUUID(), projects: [] };
+    return kind === "guardian"
+      ? ordinaryStore(f).reserveRuntime(binding, { ...f.identity, lifetimeId: randomUUID() })
+      : new PrismaRegistrationStore(db).reserve({
+          grantId: randomUUID(),
+          binding,
+          expiresAt: Math.floor(Date.now() / 1000) + 30,
+        });
+  };
+
+  it("allows the successor's ordinary runtime replay and native registration on its current agent slot", async () => {
+    const f = await fixture(undefined, undefined, undefined, { unusedBootstrap: true });
+    await provision(f);
+    const binding = { ...f.binding, projects: [] };
+    await expect(ordinaryStore(f).reserveRuntime(binding, f.identity)).resolves.toMatchObject({
+      id: f.runtimeId,
+      phase: "open",
+    });
+    await expect(
+      new PrismaRegistrationStore(db).reserve({
+        grantId: randomUUID(),
+        binding,
+        expiresAt: Math.floor(Date.now() / 1000) + 30,
+      }),
+    ).resolves.toBe(1);
+  });
+
+  for (const kind of ["guardian", "legacy"] as const) {
+    it(`fences a delayed ${kind} predecessor across slots while allowing current and later builds`, async () => {
+      const f = await fixture(undefined, undefined, undefined, { unusedBootstrap: true });
+      await provision(f);
+      const slots = await db.codexHostSlot.count({ where: { ownerId: f.user.id } });
+      await expect(reserveOther(f, kind)).rejects.toThrow();
+      expect(await db.codexHostSlot.count({ where: { ownerId: f.user.id } })).toBe(slots);
+      await expect(reserveOther(f, kind, f.binding.buildId)).resolves.toBeDefined();
+      await expect(reserveOther(f, kind, randomUUID())).resolves.toBeDefined();
+      await expect(
+        reserveOther(f, kind, f.proposal.unusedBootstrap!.oldBuildId, randomUUID()),
+      ).resolves.toBeDefined();
+    });
+
+    for (const first of ["unused", "predecessor"] as const)
+      it(`serializes queued ${kind} contenders with ${first} first, including snapshots taken before the lock`, async () => {
+        const f = await fixture(undefined, undefined, undefined, { unusedBootstrap: true });
+        let acquired!: () => void,
+          release!: () => void,
+          blockerPid = 0;
+        const ready = new Promise<void>((resolve) => {
+          acquired = resolve;
+        });
+        const unlock = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const blocker = db.$transaction(
+          async (tx) => {
+            await lockAccountMaintenanceWorkspace(tx, f.binding);
+            blockerPid = (await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`)[0]
+              .pid;
+            acquired();
+            await unlock;
+          },
+          { timeout: 10000 },
+        );
+        const waiters = async (count: number) => {
+          const until = Date.now() + 5000;
+          while (Date.now() < until) {
+            // Count this exact advisory lock's queued sessions, never another fixture.
+            const rows = await db.$queryRaw<{ count: bigint }[]>`
+            SELECT count(*) AS count FROM pg_locks w JOIN pg_locks b
+            ON w.locktype=b.locktype AND w.database=b.database
+              AND w.classid=b.classid AND w.objid=b.objid AND w.objsubid=b.objsubid
+            WHERE b.pid=${blockerPid} AND b.locktype='advisory' AND b.granted AND NOT w.granted`;
+            if (Number(rows[0].count) >= count) return;
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+          throw Error("fixture contenders did not wait on the workspace lock");
+        };
+        let pending!: Promise<PromiseSettledResult<unknown>[]>;
+        try {
+          await ready;
+          const a = first === "unused" ? provision(f) : reserveOther(f, kind);
+          // Attach handlers immediately; a failure must not become unhandled.
+          const aResult = Promise.allSettled([a]);
+          await waiters(1);
+          const b = first === "unused" ? reserveOther(f, kind) : provision(f);
+          pending = Promise.allSettled([b]).then(async (bResult) => {
+            const [one] = await aResult;
+            return first === "unused" ? [one, ...bResult] : [...bResult, one];
+          });
+          await waiters(2);
+        } finally {
+          release();
+          await blocker;
+        }
+        const results = await pending;
+        expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+        if (results[0].status === "fulfilled") {
+          expect(await rows(f)).toHaveLength(1);
+          expect(await db.codexRegistrationGrant.count({ where: { ownerId: f.user.id } })).toBe(0);
+          await expect(reserveOther(f, kind)).rejects.toThrow();
+        } else {
+          expect(
+            await db.codexGuardianEnrollmentGrant.count({ where: { ownerId: f.user.id } }),
+          ).toBe(0);
+          await expect(provision(f)).rejects.toThrow();
+        }
+      });
+  }
+
+  it("retains the exact predecessor fence after normal tree closure without fabricating retirement", async () => {
+    const f = await fixture(undefined, undefined, undefined, { unusedBootstrap: true });
+    await provision(f);
+    const runtime = (await rows(f))[0],
+      barrierId = randomUUID(),
+      ownershipDigest = "b".repeat(64);
+    const closed = await f.service.store.closeBarrier({
+      ownerId: f.user.id,
+      runtimeId: runtime.id,
+      runtimeGeneration: 1,
+      barrierId,
+      ownershipDigest,
+      projectBindings: [],
+      snapshots: [],
+    });
+    await f.service.store.closeTree({
+      ownerId: f.user.id,
+      runtimeId: runtime.id,
+      runtimeGeneration: closed.runtimeGeneration,
+      barrierId,
+      receipt: {
+        schemaVersion: 1,
+        scope: "managed_native_tree_only",
+        cleanupAuthorized: false,
+        guardianExited: true,
+        receiptId: randomUUID(),
+        lifetimeId: runtime.lifetimeId,
+        bindingDigest: runtime.bindingDigest,
+        ownershipDigest,
+        projects: [],
+        launchSetDigest: "a".repeat(64),
+        guardianSha256: runtime.guardianElfSha256,
+        guardianIdentity: {
+          pid: 100,
+          startTime: "100",
+          bootId: randomUUID(),
+          executable: "/fixture/guardian",
+          device: "1",
+          inode: "2",
+        },
+        generation: closed.runtimeGeneration,
+        closedRequestId: 3,
+        drainRequestId: 4,
+        finalWaitResult: "ECHILD",
+        waitFlags: "__WALL",
+        reaped: 2,
+        decisions: [],
+        workerBarrier: {
+          closed: true,
+          lifetimeId: runtime.lifetimeId,
+          generation: 1,
+          ownershipDigest,
+          barrierId,
+        },
+        workerPid: 101,
+        packageManifestSha256: runtime.packageManifestSha256,
+        workerSha256: "b".repeat(64),
+        nodeSha256: runtime.nodeSha256,
+      },
+    });
+    expect((await rows(f))[0].phase).toBe("tree_closed");
+    for (const kind of ["guardian", "legacy"] as const) {
+      await expect(reserveOther(f, kind)).rejects.toThrow();
+      await expect(reserveOther(f, kind, randomUUID())).resolves.toBeDefined();
+    }
+    expect(
+      await db.codexGuardianOperationReceipt.count({
+        where: { ownerId: f.user.id, action: "authorization_retired" },
+      }),
+    ).toBe(0);
+  });
+
+  it("makes the recorded predecessor immutable and rejects changed predecessor replay", async () => {
+    const f = await fixture(
+      undefined,
+      async () => {
+        throw Error("transport lost");
+      },
+      undefined,
+      { unusedBootstrap: true },
+    );
+    await expect(provision(f)).rejects.toThrow();
+    const runtime = (await rows(f))[0];
+    await expect(
+      db.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: { unusedBootstrapPredecessorBuildId: null },
+      }),
+    ).rejects.toThrow();
+    const original = f.proposal.unusedBootstrap!.oldBuildId;
+    f.proposal.unusedBootstrap!.oldBuildId = randomUUID();
+    await expect(provision(f)).rejects.toThrow();
+    expect((await rows(f))[0].unusedBootstrapPredecessorBuildId).toBe(original);
+    expect(await db.codexGuardianEnrollmentGrant.count({ where: { runtimeId: runtime.id } })).toBe(
+      1,
+    );
+  });
+
+  it("does not fence any build when the atomic grant transaction rolls back", async () => {
+    const f = await fixture(undefined, undefined, undefined, { unusedBootstrap: true });
+    await expect(
+      f.service.store.reserveUnusedBootstrap(
+        { ...f.binding, projects: [] },
+        f.identity,
+        "c".repeat(64),
+        f.proposal.unusedBootstrap!.oldBuildId,
+        Date.now(),
+        () => {
+          throw Error("sign failed");
+        },
+      ),
+    ).rejects.toThrow("sign failed");
+    expect(await rows(f)).toHaveLength(0);
+    await expect(reserveOther(f, "guardian")).resolves.toBeDefined();
+    await expect(reserveOther(f, "legacy")).resolves.toBeDefined();
   });
 
   it("holds an expired reserved grant without renewing its deadline", async () => {
@@ -501,6 +769,7 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
       binding,
       f.identity,
       "7".repeat(64),
+      f.proposal.unusedBootstrap!.oldBuildId,
       Math.floor(Date.now() / 1000) * 1000 - 28000,
       signer,
     );
@@ -515,6 +784,7 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
         binding,
         f.identity,
         "7".repeat(64),
+        f.proposal.unusedBootstrap!.oldBuildId,
         Date.now(),
         signer,
       ),

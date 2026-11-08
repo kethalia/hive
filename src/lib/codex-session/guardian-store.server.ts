@@ -61,6 +61,7 @@ import type {
 } from "./guardian-transport-contracts";
 import type { GuardianUnstartedTransfer } from "./guardian-unstarted-contracts";
 import { retireUnstartedAuthorization } from "./guardian-unstarted-store.server";
+import { isUnusedBootstrapPredecessor } from "./guardian-unused-bootstrap-store.server";
 import type { RegistrationBinding } from "./registration.server";
 import { lockActiveRegistration, RegistrationRejected } from "./registration-store.server";
 
@@ -589,6 +590,7 @@ export class GuardianAdmissionStore {
           kind: "enroll",
           empty: binding.projects.length === 0,
         });
+        requireGuardian(!(await isUnusedBootstrapPredecessor(tx, binding)));
         requireGuardian(!continuation || unstartedTransfer);
         if (unstartedTransfer)
           await retireUnstartedAuthorization(tx, {
@@ -705,6 +707,7 @@ export class GuardianAdmissionStore {
     binding: RegistrationBinding,
     identity: GuardianRuntimeIdentity,
     semanticDigest: string,
+    predecessorBuildId: string,
     observedAt: number,
     signGrant: (
       runtime: CodexGuardianRuntime,
@@ -716,15 +719,22 @@ export class GuardianAdmissionStore {
   ) {
     requireGuardian(
       /^[a-f0-9]{64}$/.test(semanticDigest) &&
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
+          predecessorBuildId,
+        ) &&
+        predecessorBuildId !== binding.buildId &&
         this.options.policy.enabled &&
         identity.configSha256 === this.options.expectedConfigSha256(binding),
     );
-    const bytes = createHash("sha256")
+    // RFC 9562 UUIDv5: DNS namespace plus a purpose-bound, canonical SHA-256
+    // name. Existing host maintenance accepts UUID versions 1–5.
+    const bytes = createHash("sha1")
+      .update(Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex"))
       .update("hive-unused-bootstrap-reservation-v1\n")
-      .update(guardianDigest({ binding, identity, semanticDigest }))
+      .update(guardianDigest({ binding, identity, semanticDigest, predecessorBuildId }))
       .digest()
       .subarray(0, 16);
-    bytes[6] = (bytes[6] & 15) | 0x80;
+    bytes[6] = (bytes[6] & 15) | 0x50;
     bytes[8] = (bytes[8] & 63) | 0x80;
     const hex = bytes.toString("hex"),
       id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
@@ -772,6 +782,7 @@ export class GuardianAdmissionStore {
           Object.entries(identity).every(
             ([k, v]) => runtime[k as keyof CodexGuardianRuntime] === v,
           ) &&
+            runtime.unusedBootstrapPredecessorBuildId === predecessorBuildId &&
             guardianDigest(runtime.binding) === guardianDigest(binding) &&
             runtime.outerKeyFingerprint === fingerprint(identity.outerPublicKeyPem) &&
             ["reserved", "open"].includes(runtime.phase) &&
@@ -814,6 +825,7 @@ export class GuardianAdmissionStore {
         runtime = await tx.codexGuardianRuntime.create({
           data: {
             id,
+            unusedBootstrapPredecessorBuildId: predecessorBuildId,
             ownerId: binding.hiveUserId,
             slotId: slot.id,
             ...identity,

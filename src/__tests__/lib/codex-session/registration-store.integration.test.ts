@@ -20,7 +20,7 @@ if (url) {
   const u = new URL(url);
   if (
     !["127.0.0.1", "localhost", "[::1]"].includes(u.hostname) ||
-    u.pathname !== "/hive_delivery_test"
+    !["/hive_delivery_test", "/hive_unused_bootstrap_test"].includes(u.pathname)
   )
     throw new Error("Isolated fixture only");
 }

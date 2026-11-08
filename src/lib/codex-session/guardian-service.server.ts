@@ -557,6 +557,7 @@ export class GuardianService {
         this.workspace(binding),
         packet.identity,
         semanticDigest,
+        source.oldBuildId,
         volume.observedAt,
         (runtime, saved) => {
           const claims = guardianEnrollmentClaimsSchema.parse({
