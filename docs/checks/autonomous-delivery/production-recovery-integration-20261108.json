@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T01:05:49.317058+00:00",
+  "scope": "combined source and native package validation; no live deployment",
+  "sourceMerge": "0eca85746c381036454bfc520b4e69bb6d3c64b3",
+  "parents": [
+    "1cb54e577579d1ef61b5494f529d8e44713521ad",
+    "99ec8ee3559e484f97b056ba23c999b19d1abd1d"
+  ],
+  "historyPreserved": true,
+  "localBranchMergeOrRewrite": false,
+  "controllerMirrorsByteIdentical": true,
+  "archive": {
+    "compressedBytes": 186724,
+    "compressedSha256": "9e3a0d55e88ad6fadf61318bd9c647ebd0e2c2c1b04046a2b0def47ff0888ec1",
+    "rawSha256": "53ed525015dd1d99e2f98ca789b3e6e8ec32266e2fae2efdaf2605632b788213"
+  },
+  "checks": {
+    "nodeCases": 173,
+    "passed": 172,
+    "existingOptInSkipped": 1,
+    "templateDeterminism": true,
+    "whitespace": true
+  },
+  "liveModelInference": false,
+  "sourceReviewAndCIStillRequired": true,
+  "productionActivationAuthorized": false,
+  "runtimeProviderMutations": 0,
+  "githubSourceObjectsCreated": true,
+  "previousSourceMerge": "d7512b2bad49a2e85408d3f063e758c6fc2a925d"
+}

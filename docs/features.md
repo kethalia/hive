@@ -4,6 +4,27 @@ This is the product inventory for the general Hive workspace. Update this docume
 corresponding regression coverage whenever a feature changes or moves. Historical screenshots in
 `docs/checks/` are evidence for their recorded versions, not the current product specification.
 
+## Autonomous delivery candidate
+
+The `codex/delivery-system-design` epic is still in development. The table below describes
+its scoped candidate evidence, not a released production capability. Default-off execution
+switches and owner cutover approval remain in force. The [execution ledger](checks/autonomous-delivery/progress.md)
+records exact revisions, proofs and remaining gates.
+
+| Candidate feature | Verified scope | Remaining acceptance |
+| --- | --- | --- |
+| Fixed-host Coder OAuth | Real Preview consent, refresh, disconnect and same-owner reconnect against the configured Coder instance; no host/password form. | Production enrollment activation, historical session/key continuity and production login. |
+| GitHub projects | Real Preview repository discovery/search and stable enrollment without cloning on open. | First-task preparation and execution through the deployed app. |
+| Conversation and Terminal | One native Codex session with event transport, history/reconnect and bounded real-account delegation proofs. | Browser Phase B on the real managed delivery thread. |
+| Delivery window | Durable tasks/steps/reports, owner scheduling controls and manager navigation pass local database/UI checks. Reported outcomes remain separate from verified acceptance. | Deployed task progression and exact report/navigation checks. |
+| Independent acceptance | Current-source, owner/policy and native-writer fences pass composed PostgreSQL/native checks, including bounded repair. | Installed real-account completion; production semantics after approved activation. |
+| Epic and release progression | Preview integration is merged into the epic. Automatic connected Builds observation and independent production semantics are implemented under review. | Real multi-task epic, production timing fixes, controlled database-job integration and cutover approval. |
+| In-app Codex/Claude accounts | Official CLI-backed cards, signed transport and credential exclusion pass focused checks. | Final packaging, graceful maintenance/resume for unfinished tasks, real provider/browser completion. |
+| Cloudflare deployment | Existing single `hive` Worker and connected epic Preview builds; isolated Neon schema upgraded without changing production. | Browser-independent wake/background parity, migration/recovery and production cutover. |
+
+Production pilots and observation happen after the owner's merge/cutover approval. Neither
+a passing unit test nor a successful Preview build closes those production criteria.
+
 ## Workspace and windows
 
 | Feature | Current behavior | Implementation / coverage |

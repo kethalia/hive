@@ -12,7 +12,10 @@ const source = await readFile("templates/ai-dev-k8s/scripts/agent-tools.py"),
 await writeFile(helper, source, { mode: 0o600 });
 const notificationAssets = new Map([
   ["agent-tools.py", source],
+  ["codex-account.mjs", Buffer.from("// pinned test account module\n")],
   ["agent-host.mjs", await readFile("scripts/agent-bridge/host.mjs")],
+  ["claude-account.mjs", Buffer.from("// pinned Claude fixture\n")],
+  ["claude-account-driver.py", Buffer.from("# pinned Claude driver fixture\n")],
   ["agent-start.mjs", await readFile("scripts/agent-bridge/start.mjs")],
   ["notifications-install.py", await readFile("scripts/notifications/install.py")],
   ["notifications-hook.py", await readFile("scripts/notifications/agent-hook.py")],
@@ -62,8 +65,59 @@ const hostConfig = {
   manifestSha256: sha(manifestBytes),
   helperSha256: sha(source),
 };
+let claudeSignedIn = false;
 const bridge = createAgentBridge(hostConfig, {
   helperPath: helper,
+  claudeAccounts: {
+    async open(_home, _fd, notify) {
+      return {
+        async call(method) {
+          if (method === "account/read")
+            return { account: claudeSignedIn ? { type: "claude" } : null };
+          if (method === "account/login/start")
+            return {
+              type: "claudeCli",
+              loginId: "workerd-cli",
+              verificationUrl: "https://claude.com/cai/oauth/authorize?state=fixture",
+            };
+          if (method === "account/login/submitCode") {
+            claudeSignedIn = true;
+            notify({
+              method: "account/login/completed",
+              params: { loginId: "workerd-cli", success: true },
+            });
+            return { accepted: true };
+          }
+          if (method === "account/login/cancel") return { status: "canceled" };
+          if (method === "account/logout") {
+            claudeSignedIn = false;
+            return {};
+          }
+          throw Error();
+        },
+        async close() {},
+      };
+    },
+  },
+  accounts: {
+    async open() {
+      return {
+        async call(method) {
+          if (method === "account/read") return { account: null };
+          if (method === "account/login/start")
+            return {
+              type: "chatgptDeviceCode",
+              loginId: "workerd-owned-login",
+              verificationUrl: "https://auth.openai.com/codex/device",
+              userCode: "TEST-ONLY",
+            };
+          if (method === "account/login/cancel") return { status: "canceled" };
+          throw Error();
+        },
+        async close() {},
+      };
+    },
+  },
   environment: {
     CODEX_HOME: join(root, "custom-codex"),
     CLAUDE_CONFIG_DIR: join(root, "custom-claude"),
@@ -113,6 +167,7 @@ const child = spawn(
   ],
   { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, WRANGLER_SEND_METRICS: "false" } },
 );
+const exited = new Promise((resolve) => child.once("close", resolve));
 let log = "";
 for (const stream of [child.stdout, child.stderr])
   stream.on("data", (data) => {
@@ -137,7 +192,9 @@ try {
     JSON.parse(body).sessions.length !== 0 ||
     JSON.parse(body).workspaceReads < 12 ||
     JSON.parse(body).notificationInstalled !== true ||
-    JSON.parse(body).notificationReplay !== true
+    JSON.parse(body).notificationReplay !== true ||
+    JSON.parse(body).codexAccountFenced !== true ||
+    JSON.parse(body).claudeAccountFenced !== true
   )
     throw new Error(`proof failed ${response.status}: ${body.slice(0, 400)}`);
   const hooks = JSON.parse(await readFile(join(root, "custom-codex/hooks.json"), "utf8"));
@@ -153,17 +210,22 @@ try {
   const changed = await (await fetch("http://127.0.0.1:18944/changed-build")).json();
   if (!changed.rejected || changed.code !== "outcome_unknown" || changed.appCalls !== 4)
     throw new Error("changed build proof failed");
-  const output = resolve("docs/checks/autonomous-delivery/agent-notification-installer-local");
+  const output = resolve("docs/checks/autonomous-delivery/codex-account-local");
   await mkdir(output, { recursive: true });
   await writeFile(
     join(output, "bridge-workerd.json"),
-    `${JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(), localOnly: true, scope: "actual Workerd service/client + local signed host + pinned Python notification installer; synthetic provider reader/cookie exchange", checks: { notificationInstalled: JSON.parse(body).notificationInstalled, notificationReplay: JSON.parse(body).notificationReplay, customConfigPreserved: true, wrongOwnerRejected: denied.rejected, changedBuildUncertain: changed.code === "outcome_unknown" }, realProviderRequests: 0, liveCredentialsUsed: false }, null, 2)}\n`,
+    `${JSON.stringify({ schemaVersion: 1, observedAt: new Date().toISOString(), localOnly: true, scope: "actual Workerd service/client + local signed host + pinned Python notification installer; synthetic provider reader/cookie exchange", checks: { claudeAccountFenced: JSON.parse(body).claudeAccountFenced, codexAccountFenced: JSON.parse(body).codexAccountFenced, notificationInstalled: JSON.parse(body).notificationInstalled, notificationReplay: JSON.parse(body).notificationReplay, customConfigPreserved: true, wrongOwnerRejected: denied.rejected, changedBuildUncertain: changed.code === "outcome_unknown" }, realProviderRequests: 0, liveCredentialsUsed: false }, null, 2)}\n`,
   );
   process.stdout.write(
-    "workerd agent owner/build, scoped cookies, signed sessions, tracking and fixed notification installer with private receipt passed\n",
+    "workerd agent owner/build, scoped cookies, signed sessions, Codex/Claude account fences, tracking and fixed notification installer with private receipt passed\n",
   );
 } finally {
-  child.kill();
-  bridge.close();
+  if (child.exitCode === null && child.signalCode === null) {
+    child.kill();
+  }
+  const kill = setTimeout(() => child.kill("SIGKILL"), 3000);
+  await exited;
+  clearTimeout(kill);
+  await bridge.close();
   await rm(root, { recursive: true, force: true });
 }

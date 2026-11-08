@@ -1,5 +1,5 @@
 # Reusable workflow: an operator must pin this revision and enroll it on the controller.
-# Candidate code has no access to the attestor job's OIDC token or preview bearer.
+# Candidate code has no access to the attestor job's OIDC token.
 name: Controlled tested tree
 on:
   workflow_call:
@@ -16,9 +16,6 @@ on:
       managed-source-base:
         type: string
         default: ""
-    secrets:
-      HIVE_RELEASE_PREVIEW_BEARER:
-        required: false
 jobs:
   test:
     name: fixed-tested-tree
@@ -87,7 +84,6 @@ jobs:
         env:
           HIVE_TESTED_CANDIDATE_DIR: ${{ github.workspace }}/candidate
           HIVE_RELEASE_TESTED_CONFIG_JSON: ${{ inputs.attestation-config-json }}
-          HIVE_RELEASE_PREVIEW_BEARER: ${{ secrets.HIVE_RELEASE_PREVIEW_BEARER }}
           TRUSTED_REVISION: ${{ inputs.trusted-revision }}
           HIVE_TESTED_MANAGED_SOURCE_BASE: ${{ inputs.managed-source-base }}
         run: |

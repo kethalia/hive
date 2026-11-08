@@ -52,7 +52,7 @@ test("missing or changed framework action mappings fail the build closed", () =>
   assert.throws(() => portableActionManifest(invalidId));
 });
 
-test("reviewed read actions are portable while terminal mutation stays excluded", () => {
+test("reviewed reads and fixed terminal mutations are portable without arbitrary command actions", () => {
   const input = fixture();
   const reads = [
     "getWorkspaceSessionsAction",
@@ -61,20 +61,17 @@ test("reviewed read actions are portable while terminal mutation stays excluded"
   ];
   for (const [i, exportedName] of [...reads, "renameSessionAction", "killSessionAction"].entries())
     input.node[key(20 + i)] = { ...input.node[key(0)], exportedName };
+  input.node[key(29)] = { ...input.node[key(0)], exportedName: "executeCommandAction" };
   const output = portableActionManifest(input);
-  assert.equal(Object.keys(output.actions).length, 9);
-  for (const name of reads)
+  assert.equal(Object.keys(output.actions).length, 11);
+  for (const name of [...reads, "renameSessionAction", "killSessionAction"])
     assert.ok(Object.values(output.actions).some((v) => v.exportedName === name));
   for (const action of Object.values(output.actions))
     assert.equal(
       action.maxBodyBytes,
       action.exportedName === "getExistingTerminalPathsAction" ? 786432 : 65536,
     );
-  assert.ok(
-    !Object.values(output.actions).some(
-      (v) => v.exportedName === "killSessionAction" || v.exportedName === "renameSessionAction",
-    ),
-  );
+  assert.ok(!Object.values(output.actions).some((v) => v.exportedName === "executeCommandAction"));
 });
 
 test("only the two reviewed agent mutation actions become portable", () => {

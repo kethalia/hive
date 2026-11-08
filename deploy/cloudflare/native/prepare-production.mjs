@@ -8,7 +8,8 @@ import { isIP } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { assertBuildReady, READY_FILE } from "../app/build-integrity.mjs";
-import { account, validateConfig } from "./deploy.mjs";
+import { validateConfig } from "./deploy.mjs";
+import { account, createProductionConfiguration } from "./production-configuration.mjs";
 
 export const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const hex = (value, length = 64) => assert.match(value, new RegExp(`^[a-f0-9]{${length}}$`));
@@ -126,49 +127,7 @@ export function prepareProduction({
   assert.equal(proof.result?.ok, true);
   assert.equal(proof.httpStatus, 200);
   assert.equal(proof.appBuildReadySHA256, manifest.evidenceDigests.buildReady);
-  // Preview enrollment is independent: never promote its execution switches,
-  // issuer, repository policies or callback origins into production bootstrap.
-  // Only the separately reviewed production OAuth manifest may enable login.
-  const productionVars = {
-    CODER_URL: config.previews.vars.CODER_URL,
-    HIVE_RUNTIME_TARGET: "cloudflare",
-    HIVE_DISABLE_BACKGROUND_WORKERS: "true",
-    HIVE_PROJECT_DISCOVERY_ENABLED: "false",
-    HIVE_PROJECT_TASKS_ENABLED: "false",
-    HIVE_DELIVERY_ENABLED: "false",
-    HIVE_CODEX_GATEWAY_ENABLED: "false",
-    HIVE_DELIVERY_DISPATCH_ENABLED: "false",
-    HIVE_TOKEN_ROTATION_ENABLED: "false",
-  };
-  const production = {
-    name: "hive",
-    account_id: account,
-    main: join(root, "deploy/cloudflare/native/worker.ts"),
-    compatibility_date: config.compatibility_date,
-    compatibility_flags: config.compatibility_flags,
-    workers_dev: false,
-    preview_urls: false,
-    assets: { ...config.assets, directory: join(root, ".open-next/assets") },
-    limits: config.limits,
-    routes: [manifest.route],
-    triggers: { crons: [] },
-    secrets: { required },
-    vars: {
-      ...productionVars,
-      HIVE_CODER_OAUTH_ENABLED: oauthEnrollment ? "true" : "false",
-      ...(oauthEnrollment
-        ? {
-            CODER_URL: oauthEnrollment.coderOrigin,
-            HIVE_CODER_OAUTH_CLIENT_ID: oauthEnrollment.clientId,
-          }
-        : {}),
-      HIVE_NATIVE_MODE: "production",
-      HIVE_NATIVE_PREVIEW_ENABLED: "false",
-      HIVE_NATIVE_PRODUCTION_ACTIVE: "true",
-      HIVE_PUBLIC_ORIGIN: manifest.origin,
-    },
-    ...(manifest.r2Buckets.length ? { r2_buckets: manifest.r2Buckets } : {}),
-  };
+  const production = createProductionConfiguration({ manifest, config, root, oauthEnrollment });
   // First bootstrap serves the application only. Native jobs/release/rotation
   // require their own reviewed policy, scheduler handover and account proofs.
   const configBytes = json(production);

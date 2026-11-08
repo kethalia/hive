@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Add journaled epic preview integration to existing preview databases",
+  "sourceCommit": "3ec07fad4786a70494c64647215ef639297a400d",
+  "completedAt": "2026-11-07T23:17:53.253737+00:00",
+  "productionChanged": false,
+  "newResourcesOrCredentialsCreated": false,
+  "applicationDeploymentPerformed": false,
+  "databases": [
+    {
+      "database": "hive_app_preview",
+      "state": "verified",
+      "runtimeRole": "hive_app_runtime",
+      "startedAt": "2026-11-07T23:17:25.067930+00:00",
+      "finishedAt": "2026-11-07T23:17:36.876124+00:00",
+      "completedMigrations": 47,
+      "prior46HistoryPreserved": true,
+      "existingRowsPreserved": true,
+      "legacyPurposeDefaultVerified": true,
+      "runtimeGrantsVerified": true,
+      "oldAppRoleCanConnectNative": false,
+      "backup": {
+        "bytes": 394935,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false
+      },
+      "rowComparison": "all original application rows preserved; only the new default purpose column excluded from the release-row fingerprint"
+    },
+    {
+      "database": "hive_native_preview",
+      "state": "verified",
+      "runtimeRole": "hive_native_runtime",
+      "startedAt": "2026-11-07T23:17:39.340338+00:00",
+      "finishedAt": "2026-11-07T23:17:53.131985+00:00",
+      "completedMigrations": 47,
+      "prior46HistoryPreserved": true,
+      "existingRowsPreserved": true,
+      "legacyPurposeDefaultVerified": true,
+      "runtimeGrantsVerified": true,
+      "oldAppRoleCanConnectNative": false,
+      "backup": {
+        "bytes": 432619,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false
+      },
+      "rowComparison": "all original application rows preserved; only the new default purpose column excluded from the release-row fingerprint"
+    }
+  ]
+}

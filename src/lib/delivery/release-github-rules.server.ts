@@ -11,10 +11,86 @@ const config = z
   })
   .strict();
 const id = z.number().int().positive().safe();
-/** Conservative effective-rule producer. Requires classic branch protection
- * with strict checks, admin enforcement and PR review, plus no bypass actors in
- * any active ruleset applying to the branch. Missing permissions or unsupported
- * rule shapes hold. The caller still validates check producers and tested base. */
+const classicProtection = z
+  .object({
+    enforce_admins: z.object({ enabled: z.literal(true) }).passthrough(),
+    required_status_checks: z
+      .object({
+        strict: z.boolean(),
+        checks: z
+          .array(z.object({ context: z.string().min(1), app_id: id }))
+          .min(1)
+          .max(100),
+      })
+      .passthrough()
+      .nullable()
+      .optional(),
+    required_pull_request_reviews: z
+      .object({
+        required_approving_review_count: z.number().int().nonnegative(),
+        bypass_pull_request_allowances: z
+          .object({
+            users: z.array(z.unknown()).length(0),
+            teams: z.array(z.unknown()).length(0),
+            apps: z.array(z.unknown()).length(0),
+          })
+          .passthrough(),
+      })
+      .passthrough()
+      .nullable()
+      .optional(),
+  })
+  .passthrough();
+
+function normalizeReleaseRules(
+  rawProtection: unknown,
+  rules: { type: string; [key: string]: unknown }[],
+) {
+  const protection = rawProtection === null ? null : classicProtection.parse(rawProtection);
+  let pullRequest = !!protection?.required_pull_request_reviews;
+  let strict = protection?.required_status_checks?.strict === true;
+  const checks = [...(protection?.required_status_checks?.checks ?? [])];
+  for (const rule of rules) {
+    if (rule.type === "pull_request") {
+      z.object({ required_approving_review_count: z.number().int().nonnegative() })
+        .passthrough()
+        .parse(rule.parameters);
+      pullRequest = true;
+    } else if (rule.type === "required_status_checks") {
+      const parameters = z
+        .object({
+          strict_required_status_checks_policy: z.boolean(),
+          required_status_checks: z
+            .array(z.object({ context: z.string().min(1), integration_id: id }).passthrough())
+            .min(1)
+            .max(100),
+        })
+        .passthrough()
+        .parse(rule.parameters);
+      strict ||= parameters.strict_required_status_checks_policy;
+      checks.push(
+        ...parameters.required_status_checks.map((c) => ({
+          context: c.context,
+          app_id: c.integration_id,
+        })),
+      );
+    }
+  }
+  if (!pullRequest || !strict || checks.length === 0) throw Error("release_rules_unavailable");
+  const distinct = [...new Map(checks.map((c) => [`${c.context}\0${c.app_id}`, c])).values()].sort(
+    (a, b) => a.context.localeCompare(b.context) || a.app_id - b.app_id,
+  );
+  if (distinct.length > 100) throw Error("release_rules_unavailable");
+  return {
+    required_pull_request: true as const,
+    required_status_checks: { strict: true as const, checks: distinct },
+  };
+}
+
+/** Effective provider rules from classic protection and active inherited rulesets.
+ * A required PR and strict app-bound CI remain mandatory. Formal approval counts
+ * may be zero: the enrolled exact-head independent review policy is enforced by
+ * the caller. Missing permissions, unsupported shapes and any bypass actors hold. */
 export class GitHubReleaseRules {
   private readonly config: z.infer<typeof config>;
   constructor(
@@ -46,7 +122,7 @@ export class GitHubReleaseRules {
       return boundedReleaseJson(response, 1024 * 1024, signal);
     };
     const rules = await this.inspect(request, signal);
-    const required = rules.evidence.protection.required_status_checks.checks;
+    const required = rules.evidence.effective.required_status_checks.checks;
     if (
       policy.checks.some(
         (c) => !required.some((r) => r.context === c.name && String(r.app_id) === c.appId),
@@ -201,7 +277,7 @@ export class GitHubReleaseRules {
   async inspect(raw: unknown, signal: AbortSignal) {
     const request = githubReleaseRequestSchema.parse(raw);
     const root = `https://api.github.com/repos/${this.config.owner}/${this.config.name}`;
-    const get = async (path: string) => {
+    const get = async (path: string, absentProtection = false) => {
       const response = await this.fetcher(`${root}${path}`, {
         method: "GET",
         headers: {
@@ -212,6 +288,10 @@ export class GitHubReleaseRules {
         redirect: "error",
         signal,
       });
+      if (absentProtection && response.status === 404) {
+        await response.body?.cancel();
+        return null;
+      }
       if (
         !response.ok ||
         (response.headers.get("link") &&
@@ -232,38 +312,9 @@ export class GitHubReleaseRules {
         .passthrough()
         .parse(await get(`/branches/${branch}`)).commit.sha;
     if ((await readBase()) !== request.baseSha) throw new Error("release_rules_scope");
-    const protection = z
-      .object({
-        required_status_checks: z
-          .object({
-            strict: z.literal(true),
-            checks: z
-              .array(
-                z.object({
-                  context: z.string().min(1),
-                  app_id: z.number().int().positive().safe(),
-                }),
-              )
-              .min(1)
-              .max(100),
-          })
-          .passthrough(),
-        enforce_admins: z.object({ enabled: z.literal(true) }).passthrough(),
-        required_pull_request_reviews: z
-          .object({
-            required_approving_review_count: z.number().int().positive(),
-            bypass_pull_request_allowances: z
-              .object({
-                users: z.array(z.unknown()).length(0),
-                teams: z.array(z.unknown()).length(0),
-                apps: z.array(z.unknown()).length(0),
-              })
-              .passthrough(),
-          })
-          .passthrough(),
-      })
-      .passthrough()
-      .parse(await get(`/branches/${branch}/protection`));
+    // Only an actual 404 means classic protection is absent. Authorization or
+    // other provider errors never become an unprotected-branch fallback.
+    const protection = await get(`/branches/${branch}/protection`, true);
     const rules = z
       .array(
         z
@@ -297,7 +348,8 @@ export class GitHubReleaseRules {
       if (githubSourceDigest(current) !== githubSourceDigest(sets[index]))
         throw new Error("release_rules_scope");
     }
-    const finalProtection = await get(`/branches/${branch}/protection`);
+    const effective = normalizeReleaseRules(protection, rules);
+    const finalProtection = await get(`/branches/${branch}/protection`, true);
     const finalRules = await get(`/rules/branches/${branch}?per_page=100&page=1`);
     if (
       signal.aborted ||
@@ -311,6 +363,7 @@ export class GitHubReleaseRules {
       repositoryId: request.repositoryId,
       baseRef: request.baseRef,
       protection,
+      effective,
       rules,
       sets,
     };

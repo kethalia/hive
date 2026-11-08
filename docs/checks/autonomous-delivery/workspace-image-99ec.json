@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T01:12:29.060062+00:00",
+  "sourceRevision": "99ec8ee3559e484f97b056ba23c999b19d1abd1d",
+  "image": "ghcr.io/kethalia/hive-base@sha256:c295b51e8770f9209074f0e465b080f6195a4822a804f1546764ff4ec3e1cc2d",
+  "imageConfigDigest": "sha256:e65396098ae7392ceccefefe2a4a42f398e7c888248b346a353fac83037f52a8",
+  "variant": "cli",
+  "sourceLabelVerified": true,
+  "anonymousPublicPull": true,
+  "helperPin": {
+    "goVersion": "go1.26.10",
+    "schemaVersion": 1,
+    "sdkVersion": "v2.38.4",
+    "sha256": "5cb01a6bde1a451cec77568e08ffebba491086d8271c0a785b8744b18a74ae39"
+  },
+  "pinLayerDigestVerified": true,
+  "pinLayerDiffIdVerified": true,
+  "workflowRunId": 42432412835,
+  "workflowSmokeAndPublication": "success",
+  "independentImageExecution": false,
+  "globalTemplateActivationChanged": false,
+  "workspaceActivated": false
+}

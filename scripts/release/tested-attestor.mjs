@@ -43,13 +43,12 @@ async function json(fetcher, url, init, signal) {
   return JSON.parse(Buffer.concat(parts).toString("utf8"));
 }
 /** Only the reviewed isolated attestor job calls this. Candidate code never
- * receives its OIDC request token, preview bearer, or this process environment. */
+ * receives its OIDC request token or this process environment. */
 export async function attestTestedTree({
   config,
   identity,
   oidcUrl,
   oidcToken,
-  previewBearer,
   fetcher = fetch,
   signal,
 }) {
@@ -87,11 +86,7 @@ export async function attestTestedTree({
     oidc.username ||
     oidc.password ||
     !oidcToken ||
-    /[\r\n]/.test(oidcToken) ||
-    (previewBearer !== undefined &&
-      (typeof previewBearer !== "string" ||
-        previewBearer.length > 4096 ||
-        /[\r\n]/.test(previewBearer)))
+    /[\r\n]/.test(oidcToken)
   )
     throw Error("tested_attestor_scope");
   const request = {
@@ -122,7 +117,6 @@ export async function attestTestedTree({
       {
         method: "POST",
         headers: {
-          ...(previewBearer ? { Authorization: `Bearer ${previewBearer}` } : {}),
           "X-Hive-Release-OIDC": jwt.value,
           "Content-Type": "application/json",
         },
@@ -205,7 +199,6 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
     identity,
     oidcUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
     oidcToken: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
-    previewBearer: process.env.HIVE_RELEASE_PREVIEW_BEARER,
     signal: AbortSignal.timeout(30000),
   });
 }

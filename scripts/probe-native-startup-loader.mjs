@@ -36,8 +36,8 @@ export async function load(url, context, nextLoad) {
     '  diagnostic.event("namespace_prepared");\n  if (namespace) env = namespace.env;',
   );
   replace(
-    '    env,\n    stdio: ["ignore", "ignore", "ignore", lock],',
-    '    env,\n    stdio: ["ignore", "ignore", "pipe", lock],',
+    '    env,\n    stdio: ["ignore", "ignore", "ignore", lock, credentialLock.fd],',
+    '    env,\n    stdio: ["ignore", "ignore", "pipe", lock, credentialLock.fd],',
   );
   replace(
     "  let ws;\n  let closing = false;",

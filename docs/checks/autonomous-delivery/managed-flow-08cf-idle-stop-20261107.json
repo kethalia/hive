@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-07T23:20:25.682485+00:00",
+  "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "workspaceCreatedAt": "2026-11-07T18:47:25.146316Z",
+  "priorStartBuildId": "ac931e89-ba85-44a1-a9d9-d0bab6dea9b9",
+  "stopBuildId": "009f17c6-6f63-459d-a699-60bf42d5e0c0",
+  "stopBuildCreatedAt": "2026-11-07T23:20:25.625637Z",
+  "templateVersionId": "86834e24-6be5-4fd2-985c-23d1de969713",
+  "transition": "stop",
+  "classification": "unmanaged isolated test; retain unless exact cleanup authorized",
+  "originalCreationRecordPreserved": true,
+  "deleteRequested": false,
+  "authTransferred": false,
+  "journalOrKeyMutationPerformed": false,
+  "verifiedStoppedAt": "2026-11-07T23:20:29.776442+00:00",
+  "status": "stopped"
+}

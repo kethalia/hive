@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "localOnly": true,
+  "version": "2.1.319",
+  "binarySha256": "dabafec82ca1319fa43d8be36a10fc61b1d11821cb98ad5df04ad95e199b8eed",
+  "networkNamespaceIsolated": true,
+  "browserOpenersDisabled": true,
+  "officialLoginOrigin": "https://claude.com",
+  "officialLoginPath": "/cai/oauth/authorize",
+  "manualCodePrompt": true,
+  "singleUseInputAccepted": true,
+  "duplicateInputRejected": true,
+  "finalCLIInheritedAuthLock": true,
+  "cancelledThenFreshSignedOut": true,
+  "realProviderRequests": 0,
+  "credentialFileCreated": false,
+  "rawURLOrCodeExported": false
+}

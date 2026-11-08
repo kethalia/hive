@@ -27,7 +27,7 @@ Cloudflare Workers Builds connects `kethalia/hive` at repository root. It builds
 `pnpm build:cloudflare` and publishes branch previews with
 `node deploy/cloudflare/native/deploy.mjs preview`. The main command is
 `node deploy/cloudflare/native/deploy.mjs production`, which currently refuses activation.
-The repo connection and dedicated build token are configured. A branch push has
+The repo connection and dedicated build token are configured. Preview base commands publish only the OAuth-enrolled `codex/delivery-system-design` branch; internal implementation branches record an explicit skip and retain their GitHub source checks. See [scope receipt](../../docs/checks/autonomous-delivery/cloudflare-preview-branch-scope.json). A branch push has
 triggered a successful provider-managed Preview build, and bounded live app and
 task-start checks are recorded in [pilot progress](../../docs/checks/autonomous-delivery/progress.md).
 Full native host and browser acceptance remains pending. A merge alone cannot enable

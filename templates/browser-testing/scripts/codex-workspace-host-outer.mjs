@@ -1,14 +1,25 @@
 #!/usr/bin/env node
 // Fixed installer entry. No supplied worker path, execution grant or drain grant.
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+} from "node:fs";
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { openGuardianController } from "./codex-guardian-controller.mjs";
 import { readGuardianStart } from "./codex-guardian-startup.mjs";
 import { openGuardedHost, verifyGuardianPackage } from "./codex-host-guardian.mjs";
-import { archiveIdleProjectState } from "./codex-project-controller.mjs";
+import {
+  archiveBootstrapProjectState,
+  archiveIdleProjectState,
+} from "./codex-project-controller.mjs";
 import { readInstalledHostStartup, validateHostConfig } from "./codex-workspace-host.mjs";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
@@ -27,6 +38,49 @@ export function installedWorkerCwd(home) {
       !(stat.mode & 0o077),
   );
   return path;
+}
+export function readBootstrapConfigHistory(home, digest, current) {
+  check(/^[a-f0-9]{64}$/.test(digest));
+  const history = join(home, ".local/state/hive/codex-host-install/config-history"),
+    directory = lstatSync(history),
+    path = join(history, `${digest}.json`);
+  check(
+    realpathSync(history) === history &&
+      directory.isDirectory() &&
+      directory.uid === process.getuid() &&
+      !(directory.mode & 0o077),
+  );
+  check(realpathSync(path) === path);
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  let raw;
+  try {
+    const s = fstatSync(fd);
+    check(
+      s.isFile() &&
+        s.nlink === 1 &&
+        s.uid === process.getuid() &&
+        !(s.mode & 0o077) &&
+        s.size <= 16384,
+    );
+    raw = readFileSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  check(raw.length <= 16384 && sha(raw) === digest);
+  const old = validateHostConfig(JSON.parse(raw));
+  check(
+    ["ownerId", "workspaceId", "templateId", "hiveUserId", "coderOrigin"].every(
+      (key) => old.binding[key] === current.binding[key],
+    ) &&
+      /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(old.binding.buildId) &&
+      old.binding.buildId !== current.binding.buildId &&
+      old.hiveOrigin === current.hiveOrigin &&
+      old.issuerKeyId === current.issuerKeyId &&
+      old.issuerPublicKeyPem === current.issuerPublicKeyPem &&
+      old.guardianEnabled === true &&
+      old.nativeIsolationEnabled === true,
+  );
+  return old;
 }
 /** Serializes lifetime replacement; uncertain drain or restart never opens a second worker. */
 export function createGuardedRollover(launch) {
@@ -164,6 +218,20 @@ export async function startInstalledGuardedHost() {
             },
             receipt,
           ),
+        prepareBootstrapRetirement: (proof) => {
+          readBootstrapConfigHistory(home, proof.configSha256, config);
+          return archiveBootstrapProjectState(
+            {
+              stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
+              guardianStateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
+              ownerId: config.binding.ownerId,
+              workspaceId: config.binding.workspaceId,
+              templateId: config.binding.templateId,
+              buildId: config.binding.buildId,
+            },
+            proof,
+          );
+        },
         prepareNextLifetime: recoverPrevious
           ? async (receipt) => {
               await authority.archiveClosedController(receipt);
