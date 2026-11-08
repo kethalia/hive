@@ -14,6 +14,7 @@ import {
   repairReservationSchema,
 } from "./acceptance-repair-contracts";
 import type { AcceptanceAuthority, AcceptanceStore } from "./acceptance-store.server";
+import { currentExecutionActor } from "./execution-authority.server";
 import { repositoryGateDescriptors } from "./repository-policy-contracts";
 import { resolveAttemptSource } from "./source-resolver.server";
 import { assertCompletionEvidence, DeliveryConflict } from "./state";
@@ -113,12 +114,13 @@ export async function currentRepairReservation(
     where: { ownerId_id: { ownerId, id: attemptId } },
     include: { step: { include: { dependencies: true } } },
   });
+  const actor = await currentExecutionActor(tx, binding);
   const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
   check(
     binding.currentAttemptId === attemptId &&
       binding.id === value.managerBindingId &&
       binding.nativeThreadId === value.managerThreadId &&
-      binding.serverInstanceId === value.serverInstanceId &&
+      actor.serverInstanceId === value.serverInstanceId &&
       binding.cursorVersion === value.cursorVersion &&
       !binding.blockedReason &&
       binding.preparationIntentId === value.preparationIntentId &&

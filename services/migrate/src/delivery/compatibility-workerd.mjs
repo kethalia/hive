@@ -5,8 +5,12 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { artifactDigest, readReleaseArtifact } from "../../../../scripts/release/artifact.mjs";
+import {
+  compatibilityDatabaseTransport,
+  startSourceCompatibilityWorker,
+} from "./compatibility-ws.mjs";
 import { digest, requireValue } from "./contracts.mjs";
-import { workerdCompatibilitySchema } from "./wire.mjs";
+import { sourceBuildCompatibilitySchema, workerdCompatibilitySchema } from "./wire.mjs";
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 async function download(url, fetcher) {
@@ -62,8 +66,14 @@ async function ready(child, text) {
 }
 /** The only executable scenario is pinned in the reviewed workflow checkout.
  * Candidate release archives are data until loaded inside workerd. */
-export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDatabaseUrl } = {}) {
-  const config = workerdCompatibilitySchema.parse(raw);
+export async function runWorkerdCompatibility(
+  raw,
+  { fetcher = fetch, fixtureDatabaseUrl, sourceArtifacts, sourceArtifactDigests } = {},
+) {
+  const single = raw?.kind === "automatic-source-build";
+  const config = single
+    ? sourceBuildCompatibilitySchema.parse(raw)
+    : workerdCompatibilitySchema.parse(raw);
   const root = await realpath(process.cwd()),
     scenario = await realpath(resolve(root, config.scenarioPath));
   requireValue(
@@ -71,22 +81,37 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
       sha256(await readFile(scenario)) === config.scenarioDigest,
     "migration_compatibility_scenario_changed",
   );
-  const [oldFiles, newFiles] = await Promise.all([
-    download(config.oldArtifactUrl, fetcher),
-    download(config.newArtifactUrl, fetcher),
-  ]);
+  const [oldFiles, newFiles] = single
+    ? await Promise.all(
+        ["old", "new"].map((name) => {
+          requireValue(
+            sourceArtifacts?.[name] instanceof Buffer,
+            "migration_source_artifacts_missing",
+          );
+          return readReleaseArtifact(sourceArtifacts[name], { topology: "single" });
+        }),
+      )
+    : await Promise.all([
+        download(config.oldArtifactUrl, fetcher),
+        download(config.newArtifactUrl, fetcher),
+      ]);
+  const expectedDigests = single ? sourceArtifactDigests : config;
   requireValue(
-    artifactDigest(oldFiles, "app") === config.oldAppDigest &&
-      artifactDigest(newFiles, "app") === config.newAppDigest &&
-      artifactDigest(oldFiles, "auth") === config.oldAuthDigest &&
-      artifactDigest(newFiles, "auth") === config.newAuthDigest,
+    expectedDigests &&
+      artifactDigest(oldFiles, "app") === expectedDigests.oldAppDigest &&
+      artifactDigest(newFiles, "app") === expectedDigests.newAppDigest &&
+      (single ||
+        (artifactDigest(oldFiles, "auth") === config.oldAuthDigest &&
+          artifactDigest(newFiles, "auth") === config.newAuthDigest)),
     "migration_compatibility_artifact_changed",
   );
   const directory = await mkdtemp(join(tmpdir(), "hive-d10-workerd-")),
     suffix = randomBytes(12).toString("hex"),
     pg = `hive-d10-${suffix}`,
     password = randomBytes(24).toString("hex"),
-    children = [];
+    children = [],
+    sourceWorkers = [];
+  let databaseTransport;
   const docker = (args) =>
     execFileSync("docker", args, {
       encoding: "utf8",
@@ -104,7 +129,8 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
     if (fixtureDatabaseUrl) {
       const u = new URL(fixtureDatabaseUrl);
       requireValue(
-        ["localhost", "127.0.0.1"].includes(u.hostname) && u.pathname === "/hive_d10_test",
+        ["localhost", "127.0.0.1"].includes(u.hostname) &&
+          /^\/hive_d10_test(?:_[a-z0-9_]+)?$/.test(u.pathname),
         "migration_compatibility_fixture_scope",
       );
       databaseUrl = fixtureDatabaseUrl;
@@ -131,6 +157,7 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
         "127.0.0.1::5432",
         "-e",
         "POSTGRES_USER=hive",
+        ...(single ? ["-e", "POSTGRES_HOST_AUTH_METHOD=password"] : []),
         "-e",
         `POSTGRES_PASSWORD=${password}`,
         "-e",
@@ -160,19 +187,50 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
     const scenarioEnv = {
       ...safeEnv,
       DATABASE_URL: databaseUrl,
-      HIVE_PLAN_DIGEST: config.planDigest,
+      HIVE_PLAN_DIGEST: single ? config.planIntentDigest : config.planDigest,
       HIVE_SOURCE_SHA: config.sourceSha,
       HIVE_COMPATIBILITY_DIGEST: config.compatibilityDigest,
       HIVE_OLD_APP: `http://127.0.0.1:${ports[0]}`,
       HIVE_NEW_APP: `http://127.0.0.1:${ports[1]}`,
     };
     const scenarioRun = (action) =>
-      execFileSync(process.execPath, [scenario, action], {
-        env: scenarioEnv,
-        stdio: "ignore",
-        timeout: 120000,
+      new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [scenario, action], {
+          env: scenarioEnv,
+          stdio: "ignore",
+          detached: true,
+        });
+        const closed = new Promise((done) => child.once("close", done));
+        children.push({ child, closed });
+        const timer = setTimeout(() => {
+          try {
+            process.kill(-child.pid, "SIGKILL");
+          } catch {}
+        }, 120000);
+        child.once("error", () => {
+          clearTimeout(timer);
+          reject(Error("migration_compatibility_scenario_failed"));
+        });
+        child.once("close", (code) => {
+          clearTimeout(timer);
+          code === 0 ? resolve() : reject(Error("migration_compatibility_scenario_failed"));
+        });
       });
-    scenarioRun("prepare");
+    await scenarioRun("prepare");
+    if (single)
+      databaseTransport = await compatibilityDatabaseTransport(databaseUrl, {
+        knownTrustFixture: !!fixtureDatabaseUrl && !new URL(fixtureDatabaseUrl).password,
+      });
+    const isolatedKeys = single
+      ? Object.fromEntries(
+          [
+            "AUTH_SERVICE_SECRET",
+            "ENCRYPTION_KEY",
+            "COOKIE_SECRET",
+            "HIVE_CODER_OAUTH_CLIENT_SECRET",
+          ].map((name) => [name, randomBytes(32).toString("hex")]),
+        )
+      : {};
     for (const [index, files] of [oldFiles, newFiles].entries()) {
       const base = join(directory, String(index));
       for (const [path, bytes] of files) {
@@ -184,17 +242,50 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
       const path = join(base, "wrangler.json"),
         authPath = join(base, "auth.json"),
         authName = `hive-d10-auth-${suffix}-${index}`;
-      await writeFile(
-        authPath,
-        JSON.stringify({
-          name: authName,
-          main: join(base, "auth/worker.js"),
-          compatibility_date: config.compatibilityDate,
-          compatibility_flags: ["nodejs_compat"],
-          no_bundle: true,
-          vars: { DATABASE_URL: databaseUrl },
-        }),
-      );
+      if (!single)
+        await writeFile(
+          authPath,
+          JSON.stringify({
+            name: authName,
+            main: join(base, "auth/worker.js"),
+            compatibility_date: config.compatibilityDate,
+            compatibility_flags: ["nodejs_compat"],
+            no_bundle: true,
+            vars: { DATABASE_URL: databaseUrl },
+          }),
+        );
+      const origin = `http://127.0.0.1:${ports[index]}`;
+      const isolated = single
+        ? {
+            ...isolatedKeys,
+            HIVE_NATIVE_MODE: "preview",
+            HIVE_NATIVE_PREVIEW_ENABLED: "true",
+            HIVE_NATIVE_PRODUCTION_ACTIVE: "false",
+            HIVE_PREVIEW_ACCESS_REQUIRED: "false",
+            HIVE_PUBLIC_ORIGIN: origin,
+            HIVE_PREVIEW_ORIGIN: origin,
+            HIVE_CODER_OAUTH_ENABLED: "true",
+            CODER_URL: "https://coder.compatibility.invalid",
+            HIVE_CODER_OAUTH_CLIENT_ID: "isolated-compatibility",
+            HIVE_DELIVERY_RELEASE_ENABLED: "false",
+            HIVE_DELIVERY_DATABASE_ENABLED: "false",
+            HIVE_TOKEN_ROTATION_ENABLED: "false",
+          }
+        : {};
+      if (single) {
+        sourceWorkers.push(
+          await startSourceCompatibilityWorker({
+            files,
+            directory: base,
+            port: ports[index],
+            bindings: { DATABASE_URL: databaseUrl, ...isolated },
+            date: config.compatibilityDate,
+            transport: databaseTransport,
+            version: index,
+          }),
+        );
+        continue;
+      }
       await writeFile(
         path,
         JSON.stringify({
@@ -203,8 +294,8 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
           compatibility_date: config.compatibilityDate,
           compatibility_flags: ["nodejs_compat"],
           no_bundle: true,
-          vars: { DATABASE_URL: databaseUrl },
-          services: [{ binding: "AUTH_SERVICE", service: authName }],
+          vars: { DATABASE_URL: databaseUrl, ...isolated },
+          ...(single ? {} : { services: [{ binding: "AUTH_SERVICE", service: authName }] }),
           assets: { directory: join(base, "assets"), binding: "ASSETS", run_worker_first: true },
         }),
       );
@@ -216,8 +307,7 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
           "dev",
           "--config",
           path,
-          "--config",
-          authPath,
+          ...(!single ? ["--config", authPath] : []),
           "--ip",
           "127.0.0.1",
           "--port",
@@ -235,54 +325,85 @@ export async function runWorkerdCompatibility(raw, { fetcher = fetch, fixtureDat
       child.stdout.resume();
       child.stderr.resume();
     }
-    scenarioRun("verify");
+    await scenarioRun("verify");
+    if (single)
+      requireValue(
+        databaseTransport.counts.every((stats) => stats.queries > 0),
+        "migration_compatibility_application_database_unverified",
+      );
     return {
-      schemaVersion: 1,
+      schemaVersion: single ? 2 : 1,
+      ...(single
+        ? {
+            kind: "automatic-source-build",
+            applicationDatabase: {
+              transport: "isolated-neon-websocket",
+              queries: databaseTransport.counts.map((stats) => stats.queries),
+            },
+            sourceBuild: {
+              baseline: config.baseline,
+              candidate: config.candidate,
+              artifactMeaning: "local-compatibility-test",
+            },
+          }
+        : {}),
       catalogDigest: digest(config),
-      planDigest: config.planDigest,
+      ...(single
+        ? { planIntentDigest: config.planIntentDigest }
+        : { planDigest: config.planDigest }),
       sourceSha: config.sourceSha,
-      oldAppDigest: config.oldAppDigest,
-      newAppDigest: config.newAppDigest,
+      oldAppDigest: expectedDigests.oldAppDigest,
+      newAppDigest: expectedDigests.newAppDigest,
       compatibilityDigest: config.compatibilityDigest,
     };
   } finally {
-    for (const { child } of children) {
-      try {
-        if (child.pid) process.kill(-child.pid, "SIGTERM");
-      } catch {}
-    }
     try {
-      await Promise.all(
-        children.map(async ({ child, closed }) => {
-          const kill = setTimeout(() => {
-            try {
-              if (child.pid) process.kill(-child.pid, "SIGKILL");
-            } catch {}
-          }, 5000);
-          let deadline;
-          try {
-            await Promise.race([
-              closed,
-              new Promise((_, reject) => {
-                deadline = setTimeout(
-                  () => reject(Error("migration_compatibility_cleanup_timeout")),
-                  10000,
-                );
-              }),
-            ]);
-          } finally {
-            clearTimeout(kill);
-            clearTimeout(deadline);
-          }
-        }),
-      );
+      await Promise.all(sourceWorkers.map((worker) => worker.dispose()));
     } finally {
-      if (!fixtureDatabaseUrl) {
+      try {
+        if (databaseTransport) await databaseTransport.close();
+      } finally {
+        for (const { child } of children) {
+          try {
+            if (child.pid && child.exitCode === null && child.signalCode === null)
+              process.kill(-child.pid, "SIGTERM");
+          } catch {}
+        }
         try {
-          docker(["rm", "-f", pg]);
-        } catch {}
+          await Promise.all(
+            children.map(async ({ child, closed }) => {
+              const kill = setTimeout(() => {
+                try {
+                  if (child.pid && child.exitCode === null && child.signalCode === null)
+                    process.kill(-child.pid, "SIGKILL");
+                } catch {}
+              }, 5000);
+              let deadline;
+              try {
+                await Promise.race([
+                  closed,
+                  new Promise((_, reject) => {
+                    deadline = setTimeout(
+                      () => reject(Error("migration_compatibility_cleanup_timeout")),
+                      10000,
+                    );
+                  }),
+                ]);
+              } finally {
+                clearTimeout(kill);
+                clearTimeout(deadline);
+              }
+            }),
+          );
+        } finally {
+          if (!fixtureDatabaseUrl) {
+            try {
+              docker(["rm", "-f", pg]);
+            } catch {}
+          }
+        }
+        await rm(directory, { recursive: true, force: true });
       }
     }
-    await rm(directory, { recursive: true, force: true });
   }
 }

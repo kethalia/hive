@@ -296,6 +296,7 @@ export function createDeliveryManagerAdapter(options) {
         readNativeHistory: options.readNativeHistory,
         progressionProtocol: progression ? 1 : 0,
         sourceProtocol: sourceProtocol ? 1 : 0,
+        maintenanceContext: options.maintenanceContext,
         onHold: options.onObserverHold,
         deliver: async (value) => {
           const deadline = Date.now() + (progression ? 3000 : 10000);
@@ -337,7 +338,11 @@ export function createDeliveryManagerAdapter(options) {
             hash(JSON.stringify(canonical(expected.checkoutBinding))),
         "delivery_authority_changed",
       );
-      nativeSpool.assertAvailable(expected.managerThreadId, allowFailure);
+      nativeSpool.assertAvailable(
+        expected.managerThreadId,
+        allowFailure,
+        expected.maintenanceContinuation,
+      );
       return fresh;
     } catch {
       nativeSpool.hold(expected.managerThreadId, "native_progression_authority_changed");
@@ -374,23 +379,24 @@ export function createDeliveryManagerAdapter(options) {
       serverInstanceId: claim.serverInstanceId,
       checkoutBinding: claim.checkoutBinding,
     });
-    return {
-      managerThreadId: claim.managerThreadId,
-      registration: {
-        id: fresh.id,
-        serverInstanceId: fresh.serverInstanceId,
-        expiresAt: fresh.expiresAt,
-      },
-      checkoutBinding: structuredClone(claim.checkoutBinding),
-      managerBindingId: claim.managerBindingId,
-      taskId: claim.taskId,
-      stepId: claim.stepId,
-      attemptId: claim.attemptId,
-      attemptLeaseGeneration: claim.leaseGeneration,
-      inputSourceSha: claim.inputSourceSha,
-      ...(claim.sourceContext ? { sourceContext: structuredClone(claim.sourceContext) } : {}),
-    };
+    return projectSourceContext(claim, fresh);
   };
+  const projectSourceContext = (claim, fresh) => ({
+    managerThreadId: claim.managerThreadId,
+    registration: {
+      id: fresh.id,
+      serverInstanceId: fresh.serverInstanceId,
+      expiresAt: fresh.expiresAt,
+    },
+    checkoutBinding: structuredClone(claim.checkoutBinding),
+    managerBindingId: claim.managerBindingId,
+    taskId: claim.taskId,
+    stepId: claim.stepId,
+    attemptId: claim.attemptId,
+    attemptLeaseGeneration: claim.leaseGeneration,
+    inputSourceSha: claim.inputSourceSha,
+    ...(claim.sourceContext ? { sourceContext: structuredClone(claim.sourceContext) } : {}),
+  });
   const readOutput = async (claim) => {
     const publication = nativeSpool.sourcePublication(claim.managerThreadId);
     check(publication, "delivery_source_output_missing");
@@ -638,6 +644,22 @@ export function createDeliveryManagerAdapter(options) {
         ? structuredClone((await readOutput(claim)).accepted.sourceContext)
         : structuredClone(claim.sourceContext ?? null);
     },
+    maintenanceSourceContext(thread, turn) {
+      check(sourceProtocol, "source_protocol_disabled");
+      const c = options.maintenanceContext?.(thread, turn)?.claimContinuation;
+      const prior = nativeSpool.maintenanceReadClaim(thread, turn);
+      if (!prior) return null;
+      const fresh = currentRegistration();
+      check(c && fresh, "maintenance_read_claim_unavailable");
+      assertAuthority({
+        managerThreadId: thread,
+        registrationId: fresh.id,
+        serverInstanceId: fresh.serverInstanceId,
+        checkoutBinding: prior.checkoutBinding,
+        maintenanceContinuation: c,
+      });
+      return projectSourceContext(prior, fresh); // No runnable claim or source publication capability.
+    },
     currentSourceContext(thread) {
       check(sourceProtocol, "source_protocol_disabled");
       const claim = nativeSpool.currentClaim(thread);
@@ -725,7 +747,22 @@ export function createDeliveryManagerAdapter(options) {
           "delivery_publication_proposal_invalid",
         );
       }
-      nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
+      const maintenance =
+        progression && !nativeSpool.currentClaim(params.threadId)
+          ? options.maintenanceContext?.(params.threadId, params.turnId)
+          : null;
+      if (maintenance)
+        check(
+          ["read_status", "claim_step", "create_task"].includes(command.operation),
+          "native_first_operation_must_claim",
+        );
+      const maintenanceContinuation =
+        command.operation === "claim_step" ? maintenance?.claimContinuation : undefined;
+      nativeSpool?.assertAvailable(
+        params.threadId,
+        command.operation === "fail_attempt",
+        maintenance?.claimContinuation,
+      );
       const checkoutBinding = structuredClone(currentProjectContext(params.threadId));
       const fields = [
         "projectId",
@@ -777,7 +814,11 @@ export function createDeliveryManagerAdapter(options) {
         let continuation;
         if (progression) {
           await continuationTasks.get(params.threadId);
-          nativeSpool.assertAvailable(params.threadId, command.operation === "fail_attempt");
+          nativeSpool.assertAvailable(
+            params.threadId,
+            command.operation === "fail_attempt",
+            maintenance?.claimContinuation,
+          );
           const current = nativeSpool.currentClaim(params.threadId);
           if (current && current.parentTurnId !== params.turnId) {
             check(command.operation === "claim_step", "native_first_operation_must_claim");
@@ -875,6 +916,31 @@ export function createDeliveryManagerAdapter(options) {
             success: true,
           };
         }
+        if (command.operation === "read_status" && maintenance) {
+          check(
+            command.payload && Object.keys(command.payload).length === 0,
+            "delivery_status_payload_invalid",
+          );
+          const fresh = options.maintenanceContext?.(params.threadId, params.turnId);
+          check(fresh && sourceEqual(fresh, maintenance), "account_maintenance_authority_changed");
+          check(typeof options.readMaintenanceStatus === "function", "delivery_status_unavailable");
+          const result = await options.readMaintenanceStatus(params.threadId, params.turnId);
+          check(
+            sourceEqual(
+              options.maintenanceContext?.(params.threadId, params.turnId),
+              maintenance,
+            ) &&
+              !closed &&
+              Date.now() < deadline &&
+              Buffer.byteLength(JSON.stringify(result)) <= 32768,
+            "delivery_status_unavailable",
+          );
+          return {
+            contentItems: [{ type: "inputText", text: JSON.stringify(result) }],
+            success: true,
+          };
+        }
+
         if (command.operation === "read_status") {
           check(
             command.payload &&
@@ -917,7 +983,11 @@ export function createDeliveryManagerAdapter(options) {
             success: true,
           };
         }
-        nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
+        nativeSpool?.assertAvailable(
+          params.threadId,
+          command.operation === "fail_attempt",
+          maintenance?.claimContinuation,
+        );
         let sourceContext;
         if (sourceProtocol) {
           const local = await sourceNow(params.threadId, checkoutBinding),
@@ -952,6 +1022,7 @@ export function createDeliveryManagerAdapter(options) {
                 command,
                 checkoutBinding,
                 ...(continuation ? { continuation } : {}),
+                ...(maintenanceContinuation ? { maintenanceContinuation } : {}),
                 ...(sourceProtocol ? { sourceContext: sourceContext ?? null } : {}),
               }),
             ),
@@ -962,6 +1033,7 @@ export function createDeliveryManagerAdapter(options) {
           registrationId: registered.id,
           serverInstanceId: registered.serverInstanceId,
           checkoutBinding,
+          ...(maintenanceContinuation ? { maintenanceContinuation } : {}),
           ...(sourceProtocol
             ? { sourceContext, inputSourceSha: sourceContext?.headSha ?? checkoutBinding.revision }
             : {}),
@@ -1024,7 +1096,11 @@ export function createDeliveryManagerAdapter(options) {
           const fresh = progression
             ? assertAuthority(operationAuthority, command.operation === "fail_attempt")
             : registered;
-          nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
+          nativeSpool?.assertAvailable(
+            params.threadId,
+            command.operation === "fail_attempt",
+            maintenance?.claimContinuation,
+          );
           const now = Date.now(),
             value = {
               schemaVersion: 2,
@@ -1039,6 +1115,7 @@ export function createDeliveryManagerAdapter(options) {
               command,
               checkoutBinding,
               ...(continuation ? { continuation } : {}),
+              ...(maintenanceContinuation ? { maintenanceContinuation } : {}),
               ...(sourceProtocol && sourceContext ? { sourceContext } : {}),
             };
           const proof = sign(null, Buffer.from(deliveryProofPayload(value)), key).toString(
@@ -1089,7 +1166,11 @@ export function createDeliveryManagerAdapter(options) {
           if (progression) nativeSpool.hold(params.threadId, "native_manager_receipt_conflict");
           throw error;
         }
-        nativeSpool?.assertAvailable(params.threadId, command.operation === "fail_attempt");
+        nativeSpool?.assertAvailable(
+          params.threadId,
+          command.operation === "fail_attempt",
+          maintenance?.claimContinuation,
+        );
         if (progression) {
           try {
             assertAuthority(operationAuthority, command.operation === "fail_attempt");

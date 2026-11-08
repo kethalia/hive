@@ -48,6 +48,14 @@ export async function signedHostProjectRequest(
   let statusCode: number | null = null;
   try {
     options.signal?.throwIfAborted();
+    if (
+      ["/projects/epic-merge", "/projects/production-release"].includes(path) &&
+      Buffer.byteLength(JSON.stringify(request)) >
+        (path === "/projects/production-release" && request.operation === "database"
+          ? 98304
+          : 12000)
+    )
+      throw new ProjectDiscoveryError("discovery_unavailable");
     const config = registeredSessionConfig();
     stage = "client";
     const client = options.signal

@@ -608,6 +608,15 @@ export function createNativeAcceptanceEvaluator({
     active() {
       return Object.values(state.entries).some((e) => e.phase !== "archived");
     },
+    maintenanceInventory() {
+      check(state.admissionClosed, "acceptance_maintenance_not_requested");
+      const entries = Object.values(state.entries).filter((e) => e.phase !== "archived");
+      return {
+        pending: Boolean(waiter),
+        unknown: entries.some((e) => e.serverInstanceId !== serverInstanceId || !id(e.threadId)),
+        threadIds: entries.map((e) => e.threadId).filter(id),
+      };
+    },
     close() {
       closed = true;
       waiter?.reject(new Error("acceptance_native_closed"));

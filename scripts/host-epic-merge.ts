@@ -9,11 +9,14 @@ import {
 import { githubSourceDigest } from "../src/lib/delivery/github-evidence.server";
 import {
   automaticBuildsReadSchema,
+  automaticPreparedSchema,
+  automaticReleaseEnrollment,
   automaticReleaseRpcSchema,
   automaticReleaseTarget,
 } from "../src/lib/delivery/release-automatic-contracts";
 import { GitHubReleaseChangeRisk } from "../src/lib/delivery/release-change-risk.server";
 import { isReleaseTestControlPath } from "../src/lib/delivery/release-control-paths";
+import { GitHubDatabaseJobProvider } from "../src/lib/delivery/release-database-github-provider.server";
 import { releaseGitHubMerged } from "../src/lib/delivery/release-github-merged.server";
 import {
   GitHubReleaseProvider,
@@ -44,17 +47,51 @@ export function hostEpicMerge(raw: unknown, fetcher: typeof fetch = fetch) {
   );
 }
 export function hostProductionRelease(raw: unknown, fetcher: typeof fetch = fetch) {
-  return runConnectedMerge(
-    z
-      .object({
-        request: automaticReleaseRpcSchema,
-        token: tokenSchema,
-        deadlineMs: z.number().int().positive().safe().optional(),
-      })
-      .strict()
-      .parse(raw),
-    fetcher,
-  );
+  const value = (raw as { request?: { operation?: string } } | null)?.request;
+  if (
+    !value ||
+    Buffer.byteLength(JSON.stringify(value)) > (value.operation === "database" ? 98304 : 12000)
+  )
+    throw Error("release_limit");
+  const frame = z
+    .object({
+      request: automaticReleaseRpcSchema,
+      token: tokenSchema,
+      deadlineMs: z.number().int().positive().safe().optional(),
+    })
+    .strict()
+    .parse(raw);
+  const rpc = frame.request;
+  if (rpc.operation === "database" && ["prepare", "merge", "builds"].includes(rpc.command.action)) {
+    const command = rpc.command;
+    const operation =
+      command.action === "prepare"
+        ? { operation: "prepare" as const, test: command.test }
+        : command.action === "merge"
+          ? {
+              operation: "dispatch" as const,
+              identity: command.identity,
+              authorityExpiresAt: command.authorityExpiresAt,
+            }
+          : command.action === "builds"
+            ? { operation: "builds" as const, mergeSha: command.mergeSha }
+            : null;
+    if (!operation) throw Error("database_dispatch_scope");
+    const request = automaticReleaseRpcSchema.parse({
+      schemaVersion: 1,
+      requestId: rpc.requestId,
+      config: rpc.config,
+      source: rpc.source,
+      gates: rpc.gates,
+      database: rpc.catalog,
+      ...operation,
+    });
+    return runConnectedMerge({ ...frame, request }, fetcher).then((result) => ({
+      ...result,
+      operation: "database" as const,
+    }));
+  }
+  return runConnectedMerge(frame, fetcher);
 }
 async function runConnectedMerge(
   frame: {
@@ -183,8 +220,10 @@ async function runConnectedMerge(
       ? await rules.verifyTested(request, rpc.gates, signal)
       : await rules.inspectMerge(request, rpc.gates, signal);
     const classified = await risk.inspect(request, signal);
+    const database =
+      rpc.operation === "database" ? rpc.catalog : "database" in rpc ? rpc.database : undefined;
     if (
-      classified.evidence.riskClass !== "application_only" ||
+      (classified.evidence.riskClass !== "application_only" && !(production && database)) ||
       classified.evidence.files.some(
         (f) =>
           isReleaseTestControlPath(f.filename) ||
@@ -192,6 +231,29 @@ async function runConnectedMerge(
       )
     )
       throw Error("epic_merge_risk");
+    if (classified.evidence.riskClass === "database") {
+      const intent = database?.compatibilityTest?.config;
+      if (
+        !production ||
+        !("mode" in config) ||
+        !database ||
+        !intent ||
+        !("kind" in intent) ||
+        intent.kind !== "automatic-source-build" ||
+        database.ownerId !== p.ownerId ||
+        database.repositoryId !== p.repositoryId ||
+        database.targetDigest !== automaticReleaseTarget(config) ||
+        database.automaticPlan?.sourceSha !== source.headSha ||
+        intent.candidate.headSha !== request.headSha ||
+        intent.candidate.baseSha !== request.baseSha ||
+        intent.candidate.mergeSha !== tested.mergeSha ||
+        intent.candidate.treeSha !== tested.treeSha ||
+        intent.candidate.policyDigest !== githubSourceDigest(automaticReleaseEnrollment(config)) ||
+        intent.candidate.checksDigest !== githubSourceDigest(rpc.gates) ||
+        intent.candidate.controlDigest !== config.tested.workflow.controlDigest
+      )
+        throw Error("database_dispatch_scope");
+    }
     if ((await rules.inspect(request, signal)).digest !== first.digest || signal.aborted)
       throw Error("epic_merge_rules");
     if (githubSourceDigest(await metadata()) !== githubSourceDigest(repository))
@@ -208,7 +270,43 @@ async function runConnectedMerge(
     return { tested, classified };
   };
   let result: unknown;
-  if (rpc.operation === "builds") {
+  if (rpc.operation === "database") {
+    if (
+      !("mode" in config) ||
+      rpc.catalog.ownerId !== p.ownerId ||
+      rpc.catalog.repositoryId !== p.repositoryId ||
+      rpc.catalog.targetDigest !== automaticReleaseTarget(config) ||
+      rpc.catalog.automaticPlan?.sourceSha !== source.headSha ||
+      rpc.catalog.compatibilityTest?.repositoryOwner !== config.risk.owner ||
+      rpc.catalog.compatibilityTest.repositoryName !== config.risk.name
+    )
+      throw Error("database_dispatch_scope");
+    const provider = new GitHubDatabaseJobProvider(rpc.catalog, token, safeFetch);
+    if (rpc.command.action === "dispatch" && rpc.command.identity.request.stage !== "activate") {
+      const { sourceBranch: _branch, ...sourceScope } = source;
+      const request = await new GitHubReleaseSourceDiscovery(
+        { ...scope, repositoryId: p.repositoryId, baseRef: p.baseBranch, method: p.method },
+        token,
+        rules,
+        safeFetch,
+      ).read(sourceScope, signal);
+      await preflight(request);
+    }
+    result =
+      rpc.command.action === "workload"
+        ? await provider.verifyWorkload(rpc.command.request, signal)
+        : rpc.command.action === "baseline"
+          ? await provider.baseline(signal)
+          : rpc.command.action === "dispatch"
+            ? await provider.dispatch(rpc.command.identity, signal, rpc.command.authorityExpiresAt)
+            : rpc.command.action === "lookup"
+              ? await provider.lookup(rpc.command.identity, rpc.command.reference, signal)
+              : rpc.command.action === "verify"
+                ? await provider.verifyCompatibility(rpc.command.approval, signal)
+                : (() => {
+                    throw Error("database_dispatch_scope");
+                  })();
+  } else if (rpc.operation === "builds") {
     const pull = (await get(
       `/repos/${config.risk.owner}/${config.risk.name}/pulls/${source.pullNumber}`,
     )) as Record<string, unknown>;
@@ -256,10 +354,36 @@ async function runConnectedMerge(
       })
       .parse(await boundedReleaseJson(response, 1048576, signal));
     if (checks.total_count !== checks.check_runs.length) throw Error("release_build_scope");
+    let treeSha: string | undefined;
+    if (rpc.database) {
+      if (!("mode" in config)) throw Error("database_dispatch_scope");
+      const mode = rpc.database.compatibilityTest?.config;
+      if (
+        !mode ||
+        !("kind" in mode) ||
+        mode.kind !== "automatic-source-build" ||
+        rpc.database.ownerId !== p.ownerId ||
+        rpc.database.repositoryId !== p.repositoryId ||
+        rpc.database.targetDigest !== automaticReleaseTarget(config) ||
+        rpc.database.automaticPlan?.sourceSha !== source.headSha
+      )
+        throw Error("database_dispatch_scope");
+      const commit = z
+        .object({
+          sha: z.literal(rpc.mergeSha),
+          tree: z.object({ sha: z.literal(mode.candidate.treeSha) }),
+        })
+        .passthrough()
+        .parse(
+          await get(`/repos/${config.risk.owner}/${config.risk.name}/git/commits/${rpc.mergeSha}`),
+        );
+      treeSha = commit.tree.sha;
+    }
     result = automaticBuildsReadSchema.parse({
       schemaVersion: 1,
       repositoryId: p.repositoryId,
       sourceSha: rpc.mergeSha,
+      ...(treeSha ? { treeSha } : {}),
       checks: checks.check_runs
         .filter(
           (c) => (c.app as { id?: unknown })?.id === 85455 && c.name === "Workers Builds: hive",
@@ -302,9 +426,9 @@ async function runConnectedMerge(
         signal,
       );
     }
-    result = epicMergePreparedSchema.parse({
+    result = (production ? automaticPreparedSchema : epicMergePreparedSchema).parse({
       request: discovered,
-      riskClass: "application_only",
+      riskClass: observed.classified.evidence.riskClass,
       rulesDigest: discovered.rulesDigest,
       testedMergeSha: observed.tested.mergeSha,
       testedTreeSha: observed.tested.treeSha,
@@ -343,6 +467,9 @@ async function runConnectedMerge(
   }
   if (githubSourceDigest(await metadata()) !== githubSourceDigest(repository) || signal.aborted)
     throw Error("epic_merge_scope");
+  inTime();
+  if (rpc.operation === "database" && ["workload", "verify"].includes(rpc.command.action))
+    result = { ...(result as Record<string, unknown>), authorityExpiresAt: p.expiresAt };
   return { schemaVersion: 1, requestId: rpc.requestId, operation: rpc.operation, result };
 }
 if (process.argv[1]?.endsWith("epic-merge-host.mjs")) {

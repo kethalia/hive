@@ -1,4 +1,16 @@
 import { z } from "zod";
+import {
+  databaseCatalogSchema,
+  databaseJobRequestSchema,
+  databaseObservationSchema,
+  databasePlanApprovalSchema,
+  sourceBuildCompatibilitySchema,
+} from "../../../services/migrate/src/delivery/wire.mjs";
+import { epicMergePreparedSchema } from "./epic-merge-contracts";
+export const automaticPreparedSchema = epicMergePreparedSchema.extend({
+  riskClass: z.enum(["application_only", "database"]),
+});
+
 import { providerBuildIdentitySchema } from "../provider-build";
 export const AUTOMATIC_HEALTH_PATH = "/.well-known/hive-release-health";
 export const availableProviderBuildSchema = providerBuildIdentitySchema.options[1];
@@ -11,6 +23,10 @@ export const automaticHealthSchema = z
     mode: z.literal("production"),
     nonce: z.string().uuid(),
     build: availableProviderBuildSchema,
+    databaseEndpointDigest: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     readiness: z.object({ database: z.literal(true), authentication: z.literal(true) }).strict(),
     observedAt: z.string().datetime(),
   })
@@ -156,6 +172,10 @@ export const automaticBuildsReadSchema = z
     schemaVersion: z.literal(1),
     repositoryId: githubProviderId,
     sourceSha: z.string().regex(/^[a-f0-9]{40}$/),
+    treeSha: z
+      .string()
+      .regex(/^[a-f0-9]{40}$/)
+      .optional(),
     checks: z.array(cloudflareBuildCheckSchema).max(99),
   })
   .strict();
@@ -180,6 +200,7 @@ export const automaticReleaseRpcSchema = z.discriminatedUnion("operation", [
     .object({
       ...common,
       operation: z.literal("prepare"),
+      database: databaseCatalogSchema.optional(),
       test: z
         .object({ request: releaseTestChallengeRequestSchema, complete: z.boolean() })
         .strict()
@@ -190,6 +211,7 @@ export const automaticReleaseRpcSchema = z.discriminatedUnion("operation", [
     .object({
       ...common,
       operation: z.literal("dispatch"),
+      database: databaseCatalogSchema.optional(),
       identity: releaseActionIdentitySchema,
       authorityExpiresAt: timestamp,
     })
@@ -208,7 +230,60 @@ export const automaticReleaseRpcSchema = z.discriminatedUnion("operation", [
   z
     .object({
       ...common,
+      operation: z.literal("database"),
+      catalog: databaseCatalogSchema,
+      command: z.discriminatedUnion("action", [
+        z
+          .object({
+            action: z.literal("prepare"),
+            test: z
+              .object({ request: releaseTestChallengeRequestSchema, complete: z.boolean() })
+              .strict()
+              .optional(),
+          })
+          .strict(),
+        z
+          .object({
+            action: z.literal("merge"),
+            identity: releaseActionIdentitySchema,
+            authorityExpiresAt: timestamp,
+          })
+          .strict(),
+        z
+          .object({ action: z.literal("builds"), mergeSha: z.string().regex(/^[a-f0-9]{40}$/) })
+          .strict(),
+        z.object({ action: z.literal("workload"), request: databaseJobRequestSchema }).strict(),
+        z
+          .object({
+            action: z.literal("dispatch"),
+            identity: releaseActionIdentitySchema
+              .innerType()
+              .extend({ kind: z.literal("database_job") }),
+            authorityExpiresAt: timestamp,
+          })
+          .strict(),
+        z
+          .object({
+            action: z.literal("lookup"),
+            identity: releaseActionIdentitySchema
+              .innerType()
+              .extend({ kind: z.literal("database_job") }),
+            reference: z
+              .object({ provider: z.literal("github-actions"), dispatchId: id })
+              .strict()
+              .nullable(),
+          })
+          .strict(),
+        z.object({ action: z.literal("verify"), approval: databasePlanApprovalSchema }).strict(),
+        z.object({ action: z.literal("baseline") }).strict(),
+      ]),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
       operation: z.literal("builds"),
+      database: databaseCatalogSchema.optional(),
       mergeSha: z.string().regex(/^[a-f0-9]{40}$/),
     })
     .strict(),
@@ -223,6 +298,10 @@ export const automaticObservationSchema = z
     origin: publicOrigin,
     health: automaticHealthSchema,
     firstHealthDigest: digest,
+    treeSha: z
+      .string()
+      .regex(/^[a-f0-9]{40}$/)
+      .optional(),
     check: cloudflareBuildCheckSchema,
     coverage: z.literal("fixed-origin-db-auth-smoke"),
     observedAt: timestamp,
@@ -253,6 +332,22 @@ export const productionAcceptanceAnchorSchema = z
     observationDigest: digest,
     observation: automaticObservationSchema,
     tested: releaseTestAttestationSchema,
+    database: z
+      .object({
+        kind: z.literal("controlled-source-build"),
+        coverage: z.literal("controlled-migration-activation-history"),
+        catalogDigest: digest,
+        planEventId: id,
+        planDigest: digest,
+        endpointDigest: digest,
+        plan: databasePlanApprovalSchema.innerType().shape.plan,
+        sourceBuild: sourceBuildCompatibilitySchema,
+        reportEventId: id,
+        reportDigest: digest,
+        observation: databaseObservationSchema,
+      })
+      .strict()
+      .optional(),
     previewSeal: z
       .object({
         attemptId: id,
@@ -264,3 +359,30 @@ export const productionAcceptanceAnchorSchema = z
   })
   .strict();
 export type ProductionAcceptanceAnchor = z.infer<typeof productionAcceptanceAnchorSchema>;
+
+export function automaticDatabaseEndpointDigest(raw: string | undefined) {
+  try {
+    if (!raw) return null;
+    const url = new URL(raw);
+    if (
+      !["postgres:", "postgresql:"].includes(url.protocol) ||
+      !url.hostname ||
+      !url.pathname.slice(1) ||
+      url.hash
+    )
+      return null;
+    // Neon documents only this pooler/direct alias. Every other hostname stays exact.
+    // https://neon.com/docs/connect/connection-pooling
+    const hostname = url.hostname.toLowerCase();
+    const host = /^ep-[a-z0-9-]+-pooler\.[a-z0-9.-]+\.neon\.tech$/.test(hostname)
+      ? hostname.replace(/-pooler(?=\.)/, "")
+      : hostname;
+    return githubSourceDigest({
+      host,
+      port: Number(url.port || 5432),
+      database: decodeURIComponent(url.pathname.slice(1)),
+    });
+  } catch {
+    return null;
+  }
+}

@@ -18,7 +18,7 @@ vi.mock("@/lib/codex-session/bootstrap-delivery.server", () => ({
 }));
 vi.mock("@/lib/coder/user-client", () => ({ getCoderClientForUser: mock.client }));
 
-import { discoverHostProjects } from "@/lib/projects/host.server";
+import { discoverHostProjects, signedHostProjectRequest } from "@/lib/projects/host.server";
 
 const key = generateKeyPairSync("ed25519");
 const user = { id: "11111111-1111-4111-8111-111111111111", coderUserId: "owner" };
@@ -210,4 +210,34 @@ describe("authenticated host project discovery", () => {
       code: "github_invalid_response",
     });
   });
+});
+
+it("bounds production DB expansion before credentials and preserves the non-DB limit", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const request = { operation: "database", padding: "" };
+    request.padding = "x".repeat(98304 - Buffer.byteLength(JSON.stringify(request)));
+    expect(Buffer.byteLength(JSON.stringify(request))).toBe(98304);
+    await signedHostProjectRequest(user, workspaceId, "/projects/production-release", request);
+    expect(mock.post).toHaveBeenCalledTimes(1);
+    mock.post.mockClear();
+    mock.client.mockClear();
+    await expect(
+      signedHostProjectRequest(user, workspaceId, "/projects/production-release", {
+        ...request,
+        padding: `${request.padding}x`,
+      }),
+    ).rejects.toThrow();
+    expect(mock.post).not.toHaveBeenCalled();
+    expect(mock.client).not.toHaveBeenCalled();
+    await expect(
+      signedHostProjectRequest(user, workspaceId, "/projects/production-release", {
+        operation: "prepare",
+        padding: "x".repeat(12000),
+      }),
+    ).rejects.toThrow();
+    expect(mock.client).not.toHaveBeenCalled();
+  } finally {
+    log.mockRestore();
+  }
 });

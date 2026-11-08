@@ -26,7 +26,9 @@ export class ReleaseScheduler {
     private readonly db: PrismaClient,
     targetDigest: string,
     private readonly controller: Controller,
-    private readonly planner?: { advance(ownerId: string, releaseId: string): Promise<unknown> },
+    private readonly planner?: {
+      advance(ownerId: string, releaseId: string, signal?: AbortSignal): Promise<unknown>;
+    },
     private readonly opener?: { tick(signal: AbortSignal): Promise<unknown> },
     private readonly databaseObserver?: {
       observe(ownerId: string, releaseId: string, signal: AbortSignal): Promise<unknown>;
@@ -82,7 +84,7 @@ export class ReleaseScheduler {
       if (this.planner) {
         const candidates = await this.db.$queryRaw<
           Row[]
-        >`SELECT r.id,r.owner_id FROM delivery_releases r JOIN delivery_release_targets t ON t.target_digest=r.target_digest WHERE r.target_digest=${this.targetDigest} AND t.active_release_id=r.id AND r.phase IN ('active','held') AND r.id>${this.plannerCursor}::uuid ORDER BY r.id LIMIT 8`;
+        >`SELECT r.id,r.owner_id,r.purpose FROM delivery_releases r JOIN delivery_release_targets t ON t.target_digest=r.target_digest WHERE r.target_digest=${this.targetDigest} AND t.active_release_id=r.id AND r.phase IN ('active','held') AND r.id>${this.plannerCursor}::uuid ORDER BY r.id LIMIT 8`;
         if (!candidates.length) this.plannerCursor = "00000000-0000-0000-0000-000000000000";
         for (const row of candidates) {
           if (parent.aborted) break;
@@ -100,7 +102,14 @@ export class ReleaseScheduler {
                   15000,
                 );
             }
-            await this.planner.advance(row.owner_id, row.id);
+            const planner = this.planner;
+            if (row.purpose === "automatic_production")
+              await withReleaseDeadline(
+                (signal) => planner.advance(row.owner_id, row.id, signal),
+                parent,
+                40000,
+              );
+            else await planner.advance(row.owner_id, row.id);
           } catch {
             counts.held++;
           }

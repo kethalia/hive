@@ -547,3 +547,46 @@ it("never posts a new merge request after its signed deadline expires during aut
     now.mockRestore();
   }
 });
+
+it("bounds the expanded production ticket envelope before Coder authentication", async () => {
+  const f = fixture(),
+    fixedPath = "/projects/production-release";
+  f.coder.getApplicationAuthRedirect.mockResolvedValue(
+    `${origin + fixedPath}?coder_application_connect_api_key_35e783=encrypted`,
+  );
+  f.fetcher
+    .mockReset()
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 303,
+        headers: {
+          Location: fixedPath,
+          "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+        },
+      }),
+    )
+    .mockResolvedValueOnce(Response.json({ bounded: true }));
+  const envelope = { ticket: "" };
+  envelope.ticket = "a".repeat(151552 - Buffer.byteLength(JSON.stringify(envelope)));
+  const request = {
+    path: fixedPath as "/projects/production-release",
+    body: JSON.stringify(envelope),
+    expiresAt: Math.floor(Date.now() / 1000) + 40,
+  };
+  expect(Buffer.byteLength(request.body)).toBe(151552);
+  expect(await postToVerifiedWorkspaceApp(f.coder, f.issued.binding, request, f.fetcher)).toEqual({
+    bounded: true,
+  });
+  f.coder.getApplicationAuthRedirect.mockClear();
+  f.fetcher.mockClear();
+  await expect(
+    postToVerifiedWorkspaceApp(
+      f.coder,
+      f.issued.binding,
+      { ...request, body: `${request.body} ` },
+      f.fetcher,
+    ),
+  ).rejects.toThrow();
+  expect(f.coder.getApplicationAuthRedirect).not.toHaveBeenCalled();
+  expect(f.fetcher).not.toHaveBeenCalled();
+});

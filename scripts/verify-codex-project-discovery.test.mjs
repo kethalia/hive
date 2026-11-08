@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -558,6 +558,79 @@ print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['re
     );
     writeFileSync(f.config.productionReleasePath, "// replaced companion\n", { mode: 0o500 });
     assert.equal((await send("projects:release:production")).status, 403);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("expanded database frames require the production signature and retain exact non-database limits", async () => {
+  const f = fixture(
+    {
+      handle() {
+        throw Error("No public/native tool dispatch");
+      },
+    },
+    `import json,sys,os
+r=json.load(sys.stdin)
+with open(os.path.join(os.path.dirname(__file__),'calls'),'a') as out: out.write('1')
+print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['requestId'],'result':{'bytes':len(json.dumps(r,separators=(',',':')).encode())}}))
+`,
+    undefined,
+    "// fixed production sidecar fixture\n",
+  );
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const request = {
+      schemaVersion: 1,
+      requestId: randomUUID(),
+      operation: "database",
+      config: { mode: "automatic-main-builds" },
+      catalog: { padding: "" },
+      command: { action: "baseline" },
+      gates: {},
+      source: {
+        repositoryId: "1",
+        pullRequestId: "2",
+        pullNumber: 1,
+        headSha: "a".repeat(40),
+        baseRef: "main",
+        sourceBranch: "codex/delivery/fixture",
+      },
+    };
+    request.catalog.padding = "x".repeat(98304 - Buffer.byteLength(JSON.stringify(request)));
+    const send = (value, ticket) =>
+      http(`http://127.0.0.1:${gateway.port}/projects/production-release`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticket: ticket ?? f.ticket({ scope: "projects:release:production", request: value }),
+        }),
+      });
+    const accepted = await send(request);
+    assert.equal(accepted.status, 200);
+    assert.equal((await accepted.json()).result.bytes, 98304);
+    assert.equal(
+      (await send({ ...request, catalog: { padding: `${request.catalog.padding}x` } })).status,
+      403,
+    );
+    const parts = f.ticket({ scope: "projects:release:production", request }).split(".");
+    parts[2] = (parts[2][0] === "A" ? "B" : "A") + parts[2].slice(1);
+    assert.equal((await send(request, parts.join("."))).status, 403);
+    assert.equal(
+      (await send(request, f.ticket({ scope: "projects:epic:merge", request }))).status,
+      403,
+    );
+    const { catalog: _catalog, command: _command, ...base } = request;
+    assert.equal(
+      (await send({ ...base, operation: "prepare", config: { padding: "x".repeat(12000) } }))
+        .status,
+      403,
+    );
+    assert.equal(readFileSync(join(f.root, "calls"), "utf8"), "1");
   } finally {
     await gateway.close();
     f.close();

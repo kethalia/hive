@@ -78,6 +78,7 @@ export function createReleaseAuthorizer(options: {
   ): Promise<boolean>;
 }) {
   return async (tx: Tx, identity: ReleaseActionIdentity): Promise<boolean> => {
+    if (identity.kind === "database_job") return false;
     const rows = await tx.$queryRaw<
       {
         owner_id: string;

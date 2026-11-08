@@ -30,7 +30,7 @@ export async function openAccountSession(home, fd, notify) {
     !info.isFile() ||
     info.uid !== process.getuid() ||
     info.mode & 0o022 ||
-    info.size > 256 * 1024 * 1024
+    info.size > 512 * 1024 * 1024
   )
     reject();
   const handle = openSync(executable, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -398,6 +398,10 @@ export function createAccountManager({
     return result;
   };
   return {
+    async peek() {
+      await queue;
+      return structuredClone(view());
+    }, // No process/lock/account read or refresh.
     run,
     async close() {
       closed = true;

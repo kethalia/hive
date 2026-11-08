@@ -73,6 +73,7 @@ export type HostProjectPath =
   | "/guardian/identity"
   | "/guardian/bootstrap"
   | "/guardian/recover-empty-close"
+  | "/guardian/account-maintenance"
   | "/projects/discover"
   | "/projects/resolve"
   | "/projects/resolve-ref"
@@ -117,6 +118,7 @@ async function exchangeAppCookie(
     "/guardian/identity",
     "/guardian/bootstrap",
     "/guardian/recover-empty-close",
+    "/guardian/account-maintenance",
   ].includes(fixedPath);
   const merge = ["/projects/epic-merge", "/projects/production-release"].includes(fixedPath);
   const deadline =
@@ -252,6 +254,7 @@ export async function postToVerifiedWorkspaceApp(
       "/guardian/identity",
       "/guardian/bootstrap",
       "/guardian/recover-empty-close",
+      "/guardian/account-maintenance",
       "/projects/discover",
       "/projects/resolve",
       "/projects/resolve-ref",
@@ -266,7 +269,11 @@ export async function postToVerifiedWorkspaceApp(
       "/projects/tasks/recovery-consume",
     ].includes(request.path) ||
     Buffer.byteLength(request.body, "utf8") >
-      (request.path === "/projects/tasks/start" ? 98304 : 20000)
+      (request.path === "/projects/production-release"
+        ? 151552
+        : request.path === "/projects/tasks/start"
+          ? 98304
+          : 20000)
   )
     reject();
   const { cookie, url, deadline } = await exchangeAppCookie(
@@ -495,6 +502,27 @@ export async function requestGuardianEmptyClose(
     binding,
     {
       path: "/guardian/recover-empty-close",
+      body: JSON.stringify({ grant }),
+      expiresAt: Math.floor(Date.now() / 1000) + 30,
+      ...(signal ? { signal } : {}),
+    },
+    fetchApp,
+  );
+}
+/** Owner-only, fixed signed account-maintenance control; no arbitrary app path. */
+export async function requestGuardianAccountMaintenance(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  grant: string,
+  fetchApp: typeof fetch = fetch,
+  signal?: AbortSignal,
+) {
+  if (grant.length < 100 || grant.length > 16384) reject();
+  return postToVerifiedWorkspaceApp(
+    coder,
+    binding,
+    {
+      path: "/guardian/account-maintenance",
       body: JSON.stringify({ grant }),
       expiresAt: Math.floor(Date.now() / 1000) + 30,
       ...(signal ? { signal } : {}),

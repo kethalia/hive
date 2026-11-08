@@ -20,6 +20,14 @@ export async function startGuardedWorkspaceHost() {
       if (!host) throw new Error("guardian_worker_not_ready");
       return host.finishClose();
     },
+    onResumeAccountMaintenance: (scope) => {
+      if (!host) throw new Error("guardian_worker_not_ready");
+      return host.resumeAccountMaintenance(scope);
+    },
+    onAccountMaintenance: (id) => {
+      if (!host) throw new Error("guardian_worker_not_ready");
+      return host.beginAccountMaintenance(id);
+    },
     onLost: () => host?.loseAdmission(),
   });
   try {

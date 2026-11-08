@@ -509,7 +509,12 @@ export function createDeliveryNativeSpool(options) {
           claimCall =
             item.name === "hive_delivery" &&
             !item.namespace &&
-            JSON.parse(item.arguments).operation === "claim_step";
+            [
+              "claim_step",
+              ...(options.maintenanceContext?.(params.threadId, params.turnId)
+                ? ["read_status"]
+                : []),
+            ].includes(JSON.parse(item.arguments).operation);
         } catch {}
         // First-turn task creation remains allowed. A continuation's first
         // delivery operation is claim_step; any other work retains a hold.
@@ -526,7 +531,10 @@ export function createDeliveryNativeSpool(options) {
           ["userMessage", "agentMessage", "reasoning"].includes(item.type) ||
           (item.type === "dynamicToolCall" &&
             item.tool === "hive_delivery" &&
-            (item.arguments?.operation === "claim_step" || !state.cursors[params.threadId]));
+            (item.arguments?.operation === "claim_step" ||
+              (item.arguments?.operation === "read_status" &&
+                options.maintenanceContext?.(params.threadId, params.turnId)) ||
+              !state.cursors[params.threadId]));
         if (!permitted && !(item.type === "subAgentActivity" && item.kind === "completed"))
           unadmitted(params, item, "native_work_before_claim_receipt");
       }
@@ -870,6 +878,20 @@ export function createDeliveryNativeSpool(options) {
         );
       else if (claim)
         check(contextEqual(claim.sourceContext, sourceContext), "native_source_context_changed");
+    },
+    // Private factual selector ONLY; never changes currentClaim/fragmentClaim or
+    // any cursor/actor. A fresh signed status read still revalidates the epoch.
+    maintenanceReadClaim(managerThreadId, parentTurnId) {
+      const c = options.maintenanceContext?.(managerThreadId, parentTurnId)?.claimContinuation;
+      if (!c) return null;
+      this.assertAvailable(managerThreadId, false, c);
+      const cursor = state.cursors[managerThreadId],
+        prior = cursor && state.attempts[cursor.attemptId];
+      check(
+        prior && prior.serverInstanceId !== currentServerInstanceId(),
+        "maintenance_read_claim_unavailable",
+      );
+      return structuredClone(prior);
     },
     currentClaim(managerThreadId) {
       const claim = claimFor(managerThreadId);
@@ -1278,6 +1300,9 @@ export function createDeliveryNativeSpool(options) {
           command,
           checkoutBinding,
           continuation: continuation ?? null,
+          ...(pinned.maintenanceContinuation
+            ? { maintenanceContinuation: pinned.maintenanceContinuation }
+            : {}),
           ...(sourceProtocol
             ? { sourceContext: pinned.sourceContext ?? null, inputSourceSha: pinned.inputSourceSha }
             : {}),
@@ -1301,6 +1326,9 @@ export function createDeliveryNativeSpool(options) {
         callId: params.callId,
         managerThreadId: params.threadId,
         continuation: continuation ?? null,
+        ...(pinned.maintenanceContinuation
+          ? { maintenanceContinuation: structuredClone(pinned.maintenanceContinuation) }
+          : {}),
         ...(sourceProtocol
           ? {
               sourceContext: structuredClone(pinned.sourceContext),
@@ -1360,6 +1388,9 @@ export function createDeliveryNativeSpool(options) {
               command,
               checkoutBinding,
               continuation: intent.continuation ?? null,
+              ...(intent.maintenanceContinuation
+                ? { maintenanceContinuation: intent.maintenanceContinuation }
+                : {}),
               ...(sourceProtocol
                 ? {
                     sourceContext: intent.sourceContext ?? null,
@@ -1424,8 +1455,15 @@ export function createDeliveryNativeSpool(options) {
               result.cursorVersion === cursor.cursorVersion + 1 &&
               result.nativeSequence === cursor.acknowledgedSequence &&
               cursor.sequence === cursor.acknowledgedSequence &&
-              receipt?.nextParentTurnId === params.turnId &&
-              intent.continuation?.boundaryEventId === receipt.boundaryEventId,
+              ((intent.maintenanceContinuation &&
+                previous.serverInstanceId !== currentServerInstanceId() &&
+                previous.managerBindingId === result.managerBindingId &&
+                intent.maintenanceContinuation.epochVersion > 0 &&
+                !state.events.some(
+                  (e) => e.managerThreadId === params.threadId && !e.acknowledged,
+                )) ||
+                (receipt?.nextParentTurnId === params.turnId &&
+                  intent.continuation?.boundaryEventId === receipt.boundaryEventId)),
             "native_continuation_receipt_mismatch",
           );
         } else {
@@ -1504,7 +1542,7 @@ export function createDeliveryNativeSpool(options) {
       };
       save();
     },
-    assertAvailable(managerThreadId, allowFailure = false) {
+    assertAvailable(managerThreadId, allowFailure = false, maintenanceContinuation = null) {
       check(!closed, "native_spool_closed");
       if (state.blocked[managerThreadId] && !allowFailure)
         throw new Error("native_reconciliation_required");
@@ -1512,8 +1550,18 @@ export function createDeliveryNativeSpool(options) {
         progression && state.cursors[managerThreadId]
           ? state.attempts[state.cursors[managerThreadId].attemptId]
           : state.claims[managerThreadId];
-      if (claim && claim.serverInstanceId !== currentServerInstanceId())
-        throw new Error("native_lifetime_changed");
+      if (claim && claim.serverInstanceId !== currentServerInstanceId()) {
+        // The adapter passes only a scope obtained from the supervisor's exact
+        // reserved owner input. It still cannot bypass a blocked/undrained spool.
+        check(
+          maintenanceContinuation &&
+            maintenanceContinuation.epochVersion > 0 &&
+            state.cursors[managerThreadId]?.sequence ===
+              state.cursors[managerThreadId]?.acknowledgedSequence &&
+            !state.events.some((e) => e.managerThreadId === managerThreadId && !e.acknowledged),
+          "native_lifetime_changed",
+        );
+      }
     },
     observe(notification) {
       try {

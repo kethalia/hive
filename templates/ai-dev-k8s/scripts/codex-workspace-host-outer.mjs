@@ -238,10 +238,10 @@ export async function startInstalledGuardedHost() {
               authority = newAuthority();
             }
           : undefined,
-        requestDrain: async () => {
+        requestDrain: async (maintenanceId) => {
           let ready = false;
           try {
-            ready = await authority.drainReady();
+            ready = await authority.drainReady(maintenanceId);
           } catch {
             return false;
           }
@@ -251,6 +251,8 @@ export async function startInstalledGuardedHost() {
             }, 50);
           return ready;
         },
+        accountMaintenance: (grant) => authority.requestAccountMaintenance(grant),
+        maintenanceResumeReady: () => authority.maintenanceResumeReady(),
         recoverEmptyClose: async (grant) => {
           await authority.requestExpiredEmptyDrain(grant);
           setTimeout(() => {

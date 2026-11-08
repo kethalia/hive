@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireValue } from "./contracts.mjs";
+import { assertDatabaseAuthority } from "./database-authority.mjs";
 import { databaseWorkloadToken, readDatabaseJson } from "./installed-job.mjs";
 import {
   databaseCatalogSchema,
@@ -9,10 +10,12 @@ import {
 } from "./wire.mjs";
 
 /** Inputs are protected environment configuration, never candidate checkout data. */
+/** @param {{ env?: Record<string, string | undefined>, fetcher?: typeof fetch, signal?: AbortSignal, authorityEnrollment?: {recipeSha:string,manifest:unknown} }} [options] */
 export async function approveInstalledDatabasePlan({
   env = process.env,
   fetcher = fetch,
   signal,
+  authorityEnrollment,
 } = {}) {
   requireValue(env.HIVE_DELIVERY_DATABASE_ENABLED === "true", "migration_disabled");
   const rawCatalog = env.HIVE_DELIVERY_DATABASE_CATALOG_JSON,
@@ -25,6 +28,12 @@ export async function approveInstalledDatabasePlan({
     "migration_job_config_unavailable",
   );
   const catalog = databaseCatalogSchema.parse(JSON.parse(rawCatalog));
+  assertDatabaseAuthority(
+    catalog,
+    authorityEnrollment?.recipeSha ?? env.HIVE_DATABASE_TRUSTED_RECIPE_SHA,
+    authorityEnrollment?.manifest,
+    env.HIVE_DATABASE_JOB_PURPOSE === "automatic-source-build",
+  );
   const request = databasePlanApprovalSchema.parse({
     ...JSON.parse(rawPlan),
     schemaVersion: 1,

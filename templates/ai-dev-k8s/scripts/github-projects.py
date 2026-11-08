@@ -353,9 +353,12 @@ def epic_read(value):
 
 
 def epic_merge(value):
-    if (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup", "builds")
+    if (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup", "builds", "database")
             or not isinstance(value.get("requestId"), str) or value.get("schemaVersion") != 1):
         raise DiscoveryError("invalid_request")
+    limit = 98304 if value["operation"] == "database" else 12000
+    if len(json.dumps(value, separators=(",", ":")).encode()) > limit:
+        raise DiscoveryError("request_too_large")
     node, entry = os.environ.get("HIVE_EPIC_MERGE_NODE"), os.environ.get("HIVE_EPIC_MERGE_ENTRY")
     if not node or not entry or not os.path.isabs(node) or not os.path.isabs(entry):
         raise DiscoveryError("discovery_unavailable")
@@ -382,13 +385,15 @@ def epic_merge(value):
 
 def main():
     try:
-        raw = sys.stdin.buffer.read(12001)
-        if len(raw) > 12000:
+        raw = sys.stdin.buffer.read(98305)
+        if len(raw) > 98304:
             raise DiscoveryError("request_too_large")
         value = json.loads(raw)
-        if len(raw) > REQUEST_LIMIT and (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup", "builds")):
+        if len(raw) > 12000 and (not isinstance(value, dict) or value.get("operation") != "database"):
             raise DiscoveryError("request_too_large")
-        result = (epic_merge(value) if isinstance(value, dict) and value.get("operation") in ("prepare", "dispatch", "lookup", "builds")
+        if len(raw) > REQUEST_LIMIT and (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup", "builds", "database")):
+            raise DiscoveryError("request_too_large")
+        result = (epic_merge(value) if isinstance(value, dict) and value.get("operation") in ("prepare", "dispatch", "lookup", "builds", "database")
                   else epic_read(value) if isinstance(value, dict) and value.get("operation") in ("observe_merge", "lineage")
                   else resolve_repository(value) if isinstance(value, dict) and value.get("operation") in ("resolve", "resolve_ref") else discover(value))
         status = 0

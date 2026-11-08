@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-const mock = vi.hoisted(() => ({ session: vi.fn(), execute: vi.fn() }));
+const mock = vi.hoisted(() => ({ session: vi.fn(), execute: vi.fn(), slots: vi.fn() }));
+vi.mock("@hive/db", () => ({ getDb: () => ({ codexHostSlot: { findMany: mock.slots } }) }));
 vi.mock("@/lib/auth/session", () => ({ getRequestSession: mock.session }));
 vi.mock("@/lib/agents/portable-config.server", () => ({
   createPortableAccountService: () => ({ execute: mock.execute }),
@@ -20,7 +21,10 @@ const request = (body: unknown = { action: "status" }, origin = "https://hive.ex
 beforeEach(() => {
   vi.stubEnv("HIVE_CODEX_ACCOUNTS_ENABLED", "true");
   vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example");
-  mock.session.mockResolvedValue({ user: { id: "hive-owner", coderUserId: "coder-owner" } });
+  mock.session.mockResolvedValue({
+    user: { id: "hive-owner", coderUserId: "coder-owner", coderUrl: "https://coder.example" },
+  });
+  mock.slots.mockResolvedValue([]);
   mock.execute.mockResolvedValue({
     scope: "managed-native",
     lifetimeId,
@@ -127,4 +131,77 @@ it("Claude code input is separately gated, exact-shaped, and never echoed", asyn
     },
     expect.any(AbortSignal),
   );
+});
+
+it("pending maintenance permits cached status and exact cancellation but no new auth mutation", async () => {
+  const id = randomUUID(),
+    buildId = randomUUID();
+  mock.slots.mockResolvedValue([
+    {
+      accountMaintenance: {
+        schemaVersion: 1,
+        purpose: "account-maintenance",
+        id,
+        ownerId: randomUUID(),
+        coderOwnerId: randomUUID(),
+        coderOrigin: "https://coder.example",
+        workspaceId,
+        buildId,
+        phase: "requested",
+        requestedAt: new Date().toISOString(),
+        runtimes: [
+          {
+            runtimeId: randomUUID(),
+            runtimeGeneration: 1,
+            lifetimeId: randomUUID(),
+            buildId,
+            configSha256: "a".repeat(64),
+          },
+        ],
+        tasks: [],
+        projects: [
+          {
+            projectId: randomUUID(),
+            preparationIntentId: randomUUID(),
+            nativeThreadId: randomUUID(),
+            leaseId: randomUUID(),
+            leaseGeneration: 1,
+            checkoutDigest: "b".repeat(64),
+          },
+        ],
+        barrierIds: [],
+        treeReceiptDigests: [],
+        idleRuntimeId: null,
+        resumeRequestId: null,
+        resumeIntentRuntimeId: null,
+        resumeIntentEventId: null,
+        holdReason: null,
+      },
+    },
+  ]);
+  expect((await codexAccountRoute(request(), workspaceId)).status).toBe(200);
+  expect(mock.execute.mock.calls.at(-1)?.[2]).toEqual({
+    operation: "codex-account",
+    account: { action: "status", cached: true },
+  });
+  expect(
+    (
+      await codexAccountRoute(
+        request({ action: "disconnect", lifetimeId, generation: 0 }),
+        workspaceId,
+      )
+    ).status,
+  ).toBe(409);
+  expect(mock.execute).toHaveBeenCalledTimes(1);
+  expect(
+    (await codexAccountRoute(request({ action: "cancel", lifetimeId, generation: 0 }), workspaceId))
+      .status,
+  ).toBe(200);
+  expect(mock.execute.mock.calls.at(-1)?.[2]).toEqual({
+    operation: "codex-account",
+    account: { action: "cancel", lifetimeId, generation: 0 },
+  });
+  expect(
+    (await codexAccountRoute(request({ action: "status", cached: true }), workspaceId)).status,
+  ).toBe(409);
 });

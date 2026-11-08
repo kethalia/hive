@@ -1,17 +1,67 @@
 name: CI
+run-name: ${{ inputs.operation == 'database' && format('hive-database/{0}/{1}', inputs.database-dispatch-id, inputs.database-stage) || '' }}
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [validate, database]
+        default: validate
+      database-stage:
+        type: choice
+        options: [approve, advance, activate]
+        default: approve
+      database-dispatch-id:
+        type: string
+        default: ""
+      database-trusted-revision:
+        type: string
+        default: ""
+      database-catalog-json:
+        type: string
+        default: ""
+      database-approval-json:
+        type: string
+        default: ""
+      database-job-json:
+        type: string
+        default: ""
+      database-compatibility-digest:
+        type: string
+        default: ""
   pull_request:
     branches: [main, codex/delivery-system-design]
   push:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ inputs.database-dispatch-id || 'source' }}
+  cancel-in-progress: ${{ inputs.operation != 'database' }}
 
 jobs:
+  automatic-database:
+    name: Automatic database
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.operation == 'database' &&
+      inputs.database-trusted-revision == '768eff79a7e523a5b38c416952b720e84067a6bf' &&
+      fromJSON(inputs.database-catalog-json).automaticExecutionEnabled == true
+    permissions:
+      contents: read
+      id-token: write
+    uses: kethalia/hive/.github/workflows/controlled-database-job.yml@b8376b7677a49df03d5e619218a5a7164f5a34b4
+    with:
+      enabled: true
+      operation: ${{ inputs.database-stage }}
+      trusted-revision: 768eff79a7e523a5b38c416952b720e84067a6bf
+      dispatch-id: ${{ inputs.database-dispatch-id }}
+      catalog-json: ${{ inputs.database-catalog-json }}
+      approval-json: ${{ inputs.database-approval-json }}
+      job-json: ${{ inputs.database-job-json }}
+      compatibility-config-json: ${{ toJSON(fromJSON(inputs.database-catalog-json).compatibilityTest.config) }}
+      compatibility-digest: ${{ inputs.database-compatibility-digest }}
+    secrets:
+      HIVE_DATABASE_URL: ${{ secrets.HIVE_DATABASE_URL }}
   trusted-tested-tree:
     name: Trusted tested tree
     if: >-
@@ -32,6 +82,7 @@ jobs:
         {"controllerOrigin":"https://codex-delivery-system-design-hive.b00ste.workers.dev","audiencePrefix":"urn:hive:release-tested:epic-preview:","controlDigest":"b1887cba68b939438f072e8340783b144b98f06cac2c006fa5b544f939dbebe6"}
 
   build-lint-test:
+    if: ${{ inputs.operation != 'database' }}
     name: Build / Lint / Test
     permissions:
       contents: read
@@ -63,6 +114,7 @@ jobs:
     secrets: inherit
 
   migration-integration:
+    if: ${{ inputs.operation != 'database' }}
     name: Migration preflight / PostgreSQL
     runs-on: ubuntu-latest
     # Serial migration, recovery and real-delay lifecycle checks share this job.
@@ -76,6 +128,8 @@ jobs:
           POSTGRES_USER: hive
           POSTGRES_PASSWORD: hive-test-password
           POSTGRES_DB: hive_migrate_test
+          # Match Neon's password pipeline only in this isolated synthetic fixture.
+          POSTGRES_HOST_AUTH_METHOD: password
         ports:
           - 5432:5432
         options: >-
@@ -93,6 +147,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Validate workspace account routing and session boundaries
         run: pnpm exec vitest run src/__tests__/app/workspace-account-routing.test.ts
+      - name: Validate bounded account executable admission
+        run: node --test scripts/agent-bridge/account-executable.test.mjs
       - name: Validate private migration capture boundaries
         run: python3 -B -m unittest discover -s scripts/checks/data-migration -p 'test_*.py'
       - run: node --test services/migrate/test/migrate.integration.test.mjs
@@ -135,6 +191,18 @@ jobs:
         run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/release-automatic.integration.test.ts src/__tests__/lib/delivery/release-automatic-auth-wiring.integration.test.ts src/__tests__/lib/delivery/acceptance-production.integration.test.ts
         env:
           HIVE_AUTOMATIC_RELEASE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_acceptance_test_automatic_ci
+      - name: Prepare isolated automatic database delivery fixture
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_acceptance_test_automatic_database_ci
+      - name: Apply automatic database delivery schema
+        run: pnpm --filter @hive/db migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_acceptance_test_automatic_database_ci
+      - name: Enroll the fixture target migration ledger
+        run: docker exec -i "${{ job.services.postgres.id }}" psql -U hive -d hive_acceptance_test_automatic_database_ci -v ON_ERROR_STOP=1 < services/migrate/src/delivery/ledger.sql
+      - name: Validate controlled automatic database delivery and acceptance
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/release-automatic-database.integration.test.ts
+        env:
+          HIVE_AUTOMATIC_DATABASE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_acceptance_test_automatic_database_ci
       - name: Prepare isolated release journal database
         run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_release_test
       - name: Apply release journal schema
@@ -151,10 +219,21 @@ jobs:
         run: pnpm exec tsx --test --test-concurrency=1 services/migrate/test/delivery/*.test.mjs
         env:
           HIVE_D10_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_d10_test
+          HIVE_D10_SOURCE_BUILD_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_d10_test
       - name: Validate read-only release candidate observations
         run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/release-candidate.integration.test.ts
         env:
           HIVE_RELEASE_CANDIDATE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_delivery_test
+      - name: Prepare isolated account maintenance database
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_account_maintenance_test
+      - name: Apply account maintenance schema
+        run: pnpm --filter @hive/db migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_account_maintenance_test
+      - name: Validate graceful account maintenance and fresh execution epochs
+        run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/codex-session/account-maintenance.integration.test.ts src/__tests__/lib/codex-session/account-maintenance-delivery.integration.test.ts src/__tests__/lib/codex-session/account-maintenance-route.test.ts src/__tests__/lib/codex-session/account-maintenance-wire.test.ts src/__tests__/components/account-maintenance-card.test.tsx
+        env:
+          HIVE_ACCOUNT_MAINTENANCE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_account_maintenance_test
       - name: Prepare isolated credential rotation database
         run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_rotation_test
       - name: Apply credential rotation schema
@@ -196,6 +275,7 @@ jobs:
           HIVE_AGENT_NOTIFICATION_TEST_DATABASE_URL: postgresql://hive:hive-test-password@127.0.0.1:5432/hive_agent_notification_test
 
   quality:
+    if: ${{ inputs.operation != 'database' }}
     name: Quality
     permissions:
       contents: read
@@ -209,6 +289,7 @@ jobs:
     secrets: inherit
 
   helm-lint:
+    if: ${{ inputs.operation != 'database' }}
     name: Helm Lint
     uses: kethalia/workflows/.github/workflows/helm-lint.yml@v4
     with:

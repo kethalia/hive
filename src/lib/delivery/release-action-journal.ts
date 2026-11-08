@@ -3,7 +3,7 @@ import { canonicalGitHubSource, githubSourceDigest } from "./github-evidence.ser
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const id = z.string().uuid();
-const kind = z.enum(["merge", "promote", "recover"]);
+const kind = z.enum(["merge", "promote", "recover", "database_job"]);
 
 /** A provider effect is identified before dispatch. This projection is not an
  * authorization: the transactional caller must lock and revalidate current

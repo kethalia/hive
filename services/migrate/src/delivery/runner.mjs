@@ -71,6 +71,8 @@ export function createDeliveryMigrationController({
   expectedPlanDigest,
   authorize,
   observeDeployment,
+  prepareDeployment,
+  refreshActivationIntegrity = false,
 }) {
   requireValue(enabled === true, "migration_disabled");
   assertPrismaLockContract();
@@ -318,6 +320,8 @@ export function createDeliveryMigrationController({
     },
     async tick(runId, action, { signal } = {}) {
       requireValue(Object.hasOwn(phases, action), "migration_action_unsupported");
+      if (prepareDeployment && ["compatible", "activate"].includes(action))
+        await prepareDeployment({ runId, action, signal });
       return transaction(runId, action, signal, async (tx) => {
         let row = await load(tx, runId);
         if (["integrity", "activate"].includes(action)) await fenceIntegrity(tx);
@@ -382,7 +386,7 @@ export function createDeliveryMigrationController({
           );
           stopped(signal);
           deploymentReceipt(observed, expected, Number(await clock(tx)));
-          if (action === "activate") await verifyIntegrity(tx);
+          const activationIntegrity = action === "activate" ? await verifyIntegrity(tx) : null;
           row = await append(
             tx,
             row,
@@ -390,6 +394,9 @@ export function createDeliveryMigrationController({
             {
               phase: done[action],
               [action === "compatible" ? "compatibility" : "activation"]: observed,
+              ...(refreshActivationIntegrity && activationIntegrity
+                ? { integrity: activationIntegrity }
+                : {}),
             },
             { receiptDigest: observed.receiptDigest },
           );
@@ -440,6 +447,7 @@ export function createDeliveryMigrationController({
       });
     },
     async certificate(runId, { signal } = {}) {
+      if (prepareDeployment) await prepareDeployment({ runId, action: "certificate", signal });
       return transaction(runId, "certificate", signal, async (tx) => {
         const row = await load(tx, runId);
         await fenceIntegrity(tx);
