@@ -829,3 +829,39 @@ test("application private request schemas reject nonfixed actions, foreign field
     }),
   );
 });
+
+test("unused held-epoch constructor hook archives its exact stopped predecessor before fresh startup", async (t) => {
+  const f = fixture(t, { idle: true, startup: true }),
+    first = await f.open(),
+    before = first.startupAttestation();
+  await first.abort();
+  const journal = join(f.options.stateDirectory, "lifetime.json"),
+    original = readFileSync(journal),
+    digest = createHash("sha256").update(original).digest("hex");
+  let calls = 0;
+  const next = await openGuardedHost({
+    ...f.options,
+    bindingDigest: "b".repeat(64),
+    prepareUnusedEpochRetirement: async ({ outerRaw }) => {
+      calls++;
+      assert.deepEqual(outerRaw, original);
+      const old = JSON.parse(outerRaw).state;
+      assert.equal(old.events[4].value.lifetimeId, before.lifetimeId);
+      assert.ok(["startupReady", "indeterminate"].includes(old.phase));
+      return { hop: { oldJournalDigests: { lifetime: digest }, lifetimeId: before.lifetimeId } };
+    },
+  });
+  try {
+    assert.equal(calls, 1);
+    const current = next.startupAttestation();
+    assert.notEqual(current.lifetimeId, before.lifetimeId);
+    assert.equal(current.generation, 1);
+    assert.deepEqual(current.projects, []);
+    assert.deepEqual(
+      readFileSync(join(f.options.stateDirectory, `lifetime-unused-${before.lifetimeId}.json`)),
+      original,
+    );
+  } finally {
+    await next.abort();
+  }
+});

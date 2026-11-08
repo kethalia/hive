@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T11:54:34.126164+00:00",
+  "scope": "native-host-only",
+  "overallWorkspaceHealthy": false,
+  "overallAgentLifecycle": "start_error",
+  "independentOpenIssue": "code-server installer curl22 HTTP503",
+  "nativeHostLoopbackHealth": 200,
+  "strictHeldReadinessPassed": false,
+  "holdCategory": "exact_checkout_lease",
+  "verifiedBeforeHold": [
+    "exact source/config renderer + Coder public variables/apps/normalized runtime agent",
+    "54 host package members / baked archive / Node / SDK pins",
+    "four bootstrap history HMACs and original40ac configuration anchor",
+    "current signed startup and live process chain",
+    "exact original task/request/source/prompt digest and unconsumed transfer",
+    "original archive/key/completed old authority and canonical pre-stop lifetime anchor"
+  ],
+  "physicalHold": {
+    "actualIdentity": {
+      "device": "2112",
+      "inode": "262164"
+    },
+    "retainedTaskIdentity": {
+      "device": "2272",
+      "inode": "262164"
+    },
+    "retainedProofIdentity": {
+      "inode": "262164",
+      "device": "2272"
+    },
+    "deviceMatches": false,
+    "inodeMatches": true,
+    "taskProofIdentityMatches": true,
+    "incarnationMatches": true,
+    "leaseIdMatches": true,
+    "leaseGenerationMatches": true
+  },
+  "notReached": [
+    "managed lease record / no-consumer process scan / auth-cache STAT / full bridge verification / final journal unchanged check"
+  ],
+  "authContentRead": false,
+  "authCacheFingerprintComputed": false,
+  "ownerRetryExecuted": false,
+  "epicSource": "a95a1a7e2e288ca4c149abe12c280b3187decca7",
+  "sourceImage": "ghcr.io/kethalia/hive-base@sha256:f957d26440fe8d3f7ccb272bcaee39d2be9bd924e1b6df50dfa55e42f536ef47",
+  "imageWorkflowRunId": 42474669834,
+  "automaticPreviewBuildId": "fba8452e-a32b-4d6e-b8ac-f0837581b3ab",
+  "previewDeploymentId": "304a8fec-86d7-48e7-bca9-e7b80f92b629",
+  "sameProviderVolumeIndependentlyObserved": true,
+  "volumeProvenanceScope": "Operator read of original and current Coder provider state; not a volume identity recorded in the legacy lease. Raw state remains private.",
+  "modelStarted": false,
+  "firstPromptSubmitted": false,
+  "journalOrLeasePatched": false,
+  "productionChanged": false,
+  "acceptance": "held-before-owner-retry; later gates and complete flow remain unverified"
+}

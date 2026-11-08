@@ -57,6 +57,7 @@ vi.mock("@/lib/projects/task-recovery-store.server", () => ({
 vi.mock("@/lib/codex-session/guardian-factory.server", () => ({
   createGuardianService: () => ({
     provision: mock.guardianProvision,
+    recoveryContinuity: async () => undefined,
     verifyRecoveryIdentity: mock.guardianIdentity,
   }),
 }));

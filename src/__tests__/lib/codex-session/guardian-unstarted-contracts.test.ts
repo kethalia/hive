@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { verifyUnstartedCoderLifecycle } from "@/lib/codex-session/guardian-unstarted-contracts";
+import {
+  guardianRemountEnrollments,
+  guardianTransferContinuationSchema,
+} from "@/lib/codex-session/guardian-remount-contracts";
+import {
+  verifyUnstartedCoderLifecycle,
+  verifyUnusedEpochCoderLifecycle,
+} from "@/lib/codex-session/guardian-unstarted-contracts";
 
 describe("exact unused-reservation Coder lifecycle", () => {
   const scope = { workspaceId: randomUUID(), oldBuildId: randomUUID(), newBuildId: randomUUID() };
@@ -30,6 +37,54 @@ describe("exact unused-reservation Coder lifecycle", () => {
       job: { status: "succeeded" },
     },
   ];
+  it("allows exactly one known unused stop/start pair and rejects missing/extra/foreign hops", () => {
+    const heldBuildId = randomUUID(),
+      held = { ...rows[0], id: heldBuildId, build_number: 12 };
+    const chain = [
+      { ...rows[0], build_number: 14 },
+      { ...rows[1], id: randomUUID(), build_number: 13 },
+      held,
+      ...rows.slice(1),
+    ];
+    const extended = { ...scope, heldBuildId };
+    expect(verifyUnusedEpochCoderLifecycle(chain, extended)).toBe(true);
+    expect(
+      verifyUnusedEpochCoderLifecycle(
+        chain.filter((r) => r.build_number !== 13),
+        extended,
+      ),
+    ).toBe(false);
+    expect(
+      verifyUnusedEpochCoderLifecycle(
+        chain.map((r) => (r.id === heldBuildId ? { ...r, workspace_id: randomUUID() } : r)),
+        extended,
+      ),
+    ).toBe(false);
+    expect(
+      verifyUnusedEpochCoderLifecycle(
+        [{ ...rows[0], id: randomUUID(), build_number: 15 }, ...chain],
+        extended,
+      ),
+    ).toBe(false);
+    expect(verifyUnusedEpochCoderLifecycle(chain, { ...extended, heldBuildId: randomUUID() })).toBe(
+      false,
+    );
+  });
+  it("leaves operator remount enrollment absent by default and rejects malformed or unbounded inputs", () => {
+    expect(guardianRemountEnrollments({})).toEqual([]);
+    expect(() =>
+      guardianRemountEnrollments({ HIVE_GUARDIAN_REMOUNT_ATTESTATIONS_JSON: "not-json" }),
+    ).toThrow();
+    expect(() =>
+      guardianRemountEnrollments({
+        HIVE_GUARDIAN_REMOUNT_ATTESTATIONS_JSON: JSON.stringify(Array(9).fill({})),
+      }),
+    ).toThrow();
+    expect(
+      guardianTransferContinuationSchema.safeParse({ schemaVersion: 2, unusedEpochHop: [] })
+        .success,
+    ).toBe(false);
+  });
   it("accepts a normal consecutive stopped/restarted predecessor whose historical start still says running", () => {
     expect(verifyUnstartedCoderLifecycle(rows, scope)).toBe(true);
   });

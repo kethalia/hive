@@ -26,6 +26,12 @@ import {
   guardianCheckoutSchema,
   guardianDigest,
 } from "./guardian-contracts";
+import { readRemountRecoveryTicket, resolveRemountAttestation } from "./guardian-remount.server";
+import {
+  type GuardianRemountAttestation,
+  type GuardianTransferContinuation,
+  guardianRemountEnrollments,
+} from "./guardian-remount-contracts";
 import {
   GuardianAdmissionStore,
   type GuardianOperationReceiptInput,
@@ -101,6 +107,8 @@ export interface GuardianServiceDependencies {
   assertUnstartedPredecessorStopped?(
     binding: VerifiedHostBinding,
     oldBuildId: string,
+    continuation?: GuardianTransferContinuation,
+    attestation?: GuardianRemountAttestation,
   ): Promise<void>;
   assertMaintenanceAccountsIdle?(binding: VerifiedHostBinding): Promise<void>;
   registerMaintenanceHost?(
@@ -151,6 +159,54 @@ export class GuardianService {
     });
   }
 
+  async recoveryContinuity(scope: {
+    ownerId: string;
+    coderOwnerId: string;
+    workspaceId: string;
+    projectId: string;
+    taskId: string;
+    recoveryId: string;
+  }) {
+    const binding = await this.resolve(
+      { hiveUserId: scope.ownerId, coderUserId: scope.coderOwnerId },
+      scope.workspaceId,
+    );
+    const ticket = await readRemountRecoveryTicket(this.db, this.env, scope);
+    if (ticket) {
+      const entries = guardianRemountEnrollments(this.env),
+        a = entries.find((a) => guardianDigest(a) === ticket.attestationDigest);
+      requireGuardian(
+        a &&
+          a.final.buildId === binding.buildId &&
+          this.dependencies.assertUnstartedPredecessorStopped,
+      );
+      const events = await this.db.codexGuardianOperationReceipt.findMany({
+        where: {
+          ownerId: scope.ownerId,
+          action: "authorization_retired",
+          response: { path: ["retirement", "recoveryId"], equals: scope.recoveryId },
+        },
+        take: 2,
+      });
+      const event = events.find(
+        (e) =>
+          (e.response as { retirement?: { recoveryId?: string } }).retirement?.recoveryId ===
+          scope.recoveryId,
+      );
+      requireGuardian(event);
+      const retirement = (
+        event.response as unknown as { retirement: { continuation: GuardianTransferContinuation } }
+      ).retirement;
+      await this.dependencies.assertUnstartedPredecessorStopped(
+        binding,
+        a.oldBuildId,
+        retirement.continuation,
+        a,
+      );
+      this.active();
+    }
+    return ticket;
+  }
   private now() {
     return this.dependencies.now?.() ?? Date.now();
   }
@@ -327,7 +383,22 @@ export class GuardianService {
     this.active();
     if (!existing)
       requireGuardian(packet.startup.projects.length === 0 && packet.startup.generation === 1);
-    const store = this.requestStore(packet.expiresAt);
+    requireGuardian(!packet.unstartedTransferContinuation || packet.unstartedTransfer);
+    const remountAttestation =
+      packet.unstartedTransferContinuation && packet.unstartedTransfer
+        ? resolveRemountAttestation({
+            proof: packet.unstartedTransfer,
+            continuation: packet.unstartedTransferContinuation,
+            binding: this.workspace(binding),
+            identity: packet.identity,
+            policy: this.policy,
+            enrollments: guardianRemountEnrollments(this.env),
+            now: this.now(),
+          })
+        : undefined;
+    const store = this.requestStore(
+      Math.min(packet.expiresAt, remountAttestation?.expiresAt ?? Infinity),
+    );
     if (packet.unstartedTransfer) {
       requireGuardian(
         packet.startup.projects.length === 0 &&
@@ -337,6 +408,8 @@ export class GuardianService {
       await this.dependencies.assertUnstartedPredecessorStopped(
         binding,
         packet.unstartedTransfer.oldBuildId,
+        packet.unstartedTransferContinuation,
+        remountAttestation,
       );
       this.active();
       this.live(packet);
@@ -345,6 +418,8 @@ export class GuardianService {
       this.workspace(binding),
       packet.identity,
       packet.unstartedTransfer,
+      packet.unstartedTransferContinuation,
+      guardianRemountEnrollments(this.env),
     );
     this.active();
     this.live(packet);
@@ -367,7 +442,7 @@ export class GuardianService {
       scope: "workspace:guardian:enroll" as const,
       jti,
       iat: issuedAt,
-      exp: issuedAt + 60,
+      exp: Math.min(issuedAt + 60, Math.floor((remountAttestation?.expiresAt ?? Infinity) / 1000)),
       runtimeId: runtime.id,
       hiveUserId: principal.hiveUserId,
       coderOwnerId: principal.coderUserId,
@@ -389,6 +464,12 @@ export class GuardianService {
               transferId: packet.unstartedTransfer.transferId,
               oldRuntimeId: packet.unstartedTransfer.oldRuntimeId,
               proofDigest: guardianDigest(packet.unstartedTransfer),
+              ...(packet.unstartedTransferContinuation
+                ? {
+                    continuationDigest: guardianDigest(packet.unstartedTransferContinuation),
+                    attestationDigest: guardianDigest(remountAttestation),
+                  }
+                : {}),
             },
           }
         : {}),
@@ -405,7 +486,7 @@ export class GuardianService {
       tokenDigest: sha(grant),
       bindingDigest: guardianDigest(claims),
       issuedAt: new Date(issuedAt * 1000),
-      expiresAt: new Date((issuedAt + 60) * 1000),
+      expiresAt: new Date(claims.exp * 1000),
     });
     this.active();
     await transport.bootstrap(binding, grant);

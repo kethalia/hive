@@ -928,9 +928,35 @@ resource "kubernetes_deployment_v1" "workspace" {
   depends_on = [kubernetes_persistent_volume_claim_v1.home]
 }
 
+# Public provider-backed storage identity. These selectors read the actual dev
+# container mount and pod claim; a PVC label alone is not mount continuity.
+locals {
+  hive_home_volumes = [for deployment in kubernetes_deployment_v1.workspace : {
+    pvcUid          = kubernetes_persistent_volume_claim_v1.home.metadata[0].uid
+    pvcName         = one([for v in deployment.spec[0].template[0].spec[0].volume : v.persistent_volume_claim[0].claim_name if v.name == "home"])
+    namespace       = deployment.metadata[0].namespace
+    storageClass    = kubernetes_persistent_volume_claim_v1.home.spec[0].storage_class_name
+    capacity        = kubernetes_persistent_volume_claim_v1.home.spec[0].resources[0].requests["storage"]
+    accessModes     = kubernetes_persistent_volume_claim_v1.home.spec[0].access_modes
+    boundVolumeName = kubernetes_persistent_volume_claim_v1.home.spec[0].volume_name
+    containerName   = one([for c in deployment.spec[0].template[0].spec[0].container : c.name if c.name == "dev"])
+    podVolumeName   = one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.name if m.mount_path == "/home/coder"])
+    mountPath       = one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.mount_path if m.name == "home"])
+    subPath         = try(coalesce(one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.sub_path if m.name == "home"]), ""), "")
+    subPathExpr     = try(coalesce(one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.sub_path_expr if m.name == "home"]), ""), "")
+    readOnly        = coalesce(one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.read_only if m.name == "home"]), false)
+    claimReadOnly   = coalesce(one([for v in deployment.spec[0].template[0].spec[0].volume : v.persistent_volume_claim[0].read_only if v.name == "home"]), false)
+  }]
+}
+
 resource "coder_metadata" "workspace" {
   count       = data.coder_workspace.me.start_count
   resource_id = kubernetes_deployment_v1.workspace[count.index].id
+
+  item {
+    key   = "hive_home_volume_v1"
+    value = jsonencode(local.hive_home_volumes[count.index])
+  }
 
   item {
     key   = "template_version"

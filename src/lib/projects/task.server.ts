@@ -402,6 +402,7 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
         { hiveUserId: user.id, coderUserId: user.coderUserId },
         input.workspaceId,
       );
+      const continuity = await service.recoveryContinuity(attempt.scope);
       const inspected = z
         .object({
           schemaVersion: z.literal(1),
@@ -415,7 +416,7 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
             user,
             input.workspaceId,
             "/projects/tasks/recovery-inspect",
-            { schemaVersion: 1, scope: attempt.scope },
+            { schemaVersion: 1, scope: attempt.scope, ...(continuity ? { continuity } : {}) },
           ),
         );
       if (guardianDigest(inspected.scope) !== guardianDigest(attempt.scope))

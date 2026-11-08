@@ -35,7 +35,11 @@ import {
   parkAccountMaintenanceProjectState,
   readAccountMaintenanceArchive,
 } from "./codex-project-controller.mjs";
-import { readPendingUnstartedTransfer } from "./codex-unstarted-transfer.mjs";
+import {
+  readPendingUnstartedTransfer,
+  readUnstartedTransferContinuation,
+  unstartedReceiptMatches,
+} from "./codex-unstarted-transfer.mjs";
 
 const check = (v) => {
   if (!v) throw new Error("guardian_controller_authority_rejected");
@@ -1537,14 +1541,7 @@ export function openGuardianController({
           digest({ identity: identity(s), binding: { ...config.binding, projects: [] } }) &&
         claims.startupDigest === digest(s),
     );
-    if (unstarted)
-      check(
-        same(claims.unstartedTransfer, {
-          transferId: unstarted.transferId,
-          oldRuntimeId: unstarted.oldRuntimeId,
-          proofDigest: digest(unstarted),
-        }),
-      );
+    if (unstarted) check(unstartedReceiptMatches(home, claims.unstartedTransfer, unstarted, s));
     const now = Date.now(),
       body = {
         schemaVersion: 1,
@@ -1629,6 +1626,9 @@ export function openGuardianController({
         identity: identity(s),
         startup: s,
         ...(transfer ? { unstartedTransfer: transfer } : {}),
+        ...(transfer && readUnstartedTransferContinuation(home, s)
+          ? { unstartedTransferContinuation: readUnstartedTransferContinuation(home, s) }
+          : {}),
         ...(state.unstartedTransferReceipt
           ? { unstartedTransferReceipt: state.unstartedTransferReceipt }
           : {}),
@@ -1724,14 +1724,7 @@ export function openGuardianController({
             Date.now() < challenge.expiresAt &&
             digest(s) === digest(challenge.startup),
         );
-        if (unstarted)
-          check(
-            same(claims.unstartedTransfer, {
-              transferId: unstarted.transferId,
-              oldRuntimeId: unstarted.oldRuntimeId,
-              proofDigest: digest(unstarted),
-            }),
-          );
+        if (unstarted) check(unstartedReceiptMatches(home, claims.unstartedTransfer, unstarted, s));
         await send("enroll", { runtimeId: claims.runtimeId, grant }, (r) => {
           check(
             r?.accepted === true &&

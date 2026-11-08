@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "scope": "local-source-validation-and-official-kernel-build",
+  "kernelSourceCheckpoint": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+  "kernelBuildRunId": 42481543864,
+  "kernelArtifactId": 13617772333,
+  "kernelArtifactDigest": "sha256:2eb6c1a38ef703e02308561e69c78969e43e046c86b9c31a7a9f1bd9911bda58",
+  "newGuardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+  "sourceBuilderRecipeAndProviderProvenanceIndependentlyVerified": true,
+  "serverIndependentRerun": {
+    "runner": "Vitest; owned local PostgreSQL17 fixture",
+    "files": [
+      "src/__tests__/lib/codex-session/guardian-unstarted.integration.test.ts",
+      "src/__tests__/lib/codex-session/guardian-unstarted-contracts.test.ts",
+      "src/__tests__/lib/projects/task.test.ts"
+    ],
+    "passed": 40,
+    "failed": 0,
+    "realPostgreSQLCases": 16,
+    "unitCases": 24,
+    "providerResources": "simulated typed responses; no live Coder/Cloudflare/GitHub mutation",
+    "signedIdentityBytesWith8192BytePredecessor": 14845,
+    "signedFrameLimit": 32768,
+    "migration51Sha256Unchanged": "edf996a5c5ed4299b0c88df1085a4450f63da5eb9795b54f90fd49a2ad73dbab"
+  },
+  "hostSourceValidation": {
+    "status": "focused-local-checks-passed",
+    "transferHopAndRecovery": {
+      "passed": 42,
+      "includes": [
+        "immutable original proof plus exactly one unused epoch",
+        "new final endpoint after actual startup",
+        "archived controller move replay",
+        "same mapping/inspection after lost inspect ACK",
+        "mapped admission/fence failure replay with one lease extension"
+      ]
+    },
+    "actualHostJournalConstructor": {
+      "passed": 1,
+      "realGuardianAndWorker": true,
+      "callbackFactualProof": "explicit fixture; complete transfer proof tested separately"
+    },
+    "managedProjects": {
+      "fullSuitePassed": 43,
+      "newRemountAndNondumpableCases": 7,
+      "filesystemGitAndLocks": "real temporary files/Git/locks",
+      "authority": "explicit fixture issuer; operator and signed host/DB boundary tested separately"
+    },
+    "officialPinnedKernel": {
+      "fullSuitePassed": 25,
+      "elfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "extraTargetedScannerRerunPassed": 1,
+      "cases": [
+        "own cwd pinned before nondumpable activation",
+        "generic sameUID nondumpable hold",
+        "one sealed kernel context",
+        "arbitrary prctl0 holder still held under valid kernel context",
+        "old kernel construction rejected",
+        "stale identity rejected",
+        "readable checkout reference rejected"
+      ]
+    },
+    "existingRelatedHostRegressions": {
+      "passed": 78,
+      "existingOptInSkipped": 2
+    },
+    "typecheck": "passed",
+    "authCacheRead": false,
+    "providerOrLiveModelEffects": false,
+    "finalCombinedHostChecks": {
+      "passed": 69,
+      "skipped": 0
+    },
+    "finalManagedProjectsSuite": {
+      "passed": 43
+    }
+  },
+  "liveRecovery": "not attempted",
+  "productionChanged": false,
+  "genericManagedRestartOrCleanupAcceptance": "open; exact unused-task recovery does not establish these gates",
+  "independentPinnedKernelRerun": {
+    "binary": "official CI artifact13617772333; ELF0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+    "tests": [
+      "sole host guardian pins its own cwd before activation makes metadata private",
+      "remount scanner exempts only the sealed pinned host kernel and still rejects readable checkout references"
+    ],
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0,
+    "scope": "actual local guardian process and Python process scanner; no installed workspace mutation"
+  },
+  "packageValidation": {
+    "canonicalProfileSyncPerformed": 1,
+    "canonicalProfileCheck": "passed (4 variants)",
+    "focusedArchiveCodecTemplateAndDeployTestsPassed": 29,
+    "globalTypecheck": "passed",
+    "package": {
+      "manifestSha256": "ca5d16bcd26400b93981b7cce50c81c6d4f25f35c262c2f090db81635c5627ef",
+      "rawSha256": "ae2d05e7bc3031306514c0d2fde7ca8c99d0fb4cb6f7fb11fee06244cbeecb61",
+      "compressedSha256": "a33f624fe76f6912b815c3a4e7766215895693e66cb38112f955e32eee296545",
+      "compressedBytes": 213628,
+      "rawBytes": 1283072,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "staticPreviewApprovedPackages": 7,
+    "legacyAndHeldPredecessorsPreserved": true,
+    "agentBridgeManifestUnchanged": "9a6291523cfce559c7a3d9298b3dc06ac5f94e51c76ae696d4d34d0b809c95e3",
+    "remountAttestationEnrolled": false,
+    "productionBindingsChanged": false,
+    "liveEffects": false
+  },
+  "independentSourceReview": {
+    "reviewer": "recovery_design_review",
+    "boundedSlice": "clear",
+    "remainingOutsideClearance": [
+      "ordinary empty managed-root restart remapping",
+      "executed-task cleanup sealed-kernel context"
+    ]
+  },
+  "nonRemountRecoveryCorrection": {
+    "reviewFinding": "PR429 discussion_r4506336472: ordinary owner-authorized never-started renewal lacked a sealed guardian context",
+    "scope": "separate original-v1 and remount never-started authority; shared construction evidence grants no authority",
+    "sourceReview": "independent bounded review clear",
+    "transferSuitePassed": 43,
+    "managedProjectsSuitePassed": 43,
+    "archiveCodecTemplateAndDeployTestsPassed": 28,
+    "canonicalProfileCheck": "passed (4 variants)",
+    "actualIntegration": "official pinned kernel + packaged InstalledUnstartedAuthority + real Git/HMAC lease; unknown nondumpable holder denies without writes; one renewal and byte-identical replay",
+    "processInventory": "explicit test-owned proc inventory; no live workspace acceptance claim",
+    "package": {
+      "manifestSha256": "2b0c11b1ac6a24d48194080bd0f25d2efee827a40d5be9af440a89eb365a8f18",
+      "rawSha256": "f94e0611781c8e215a9f2be53eb091c26decffe546b39121f650c2d6cc01ad5f",
+      "compressedSha256": "23973b1d76fac99fe6d4690e659bab6ab8a85d8c43444dfa605aca0bebeaa7df",
+      "compressedBytes": 213816,
+      "rawBytes": 1284608,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "staticPreviewPinChange": "replaces only unpublished ca5d package; six historical approved tuples unchanged",
+    "migration51And52AndKernelUnchanged": true,
+    "genericCleanupAuthorityChanged": false,
+    "providerOrLiveRecoveryEffects": false
+  },
+  "ordinaryInstalledScannerCorrection": {
+    "reviewFinding": "PR429 discussion_r4506422017: ordinary installed checkout reuse lacked construction observer",
+    "authority": "construction is a process fact only; existing repository, lease, request and archive authority unchanged",
+    "wiring": [
+      "installed prepare/reuse/interrupted staging",
+      "installed lease release and replay",
+      "installed signed source archive"
+    ],
+    "defaultStandaloneManagers": "strict; no implicit observer",
+    "liveUnknownProcesses": "strict; unknown same-UID nondumpable processes and readable checkout references denied",
+    "preImportProvenance": "startup-bound manifest; bounded regular private nonsymlink members and full local import graph verified before Node import",
+    "integration": "actual official kernel + built current package; v1 recovery; first-task release/replay; second-task same-checkout/incarnation reuse; unknown prctl0 holder and altered module/dependency rejected before writes; dead actor gives no exemption and full strict scan",
+    "fixtures": "test-owned proc inventory and local Git; no live workspace claim",
+    "independentSourceReview": "clear",
+    "focusedChecks": {
+      "transferAndArchivePassed": 44,
+      "managedProjectsPassed": 43,
+      "officialKernelScannerPassed": 1
+    },
+    "package": {
+      "manifestSha256": "d7b8befcef4cd9fa193a58d8b8a6e22b5aa3d7325ea8c7d86d49d84bd0839dcf",
+      "rawSha256": "f40397787aae4946a2ecfdd2cc914418028e5dd9a7b86e3595a425d3e65a6e1a",
+      "compressedSha256": "40d55c12c752b344bd948f783f8f8897177148a10741de0a913e06b2e1d03dd9",
+      "compressedBytes": 214728,
+      "rawBytes": 1290240,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "schemaAndElfUnchanged": true,
+    "liveEffects": false,
+    "finalArchiveAndRuntimeChecksPassed": 72,
+    "canonicalProfileCheck": "passed (4 variants)"
+  },
+  "unguardedAndFixtureCorrection": {
+    "reviewFinding": "PR429 discussion_r4506474815",
+    "absentGuardedState": "canonical path plus lexists absence only; strict full process scan, no exception/closure",
+    "partialDanglingOrCorruptState": "held",
+    "productionNode": "authenticated startup outer executable plus sole sealed root executable/SHA; canonical root-owned non-writable matching file",
+    "confirmedCIRegression": "job128751935374: setup-node executable owner/mode violated native pin before observer execution",
+    "testOnlyReexec": "already available root-owned non-writable canonical Node20+; fail with bounded stat/version diagnostic if unavailable, no skip/download/production guard relaxation",
+    "localActualFixtureNodeMajor": 24,
+    "focusedPythonTestsPassed": 44,
+    "transferAndArchiveTestsPassed": 44,
+    "independentSourceReview": "clear",
+    "package": {
+      "manifestSha256": "1fc0022618d461032e1df1f510d3dd663aa00882268403810ebc36ebfc7d7bd1",
+      "rawSha256": "a948931002dbaaf03468c8025bec4c1ed04a2077c608cdcd6ae2ca55f9f31f32",
+      "compressedSha256": "d853c2008814c15fe9a03e46b8eb91f8b0afa849574a08f83f8dbd85a95cd582",
+      "compressedBytes": 214856,
+      "rawBytes": 1290752,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "schemaAndElfUnchanged": true,
+    "liveEffects": false,
+    "finalPackagedRuntimeTestsPassed": 72,
+    "canonicalProfiles": "4 variants synchronized"
+  }
+}

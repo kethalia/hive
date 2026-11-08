@@ -212,6 +212,271 @@ export function readUnstartedTransfer(home) {
   return state;
 }
 
+const unusedIntermediate = "b16854fee6f44c96652c5b8bd64b9b3025e28037f93ab4bfe86c9bd218dd4efe";
+function unusedEpochRecord(home, proof) {
+  const guard = join(home, ".local/state/hive/codex-host-guardian"),
+    file = join(guard, "unstarted-epoch-hop.json");
+  if (!existsSync(file)) return null;
+  const key = read(join(guard, "key"), 32),
+    saved = hmac(read(file, 16384), key),
+    hop = saved.hop;
+  check(
+    saved.schemaVersion === 1 &&
+      hop.schemaVersion === 1 &&
+      hop.originalProofDigest === sha(canonical(proof)) &&
+      hop.buildId === proof.newBuildId &&
+      hop.configSha256 === proof.newConfigSha256 &&
+      hop.packageManifestSha256 === unusedIntermediate &&
+      hop.packageManifestSha256 === proof.newPackageManifestSha256 &&
+      hop.neverEnrolled === true &&
+      hop.nativeCreationAttempted === false &&
+      hop.firstPromptSubmissionAttempted === false,
+  );
+  const archive = join(guard, `unused-epoch-${hop.lifetimeId}`);
+  privatePath(archive, true);
+  for (const name of ["lifetime", "project", "config", "controller", "supervisor"]) {
+    const digest = hop.oldJournalDigests[name],
+      path = join(archive, name + ".json");
+    if (digest === null) check(!existsSync(path));
+    else check(/^[a-f0-9]{64}$/.test(digest) && sha(read(path, 4194304)) === digest);
+  }
+  check(same(hmac(read(join(archive, "intent.json"), 16384), key), saved));
+  const outer = hmac(read(join(archive, "lifetime.json")), key),
+    ps = hmac(
+      read(join(archive, "project.json"), 4194304),
+      read(join(guard, "..", "codex-project-controller/projects.key"), 32),
+    );
+  check(
+    same(ps.unstartedTransfer, proof) &&
+      !ps.unstartedTransferConsumed &&
+      !ps.unstartedTransferHistory &&
+      Object.keys(ps.projects).join() === proof.projectId &&
+      !ps.projects[proof.projectId].recovery &&
+      outer.events[4].value.lifetimeId === hop.lifetimeId,
+  );
+  return saved;
+}
+export function readUnstartedTransferContinuation(home, startup) {
+  const proof = readUnstartedTransfer(home);
+  if (!proof) return null;
+  const saved = unusedEpochRecord(home, proof);
+  if (!saved) return null;
+  const config = JSON.parse(read(join(home, ".config/hive/codex-host.json"), 16384));
+  check(
+    config.binding.buildId === saved.target.buildId &&
+      sha(read(join(home, ".config/hive/codex-host.json"), 16384)) === saved.target.configSha256 &&
+      startup.configSha256 === saved.target.configSha256 &&
+      startup.packageManifestSha256 === saved.target.packageManifestSha256 &&
+      startup.lifetimeId !== saved.hop.lifetimeId,
+  );
+  return {
+    schemaVersion: 2,
+    originalProofDigest: sha(canonical(proof)),
+    unusedEpochHop: saved.hop,
+    finalSuccessor: { ...saved.target, lifetimeId: startup.lifetimeId },
+  };
+}
+export function unstartedReceiptMatches(home, receipt, proof, startup) {
+  const continuation = readUnstartedTransferContinuation(home, startup);
+  const expected = {
+    transferId: proof.transferId,
+    oldRuntimeId: proof.oldRuntimeId,
+    proofDigest: sha(canonical(proof)),
+  };
+  if (continuation) {
+    if (!/^[a-f0-9]{64}$/.test(receipt?.attestationDigest ?? "")) return false;
+    expected.continuationDigest = sha(canonical(continuation));
+    expected.attestationDigest = receipt.attestationDigest;
+  }
+  return same(receipt, expected);
+}
+export function effectiveUnstartedBuild(home, proof) {
+  return unusedEpochRecord(home, proof)?.target.buildId ?? proof.newBuildId;
+}
+/** One never-enrolled held epoch may carry the original proof forward. The
+ * immutable original transfer still names its original destination. */
+export function prepareUnusedEpochHop({
+  home,
+  config,
+  configSha256,
+  packageManifestSha256,
+  outerRaw,
+  oldConfigRaw,
+}) {
+  const guard = join(home, ".local/state/hive/codex-host-guardian"),
+    proof = readUnstartedTransfer(home);
+  if (!proof) return null;
+  check(config.binding.buildId !== proof.newBuildId);
+  const project = join(home, ".local/state/hive/codex-project-controller"),
+    supervisor = join(home, ".local/state/hive/codex-project-supervisor"),
+    locks = [];
+  try {
+    for (const file of [join(project, "controller.lock"), join(supervisor, "supervisor.lock")]) {
+      privatePath(file);
+      const fd = openSync(file, constants.O_RDWR | constants.O_NOFOLLOW);
+      locks.push(fd);
+      execFileSync("/usr/bin/flock", ["--exclusive", "--nonblock", "3"], {
+        stdio: ["ignore", "ignore", "ignore", fd],
+        timeout: 2000,
+      });
+    }
+    const key = read(join(guard, "key"), 32),
+      projectKey = read(join(project, "projects.key"), 32),
+      old = hmac(outerRaw, key),
+      initial = old.events?.[4]?.value,
+      oldConfig = JSON.parse(oldConfigRaw),
+      originalRaw = read(join(guard, `unstarted-${proof.transferId}`, "project.json"), 4194304),
+      original = hmac(originalRaw, projectKey),
+      intentFile = join(guard, "unstarted-epoch-hop.json"),
+      existing = existsSync(intentFile) ? hmac(read(intentFile, 16384), key) : null,
+      archive = join(guard, `unused-epoch-${initial?.lifetimeId}`),
+      projectFile = join(project, "projects.json"),
+      projectRaw = existing
+        ? read(join(archive, "project.json"), 4194304)
+        : read(projectFile, 4194304),
+      ps = hmac(projectRaw, projectKey),
+      task = ps.projects?.[proof.projectId]?.task;
+    check(
+      initial &&
+        old.schemaVersion === 1 &&
+        old.receipts.length === 0 &&
+        ((old.phase === "startupReady" &&
+          old.events.map((e) => e.name).join() === "begin,ready,launchIntent,open,startupReady") ||
+          (old.phase === "indeterminate" &&
+            old.events.map((e) => e.name).join() ===
+              "begin,ready,launchIntent,open,startupReady,indeterminate" &&
+            old.events.at(-1).value.reason === "guardian_controller_abort")) &&
+        old.events
+          .slice(0, 5)
+          .every(
+            (e) =>
+              e.value.lifetimeId === initial.lifetimeId &&
+              e.value.bindingDigest === old.bindingDigest &&
+              e.value.ownershipDigest === sha(JSON.stringify([])),
+          ) &&
+        old.events
+          .slice(0, 5)
+          .filter((_, i) => i !== 3)
+          .every((e) => Array.isArray(e.value.projects) && e.value.projects.length === 0),
+    );
+    check(
+      initial.configSha256 === proof.newConfigSha256 &&
+        initial.packageManifestSha256 === unusedIntermediate &&
+        initial.configSha256 === sha(oldConfigRaw) &&
+        oldConfig.binding.buildId === proof.newBuildId &&
+        oldConfig.binding.workspaceId === config.binding.workspaceId &&
+        oldConfig.binding.ownerId === config.binding.ownerId &&
+        oldConfig.binding.templateId === config.binding.templateId &&
+        config.binding.workspaceId === proof.workspaceId &&
+        config.binding.ownerId === proof.coderOwnerId &&
+        config.binding.hiveUserId === proof.ownerId &&
+        same(ps.unstartedTransfer, proof) &&
+        !ps.unstartedTransferConsumed &&
+        !ps.unstartedTransferHistory &&
+        Object.keys(ps.projects).join() === proof.projectId &&
+        !ps.projects[proof.projectId].recovery &&
+        task &&
+        same(task, original.projects[proof.projectId].task) &&
+        task.nativeCreationAttempted === false &&
+        task.firstPromptSubmissionAttempted === false &&
+        !task.nativeThreadId &&
+        !task.terminalSessionName &&
+        !task.sourceApplication &&
+        !existsSync(join(supervisor, "registry.json")),
+    );
+    for (const actor of [
+      initial.outerIdentity,
+      initial.guardianIdentity,
+      initial.workerIdentity,
+      ps.hostProcess,
+    ])
+      assertUnstartedActorDead(actor);
+    let controllerRaw = null;
+    const controllerFile = join(guard, "controller.json");
+    if (existsSync(controllerFile) || existing?.hop.oldJournalDigests.controller) {
+      controllerRaw = existing?.hop.oldJournalDigests.controller
+        ? read(join(archive, "controller.json"), 32768)
+        : read(controllerFile, 32768);
+      if (existsSync(controllerFile)) check(read(controllerFile, 32768).equals(controllerRaw));
+      else check(read(join(archive, "controller-active.json"), 32768).equals(controllerRaw));
+      const c = JSON.parse(controllerRaw),
+        key = createPublicKey(read(join(guard, "controller-key.pem"), 1024));
+      check(
+        verify(null, Buffer.from(canonical(c.state)), key, Buffer.from(c.signature, "base64url")) &&
+          c.state.schemaVersion === 1 &&
+          c.state.lifetimeId === initial.lifetimeId &&
+          c.state.generation === 1 &&
+          c.state.runtimeId === null &&
+          c.state.pending === null &&
+          c.state.hold === false &&
+          c.state.launch === null &&
+          Object.keys(c.state.projects).length === 0 &&
+          Object.keys(c.state.applications ?? {}).length === 0 &&
+          !c.state.accountMaintenance &&
+          !c.state.epicClosure &&
+          !c.state.unstartedTransferReceipt,
+      );
+    }
+    const hop = {
+        schemaVersion: 1,
+        buildId: proof.newBuildId,
+        lifetimeId: initial.lifetimeId,
+        configSha256: proof.newConfigSha256,
+        packageManifestSha256: unusedIntermediate,
+        originalProofDigest: sha(canonical(proof)),
+        oldJournalDigests: {
+          lifetime: sha(outerRaw),
+          project: sha(projectRaw),
+          supervisor: null,
+          config: sha(oldConfigRaw),
+          controller: controllerRaw ? sha(controllerRaw) : null,
+        },
+        neverEnrolled: true,
+        nativeCreationAttempted: false,
+        firstPromptSubmissionAttempted: false,
+      },
+      saved = {
+        schemaVersion: 1,
+        hop,
+        target: { buildId: config.binding.buildId, configSha256, packageManifestSha256 },
+      },
+      next = structuredClone(ps);
+    delete next.guardianLifetimeId;
+    const nextRaw = signedHmac(next, projectKey),
+      current = read(projectFile, 4194304);
+    check(current.equals(projectRaw) || current.equals(nextRaw));
+    if (existing) check(same(existing, saved));
+    if (!existsSync(archive)) {
+      mkdirSync(archive, { mode: 0o700 });
+      syncDir(guard);
+    }
+    privatePath(archive, true);
+    for (const [name, raw] of [
+      ["lifetime", outerRaw],
+      ["project", projectRaw],
+      ["config", oldConfigRaw],
+      ["controller", controllerRaw],
+    ])
+      if (raw) once(join(archive, name + ".json"), raw);
+    once(join(archive, "intent.json"), signedHmac(saved, key));
+    once(intentFile, signedHmac(saved, key));
+    replace(projectFile, nextRaw);
+    if (controllerRaw) {
+      once(join(archive, "controller.json"), controllerRaw);
+      const moved = join(archive, "controller-active.json");
+      if (existsSync(controllerFile)) {
+        check(!existsSync(moved));
+        renameSync(controllerFile, moved);
+        syncDir(guard);
+        syncDir(archive);
+      } else check(read(moved, 32768).equals(controllerRaw));
+    }
+    return saved;
+  } finally {
+    for (const fd of locks.reverse()) closeSync(fd);
+  }
+}
+
 export function readPendingUnstartedTransfer(home) {
   const proof = readUnstartedTransfer(home);
   if (!proof) return null;
@@ -669,7 +934,7 @@ export function verifyUnstartedProject(home, state, p, buildId) {
     proof &&
       same(proof, state.unstartedTransfer) &&
       !state.unstartedTransferConsumed &&
-      proof.newBuildId === buildId &&
+      effectiveUnstartedBuild(home, proof) === buildId &&
       p.projectId === proof.projectId &&
       p.task?.taskId === proof.taskId,
   );
@@ -705,10 +970,19 @@ export function verifyUnstartedProject(home, state, p, buildId) {
     );
     const expected = structuredClone(originalTask),
       actual = structuredClone(p.task);
+    if (history.remount) {
+      check(
+        same(history.remount, p.recovery.inspection.remount) &&
+          history.remount.mappingDigest === sha(canonical(history.remount.mapping)) &&
+          same(history.remount.mapping.old.checkout, originalTask.checkoutIdentity),
+      );
+      expected.checkoutIdentity = structuredClone(history.remount.mapping.current.checkout);
+    }
     expected.guardianPreparation = { ...originalTask.guardianPreparation, buildId };
     expected.guardianPrepared = {
       ...originalTask.guardianPrepared,
       preparationDigest: sha(JSON.stringify(expected.guardianPreparation)),
+      checkoutIdentity: structuredClone(expected.checkoutIdentity),
     };
     expected.renewalSequence = history.renewalSequence;
     expected.phase = p.task.phase;
@@ -739,13 +1013,309 @@ export function verifyUnstartedProject(home, state, p, buildId) {
   return proof;
 }
 
+export function validateRemountTicket(ticket) {
+  const exact = (v, keys) => known(v, keys) && Object.keys(v).length === keys.length,
+    hex = (v) => typeof v === "string" && /^[a-f0-9]{64}$/.test(v),
+    id = (v) => typeof v === "string" && /^[a-f0-9-]{36}$/.test(v);
+  check(
+    exact(ticket, [
+      "attestationDigest",
+      "continuationDigest",
+      "originalProofDigest",
+      "recoveryId",
+      "ownerId",
+      "workspaceId",
+      "projectId",
+      "taskId",
+      "final",
+      "volume",
+      "mapping",
+      "expiresAt",
+    ]) &&
+      [ticket.attestationDigest, ticket.continuationDigest, ticket.originalProofDigest].every(
+        hex,
+      ) &&
+      [
+        ticket.recoveryId,
+        ticket.ownerId,
+        ticket.workspaceId,
+        ticket.projectId,
+        ticket.taskId,
+      ].every(id) &&
+      Number.isSafeInteger(ticket.expiresAt) &&
+      ticket.expiresAt > Date.now(),
+  );
+  check(
+    exact(ticket.final, ["buildId", "lifetimeId", "configSha256", "packageManifestSha256"]) &&
+      [ticket.final.buildId, ticket.final.lifetimeId].every(id) &&
+      [ticket.final.configSha256, ticket.final.packageManifestSha256].every(hex),
+  );
+  const m = ticket.mapping;
+  check(
+    exact(m, [
+      "old",
+      "current",
+      "oldRootRecordSha256",
+      "oldProjectRecordSha256",
+      "oldLeaseDigest",
+    ]) && [m.oldRootRecordSha256, m.oldProjectRecordSha256, m.oldLeaseDigest].every(hex),
+  );
+  for (const group of [m.old, m.current]) {
+    check(exact(group, ["root", "project", "checkout"]));
+    for (const i of Object.values(group))
+      check(
+        exact(i, ["device", "inode"]) &&
+          Object.values(i).every((v) => typeof v === "string" && /^[0-9]{1,24}$/.test(v)),
+      );
+    check(new Set(Object.values(group).map((v) => v.device)).size === 1);
+  }
+  check(
+    m.old.root.device !== m.current.root.device &&
+      ["root", "project", "checkout"].every((k) => m.old[k].inode === m.current[k].inode),
+  );
+  const v = ticket.volume;
+  check(
+    exact(v, [
+      "pvcUid",
+      "pvcName",
+      "namespace",
+      "storageClass",
+      "capacity",
+      "boundVolumeName",
+      "accessModes",
+      "containerName",
+      "podVolumeName",
+      "mountPath",
+      "subPath",
+      "subPathExpr",
+      "readOnly",
+      "claimReadOnly",
+    ]) &&
+      id(v.pvcUid) &&
+      [v.pvcName, v.boundVolumeName].every(
+        (x) => typeof x === "string" && /^[a-z0-9][a-z0-9-]{0,127}$/.test(x),
+      ) &&
+      v.namespace === "coder" &&
+      v.storageClass === "longhorn" &&
+      /^[1-9][0-9]{0,3}Gi$/.test(v.capacity) &&
+      same(v.accessModes, ["ReadWriteOnce"]) &&
+      v.containerName === "dev" &&
+      v.podVolumeName === "home" &&
+      v.mountPath === "/home/coder" &&
+      v.subPath === "" &&
+      v.subPathExpr === "" &&
+      v.readOnly === false &&
+      v.claimReadOnly === false,
+  );
+  return ticket;
+}
+export function unstartedRemountAuthority(home, projectId, parentPid, phase) {
+  check(["inspecting", "consuming"].includes(phase));
+  const dir = join(home, ".local/state/hive/codex-project-controller"),
+    state = hmac(read(join(dir, "projects.json"), 4194304), read(join(dir, "projects.key"), 32)),
+    p = state.projects?.[projectId];
+  if (!p?.recovery?.continuity) return null;
+  const ticket = validateRemountTicket(p.recovery.continuity),
+    proof = verifyUnstartedProject(home, state, p, ticket.final.buildId),
+    guard = join(home, ".local/state/hive/codex-host-guardian"),
+    controller = JSON.parse(read(join(guard, "controller.json"))),
+    current = hmac(read(join(guard, "lifetime.json")), read(join(guard, "key"), 32)).events[4]
+      .value,
+    continuation = readUnstartedTransferContinuation(home, current),
+    key = createPublicKey(read(join(guard, "controller-key.pem"), 1024)),
+    receipt = controller.state.unstartedTransferReceipt;
+  check(
+    same(state.hostProcess, processIdentity(parentPid)) &&
+      continuation &&
+      ticket.originalProofDigest === sha(canonical(proof)) &&
+      ticket.continuationDigest === sha(canonical(continuation)) &&
+      ticket.attestationDigest === receipt?.attestationDigest &&
+      ticket.continuationDigest === receipt?.continuationDigest &&
+      same(ticket.final, continuation.finalSuccessor) &&
+      ticket.recoveryId === p.recovery.scope.recoveryId &&
+      ticket.ownerId === proof.ownerId &&
+      ticket.workspaceId === proof.workspaceId &&
+      ticket.projectId === proof.projectId &&
+      ticket.taskId === proof.taskId &&
+      same(ticket.mapping.old.checkout, proof.checkout.checkoutIdentity) &&
+      verify(
+        null,
+        Buffer.from(canonical(controller.state)),
+        key,
+        Buffer.from(controller.signature, "base64url"),
+      ) &&
+      unstartedReceiptMatches(home, receipt, proof, current) &&
+      controller.state.lifetimeId === ticket.final.lifetimeId &&
+      controller.state.runtimeId &&
+      controller.state.launch === null &&
+      state.guardianLifetimeId === ticket.final.lifetimeId &&
+      !p.task.nativeCreationAttempted &&
+      !p.task.firstPromptSubmissionAttempted &&
+      !p.task.nativeThreadId,
+  );
+  const c = controller.state,
+    replay = Boolean(state.unstartedTransferHistory),
+    pendingProject =
+      c.pending?.projectId ?? c.pending?.preparation?.projectId ?? c.pending?.checkout?.projectId;
+  check(
+    replay
+      ? Number.isSafeInteger(c.generation) &&
+          c.generation >= 1 &&
+          ((c.pending === null && c.hold === false) ||
+            (c.hold === true &&
+              ["prepare", "checkout", "fence"].includes(c.pending?.action) &&
+              pendingProject === projectId)) &&
+          (Object.keys(c.projects).length === 0 ||
+            (Object.keys(c.projects).join() === projectId &&
+              ["preparation", "checkout"].includes(c.projects[projectId].phase) &&
+              !c.projects[projectId].producer &&
+              !c.projects[projectId].nativeReceiptEventId &&
+              !c.projects[projectId].metadataPinsDigest))
+      : c.generation === 1 &&
+          c.pending === null &&
+          c.hold === false &&
+          Object.keys(c.projects).length === 0,
+  );
+  if (p.recovery.inspection?.remount)
+    check(
+      same(p.recovery.inspection.remount.mapping, ticket.mapping) &&
+        p.recovery.inspection.remount.mappingDigest === sha(canonical(ticket.mapping)) &&
+        p.recovery.inspection.remount.attestationDigest === ticket.attestationDigest &&
+        p.recovery.inspection.remount.continuationDigest === ticket.continuationDigest,
+    );
+  if (phase === "inspecting")
+    check(
+      ["inspecting", "inspected"].includes(p.recovery.phase) ||
+        (p.recovery.phase === "held" && p.recovery.authorization?.expiresAt > Date.now()),
+    );
+  else
+    check(
+      p.recovery.phase === "consuming" &&
+        p.recovery.authorization?.expiresAt > Date.now() &&
+        p.recovery.authorization.inspectionDigest === sha(canonical(p.recovery.inspection)),
+    );
+  return ticket;
+}
+
+export function verifySealedHostConstruction(home) {
+  const guard = join(home, ".local/state/hive/codex-host-guardian"),
+    life = hmac(read(join(guard, "lifetime.json")), read(join(guard, "key"), 32)),
+    startup = life.events[4].value,
+    begin = life.events[0].value,
+    root = begin.hostRootInventory,
+    packageRoot = join(home, ".local/share/hive/codex-host"),
+    directory = join(
+      packageRoot,
+      JSON.parse(read(join(home, ".local/state/hive/codex-host-install/process.json"), 65536))
+        .archiveSha256,
+    ),
+    manifestRaw = read(join(directory, "package-manifest.json"), 65536),
+    manifest = JSON.parse(manifestRaw),
+    cwd = privatePath(packageRoot, true),
+    sourceSha256 = "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3";
+  check(
+    sha(manifestRaw) === startup.packageManifestSha256 &&
+      manifest.guardian.sourceSha256 === sourceSha256 &&
+      manifest.guardian.elfSha256 === startup.guardianSha256 &&
+      manifest.files["codex-native-guardian"] === startup.guardianSha256 &&
+      sha(read(join(directory, "codex-native-guardian"), 1048576)) === startup.guardianSha256 &&
+      startup.guardianIdentity.executable === join(directory, "codex-native-guardian") &&
+      startup.guardianIdentity.device ===
+        String(privatePath(join(directory, "codex-native-guardian")).dev) &&
+      startup.guardianIdentity.inode ===
+        String(privatePath(join(directory, "codex-native-guardian")).ino) &&
+      same(
+        {
+          ...processIdentity(startup.outerIdentity.pid),
+          parentPid: startup.outerIdentity.parentPid,
+        },
+        startup.outerIdentity,
+      ) &&
+      Array.isArray(root) &&
+      root.length === 1 &&
+      sha(JSON.stringify(root)) === begin.launchSetDigest &&
+      root[0].id === "host-worker" &&
+      root[0].role === "host" &&
+      root[0].workerChannelFd === 3 &&
+      root[0].executable === realpathSync(process.execPath) &&
+      root[0].sha256 === startup.nodeSha256 &&
+      root[0].argvDigest ===
+        sha(
+          JSON.stringify([root[0].executable, join(directory, "codex-workspace-host-worker.mjs")]),
+        ) &&
+      root[0].cwdDevice === String(cwd.dev) &&
+      root[0].cwdInode === String(cwd.ino) &&
+      startup.guardianIdentity.parentPid === startup.outerIdentity.pid &&
+      /^[a-f0-9]{64}$/.test(root[0].envDigest),
+  );
+  return {
+    guardian: startup.guardianIdentity,
+    outer: startup.outerIdentity,
+    sourceSha256,
+    guardianSha256: startup.guardianSha256,
+    constructionDigest: begin.launchSetDigest,
+    cwd: { path: packageRoot, device: String(cwd.dev), inode: String(cwd.ino) },
+    lifetimeId: startup.lifetimeId,
+  };
+}
+
+export function unstartedRemountGuardianAuthority(home, projectId, parentPid, phase) {
+  const ticket = unstartedRemountAuthority(home, projectId, parentPid, phase);
+  check(ticket);
+  const construction = verifySealedHostConstruction(home);
+  check(
+    construction.lifetimeId === ticket.final.lifetimeId &&
+      same(unstartedRemountAuthority(home, projectId, parentPid, phase), ticket) &&
+      ticket.expiresAt > Date.now(),
+  );
+  return { ...construction, recoveryId: ticket.recoveryId, expiresAt: ticket.expiresAt };
+}
+
+export function unstartedRecoveryGuardianAuthority(home, projectId, parentPid) {
+  const dir = join(home, ".local/state/hive/codex-project-controller"),
+    state = hmac(read(join(dir, "projects.json"), 4194304), read(join(dir, "projects.key"), 32)),
+    p = state.projects?.[projectId];
+  check(
+    p?.recovery?.phase === "consuming" &&
+      !p.recovery.continuity &&
+      !p.recovery.inspection?.remount &&
+      !state.unstartedTransferHistory?.remount &&
+      !readUnstartedTransferContinuation(
+        home,
+        hmac(
+          read(join(home, ".local/state/hive/codex-host-guardian/lifetime.json")),
+          read(join(home, ".local/state/hive/codex-host-guardian/key"), 32),
+        ).events[4].value,
+      ) &&
+      p.task.nativeCreationAttempted === false &&
+      p.task.firstPromptSubmissionAttempted === false &&
+      !p.task.nativeThreadId &&
+      !p.task.terminalSessionName &&
+      !p.task.sourceApplication,
+  );
+  const grant = unstartedLeaseAuthority(home, projectId, parentPid),
+    construction = verifySealedHostConstruction(home);
+  check(
+    construction.lifetimeId === p.recovery.authorization.lifetimeId &&
+      grant.expiresAt > Date.now() &&
+      same(unstartedLeaseAuthority(home, projectId, parentPid), grant),
+  );
+  return { ...construction, recoveryId: grant.recoveryId, expiresAt: grant.expiresAt };
+}
+
 export function unstartedLeaseAuthority(home, projectId, parentPid) {
   const dir = join(home, ".local/state/hive/codex-project-controller"),
     state = hmac(read(join(dir, "projects.json"), 4194304), read(join(dir, "projects.key"), 32)),
     p = state.projects?.[projectId],
-    proof = verifyUnstartedProject(home, state, p, state.unstartedTransfer?.newBuildId),
+    proof = verifyUnstartedProject(
+      home,
+      state,
+      p,
+      effectiveUnstartedBuild(home, state.unstartedTransfer),
+    ),
     recovery = p.recovery,
     authorization = recovery?.authorization,
+    checkout = { ...proof.checkout, checkoutIdentity: p.task.checkoutIdentity },
     guard = join(home, ".local/state/hive/codex-host-guardian"),
     saved = JSON.parse(read(join(guard, "controller.json"))),
     key = createPublicKey(read(join(guard, "controller-key.pem"), 1024));
@@ -761,7 +1331,7 @@ export function unstartedLeaseAuthority(home, projectId, parentPid) {
       project.preparationDigest === sha(JSON.stringify(p.task.guardianPreparation)) &&
         (project.phase === "preparation"
           ? project.checkout == null
-          : same(project.checkout, proof.checkout)),
+          : same(project.checkout, checkout)),
     );
   if (current.pending)
     check(
@@ -769,13 +1339,13 @@ export function unstartedLeaseAuthority(home, projectId, parentPid) {
         current.pending.runtimeGeneration === current.generation &&
         (current.pending.action !== "prepare" ||
           same(current.pending.preparation, p.task.guardianPreparation)) &&
-        (current.pending.action !== "checkout" || same(current.pending.checkout, proof.checkout)),
+        (current.pending.action !== "checkout" || same(current.pending.checkout, checkout)),
     );
   check(
     same(state.hostProcess, processIdentity(parentPid)) &&
       p.task.phase === "blocked" &&
       recovery?.phase === "consuming" &&
-      authorization?.buildId === proof.newBuildId &&
+      authorization?.buildId === effectiveUnstartedBuild(home, proof) &&
       authorization.expiresAt > Date.now() &&
       authorization.lifetimeId === state.guardianLifetimeId &&
       recovery.scope?.taskId === proof.taskId &&
@@ -811,16 +1381,20 @@ export function unstartedLeaseAuthority(home, projectId, parentPid) {
           !project.producer &&
           !project.nativeReceiptEventId &&
           !project.metadataPinsDigest)) &&
-      same(saved.state.unstartedTransferReceipt, {
-        transferId: proof.transferId,
-        oldRuntimeId: proof.oldRuntimeId,
-        proofDigest: sha(canonical(proof)),
-      }),
+      unstartedReceiptMatches(
+        home,
+        saved.state.unstartedTransferReceipt,
+        proof,
+        hmac(read(join(guard, "lifetime.json")), read(join(guard, "key"), 32)).events[4].value,
+      ),
   );
   return {
     transferId: proof.transferId,
     recoveryId: recovery.scope.recoveryId,
-    expiresAt: authorization.expiresAt,
+    expiresAt: Math.min(
+      authorization.expiresAt,
+      recovery.continuity?.expiresAt ?? authorization.expiresAt,
+    ),
     proofDigest: sha(canonical(proof)),
     renewalSequence: replay
       ? state.unstartedTransferHistory.renewalSequence - 1
@@ -833,7 +1407,7 @@ export function unstartedLeaseAuthority(home, projectId, parentPid) {
       leaseGeneration: p.task.prepared.leaseGeneration,
       revision: p.task.request.revision,
       checkoutIncarnation: p.task.checkoutIncarnation,
-      checkoutIdentity: p.task.checkoutIdentity,
+      checkoutIdentity: recovery.continuity?.mapping.old.checkout ?? p.task.checkoutIdentity,
     },
   };
 }

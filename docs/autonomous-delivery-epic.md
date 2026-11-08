@@ -20,18 +20,20 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
 Current implementation checkpoint (2026-11-08): the epic preserves released main
-`1ace8774118b99b28856347edd51410c4f0a0774` and is integrated through `f861b372`.
+`1ace8774118b99b28856347edd51410c4f0a0774` and is integrated through `a95a1a7e`.
 The existing single Worker automatically deploys the branch Preview. Database job and
 account-maintenance implementation, scoped account cards and request-bound Cloudflare
-callback execution passed CI/review; both Preview databases have 50 migrations with
+callback execution passed CI/review; both Preview databases have 51 migrations with
 original rows, history and grants preserved. The reviewed test-host image starts normally,
 and actual dedicated Codex account status passes through Hive. The current managed pilot
-is blocked before model execution by a metadata reservation timeout; exact-task recovery
-is under implementation and independent review. Shared Conversation/Terminal browser
+is blocked before model execution. The metadata timeout and exact-task retirement/recovery
+fixes passed CI/review and are deployed. Installed verification now detects changed filesystem
+device IDs after a normal restart of the same persistent volume; a scoped remount recovery
+path is under design and independent review. Shared Conversation/Terminal browser
 acceptance, live multi-task coordination, background wake approval and final cutover remain open.
 
 The November 5 production capture has been restored and upgraded locally through all 50
-migrations. Its 81 original application rows and original migration history match; a decoded
+migrations, with a further 50→51 rehearsal. Its 81 original application rows and original migration history match; a decoded
 upgraded backup is retained privately. Earlier bounded Worker/session and backup-recovery
 proofs remain scoped evidence. Fresh production capture, original encryption/cookie key
 continuity, streaming and final cutover checks remain open. The real browser checkpoint

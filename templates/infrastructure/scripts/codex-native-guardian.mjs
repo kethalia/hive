@@ -566,21 +566,18 @@ export async function openNativeGuardian(options) {
   let guardian;
   try {
     for (const r of options.roots) roots.push(rootDescriptor(r));
-    const launchSetDigest = sha(
-      JSON.stringify(
-        roots.map((r) => ({
-          id: r.id,
-          role: r.role,
-          executable: r.executable.path,
-          sha256: r.executable.sha256,
-          argvDigest: sha(JSON.stringify(r.argv)),
-          envDigest: sha(JSON.stringify(r.environment)),
-          cwdDevice: String(fstatSync(r.cwd).dev),
-          cwdInode: String(fstatSync(r.cwd).ino),
-          ...(r.workerChannel ? { workerChannelFd: 3 } : {}),
-        })),
-      ),
-    );
+    const launchSet = roots.map((r) => ({
+      id: r.id,
+      role: r.role,
+      executable: r.executable.path,
+      sha256: r.executable.sha256,
+      argvDigest: sha(JSON.stringify(r.argv)),
+      envDigest: sha(JSON.stringify(r.environment)),
+      cwdDevice: String(fstatSync(r.cwd).dev),
+      cwdInode: String(fstatSync(r.cwd).ino),
+      ...(r.workerChannel ? { workerChannelFd: 3 } : {}),
+    }));
+    const launchSetDigest = sha(JSON.stringify(launchSet));
     projects.forEach(Object.freeze);
     Object.freeze(projects);
     const binding = Object.freeze({
@@ -599,7 +596,10 @@ export async function openNativeGuardian(options) {
       projects,
       roots,
     );
-    await options.journal.begin(binding);
+    await options.journal.begin({
+      ...binding,
+      ...(roots[0].role === "host" ? { hostRootInventory: launchSet } : {}),
+    });
     const child = spawn(guardianPin.path, ["--private-fd-v1"], {
       env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
       stdio: [
