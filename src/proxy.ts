@@ -23,6 +23,8 @@ const deliveryTaskPath =
   /^\/api\/delivery\/tasks\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const projectPostPath =
   /^\/api\/projects\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:session-grant|terminal-grant|tasks\/(?:start|status|retry))$/i;
+const workspaceAccountPostPath =
+  /^\/api\/workspaces\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:codex-account|claude-account|account-maintenance)$/;
 
 function withContentSecurityPolicy(
   response: NextResponse,
@@ -67,6 +69,9 @@ export function proxy(request: NextRequest) {
     (request.method === "GET" && pathname === "/api/projects") ||
     (request.method === "POST" &&
       (pathname === "/api/projects/open" || projectPostPath.test(pathname))) ||
+    // These exact account endpoints retain their own feature, origin and owner
+    // session checks, including JSON failures for an expired browser session.
+    (request.method === "POST" && workspaceAccountPostPath.test(pathname)) ||
     // This exact read endpoint authenticates its session in the route and
     // returns typed JSON failures rather than a login-page redirect.
     (request.method === "GET" && pathname === "/api/settings/window") ||

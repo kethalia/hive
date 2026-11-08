@@ -38,7 +38,7 @@ async function workspaceAccountRoute(
   if (!z.string().uuid().safeParse(workspaceId).success)
     return new Response(null, { status: 400, headers });
   const session = await getRequestSession();
-  if (!session) return new Response(null, { status: 401, headers });
+  if (!session) return Response.json({ error: "not_authenticated" }, { status: 401, headers });
   try {
     const bytes = await publicationBody(
       new Response(request.body, { headers: request.headers }),
