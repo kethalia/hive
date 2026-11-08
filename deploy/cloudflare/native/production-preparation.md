@@ -1,163 +1,185 @@
-# First production preparation
+# Production enrollment through connected Builds
 
-The normal `deploy.mjs production` command still refuses publication. The separate
-`prepare-production.mjs` command performs **offline preparation only** and does not
-create an authorization, contact Cloudflare, read a secret value or activate a route.
-It reuses the existing application build-integrity record, native proof format and
-Wrangler deployment command. It is not another release controller.
+The production command remains `node deploy/cloudflare/native/deploy.mjs production`
+in the existing repository-connected Cloudflare Workers Builds configuration.
+Publication is disabled unless the owner enrolls a reviewed
+`HIVE_NATIVE_PRODUCTION_ENROLLMENT_JSON` build setting. This source change does not
+enroll that setting, approve cutover, move traffic or provision credentials.
+Preview continues to use its existing command and configuration independently.
 
-After the owner merges the accepted candidate, build and prove that exact clean
-`main` checkout. The build/proof must be regenerated after any source change:
+The command accepts only the fixed `kethalia/hive` repository, `main` branch,
+account `225177f82b9234ede14e897fe15e0cb5`, Worker `hive`, zone
+`b5a1ed758b9cd1c62fcacf9037dc0dea` and `https://hive.kethalia.com` origin. It checks
+Workers Builds' branch/build/commit context against the actual clean Git checkout
+and origin. Before the build/output check and again after the potentially slow
+parent observation, a bounded fixed-repository `git ls-remote` must show that
+remote `refs/heads/main` still equals this build's exact commit. A newer queued
+main commit makes the older build hold. These context variables are consistency
+checks, not cryptographic attestation; the existing trusted repository connection remains the authority.
 
-```sh
-node deploy/cloudflare/native/prepare-production.mjs /private/cutover-manifest.json /private/native-proof.json /private/new-cutover-directory
-```
+## Reviewed public configuration
 
-Use a new output directory outside the source checkout. The helper verifies the
-current source/output hashes with `assertBuildReady`; it also requires the proof's
-exact main revision, successful native/in-process-auth checks and the same build
-record digest. It creates private `wrangler.production.json` and `preparation.json`
-files. No source/PR build is promoted implicitly to a merged artifact.
-
-The manifest is JSON with exactly these fields (replace placeholders from actual
-observations; this is a schema illustration, not a provider receipt):
+The bounded enrollment JSON has exactly these fields:
 
 ```json
 {
   "schemaVersion": 1,
-  "sourceRevision": "<40-character merged main SHA>",
-  "origin": "https://hive.kethalia.com",
-  "route": { "pattern": "hive.kethalia.com/*", "zone_id": "<32-character zone ID>" },
-  "secretNames": ["AUTH_SERVICE_SECRET", "COOKIE_SECRET", "DATABASE_URL", "ENCRYPTION_KEY", "HIVE_CODER_OAUTH_CLIENT_SECRET"],
-  "oauthEnrollment": {
-    "coderOrigin": "https://coder.kethalia.com",
-    "clientId": "0a4e5cd5-cf36-4c56-927c-effe349286c8",
-    "callbackUri": "https://hive.kethalia.com/api/auth/coder/callback",
-    "secretName": "HIVE_CODER_OAUTH_CLIENT_SECRET"
+  "mode": "first-cutover",
+  "repository": "kethalia/hive",
+  "branch": "main",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "workerName": "hive",
+  "configuration": {
+    "origin": "https://hive.kethalia.com",
+    "route": { "pattern": "hive.kethalia.com/*", "zone_id": "b5a1ed758b9cd1c62fcacf9037dc0dea" },
+    "oauthEnrollment": {
+      "coderOrigin": "https://coder.kethalia.com",
+      "clientId": "0a4e5cd5-cf36-4c56-927c-effe349286c8",
+      "callbackUri": "https://hive.kethalia.com/api/auth/coder/callback",
+      "secretName": "HIVE_CODER_OAUTH_CLIENT_SECRET"
+    },
+    "secretNames": ["AUTH_SERVICE_SECRET", "COOKIE_SECRET", "DATABASE_URL", "ENCRYPTION_KEY", "HIVE_CODER_OAUTH_CLIENT_SECRET"],
+    "databaseIdentity": { "projectId": "<production-project>", "branchId": "<production-branch>", "database": "<production-database>", "role": "<production-runtime-role>" },
+    "r2Buckets": [],
+    "vars": {},
+    "crons": []
   },
-  "databaseIdentity": {
-    "projectId": "<production-project>", "branchId": "<production-branch>",
-    "database": "<production-database>", "role": "<restricted-runtime-role>"
-  },
-  "r2Buckets": [],
-  "baseline": {
-    "accountId": "225177f82b9234ede14e897fe15e0cb5", "workerName": "hive",
-    "workerTag": "<retained-parent-tag>", "createdOn": "<parent-creation-time>",
-    "deploymentId": "<inactive-deployment-ID>", "versionId": "<inactive-version-ID>",
-    "settingsDigest": "<SHA256-of-canonical-settings-capture>", "inactive": true
-  },
-  "evidenceDigests": { "buildReady": "<SHA256-of-build-ready-file>", "nativeProof": "<SHA256-of-native-proof-file>" }
+  "configurationDigest": "<publicDigest(configuration)>",
+  "approval": "<mode-specific object below>"
 }
 ```
 
-`r2Buckets` may contain the single explicitly approved production evidence bucket
-with `binding: HIVE_DELIVERY_EVIDENCE` and `bucket_name`. Preview/synthetic resource
-names, extra manifest fields and secret values are rejected. The metadata does
-not prove that `DATABASE_URL` resolves to that database or that a secret preserves
-the required identity: verify these privately before activation.
+This is a schema illustration, not an enrollment or provider receipt. The approval
+is an object, not the placeholder string. `publicDigest` from
+`production-configuration.mjs` hashes recursively key-sorted JSON without whitespace.
+It binds the entire public configuration, including resource identity assertions.
+No database URL, private key, cookie key, service secret or provider token is an
+input to this JSON. The command uses the existing Builds token and already enrolled
+remote Worker secrets; it neither creates nor changes secrets. Missing or additional
+remote secret names hold. Independently verify private secret/database identities
+and original encryption/session continuity before approval; names cannot prove them.
 
-The generated config strips every `HIVE_CODER_OAUTH_*` Preview variable. To prepare
-OAuth, supply the independent `oauthEnrollment` object shown above and include its
-literal secret name in `secretNames`. The helper accepts only the fixed Coder
-issuer, `https://hive.kethalia.com` origin, exact callback, valid public client ID,
-and `HIVE_CODER_OAUTH_CLIENT_SECRET` name. It rejects the configured Preview client
-ID, extra fields (including secret values), missing enrollment fields and an absent
-fifth secret name. It emits the production client ID and enable flag; the secret
-value must be supplied privately at the separately approved publication step.
+The constructor fixes the repository entrypoint, built assets, compatibility flags,
+CPU limit and production route. It never copies Preview variables, policies,
+issuer or credentials. First cutover requires empty `vars` and `crons`, so native
+execution/release/scheduling stays off. The production OAuth client and callback
+are independently pinned; Preview OAuth enrollment is rejected.
 
-The production client metadata above is recorded in the
-[production enrollment receipt](../../../docs/checks/autonomous-delivery/coder-oauth-production-client.json).
-That receipt records independent registration, not production activation or a
-successful production OAuth login. The helper validates metadata syntax and exact
-scope; it does not contact Coder, attest registration or prove the private secret
-matches the client. Verify those identities and production callback enrollment
-against fresh provider observations before approval.
+## First cutover
 
-Omitting `oauthEnrollment` and retaining exactly the four application secret names
-preserves legacy bootstrap compatibility: OAuth stays disabled and no Preview
-client ID survives. This compatibility mode does not satisfy the requested OAuth
-production cutover. The final reviewed cutover manifest must explicitly include
-production OAuth enrollment; do not substitute a password-only bootstrap.
-
-The generated first-cutover config serves the application with production origin
-and the explicit four or five required secret names. It disables public version URLs and workers.dev,
-retains the existing CPU/compatibility settings and keeps discovery, task execution,
-delivery and token rotation off. It installs **no schedules**. Full native manager,
-release, rotation and notification activation needs separately reviewed configuration,
-account-backed evidence and scheduler ownership transfer. This deliberately bounded
-bootstrap recipe does not enable the entire epic.
-
-Before the user's final cutover approval, prepare the complete manifest and review
-migration compatibility, original encryption/session identities, Kubernetes fallback,
-post-cutover write recovery, route ownership and in-flight effects using
-[the environment checklist](../environments.md#first-production-cutover). Capture
-fresh account/Worker identity, active deployment/version, bindings, routes, schedules
-and subdomain settings from the provider, retaining their canonical settings digest.
-`inactive: true` is an operator assertion to verify against those observations, not
-an attestation manufactured by this helper. An inactive parent is never a healthy
-controlled-release rollback baseline.
-
-Only after the owner approves that concrete package may an operator create a private
-authorization JSON with exactly these fields:
+Use `mode: first-cutover` with exactly this approval shape:
 
 ```json
 {
-  "schemaVersion": 1, "action": "activate-first-production",
-  "preparationDigest": "<SHA256-of-preparation.json>",
-  "approvedBy": "<record-of-owner-approval>",
-  "approvedAt": "<approval-time>", "expiresAt": "<at-most-30-minutes-later>",
+  "action": "activate-first-production",
+  "sourceRevision": "<exact merged main SHA>",
+  "configurationDigest": "<same approved configuration digest>",
+  "approvedBy": "<reference to owner's concrete approval>",
+  "approvedAt": "<approval time>", "expiresAt": "<at most 30 minutes later>",
   "resourceAndSecretIdentitiesVerified": true,
   "schedulerHandoverVerified": true,
-  "rollbackRehearsalVerified": true
+  "rollbackRehearsalVerified": true,
+  "baseline": { "workerTag": "<exact parent tag>", "createdOn": "<parent creation time>", "settingsDigest": "<fresh reviewed parent snapshot digest>" }
 }
 ```
 
-The recipe CLI reads the explicit approval file and rechecks the clean merged
-source and existing build integrity; it prints arguments without running them.
-The fresh-baseline file has exactly `{ "observedAt": "<provider-read-time>",
-"baseline": { ... } }`, where `baseline` uses the identity fields above and must
-match the approved inactive parent. Its observation must be within five minutes.
-The timestamp is an operator assertion, not proof that a provider read occurred:
+Approve the exact **preprovisioned inert bootstrap parent** after its required
+remote secrets have been enrolled and verified through the existing account.
+The command performs the existing fixed-scope read-only collector immediately
+before deployment. The fresh full snapshot digest, parent tag and creation time
+must match approval; the snapshot must have only the bootstrap public binding,
+approved secret names and optional assets, with no Hive routes/domains, schedules
+or workers.dev serving. The historical `inactiveProductionBaseline` still means
+zero secrets; it is not used to mislabel this staged secret-bearing parent.
 
-```sh
-node deploy/cloudflare/native/prepare-production.mjs --recipe /private/new-cutover-directory /private/authorization.json /private/fresh-baseline.json /private/production-secrets.json
+Each real build verifies its own sources and generated outputs using
+`assertBuildReady`. Retain independently reviewed native proof for the exact merged
+source. A native proof from an earlier local build is source evidence, not
+attestation that the current Builds artifact has identical bytes. The older
+offline `prepare-production.mjs` still validates its stronger same-build
+readiness/proof contract for preparation records; its recipe is historical argument
+data and is not the current publication path. Do not run a separate manual deploy.
+
+First-cutover approval never becomes ongoing authority. A successful activation
+changes the parent snapshot and cannot be repeated under the old baseline.
+Unknown acknowledgements require inspection of the existing build/deployment;
+the command does not retry a deployment.
+
+## Ongoing main builds and configuration changes
+
+Only after inspecting first cutover may the owner separately enroll
+`mode: ongoing-main`, with this distinct approval shape:
+
+```json
+{
+  "action": "deploy-reviewed-main",
+  "configurationDigest": "<approved new target configuration digest>",
+  "approvedBy": "<reference to separate owner approval>",
+  "approvedAt": "<approval time>", "expiresAt": "<at most 30 days later>",
+  "resourceAndSecretIdentitiesVerified": true,
+  "schedulerHandoverVerified": true,
+  "rollbackRehearsalVerified": true,
+  "firstCutoverDeploymentId": "<reviewed first deployment UUID>",
+  "allowedParents": [
+    { "workerTag": "<exact parent tag>", "createdOn": "<parent creation time>", "publicConfigurationDigest": "<approved currently serving public configuration digest>" }
+  ]
+}
 ```
 
-`publicationRecipe` validates this authorization, its exact package/config digest,
-expiry and an independently obtained fresh normalized baseline before returning
-an argument array for the installed Wrangler:
+There is no automatic transition or renewal. The first deployment UUID is an
+owner-reviewed reference, not a newly fabricated provider attestation. Ongoing
+scope permits later reviewed `main` commits while it remains valid, subject to the
+existing repository rules and release/acceptance gates. It does not grant merge,
+semantic acceptance, migration, writer release or archive authority.
 
-```js
-const argv = publicationRecipe({
-  record, configBytes, authorization, freshBaseline,
-  configPath: "/private/new-cutover-directory/wrangler.production.json",
-  secretsPath: "/private/production-secrets.json"
-});
-// argv is data. No command executes inside publicationRecipe.
-```
+At most four exact prior parent/configuration identities may be approved. The
+collector's `publicConfigurationDigest` covers runtime, public bindings, secret
+names/types, script settings, schedules and routing; it excludes code artifact,
+version and deployment IDs so code-only main builds keep the same configuration
+scope. Secret values never enter it. Configuration/policy changes require explicit
+approval of the actual prior digest and new target configuration. Enrolling both
+old and new digests permits the reviewed transition and subsequent builds; neither
+is a wildcard. Unexpected parent, route, secret names or configuration drift holds.
 
-The resulting command uses `pnpm exec wrangler deploy --config <absolute-config>
---strict --secrets-file <private-json-file>`. The private JSON must contain
-the exact approved application secrets plus the production OAuth secret when
-enabled, and preserve existing identities; never put its values
-in the manifest, arguments, Git or reports. Inspect inherited remote secret names
-as well: omitted secrets are retained by Wrangler. Immediately before running it,
-recheck the actual files, build integrity and provider baseline. Do not use shell
-string interpolation; execute the returned argument array. `--strict` adds Wrangler's
-remote conflict check, but is not an atomic comparison against the recorded deployment.
-The separate [read-only metadata collector](production-readback.md) can capture
-fixed-scope provider metadata and compare fresh observations to an independently
-reviewed expectation. It does not certify an offline baseline, private secret
-identity, bootstrap code or application health. Secret-identity verification,
-activation execution and account-backed post-deployment acceptance remain explicit
-operator steps; the recipe does not run them.
+Ongoing `vars` accepts only the fixed public feature/policy/host settings listed
+in `production-configuration.mjs`; the existing runtime validators still own policy
+content. Every absent execution feature defaults off. Codex/Claude account connection, host/agent tools, workspace reads, voice, generic
+and project terminals, delivery/notice dispatch, rotation and native health all
+require explicit enrolled boolean values. Their public pins, transports, origins
+and policy names are individually allowlisted. Existing runtime validators still
+check their contents. Enabling the host gateway requires its already enrolled
+issuer secret name. Read/voice/agent-tools can use the existing shared-host issuer
+or their separately named, already enrolled dedicated issuers. Only these known
+issuer secret names may be retained in ongoing configuration; no values are accepted. R2 is limited to one
+explicitly approved production evidence bucket. The only allowed schedules are
+`* * * * *` and `*/5 * * * *`, and each must be explicitly listed after scheduler
+handover. Absent capability flags remain off, including dispatch and rotation;
+ongoing owner enrollment can explicitly enable them. No extra service, database binding, arbitrary route, executable path or credential input is
+accepted.
 
-After publication, preserve provider readback of the exact Worker/version/config,
-route owner, secret names and empty schedules; validate app/auth, original sessions,
-terminal/streaming and recovery under the approved observation plan. Hold ambiguous
-results and keep Kubernetes recovery available. Only then record a healthy baseline
-for the existing D09 controller. The source tests for this helper do not establish
-account-backed publication, production traffic, migration or rollback acceptance.
+## Publication and acceptance
 
-Wrangler command/secret behavior was checked against the installed help and
-[Cloudflare secrets documentation](https://developers.cloudflare.com/workers/configuration/secrets/).
+After a fresh matching readback, a second current-remote-main check and a final
+approval-expiry check, the same connected Builds command invokes the pinned installed Wrangler once with the generated public
+config and `--strict`. It uses no secrets file, alternate publisher or second Worker.
+The readback and remote-main reads detect observed drift; neither they nor
+`--strict` provide atomic compare-and-swap against concurrent GitHub/Cloudflare
+changes. Keep owner/provider mutation
+serialized during cutover and inspect uncertain results before another build.
+
+`--check` and `--dry-run` perform no provider operation. With enrollment absent,
+production checks remain available against the inert bootstrap; a live production
+invocation fails. An enrolled check validates local context/configuration only,
+not remote resources or serving behavior.
+
+The first deployment binds its approved production route and activates application
+serving. Its preflight checks are not proof of production OAuth or app/DB readiness:
+those account-backed checks happen after that production write. After publication,
+preserve provider build/deployment readback and verify the
+exact source/build, DB/auth readiness, original sessions, browser OAuth callback,
+Conversation/Terminal and rollback/write recovery under the approved plan. Platform
+health alone cannot satisfy arbitrary business behavior or complete semantic
+acceptance. Kubernetes fallback remains available until the owner accepts cutover.
+
+References: [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
+and [Worker secrets](https://developers.cloudflare.com/workers/configuration/secrets/).

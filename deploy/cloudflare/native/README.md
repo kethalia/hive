@@ -1,6 +1,6 @@
 # Hive native Worker Previews
 
-This configuration targets the single `hive` Worker in account `225177f82b9234ede14e897fe15e0cb5`. The top-level Worker is an inert bootstrap: it has no database, route, cron, service or production secrets. `production` deployment through this helper is refused until a separately reviewed cutover changes the implementation. A successful Preview is not a production deployment.
+This configuration targets the single `hive` Worker in account `225177f82b9234ede14e897fe15e0cb5`. The top-level Worker is an inert bootstrap: it has no database, route, cron, service or production secrets. `production` deployment through this helper is disabled until the owner supplies a separately reviewed production enrollment to the existing Builds command. A successful Preview is not a production deployment.
 
 Native Previews use the `previews` block and the exact Git branch as the Preview name, matching Workers Builds. Before a real upload, the helper reads that existing Preview from the fixed Cloudflare account using `CLOUDFLARE_API_TOKEN`, requires the provider's name to match the branch, and validates its returned DNS slug. It sets both origin variables to `https://<provider-slug>-hive.b00ste.workers.dev`. Missing metadata or a missing token fails closed; the helper never creates a Preview under a guessed name. Check the provider-returned URL before use. Preview cookies are origin-bound. Use the native Preview URL, not an ordinary Worker version URL, whose bindings may differ.
 
@@ -68,7 +68,7 @@ Recommended Workers Builds configuration, after the provider connection and Base
 - Repository root: `/`; toolchain and lockfile from this repository.
 - Build: `pnpm install --frozen-lockfile && pnpm build:cloudflare`.
 - Non-main deployment: `node deploy/cloudflare/native/deploy.mjs preview` using `WORKERS_CI_BRANCH` provided by Workers Builds. An associated PR receives the provider's build status and Preview URL when its integration is enabled.
-- Main: do not configure automatic production deployment until cutover is authorized. The helper rejects a production deployment and rejects `main` for Preview deployment.
+- Main command: `node deploy/cloudflare/native/deploy.mjs production`. It fails closed without explicit owner enrollment. First cutover and ongoing main builds require separate approvals; see [production enrollment](production-preparation.md). `main` is always rejected for Preview deployment.
 
 Local checks, without provider calls:
 
@@ -83,4 +83,4 @@ The dry run compiles equivalent Preview-safe bindings with a local-only placehol
 
 References: [Cloudflare Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/) and [Preview resource isolation](https://developers.cloudflare.com/workers/previews/resources/).
 
-First-production preparation is available through the [offline cutover helper](production-preparation.md). It emits a bounded application configuration and separately validates operator approval before returning publication arguments; it performs no provider operations and does not enable the normal production deployment command.
+The [production enrollment contract](production-preparation.md) enables the existing connected Builds production command only after owner approval. It reuses the offline helper’s fixed config constructor and existing remote secrets. No production enrollment or activation is performed by this source change.
