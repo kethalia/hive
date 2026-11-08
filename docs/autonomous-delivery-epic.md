@@ -230,7 +230,12 @@ invalidated, and same-owner OAuth restoration creates only a new session. The du
 survives cache clearing and the stale-time synthetic focus check; native tab focus is not
 claimed. [Disconnect evidence](checks/autonomous-delivery/coder-oauth-disconnect-live.json).
 Final production acceptance remains a gate.
-F10 remains implementation-deferred; track both in final epic acceptance.
+F10 implementation is now active in PR #414: Codex and Claude cards use the
+existing signed workspace bridge and supported official CLI flows. Focused local
+checks pass; final package integration and real provider/browser acceptance remain
+open. Account changes cannot mutate credentials while a managed runtime holds
+them; completing a turn alone does not close that runtime. Track this limitation
+and both account tasks in final epic acceptance.
 
 F09 replaces Hive's normal email/password connection with “Connect to Coder” against the
 instance-defined `https://coder.kethalia.com`; no server-URL prompt is introduced. Use the
@@ -266,27 +271,38 @@ Migration 45 stays immutable; forward migration 46 safely retires its unused sch
 all publisher tables are empty. The premerge release and migration approval gates now accept
 current implementation/preview evidence while preserving pending production verification.
 
-The isolated 20Gi host passed package/build/authentication checks and prepared the real
-checkout. Its first pilot then held at launch authorization, before any native Codex process
-or thread. The signed launch inventory matches server state and no older registered thread
-blocks it. Launch currently has a three-second network budget; latency/expiry is the leading
-inference, not a proven server error. User-namespace capability passed without extra privilege.
-The failed host is stopped and retained; its private evidence is preserved in the primary.
-See [attempt evidence](checks/autonomous-delivery/managed-flow-20g-prelaunch-hold.json).
+The original isolated 20Gi host held before native execution. The launch-budget
+repair passed source checks and immutable image publication; a later isolated
+host passed installed package/private-volume/empty-session checks. Its ordinary
+two-hour autostop exposed a separate bootstrap-only restart rejection, before
+account transfer or model execution. PR #413 repairs that path while preserving
+the signed history; review also requires interrupted retirement to resume across
+different builds. Both stopped hosts and their evidence remain retained.
+See the [original attempt](checks/autonomous-delivery/managed-flow-20g-prelaunch-hold.json)
+and [restart record](checks/autonomous-delivery/managed-flow-08cf-restart-20261107.json).
 
-Next, fix and validate the bounded launch budget, package the revised host together with the
-connected-account epic merge reader, and rerun real manager/child/source/independent acceptance.
-Preserve the failed epoch rather than overwriting its authority. Browser Testing Phase B is
-prepared for shared Conversation/Terminal and Delivery report checks, but no live shared-thread
-acceptance is claimed. Production/archive gates remain held until their actual conditions pass.
+Next, integrate the reviewed restart/account/release changes, publish the exact
+combined image through the existing workflow, and validate it on the retained
+test host before real manager/child/source/independent acceptance. Browser Testing
+Phase B is prepared for shared Conversation/Terminal and Delivery reports; no live
+shared-thread acceptance is claimed. Production/archive gates remain held.
 Multi-task epic integration must use explicit preview readiness, attributed real merges into
 the configured non-main epic branch, and independently enrolled storage domains; never invent
 healthy production releases or bypass source/physical-writer fences.
 
-Finish the remaining F07/F08 account-backed parity/recovery gates and release-controller
-acceptance. Prepare production bindings, retained identities, explicit production OAuth,
+PR #412 integrates preview task PRs into the epic using existing connected-account
+authority. PR #415 implements automatic production Builds observation and
+independent semantic acceptance with thirteen passing composed PostgreSQL checks;
+it remains under review and does not authorize production activation. D10 is
+extending the existing controlled database workflow to this source-build path.
+
+Finish the remaining F07/F08/F10 account-backed parity/recovery gates and release-controller
+acceptance. F07 still needs a browser-independent preparation wake; the
+[same-Worker durable alarm proposal](checks/autonomous-delivery/durable-wake-plan.md)
+is awaiting architecture approval, with no new binding or runtime implemented.
+Prepare production bindings, retained identities, explicit production OAuth,
 migration compatibility, scheduler handover and rollback as a concrete cutover package for the
-user's final approval. Production activation is not authorized. F10 remains deferred. The
+user's final approval. Production activation is not authorized. The
 [execution ledger](checks/autonomous-delivery/progress.md) distinguishes source implementation,
 scoped Preview acceptance and outstanding production milestones.
 
