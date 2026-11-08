@@ -1880,3 +1880,13 @@ by this source checkpoint.
   The original persistent pilot normally stopped at build `47145851`; its original
   20Gi volume, unused task and signed histories remain retained. The published PR429
   image has not been installed, avoiding an extra intermediate execution epoch.
+
+- **Review correction: delayed controller archival repaired, moderate difficulty.**
+  PR431 review found that a restart after completed source archival could reuse an
+  expired controller-archive token indefinitely. The existing submit path now supplies
+  fresh permission after exact receipt/signed-scope checks; completed source archival
+  never repeats. All57 controller checks and the actual PostgreSQL refresh/immutable
+  lease-event regression pass, with independent source review clear. Full corrected-head
+  CI and Codex review remain pending. An incomplete preservation unit fixture also now
+  includes real-shaped epoch-zero history plus manager/child session records; its
+  retention assertions pass without weakening production authority.
