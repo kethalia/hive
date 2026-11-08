@@ -28,7 +28,10 @@ import {
   readAutomaticDatabaseGrant,
   verifyAutomaticDatabaseIntent,
 } from "./release-automatic-database.server";
-import { automaticDatabaseActionSchema } from "./release-database-actions";
+import {
+  type AutomaticDatabaseAction,
+  automaticDatabaseActionSchema,
+} from "./release-database-actions";
 import { verifyReleaseEvidence } from "./release-evidence.server";
 import { githubReleaseRequestSchema } from "./release-github-provider.server";
 import { appendReleaseNotice } from "./release-notice.server";
@@ -548,6 +551,76 @@ export class AutomaticReleaseLifecycle {
       sourceSha: s.sourceSha,
     };
   }
+  private async databaseActivationProof(
+    tx: Tx,
+    row: Row,
+    s: z.infer<typeof snapshotSchema>,
+    pinned?: AutomaticDatabaseAction["activationProof"],
+    fresh = true,
+  ) {
+    const scope = await this.databaseState(tx, row, s),
+      merged = await this.merged(tx, row, s);
+    if (!merged) return null;
+    type Observation = { id: string; evidence: unknown; evidence_digest: string };
+    const read = (o: Observation | undefined) => {
+      if (!o) return null;
+      const parsed = automaticObservationSchema.safeParse(o.evidence);
+      if (!parsed.success) return null;
+      const p = parsed.data,
+        endpoint = scope.intent.baseline.health.databaseEndpointDigest;
+      if (
+        githubSourceDigest(p) !== o.evidence_digest ||
+        !p.treeSha ||
+        !endpoint ||
+        p.observedAt > scope.now ||
+        p.expiresAt <= p.observedAt ||
+        p.expiresAt - p.observedAt > 30000 ||
+        p.origin !== this.config.target.origin ||
+        p.health.origin !== this.config.target.origin ||
+        p.mergeSha !== merged.receipt.mergeSha ||
+        p.health.build.sourceSha !== merged.receipt.mergeSha ||
+        p.health.build.branch !== "main" ||
+        p.treeSha !== s.tested.treeSha ||
+        p.health.databaseEndpointDigest !== endpoint ||
+        p.check.headSha !== merged.receipt.mergeSha ||
+        p.check.buildUuid !== p.health.build.buildUuid
+      )
+        return null;
+      return {
+        observationId: o.id,
+        observationDigest: o.evidence_digest,
+        mergeSha: p.mergeSha,
+        treeSha: p.treeSha,
+        buildUuid: p.health.build.buildUuid,
+        databaseEndpointDigest: endpoint,
+        observedAt: p.observedAt,
+        expiresAt: p.expiresAt,
+      };
+    };
+    if (pinned) {
+      const old = await tx.$queryRaw<
+        Observation[]
+      >`SELECT id,evidence,evidence_digest FROM delivery_release_observations WHERE id=${pinned.observationId}::uuid AND release_id=${row.id}::uuid AND kind='automatic_health'`;
+      const original = read(old[0]);
+      if (!original || canonicalGitHubSource(original) !== canonicalGitHubSource(pinned))
+        return null;
+      if (!fresh) return original;
+    }
+    const rows = await tx.$queryRaw<
+      Observation[]
+    >`SELECT id,evidence,evidence_digest FROM delivery_release_observations WHERE release_id=${row.id}::uuid AND kind='automatic_health' ORDER BY created_at DESC,id DESC LIMIT 1`;
+    const current = read(rows[0]),
+      end = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now.getTime();
+    if (
+      !current ||
+      current.expiresAt <= end ||
+      this.config.policy.expiresAt <= end ||
+      scope.catalog.expiresAt <= end ||
+      (pinned && current.buildUuid !== pinned.buildUuid)
+    )
+      return null;
+    return current;
+  }
   private async authorizeDatabase(tx: Tx, identity: ReleaseActionIdentity) {
     const row = await this.locked(tx, this.config.policy.ownerId, identity.releaseId);
     if (!row || row.phase !== "active") return false;
@@ -580,23 +653,45 @@ export class AutomaticReleaseLifecycle {
       );
     const facts = await automaticDatabaseStageFacts(tx, scope);
     if (r.data.planEventId !== facts.approved.id) return false;
-    if (r.data.stage === "activate") return !!(await this.merged(tx, row, current.snapshot));
+    if (r.data.stage === "activate") {
+      const action = actions.find((a) => a.id === identity.id);
+      return !!(await this.databaseActivationProof(
+        tx,
+        row,
+        current.snapshot,
+        r.data.activationProof,
+        action?.phase === "prepared",
+      ));
+    }
     return facts.stages.some((stage) => stage.request.stage === "approve");
   }
-  async databaseDispatchAuthority(identity: ReleaseActionIdentity) {
+  async databaseDispatchAuthority(identity: ReleaseActionIdentity, freshDispatch = true) {
     return this.transaction(async (tx) => {
       if (!(await this.authorizeDatabase(tx, identity))) return deny();
       const row = await this.locked(tx, this.config.policy.ownerId, identity.releaseId);
       if (!row) return deny();
       const current = await this.current(tx, row, false);
       if (!current) return deny();
-      const state = await this.databaseState(tx, row, current.snapshot);
+      const state = await this.databaseState(tx, row, current.snapshot),
+        request = automaticDatabaseActionSchema.parse(identity.request);
+      const activation =
+        request.stage === "activate"
+          ? await this.databaseActivationProof(
+              tx,
+              row,
+              current.snapshot,
+              request.activationProof,
+              freshDispatch,
+            )
+          : null;
+      if (request.stage === "activate" && !activation) return deny();
       return {
         catalog: state.catalog,
         expiresAt: Math.min(
           state.catalog.expiresAt,
           this.config.policy.expiresAt,
           state.now + 30000,
+          ...(freshDispatch && activation ? [activation.expiresAt] : []),
         ),
       };
     });
@@ -766,7 +861,8 @@ export class AutomaticReleaseLifecycle {
     if (jobs.some((a) => a.phase !== "observed")) return "waiting" as const;
     if (jobs.length >= (scope.catalog.automaticJobLimit ?? 8)) return "held" as const;
     let stage: "approve" | "advance" | "activate" = "approve",
-      planEventId: string | null = null;
+      planEventId: string | null = null,
+      activationProof: AutomaticDatabaseAction["activationProof"];
     if (jobs.length) {
       const facts = await automaticDatabaseStageFacts(tx, scope);
       planEventId = facts.approved.id;
@@ -781,6 +877,8 @@ export class AutomaticReleaseLifecycle {
           )
         )
           return "awaiting_build" as const;
+        activationProof = (await this.databaseActivationProof(tx, row, s)) ?? undefined;
+        if (!activationProof) return "awaiting_build" as const;
         stage = "activate";
       } else {
         if (
@@ -802,6 +900,7 @@ export class AutomaticReleaseLifecycle {
       dispatchId: randomUUID(),
       issuedAt: scope.now,
       stage,
+      ...(activationProof ? { activationProof } : {}),
       ownerId: row.owner_id,
       taskId: row.task_id,
       releaseId: row.id,
@@ -1133,7 +1232,15 @@ export class AutomaticReleaseLifecycle {
       const current = await this.current(tx, row, false);
       if (!current) return null;
       const merged = await this.merged(tx, row, current.snapshot);
-      return merged ? { taskId: row.task_id, ...merged } : null;
+      return merged
+        ? {
+            taskId: row.task_id,
+            ...merged,
+            ...(current.snapshot.database
+              ? { catalog: (await this.databaseState(tx, row, current.snapshot)).catalog }
+              : {}),
+          }
+        : null;
     });
   }
   async recordObservation(ownerId: string, releaseId: string, raw: unknown, began: number) {

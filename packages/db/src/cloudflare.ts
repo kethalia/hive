@@ -10,6 +10,7 @@ export function createCloudflareDatabaseRequest(
     queryTimeoutMillis: number;
     transactionTimeoutMillis: number;
     statementTimeoutMillis?: number;
+    connectionTimeoutMillis?: number;
   },
 ) {
   if (
@@ -17,6 +18,7 @@ export function createCloudflareDatabaseRequest(
     ([
       bounds.queryTimeoutMillis,
       bounds.transactionTimeoutMillis,
+      ...(bounds.connectionTimeoutMillis === undefined ? [] : [bounds.connectionTimeoutMillis]),
       ...(bounds.statementTimeoutMillis === undefined ? [] : [bounds.statementTimeoutMillis]),
     ].some((value) => !Number.isInteger(value) || value <= 0 || value > 10_000) ||
       (bounds.statementTimeoutMillis !== undefined &&
@@ -29,7 +31,7 @@ export function createCloudflareDatabaseRequest(
       adapter: new PrismaNeon({
         connectionString: databaseUrl,
         max: 1,
-        connectionTimeoutMillis: 10_000,
+        connectionTimeoutMillis: bounds?.connectionTimeoutMillis ?? 10_000,
         ...(bounds
           ? {
               query_timeout: bounds.queryTimeoutMillis,

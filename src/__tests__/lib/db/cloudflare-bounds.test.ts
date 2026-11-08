@@ -23,6 +23,22 @@ describe("optional request-local server and driver query bounds", () => {
       }),
     ).toThrow("Invalid request-local timeout");
   });
+  it.each([
+    0,
+    -1,
+    10001,
+    0.5,
+    NaN,
+    Infinity,
+  ])("rejects invalid connection bound %s before allocating a client", (value) => {
+    expect(() =>
+      createCloudflareDatabaseRequest(undefined, {
+        queryTimeoutMillis: 1000,
+        transactionTimeoutMillis: 1000,
+        connectionTimeoutMillis: value,
+      }),
+    ).toThrow("Invalid request-local timeout");
+  });
   it("permits only a server bound no weaker than the driver deadline", async () => {
     expect(() =>
       createCloudflareDatabaseRequest(undefined, {
@@ -35,6 +51,7 @@ describe("optional request-local server and driver query bounds", () => {
       queryTimeoutMillis: 1000,
       transactionTimeoutMillis: 1000,
       statementTimeoutMillis: 100,
+      connectionTimeoutMillis: 2500,
     }).close();
     await createCloudflareDatabaseRequest(undefined, {
       queryTimeoutMillis: 1000,

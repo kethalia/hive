@@ -80,7 +80,7 @@ export function createAutomaticReleaseController(
         },
         lookup: async (identity, reference, effectSignal) => {
           if (identity.kind === "database_job") {
-            const authority = await lifecycle.databaseDispatchAuthority(identity);
+            const authority = await lifecycle.databaseDispatchAuthority(identity, false);
             return automaticReleaseForTask(
               db,
               config,
@@ -160,9 +160,11 @@ export function createAutomaticReleaseController(
           AND a.kind='database_job' AND a.request->>'dispatchId'=${report.dispatchId} AND a.request->>'sourceSha'=${report.sourceSha}`;
       if (rows.length !== 1 || !["effect_started", "held", "observed"].includes(rows[0].phase))
         return "held" as const;
+      signal.throwIfAborted();
       const event = await db.deliveryEvent.findUnique({
         where: { ownerId_id: { ownerId: report.ownerId, id: report.reportEventId } },
       });
+      signal.throwIfAborted();
       if (
         !event ||
         event.taskId !== report.taskId ||
@@ -192,45 +194,88 @@ export function createAutomaticReleaseController(
       const row = rows[0];
       // Poll ONLY read-only reconciliation after the report response. A running
       // protected job never supplies its own completed-run receipt.
-      for (let read = 0; read < 4 && row.phase !== "observed"; read++) {
+      const expires =
+        event.type === "database_plan_approved"
+          ? event.createdAt.getTime() + 30000
+          : z.object({ expiresAt: z.number() }).passthrough().parse(event.payload).expiresAt;
+      const pollUntil = Math.min(Date.now() + 20000, expires);
+      for (let read = 0; read < 25 && row.phase !== "observed"; read++) {
         signal.throwIfAborted();
         await controller.step(report.ownerId, row.id, signal);
+        signal.throwIfAborted();
         const action = await db.deliveryReleaseAction.findUniqueOrThrow({ where: { id: row.id } });
         row.phase = action.phase;
-        if (row.phase !== "observed" && read < 3)
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+        signal.throwIfAborted();
+        if (row.phase !== "observed") {
+          if (Date.now() >= pollUntil) break;
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(done, Math.min(1000, pollUntil - Date.now()));
+            function done() {
+              clearTimeout(timer);
+              signal.removeEventListener("abort", done);
+              resolve();
+            }
+            signal.addEventListener("abort", done, { once: true });
+            if (signal.aborted) done();
+          });
+        }
       }
       if (row.phase !== "observed") return "waiting" as const;
-      const began = (
-        await db.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`
-      )[0].now.getTime();
-      const merge = await db.deliveryReleaseAction.findFirst({
-        where: { releaseId: row.release_id, kind: "merge" },
-      });
-      if (!merge || merge.phase === "prepared") {
-        const prepared = automaticPreparedSchema.parse(
-          await automaticReleaseForTask(
-            db,
-            config,
-            { ownerId: report.ownerId, taskId: report.taskId },
-            { operation: "prepare" },
-            signal,
-          ),
-        );
-        await lifecycle.renewDatabaseGrant(report.ownerId, row.release_id, prepared, began);
+      await controller.checkpointDatabase(report.ownerId, row.release_id, signal);
+      return "checkpointed" as const;
+    },
+    async checkpointDatabase(
+      ownerId: string,
+      releaseId: string,
+      signal: AbortSignal,
+    ): Promise<string> {
+      signal.throwIfAborted();
+      const scope = await lifecycle.reservedMergeScope(ownerId, releaseId);
+      signal.throwIfAborted();
+      if (!scope) return "held" as const;
+      const merge = await db.deliveryReleaseAction.findUnique({ where: { id: scope.actionId } });
+      signal.throwIfAborted();
+      if (merge?.phase === "observed") {
+        await controller.observe(ownerId, releaseId, signal);
+      } else if (!merge || merge.phase === "prepared") {
+        const completed = await db.deliveryReleaseAction.findFirst({
+          where: { releaseId, kind: "database_job", phase: "observed" },
+        });
+        signal.throwIfAborted();
+        if (completed) {
+          const began = (
+            await db.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`
+          )[0].now.getTime();
+          signal.throwIfAborted();
+          const prepared = automaticPreparedSchema.parse(
+            await automaticReleaseForTask(
+              db,
+              config,
+              { ownerId, taskId: scope.taskId },
+              { operation: "prepare" },
+              signal,
+            ),
+          );
+          signal.throwIfAborted();
+          await lifecycle.renewDatabaseGrant(ownerId, releaseId, prepared, began);
+        }
       }
-      const planned = await lifecycle.advance(report.ownerId, row.release_id);
+      signal.throwIfAborted();
+      const planned = await lifecycle.advance(ownerId, releaseId);
+      signal.throwIfAborted();
       if (planned === "ready_to_merge")
-        await controller.dispatchReservedMerge(report.ownerId, row.release_id, signal);
+        return controller.dispatchReservedMerge(ownerId, releaseId, signal);
+      if (planned === "held") return planned;
       const pending = await db.deliveryReleaseAction.findMany({
-        where: { releaseId: row.release_id, phase: "prepared" },
+        where: { releaseId, kind: "database_job", phase: "prepared" },
         take: 3,
       });
+      signal.throwIfAborted();
       for (const action of pending) {
         signal.throwIfAborted();
-        await controller.step(report.ownerId, action.id, signal);
+        await controller.step(ownerId, action.id, signal);
       }
-      return "checkpointed" as const;
+      return planned;
     },
     async observeDatabase(ownerId: string, releaseId: string, action: string, signal: AbortSignal) {
       const scope = await lifecycle.databaseObservationScope(ownerId, releaseId, action);
@@ -296,7 +341,11 @@ export function createAutomaticReleaseController(
               db,
               config,
               { ownerId, taskId: scope.taskId },
-              { operation: "builds", mergeSha },
+              {
+                operation: "builds",
+                mergeSha,
+                ...(scope.catalog ? { database: scope.catalog } : {}),
+              },
               effectSignal,
             ),
           signal,
@@ -400,6 +449,9 @@ export function createAutomaticReleaseController(
   };
   const planner = {
     async advance(ownerId: string, releaseId: string, signal?: AbortSignal) {
+      const bounded = signal ?? AbortSignal.timeout(40000);
+      if (await lifecycle.reservedMergeScope(ownerId, releaseId))
+        return controller.checkpointDatabase(ownerId, releaseId, bounded);
       const result = await lifecycle.advance(ownerId, releaseId);
       if (result === "ready_to_merge")
         return controller.dispatchReservedMerge(

@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
+import { build as bundle } from "esbuild";
 import { artifactDigest, packReleaseArtifact } from "../../../../scripts/release/artifact.mjs";
 import { runSourceBuildCompatibility } from "../../src/delivery/compatibility-source-build.mjs";
 import { digest } from "../../src/delivery/contracts.mjs";
@@ -182,16 +183,35 @@ test("actual single-Worker local artifacts preserve both versions and assets aga
   const scenario = Buffer.from(`import {execFileSync} from 'node:child_process';
 const sql=(statement)=>execFileSync('/usr/bin/psql',[process.env.DATABASE_URL,'-X','-v','ON_ERROR_STOP=1','-c',statement],{stdio:'ignore'});
 if(process.argv[2]==='prepare') sql("CREATE TABLE ${fixtureTable} (id int primary key, value text, added text); INSERT INTO ${fixtureTable} VALUES (1,'baseline','expanded')");
-else { for(const [origin,version] of [[process.env.HIVE_OLD_APP,'old'],[process.env.HIVE_NEW_APP,'new']]) { const r=await fetch(origin+'/version'); if(await r.text()!==version) throw Error('wrong local version'); const asset=await fetch(origin+'/proof.txt'); if(await asset.text()!=='asset-'+version) throw Error('missing local assets'); } sql("DO $$ BEGIN IF (SELECT count(*) FROM ${fixtureTable} WHERE value='baseline' AND added='expanded')<>1 THEN RAISE EXCEPTION 'invariant failed'; END IF; END $$"); }
+else { const oldIdentity=await (await fetch(process.env.HIVE_OLD_APP+'/isolation')).json(),newIdentity=await (await fetch(process.env.HIVE_NEW_APP+'/isolation')).json();if(oldIdentity.identity!==newIdentity.identity||oldIdentity.origin===newIdentity.origin)throw Error('old/new isolated identities differ');const encrypted=await (await fetch(process.env.HIVE_OLD_APP+'/encrypt',{method:'POST',body:'persisted-credential'})).text();if(!/^[a-f0-9]+$/.test(encrypted))throw Error('invalid encrypted row');sql("UPDATE ${fixtureTable} SET value='"+encrypted+"' WHERE id=1");const stored=execFileSync('/usr/bin/psql',[process.env.DATABASE_URL,'-X','-At','-c','SELECT value FROM ${fixtureTable} WHERE id=1'],{encoding:'utf8'}).trim();if(await (await fetch(process.env.HIVE_NEW_APP+'/decrypt',{method:'POST',body:stored})).text()!=='persisted-credential')throw Error('new version cannot decrypt old row'); for(const [origin,version] of [[process.env.HIVE_OLD_APP,'old'],[process.env.HIVE_NEW_APP,'new']]) { const r=await fetch(origin+'/version'); if(await r.text()!==version) throw Error('wrong local version'); const asset=await fetch(origin+'/proof.txt'); if(await asset.text()!=='asset-'+version) throw Error('missing local assets'); } sql("DO $$ BEGIN IF (SELECT count(*) FROM ${fixtureTable} WHERE added='expanded')<>1 THEN RAISE EXCEPTION 'invariant failed'; END IF; END $$"); }
 `);
   const artifact = async (version) => {
+    const worker = await bundle({
+      stdin: {
+        contents: `import {createNativeWorker} from ${JSON.stringify(resolve("deploy/cloudflare/native/composition.mjs"))};
+const app={async fetch(request,env){
+ if(env.HIVE_NATIVE_MODE!=='preview'||env.HIVE_NATIVE_PRODUCTION_ACTIVE!=='false'||env.HIVE_PREVIEW_ACCESS_REQUIRED!=='false'||env.HIVE_PREVIEW_ORIGIN!==new URL(request.url).origin||env.HIVE_PUBLIC_ORIGIN!==new URL(request.url).origin||!env.AUTH_SERVICE_SECRET||!env.ENCRYPTION_KEY||!env.COOKIE_SECRET||env.HIVE_DELIVERY_DATABASE_ENABLED!=='false'||env.HIVE_DELIVERY_RELEASE_ENABLED!=='false')return new Response('invalid isolated native bindings',{status:500});
+ const path=new URL(request.url).pathname;
+ const hex=(bytes)=>Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
+ const bytes=(text)=>new Uint8Array(text.match(/../g).map(v=>parseInt(v,16)));
+ if(path==='/isolation')return Response.json({origin:env.HIVE_PUBLIC_ORIGIN,identity:hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode([env.AUTH_SERVICE_SECRET,env.ENCRYPTION_KEY,env.COOKIE_SECRET,env.HIVE_CODER_OAUTH_CLIENT_SECRET].join(':'))))});
+ if(path==='/encrypt'||path==='/decrypt'){
+  const key=await crypto.subtle.importKey('raw',bytes(env.ENCRYPTION_KEY),'AES-GCM',false,['encrypt','decrypt']);
+  if(path==='/encrypt'){const iv=crypto.getRandomValues(new Uint8Array(12));return new Response(hex(iv)+hex(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(await request.text()))));}
+  const input=await request.text();return new Response(await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(input.slice(0,24))},key,bytes(input.slice(24))));
+ }
+ return path==='/version'?new Response('${version}'):env.ASSETS.fetch(request);
+}};export default createNativeWorker({app,auth:{fetch(){return new Response('isolated-auth')}},jobs:{scheduled(){throw Error('Production scheduling must stay disabled')}}});`,
+        resolveDir: process.cwd(),
+      },
+      bundle: true,
+      write: false,
+      platform: "neutral",
+      target: "es2022",
+      format: "esm",
+    });
     const files = new Map([
-      [
-        "app/worker.js",
-        Buffer.from(
-          `export default {fetch(request,env){return new URL(request.url).pathname==='/version'?new Response('${version}'):env.ASSETS.fetch(request)}};`,
-        ),
-      ],
+      ["app/worker.js", Buffer.from(worker.outputFiles[0].contents)],
       ["assets/proof.txt", Buffer.from(`asset-${version}`)],
     ]);
     const build = join(root, `build-${version}`);

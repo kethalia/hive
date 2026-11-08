@@ -19,9 +19,24 @@ export const automaticDatabaseActionSchema = z
     catalogDigest: hash,
     planDigest: hash,
     planEventId: id.nullable(),
+    activationProof: z
+      .object({
+        observationId: id,
+        observationDigest: hash,
+        mergeSha: z.string().regex(/^[a-f0-9]{40}$/),
+        treeSha: z.string().regex(/^[a-f0-9]{40}$/),
+        buildUuid: id,
+        databaseEndpointDigest: hash,
+        observedAt: z.number().int().nonnegative().safe(),
+        expiresAt: z.number().int().nonnegative().safe(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
+    if ((v.stage === "activate") !== Boolean(v.activationProof))
+      ctx.addIssue({ code: "custom", message: "Activation requires serving-build provenance" });
     if ((v.stage === "approve") !== (v.planEventId === null))
       ctx.addIssue({ code: "custom", message: "Plan approval stage mismatch" });
   });

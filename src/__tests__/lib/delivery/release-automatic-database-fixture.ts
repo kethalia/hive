@@ -49,7 +49,13 @@ export async function automaticDatabaseFixture(
     testedLifetimeMs = 600000,
     grantMs = 600000,
     policyLifetimeMs = 600000,
-  }: { testedLifetimeMs?: number; grantMs?: number; policyLifetimeMs?: number } = {},
+    approvalHistoryMs = 0,
+  }: {
+    testedLifetimeMs?: number;
+    grantMs?: number;
+    policyLifetimeMs?: number;
+    approvalHistoryMs?: number;
+  } = {},
 ) {
   const f = await verifiedEpicPreviewFixture(db, {
     baseBranch: "main",
@@ -209,6 +215,9 @@ export async function automaticDatabaseFixture(
   const state = {
     activeJob: null as Job | null,
     wrongDb: false,
+    servingBaseline: false,
+    droppedDispatch: false,
+    stallLookup: false,
     droppedReport: false,
     reportCalls: 0,
     expireWorkloadRead: false,
@@ -269,7 +278,44 @@ export async function automaticDatabaseFixture(
     if (u.origin === p.config.target.origin && path.startsWith("/api/delivery/database-jobs/")) {
       const request = new Request(String(raw), init),
         body = JSON.parse(await request.clone().text());
-      const store = createInstalledDatabaseJobStore(db, env, fetcher);
+      // Explicit historical-workflow fixture: only the original approval's
+      // insertion timestamp is old. No existing immutable row is modified.
+      const historicalDb = approvalHistoryMs
+        ? new Proxy(db, {
+            get(target, key) {
+              if (key === "$transaction")
+                return (operation: (tx: any) => unknown, options: unknown) =>
+                  target.$transaction(
+                    async (tx) =>
+                      operation(
+                        new Proxy(tx, {
+                          get(actual, field) {
+                            if (field !== "deliveryEvent") return Reflect.get(actual, field);
+                            return new Proxy(actual.deliveryEvent, {
+                              get(events, action) {
+                                if (action !== "create") return Reflect.get(events, action);
+                                return (args: any) =>
+                                  events.create({
+                                    ...args,
+                                    data: {
+                                      ...args.data,
+                                      ...(args.data.type === "database_plan_approved"
+                                        ? { createdAt: new Date(Date.now() - approvalHistoryMs) }
+                                        : {}),
+                                    },
+                                  });
+                              },
+                            });
+                          },
+                        }),
+                      ),
+                    options as any,
+                  );
+              return Reflect.get(target, key);
+            },
+          })
+        : db;
+      const store = createInstalledDatabaseJobStore(historicalDb, env, fetcher);
       if (store) {
         const job = store.job.bind(store);
         store.job = async (...args) => {
@@ -305,8 +351,9 @@ export async function automaticDatabaseFixture(
             schemaVersion: 1,
             status: "available",
             provider: "cloudflare-builds",
-            sourceSha: p.remote.merged ? p.remote.mergeSha : p.remote.baseSha,
-            buildUuid: p.remote.merged ? candidateBuild : baselineBuild,
+            sourceSha:
+              p.remote.merged && !state.servingBaseline ? p.remote.mergeSha : p.remote.baseSha,
+            buildUuid: p.remote.merged && !state.servingBaseline ? candidateBuild : baselineBuild,
             branch: "main",
           },
         },
@@ -358,6 +405,10 @@ export async function automaticDatabaseFixture(
         compatibility: "success",
         protected: "in_progress",
       });
+      if (state.droppedDispatch) {
+        state.droppedDispatch = false;
+        throw Error("Lost workflow dispatch acknowledgement after effect");
+      }
       return new Response(null, { status: 204 });
     }
     if (path.endsWith("/git/ref/heads/database-dispatch"))
@@ -366,8 +417,18 @@ export async function automaticDatabaseFixture(
       return Response.json({ object: { type: "commit", sha: p.remote.baseSha } });
     if (path.endsWith("/actions/workflows/99"))
       return Response.json({ id: 99, path: ".github/workflows/ci.yml", state: "active" });
-    if (path.endsWith("/actions/workflows/99/runs"))
+    if (path.endsWith("/actions/workflows/99/runs")) {
+      if (state.stallLookup) {
+        const signal = init?.signal;
+        if (!signal) throw Error("Expected bounded provider signal");
+        await new Promise((_resolve, reject) => {
+          const stopped = () => reject(Error("Provider observation aborted"));
+          signal.addEventListener("abort", stopped, { once: true });
+          if (signal.aborted) stopped();
+        });
+      }
       return Response.json({ total_count: jobs.length, workflow_runs: jobs.map(run) });
+    }
     if (path === `/repositories/${p.source.repositoryId}` && state.expireFinalMetadata) {
       state.expireFinalMetadata = false;
       const delay = Math.max(0, p.config.policy.expiresAt - Date.now() + 50) / 1000;
@@ -443,7 +504,12 @@ export async function automaticDatabaseFixture(
     expect(user.id).toBe(f.user.id);
     expect(workspace).toBe(f.host.workspaceId);
     expect(options.expectedBuildId).toBe(f.host.buildId);
-    return hostProductionRelease({ request, token: "fixture-connected-account" }, fetcher);
+    return hostProductionRelease({ request, token: "fixture-connected-account" }, (input, init) =>
+      fetcher(input, {
+        ...init,
+        signal: AbortSignal.any([options.signal, ...(init?.signal ? [init.signal] : [])]),
+      }),
+    );
   });
   const signal = AbortSignal.timeout(120000),
     tested = createAutomaticReleaseTestStore(db, p.config, fetcher, testedLifetimeMs);

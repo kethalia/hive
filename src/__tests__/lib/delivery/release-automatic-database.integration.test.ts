@@ -142,6 +142,7 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
       where: { releaseId: f.release.id, kind: "merge" },
     });
     expect(await f.controller.step(f.user.id, merge.id, f.signal)).toBe("observed");
+    await f.controller.observe(f.user.id, f.release.id, f.signal);
     expect(await f.controller.lifecycle.advance(f.user.id, f.release.id)).toBe("prepared");
     const activate = await db.deliveryReleaseAction.findFirstOrThrow({
       where: { releaseId: f.release.id, kind: "database_job", phase: "prepared" },
@@ -390,7 +391,7 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
     expect(f.remote.writes).toBe(0);
   }, 30000);
   it("holds its still-running or failed job callback and never treats a lost report acknowledgement as permission to retry", async () => {
-    const f = await automaticDatabaseFixture(db, url!, mocks.host);
+    const f = await automaticDatabaseFixture(db, url!, mocks.host, { approvalHistoryMs: 300000 });
     await f.controller.lifecycle.advance(f.user.id, f.release.id);
     const approve = await db.deliveryReleaseAction.findFirstOrThrow({
       where: { releaseId: f.release.id, phase: "prepared" },
@@ -414,7 +415,7 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
     f.jobs[0].status = "completed";
     f.jobs[0].conclusion = "success";
     f.jobs[0].protected = "success";
-    await followup();
+    await f.controller.scheduler.tick(f.signal);
     expect(f.jobs).toHaveLength(2);
     f.state.droppedReport = true;
     await expect(f.runJob(f.jobs[1])).rejects.toThrow("Lost report response");
@@ -426,6 +427,112 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
     expect(f.jobs).toHaveLength(2);
     expect(f.remote.writes).toBe(0);
   }, 30000);
+  it("cancels a stalled callback provider within its work budget and closes its own SQL client", async () => {
+    const f = await automaticDatabaseFixture(db, url!, mocks.host);
+    await f.controller.lifecycle.advance(f.user.id, f.release.id);
+    const approval = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: f.release.id, phase: "prepared" },
+    });
+    await f.controller.step(f.user.id, approval.id, f.signal);
+    await f.runJob(f.jobs[0]);
+    f.state.stallLookup = true;
+    const began = Date.now(),
+      opened = mocks.opened,
+      closed = mocks.closed;
+    await f.followups.shift()!();
+    expect(Date.now() - began).toBeGreaterThanOrEqual(19000);
+    expect(Date.now() - began).toBeLessThan(25000);
+    expect(mocks.opened - opened).toBe(1);
+    expect(mocks.closed - closed).toBe(1);
+    expect(f.jobs).toHaveLength(1);
+    expect(f.remote.writes).toBe(0);
+    expect(
+      await db.deliveryEvent.count({
+        where: { taskId: f.taskId, type: "release_test_grant_renewed" },
+      }),
+    ).toBe(0);
+  }, 30000);
+  it("recovers a five-minute historical workflow on the scheduler, refreshes SQL proof, and waits for the exact serving build before its sole activation", async () => {
+    const f = await automaticDatabaseFixture(db, url!, mocks.host, {
+      testedLifetimeMs: 5000,
+      approvalHistoryMs: 300000,
+    });
+    await f.controller.lifecycle.advance(f.user.id, f.release.id);
+    const approval = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: f.release.id, kind: "database_job", phase: "prepared" },
+    });
+    await f.controller.step(f.user.id, approval.id, f.signal);
+    await f.runJob(f.jobs[0]);
+    const history = await db.deliveryEvent.findFirstOrThrow({
+      where: { taskId: f.taskId, type: "database_plan_approved" },
+    });
+    expect(Date.now() - history.createdAt.getTime()).toBeGreaterThanOrEqual(300000);
+    f.jobs[0].status = "in_progress";
+    f.jobs[0].conclusion = null;
+    f.jobs[0].protected = "in_progress";
+    // Exactly one actual post-response hook. Later continuation is scheduled.
+    await f.followups.shift()!();
+    await db.$executeRaw`SELECT pg_sleep(5.2)`;
+    f.jobs[0].status = "completed";
+    f.jobs[0].conclusion = "success";
+    f.jobs[0].protected = "success";
+    f.state.droppedDispatch = true;
+    await f.controller.scheduler.tick(f.signal);
+    expect(
+      (await db.deliveryReleaseAction.findUniqueOrThrow({ where: { id: approval.id } })).phase,
+    ).toBe("observed");
+    expect(f.jobs.map((job) => job.stage)).toEqual(["approve", "advance"]);
+    expect(
+      await db.deliveryEvent.count({
+        where: { taskId: f.taskId, type: "release_test_grant_renewed" },
+      }),
+    ).toBe(0);
+    expect(f.remote.writes).toBe(0);
+    await f.controller.scheduler.tick(f.signal);
+    expect(f.jobs).toHaveLength(2); // Lost dispatch ACK is lookup-only, never a second POST.
+    f.state.servingBaseline = true;
+    await f.runJob(f.jobs[1]);
+    await f.followups.shift()!();
+    expect(
+      await db.deliveryEvent.count({
+        where: { taskId: f.taskId, type: "release_test_grant_renewed" },
+      }),
+    ).toBe(1);
+    expect(f.remote.writes).toBe(1);
+    await f.controller.scheduler.tick(f.signal);
+    expect(f.jobs).toHaveLength(2);
+    expect(
+      await db.deliveryReleaseAction.count({
+        where: {
+          releaseId: f.release.id,
+          kind: "database_job",
+          request: { path: ["stage"], equals: "activate" },
+        },
+      }),
+    ).toBe(0);
+    f.state.servingBaseline = false;
+    await f.controller.scheduler.tick(f.signal);
+    await f.controller.scheduler.tick(f.signal); // Existing cursor wraps on an empty pass.
+    expect(f.jobs.map((job) => job.stage)).toEqual(["approve", "advance", "activate"]);
+    const activation = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: {
+        releaseId: f.release.id,
+        kind: "database_job",
+        request: { path: ["stage"], equals: "activate" },
+      },
+    });
+    expect(activation.request).toMatchObject({
+      activationProof: {
+        mergeSha: f.remote.mergeSha,
+        treeSha: f.remote.treeSha,
+        buildUuid: expect.any(String),
+        observationId: expect.any(String),
+      },
+    });
+    await f.controller.scheduler.tick(f.signal);
+    expect(f.jobs).toHaveLength(3);
+    expect(f.remote.writes).toBe(1);
+  }, 45000);
   it("supplies the real controlled DB artifact to independent production acceptance and retains historical verification after only deployment-fence release", async () => {
     const f = await readyForMerge();
     expect(await f.controller.dispatchReservedMerge(f.user.id, f.release.id, f.signal)).toBe(
@@ -435,12 +542,17 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
       where: { id: f.intent.mergeActionId },
     });
     expect(await f.controller.step(f.user.id, merge.id, f.signal)).toBe("observed");
+    await f.controller.observe(f.user.id, f.release.id, f.signal);
     await f.controller.lifecycle.advance(f.user.id, f.release.id);
     const activate = await db.deliveryReleaseAction.findFirstOrThrow({
       where: { releaseId: f.release.id, phase: "prepared" },
     });
     await f.controller.step(f.user.id, activate.id, f.signal);
     await f.runJob(f.jobs[2]);
+    // The protected job can finish after the dispatch-time health sample expires.
+    // Its exact immutable pin is history for lookup, never a new dispatch grant.
+    await db.$executeRaw`SELECT pg_sleep(30.1)`;
+    expect(await f.controller.step(f.user.id, activate.id, f.signal)).toBe("observed");
     await f.followups.shift()!();
     await db.$executeRaw`SELECT pg_sleep(1.05)`;
     expect(await f.controller.observe(f.user.id, f.release.id, f.signal)).toBe("healthy");
@@ -475,7 +587,7 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
     ).toBe(1);
     expect(f.remote.writes).toBe(1);
     expect(f.jobs).toHaveLength(3);
-  }, 30000);
+  }, 65000);
   it("denies disabled catalogs and a valid-workload wrong dispatch scope before schema execution", async () => {
     const f = await automaticDatabaseFixture(db, url!, mocks.host);
     vi.stubEnv(
@@ -509,6 +621,7 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
     const f = await readyForMerge();
     await f.controller.dispatchReservedMerge(f.user.id, f.release.id, f.signal);
     await f.controller.step(f.user.id, f.intent.mergeActionId, f.signal);
+    await f.controller.observe(f.user.id, f.release.id, f.signal);
     await f.controller.lifecycle.advance(f.user.id, f.release.id);
     const action = await db.deliveryReleaseAction.findFirstOrThrow({
       where: { releaseId: f.release.id, phase: "prepared" },

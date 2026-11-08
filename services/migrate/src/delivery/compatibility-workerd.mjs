@@ -193,6 +193,16 @@ export async function runWorkerdCompatibility(
         timeout: 120000,
       });
     scenarioRun("prepare");
+    const isolatedKeys = single
+      ? Object.fromEntries(
+          [
+            "AUTH_SERVICE_SECRET",
+            "ENCRYPTION_KEY",
+            "COOKIE_SECRET",
+            "HIVE_CODER_OAUTH_CLIENT_SECRET",
+          ].map((name) => [name, randomBytes(32).toString("hex")]),
+        )
+      : {};
     for (const [index, files] of [oldFiles, newFiles].entries()) {
       const base = join(directory, String(index));
       for (const [path, bytes] of files) {
@@ -216,6 +226,24 @@ export async function runWorkerdCompatibility(
             vars: { DATABASE_URL: databaseUrl },
           }),
         );
+      const origin = `http://127.0.0.1:${ports[index]}`;
+      const isolated = single
+        ? {
+            ...isolatedKeys,
+            HIVE_NATIVE_MODE: "preview",
+            HIVE_NATIVE_PREVIEW_ENABLED: "true",
+            HIVE_NATIVE_PRODUCTION_ACTIVE: "false",
+            HIVE_PREVIEW_ACCESS_REQUIRED: "false",
+            HIVE_PUBLIC_ORIGIN: origin,
+            HIVE_PREVIEW_ORIGIN: origin,
+            HIVE_CODER_OAUTH_ENABLED: "true",
+            CODER_URL: "https://coder.compatibility.invalid",
+            HIVE_CODER_OAUTH_CLIENT_ID: "isolated-compatibility",
+            HIVE_DELIVERY_RELEASE_ENABLED: "false",
+            HIVE_DELIVERY_DATABASE_ENABLED: "false",
+            HIVE_TOKEN_ROTATION_ENABLED: "false",
+          }
+        : {};
       await writeFile(
         path,
         JSON.stringify({
@@ -224,7 +252,7 @@ export async function runWorkerdCompatibility(
           compatibility_date: config.compatibilityDate,
           compatibility_flags: ["nodejs_compat"],
           no_bundle: true,
-          vars: { DATABASE_URL: databaseUrl },
+          vars: { DATABASE_URL: databaseUrl, ...isolated },
           ...(single ? {} : { services: [{ binding: "AUTH_SERVICE", service: authName }] }),
           assets: { directory: join(base, "assets"), binding: "ASSETS", run_worker_first: true },
         }),
