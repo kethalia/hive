@@ -21,6 +21,34 @@ const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
 const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 const INFRASTRUCTURE_TEMPLATE_ROOT = join(process.cwd(), "templates/infrastructure");
 
+test("HOME binding completes before deployment volume metadata is published", () => {
+  for (const profile of [
+    "ai-dev-k8s",
+    "browser-testing",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ]) {
+    const terraform = readFileSync(join(process.cwd(), "templates", profile, "main.tf"), "utf8");
+    const home = terraform
+      .split('resource "kubernetes_persistent_volume_claim_v1" "home" {')[1]
+      ?.split('\nresource "kubernetes_deployment_v1" "workspace" {')[0];
+    assert.ok(home);
+    assert.match(home, /wait_until_bound\s*=\s*true/);
+    assert.match(home, /storage_class_name\s*=\s*"longhorn"/);
+    assert.match(terraform, /depends_on\s*=\s*\[kubernetes_persistent_volume_claim_v1\.home\]/);
+    assert.match(
+      terraform,
+      /boundVolumeName\s*=\s*kubernetes_persistent_volume_claim_v1\.home\.spec\[0\]\.volume_name/,
+    );
+    assert.match(
+      terraform,
+      /resource_id\s*=\s*kubernetes_deployment_v1\.workspace\[count\.index\]\.id/,
+    );
+    assert.match(terraform, /value\s*=\s*jsonencode\(local\.hive_home_volumes\[count\.index\]\)/);
+  }
+});
+
 test("workspace lifecycle checks provenance independently of agent instructions", () => {
   const result = spawnSync("python3", ["-B", "scripts/workspace-lifecycle.test.py"], {
     encoding: "utf8",
