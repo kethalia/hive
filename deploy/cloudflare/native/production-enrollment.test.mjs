@@ -577,3 +577,80 @@ test("remote main advancing during slow observation produces zero deployment eff
   assert.equal(effects, 0);
   assert.deepEqual(order, ["remote-main", "build-ready", "observed-parent", "remote-main"]);
 });
+
+test("existing project wake requires its named remote secret and template logs require explicit enrollment", () => {
+  const base = fixture().parse();
+  assert.equal(base.config.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED, "false");
+  const f = fixture("ongoing-main");
+  f.enrollment.configuration.vars.HIVE_PROJECT_TASKS_ENABLED = "true";
+  retarget(f);
+  assert.throws(f.parse);
+  f.enrollment.configuration.secretNames.push("HIVE_PROJECT_TASK_RECONCILE_SECRET");
+  retarget(f);
+  const enabled = f.parse();
+  assert.ok(enabled.config.secrets.required.includes("HIVE_PROJECT_TASK_RECONCILE_SECRET"));
+  assert.equal(enabled.config.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED, "false");
+  f.enrollment.configuration.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED = "true";
+  retarget(f);
+  assert.equal(f.parse().config.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED, "true");
+  f.enrollment.configuration.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED = "false";
+  retarget(f);
+  assert.equal(f.parse().config.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED, "false");
+  f.enrollment.configuration.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED = "invalid";
+  retarget(f);
+  assert.throws(f.parse);
+  delete f.enrollment.configuration.vars.HIVE_TEMPLATE_LOG_VIEW_ENABLED;
+  f.enrollment.configuration.secretNames = f.enrollment.configuration.secretNames.map((name) =>
+    name === "HIVE_PROJECT_TASK_RECONCILE_SECRET"
+      ? "HIVE_PROJECT_TASK_RECONCILE_SECRET_OTHER"
+      : name,
+  );
+  retarget(f);
+  assert.throws(f.parse);
+  f.enrollment.configuration.secretNames.push("HIVE_PROJECT_TASK_RECONCILE_SECRET");
+  retarget(f);
+  assert.throws(f.parse); // extra/wrong secret name still rejected
+});
+
+test("D10 ongoing enrollment requires its existing signing-key name without accepting key or token values", () => {
+  const f = fixture("ongoing-main");
+  Object.assign(f.enrollment.configuration.vars, {
+    HIVE_DELIVERY_DATABASE_ENABLED: "true",
+    HIVE_DELIVERY_DATABASE_CATALOGS_JSON: "[]",
+    HIVE_DELIVERY_RELEASE_ENABLED: "true",
+    HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED: "true",
+    HIVE_DELIVERY_RELEASE_TESTED_ENABLED: "true",
+    HIVE_DELIVERY_RELEASE_CONFIG_JSON: "{}",
+    HIVE_DELIVERY_RELEASE_SCHEDULER_ENABLED: "true",
+    HIVE_NATIVE_HEALTH_ENABLED: "true",
+  });
+  retarget(f);
+  assert.throws(f.parse);
+  f.enrollment.configuration.secretNames.push("HIVE_DELIVERY_DATABASE_SIGNING_KEY");
+  retarget(f);
+  const p = f.parse();
+  assert.ok(p.config.secrets.required.includes("HIVE_DELIVERY_DATABASE_SIGNING_KEY"));
+  assert.equal(p.config.vars.HIVE_DELIVERY_DATABASE_CATALOGS_JSON, "[]");
+  f.enrollment.configuration.secretNames = f.enrollment.configuration.secretNames.map((name) =>
+    name === "HIVE_DELIVERY_DATABASE_SIGNING_KEY"
+      ? "HIVE_DELIVERY_DATABASE_SIGNING_KEY_OTHER"
+      : name,
+  );
+  retarget(f);
+  assert.throws(f.parse);
+  f.enrollment.configuration.secretNames = f.enrollment.configuration.secretNames.filter(
+    (name) => name !== "HIVE_DELIVERY_DATABASE_SIGNING_KEY_OTHER",
+  );
+  f.enrollment.configuration.secretNames.push("HIVE_DELIVERY_DATABASE_SIGNING_KEY");
+  for (const name of [
+    "HIVE_DELIVERY_DATABASE_SIGNING_KEY",
+    "HIVE_DELIVERY_DATABASE_GITHUB_TOKEN",
+    "HIVE_DATABASE_URL",
+    "DATABASE_URL",
+  ]) {
+    f.enrollment.configuration.vars[name] = "not-a-public-input";
+    retarget(f);
+    assert.throws(f.parse);
+    delete f.enrollment.configuration.vars[name];
+  }
+});
