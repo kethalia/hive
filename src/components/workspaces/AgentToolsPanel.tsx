@@ -7,9 +7,7 @@ import { Input } from "@/components/ui/input";
 import { configureAgentToolsAction, resumeAgentSessionAction } from "@/lib/actions/agent-tools";
 import { type AgentSession, agentLabels } from "@/lib/agents/types";
 import { useDiscovery } from "@/lib/discovery/queries";
-import { AccountMaintenanceCard } from "./AccountMaintenanceCard";
-import { ClaudeAccountCard } from "./ClaudeAccountCard";
-import { CodexAccountCard } from "./CodexAccountCard";
+import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
 
 const states: Record<AgentSession["state"], string> = {
   working: "Working",
@@ -163,17 +161,12 @@ export function AgentToolsPanel({
         data-mobile-scroll-allow="true"
       >
         {open ? (
-          <>
-            <AccountMaintenanceCard
-              key={`maintenance/${workspaceId}/${buildId ?? ""}`}
-              workspaceId={workspaceId}
-            />
-            <ClaudeAccountCard
-              key={`claude/${workspaceId}/${buildId ?? ""}`}
-              workspaceId={workspaceId}
-            />
-            <CodexAccountCard key={`${workspaceId}/${buildId ?? ""}`} workspaceId={workspaceId} />
-          </>
+          <Button
+            variant="outline"
+            onClick={() => requestHiveWindow({ tool: "accounts", workspaceId, buildId })}
+          >
+            Open Accounts
+          </Button>
         ) : null}
         {snapshot ? (
           <>

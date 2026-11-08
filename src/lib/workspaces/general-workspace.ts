@@ -28,6 +28,7 @@ export const hiveToolSchema = z.enum([
   "projects",
   "delivery",
   "agents",
+  "accounts",
   "diagnostics",
   "settings",
   "workspaces",
@@ -41,6 +42,7 @@ export const hiveToolLabels: Record<HiveTool, string> = {
   templates: "Templates",
   logs: "Logs",
   agents: "Agents",
+  accounts: "Accounts",
   diagnostics: "Diagnostics",
   settings: "Settings",
   workspaces: "Coder workspaces",
@@ -50,6 +52,7 @@ export const hiveWindowRequestSchema = z.object({
   taskId: z.string().uuid().optional(),
   reportId: z.string().uuid().optional(),
   workspaceId: z.string().trim().min(1).max(200).optional(),
+  buildId: z.string().trim().min(1).max(200).optional(),
   launch: z.boolean().optional(),
   sessionName: z
     .string()
@@ -61,6 +64,7 @@ export type HiveWindowRequest = z.infer<typeof hiveWindowRequestSchema>;
 export function hiveWindowHref(request: HiveWindowRequest) {
   const query = new URLSearchParams({ panel: request.tool });
   if (request.workspaceId) query.set("workspace", request.workspaceId);
+  if (request.buildId) query.set("build", request.buildId);
   if (request.taskId) query.set("task", request.taskId);
   if (request.reportId) query.set("report", request.reportId);
   if (request.template) query.set("template", request.template);
@@ -113,6 +117,7 @@ const hive = z.object({
   reportId: z.string().uuid().optional(),
   template: identifier.optional(),
   workspaceId: identifier.optional(),
+  buildId: identifier.optional(),
   label: z.string().min(1).max(512),
 });
 export const generalPaneSchema = z.union([terminal, app, hive]);
@@ -232,6 +237,7 @@ export function openHiveWindow(
         tool: request.tool,
         label: hiveToolLabels[request.tool],
         workspaceId: request.workspaceId,
+        buildId: request.buildId,
         template: request.template,
         sessionName: request.sessionName,
         taskId: request.taskId,
@@ -254,6 +260,9 @@ export function openHiveWindow(
                 ? {
                     ...w,
                     ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
+                    ...(request.tool === "accounts" && request.workspaceId
+                      ? { buildId: request.buildId }
+                      : {}),
                     ...(request.template ? { template: request.template } : {}),
                     ...(request.tool === "delivery" && request.taskId
                       ? { taskId: request.taskId, reportId: request.reportId }

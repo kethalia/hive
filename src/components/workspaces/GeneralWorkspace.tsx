@@ -273,7 +273,28 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       setFocusRequest((value) => value + 1);
       update(
         (current) => {
-          const next = openHiveWindow(current, request, crypto.randomUUID());
+          const existing = current.boards.some((board) =>
+            board.windows.some((pane) => pane.kind === "hive" && pane.tool === request.tool),
+          );
+          const selected =
+            request.tool === "accounts" && (request.workspaceId || !existing)
+              ? (workspaces.find((workspace) => workspace.id === request.workspaceId) ??
+                (!request.workspaceId
+                  ? (workspaces.find((workspace) => workspace.latest_build.status === "running") ??
+                    workspaces[0])
+                  : undefined))
+              : undefined;
+          const next = openHiveWindow(
+            current,
+            selected
+              ? {
+                  ...request,
+                  workspaceId: selected.id,
+                  buildId: request.buildId ?? selected.latest_build.id,
+                }
+              : request,
+            crypto.randomUUID(),
+          );
           if (next === current)
             setNotice(`The workspace supports up to ${MAX_GENERAL_WINDOWS} open windows.`);
           return next;
@@ -282,7 +303,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       );
       if (request.tool === "workspaces" && request.launch) setLaunchRequest((value) => value + 1);
     },
-    [update],
+    [update, workspaces],
   );
   const openAgents = useCallback(
     (workspaceId?: string) => openHiveTool({ tool: "agents", workspaceId }),
@@ -325,6 +346,17 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     const tool = generalToolSchema.safeParse(query.get("tool"));
     const sessionName = query.get("session");
     const panel = hiveToolSchema.safeParse(query.get("panel"));
+    const accountSelection = hiveWindowRequestSchema
+      .pick({ workspaceId: true, buildId: true })
+      .safeParse({
+        workspaceId: workspaceId ?? undefined,
+        buildId: query.get("build") ?? undefined,
+      });
+    if (panel.success && panel.data === "accounts" && !accountSelection.success) {
+      setNotice("The Accounts workspace or build selection is invalid.");
+      router.replace("/workspaces", { scroll: false });
+      return;
+    }
     if (panel.success)
       openHiveTool({
         tool: panel.data,
@@ -334,6 +366,10 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         sessionName: panel.data === "logs" ? (sessionName ?? undefined) : undefined,
         template: query.get("template") ?? undefined,
         workspaceId: workspaceId ?? undefined,
+        buildId:
+          panel.data === "accounts" && accountSelection.success
+            ? accountSelection.data.buildId
+            : undefined,
         launch: query.get("launch") === "1",
       });
     else if (workspaceId && sessionName) void notification.open(workspaceId, sessionName);
@@ -625,11 +661,13 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                   onActivate={() => activate(b.key, pane.id)}
                   onClose={() => closeWindow(b.key, pane.id)}
                   onCycleWidth={onCycleWidth}
-                  onWorkspaceChange={(workspaceId) =>
+                  onWorkspaceChange={(workspaceId, buildId) =>
                     changeBoard(b.key, (current) => ({
                       ...current,
                       windows: current.windows.map((w) =>
-                        w.id === pane.id ? { ...w, workspaceId } : w,
+                        w.id === pane.id
+                          ? { ...w, workspaceId, ...(pane.tool === "accounts" ? { buildId } : {}) }
+                          : w,
                       ),
                     }))
                   }

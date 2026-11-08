@@ -325,3 +325,67 @@ describe("delivery report window links", () => {
     );
   });
 });
+
+describe("Accounts window selection", () => {
+  it("keeps one Accounts window across boards, persists only scope, and retains legacy Agents", () => {
+    let state = openHiveWindow(
+      emptyGeneralWorkspace(),
+      { tool: "agents", workspaceId: "one" },
+      "agents",
+    );
+    state = openHiveWindow(
+      state,
+      { tool: "accounts", workspaceId: "one", buildId: "build-one" },
+      "accounts",
+    );
+    state.boards.push({ key: "board-2", name: "2", order: 1, windows: [] });
+    state.activeBoardKey = "board-2";
+    state = openHiveWindow(
+      state,
+      { tool: "accounts", workspaceId: "two", buildId: "build-two" },
+      "duplicate",
+    );
+    expect(state.activeBoardKey).toBe("board-1");
+    expect(state.boards.flatMap((b) => b.windows)).toHaveLength(2);
+    const restored = parseGeneralWorkspace(JSON.stringify(state))!;
+    expect(restored.boards[0].windows).toEqual([
+      expect.objectContaining({ id: "agents", tool: "agents", workspaceId: "one" }),
+      expect.objectContaining({
+        id: "accounts",
+        tool: "accounts",
+        workspaceId: "two",
+        buildId: "build-two",
+      }),
+    ]);
+    state = openHiveWindow(restored, { tool: "accounts" }, "unused");
+    expect(state.boards[0].windows[1]).toMatchObject({ workspaceId: "two", buildId: "build-two" });
+    state = openHiveWindow(state, { tool: "accounts", workspaceId: "one" }, "unused");
+    expect(state.boards[0].windows[1]).toMatchObject({ workspaceId: "one" });
+    expect(state.boards[0].windows[1]).not.toHaveProperty("buildId", "build-two");
+  });
+  it("links an exact workspace/build and strips account responses from restored state", () => {
+    expect(hiveWindowHref({ tool: "accounts", workspaceId: "workspace", buildId: "build" })).toBe(
+      "/workspaces?panel=accounts&workspace=workspace&build=build",
+    );
+    const state = openHiveWindow(
+      emptyGeneralWorkspace(),
+      { tool: "accounts", workspaceId: "workspace", buildId: "build" },
+      "accounts",
+    );
+    Object.assign(state.boards[0].windows[0], {
+      userCode: "private-code",
+      lifetimeId: "private-lifetime",
+      generation: 8,
+      pending: { verificationUrl: "https://private.example/" },
+    });
+    const restored = parseGeneralWorkspace(JSON.stringify(state));
+    expect(restored?.boards[0].windows[0]).toEqual({
+      id: "accounts",
+      kind: "hive",
+      tool: "accounts",
+      label: "Accounts",
+      workspaceId: "workspace",
+      buildId: "build",
+    });
+  });
+});
