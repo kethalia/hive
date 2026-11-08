@@ -366,11 +366,11 @@ WORKDIR /home/coder
 # the profile startup script so updates do not require rebuilding every variant.
 # Verify the native binary before installing it into the standard native layout.
 # Version upgrades must update the SHA-256 from Anthropic's signed manifest.
-ENV CLAUDE_CODE_VERSION=2.1.296
+ENV CLAUDE_CODE_VERSION=2.1.319
 RUN curl -fsSLo /tmp/claude \
         https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/linux-x64/claude \
     && printf '%s  %s\n' \
-        '24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de' \
+        'dabafec82ca1319fa43d8be36a10fc61b1d11821cb98ad5df04ad95e199b8eed' \
         '/tmp/claude' | sha256sum --check --status \
     && install -d -m 0755 /home/coder/.local/bin /home/coder/.local/share/claude/versions \
     && install -m 0755 /tmp/claude /home/coder/.local/share/claude/versions/${CLAUDE_CODE_VERSION} \

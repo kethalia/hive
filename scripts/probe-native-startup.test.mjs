@@ -13,6 +13,10 @@ test("startup diagnostic rejects source drift and never changes readiness bounds
   );
   const source = readFileSync(url, "utf8");
   const transformed = await load(url.href, {}, async () => ({ source, format: "module" }));
+  assert.ok(source.includes('stdio: ["ignore", "ignore", "ignore", lock, credentialLock.fd]'));
+  assert.ok(
+    transformed.source.includes('stdio: ["ignore", "ignore", "pipe", lock, credentialLock.fd]'),
+  );
   assert.match(transformed.source, /NATIVE_STARTUP_TIMEOUT_MS = 20000/);
   assert.match(transformed.source, /Math\.min\(300,/);
   assert.match(transformed.source, /Math\.min\(100,/);

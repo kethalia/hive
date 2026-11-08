@@ -6,9 +6,11 @@ import {
   mkdirSync,
   mkdtempSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -17,6 +19,7 @@ import { createServer as createSocketServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
+import { acquireManagedAuthLock } from "../templates/ai-dev-k8s/scripts/codex-managed-auth-lock.mjs";
 import { NATIVE_PROFILE } from "../templates/ai-dev-k8s/scripts/codex-native-namespace.mjs";
 import {
   processIdentity,
@@ -582,13 +585,37 @@ test("actual wrapper, monitor and host crashes terminate pinned native and relea
   });
   const runtimeFactory = (args) =>
     launchNative({ ...args, fixtureProvider: { baseUrl: "http://127.0.0.1:9/v1" } });
+  const assertAuthFence = (identity) => {
+    const pinned = statSync(join(home, ".local/share/hive/codex-native/credential.lock"));
+    const monitors = [identity.wrapper, identity.monitor];
+    assert.ok(
+      monitors.some(({ pid }) =>
+        readdirSync(`/proc/${pid}/fd`).some((fd) => {
+          try {
+            const s = statSync(`/proc/${pid}/fd/${fd}`);
+            return s.dev === pinned.dev && s.ino === pinned.ino;
+          } catch {
+            return false;
+          }
+        }),
+      ),
+      "actual pinned namespace monitor retains the credential flock open description",
+    );
+    assert.throws(
+      () => acquireManagedAuthLock(home),
+      "account control cannot run while actual native runtime exists",
+    );
+  };
   for (const role of ["wrapper", "monitor"]) {
     supervisor = await openSupervisor(config(), { home, runtimeFactory });
     const identity = supervisor.state.executionIdentity;
+    assertAuthFence(identity);
     process.kill(identity[role].pid, "SIGKILL");
     await Promise.all([identity.wrapper, identity.monitor, identity.native].map(waitGone));
     await supervisor.close();
     supervisor = null;
+    const auth = acquireManagedAuthLock(home);
+    auth.close();
   }
   const modulePath = new URL(
     "../templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs",
@@ -610,8 +637,11 @@ test("actual wrapper, monitor and host crashes terminate pinned native and relea
       if (out.includes("\n")) resolve(JSON.parse(out.trim()));
     });
   });
+  assertAuthFence(identity);
   host.kill("SIGKILL");
   await Promise.all([identity.wrapper, identity.monitor, identity.native].map(waitGone));
+  const auth = acquireManagedAuthLock(home);
+  auth.close();
   supervisor = await openSupervisor(config(), { home, runtimeFactory });
   assert.equal(
     supervisor.state.executionIdentity.mode,

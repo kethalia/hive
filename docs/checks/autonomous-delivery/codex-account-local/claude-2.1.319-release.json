@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-11-07T23:31:16.931713+00:00",
+  "artifact": {
+    "name": "claude",
+    "version": "2.1.319",
+    "architecture": "amd64",
+    "url": "https://downloads.claude.ai/claude-code-releases/2.1.319/linux-x64/claude",
+    "sha256": "dabafec82ca1319fa43d8be36a10fc61b1d11821cb98ad5df04ad95e199b8eed",
+    "bytes": 340226576,
+    "vendor_checksum_source": "https://downloads.claude.ai/claude-code-releases/2.1.319/manifest.json",
+    "matches_vendor_checksum": true
+  },
+  "manifestSignature": {
+    "manifestSha256": "e5ddfc17fd4745e7b5a6ccff7ccc1e119f323726c4b585c544cd9b5a6b1752e5",
+    "signatureURL": "https://downloads.claude.ai/claude-code-releases/2.1.319/manifest.json.sig",
+    "signatureSha256": "c666062c08c970d98cc5e583b78dcd9f8b30e99c64df5353393032cb3c2fe90a",
+    "keyURL": "https://downloads.claude.ai/keys/claude-code.asc",
+    "keySha256": "bd70a5e4a268002704024ceba7f8446024114e94f3f0bdd11c23a9e592be81c6",
+    "fingerprint": "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+    "fingerprintSource": "https://code.claude.com/docs/en/setup#verify-the-manifest-signature",
+    "gpgValidSig": true
+  },
+  "scope": "Verified official signed manifest and matching binary; unmodified CLI framing exercised only in an empty network namespace. No image build, primary auth mutation or provider completion."
+}
