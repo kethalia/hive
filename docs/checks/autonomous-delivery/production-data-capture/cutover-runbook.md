@@ -14,6 +14,14 @@ previous Kubernetes image digests. Complete the current-build preview gates and 
 resource usage again. Keep the old deployment and final backup recoverable; no cluster resource
 deletions are part of this cutover.
 
+Use the existing single `hive` Worker and repository-connected Workers Builds. Production
+`deploy/cloudflare/native/deploy.mjs` currently refuses live deployment; the offline
+`prepare-production.mjs` output is a review artifact, not activation. Owner cutover approval
+must cover the exact production configuration and the reviewed change that unlocks this
+existing deployment command. Do not introduce an upload/promote publisher, another Worker,
+or a deployment token. Preserve the separately enrolled epic Preview and its test database;
+its credentials and execution flags are not production defaults.
+
 Keep production `ENCRYPTION_KEY`, `COOKIE_SECRET` and VAPID identity unchanged when transferring
 their existing encrypted rows, sessions and subscriptions. Set the same fixed `CODER_URL` on
 all services. Transfer secrets through owner-only files or provider secret bindings; never
@@ -45,10 +53,15 @@ mismatch, expiration, logout and correct session behavior before enabling the ne
    its direct endpoint and database-owner credential. Compare all original columns/rows and
    migration checksums. Grant only required runtime privileges; bind the runtime role to Workers,
    never the migration owner. Verify no failed migration history or unresolved job remains.
-4. Deploy the exact merged app/auth artifacts behind the private preview gate, with production
-   secrets and schedulers still disabled. Validate the approved smoke matrix and database identity
-   without sending notifications, rotating Coder credentials or running delivery jobs. Only after
-   those checks pass, switch the approved public route and permit writes on the Neon-backed app.
+4. Let the existing connected main build publish the exact approved production configuration
+   of `hive`, with background scheduling and autonomous delivery still disabled. Stage the
+   approved production route while the old public entry point remains in maintenance; the
+   removed Preview authorization gate is not a cutover control. Validate the compiled main
+   source SHA/provider build UUID, database identity, configuration/crypto readiness and actual
+   production OAuth login without sending notifications, rotating Coder credentials or running
+   delivery jobs. Only after those checks pass, switch the approved public route and permit
+   writes on the Neon-backed app. Authenticated readiness proves configuration/schema access,
+   not historical-key continuity or business acceptance; check those separately.
 5. Observe login, current-user access, repository discovery, Conversation/Terminal stream and
    reconnect, task reports, worker errors and database health. Restore background features one
    at a time with one scheduler owner. Record every activation and its readback. The observer
@@ -71,3 +84,16 @@ manual and outside this bootstrap release.
 Do not retire the cluster deployment, final backup, VAPID identity or retained sessions until the
 owner accepts the observation result and the recovery window has closed. Production verification
 is necessarily a post-approval step; it cannot be claimed by this preview roadmap.
+
+## Autonomous delivery after bootstrap
+
+Enable the installed release controller only after its exact repository, source-test workflow,
+connected GitHub authority and production target are enrolled and the owner approves its policy.
+The controller attributes the permitted merge; existing Workers Builds owns deployment. Correlate
+the Cloudflare app's successful GitHub check to the exact serving main source/build identity,
+then collect the configured observation window and independent semantic acceptance. A successful
+HTTP/DB/auth smoke result cannot prove arbitrary feature behavior. Keep the target fenced while
+production acceptance is pending, and retain physical writer/archive/checkout holds until their
+own proofs pass. Database-changing tasks additionally require the controlled migration plan,
+backup, compatibility, backfill/integrity and activation gates; production bootstrap does not
+grant blanket migration or destructive-contract permission.
