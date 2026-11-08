@@ -1914,3 +1914,30 @@ by this source checkpoint.
   review clears the exact one-task/one-held-epoch public continuity attestation.
   Canonical Preview enrollment and fresh strict pre-retry checks precede the single
   ordinary owner retry; these installation facts do not claim live task completion.
+
+### November8 owner recovery and mobile menu integration
+
+- **Validate: exact retained-task recovery partially progressed, high difficulty.**
+  Canonical Preview enrollment and strict installed-host checks passed. The existing
+  owner retry retired the predecessor authorization and enrolled the reviewed host
+  on the original volume, but returned `task_unavailable` before recovery inspection
+  or any native launch. Authoritative database and signed-host readbacks preserve
+  the original task, source, request and recovery ID; no first prompt ran. The new
+  runtime's three-minute authority subsequently expired. That expiry explains the
+  continuing reservation hold, but does not establish the first failure's cause.
+- **Diagnose: authenticated recovery stage visible, moderate difficulty.** Commit
+  `3d0d464a` adds finite, sanitized failure-stage reporting to the existing owner retry
+  response. Actual Preview continuation reports `guardian_runtime_reservation`.
+  Read-only actual-Prisma continuity checks pass; they do not authorize execution.
+  A reviewed, narrowly scoped unused-recovery resumption is being implemented before
+  another owner request. No runtime row, signed journal or original attestation was
+  manually repaired, and the retained workspace has not been restarted.
+- **Implement / Review / Deploy: mobile menu routing repaired, moderate difficulty.**
+  PR432 passed full CI42503957652, independent review and current-head Codex review
+  before epic merge `c8501d81`. Projects now opens the existing GitHub project browser;
+  Cloudflare no longer sends that menu through legacy clone discovery. Both terminal
+  creation and existing-session actions respect configured capabilities and show
+  setup guidance. Focused checks cover112 cases. Existing Workers Builds serves the
+  merge; actual mobile/desktop Browser Testing acceptance is in progress. Generic
+  terminal and workspace-read capabilities remain disabled, and normal-user host
+  enrollment and actual terminal connectivity remain open validation work.

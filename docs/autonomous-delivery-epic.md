@@ -20,20 +20,23 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
 Current implementation checkpoint (2026-11-08): the epic preserves released main
-`1ace8774118b99b28856347edd51410c4f0a0774` and is integrated through `a95a1a7e`.
+`1ace8774118b99b28856347edd51410c4f0a0774` and is integrated through `c8501d81`.
 The existing single Worker automatically deploys the branch Preview. Database job and
 account-maintenance implementation, scoped account cards and request-bound Cloudflare
-callback execution passed CI/review; both Preview databases have 51 migrations with
+callback execution passed CI/review; both Preview databases have 52 migrations with
 original rows, history and grants preserved. The reviewed test-host image starts normally,
 and actual dedicated Codex account status passes through Hive. The current managed pilot
 is blocked before model execution. The metadata timeout and exact-task retirement/recovery
-fixes passed CI/review and are deployed. Installed verification now detects changed filesystem
-device IDs after a normal restart of the same persistent volume; a scoped remount recovery
-path is under design and independent review. Shared Conversation/Terminal browser
+fixes passed CI/review and are deployed. The combined cleanup/remount image is installed
+on the original persistent volume. Owner recovery retired the predecessor and enrolled
+the new runtime, but remains held at runtime reservation before inspection or model
+execution. Explicit unused-recovery resumption is being implemented; the initial
+reservation failure is not yet explained. Mobile Projects/Terminal menu routing is
+repaired and deployed, with actual Browser Testing in progress. Shared Conversation/Terminal browser
 acceptance, live multi-task coordination, background wake approval and final cutover remain open.
 
 The November 5 production capture has been restored and upgraded locally through all 50
-migrations, with a further 50→51 rehearsal. Its 81 original application rows and original migration history match; a decoded
+migrations, with a further upgrade rehearsal through52. Its 81 original application rows and original migration history match; a decoded
 upgraded backup is retained privately. Earlier bounded Worker/session and backup-recovery
 proofs remain scoped evidence. Fresh production capture, original encryption/cookie key
 continuity, streaming and final cutover checks remain open. The real browser checkpoint
@@ -267,13 +270,17 @@ See the [reference audit](checks/autonomous-delivery/account-connections-roadmap
 
 ## Immediate next task
 
-Current frontier (November8): PR429 exact unused-task/remount recovery and PR430 bounded
-Infrastructure downloads are integrated into the epic. Combined F05 empty-root revalidation
-and F06 production-evidence-bound cleanup pass independent local cleanup→retained history→
-remount→next-task checks. Finish full CI/review and publish one final workspace image. The original pilot is normally stopped,
-with its unused task and journals preserved; no first prompt has run. Both Preview databases
-are upgraded through migration52. Live recovery, shared-thread browser acceptance and account
-maintenance remain gates. The historical checkpoints below are not current installed acceptance.
+Current frontier (November8): PR429–PR432 are integrated into the epic. Combined F05
+empty-root revalidation and F06 production-evidence-bound cleanup pass independent local
+cleanup→retained history→remount→next-task checks and full CI/current-head review.
+The reviewed immutable image is installed on the retained original20Gi pilot volume;
+its current build is connected and ready. Canonical owner retry progressed through
+predecessor retirement and new-runtime enrollment, then held before native execution.
+The enrolled runtime's authority has expired; a narrowly scoped, auditable continuation
+of that same unused recovery is being implemented before another request. Both Preview
+databases are upgraded through migration52. Mobile menu routing is deployed; actual
+mobile/desktop acceptance, live recovery, shared-thread acceptance and account maintenance
+remain gates. The historical checkpoints below are not current installed acceptance.
 
 The unnecessary custom publisher and setup-token requests have been removed. The existing
 Cloudflare Workers Builds integration remains the single deployment path for the epic branch.
