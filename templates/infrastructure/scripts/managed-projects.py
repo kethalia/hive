@@ -545,6 +545,7 @@ class ManagedProjects:
             grant = authority.verify(project_id, expected)
             require(grant["expiresAt"] > time.time() * 1000, "renewal_authority_expired")
             prior = record.get("unstartedRevalidation")
+            require(not grant.get("replayOnly") or prior, "renewal_replay_conflict")
             if prior:
                 require(prior["transferId"] == grant["transferId"] and prior["recoveryId"] == grant["recoveryId"]
                         and prior["proofDigest"] == grant["proofDigest"] and prior["expected"] == expected

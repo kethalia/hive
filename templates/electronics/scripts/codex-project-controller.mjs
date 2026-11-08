@@ -1689,7 +1689,11 @@ export function createProjectController(config, deps) {
         );
         check(
           !runtime &&
-            guardian.state.projects.length === 0 &&
+            (guardian.state.projects.length === 0 ||
+              (state.unstartedTransferHistory &&
+                guardian.state.projects.length === 1 &&
+                guardian.state.projects[0].projectId === p.projectId &&
+                guardian.state.projects[0].bindingDigest === digest(t.guardianPreparation))) &&
             !t.nativeCreationAttempted &&
             !t.nativeThreadId,
           "retry_not_available",
@@ -1772,6 +1776,17 @@ export function createProjectController(config, deps) {
           p.recovery?.authorization &&
           recoveryDigest(p.recovery.authorization) === recoveryDigest(a),
       ),
+    resumeInspection: (p) => {
+      const history = state.unstartedTransferHistory;
+      if (!state.unstartedTransfer || state.unstartedTransferConsumed || !history) return;
+      check(
+        history.recoveryId === p.recovery.scope.recoveryId &&
+          history.authorizationDigest === recoveryDigest(p.recovery.authorization) &&
+          history.inspectionDigest === recoveryDigest(p.recovery.inspection),
+        "retry_not_available",
+      );
+      return p.recovery.inspection; // Initial inspected intent is history; proveRecovery just rechecked current facts.
+    },
     beforeFence: async (p) => {
       if (!state.unstartedTransfer || state.unstartedTransferConsumed) return;
       const proof = verifyUnstartedProject(
@@ -1798,12 +1813,23 @@ export function createProjectController(config, deps) {
           recoveryDigest(renewed.checkoutIdentity) === recoveryDigest(t.checkoutIdentity),
         "retry_not_available",
       );
+      if (state.unstartedTransferHistory) {
+        check(
+          renewed.renewalSequence === state.unstartedTransferHistory.renewalSequence,
+          "retry_not_available",
+        );
+        return; // The same renewal receipt is factual; never rewrite original authority history.
+      }
       state.unstartedTransferHistory = {
         proof,
         recoveryId: p.recovery.scope.recoveryId,
         guardianPreparation: structuredClone(t.guardianPreparation),
         guardianPrepared: structuredClone(t.guardianPrepared),
         guardianAdmission: structuredClone(t.guardianAdmission),
+        authorizationDigest: recoveryDigest(p.recovery.authorization),
+        inspectionDigest: recoveryDigest(p.recovery.inspection),
+        originalTaskDigest: recoveryDigest(t),
+        renewalSequence: renewed.renewalSequence,
       };
       t.guardianPreparation = { ...t.guardianPreparation, buildId: deps.guardianBuildId };
       t.guardianPrepared = {
@@ -1811,9 +1837,19 @@ export function createProjectController(config, deps) {
         preparationDigest: digest(t.guardianPreparation),
       };
       delete t.guardianAdmission;
-      state.unstartedTransferConsumed = true;
       t.renewalSequence = renewed.renewalSequence;
       save(); // Original authority remains in immutable archives and history, never reused.
+    },
+    afterFence: (p) => {
+      if (!state.unstartedTransfer || state.unstartedTransferConsumed) return;
+      check(
+        p.recovery?.phase === "consumed" &&
+          state.unstartedTransferHistory &&
+          state.unstartedTransferHistory.authorizationDigest ===
+            recoveryDigest(p.recovery.authorization),
+        "retry_not_available",
+      );
+      state.unstartedTransferConsumed = true; // Persisted atomically with the final recovery receipt by projectRecovery.
     },
     absent: async (p) => {
       check(

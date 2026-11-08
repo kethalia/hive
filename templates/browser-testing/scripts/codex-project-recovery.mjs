@@ -103,6 +103,8 @@ export function projectRecovery({
   schedule,
   beforeFence = undefined,
   resumeBeforeFence = undefined,
+  resumeInspection = undefined,
+  afterFence = undefined,
 }) {
   const scope = (p, s) => {
     check(
@@ -132,6 +134,8 @@ export function projectRecovery({
     const outcome = p.task ? "existing_preexecution" : "task_absent";
     if (p.task) await prove(p);
     else await absent(p, s);
+    const historicalInspection = resumeInspection?.(p);
+    if (historicalInspection) return structuredClone(historicalInspection);
     return {
       outcome,
       taskFingerprint: recoveryDigest(p.task ?? null),
@@ -212,6 +216,7 @@ export function projectRecovery({
       };
       r.phase = "consumed";
       if (p.task) p.task.reason = null;
+      afterFence?.(p);
       save(); // An ACK loss replays this receipt; it cannot repeat the first prompt.
       if (p.task) schedule(p);
       return structuredClone(r.receipt);

@@ -27,16 +27,21 @@ does not authorize native execution or input.
 
 Validation completed locally:
 
-- 29 transfer/inspection/consume/wire cases, including archive tamper/deletion,
-  normal abort, live predecessor denial, expired-lease consume ACK loss and replay.
+- 33 transfer/inspection/consume/wire cases, including archive tamper/deletion,
+  normal abort, live predecessor denial, lease/admission/fence retry, exact temporary
+  rename recovery and tampered-temporary denial.
 - 5 actual managed-checkout Python cases, including one extension after expiry,
   authorization expiry under lock, replaced checkout, changed HEAD and new consumer.
-- 132 related Node checks passed, with 2 existing native opt-in cases skipped;
+- The original slice's 132 related Node checks passed, with 2 native opt-in cases skipped;
   separate final bootstrap/history verification passed 28 cases.
+- Four real guardian-controller ACK-loss cases distinguish exact committed receipt
+  reconciliation from unavailable factual readback; 14 project route cases include
+  the authorized owner retry bypassing provision/inspection and reusing its exact grant.
 - 10 actual PostgreSQL retirement/provision/recovery cases and 8 Coder lifecycle
   cases passed, including signed enrollment acknowledgement, epic-backed successor,
   malformed SQL, concurrent admission, rollback and maintenance classification.
-- 25 generated/package/profile cases passed, with 2 existing opt-in cases skipped.
+- The original 25 generated/package/profile cases passed, with 2 opt-in cases skipped;
+  the regenerated review-fix package passed 6 narrow archive/bundle checks.
   Global TypeScript, Python syntax, Biome and whitespace checks passed.
 
 Migration51 SHA256:
@@ -49,10 +54,10 @@ Generated host package:
 
 | Item | Value |
 | --- | --- |
-| Manifest SHA256 | `cf5fda1362e3ba4cd09a7e7d035b6228cf1f6de782bad0df2526fd9c4129975d` |
-| Raw archive SHA256 | `5de8171f9ae8d4e6867aa86f13dcaac319a03bfcb4cd10f3b78ff3b8f8d560b1` |
-| Compressed SHA256 | `1989d8637541987a4bfe966e0534e7936b9955d2f50e84cbced39726b4c560ec` |
-| Size | 207276 compressed bytes; 1245696 raw bytes; 54 members |
+| Manifest SHA256 | `b16854fee6f44c96652c5b8bd64b9b3025e28037f93ab4bfe86c9bd218dd4efe` |
+| Raw archive SHA256 | `7e9bb335e1e55415139b23137345e041149c3014c6979b03f977886b47bc2478` |
+| Compressed SHA256 | `a33d9aaa32ff8bd42f6f0d1a46f0954ea733ef1900c9e5517ac101251b980268` |
+| Size | 207920 compressed bytes; 1249280 raw bytes; 54 members |
 | Guardian ELF SHA256 | `ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd` |
 
 Provider responses in local tests are explicit doubles; checkout and SQL tests
@@ -60,3 +65,11 @@ use owned local fixtures. No live migration, image rollout, task retry, model
 inference or production acceptance occurred for this slice. Actual pilot recovery
 still requires reviewed migration/package enrollment and fresh owner recovery.
 Original request/prompt/readiness submission hashes remain historical evidence.
+
+The review follow-up records a same-recovery intermediate binding, derived exactly
+from the archived task. The final consumed flag and receipt are saved together
+after a fresh fence. Retrying uses current physical/proof/deadline checks and the
+existing once-only renewal receipt. If both a committed effect's acknowledgement
+and its factual readback remain unavailable, the existing guardian operator hold
+remains; neither identity/provision generation checks nor new enrollment hide that
+uncertainty. The actual PostgreSQL suite is enrolled in the existing serial CI job.

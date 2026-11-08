@@ -31,11 +31,12 @@ import { ProjectTaskIntents } from "@/lib/projects/task-intents.server";
 import { ProjectTaskRecoveries } from "@/lib/projects/task-recovery-store.server";
 import { guardianFixture } from "./guardian-fixture";
 
-const url = process.env.HIVE_UNSTARTED_TEST_DATABASE_URL;
+const url =
+  process.env.HIVE_UNSTARTED_TEST_DATABASE_URL ?? process.env.HIVE_DELIVERY_TEST_DATABASE_URL;
 if (
   url &&
-  (!["localhost", "127.0.0.1"].includes(new URL(url).hostname) ||
-    new URL(url).pathname !== "/hive_unstarted_test_20261108")
+  (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname) ||
+    !["/hive_unstarted_test_20261108", "/hive_delivery_test"].includes(new URL(url).pathname))
 )
   throw Error("Owned local fixture only");
 const db = new PrismaClient({

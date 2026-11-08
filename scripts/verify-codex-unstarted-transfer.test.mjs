@@ -13,6 +13,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -26,6 +27,7 @@ import { recoveryDigest } from "../templates/ai-dev-k8s/scripts/codex-project-re
 import {
   prepareUnstartedTransfer,
   readUnstartedTransfer,
+  unstartedLeaseAuthority,
   verifyUnstartedProject,
 } from "../templates/ai-dev-k8s/scripts/codex-unstarted-transfer.mjs";
 
@@ -338,6 +340,7 @@ function fixture(t) {
     projectId,
     taskId,
     keys,
+    keypair,
   };
 }
 
@@ -589,127 +592,246 @@ test("other uncertain outer termination remains held", (t) => {
   assert.throws(f.run, /unstarted_transfer_rejected/);
 });
 
-test("owner inspect and consume require authenticated retirement, retain request and lease, and replay without scheduling twice", async (t) => {
-  const f = fixture(t),
-    original = structuredClone(f.project.projects[f.projectId].task),
-    proof = f.run();
-  const lifetimeId = randomUUID();
-  let opens = 0,
-    admits = 0,
-    renewCalls = 0,
-    leaseWrites = 0;
-  const guardian = {
-    state: { phase: "open", lifetimeId, generation: 1, projects: [] },
-    identity: async () => ({ identity: { lifetimeId }, startup: { generation: 1 } }),
-    admit: async (value) => {
-      admits++;
-      guardian.state.projects = [value];
-      return { projectId: value.projectId, generation: 1 };
-    },
-    executionFence: async (token) => token,
-    assertAdmission() {},
-  };
-  const ready = {
-    status: "ready",
-    checkoutVerified: true,
-    revision: original.request.revision,
-    checkoutIncarnation: original.checkoutIncarnation,
-    checkoutIdentity: original.checkoutIdentity,
-    lease: {
-      taskId: original.taskId,
-      id: original.prepared.leaseId,
-      generation: original.prepared.leaseGeneration,
-      expiresAt: Date.now() / 1000 - 7200,
-    },
-  };
-  const c = createProjectController(
-    {
-      stateDirectory: f.projects,
-      ownerId: f.config.binding.ownerId,
-      workspaceId: f.config.binding.workspaceId,
-      model: "gpt-6.1-sol",
-      effort: "low",
-    },
-    {
-      guardian,
-      guardianBuildId: f.config.binding.buildId,
-      inspectCheckout: async () => ready,
-      inspectUnstartedCheckout: async () => ready,
-      revalidateUnstartedLease: async () => {
-        renewCalls++;
-        if (renewCalls === 1) {
-          leaseWrites++;
-          throw Error("fixture_lease_ack_lost");
-        }
+for (const failure of ["lease_ack", "admission", "fence"])
+  test(`owner consume recovers ${failure} failure once without changing request or lease`, async (t) => {
+    const f = fixture(t),
+      original = structuredClone(f.project.projects[f.projectId].task),
+      proof = f.run();
+    const lifetimeId = randomUUID();
+    let opens = 0,
+      admits = 0,
+      renewCalls = 0,
+      leaseWrites = 0,
+      fences = 0;
+    const guardian = {
+      state: {
+        phase: "open",
+        lifetimeId,
+        generation: 1,
+        projects: [],
+        bindingDigest: "a".repeat(64),
+        ownershipDigest: "b".repeat(64),
+      },
+      identity: async () => ({ identity: { lifetimeId }, startup: { generation: 1 } }),
+      admit: async (value) => {
+        admits++;
+        if (failure === "admission" && admits === 1) throw Error("fixture_admission_failed");
+        guardian.state.generation = 2;
+        guardian.state.projects = [value];
         return {
-          ...ready,
-          renewalSequence: 1,
-          lease: { ...ready.lease, expiresAt: Date.now() / 1000 + 3600 },
+          projectId: value.projectId,
+          projectBindingDigest: value.bindingDigest,
+          lifetimeId,
+          generation: 2,
+          bindingDigest: guardian.state.bindingDigest,
+          ownershipDigest: guardian.state.ownershipDigest,
         };
       },
-      openRuntime: async () => {
-        opens++;
-        throw Error("fixture_stop_before_native");
+      executionFence: async (token) => {
+        fences++;
+        if (failure === "fence" && fences === 1) throw Error("fixture_fence_failed");
+        return token;
       },
-    },
-  );
-  const scope = {
-    recoveryId: randomUUID(),
-    ownerId: proof.ownerId,
-    coderOwnerId: proof.coderOwnerId,
-    projectId: proof.projectId,
-    taskId: proof.taskId,
-    workspaceId: proof.workspaceId,
-    originalRequestId: proof.requestId,
-    intentVersion: "fixture-version",
-    intentDigest: "a".repeat(64),
-    hostRequestDigest: proof.hostRequestDigest,
-    repositoryId: proof.repositoryId,
-    providerAccountId: proof.providerAccountId,
-    revision: proof.sourceSha,
-  };
-  const request = { schemaVersion: 1, scope };
-  await assert.rejects(
-    c.handle("/projects/tasks/recovery-inspect", request),
-    /retry_not_available/,
-  );
-  assert.equal(admits, 0);
-  assert.equal(opens, 0);
-  guardian.state.unstartedTransfer = {
-    transferId: proof.transferId,
-    oldRuntimeId: proof.oldRuntimeId,
-    proofDigest: recoveryDigest(proof),
-  };
-  const inspection = await c.handle("/projects/tasks/recovery-inspect", request);
-  const authorization = {
-    inspectionDigest: recoveryDigest(inspection.inspection),
-    authorizedVersion: "fixture-authorized",
-    buildId: f.config.binding.buildId,
-    lifetimeId,
-    expiresAt: Date.now() + 30000,
-  };
-  const consume = { ...request, authorization };
-  await assert.rejects(
-    c.handle("/projects/tasks/recovery-consume", consume),
-    /fixture_lease_ack_lost/,
-  );
-  const receipt = await c.handle("/projects/tasks/recovery-consume", consume);
-  assert.deepEqual(await c.handle("/projects/tasks/recovery-consume", consume), receipt);
-  await c.close();
-  const active = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state,
-    task = active.projects[f.projectId].task;
-  assert.deepEqual(task.request, original.request);
-  assert.deepEqual(task.prepared, original.prepared);
-  assert.equal(task.nativeCreationAttempted, false);
-  assert.equal(task.firstPromptSubmissionAttempted, false);
-  assert.equal(task.guardianPreparation.buildId, f.config.binding.buildId);
-  assert.deepEqual(
-    active.unstartedTransferHistory.guardianPreparation,
-    original.guardianPreparation,
-  );
-  assert.equal(active.unstartedTransferConsumed, true);
-  assert.equal(admits, 1);
-  assert.equal(leaseWrites, 1);
-  assert.equal(renewCalls, 2);
-  assert.ok(opens <= 1);
-});
+      assertAdmission() {},
+    };
+    const ready = {
+      status: "ready",
+      checkoutVerified: true,
+      revision: original.request.revision,
+      checkoutIncarnation: original.checkoutIncarnation,
+      checkoutIdentity: original.checkoutIdentity,
+      lease: {
+        taskId: original.taskId,
+        id: original.prepared.leaseId,
+        generation: original.prepared.leaseGeneration,
+        expiresAt: Date.now() / 1000 - 7200,
+      },
+    };
+    const c = createProjectController(
+      {
+        stateDirectory: f.projects,
+        ownerId: f.config.binding.ownerId,
+        workspaceId: f.config.binding.workspaceId,
+        model: "gpt-6.1-sol",
+        effort: "low",
+      },
+      {
+        guardian,
+        guardianBuildId: f.config.binding.buildId,
+        inspectCheckout: async () => ready,
+        inspectUnstartedCheckout: async () => ready,
+        revalidateUnstartedLease: async () => {
+          renewCalls++;
+          if (renewCalls === 1) leaseWrites++;
+          if (failure === "lease_ack" && renewCalls === 1) throw Error("fixture_lease_ack_lost");
+          return {
+            ...ready,
+            renewalSequence: 1,
+            lease: { ...ready.lease, expiresAt: Date.now() / 1000 + 3600 },
+          };
+        },
+        openRuntime: async () => {
+          opens++;
+          throw Error("fixture_stop_before_native");
+        },
+      },
+    );
+    const scope = {
+      recoveryId: randomUUID(),
+      ownerId: proof.ownerId,
+      coderOwnerId: proof.coderOwnerId,
+      projectId: proof.projectId,
+      taskId: proof.taskId,
+      workspaceId: proof.workspaceId,
+      originalRequestId: proof.requestId,
+      intentVersion: "fixture-version",
+      intentDigest: "a".repeat(64),
+      hostRequestDigest: proof.hostRequestDigest,
+      repositoryId: proof.repositoryId,
+      providerAccountId: proof.providerAccountId,
+      revision: proof.sourceSha,
+    };
+    const request = { schemaVersion: 1, scope };
+    await assert.rejects(
+      c.handle("/projects/tasks/recovery-inspect", request),
+      /retry_not_available/,
+    );
+    assert.equal(admits, 0);
+    assert.equal(opens, 0);
+    guardian.state.unstartedTransfer = {
+      transferId: proof.transferId,
+      oldRuntimeId: proof.oldRuntimeId,
+      proofDigest: recoveryDigest(proof),
+    };
+    const inspection = await c.handle("/projects/tasks/recovery-inspect", request);
+    const authorization = {
+      inspectionDigest: recoveryDigest(inspection.inspection),
+      authorizedVersion: "fixture-authorized",
+      buildId: f.config.binding.buildId,
+      lifetimeId,
+      expiresAt: Date.now() + 30000,
+    };
+    const consume = { ...request, authorization };
+    await assert.rejects(
+      c.handle("/projects/tasks/recovery-consume", consume),
+      /fixture_(?:lease_ack_lost|admission_failed|fence_failed)/,
+    );
+    const held = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state;
+    assert.equal(Boolean(held.unstartedTransferConsumed), false);
+    assert.equal(held.projects[f.projectId].recovery.phase, "held");
+    assert.deepEqual(held.projects[f.projectId].task.request, original.request);
+    if (failure !== "lease_ack") {
+      assert.equal(
+        held.projects[f.projectId].task.guardianPreparation.buildId,
+        f.config.binding.buildId,
+      );
+      const altered = structuredClone(held);
+      altered.projects[f.projectId].task.request.text = "substituted";
+      assert.throws(() =>
+        verifyUnstartedProject(
+          f.home,
+          altered,
+          altered.projects[f.projectId],
+          f.config.binding.buildId,
+        ),
+      );
+    }
+    if (failure === "fence") {
+      const projectPath = join(f.projects, "projects.json"),
+        originalHeld = readFileSync(projectPath),
+        consuming = structuredClone(held),
+        runtimeId = randomUUID();
+      consuming.projects[f.projectId].recovery.phase = "consuming";
+      writeFileSync(projectPath, mac(consuming, f.keys.projects));
+      const current = {
+        lifetimeId,
+        runtimeId,
+        generation: 2,
+        launch: null,
+        hold: true,
+        projects: {
+          [f.projectId]: {
+            phase: "checkout",
+            preparationDigest: sha(
+              JSON.stringify(consuming.projects[f.projectId].task.guardianPreparation),
+            ),
+            checkout: proof.checkout,
+          },
+        },
+        pending: { action: "fence", runtimeId, runtimeGeneration: 2, projectId: f.projectId },
+        unstartedTransferReceipt: guardian.state.unstartedTransfer,
+      };
+      const saveCurrent = () =>
+        writeFileSync(
+          join(f.guard, "controller.json"),
+          JSON.stringify({
+            state: current,
+            signature: sign(
+              null,
+              Buffer.from(guardianCanonical(current)),
+              f.keypair.privateKey,
+            ).toString("base64url"),
+          }),
+          { mode: 0o600 },
+        );
+      saveCurrent();
+      assert.equal(unstartedLeaseAuthority(f.home, f.projectId, process.pid).replayOnly, true);
+      for (const action of ["native", "launch"]) {
+        current.pending.action = action;
+        saveCurrent();
+        assert.throws(() => unstartedLeaseAuthority(f.home, f.projectId, process.pid));
+      }
+      current.pending.action = "fence";
+      current.pending.projectId = randomUUID();
+      saveCurrent();
+      assert.throws(() => unstartedLeaseAuthority(f.home, f.projectId, process.pid));
+      current.pending.projectId = f.projectId;
+      saveCurrent();
+      consuming.projects[f.projectId].recovery.authorization.expiresAt = Date.now() - 1;
+      writeFileSync(projectPath, mac(consuming, f.keys.projects));
+      assert.throws(() => unstartedLeaseAuthority(f.home, f.projectId, process.pid));
+      writeFileSync(projectPath, originalHeld);
+    }
+    const receipt = await c.handle("/projects/tasks/recovery-consume", consume);
+    assert.deepEqual(await c.handle("/projects/tasks/recovery-consume", consume), receipt);
+    await c.close();
+    const active = JSON.parse(readFileSync(join(f.projects, "projects.json"))).state,
+      task = active.projects[f.projectId].task;
+    assert.deepEqual(task.request, original.request);
+    assert.deepEqual(task.prepared, original.prepared);
+    assert.equal(task.nativeCreationAttempted, false);
+    assert.equal(task.firstPromptSubmissionAttempted, false);
+    assert.equal(task.guardianPreparation.buildId, f.config.binding.buildId);
+    assert.deepEqual(
+      active.unstartedTransferHistory.guardianPreparation,
+      original.guardianPreparation,
+    );
+    assert.equal(active.unstartedTransferConsumed, true);
+    assert.equal(admits, failure === "admission" ? 2 : 1);
+    assert.equal(leaseWrites, 1);
+    assert.equal(renewCalls, 2);
+    assert.ok(opens <= 1);
+  });
+
+for (const tampered of [false, true])
+  test(`interrupted project rename ${tampered ? "rejects tampered" : "finishes exact"} signed temporary bytes`, (t) => {
+    const f = fixture(t),
+      proof = f.run(),
+      archive = join(f.guard, `unstarted-${proof.transferId}`),
+      active = join(f.projects, "projects.json"),
+      held = readFileSync(active),
+      original = readFileSync(join(archive, "project.json"));
+    writeFileSync(active, original);
+    renameSync(join(archive, "controller-active.json"), join(f.guard, "controller.json"));
+    renameSync(join(archive, "supervisor-active.json"), join(f.native, "registry.json"));
+    writeFileSync(`${active}.unstarted-tmp`, tampered ? Buffer.from("{}") : held, { mode: 0o600 });
+    if (tampered) {
+      assert.throws(f.run, /unstarted_transfer_rejected/);
+      assert.ok(readFileSync(active).equals(original));
+      assert.ok(existsSync(`${active}.unstarted-tmp`));
+    } else {
+      assert.equal(f.run().transferId, proof.transferId);
+      assert.ok(readFileSync(active).equals(held));
+      assert.equal(existsSync(`${active}.unstarted-tmp`), false);
+    }
+  });

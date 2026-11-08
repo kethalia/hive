@@ -529,7 +529,13 @@ export function prepareUnstartedTransfer({
     const history = verifyBootstrapHistory?.() ?? { projectNames: [], guardianNames: [] };
     check(
       readdirSync(projectDir).every((n) =>
-        ["projects.json", "projects.key", "controller.lock", ...history.projectNames].includes(n),
+        [
+          "projects.json",
+          "projects.json.unstarted-tmp",
+          "projects.key",
+          "controller.lock",
+          ...history.projectNames,
+        ].includes(n),
       ) &&
         readdirSync(nativeDir).every((n) =>
           ["registry.json", "key", "supervisor.lock"].includes(n),
@@ -625,6 +631,8 @@ export function prepareUnstartedTransfer({
     held.unstartedTransfer = proof;
     delete held.guardianLifetimeId;
     const heldRaw = signedHmac(held, projectKey);
+    const pendingProject = join(projectDir, "projects.json.unstarted-tmp");
+    if (existsSync(pendingProject)) check(read(pendingProject, 4194304).equals(heldRaw));
     for (const [active, original, successor] of [
       [join(projectDir, "projects.json"), projectRaw, heldRaw],
       [join(guard, "controller.json"), controllerRaw, null],
@@ -674,10 +682,60 @@ export function verifyUnstartedProject(home, state, p, buildId) {
     raw = read(path, 4194304),
     key = read(join(home, ".local/state/hive/codex-project-controller/projects.key"), 32),
     original = hmac(raw, key);
-  check(
-    sha(raw) === proof.oldJournalDigests.project &&
-      same(p.task, original.projects[p.projectId]?.task),
-  );
+  check(sha(raw) === proof.oldJournalDigests.project);
+  const originalTask = original.projects[p.projectId]?.task,
+    history = state.unstartedTransferHistory;
+  if (!history) check(same(p.task, originalTask));
+  else {
+    check(
+      same(history.proof, proof) &&
+        history.originalTaskDigest === sha(canonical(originalTask)) &&
+        history.recoveryId === p.recovery?.scope.recoveryId &&
+        history.authorizationDigest === sha(canonical(p.recovery.authorization)) &&
+        history.inspectionDigest === sha(canonical(p.recovery.inspection)) &&
+        p.recovery.authorization.expiresAt > Date.now() &&
+        p.recovery.authorization.buildId === buildId &&
+        p.recovery.authorization.lifetimeId === state.guardianLifetimeId &&
+        ["held", "consuming"].includes(p.recovery.phase) &&
+        ["blocked", "preparing"].includes(p.task.phase) &&
+        history.renewalSequence === (originalTask.renewalSequence ?? 0) + 1 &&
+        same(history.guardianPreparation, originalTask.guardianPreparation) &&
+        same(history.guardianPrepared, originalTask.guardianPrepared) &&
+        same(history.guardianAdmission, originalTask.guardianAdmission),
+    );
+    const expected = structuredClone(originalTask),
+      actual = structuredClone(p.task);
+    expected.guardianPreparation = { ...originalTask.guardianPreparation, buildId };
+    expected.guardianPrepared = {
+      ...originalTask.guardianPrepared,
+      preparationDigest: sha(JSON.stringify(expected.guardianPreparation)),
+    };
+    expected.renewalSequence = history.renewalSequence;
+    expected.phase = p.task.phase;
+    delete expected.guardianAdmission;
+    if (actual.guardianAdmission) {
+      const token = actual.guardianAdmission;
+      check(
+        known(token, [
+          "projectId",
+          "projectBindingDigest",
+          "lifetimeId",
+          "bindingDigest",
+          "ownershipDigest",
+          "generation",
+        ]) &&
+          token.projectId === proof.projectId &&
+          token.projectBindingDigest === sha(JSON.stringify(expected.guardianPreparation)) &&
+          token.lifetimeId === state.guardianLifetimeId &&
+          Number.isSafeInteger(token.generation) &&
+          token.generation > 0 &&
+          /^[a-f0-9]{64}$/.test(token.bindingDigest) &&
+          /^[a-f0-9]{64}$/.test(token.ownershipDigest),
+      );
+    }
+    delete actual.guardianAdmission;
+    check(same(actual, expected));
+  }
   return proof;
 }
 
@@ -691,6 +749,28 @@ export function unstartedLeaseAuthority(home, projectId, parentPid) {
     guard = join(home, ".local/state/hive/codex-host-guardian"),
     saved = JSON.parse(read(join(guard, "controller.json"))),
     key = createPublicKey(read(join(guard, "controller-key.pem"), 1024));
+  const replay = Boolean(state.unstartedTransferHistory),
+    current = saved.state,
+    project = current.projects?.[projectId],
+    pendingProject =
+      current.pending?.projectId ??
+      current.pending?.preparation?.projectId ??
+      current.pending?.checkout?.projectId;
+  if (project)
+    check(
+      project.preparationDigest === sha(JSON.stringify(p.task.guardianPreparation)) &&
+        (project.phase === "preparation"
+          ? project.checkout == null
+          : same(project.checkout, proof.checkout)),
+    );
+  if (current.pending)
+    check(
+      current.pending.runtimeId === current.runtimeId &&
+        current.pending.runtimeGeneration === current.generation &&
+        (current.pending.action !== "prepare" ||
+          same(current.pending.preparation, p.task.guardianPreparation)) &&
+        (current.pending.action !== "checkout" || same(current.pending.checkout, proof.checkout)),
+    );
   check(
     same(state.hostProcess, processIdentity(parentPid)) &&
       p.task.phase === "blocked" &&
@@ -714,11 +794,23 @@ export function unstartedLeaseAuthority(home, projectId, parentPid) {
       ) &&
       saved.state.lifetimeId === authorization.lifetimeId &&
       saved.state.runtimeId &&
-      saved.state.generation === 1 &&
-      saved.state.pending === null &&
-      saved.state.hold === false &&
+      (replay
+        ? Number.isSafeInteger(current.generation) && current.generation >= 1
+        : current.generation === 1) &&
+      (replay
+        ? (current.pending === null && current.hold === false) ||
+          (current.hold === true &&
+            ["prepare", "checkout", "fence"].includes(current.pending?.action) &&
+            pendingProject === projectId)
+        : current.pending === null && current.hold === false) &&
       saved.state.launch === null &&
-      Object.keys(saved.state.projects).length === 0 &&
+      (Object.keys(current.projects).length === 0 ||
+        (replay &&
+          Object.keys(current.projects).join() === projectId &&
+          ["preparation", "checkout"].includes(project.phase) &&
+          !project.producer &&
+          !project.nativeReceiptEventId &&
+          !project.metadataPinsDigest)) &&
       same(saved.state.unstartedTransferReceipt, {
         transferId: proof.transferId,
         oldRuntimeId: proof.oldRuntimeId,
@@ -730,7 +822,10 @@ export function unstartedLeaseAuthority(home, projectId, parentPid) {
     recoveryId: recovery.scope.recoveryId,
     expiresAt: authorization.expiresAt,
     proofDigest: sha(canonical(proof)),
-    renewalSequence: p.task.renewalSequence ?? 0,
+    renewalSequence: replay
+      ? state.unstartedTransferHistory.renewalSequence - 1
+      : (p.task.renewalSequence ?? 0),
+    replayOnly: replay,
     expected: {
       repositoryId: p.repositoryId,
       taskId: p.task.taskId,

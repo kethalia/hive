@@ -1974,3 +1974,85 @@ test("owner consume proof is signed on admission operations while producer launc
     f.close();
   }
 });
+
+for (const action of ["prepare", "fence"])
+  for (const loseReadback of [false, true])
+    test(`authorized ${action} ACK loss ${loseReadback ? "retains unknown readback hold" : "reconciles exact committed receipt"}`, async () => {
+      const f = fixture();
+      try {
+        f.identity();
+        await f.client.bootstrap(f.grant());
+        const p = f.project(true),
+          target = { projectId: p.projectId, bindingDigest: p.bindingDigest },
+          authorization = {
+            inspectionDigest: "a".repeat(64),
+            authorizedVersion: "v2",
+            expiresAt: Date.now() + 30000,
+          };
+        p.state.projects[p.projectId].recovery = {
+          phase: "consuming",
+          scope: { recoveryId: randomUUID() },
+          authorization,
+        };
+        p.save();
+        if (action === "fence") await f.client.authorizeAdmission(target);
+        let failed = false,
+          localBefore;
+        f.onTransport((request) => {
+          if (!failed && request.action === action) {
+            failed = true;
+            localBefore = JSON.parse(readFileSync(join(f.home, "outer", "controller.json"))).state
+              .generation;
+            throw Error("fixture_committed_ack_lost");
+          }
+          if (loseReadback && request.action === "operation_readback")
+            throw Error("fixture_factual_readback_unavailable");
+        });
+        if (loseReadback) {
+          await assert.rejects(f.client.authorizeAdmission(target));
+          assert.equal(f.client.status.held, true);
+          const saved = JSON.parse(readFileSync(join(f.home, "outer", "controller.json"))).state;
+          assert.equal(saved.pending.action, action);
+          assert.equal(saved.pending.recovery.authorizationDigest, digest(authorization));
+          assert.equal(saved.generation, action === "prepare" ? 1 : 2);
+          p.state.projects[p.projectId].recovery.phase = "held";
+          p.save();
+          assert.throws(() => f.client.identity("a".repeat(64)));
+          const before = f.calls.length;
+          p.state.projects[p.projectId].recovery.phase = "consuming";
+          p.save();
+          await assert.rejects(f.client.authorizeAdmission(target));
+          assert.equal(f.client.status.held, true);
+          assert.equal(
+            f.calls.slice(before).filter((r) => r.action === "enroll" || r.action === "prepare")
+              .length,
+            0,
+          );
+        } else {
+          await f.client.authorizeAdmission(target);
+          assert.equal(
+            localBefore,
+            action === "prepare" ? 1 : 2,
+            "local generation was not fabricated before committed receipt readback",
+          );
+          const current = JSON.parse(readFileSync(join(f.home, "outer", "controller.json"))).state;
+          assert.equal(current.generation, 2);
+          assert.equal(f.client.status.held, false);
+          const readback = f.calls.find((r) => r.action === "operation_readback");
+          assert.equal(readback.originalRequest.action, action);
+          assert.equal(
+            readback.originalRequest.recovery.authorizationDigest,
+            digest(authorization),
+          );
+          assert.equal(f.calls.filter((r) => r.action === "prepare").length, 1);
+          await assert.rejects(f.client.metadataAuthority([{ projectId: p.projectId }]));
+        }
+        assert.equal(
+          f.calls.filter((r) => r.action === "launch").length,
+          0,
+          "unknown or unfinished consume never opens native input",
+        );
+      } finally {
+        f.close();
+      }
+    });
