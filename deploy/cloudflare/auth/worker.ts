@@ -1,11 +1,13 @@
 import { getDb } from "@hive/db";
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
+import * as authDomain from "../../../services/auth/src/auth/domain";
 import { runCredentialRotation } from "../../../services/auth/src/auth/rotation-scheduler";
 import { createFetchAuthHandler } from "../../../services/auth/src/fetch-handler";
 import { RELEASE_HEALTH_PATH, releaseHealth } from "../app/release-health";
 import { runRequestLifetime } from "../app/request-lifetime";
 
 type Environment = {
+  [key: string]: unknown;
   DATABASE_URL?: string;
   AUTH_SERVICE_SECRET?: string;
   HIVE_TOKEN_ROTATION_ENABLED?: string;
@@ -46,8 +48,20 @@ export default {
         }),
       );
     }
-    const handle = createFetchAuthHandler(env.AUTH_SERVICE_SECRET);
-    const database = createCloudflareDatabaseRequest(env.DATABASE_URL);
+    const variables = Object.fromEntries(
+      Object.entries(env).filter(([, value]) => typeof value === "string"),
+    ) as Record<string, string>;
+    const handle = createFetchAuthHandler(env.AUTH_SERVICE_SECRET, {
+      ...authDomain,
+      readAuthenticationReadiness: (options) =>
+        authDomain.readAuthenticationReadiness({ ...options, env: variables }),
+    });
+    const database = createCloudflareDatabaseRequest(
+      env.DATABASE_URL,
+      new URL(request.url).pathname === "/readiness"
+        ? { queryTimeoutMillis: 1000, transactionTimeoutMillis: 2000 }
+        : undefined,
+    );
     return runRequestLifetime(database, context, () => handle(request));
   },
 };

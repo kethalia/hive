@@ -438,6 +438,8 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
         helperSha256: pins["github-projects.py"],
         epicMergePath: join(directory, "epic-merge-host.mjs"),
         epicMergeSha256: pins["epic-merge-host.mjs"],
+        productionReleasePath: join(directory, "production-release-host.mjs"),
+        productionReleaseSha256: pins["production-release-host.mjs"],
       },
       controller,
     );

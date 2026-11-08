@@ -38,7 +38,7 @@ export async function acceptanceRoute(request: Request) {
             host.binding.id,
             candidate,
           ),
-      }).dispatch(value),
+      }).dispatch(value, request.signal),
     );
   } catch (error) {
     if (error instanceof ZodError) return reply({ error: "invalid_request" }, 400);

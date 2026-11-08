@@ -5,6 +5,8 @@ import { acceptedDatabasePlan } from "./database-job-store.server";
 import { githubSourceDigest } from "./github-evidence.server";
 import { configuredReleasePolicies } from "./release-authority.server";
 import { ReleaseAutoOpener } from "./release-auto-open.server";
+import { configuredAutomaticRelease } from "./release-automatic-host.server";
+import { createAutomaticReleaseController } from "./release-automatic-installed.server";
 import { GitHubReleaseChangeRisk } from "./release-change-risk.server";
 import { CloudflareReleaseProvider } from "./release-cloudflare-provider.server";
 import {
@@ -39,7 +41,12 @@ export function createInstalledReleaseController(
   if (env.HIVE_DELIVERY_RELEASE_ENABLED !== "true") return null;
   const raw = env.HIVE_DELIVERY_RELEASE_CONFIG_JSON;
   if (!raw || Buffer.byteLength(raw) > 32768) throw Error("release_controller_unavailable");
-  const config = releaseControllerConfigSchema.parse(JSON.parse(raw));
+  const value = JSON.parse(raw);
+  if (value?.mode === "automatic-main-builds") {
+    const automatic = configuredAutomaticRelease(env);
+    return automatic ? createAutomaticReleaseController(db, automatic, fetcher) : null;
+  }
+  const config = releaseControllerConfigSchema.parse(value);
   if (
     !config.authority ||
     !config.riskCatalog ||

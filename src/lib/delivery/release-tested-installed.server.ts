@@ -4,6 +4,10 @@ import { configuredEpicMerge } from "./epic-merge-config.server";
 import { createEpicMergeTestStore } from "./epic-merge-host.server";
 import { githubSourceDigest } from "./github-evidence.server";
 import { configuredReleasePolicies } from "./release-authority.server";
+import {
+  configuredAutomaticRelease,
+  createAutomaticReleaseTestStore,
+} from "./release-automatic-host.server";
 import { GitHubReleaseChangeRisk } from "./release-change-risk.server";
 import { releaseControllerConfigSchema } from "./release-controller.server";
 import { GitHubReleaseRules } from "./release-github-rules.server";
@@ -21,6 +25,15 @@ export function createInstalledReleaseTestStore(
   env: Record<string, string | undefined> = process.env,
   fetcher: typeof fetch = fetch,
 ) {
+  if (
+    env.HIVE_DELIVERY_RELEASE_ENABLED === "true" &&
+    env.HIVE_DELIVERY_RELEASE_TESTED_ENABLED === "true" &&
+    env.HIVE_DELIVERY_RELEASE_CONFIG_JSON &&
+    JSON.parse(env.HIVE_DELIVERY_RELEASE_CONFIG_JSON)?.mode === "automatic-main-builds"
+  ) {
+    const automatic = configuredAutomaticRelease(env);
+    return automatic ? createAutomaticReleaseTestStore(db, automatic, fetcher) : null;
+  }
   if (
     env.HIVE_DELIVERY_RELEASE_ENABLED !== "true" ||
     env.HIVE_DELIVERY_RELEASE_TESTED_ENABLED !== "true"
@@ -71,6 +84,25 @@ export async function createInstalledReleaseTestStoreForRequest(
   const input = z
     .union([releaseTestChallengeRequestSchema, releaseTestAttestationSchema])
     .parse(raw);
+  const automatic = configuredAutomaticRelease(env);
+  if (automatic && automatic.policy.repositoryId === input.repositoryId) {
+    const tasks = await db.deliveryTask.findMany({
+      where: {
+        ownerId: automatic.policy.ownerId,
+        currentSourceRevision: {
+          is: {
+            repositoryId: input.repositoryId,
+            pullNumber: input.pullNumber,
+            headSha: input.headSha,
+            baseBranch: "main",
+          },
+        },
+      },
+      take: 2,
+    });
+    if (tasks.length > 1) throw Error("release_test_scope");
+    if (tasks.length === 1) return createAutomaticReleaseTestStore(db, automatic, fetcher);
+  }
   const preview = configuredEpicMerge(env);
   if (preview && preview.policy.repositoryId === input.repositoryId) {
     const tasks = await db.deliveryTask.findMany({

@@ -126,3 +126,44 @@ test("revocation while response is pending rejects its late ACK", async () => {
   release();
   await new Promise((r) => setImmediate(r));
 });
+test("production-read acceptance actions retain their bounded outer budget beyond ten seconds", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let release,
+    settled = false;
+  const waiting = new Promise((resolve) => {
+      release = resolve;
+    }),
+    f = fixture({ delay: waiting });
+  const pending = f.client.request("claim_acceptance", {});
+  void pending.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  while (!f.calls()) await new Promise((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(10001);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(settled, false);
+  release();
+  assert.deepEqual(await pending, { phase: "pending" });
+  assert.equal(f.calls(), 1);
+});
+test("production-read timeout preserves the unknown ACK and never retries a late reply", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let release;
+  const waiting = new Promise((resolve) => {
+      release = resolve;
+    }),
+    f = fixture({ delay: waiting });
+  const pending = f.client.request("claim_acceptance", {});
+  const rejected = assert.rejects(pending, /acceptance_transport_unavailable/);
+  while (!f.calls()) await new Promise((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(28001);
+  await rejected;
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(f.calls(), 1);
+});

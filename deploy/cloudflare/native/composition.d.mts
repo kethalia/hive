@@ -2,6 +2,7 @@ export function createNativeWorker<A, B, C>(handlers: {
   app: A;
   auth: B;
   jobs: C;
+  buildIdentity?: import("../../../src/lib/provider-build").ProviderBuildIdentity;
 }): {
   fetch(
     request: Request,

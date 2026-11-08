@@ -34,27 +34,32 @@ await build({
     js: 'import { createRequire as vendorCreateRequire } from "node:module"; const require = vendorCreateRequire(import.meta.url);',
   },
 });
-const mergeBundle = await build({
-  absWorkingDir: root,
-  preserveSymlinks: true,
-  entryPoints: ["scripts/host-epic-merge.ts"],
-  tsconfigRaw: { compilerOptions: { useDefineForClassFields: false } },
-  outfile: join(out, "epic-merge-host.mjs"),
-  bundle: true,
-  minify: true,
-  platform: "node",
-  format: "esm",
-  target: "node24",
-  metafile: true,
-});
-if (
-  Object.keys(mergeBundle.metafile.inputs).some((path) =>
-    /(?:packages\/db|generated\/prisma|release-(?:cloudflare|controller|installed|lifecycle|tested-store)|projects\/host)/.test(
-      path,
-    ),
+for (const [entryPoint, output] of [
+  ["scripts/host-epic-merge.ts", "epic-merge-host.mjs"],
+  ["scripts/host-production-release.ts", "production-release-host.mjs"],
+]) {
+  const mergeBundle = await build({
+    absWorkingDir: root,
+    preserveSymlinks: true,
+    entryPoints: [entryPoint],
+    tsconfigRaw: { compilerOptions: { useDefineForClassFields: false } },
+    outfile: join(out, output),
+    bundle: true,
+    minify: true,
+    platform: "node",
+    format: "esm",
+    target: "node24",
+    metafile: true,
+  });
+  if (
+    Object.keys(mergeBundle.metafile.inputs).some((path) =>
+      /(?:packages\/db|generated\/prisma|release-(?:cloudflare|controller|installed|lifecycle|tested-store)|projects\/host)/.test(
+        path,
+      ),
+    )
   )
-)
-  throw new Error("Unexpected dependency in fixed GitHub merge helper");
+    throw new Error("Unexpected dependency in fixed GitHub merge helper");
+}
 const source = join(root, "templates/ai-dev-k8s/scripts");
 const modules = [
   "codex-workspace-host.mjs",
@@ -152,6 +157,7 @@ const files = Object.fromEntries(
     ...assets,
     "vendor/ws.mjs",
     "epic-merge-host.mjs",
+    "production-release-host.mjs",
     ...(guardianArtifact ? ["codex-native-guardian"] : []),
   ].map((name) => [
     name,

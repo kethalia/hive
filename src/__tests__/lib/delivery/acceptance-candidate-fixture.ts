@@ -18,6 +18,7 @@ export async function acceptanceCandidateFixture(
     producer?: typeof acceptanceFixtureProducer;
     native?: Parameters<typeof acceptanceGuardianFixture>[3];
     activationRequirement?: boolean;
+    productionValidationOnly?: boolean;
     epic?: { id: string; isolationPolicy: unknown; encryptionKey: string };
     headSha?: string;
     baseBranch?: string;
@@ -57,10 +58,14 @@ export async function acceptanceCandidateFixture(
         ? [
             {
               id: "acceptance:activation",
-              meaning: "Verify the fixture behavior after production activation",
+              meaning: options.productionValidationOnly
+                ? "Observe the accepted main build serving with database and authentication smoke readiness"
+                : "Verify the fixture behavior after production activation",
               phase: "activation_production",
               intentRanges: [{ start: 0, end: Buffer.byteLength(f.originalIntent) }],
-              verification: "Observe the actual production deployment and its behavior",
+              verification: options.productionValidationOnly
+                ? "Inspect independently collected fixed-origin source/build/database/authentication observations"
+                : "Observe the actual production deployment and its behavior",
             },
           ]
         : []),
@@ -79,6 +84,7 @@ export async function acceptanceCandidateFixture(
   async function claimAndFinish(
     s: DeliveryAcceptanceService,
     output: (job: Record<string, unknown>) => unknown,
+    beforeFinish?: () => Promise<void>,
   ) {
     const claimed = await s.dispatch(f.envelope({ action: "claim_acceptance" }));
     const job = z
@@ -107,7 +113,9 @@ export async function acceptanceCandidateFixture(
       }),
     );
     const text = JSON.stringify(output(job)),
-      now = Date.now();
+      startedAt = Date.now() - 1;
+    await beforeFinish?.();
+    const now = Date.now();
     const finish = {
       action: "finish_acceptance",
       jobId: job.jobId,
@@ -125,7 +133,7 @@ export async function acceptanceCandidateFixture(
         inputDigest: job.inputDigest,
         outputDigest: requireIntentDigest(text),
         configDigest: job.producer.permissionsDigest,
-        startedAt: now - 1,
+        startedAt,
         completedAt: now,
         terminal: true,
         controllerCreated: true,
@@ -165,10 +173,12 @@ export async function acceptanceCandidateFixture(
             ? [
                 {
                   id: randomUUID(),
-                  kind: "observe",
+                  kind: options.productionValidationOnly ? "validate" : "observe",
                   acceptancePhase: "activation_production",
                   criterionIds: ["acceptance:activation"],
-                  requiredEvidenceKinds: ["review", "observation"],
+                  requiredEvidenceKinds: options.productionValidationOnly
+                    ? ["review"]
+                    : ["review", "observation"],
                 },
               ]
             : []),

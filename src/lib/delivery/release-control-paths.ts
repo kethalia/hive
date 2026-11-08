@@ -8,6 +8,19 @@ export function isReleaseTestControlPath(path: string) {
     path.startsWith("src/lib/delivery/release-") ||
     path.startsWith("src/lib/delivery/epic-") ||
     path === "scripts/host-epic-merge.ts" ||
+    path === "scripts/host-production-release.ts" ||
+    path === "scripts/build-codex-host-bundle.mjs" ||
+    path.startsWith("deploy/cloudflare/native/") ||
+    path === "deploy/cloudflare/app/automatic-health.ts" ||
+    path === "deploy/cloudflare/auth/worker.ts" ||
+    path === "services/auth/src/auth/readiness.ts" ||
+    path === "services/auth/src/auth/domain.ts" ||
+    path === "services/auth/src/fetch-handler.ts" ||
+    path === "deploy/cloudflare/app/composition.ts" ||
+    path === "deploy/cloudflare/app/build.mjs" ||
+    path === "deploy/cloudflare/app/build-integrity.mjs" ||
+    path === "src/lib/provider-build.ts" ||
+    path === "src/lib/app-version.ts" ||
     path === "src/lib/projects/host.server.ts" ||
     path === "src/lib/codex-session/bootstrap-delivery.server.ts" ||
     path === "templates/ai-dev-k8s/scripts/github-projects.py" ||

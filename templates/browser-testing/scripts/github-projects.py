@@ -353,7 +353,7 @@ def epic_read(value):
 
 
 def epic_merge(value):
-    if (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup")
+    if (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup", "builds")
             or not isinstance(value.get("requestId"), str) or value.get("schemaVersion") != 1):
         raise DiscoveryError("invalid_request")
     node, entry = os.environ.get("HIVE_EPIC_MERGE_NODE"), os.environ.get("HIVE_EPIC_MERGE_ENTRY")
@@ -386,9 +386,9 @@ def main():
         if len(raw) > 12000:
             raise DiscoveryError("request_too_large")
         value = json.loads(raw)
-        if len(raw) > REQUEST_LIMIT and (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup")):
+        if len(raw) > REQUEST_LIMIT and (not isinstance(value, dict) or value.get("operation") not in ("prepare", "dispatch", "lookup", "builds")):
             raise DiscoveryError("request_too_large")
-        result = (epic_merge(value) if isinstance(value, dict) and value.get("operation") in ("prepare", "dispatch", "lookup")
+        result = (epic_merge(value) if isinstance(value, dict) and value.get("operation") in ("prepare", "dispatch", "lookup", "builds")
                   else epic_read(value) if isinstance(value, dict) and value.get("operation") in ("observe_merge", "lineage")
                   else resolve_repository(value) if isinstance(value, dict) and value.get("operation") in ("resolve", "resolve_ref") else discover(value))
         status = 0

@@ -54,6 +54,7 @@ export const projectScopes = Object.freeze({
   "/projects/resolve-ref": "projects:resolve-ref",
   "/projects/epic-read": "projects:epic:read",
   "/projects/epic-merge": "projects:epic:merge",
+  "/projects/production-release": "projects:release:production",
   "/projects/open": "projects:open",
   "/projects/tasks/start": "projects:task:start",
   "/projects/tasks/status": "projects:task:read",
@@ -92,7 +93,8 @@ export function validateProjectOperation(path, r) {
         number(r.expectedAccountId) &&
         validProjectBranch(r.branch),
     );
-  else if (path === "/projects/epic-merge") {
+  else if (path === "/projects/epic-merge" || path === "/projects/production-release") {
+    const production = path === "/projects/production-release";
     check(
       exact(r, [
         "schemaVersion",
@@ -107,11 +109,18 @@ export function validateProjectOperation(path, r) {
             : []
           : r?.operation === "lookup"
             ? ["identity", "reference"]
-            : ["identity"]),
+            : r?.operation === "builds" && production
+              ? ["mergeSha"]
+              : production
+                ? ["identity", "authorityExpiresAt"]
+                : ["identity"]),
       ]) &&
         r.schemaVersion === 1 &&
         uuid(r.requestId) &&
-        ["prepare", "dispatch", "lookup"].includes(r.operation) &&
+        (production
+          ? ["prepare", "dispatch", "lookup", "builds"]
+          : ["prepare", "dispatch", "lookup"]
+        ).includes(r.operation) &&
         exact(r.source, [
           "repositoryId",
           "pullRequestId",
@@ -127,7 +136,9 @@ export function validateProjectOperation(path, r) {
         /^[a-f0-9]{40}$/.test(r.source.headSha) &&
         validProjectBranch(r.source.baseRef) &&
         validProjectBranch(r.source.sourceBranch) &&
-        !["main", "master"].includes(r.source.baseRef.toLowerCase()) &&
+        (production
+          ? r.source.baseRef === "main"
+          : !["main", "master"].includes(r.source.baseRef.toLowerCase())) &&
         Buffer.byteLength(JSON.stringify(r)) <= 12000,
     );
   } else if (path === "/projects/epic-read") {
