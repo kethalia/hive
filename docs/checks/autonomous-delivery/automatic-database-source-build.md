@@ -55,8 +55,9 @@ still needs the existing protected environment/target role and ledger, signing k
 trusted source-build catalog and immutable dispatcher/recipe source. No such live
 execution or production database mutation is part of this validation receipt.
 
-The integrated source passed 13 composed PostgreSQL cases, three actual isolated
-workerd/source-output cases, authority/transport contract checks and TypeScript.
+The integrated source passed 13 composed PostgreSQL cases, one actual isolated
+old/new workerd/PostgreSQL scenario and two source-input/contract cases,
+authority/transport contract checks and TypeScript.
 Generated host packages preserve the newer epic account/runtime fixes. Cross-checkout
 archive reproduction and all five profile mirrors pass with shared dependency-store
 references. The host archive is 193,564 bytes compressed (SHA-256
