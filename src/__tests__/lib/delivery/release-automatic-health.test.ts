@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { automaticDatabaseEndpointDigest } from "@/lib/delivery/release-automatic-contracts";
 import { automaticWorkerHealth } from "../../../../deploy/cloudflare/app/automatic-health";
 
 const nonce = "00000000-0000-4000-8000-000000000001";
@@ -100,4 +101,44 @@ describe("automatic native health with compiled provider identity", () => {
       ).status,
     ).toBe(404);
   });
+});
+
+it("reports only actual credential-free DB endpoint identity with the documented Neon pooler alias", async () => {
+  const direct =
+    "postgresql://role:private-password@ep-test-123.eu-central-1.aws.neon.tech/hive?sslmode=require";
+  const pooled = direct
+    .replace("ep-test-123.", "ep-test-123-pooler.")
+    .replace("role:private-password", "other:different-secret");
+  expect(automaticDatabaseEndpointDigest(direct)).toBe(automaticDatabaseEndpointDigest(pooled));
+  for (const changed of [
+    direct.replace("123.", "124."),
+    direct.replace("/hive", "/other"),
+    direct.replace("/hive", ":5433/hive"),
+    "postgresql://role:secret@example-pooler.invalid/hive",
+    "postgresql://role:secret@example.invalid/hive",
+  ])
+    expect(automaticDatabaseEndpointDigest(changed)).not.toBe(
+      automaticDatabaseEndpointDigest(direct),
+    );
+  expect(
+    automaticDatabaseEndpointDigest("postgresql://role:secret@example-pooler.invalid/hive"),
+  ).not.toBe(automaticDatabaseEndpointDigest("postgresql://role:secret@example.invalid/hive"));
+  expect(automaticDatabaseEndpointDigest("not a connection")).toBeNull();
+  const response = await automaticWorkerHealth(
+    request(),
+    { ...env, DATABASE_URL: pooled },
+    async () => true,
+    async () => true,
+  );
+  const payload = await response.text();
+  expect(JSON.parse(payload).databaseEndpointDigest).toBe(automaticDatabaseEndpointDigest(direct));
+  for (const secret of [
+    "different-secret",
+    "other",
+    "private-password",
+    "ep-test-123",
+    "sslmode",
+    "postgresql://",
+  ])
+    expect(payload).not.toContain(secret);
 });

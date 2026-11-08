@@ -64,7 +64,7 @@ async function ready(child, text) {
  * Candidate release archives are data until loaded inside workerd. */
 export async function runWorkerdCompatibility(
   raw,
-  { fetcher = fetch, fixtureDatabaseUrl, sourceArtifacts } = {},
+  { fetcher = fetch, fixtureDatabaseUrl, sourceArtifacts, sourceArtifactDigests } = {},
 ) {
   const single = raw?.kind === "automatic-source-build";
   const config = single
@@ -91,9 +91,11 @@ export async function runWorkerdCompatibility(
         download(config.oldArtifactUrl, fetcher),
         download(config.newArtifactUrl, fetcher),
       ]);
+  const expectedDigests = single ? sourceArtifactDigests : config;
   requireValue(
-    artifactDigest(oldFiles, "app") === config.oldAppDigest &&
-      artifactDigest(newFiles, "app") === config.newAppDigest &&
+    expectedDigests &&
+      artifactDigest(oldFiles, "app") === expectedDigests.oldAppDigest &&
+      artifactDigest(newFiles, "app") === expectedDigests.newAppDigest &&
       (single ||
         (artifactDigest(oldFiles, "auth") === config.oldAuthDigest &&
           artifactDigest(newFiles, "auth") === config.newAuthDigest)),
@@ -178,7 +180,7 @@ export async function runWorkerdCompatibility(
     const scenarioEnv = {
       ...safeEnv,
       DATABASE_URL: databaseUrl,
-      HIVE_PLAN_DIGEST: config.planDigest,
+      HIVE_PLAN_DIGEST: single ? config.planIntentDigest : config.planDigest,
       HIVE_SOURCE_SHA: config.sourceSha,
       HIVE_COMPATIBILITY_DIGEST: config.compatibilityDigest,
       HIVE_OLD_APP: `http://127.0.0.1:${ports[0]}`,
@@ -267,10 +269,12 @@ export async function runWorkerdCompatibility(
           }
         : {}),
       catalogDigest: digest(config),
-      planDigest: config.planDigest,
+      ...(single
+        ? { planIntentDigest: config.planIntentDigest }
+        : { planDigest: config.planDigest }),
       sourceSha: config.sourceSha,
-      oldAppDigest: config.oldAppDigest,
-      newAppDigest: config.newAppDigest,
+      oldAppDigest: expectedDigests.oldAppDigest,
+      newAppDigest: expectedDigests.newAppDigest,
       compatibilityDigest: config.compatibilityDigest,
     };
   } finally {

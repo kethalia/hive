@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { githubSourceDigest as digest } from "@/lib/delivery/github-evidence.server";
 import { GitHubDatabaseJobProvider } from "@/lib/delivery/release-database-github-provider.server";
+import { deriveSourceBuildApproval } from "../../../../services/migrate/src/delivery/source-build-approval.mjs";
+import { sourcePlanIntent } from "../../../../services/migrate/src/delivery/source-plan-intent.mjs";
 import { databaseCatalogSchema } from "../../../../services/migrate/src/delivery/wire.mjs";
 
 function fixture() {
@@ -32,10 +34,10 @@ function fixture() {
       schemaVersion: 2,
       kind: "automatic-source-build",
       catalogId: id,
-      planDigest: digest(plan),
+      planIntentDigest: digest(sourcePlanIntent(plan)),
+      recipeSha: sha("e"),
+      toolchain: { node: "24.21.0", pnpm: "10.32.1" },
       sourceSha: plan.sourceSha,
-      oldAppDigest: plan.oldAppDigest,
-      newAppDigest: plan.newAppDigest,
       compatibilityDigest: plan.compatibilityDigest,
       postgresImage: `registry.example/db@sha256:${hash("a")}`,
       baseline: {
@@ -77,7 +79,7 @@ function fixture() {
     authorityPublicKeyPem: "fixture-public-key".repeat(4),
     validFrom: now - 1000,
     expiresAt: now + 60000,
-    automaticPlan: plan,
+    automaticPlan: sourcePlanIntent(plan),
     automaticExecutionEnabled: true,
     compatibilityTest: {
       config,
@@ -101,7 +103,7 @@ function fixture() {
       generation: 1,
       sourceSha: plan.sourceSha,
       catalogDigest: digest(catalog),
-      planDigest: digest(plan),
+      planDigest: digest(sourcePlanIntent(plan)),
       planEventId: null,
     };
   const identity = {
@@ -132,6 +134,7 @@ function fixture() {
     branchSha: catalog.dispatcherSha,
     duplicates: false,
     jobConclusion: "success",
+    compatibilityOnly: false,
   };
   const fetcher: typeof fetch = async (input, options) => {
     const u = new URL(String(input));
@@ -151,6 +154,7 @@ function fixture() {
       return Response.json({ object: { type: "commit", sha: state.branchSha } });
     if (u.pathname.endsWith("/actions/workflows/12"))
       return Response.json({ id: 12, path: ".github/workflows/ci.yml", state: "active" });
+    if (u.pathname.endsWith("/actions/runs/123/attempts/1")) return Response.json(run);
     if (u.pathname.endsWith("/runs")) {
       expect(u.searchParams.get("created")).toMatch(/^>=20/);
       return Response.json({
@@ -165,7 +169,9 @@ function fixture() {
           {
             run_id: 123,
             run_attempt: 1,
-            name: "Automatic database / fixed-database-approval",
+            name: state.compatibilityOnly
+              ? catalog.compatibilityTest?.jobName
+              : "Automatic database / fixed-database-approval",
             status: "completed",
             conclusion: state.jobConclusion,
           },
@@ -175,6 +181,7 @@ function fixture() {
   };
   return {
     catalog,
+    config,
     identity,
     run,
     state,
@@ -227,4 +234,63 @@ it("denies stale branch/deadline/opt-in before writes and rejects ambiguous/wron
   good.state.jobConclusion = "skipped";
   await expect(good.provider.lookup(good.identity, null, good.signal)).rejects.toThrow();
   expect(good.state.writes).toBe(0);
+});
+
+it("corroborates only completed compatibility while its protected approval job is still running", async () => {
+  const f = fixture();
+  f.state.compatibilityOnly = true;
+  f.run.status = "in_progress";
+  f.run.conclusion = null as unknown as string;
+  const request = {
+    schemaVersion: 1,
+    purpose: "approve_database_plan",
+    githubRunId: "123",
+    githubRunAttempt: 1,
+    ...deriveSourceBuildApproval(
+      f.catalog,
+      {
+        catalogId: f.catalog.id,
+        ownerId: f.catalog.ownerId,
+        taskId: f.identity.request.taskId,
+        sourceSha: f.identity.request.sourceSha,
+        dispatchId: f.identity.request.dispatchId,
+        planIntent: f.catalog.automaticPlan,
+      },
+      {
+        schemaVersion: 1,
+        kind: "source-build-output",
+        intentDigest: digest(f.catalog.automaticPlan),
+        configDigest: digest(f.config),
+        recipeSha: f.config.recipeSha,
+        oldAppDigest: "b".repeat(64),
+        newAppDigest: "c".repeat(64),
+        oldArchiveDigest: "a".repeat(64),
+        newArchiveDigest: "d".repeat(64),
+      },
+    ),
+  };
+  expect(await f.provider.verifyCompatibility(request, f.signal)).toMatchObject({
+    verified: true,
+    runId: "123",
+  });
+  expect(await f.provider.lookup(f.identity, null, f.signal)).toBeNull();
+  for (const changed of [
+    { ...request, plan: { ...request.plan, newAppDigest: "0".repeat(64) } },
+    { ...request, plan: { ...request.plan, expandSql: ["DROP TABLE unrelated"] } },
+    {
+      ...request,
+      compatibility: {
+        ...request.compatibility,
+        actualSourceBuild: {
+          ...request.compatibility.actualSourceBuild,
+          intentDigest: "0".repeat(64),
+        },
+      },
+    },
+    { ...request, githubRunId: "124" },
+  ])
+    await expect(f.provider.verifyCompatibility(changed, f.signal)).rejects.toThrow();
+  f.state.jobConclusion = "skipped";
+  await expect(f.provider.verifyCompatibility(request, f.signal)).rejects.toThrow();
+  expect(f.state.writes).toBe(0);
 });

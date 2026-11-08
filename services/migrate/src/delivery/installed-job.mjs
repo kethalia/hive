@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { digest, requireValue, validatePlan } from "./contracts.mjs";
+import { assertDatabaseAuthority } from "./database-authority.mjs";
 import { advanceDatabaseChange } from "./job.mjs";
 import { createMigrationDatabase } from "./postgres.mjs";
 import { createDeliveryMigrationController } from "./runner.mjs";
@@ -68,7 +69,13 @@ export async function databaseWorkloadToken(request, env, fetcher, signal) {
 }
 /** Fixed job entry. Config/credentials come only from the trusted job environment;
  * server-approved plan is read through the signed, purpose-bound OIDC channel. */
-export async function runInstalledDatabaseJob({ env = process.env, fetcher = fetch, signal } = {}) {
+/** @param {{ env?: Record<string, string | undefined>, fetcher?: typeof fetch, signal?: AbortSignal, authorityEnrollment?: {recipeSha:string,manifest:unknown} }} [options] */
+export async function runInstalledDatabaseJob({
+  env = process.env,
+  fetcher = fetch,
+  signal,
+  authorityEnrollment,
+} = {}) {
   if (env.HIVE_DELIVERY_DATABASE_ENABLED !== "true") return { phase: "disabled" };
   requireValue(
     typeof env.HIVE_DELIVERY_DATABASE_CATALOG_JSON === "string" &&
@@ -78,6 +85,12 @@ export async function runInstalledDatabaseJob({ env = process.env, fetcher = fet
     "migration_job_config_unavailable",
   );
   const catalog = databaseCatalogSchema.parse(JSON.parse(env.HIVE_DELIVERY_DATABASE_CATALOG_JSON));
+  assertDatabaseAuthority(
+    catalog,
+    authorityEnrollment?.recipeSha ?? env.HIVE_DATABASE_TRUSTED_RECIPE_SHA,
+    authorityEnrollment?.manifest,
+    env.HIVE_DATABASE_JOB_PURPOSE === "automatic-source-build",
+  );
   const base = databaseJobRequestSchema.parse({
     ...JSON.parse(env.HIVE_DELIVERY_DATABASE_JOB_JSON),
     schemaVersion: 1,
@@ -94,7 +107,12 @@ export async function runInstalledDatabaseJob({ env = process.env, fetcher = fet
       base.targetDigest === catalog.targetDigest,
     "migration_job_scope_changed",
   );
-  const lifetime = AbortSignal.any([AbortSignal.timeout(60000), ...(signal ? [signal] : [])]);
+  const compatibility = catalog.compatibilityTest?.config;
+  const sourceMode = compatibility?.kind === "automatic-source-build";
+  const lifetime = AbortSignal.any([
+    AbortSignal.timeout(sourceMode ? 240000 : 60000),
+    ...(signal ? [signal] : []),
+  ]);
   async function request(operation, action, observation) {
     requireValue(
       !lifetime.aborted && catalog.validFrom <= Date.now() && catalog.expiresAt > Date.now(),
@@ -107,7 +125,10 @@ export async function runInstalledDatabaseJob({ env = process.env, fetcher = fet
       action,
       ...(observation ? { observation } : {}),
     });
-    const bounded = AbortSignal.any([lifetime, AbortSignal.timeout(4000)]),
+    const bounded = AbortSignal.any([
+        lifetime,
+        AbortSignal.timeout(sourceMode && operation === "observe" ? 35000 : 4000),
+      ]),
       token = await databaseWorkloadToken(body, env, fetcher, bounded);
     const response = await fetcher(
       `${catalog.authorityOrigin}/api/delivery/database-jobs/authorize`,
@@ -138,6 +159,7 @@ export async function runInstalledDatabaseJob({ env = process.env, fetcher = fet
     "migration_approved_plan_changed",
   );
   const db = createMigrationDatabase(assertDatabaseEndpoint(env.DATABASE_URL, catalog));
+  let preparedDeployment = null;
   const controller = createDeliveryMigrationController({
     enabled: true,
     db,
@@ -148,8 +170,26 @@ export async function runInstalledDatabaseJob({ env = process.env, fetcher = fet
       requireValue(runId === approved.runId, "migration_run_changed");
       return request("authorize", action);
     },
-    observeDeployment: async ({ expected, purpose }) =>
-      request("observe", purpose === "certificate" ? "certificate" : expected.kind),
+    ...(sourceMode
+      ? {
+          refreshActivationIntegrity: true,
+          prepareDeployment: async ({ runId, action }) => {
+            requireValue(runId === approved.runId, "migration_run_changed");
+            preparedDeployment = await request("observe", action);
+          },
+        }
+      : {}),
+    observeDeployment: async ({ expected, purpose }) => {
+      if (!sourceMode)
+        return request("observe", purpose === "certificate" ? "certificate" : expected.kind);
+      const observed = preparedDeployment;
+      preparedDeployment = null;
+      requireValue(
+        observed && observed.kind === (purpose === "certificate" ? "compatible" : expected.kind),
+        "migration_deployment_observer_unavailable",
+      );
+      return observed;
+    },
   });
   const mode = env.HIVE_DELIVERY_DATABASE_JOB_MODE ?? "advance";
   requireValue(mode === "advance" || mode === "activate", "migration_job_mode_invalid");
@@ -171,7 +211,7 @@ export async function runInstalledDatabaseJob({ env = process.env, fetcher = fet
       runId: approved.runId,
       signal: lifetime,
       maxTicks: 16,
-      maxDurationMs: 50000,
+      maxDurationMs: sourceMode ? 60000 : 50000,
     });
   }
   const report = await request("report", "read", result.certificate ?? result.state);

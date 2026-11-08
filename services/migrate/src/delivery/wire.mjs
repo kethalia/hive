@@ -1,6 +1,7 @@
 import { createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
 import { z } from "zod";
 import { digest, requireValue, validatePlan, validateScope } from "./contracts.mjs";
+import { sourcePlanIntent, validateSourcePlanIntent } from "./source-plan-intent.mjs";
 
 const sha = z.string().regex(/^[a-f0-9]{40}$/),
   hash = z.string().regex(/^[a-f0-9]{64}$/),
@@ -70,10 +71,10 @@ export const sourceBuildCompatibilitySchema = z
     schemaVersion: z.literal(2),
     kind: z.literal("automatic-source-build"),
     catalogId: uuid,
-    planDigest: hash,
+    planIntentDigest: hash,
+    recipeSha: sha,
+    toolchain: z.object({ node: z.literal("24.21.0"), pnpm: z.literal("10.32.1") }).strict(),
     sourceSha: sha,
-    oldAppDigest: hash,
-    newAppDigest: hash,
     compatibilityDigest: hash,
     postgresImage: image,
     baseline: z
@@ -139,9 +140,19 @@ export const databaseCatalogSchema = z
     expiresAt: stamp,
     // This opt-in applies only to automatic source-build jobs; omitted is disabled.
     automaticExecutionEnabled: z.boolean().optional(),
+    automaticJobLimit: z.number().int().min(1).max(32).optional(),
+    continuationGrants: z
+      .object({
+        enabled: z.boolean(),
+        maxCount: z.number().int().min(1).max(8),
+        maxLifetimeMs: z.number().int().min(1000).max(7200000),
+        grantMs: z.number().int().min(1000).max(600000),
+      })
+      .strict()
+      .optional(),
     automaticPlan: z
       .unknown()
-      .transform((v) => validatePlan(v))
+      .transform((v) => validateSourcePlanIntent(v))
       .optional(),
     compatibilityTest: z
       .object({
@@ -161,18 +172,23 @@ export const databaseCatalogSchema = z
   .superRefine((v, ctx) => {
     const config = v.compatibilityTest?.config;
     if (config?.kind === "automatic-source-build") {
+      if (Buffer.byteLength(JSON.stringify(v)) > 16384)
+        ctx.addIssue({ code: "custom", message: "Automatic catalog exceeds job input bound" });
       const plan = v.automaticPlan;
       if (
         !plan ||
         config.catalogId !== v.id ||
-        config.planDigest !== digest(plan) ||
+        config.planIntentDigest !== digest(plan) ||
         config.sourceSha !== plan.sourceSha ||
-        config.oldAppDigest !== plan.oldAppDigest ||
-        config.newAppDigest !== plan.newAppDigest ||
         config.compatibilityDigest !== plan.compatibilityDigest
       )
         ctx.addIssue({ code: "custom", message: "Automatic plan intent mismatch" });
-    } else if (v.automaticPlan !== undefined || v.automaticExecutionEnabled !== undefined) {
+    } else if (
+      v.automaticJobLimit !== undefined ||
+      v.automaticPlan !== undefined ||
+      v.automaticExecutionEnabled !== undefined ||
+      v.continuationGrants !== undefined
+    ) {
       ctx.addIssue({ code: "custom", message: "Automatic options require source-build mode" });
     }
   });
@@ -187,6 +203,43 @@ const common = {
   // Present only for journaled automatic jobs; legacy workload receipts stay byte-compatible.
   dispatchId: uuid.optional(),
 };
+export const sourceBuildOutputSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    kind: z.literal("source-build-output"),
+    intentDigest: hash,
+    configDigest: hash,
+    recipeSha: sha,
+    oldAppDigest: hash,
+    newAppDigest: hash,
+    oldArchiveDigest: hash,
+    newArchiveDigest: hash,
+  })
+  .strict();
+export function verifySourceBuildApproval(request, catalog) {
+  const config = catalog.compatibilityTest?.config,
+    output = request.compatibility.actualSourceBuild;
+  requireValue(
+    config?.kind === "automatic-source-build" &&
+      output &&
+      digest(sourcePlanIntent(request.plan)) === digest(catalog.automaticPlan) &&
+      output.intentDigest === digest(catalog.automaticPlan) &&
+      output.configDigest === digest(config) &&
+      output.recipeSha === config.recipeSha &&
+      output.oldAppDigest === request.plan.oldAppDigest &&
+      output.newAppDigest === request.plan.newAppDigest &&
+      request.compatibility.mixedVersionChecksDigest === digest(config) &&
+      request.compatibility.contractDigest === catalog.automaticPlan.compatibilityDigest &&
+      request.compatibility.databaseEnforcedInvariantDigest ===
+        digest({
+          schemaDigest: catalog.automaticPlan.afterSchemaDigest,
+          sql: catalog.automaticPlan.integritySql,
+          tables: catalog.automaticPlan.integrityTables,
+        }),
+    "migration_source_output_changed",
+  );
+  return output;
+}
 export const databasePlanApprovalSchema = z
   .object({
     ...common,
@@ -197,6 +250,7 @@ export const databasePlanApprovalSchema = z
         contractDigest: hash,
         mixedVersionChecksDigest: hash,
         databaseEnforcedInvariantDigest: hash,
+        actualSourceBuild: sourceBuildOutputSchema.optional(),
       })
       .strict(),
   })
@@ -213,6 +267,7 @@ export const databaseJobRequestSchema = z
   .object({
     ...common,
     purpose: z.literal("database_job"),
+    dispatchStage: z.enum(["advance", "activate"]).optional(),
     requestId: uuid,
     releaseId: uuid,
     targetDigest: hash,

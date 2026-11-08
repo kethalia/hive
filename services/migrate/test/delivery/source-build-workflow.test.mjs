@@ -20,11 +20,21 @@ test("source compatibility stays in the existing controlled workflow with creden
   assert.match(jobs["source-build"], /git rev-list --parents -n 1 HEAD/);
   assert.match(jobs["source-build"], /git rev-parse HEAD\^\{tree\}/);
   assert.match(jobs["source-build"], /wrangler deploy --dry-run/);
+  assert.match(jobs["source-build"], /ref: \$\{\{ env.HIVE_DATABASE_TRUSTED_RECIPE_SHA \}\}/);
+  assert.match(
+    jobs["source-build"],
+    /recipe\/services\/migrate\/src\/delivery\/pack-source-build.mjs/,
+  );
+  assert.match(jobs["source-build"], /working-directory: candidate/);
+  assert.doesNotMatch(jobs["source-build"], /scripts\/release\/pack-build.mjs/);
   assert.doesNotMatch(
     workflow,
     /versions upload|CLOUDFLARE.*TOKEN|publisher\.mjs|cloudflare-upload/,
   );
-  assert.match(jobs.compatibility, /ref: \$\{\{ inputs.trusted-revision/);
+  assert.match(
+    jobs.compatibility,
+    /ref: \$\{\{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA/,
+  );
   assert.match(jobs.compatibility, /database-source-artifacts\/old/);
   assert.match(jobs.compatibility, /database-source-artifacts\/new/);
   for (const name of ["approval", "database"]) {
@@ -33,6 +43,23 @@ test("source compatibility stays in the existing controlled workflow with creden
     assert.doesNotMatch(jobs[name], /pnpm build|wrangler|matrix.revision|candidate/);
   }
   assert.match(workflow, /enabled:\n {8}type: boolean\n {8}default: false/);
+  assert.match(workflow, /HIVE_DATABASE_TRUSTED_RECIPE_SHA: '[a-f0-9]{40}'/);
+  assert.doesNotMatch(workflow, /ref: \$\{\{ inputs.trusted-revision/);
+  assert.match(jobs.approval, /needs.compatibility.outputs.approval-json/);
+  assert.doesNotMatch(
+    jobs.approval,
+    /HIVE_DELIVERY_DATABASE_APPROVAL_JSON: \$\{\{ inputs.approval-json/,
+  );
+  for (const name of ["approval", "database"]) {
+    assert.match(
+      jobs[name],
+      /HIVE_DATABASE_JOB_PURPOSE: \$\{\{ inputs.enabled && 'automatic-source-build' \|\| 'legacy-protected'/,
+    );
+    assert.match(
+      jobs[name],
+      /inputs.enabled && inputs.catalog-json \|\| \(!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_CATALOG_JSON\)/,
+    );
+  }
   for (const match of workflow.matchAll(/uses: ([^\s]+)/g))
     assert.match(match[1], /@[a-f0-9]{40}$/);
 });

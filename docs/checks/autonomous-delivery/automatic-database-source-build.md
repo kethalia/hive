@@ -1,0 +1,56 @@
+# Controlled database changes with automatic Worker Builds
+
+This source slice connects the existing controlled database workflow to the
+existing automatic production release journal. It creates no publisher, workflow
+file, controller service or required GitHub/Cloudflare token. Production execution
+remains disabled unless both the existing owner production policy and the trusted
+catalog explicitly authorize it. Actual production cutover remains owner approved.
+
+The catalog pins owner-reviewed SQL/source/recipe intent and deliberately omits
+unknown old/new app byte hashes. The fixed trusted compatibility job computes those
+hashes from the actual isolated build outputs, completes its scenario and emits the
+derived full-plan approval to the separate protected job. Separate protected jobs must
+produce corroborated approval, actual SQL/backfill/integrity receipts and activation
+receipts. Local old/new compatibility artifacts are hashes of the real isolated
+workerd inputs; they are never represented as Cloudflare uploaded artifacts. The
+serving proof binds the authenticated Cloudflare app check, exact commit/tree/build,
+fixed origin, DB/auth smoke and credential-free database endpoint identity.
+
+A slow controlled build may outlive the original tested-tree grant. The original
+proof remains immutable history. A distinct, bounded internal continuation grant
+requires the completed correlated job/report and independently refreshed current
+CI, review, repository rules, source/tree, policy and native/semantic gates. Reusing
+an expired report or replaying the same grant never extends its lifetime.
+
+The future merge ID and request digest are immutable intent only. The existing
+journal atomically creates the reserved merge row, freshly authorizes it and marks
+it started in one transaction. It retains the original one-inflight-action index.
+Crashes before commit roll back; unknown outcomes after commit require lookup and
+cannot trigger another dispatch. Report follow-up uses the existing post-response
+hook with its own request-scoped database lifetime. A still-running protected job
+cannot corroborate its own successful completion.
+
+Local validation uses owned loopback PostgreSQL, real signed manager/native and
+independent acceptance transitions, real migration SQL and actual isolated workerd
+compatibility tests. GitHub/Cloudflare HTTP and evaluator model output are explicit
+local doubles. Tests cover delayed grant renewal, expired grants, changed source or
+policy, real lock-wait expiry, reserved-ID substitution, concurrent open/begin,
+rollback/unknown acknowledgements, late/lost callbacks, wrong dispatch and serving
+database, disabled catalogs, production semantic completion and historical evidence
+after deployment-fence release. Deployment health alone does not complete semantic
+requirements or release the writer, session, archive or checkout.
+
+The fixed reviewed recipe contains a public authority enrollment manifest, empty
+by default. Both protected entrypoints check its origin, signing key, target database
+and owner/repository scope before requesting OIDC or reading SQL credentials.
+Workflow/catalog inputs cannot select that manifest or executable recipe: the
+reusable workflow pins a literal source SHA. Source, wrapper and caller are separate
+immutable pin commits; the recipe SHA and OIDC workflow SHA are distinct identities.
+Legacy protected-variable jobs retain their existing configuration path.
+
+CI runs these composed cases in a dedicated database and explicitly enrolls the
+existing reviewed target migration ledger. Migration 49 is forward-only; applied
+migration 47 and frozen migration 48 remain byte-for-byte unchanged. Live enrollment
+still needs the existing protected environment/target role and ledger, signing key,
+trusted source-build catalog and immutable dispatcher/recipe source. No such live
+execution or production database mutation is part of this validation receipt.

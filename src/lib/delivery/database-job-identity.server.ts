@@ -78,10 +78,11 @@ export async function verifyDatabaseJobIdentity(
   const response = await fetcher("https://token.actions.githubusercontent.com/.well-known/jwks", {
     method: "GET",
     headers: { Accept: "application/json" },
-    redirect: "error",
+    redirect: "manual",
     signal,
   });
-  if (!response.ok) throw Error("database_oidc_unavailable");
+  if (!response.ok || response.redirected || (response.status >= 300 && response.status < 400))
+    throw Error("database_oidc_unavailable");
   const set = z
     .object({ keys: z.array(z.object({ kid: z.string() }).passthrough()).max(100) })
     .passthrough()

@@ -58,6 +58,21 @@ class ProjectsTests(unittest.TestCase):
                 discovery.epic_merge(request)
             token.assert_not_called()
 
+    def test_database_input_bound_is_checked_before_credential_or_sidecar_access(self):
+        request = {"schemaVersion": 1, "requestId": "fixture", "operation": "database", "catalog": {"padding": ""}}
+        request["catalog"]["padding"] = "x" * (98305 - len(json.dumps(request, separators=(",", ":")).encode()))
+        with patch.object(discovery, "external_token") as token, patch.object(discovery.subprocess, "run") as run:
+            with self.assertRaises(discovery.DiscoveryError):
+                discovery.epic_merge(request)
+            token.assert_not_called()
+            run.assert_not_called()
+        request["operation"] = "prepare"
+        request["catalog"]["padding"] = "x" * 12000
+        with patch.object(discovery, "external_token") as token:
+            with self.assertRaises(discovery.DiscoveryError):
+                discovery.epic_merge(request)
+            token.assert_not_called()
+
     def epic(self, change=None, operation="observe_merge"):
         request = {"schemaVersion": 1, "requestId": "00000000-0000-4000-8000-000000000001", "operation": operation,
                    "repositoryId": "42", "expectedAccountId": "123", "baseBranch": "epic/fixture", "headSha": "b" * 40}

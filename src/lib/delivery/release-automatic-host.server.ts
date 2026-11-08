@@ -1,17 +1,19 @@
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@hive/db";
 import { signedHostProjectRequest } from "@/lib/projects/host.server";
-import { epicMergePreparedSchema, epicMergeRpcResultSchema } from "./epic-merge-contracts";
+import { epicMergeRpcResultSchema } from "./epic-merge-contracts";
 import { githubSourceDigest } from "./github-evidence.server";
 import {
   type AutomaticReleaseConfig,
   type AutomaticReleaseRpc,
+  automaticPreparedSchema,
   automaticReleaseAuthority,
   automaticReleaseConfigSchema,
   automaticReleaseEnrollment,
   automaticReleaseRpcSchema,
   automaticReleaseTarget,
 } from "./release-automatic-contracts";
+import { configuredAutomaticDatabaseCatalog } from "./release-automatic-database.server";
 import { type ConnectedReleaseTestProvider, ReleaseTestStore } from "./release-tested-store.server";
 import { repositoryPolicyStore } from "./repository-policy.server";
 export function configuredAutomaticRelease(env: Record<string, string | undefined> = process.env) {
@@ -29,16 +31,23 @@ export function configuredAutomaticRelease(env: Record<string, string | undefine
   return automaticReleaseConfigSchema.parse(value);
 }
 export type AutomaticOperation =
-  | Pick<Extract<AutomaticReleaseRpc, { operation: "prepare" }>, "operation" | "test">
+  | Pick<Extract<AutomaticReleaseRpc, { operation: "prepare" }>, "operation" | "test" | "database">
+  | Pick<
+      Extract<AutomaticReleaseRpc, { operation: "database" }>,
+      "operation" | "catalog" | "command"
+    >
   | Pick<
       Extract<AutomaticReleaseRpc, { operation: "dispatch" }>,
-      "operation" | "identity" | "authorityExpiresAt"
+      "operation" | "identity" | "authorityExpiresAt" | "database"
     >
   | Pick<
       Extract<AutomaticReleaseRpc, { operation: "lookup" }>,
       "operation" | "identity" | "reference"
     >
-  | Pick<Extract<AutomaticReleaseRpc, { operation: "builds" }>, "operation" | "mergeSha">;
+  | Pick<
+      Extract<AutomaticReleaseRpc, { operation: "builds" }>,
+      "operation" | "mergeSha" | "database"
+    >;
 export async function automaticReleaseForTask(
   db: PrismaClient,
   config: AutomaticReleaseConfig,
@@ -65,6 +74,45 @@ export async function automaticReleaseForTask(
     source.fullName !== `${config.risk.owner}/${config.risk.name}`
   )
     throw Error("automatic_release_scope");
+  if (
+    (operation.operation === "prepare" ||
+      operation.operation === "dispatch" ||
+      operation.operation === "builds") &&
+    !operation.database
+  ) {
+    const database = configuredAutomaticDatabaseCatalog(config, source.headSha);
+    if (database) operation = { ...operation, database };
+  }
+  if (
+    (operation.operation === "prepare" ||
+      operation.operation === "dispatch" ||
+      operation.operation === "builds") &&
+    operation.database
+  ) {
+    const catalog = operation.database;
+    operation =
+      operation.operation === "prepare"
+        ? {
+            operation: "database",
+            catalog,
+            command: { action: "prepare", ...(operation.test ? { test: operation.test } : {}) },
+          }
+        : operation.operation === "dispatch"
+          ? {
+              operation: "database",
+              catalog,
+              command: {
+                action: "merge",
+                identity: operation.identity,
+                authorityExpiresAt: operation.authorityExpiresAt,
+              },
+            }
+          : {
+              operation: "database",
+              catalog,
+              command: { action: "builds", mergeSha: operation.mergeSha },
+            };
+  }
   const request = automaticReleaseRpcSchema.parse({
     schemaVersion: 1,
     requestId: randomUUID(),
@@ -117,7 +165,7 @@ export function createAutomaticReleaseTestStore(
         take: 2,
       });
       if (rows.length !== 1) throw Error("release_test_scope");
-      const observed = epicMergePreparedSchema.parse(
+      const observed = automaticPreparedSchema.parse(
         await automaticReleaseForTask(
           db,
           config,

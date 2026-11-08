@@ -88,6 +88,7 @@ export async function observeAutomaticBuild(
     origin: config.target.origin,
     health: final,
     firstHealthDigest: githubSourceDigest(first),
+    ...(checks.treeSha ? { treeSha: checks.treeSha } : {}),
     check: matching[0],
     coverage: "fixed-origin-db-auth-smoke" as const,
     observedAt: Date.now(),

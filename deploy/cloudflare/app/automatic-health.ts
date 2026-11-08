@@ -1,11 +1,13 @@
 import {
   AUTOMATIC_HEALTH_PATH,
+  automaticDatabaseEndpointDigest,
   automaticHealthSchema,
 } from "../../../src/lib/delivery/release-automatic-contracts";
 import { providerBuildIdentitySchema } from "../../../src/lib/provider-build";
 import { withReleaseDeadline } from "./release-health";
 export type AutomaticHealthEnvironment = {
   HIVE_NATIVE_HEALTH_ENABLED?: string;
+  DATABASE_URL?: string;
   HIVE_NATIVE_MODE?: string;
   HIVE_NATIVE_PRODUCTION_ACTIVE?: string;
   HIVE_PUBLIC_ORIGIN?: string;
@@ -63,6 +65,11 @@ export async function automaticWorkerHealth(
         mode: "production",
         nonce,
         build: build.data,
+        ...(automaticDatabaseEndpointDigest(env.DATABASE_URL)
+          ? {
+              databaseEndpointDigest: automaticDatabaseEndpointDigest(env.DATABASE_URL),
+            }
+          : {}),
         readiness: { database: true, authentication: true },
         observedAt: new Date().toISOString(),
       }),

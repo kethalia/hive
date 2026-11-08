@@ -34,6 +34,10 @@ on:
     secrets:
       HIVE_DATABASE_URL:
         required: false
+# Patched to an immutable reviewed source commit after the source checkpoint.
+# This literal, not any workflow/catalog input, selects executable recipe and enrollment.
+env:
+  HIVE_DATABASE_TRUSTED_RECIPE_SHA: '0000000000000000000000000000000000000000'
 jobs:
   source-input:
     if: ${{ inputs.enabled && inputs.operation == 'approve' }}
@@ -47,16 +51,16 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ inputs.trusted-revision }}
+          ref: ${{ env.HIVE_DATABASE_TRUSTED_RECIPE_SHA }}
           persist-credentials: false
       - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: 24
+          node-version: 24.21.0
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - id: config
         env:
-          TRUSTED_REVISION: ${{ inputs.trusted-revision }}
+          TRUSTED_REVISION: ${{ env.HIVE_DATABASE_TRUSTED_RECIPE_SHA }}
           DISPATCH_ID: ${{ inputs.dispatch-id }}
           HIVE_DATABASE_COMPATIBILITY_CONFIG_JSON: ${{ inputs.compatibility-config-json }}
           HIVE_DATABASE_COMPATIBILITY_DIGEST: ${{ inputs.compatibility-digest }}
@@ -75,11 +79,20 @@ jobs:
     permissions:
       contents: read
       id-token: none
+    defaults:
+      run:
+        working-directory: candidate
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ matrix.revision }}
+          path: candidate
           fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.HIVE_DATABASE_TRUSTED_RECIPE_SHA }}
+          path: recipe
           persist-credentials: false
       - name: Verify exact candidate or baseline tree before any candidate execution
         env:
@@ -93,25 +106,32 @@ jobs:
             [[ "$(git rev-list --parents -n 1 HEAD)" == "$REVISION $BASE $HEAD" ]]
           fi
       - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d
+        with:
+          package_json_file: recipe/package.json
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: 24
+          node-version: 24.21.0
+      - name: Install the pinned credential-free recipe
+        working-directory: recipe
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm install --frozen-lockfile
       - name: Build local compatibility artifact without provider credentials
         run: |
           pnpm build:cloudflare
-          pnpm exec wrangler deploy --dry-run --config deploy/cloudflare/native/wrangler.jsonc --outdir "$GITHUB_WORKSPACE/build/app"
-          HIVE_RELEASE_TOPOLOGY=single node scripts/release/pack-build.mjs
+          pnpm exec wrangler deploy --dry-run --config deploy/cloudflare/native/wrangler.jsonc --outdir "$GITHUB_WORKSPACE/candidate/build/app"
+          node "$GITHUB_WORKSPACE/recipe/services/migrate/src/delivery/pack-source-build.mjs" "$GITHUB_WORKSPACE/candidate"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: hive-database-${{ inputs.dispatch-id }}-${{ matrix.label }}
-          path: release.tar
+          path: candidate/release.tar
           if-no-files-found: error
           retention-days: 1
   compatibility:
     if: ${{ always() && (inputs.enabled || vars.HIVE_DELIVERY_DATABASE_ENABLED == 'true') && inputs.operation == 'approve' && (!inputs.enabled || needs.source-build.result == 'success') }}
     needs: source-build
-    name: fixed-database-compatibility-${{ inputs.compatibility-digest || vars.HIVE_DATABASE_COMPATIBILITY_DIGEST }}
+    outputs:
+      approval-json: ${{ steps.compatibility.outputs.approval-json }}
+    name: fixed-database-compatibility-${{ inputs.enabled && inputs.compatibility-digest || (!inputs.enabled && vars.HIVE_DATABASE_COMPATIBILITY_DIGEST) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -120,12 +140,12 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.trusted-revision || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          ref: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
           persist-credentials: false
       - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24
+          node-version: 24.21.0
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - if: ${{ inputs.enabled }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -138,11 +158,14 @@ jobs:
           name: hive-database-${{ inputs.dispatch-id }}-new
           path: ${{ runner.temp }}/database-source-artifacts/new
       - name: Test immutable versions against isolated PostgreSQL
+        id: compatibility
         env:
-          TRUSTED_REVISION: ${{ inputs.trusted-revision || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          TRUSTED_REVISION: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          HIVE_DELIVERY_DATABASE_CATALOG_JSON: ${{ inputs.catalog-json }}
+          HIVE_DATABASE_SOURCE_APPROVAL_INTENT_JSON: ${{ inputs.approval-json }}
           HIVE_DATABASE_SOURCE_ARTIFACT_DIRECTORY: ${{ runner.temp }}/database-source-artifacts
-          HIVE_DATABASE_COMPATIBILITY_CONFIG_JSON: ${{ inputs.compatibility-config-json || vars.HIVE_DATABASE_COMPATIBILITY_CONFIG_JSON }}
-          HIVE_DATABASE_COMPATIBILITY_DIGEST: ${{ inputs.compatibility-digest || vars.HIVE_DATABASE_COMPATIBILITY_DIGEST }}
+          HIVE_DATABASE_COMPATIBILITY_CONFIG_JSON: ${{ inputs.enabled && inputs.compatibility-config-json || (!inputs.enabled && vars.HIVE_DATABASE_COMPATIBILITY_CONFIG_JSON) }}
+          HIVE_DATABASE_COMPATIBILITY_DIGEST: ${{ inputs.enabled && inputs.compatibility-digest || (!inputs.enabled && vars.HIVE_DATABASE_COMPATIBILITY_DIGEST) }}
         run: |
           [[ "$TRUSTED_REVISION" =~ ^[a-f0-9]{40}$ && "$(git rev-parse HEAD)" == "$TRUSTED_REVISION" ]]
           node services/migrate/src/delivery/compatibility-job.mjs
@@ -159,19 +182,20 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.trusted-revision || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          ref: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
           persist-credentials: false
       - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24
+          node-version: 24.21.0
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Approve tested plan
         env:
-          TRUSTED_REVISION: ${{ inputs.trusted-revision || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          TRUSTED_REVISION: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          HIVE_DATABASE_JOB_PURPOSE: ${{ inputs.enabled && 'automatic-source-build' || 'legacy-protected' }}
           HIVE_DELIVERY_DATABASE_ENABLED: ${{ inputs.enabled && 'true' || vars.HIVE_DELIVERY_DATABASE_ENABLED }}
-          HIVE_DELIVERY_DATABASE_CATALOG_JSON: ${{ inputs.catalog-json || vars.HIVE_DELIVERY_DATABASE_CATALOG_JSON }}
-          HIVE_DELIVERY_DATABASE_APPROVAL_JSON: ${{ inputs.approval-json || vars.HIVE_DELIVERY_DATABASE_APPROVAL_JSON }}
+          HIVE_DELIVERY_DATABASE_CATALOG_JSON: ${{ inputs.enabled && inputs.catalog-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_CATALOG_JSON) }}
+          HIVE_DELIVERY_DATABASE_APPROVAL_JSON: ${{ inputs.enabled && needs.compatibility.outputs.approval-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_APPROVAL_JSON) }}
         run: |
           [[ "$TRUSTED_REVISION" =~ ^[a-f0-9]{40}$ && "$(git rev-parse HEAD)" == "$TRUSTED_REVISION" ]]
           node services/migrate/src/delivery/approve-plan.mjs
@@ -188,22 +212,23 @@ jobs:
       - name: Check out reviewed job
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.trusted-revision || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          ref: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
           persist-credentials: false
       - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24
+          node-version: 24.21.0
       - name: Install reviewed dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Run controlled operation
         env:
           OPERATION: ${{ inputs.operation }}
-          TRUSTED_REVISION: ${{ inputs.trusted-revision || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          TRUSTED_REVISION: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          HIVE_DATABASE_JOB_PURPOSE: ${{ inputs.enabled && 'automatic-source-build' || 'legacy-protected' }}
           HIVE_DELIVERY_DATABASE_ENABLED: ${{ inputs.enabled && 'true' || vars.HIVE_DELIVERY_DATABASE_ENABLED }}
-          HIVE_DELIVERY_DATABASE_CATALOG_JSON: ${{ inputs.catalog-json || vars.HIVE_DELIVERY_DATABASE_CATALOG_JSON }}
-          HIVE_DELIVERY_DATABASE_APPROVAL_JSON: ${{ inputs.approval-json || vars.HIVE_DELIVERY_DATABASE_APPROVAL_JSON }}
-          HIVE_DELIVERY_DATABASE_JOB_JSON: ${{ inputs.job-json || vars.HIVE_DELIVERY_DATABASE_JOB_JSON }}
+          HIVE_DELIVERY_DATABASE_CATALOG_JSON: ${{ inputs.enabled && inputs.catalog-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_CATALOG_JSON) }}
+          HIVE_DELIVERY_DATABASE_APPROVAL_JSON: ${{ inputs.enabled && inputs.approval-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_APPROVAL_JSON) }}
+          HIVE_DELIVERY_DATABASE_JOB_JSON: ${{ inputs.enabled && inputs.job-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_JOB_JSON) }}
           DATABASE_URL: ${{ secrets.HIVE_DATABASE_URL }}
         run: |
           [[ "$TRUSTED_REVISION" =~ ^[a-f0-9]{40}$ && "$(git rev-parse HEAD)" == "$TRUSTED_REVISION" ]]

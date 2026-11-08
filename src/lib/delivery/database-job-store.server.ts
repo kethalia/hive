@@ -2,6 +2,7 @@ import { createPrivateKey, createPublicKey, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
 import { boundedReleaseJson } from "../../../deploy/cloudflare/app/release-health";
+import { sourcePlanIntent } from "../../../services/migrate/src/delivery/source-plan-intent.mjs";
 import {
   databaseCatalogSchema,
   databaseJobRequestSchema,
@@ -9,9 +10,12 @@ import {
   databasePlanApprovalSchema,
   databaseScope,
   signDatabaseResponse,
+  verifyDatabaseResponse,
+  verifySourceBuildApproval,
 } from "../../../services/migrate/src/delivery/wire.mjs";
 import { verifyDatabaseJobIdentity } from "./database-job-identity.server";
 import { githubSourceDigest } from "./github-evidence.server";
+import { automaticDatabaseActionSchema } from "./release-database-actions";
 import { verifyReleaseEvidence } from "./release-evidence.server";
 import type { RepositoryPolicyStore } from "./repository-policy-store.server";
 
@@ -69,6 +73,12 @@ export async function acceptedDatabasePlan(
     payload.manifest.catalogId !== catalog.id
   )
     return fail();
+  if (
+    catalog.compatibilityTest?.config &&
+    "kind" in catalog.compatibilityTest.config &&
+    catalog.compatibilityTest.config.kind === "automatic-source-build"
+  )
+    verifySourceBuildApproval(payload.manifest, catalog);
   return { id: event.id, planDigest: githubSourceDigest(payload.manifest.plan), ...payload };
 }
 /** Fixed trusted controller. The HTTP caller never supplies catalog, SQL
@@ -80,6 +90,7 @@ export class DatabaseJobStore {
     private readonly catalogs: () => unknown,
     private readonly privateKeyPem: string,
     private readonly deployment: {
+      refresh?(request: Request, catalog: Catalog, signal: AbortSignal): Promise<void>;
       observe(
         tx: Tx,
         input: {
@@ -93,7 +104,69 @@ export class DatabaseJobStore {
     },
     private readonly fetcher: typeof fetch = fetch,
     private readonly githubToken: string = "",
+    private readonly connectedCompatibility?: (
+      request: z.infer<typeof databasePlanApprovalSchema>,
+      catalog: Catalog,
+      signal: AbortSignal,
+    ) => Promise<number>,
+    private readonly connectedWorkload?: (
+      request: Request,
+      catalog: Catalog,
+      signal: AbortSignal,
+    ) => Promise<number>,
+    private readonly wake?: (scope: {
+      ownerId: string;
+      taskId: string;
+      sourceSha: string;
+      dispatchId: string;
+      reportEventId: string;
+    }) => Promise<void>,
   ) {}
+  postResponse(raw: unknown, result: unknown) {
+    const wake = this.wake;
+    if (!wake) return null;
+    const request =
+      (raw as { purpose?: unknown } | null)?.purpose === "approve_database_plan"
+        ? databasePlanApprovalSchema.parse(raw)
+        : databaseJobRequestSchema.parse(raw);
+    if (
+      !request.dispatchId ||
+      (request.purpose === "database_job" && request.operation !== "report")
+    )
+      return null;
+    const catalog = this.catalog(request.catalogId, Date.now()),
+      mode = catalog.compatibilityTest?.config;
+    if (!mode || !("kind" in mode) || mode.kind !== "automatic-source-build") return null;
+    const response = verifyDatabaseResponse(result, request, catalog),
+      reportEventId = z
+        .string()
+        .uuid()
+        .parse(
+          response.data[
+            request.purpose === "approve_database_plan" ? "planEventId" : "observationId"
+          ],
+        );
+    const scope = {
+      ownerId: request.ownerId,
+      taskId: request.taskId,
+      sourceSha: request.sourceSha,
+      dispatchId: request.dispatchId,
+      reportEventId,
+    };
+    return () => wake(scope);
+  }
+  get requestBudgetMs() {
+    return z
+      .array(databaseCatalogSchema)
+      .max(32)
+      .parse(this.catalogs())
+      .some((catalog) => {
+        const mode = catalog.compatibilityTest?.config;
+        return mode && "kind" in mode && mode.kind === "automatic-source-build";
+      })
+      ? 40000
+      : 15000;
+  }
   private catalog(id: string, now: number) {
     const catalogs = z.array(databaseCatalogSchema).max(32).parse(this.catalogs()),
       matching = catalogs.filter((c) => c.id === id);
@@ -139,6 +212,19 @@ export class DatabaseJobStore {
   ) {
     const test = catalog.compatibilityTest,
       config = test?.config;
+    if (config && "kind" in config && config.kind === "automatic-source-build") {
+      if (
+        !this.connectedCompatibility ||
+        !request.dispatchId ||
+        githubSourceDigest(sourcePlanIntent(request.plan)) !==
+          githubSourceDigest(catalog.automaticPlan) ||
+        githubSourceDigest(config) !== request.compatibility.mixedVersionChecksDigest ||
+        !test?.jobName.endsWith(`fixed-database-compatibility-${githubSourceDigest(config)}`)
+      )
+        return fail();
+      verifySourceBuildApproval(request, catalog);
+      return this.connectedCompatibility(request, catalog, signal);
+    }
     if (
       !test ||
       !config ||
@@ -230,6 +316,102 @@ export class DatabaseJobStore {
     )
       return fail();
   }
+  private async automaticAction(
+    tx: Tx,
+    request: {
+      ownerId: string;
+      taskId: string;
+      sourceSha: string;
+      dispatchId?: string;
+      githubRunId: string;
+      githubRunAttempt: number;
+    },
+    catalog: Catalog,
+    stage: "approve" | "advance" | "activate",
+  ) {
+    const mode = catalog.compatibilityTest?.config;
+    if (!mode || !("kind" in mode) || mode.kind !== "automatic-source-build") return;
+    if (!request.dispatchId || request.githubRunAttempt !== 1) return fail();
+    const rows = await tx.$queryRaw<
+      {
+        id: string;
+        request: unknown;
+        phase: string;
+        snapshot: unknown;
+        release_id: string;
+        generation: number;
+      }[]
+    >`
+      SELECT a.id,a.request,a.phase,r.snapshot,r.id AS release_id,t.generation FROM delivery_release_actions a
+      JOIN delivery_releases r ON r.id=a.release_id JOIN delivery_release_targets t ON t.target_digest=r.target_digest
+      WHERE r.owner_id=${request.ownerId}::uuid AND r.task_id=${request.taskId}::uuid AND r.purpose='automatic_production'
+        AND r.phase='active' AND t.active_release_id=r.id AND a.kind='database_job'
+        AND a.request->>'dispatchId'=${request.dispatchId} FOR UPDATE OF t,r,a`;
+    if (rows.length !== 1 || !["effect_started", "held"].includes(rows[0].phase)) return fail();
+    const row = rows[0],
+      planned = automaticDatabaseActionSchema.parse(row.request),
+      pin = z
+        .object({
+          database: z
+            .object({ phase: z.literal("plan_intent"), catalogDigest: hash, planDigest: hash })
+            .passthrough(),
+        })
+        .passthrough()
+        .parse(row.snapshot).database;
+    if (
+      planned.stage !== stage ||
+      planned.sourceSha !== request.sourceSha ||
+      planned.ownerId !== request.ownerId ||
+      planned.taskId !== request.taskId ||
+      planned.releaseId !== row.release_id ||
+      planned.generation !== row.generation ||
+      planned.catalogDigest !== githubSourceDigest(catalog) ||
+      planned.catalogDigest !== pin.catalogDigest ||
+      planned.planDigest !== githubSourceDigest(catalog.automaticPlan) ||
+      planned.planDigest !== pin.planDigest
+    )
+      return fail();
+    const key = `database-workload/${request.dispatchId}`,
+      payload = {
+        actionId: row.id,
+        releaseId: row.release_id,
+        catalogDigest: githubSourceDigest(catalog),
+        runId: request.githubRunId,
+        runAttempt: request.githubRunAttempt,
+        stage,
+      };
+    const prior = await tx.deliveryEvent.findUnique({
+      where: {
+        ownerId_aggregateKey_aggregateVersion: {
+          ownerId: request.ownerId,
+          aggregateKey: key,
+          aggregateVersion: 1,
+        },
+      },
+    });
+    if (
+      prior &&
+      (prior.taskId !== request.taskId ||
+        prior.type !== "database_workload_bound" ||
+        prior.requestDigest !== githubSourceDigest(payload))
+    )
+      return fail();
+    if (!prior)
+      await tx.deliveryEvent.create({
+        data: {
+          id: randomUUID(),
+          ownerId: request.ownerId,
+          taskId: request.taskId,
+          aggregateKey: key,
+          aggregateVersion: 1,
+          schemaVersion: 1,
+          policyVersion: `database/${catalog.id}`,
+          type: "database_workload_bound",
+          requestDigest: githubSourceDigest(payload),
+          payload,
+        },
+      });
+  }
   async approve(raw: unknown, token: string, signal: AbortSignal) {
     const request = databasePlanApprovalSchema.parse(raw),
       catalog = this.catalog(request.catalogId, Date.now()),
@@ -241,17 +423,20 @@ export class DatabaseJobStore {
         signal,
         this.fetcher,
       );
-    await this.verifyCompatibilityTest(request, catalog, signal);
+    const connectedExpiry = await this.verifyCompatibilityTest(request, catalog, signal),
+      authorityExpiry = Math.min(identity.expiresAt, connectedExpiry ?? identity.expiresAt);
+    if (!Number.isSafeInteger(authorityExpiry)) return fail();
     return this.db.$transaction(
       async (tx) => {
         const now = await clock(tx);
         if (
           signal.aborted ||
-          identity.expiresAt <= now ||
+          authorityExpiry <= now ||
           githubSourceDigest(this.catalog(catalog.id, now)) !== githubSourceDigest(catalog)
         )
           return fail();
         await this.source(tx, request, catalog);
+        await this.automaticAction(tx, request, catalog, "approve");
         const key = `database-plan/${request.taskId}/${request.sourceSha}`,
           prior = await tx.deliveryEvent.findUnique({
             where: {
@@ -284,7 +469,9 @@ export class DatabaseJobStore {
               } as Prisma.InputJsonValue,
             },
           }));
-        return this.response(request, catalog, now, identity.expiresAt, {
+        const end = await clock(tx);
+        if (signal.aborted || authorityExpiry <= end || catalog.expiresAt <= end) return fail();
+        return this.response(request, catalog, end, authorityExpiry, {
           planEventId: event.id,
           planDigest: githubSourceDigest(request.plan),
           catalogDigest: githubSourceDigest(catalog),
@@ -333,6 +520,29 @@ export class DatabaseJobStore {
       signal,
       this.fetcher,
     );
+    let authorityExpiry = identity.expiresAt;
+    if (
+      compatibility &&
+      "kind" in compatibility &&
+      compatibility.kind === "automatic-source-build"
+    ) {
+      if (
+        !this.connectedWorkload ||
+        !request.dispatchStage ||
+        (request.dispatchStage === "advance" && request.action === "activate") ||
+        (request.dispatchStage === "activate" &&
+          !["begin", "read", "activate", "certificate"].includes(request.action)) ||
+        request.action === "contract"
+      )
+        return fail();
+      authorityExpiry = Math.min(
+        identity.expiresAt,
+        await this.connectedWorkload(request, catalog, signal),
+      );
+      if (!Number.isSafeInteger(authorityExpiry)) return fail();
+      if (request.operation === "observe")
+        await this.deployment.refresh?.(request, catalog, signal);
+    }
     return this.db.$transaction(
       async (tx) => {
         const rows = await tx.$queryRaw<
@@ -368,18 +578,44 @@ export class DatabaseJobStore {
           row.active_release_id !== request.releaseId ||
           row.generation !== request.generation ||
           request.targetDigest !== catalog.targetDigest ||
-          identity.expiresAt <= now ||
+          authorityExpiry <= now ||
           githubSourceDigest(row.snapshot) !== row.snapshot_digest ||
           githubSourceDigest(this.catalog(catalog.id, now)) !== githubSourceDigest(catalog)
         )
           return fail();
         await this.source(tx, request, catalog);
+        if (request.dispatchStage)
+          await this.automaticAction(tx, request, catalog, request.dispatchStage);
         const accepted = await acceptedDatabasePlan(tx, request, catalog),
-          pin = z.object({ database: databasePin }).passthrough().parse(row.snapshot).database;
+          pin =
+            compatibility &&
+            "kind" in compatibility &&
+            compatibility.kind === "automatic-source-build"
+              ? {
+                  ...z
+                    .object({
+                      database: z
+                        .object({
+                          phase: z.literal("plan_intent"),
+                          catalogDigest: hash,
+                          planDigest: hash,
+                        })
+                        .passthrough(),
+                    })
+                    .passthrough()
+                    .parse(row.snapshot).database,
+                  planEventId: accepted.id,
+                }
+              : z.object({ database: databasePin }).passthrough().parse(row.snapshot).database;
         if (
           accepted.id !== request.planEventId ||
           pin.planEventId !== accepted.id ||
-          pin.planDigest !== accepted.planDigest ||
+          pin.planDigest !==
+            (compatibility &&
+            "kind" in compatibility &&
+            compatibility.kind === "automatic-source-build"
+              ? githubSourceDigest(sourcePlanIntent(accepted.manifest.plan))
+              : accepted.planDigest) ||
           pin.catalogDigest !== accepted.catalogDigest
         )
           return fail();
@@ -400,7 +636,7 @@ export class DatabaseJobStore {
             planDigest: accepted.planDigest,
             runId: accepted.id,
             action: request.action,
-            expiresAt: Math.min(now + 20000, identity.expiresAt, catalog.expiresAt),
+            expiresAt: Math.min(now + 20000, authorityExpiry, catalog.expiresAt),
             authorityDigest: githubSourceDigest({
               request,
               catalog: accepted.catalogDigest,
@@ -476,7 +712,7 @@ export class DatabaseJobStore {
                   observedAt: now,
                   expiresAt: Math.min(
                     now + 20000,
-                    identity.expiresAt,
+                    authorityExpiry,
                     observation.expiresAt ?? now + 20000,
                     catalog.expiresAt,
                   ),
@@ -491,8 +727,8 @@ export class DatabaseJobStore {
           };
         }
         const end = await clock(tx);
-        if (signal.aborted || identity.expiresAt <= end || catalog.expiresAt <= end) return fail();
-        return this.response(request, catalog, end, identity.expiresAt, data);
+        if (signal.aborted || authorityExpiry <= end || catalog.expiresAt <= end) return fail();
+        return this.response(request, catalog, end, authorityExpiry, data);
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 10000 },
     );

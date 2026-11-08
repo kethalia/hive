@@ -10,7 +10,9 @@ requireValue(
   "migration_compatibility_catalog_changed",
 );
 requireValue(
-  /^[a-f0-9]{40}$/.test(process.env.TRUSTED_REVISION ?? ""),
+  /^[a-f0-9]{40}$/.test(process.env.TRUSTED_REVISION ?? "") &&
+    config.recipeSha === process.env.TRUSTED_REVISION &&
+    process.version === `v${config.toolchain.node}`,
   "migration_workflow_revision",
 );
 const matrix = [

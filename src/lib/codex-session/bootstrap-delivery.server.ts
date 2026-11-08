@@ -266,7 +266,11 @@ export async function postToVerifiedWorkspaceApp(
       "/projects/tasks/recovery-consume",
     ].includes(request.path) ||
     Buffer.byteLength(request.body, "utf8") >
-      (request.path === "/projects/tasks/start" ? 98304 : 20000)
+      (request.path === "/projects/production-release"
+        ? 151552
+        : request.path === "/projects/tasks/start"
+          ? 98304
+          : 20000)
   )
     reject();
   const { cookie, url, deadline } = await exchangeAppCookie(

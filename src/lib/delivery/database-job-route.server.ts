@@ -9,6 +9,7 @@ export async function databaseJobRoute(
   request: Request,
   operation: "approve" | "job",
   store: DatabaseJobStore | null,
+  postResponse?: (work: () => Promise<void>) => void,
 ) {
   const headers = { "Cache-Control": "private, no-store" };
   if (!store) return new Response(null, { status: 404, headers });
@@ -39,10 +40,12 @@ export async function databaseJobRoute(
           operation === "approve"
             ? await store.approve(body, token, signal)
             : await store.job(body, token, signal);
+        const followup = postResponse ? store.postResponse?.(body, result) : null;
+        if (followup) postResponse?.(followup);
         return Response.json(result, { headers });
       },
       request.signal,
-      15000,
+      store.requestBudgetMs ?? 15000,
     );
   } catch {
     return new Response(null, { status: 503, headers });
@@ -57,7 +60,10 @@ export async function installedDatabaseJobRoute(request: Request, operation: "ap
       import("@hive/db"),
       import("./database-job-installed.server"),
     ]);
-    return databaseJobRoute(request, operation, createInstalledDatabaseJobStore(getDb()));
+    const { after } = await import("next/server");
+    return databaseJobRoute(request, operation, createInstalledDatabaseJobStore(getDb()), (work) =>
+      after(work),
+    );
   } catch {
     return new Response(null, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }

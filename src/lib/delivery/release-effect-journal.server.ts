@@ -33,6 +33,7 @@ export class PostgresReleaseEffectJournal implements ReleaseEffectJournal {
     private readonly db: PrismaClient,
     private readonly ownerId: string,
     private readonly authorize: (tx: Tx, identity: ReleaseActionIdentity) => Promise<boolean>,
+    private readonly prepareMissing?: (tx: Tx, actionId: string) => Promise<boolean>,
   ) {
     uuid.parse(ownerId);
   }
@@ -84,10 +85,21 @@ export class PostgresReleaseEffectJournal implements ReleaseEffectJournal {
   }
   async begin(actionId: string) {
     return this.transaction(async (tx) => {
-      const row = await this.locked(tx, actionId);
-      if (!row || row.phase !== "prepared" || !this.fenced(row)) return null;
+      let row = await this.locked(tx, actionId),
+        prepared = false;
+      if (!row && this.prepareMissing) {
+        prepared = await this.prepareMissing(tx, actionId);
+        row = await this.locked(tx, actionId);
+      }
+      if (!row || row.phase !== "prepared" || !this.fenced(row)) {
+        if (prepared) throw Error("release_reserved_action_unavailable");
+        return null;
+      }
       const identity = this.identity(row);
-      if (!(await this.authorize(tx, identity))) return null;
+      if (!(await this.authorize(tx, identity))) {
+        if (prepared) throw Error("release_reserved_action_unavailable");
+        return null;
+      }
       await tx.$executeRaw`UPDATE delivery_release_actions SET phase='effect_started',updated_at=clock_timestamp() WHERE id=${identity.id}::uuid`;
       return identity;
     });

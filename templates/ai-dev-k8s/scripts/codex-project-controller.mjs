@@ -95,6 +95,7 @@ export function validateProjectOperation(path, r) {
     );
   else if (path === "/projects/epic-merge" || path === "/projects/production-release") {
     const production = path === "/projects/production-release";
+    const database = production && r?.operation === "database";
     check(
       exact(r, [
         "schemaVersion",
@@ -103,22 +104,24 @@ export function validateProjectOperation(path, r) {
         "source",
         "gates",
         "operation",
-        ...(r?.operation === "prepare"
-          ? r.test
-            ? ["test"]
-            : []
-          : r?.operation === "lookup"
-            ? ["identity", "reference"]
-            : r?.operation === "builds" && production
-              ? ["mergeSha"]
-              : production
-                ? ["identity", "authorityExpiresAt"]
-                : ["identity"]),
+        ...(database
+          ? ["catalog", "command"]
+          : r?.operation === "prepare"
+            ? r.test
+              ? ["test"]
+              : []
+            : r?.operation === "lookup"
+              ? ["identity", "reference"]
+              : r?.operation === "builds" && production
+                ? ["mergeSha"]
+                : production
+                  ? ["identity", "authorityExpiresAt"]
+                  : ["identity"]),
       ]) &&
         r.schemaVersion === 1 &&
         uuid(r.requestId) &&
         (production
-          ? ["prepare", "dispatch", "lookup", "builds"]
+          ? ["prepare", "dispatch", "lookup", "builds", "database"]
           : ["prepare", "dispatch", "lookup"]
         ).includes(r.operation) &&
         exact(r.source, [
@@ -139,7 +142,24 @@ export function validateProjectOperation(path, r) {
         (production
           ? r.source.baseRef === "main"
           : !["main", "master"].includes(r.source.baseRef.toLowerCase())) &&
-        Buffer.byteLength(JSON.stringify(r)) <= 12000,
+        (!database ||
+          (r.catalog &&
+            typeof r.catalog === "object" &&
+            !Array.isArray(r.catalog) &&
+            r.config?.mode === "automatic-main-builds" &&
+            r.command &&
+            typeof r.command === "object" &&
+            [
+              "prepare",
+              "merge",
+              "builds",
+              "baseline",
+              "verify",
+              "workload",
+              "dispatch",
+              "lookup",
+            ].includes(r.command.action))) &&
+        Buffer.byteLength(JSON.stringify(r)) <= (database ? 98304 : 12000),
     );
   } else if (path === "/projects/epic-read") {
     const merge = r?.operation === "observe_merge";
