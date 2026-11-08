@@ -167,18 +167,28 @@ export class GuardianService {
     });
   }
 
-  async recoveryContinuity(scope: {
-    ownerId: string;
-    coderOwnerId: string;
-    workspaceId: string;
-    projectId: string;
-    taskId: string;
-    recoveryId: string;
-  }) {
+  async recoveryContinuity(
+    scope: {
+      ownerId: string;
+      coderOwnerId: string;
+      workspaceId: string;
+      projectId: string;
+      taskId: string;
+      recoveryId: string;
+    },
+    onStage?: (
+      stage:
+        | "guardian_recovery_resolve"
+        | "guardian_recovery_ticket"
+        | "guardian_recovery_predecessor",
+    ) => void,
+  ) {
+    onStage?.("guardian_recovery_resolve");
     const binding = await this.resolve(
       { hiveUserId: scope.ownerId, coderUserId: scope.coderOwnerId },
       scope.workspaceId,
     );
+    onStage?.("guardian_recovery_ticket");
     const ticket = await readRemountRecoveryTicket(this.db, this.env, scope);
     if (ticket) {
       const entries = guardianRemountEnrollments(this.env),
@@ -205,6 +215,7 @@ export class GuardianService {
       const retirement = (
         event.response as unknown as { retirement: { continuation: GuardianTransferContinuation } }
       ).retirement;
+      onStage?.("guardian_recovery_predecessor");
       await this.dependencies.assertUnstartedPredecessorStopped(
         binding,
         a.oldBuildId,

@@ -5,6 +5,7 @@ import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { provisionRegisteredHost } from "@/lib/codex-session/bootstrap-delivery.server";
 import { guardianDigest } from "@/lib/codex-session/guardian-contracts";
 import { createGuardianService } from "@/lib/codex-session/guardian-factory.server";
+import type { GuardianProvisionStage } from "@/lib/codex-session/guardian-service.server";
 import {
   createRegisteredSessionService,
   registeredSessionConfig,
@@ -75,6 +76,23 @@ export type TaskStartStage =
   | "intent_store"
   | "policy_enrollment"
   | "enqueue";
+
+export type TaskRecoveryStage =
+  | GuardianProvisionStage
+  | "guardian_recovery_resolve"
+  | "guardian_recovery_ticket"
+  | "guardian_recovery_predecessor"
+  | "recovery_project"
+  | "recovery_policy"
+  | "recovery_snapshot"
+  | "recovery_begin"
+  | "recovery_continuity"
+  | "recovery_inspect"
+  | "recovery_identity"
+  | "recovery_authorize"
+  | "recovery_consume"
+  | "recovery_finish"
+  | "recovery_legacy";
 
 export async function startProjectTask(
   user: ProjectPrincipal,
@@ -366,11 +384,19 @@ export async function readProjectTask(user: ProjectPrincipal, projectId: string,
 /** Explicit owner recovery never includes a prompt or changes task identity.
  * The installed host proves a pre-execution retry is safe, or returns the already
  * running task. Ambiguous execution remains held by the host journal. */
-export async function retryProjectTask(user: ProjectPrincipal, projectId: string, value: unknown) {
+export async function retryProjectTask(
+  user: ProjectPrincipal,
+  projectId: string,
+  value: unknown,
+  onStage?: (stage: TaskRecoveryStage) => void,
+) {
   const input = projectTaskReadSchema.parse(value);
+  onStage?.("recovery_project");
   const project = await ownedProject(user, projectId);
   const store = taskIntentStore();
+  onStage?.("recovery_policy");
   await authorizeIntentPolicy(user.id, input.taskId);
+  onStage?.("recovery_snapshot");
   const snapshot = await store.recoverySnapshot(
     user.id,
     projectId,
@@ -384,6 +410,7 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
     throw new TaskIntentConflict("task_identity_conflict");
   if (process.env.HIVE_GUARDIAN_ENABLED === "true") {
     const recoveries = new ProjectTaskRecoveries(getDb(), store);
+    onStage?.("recovery_begin");
     let attempt = await recoveries.begin({
       ownerId: user.id,
       coderOwnerId: user.coderUserId,
@@ -397,12 +424,14 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
         await store.get(user.id, projectId, input.taskId, input.workspaceId),
       );
     if (attempt.phase === "inspecting") {
-      const service = createGuardianService();
+      const service = createGuardianService({ onProvisionStage: onStage });
       await service.provision(
         { hiveUserId: user.id, coderUserId: user.coderUserId },
         input.workspaceId,
       );
-      const continuity = await service.recoveryContinuity(attempt.scope);
+      onStage?.("recovery_continuity");
+      const continuity = await service.recoveryContinuity(attempt.scope, onStage);
+      onStage?.("recovery_inspect");
       const inspected = z
         .object({
           schemaVersion: z.literal(1),
@@ -421,6 +450,7 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
         );
       if (guardianDigest(inspected.scope) !== guardianDigest(attempt.scope))
         throw new TaskIntentConflict("task_identity_conflict");
+      onStage?.("recovery_identity");
       const { runtime, packet } = await service.verifyRecoveryIdentity(
         { hiveUserId: user.id, coderUserId: user.coderUserId },
         input.workspaceId,
@@ -432,11 +462,13 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
         packet.startup.generation !== inspected.inspection.guardianGeneration
       )
         throw new TaskIntentConflict("task_identity_conflict");
+      onStage?.("recovery_authorize");
       attempt = await recoveries.authorize(attempt, inspected.inspection, runtime, (tx) =>
         authorizeIntentPolicy(user.id, input.taskId, tx),
       );
     }
     if (!attempt.authorization) throw new TaskIntentConflict("task_identity_conflict");
+    onStage?.("recovery_consume");
     const receipt = await signedHostProjectRequest(
       user,
       input.workspaceId,
@@ -444,10 +476,12 @@ export async function retryProjectTask(user: ProjectPrincipal, projectId: string
       { schemaVersion: 1, scope: attempt.scope, authorization: attempt.authorization },
       { expectedBuildId: attempt.authorization.buildId },
     );
+    onStage?.("recovery_finish");
     await recoveries.finish(attempt, receipt);
     return pendingTaskStatus(await store.get(user.id, projectId, input.taskId, input.workspaceId));
   }
   if (snapshot.row.phase !== "blocked") return pendingTaskStatus(snapshot.row);
+  onStage?.("recovery_legacy");
   const current = status(
     await signedHostProjectRequest(user, input.workspaceId, "/projects/tasks/retry", {
       schemaVersion: 1,

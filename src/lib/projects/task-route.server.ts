@@ -12,6 +12,7 @@ import {
   readProjectTask,
   retryProjectTask,
   startProjectTask,
+  type TaskRecoveryStage,
   type TaskStartStage,
 } from "./task.server";
 import { TaskIntentConflict } from "./task-intents.server";
@@ -20,10 +21,12 @@ export function projectTaskRoute(operation: "start" | "status" | "retry") {
   return async (request: Request, { params }: { params: Promise<{ projectId: string }> }) => {
     if (process.env.HIVE_PROJECT_TASKS_ENABLED !== "true")
       return sessionError("tasks_disabled", 404);
-    let stage: TaskStartStage | "route" = "route";
+    let stage: TaskStartStage | TaskRecoveryStage | "route" = "route";
+    let ownerAuthorized = false;
     try {
       const session = await authorizeSessionOwner(request);
       if (session instanceof Response) return session;
+      ownerAuthorized = true;
       if (new URL(request.url).search) return sessionError("invalid_request", 400);
       let body: unknown;
       try {
@@ -37,11 +40,11 @@ export function projectTaskRoute(operation: "start" | "status" | "retry") {
           ? await startProjectTask(session.user, projectId, body, (next) => {
               stage = next;
             })
-          : await (operation === "retry" ? retryProjectTask : readProjectTask)(
-              session.user,
-              projectId,
-              body,
-            );
+          : operation === "retry"
+            ? await retryProjectTask(session.user, projectId, body, (next) => {
+                stage = next;
+              })
+            : await readProjectTask(session.user, projectId, body);
       return Response.json(result, {
         headers: sessionResponseHeaders,
       });
@@ -87,6 +90,13 @@ export function projectTaskRoute(operation: "start" | "status" | "retry") {
       }
       if (operation === "start")
         console.error("project_task_start_failed", { stage, category, statusCode });
+      if (operation === "retry" && ownerAuthorized) {
+        console.error("project_task_retry_failed", { stage, category, statusCode });
+        return Response.json(
+          { error: code, failureStage: stage },
+          { status: statusCode, headers: sessionResponseHeaders },
+        );
+      }
       return sessionError(code, statusCode);
     }
   };
