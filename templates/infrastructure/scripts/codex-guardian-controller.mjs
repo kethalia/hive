@@ -29,6 +29,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyEmptyRoot, inspectEmptyRoot } from "./codex-empty-root.mjs";
 import { GUARDIAN_ADMISSION_BUDGET } from "./codex-guardian-worker.mjs";
 import {
   archiveClosedProjectState,
@@ -526,7 +527,7 @@ export function openGuardianController({
             ? GUARDIAN_ADMISSION_BUDGET.frameMs
             : action === "enroll"
               ? 15000
-              : action.startsWith("epic_")
+              : action.startsWith("epic_") || action.startsWith("cleanup_")
                 ? 30000
                 : 3000),
       ),
@@ -537,7 +538,12 @@ export function openGuardianController({
         issuedAt,
         expiresAt: admissionTransport
           ? Math.min(deadline + 500, networkDeadline + 500)
-          : issuedAt + (action === "enroll" ? 20000 : action.startsWith("epic_") ? 30500 : 3500),
+          : issuedAt +
+            (action === "enroll"
+              ? 20000
+              : action.startsWith("epic_") || action.startsWith("cleanup_")
+                ? 30500
+                : 3500),
         action,
         ...(action === "enroll" ? {} : { runtimeGeneration: state.generation }),
         ...fields,
@@ -608,6 +614,7 @@ export function openGuardianController({
       } catch (error) {
         const pending = state?.pending;
         if (
+          action === "cleanup_prepare" ||
           attempt >= 1 ||
           !pending ||
           pending.action !== action ||
@@ -619,7 +626,8 @@ export function openGuardianController({
         state.pending = null;
         state.hold = false;
         save();
-        deadline = Date.now() + (action.startsWith("epic_") ? 30000 : 3000);
+        deadline =
+          Date.now() + (action.startsWith("epic_") || action.startsWith("cleanup_") ? 30000 : 3000);
       }
     }
   }
@@ -1618,6 +1626,7 @@ export function openGuardianController({
     const transfer = readPendingUnstartedTransfer(home);
     const s = initialize(),
       issuedAt = Date.now(),
+      emptyRoot = !transfer && !state.runtimeId ? inspectEmptyRoot(home, s.lifetimeId) : null,
       packet = {
         schemaVersion: 1,
         nonce,
@@ -1626,6 +1635,7 @@ export function openGuardianController({
         identity: identity(s),
         startup: s,
         ...(transfer ? { unstartedTransfer: transfer } : {}),
+        ...(emptyRoot ? { emptyRoot } : {}),
         ...(transfer && readUnstartedTransferContinuation(home, s)
           ? { unstartedTransferContinuation: readUnstartedTransferContinuation(home, s) }
           : {}),
@@ -1701,6 +1711,7 @@ export function openGuardianController({
             "identityDigest",
             "startupDigest",
             ...(unstarted ? ["unstartedTransfer"] : []),
+            ...(challenge.emptyRoot ? ["emptyRoot"] : []),
           ]) &&
             claims.iss === config.hiveOrigin &&
             claims.aud === "hive:workspace-guardian" &&
@@ -1725,6 +1736,10 @@ export function openGuardianController({
             digest(s) === digest(challenge.startup),
         );
         if (unstarted) check(unstartedReceiptMatches(home, claims.unstartedTransfer, unstarted, s));
+        if (challenge.emptyRoot) {
+          check(!unstarted && claims.emptyRoot?.proposalDigest === digest(challenge.emptyRoot));
+          applyEmptyRoot(home, challenge.emptyRoot, grant, claims);
+        }
         await send("enroll", { runtimeId: claims.runtimeId, grant }, (r) => {
           check(
             r?.accepted === true &&
@@ -2435,6 +2450,9 @@ export function openGuardianController({
                 "epic_release_prepare",
                 "epic_release_submit",
                 "epic_archive_ack",
+                "cleanup_prepare",
+                "cleanup_status",
+                "cleanup_ack",
               ].includes(state.pending.action),
           );
           if (state.pending.action === "tree_closed")
@@ -2475,7 +2493,33 @@ export function openGuardianController({
           } = pending;
           check(receipt.projects.some((project) => project.projectId === fields.projectId));
           deadline = Date.now() + 30000;
-          await sendClosure(action, fields, () => {});
+          if (action === "cleanup_prepare" || action === "cleanup_status") {
+            const local = state.epicClosure?.projects?.[fields.projectId];
+            check(
+              local?.cleanupRequest &&
+                same(
+                  local.cleanupRequest,
+                  Object.fromEntries(
+                    Object.entries(fields.request).filter(([key]) => key !== "retry"),
+                  ),
+                ),
+            );
+            const readback = await sendClosure(
+              "cleanup_status",
+              { projectId: fields.projectId, request: local.cleanupRequest },
+              (r) =>
+                check(
+                  r &&
+                    (local.cleanupToken
+                      ? typeof r.token === "string"
+                      : r.token === null || typeof r.token === "string"),
+                ),
+            );
+            check(!local.cleanupToken || typeof readback.token === "string");
+            if (readback.token) local.cleanupToken = readback.token;
+            delete local.cleanupRefresh;
+            save();
+          } else await sendClosure(action, fields, () => {});
         }
         delete state.recoveredClosurePending;
         save();
@@ -2580,24 +2624,50 @@ export function openGuardianController({
           local.scope = structuredClone(item);
         }
         save();
-        const tokens = [];
+        const archiveClaims = (token) => {
+          check(typeof token === "string" && token.length <= 16384);
+          const parts = token.split(".");
+          check(
+            parts.length === 2 &&
+              parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)) &&
+              verify(
+                null,
+                Buffer.from(`hive-project-archive-v1\n${parts[0]}`),
+                createPublicKey(config.issuerPublicKeyPem),
+                Buffer.from(parts[1], "base64url"),
+              ),
+          );
+          return JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+        };
+        const retainRelease = (local, item) => {
+          if (!local.releaseReceipt) {
+            const replay = runHelper("managed-projects.py", {
+              schemaVersion: 1,
+              operation: "releaseLease",
+              provider: "github",
+              repositoryId: item.repositoryId,
+              taskId: item.taskId,
+              leaseId: item.leaseId,
+              generation: item.leaseGeneration,
+              revision: item.acceptedSourceSha,
+            });
+            check(replay?.ok === true && replay.data?.releaseReceipt);
+            local.releaseReceipt = replay.data.releaseReceipt;
+            save();
+          }
+          return local.releaseReceipt;
+        };
         for (const item of prepared) {
           state.epicClosure.projects[item.projectId] ??= {};
           const local = state.epicClosure.projects[item.projectId];
-          const release = runHelper("managed-projects.py", {
-            schemaVersion: 1,
-            operation: "releaseLease",
-            provider: "github",
-            repositoryId: item.repositoryId,
-            taskId: item.taskId,
-            leaseId: item.leaseId,
-            generation: item.leaseGeneration,
-            revision: item.acceptedSourceSha,
-          });
-          check(release?.ok === true && release.data?.releaseReceipt);
+          if (local.sourceArchiveDigest) {
+            check(hex(local.sourceArchiveDigest) && typeof local.token === "string");
+            continue;
+          }
+          const releaseReceipt = retainRelease(local, item);
           const reply = await call("epic_release_submit", {
             projectId: item.projectId,
-            releaseReceipt: release.data.releaseReceipt,
+            releaseReceipt,
           });
           check(typeof reply?.token === "string");
           const source = runHelper("managed-epic-archive.py", { token: reply.token });
@@ -2605,17 +2675,46 @@ export function openGuardianController({
           local.sourceArchiveDigest = source.archiveDigest;
           local.token = reply.token;
           save();
-          tokens.push(reply.token);
         }
-        const archived = archiveClosedProjectState(
-          {
-            stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
-            ownerId: config.binding.ownerId,
-            workspaceId: config.binding.workspaceId,
-          },
-          tokens,
-          config.issuerPublicKeyPem,
-        );
+        const tokens = [];
+        if (!state.epicClosure.archiveDigest) {
+          for (const item of prepared) {
+            const local = state.epicClosure.projects[item.projectId],
+              prior = archiveClaims(local.token);
+            check(Number.isSafeInteger(prior.expiresAt));
+            if (prior.expiresAt <= Date.now()) {
+              const releaseReceipt = retainRelease(local, item);
+              check(digest(releaseReceipt) === prior.leaseReleaseDigest);
+              const refreshed = await call("epic_release_submit", {
+                  projectId: item.projectId,
+                  releaseReceipt,
+                }),
+                next = archiveClaims(refreshed?.token),
+                { expiresAt: _priorExpiry, ...priorScope } = prior,
+                { expiresAt: _nextExpiry, ...nextScope } = next;
+              check(
+                same(priorScope, nextScope) &&
+                  Number.isSafeInteger(next.expiresAt) &&
+                  next.expiresAt > Date.now() &&
+                  next.expiresAt <= Date.now() + 60000,
+              );
+              local.token = refreshed.token;
+              save();
+            }
+            tokens.push(local.token);
+          }
+        }
+        const archived = state.epicClosure.archiveDigest
+          ? { archiveDigest: state.epicClosure.archiveDigest }
+          : archiveClosedProjectState(
+              {
+                stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
+                ownerId: config.binding.ownerId,
+                workspaceId: config.binding.workspaceId,
+              },
+              tokens,
+              config.issuerPublicKeyPem,
+            );
         state.epicClosure.archiveDigest = archived.archiveDigest;
         save();
         for (const item of prepared) {
@@ -2630,6 +2729,98 @@ export function openGuardianController({
             (r) => check(r?.archived === true),
           );
           local.acknowledged = true;
+          save();
+          if (local.cleanupAcknowledged) continue;
+          if (!local.cleanupRequest) {
+            const inspected = runHelper("managed-epic-archive.py", {
+              operation: "cleanup-inspect",
+              repositoryId: item.repositoryId,
+              taskId: item.taskId,
+            });
+            check(
+              inspected?.binding?.repositoryId === item.repositoryId &&
+                inspected.binding.taskId === item.taskId &&
+                inspected.binding.revision === item.acceptedSourceSha &&
+                inspected.binding.checkoutIncarnation === item.checkoutIncarnation &&
+                inspected.binding.leaseGeneration === item.leaseGeneration,
+            );
+            local.cleanupRequest = {
+              closedRuntimeId: state.runtimeId,
+              projectId: item.projectId,
+              binding: inspected.binding,
+              controllerArchiveDigest: archived.archiveDigest,
+              sourceArchiveDigest: local.sourceArchiveDigest,
+            };
+            save();
+          }
+          if (local.cleanupRefresh) {
+            const readback = await call(
+              "cleanup_status",
+              { projectId: item.projectId, request: local.cleanupRequest },
+              (r) => check(typeof r?.token === "string"),
+            );
+            local.cleanupToken = readback.token;
+            delete local.cleanupRefresh;
+            save();
+          }
+          if (!local.cleanupToken) {
+            const permit = await call("cleanup_prepare", {
+              projectId: item.projectId,
+              request: local.cleanupRequest,
+            });
+            check(typeof permit?.token === "string" && permit.token.length <= 16384);
+            local.cleanupToken = permit.token;
+            save();
+          }
+          const priorClaims = JSON.parse(
+            Buffer.from(local.cleanupToken.split(".")[0], "base64url").toString("utf8"),
+          );
+          if (priorClaims.expiresAt <= Date.now()) {
+            const fresh = runHelper("managed-epic-archive.py", {
+              operation: "cleanup-inspect",
+              repositoryId: item.repositoryId,
+              taskId: item.taskId,
+            });
+            if (fresh.disposition === "not_started") {
+              check(same(fresh.binding, local.cleanupRequest.binding));
+              local.cleanupRefresh ??= {
+                previousAuthorizationDigest: digest(priorClaims),
+                disposition: "not_started",
+                observedAt: fresh.observedAt,
+              };
+              save();
+              const permit = await call("cleanup_prepare", {
+                projectId: item.projectId,
+                request: { ...local.cleanupRequest, retry: local.cleanupRefresh },
+              });
+              check(typeof permit?.token === "string" && permit.token.length <= 16384);
+              local.cleanupToken = permit.token;
+              delete local.cleanupRefresh;
+              save();
+            }
+          }
+          const removed = runHelper("managed-epic-archive.py", {
+            operation: "cleanup",
+            token: local.cleanupToken,
+          });
+          check(
+            removed?.status === "checkout_removed" &&
+              removed.cleanupReceipt?.outcome === "checkout_removed" &&
+              removed.cleanupReceipt.cleanupRequestId ===
+                local.cleanupRequest.binding.cleanupRequestId,
+          );
+          if (local.cleanupReceipt) check(same(local.cleanupReceipt, removed.cleanupReceipt));
+          local.cleanupReceipt = removed.cleanupReceipt;
+          save();
+          await call(
+            "cleanup_ack",
+            { projectId: item.projectId, receipt: local.cleanupReceipt },
+            (r) =>
+              check(
+                r?.cleanupRecorded === true && r.receiptDigest === digest(local.cleanupReceipt),
+              ),
+          );
+          local.cleanupAcknowledged = true;
           save();
         }
         return { eligible: true, archived: true };
@@ -2682,7 +2873,9 @@ export function openGuardianController({
               receipt.projects.length > 0 &&
               Object.keys(closure.projects).length === receipt.projects.length &&
               receipt.projects.every(
-                (project) => closure.projects?.[project.projectId]?.acknowledged === true,
+                (project) =>
+                  closure.projects?.[project.projectId]?.acknowledged === true &&
+                  closure.projects[project.projectId].cleanupAcknowledged === true,
               ),
           );
         };

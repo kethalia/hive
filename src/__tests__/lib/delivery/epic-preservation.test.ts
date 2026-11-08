@@ -11,13 +11,22 @@ import { preserveEpicTask } from "@/lib/delivery/epic-preservation.server";
 const u = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 it("writes and reads back bounded evidence and records local session identity only", async () => {
   mocks.verify.mockResolvedValue(true);
-  const binding = { workspaceId: u(4), buildId: u(5), nativeThreadId: "thread" };
+  const binding = {
+    workspaceId: u(4),
+    buildId: u(5),
+    nativeThreadId: "thread",
+    serverInstanceId: u(10),
+    executionEpochVersion: 0,
+    executionEpochRuntimeId: null,
+    executionEpochEventId: null,
+    executionEpochResumeEventId: null,
+  };
   const task = {
     id: u(3),
     projectId: u(6),
     sourceSha: "a".repeat(40),
     managerBinding: binding,
-    conversation: binding,
+    conversation: { ...binding, id: u(11) },
     currentSourceRevision: { headSha: "a".repeat(40) },
     project: { providerRepositoryId: "123" },
   };
@@ -27,6 +36,18 @@ it("writes and reads back bounded evidence and records local session identity on
     deliveryTask: { findMany: async () => [task] },
     deliveryEvent: { findMany: async () => [{ id: u(7), report: { summary: "done" } }] },
     deliveryEvidence: { findMany: async () => [{ id: u(8), status: "passed" }] },
+    codexRegisteredThread: {
+      findMany: async () => [
+        {
+          nativeThreadId: "thread",
+          registration: { serverInstanceId: u(10), buildId: u(5) },
+        },
+        {
+          nativeThreadId: "child-thread",
+          registration: { serverInstanceId: u(10), buildId: u(5) },
+        },
+      ],
+    },
     $executeRaw: async (_strings: unknown, ...args: unknown[]) => {
       artifactDigest = String(args[6]);
       sessionDigest = String(args[7]);
@@ -52,4 +73,9 @@ it("writes and reads back bounded evidence and records local session identity on
   });
   expect(payload.events).toHaveLength(1);
   expect(payload.evidence).toHaveLength(1);
+  expect(payload.actorServerInstanceIds).toEqual([u(10)]);
+  expect(payload.actorSessions).toEqual([
+    { nativeThreadId: "thread", registration: { serverInstanceId: u(10), buildId: u(5) } },
+    { nativeThreadId: "child-thread", registration: { serverInstanceId: u(10), buildId: u(5) } },
+  ]);
 });

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "scope": "F05 source-only empty retained-root enrollment",
+  "base": "fe8e179e6481a66f2118cf8d4c74f5ef691343fd",
+  "sharedObserverSource": "dcdcaff722e97ebdca71365bf5cda15ed88133a5",
+  "behavior": [
+    "initial-current anchor only for physically unchanged empty root; fresh absent root uses existing ROOT producer",
+    "remount requires positive completed cleanup or consumed prior enrollment volume anchor",
+    "exact old/new bytes and unchanged inodes; pending transition holds normal operations",
+    "every replacement checks current signed enrollment expiry; no task, lease, writer or cleanup authority"
+  ],
+  "checks": {
+    "hostBoundaryFixtures": 7,
+    "postgresAuthorityCases": 5,
+    "frameAndProviderContractCases": 2,
+    "existingGuardianControllerCases": 52,
+    "typecheck": "passed",
+    "pythonNodeYamlSyntax": "passed",
+    "independentSourceReview": "clear including initial-current branch"
+  },
+  "proofLimits": {
+    "hostCleanupBoundary": "actual temporary Git/cleanup followed by explicit F06 completed-receipt fixture; not the integrated F06 producer",
+    "postgres": "actual local database, immutable ledger and real enrollment seal/consume; provider resource responses are typed fixtures",
+    "maxProposalBytes": 16384,
+    "existingSignedFrameLimitBytes": 32768,
+    "combinedF06CleanupStopStartPrepare": "pending branch integration",
+    "currentHostRollout": "not performed"
+  },
+  "sourceOnlyPackaging": {
+    "canonicalSync": "deferred until server integration",
+    "hostArchivesAndArtifactManifestChanged": false,
+    "newRuntimeOrTableOrEndpoint": false,
+    "newMigration": false
+  },
+  "liveEffects": false,
+  "productionChanged": false
+}

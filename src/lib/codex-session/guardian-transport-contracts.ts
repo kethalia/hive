@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { epicLeaseReleaseSchema } from "@/lib/delivery/epic-closure-contracts";
 import {
+  checkoutCleanupReceiptSchema,
+  checkoutCleanupRequestSchema,
+} from "../delivery/checkout-cleanup-contracts";
+import {
   accountMaintenanceIdleSnapshotSchema,
   maintenanceNativeRebindSchema,
 } from "./account-maintenance-contracts";
@@ -14,6 +18,7 @@ import {
   guardianMetadataEvidenceSchema,
   guardianPreparationSchema,
 } from "./guardian-contracts";
+import { emptyRootAnchorSchema, emptyRootProposalSchema } from "./guardian-empty-root-contracts";
 import { guardianTransferContinuationSchema } from "./guardian-remount-contracts";
 import {
   guardianUnstartedTransferReceiptSchema,
@@ -80,6 +85,7 @@ export const guardianIdentityResponseSchema = z
     expiresAt: z.number().int().positive(),
     identity: guardianRuntimeIdentitySchema,
     startup: guardianStartupEvidenceSchema,
+    emptyRoot: emptyRootProposalSchema.optional(),
     unstartedTransfer: guardianUnstartedTransferSchema.optional(),
     unstartedTransferContinuation: guardianTransferContinuationSchema.optional(),
     unstartedTransferReceipt: guardianUnstartedTransferReceiptSchema.optional(),
@@ -113,6 +119,7 @@ export const guardianEnrollmentClaimsSchema = z
     bindingDigest: guardianDigestSchema,
     identityDigest: guardianDigestSchema,
     startupDigest: guardianDigestSchema,
+    emptyRoot: emptyRootAnchorSchema.optional(),
     unstartedTransfer: guardianUnstartedTransferReceiptSchema.optional(),
   })
   .strict();
@@ -264,6 +271,33 @@ export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
       projectId: uuid,
       archiveDigest: guardianDigestSchema,
       sourceArchiveDigest: guardianDigestSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("cleanup_prepare"),
+      projectId: uuid,
+      request: checkoutCleanupRequestSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("cleanup_status"),
+      projectId: uuid,
+      request: checkoutCleanupRequestSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("cleanup_ack"),
+      projectId: uuid,
+      receipt: checkoutCleanupReceiptSchema,
     })
     .strict(),
   z.object({ ...common, ...generation, action: z.literal("drain_ready") }).strict(),

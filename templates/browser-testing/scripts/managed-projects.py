@@ -309,7 +309,7 @@ class ManagedProjects:
             raise ManagedError("receipt_invalid") from None
 
     @contextmanager
-    def lock(self, remount=None):
+    def lock(self, remount=None, cleanup=None, empty_root=False):
         self.safe(self.state)
         self.state.mkdir(parents=True, mode=0o700, exist_ok=True)
         self.private(self.state, True)
@@ -329,23 +329,179 @@ class ManagedProjects:
             require(len(self.key) == 32, "receipt_key_invalid")
             root_record = self.state / "root.json"
             self.safe(self.root)
-            if remount is not None:
+            if remount is not None or empty_root:
                 require(root_record.exists() and self.root.exists(), "remount_receipt_missing")
             if not root_record.exists():
                 require(not self.root.exists(), "unmanaged_root_exists")
                 self.root.mkdir(parents=True, mode=0o700)
                 self.write(root_record, {"schemaVersion": 1, "path": str(self.root), "identity": self.identity(self.root), "createdAt": time.time()})
             root = self.read(root_record)
+            cleanup_markers = list(self.state.glob("cleanup-*.json"))
+            require(len(cleanup_markers) <= 1024, "cleanup_history_limit")
+            for pending_file in cleanup_markers:
+                pending_cleanup = self.read(pending_file)
+                require(pending_cleanup.get("schemaVersion") == 1 and pending_cleanup.get("phase") in {"deleting", "complete"}, "cleanup_reconciliation_required")
+                require(pending_cleanup.get("phase") == "complete" or pending_file.name == f"cleanup-{cleanup}.json", "cleanup_reconciliation_required")
             marker = self.state / "unstarted-remount.json"
             if marker.exists():
                 pending = self.read(marker)
                 require(pending.get("phase") == "complete" or remount is not None, "remount_reconciliation_required")
-            require(root["path"] == str(self.root) and (remount is not None or root["identity"] == self.identity(self.root)), "managed_root_changed")
+            empty_marker = self.state / "empty-root.json"
+            if empty_marker.exists():
+                require(self.read(empty_marker).get("phase") == "complete" or empty_root, "empty_root_reconciliation_required")
+            require(root["path"] == str(self.root) and (remount is not None or empty_root or root["identity"] == self.identity(self.root)), "managed_root_changed")
             if remount is not None:
                 self._remount_ticket(remount)
             yield
         finally:
             os.close(fd)
+
+    @staticmethod
+    def _empty_digest(value):
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+    def _empty_encoded(self, value):
+        return json.dumps({"record": value, "signature": self.signature(value)}, sort_keys=True)
+
+    def _empty_inventory(self, guardian=None, plan=None):
+        root_file = self.state / "root.json"
+        files = sorted(self.state.glob("github-*.json"))
+        require(len(files) <= 8, "empty_root_inventory_bound")
+        require(sorted(p.name for p in self.root.iterdir()) in ([], ["github"]), "empty_root_not_empty")
+        previous = None
+        marker_file = self.state / "empty-root.json"
+        if marker_file.exists() and not plan:
+            previous = self.read(marker_file)
+            require(previous.get("phase") == "complete", "empty_root_reconciliation_required")
+        if plan:
+            previous = plan.get("previous")
+        root_raw = root_file.read_text()
+        root_record = self.read(root_file)
+        old_root = root_record
+        if plan:
+            require(root_raw in (plan["oldRootRaw"], plan["newRootRaw"]), "empty_root_record_changed")
+            old_root = json.loads(plan["oldRootRaw"])["record"]
+        base = self.root / "github"
+        if base.exists():
+            self.private(base, True)
+            require(sorted(p.name for p in base.iterdir()) == sorted(p.stem[7:] for p in files), "empty_root_unaccounted_project")
+        else:
+            require(not files, "empty_root_project_missing")
+        if previous:
+            require(set(previous["receipt"]["anchor"]["records"]["projects"]).issubset({p.stem[7:] for p in files}), "empty_root_inventory_changed")
+        expected = {x["repositoryId"]: x for x in plan["projects"]} if plan else {}
+        projects = []
+        root_old_hash = hashlib.sha256((plan["oldRootRaw"] if plan else root_raw).encode()).hexdigest()
+        for file in files:
+            repository_id = file.stem[7:]
+            project, _ = self.paths(repository_id)
+            self.private(project, True)
+            raw, record = file.read_text(), self.read(file)
+            original = record
+            if plan:
+                require(repository_id in expected, "empty_root_inventory_changed")
+                item = expected[repository_id]
+                require(raw in (item["oldRaw"], item["newRaw"]), "empty_root_record_changed")
+                original = json.loads(item["oldRaw"])["record"]
+            require(record.get("status") == "checkout_removed" and record.get("provider") == "github"
+                    and record.get("repositoryId") == repository_id
+                    and all(record.get(k) is None for k in ("lease", "checkoutIdentity", "checkoutIncarnation", "preparationId", "acceptedSource", "sourceUpdating", "sourceAppliedOperation")), "empty_root_not_empty")
+            require(sorted(p.name for p in project.iterdir()) == ["evidence"], "empty_root_checkout_present")
+            self.private(project / "evidence", True)
+            cleanup = self.read(self.state / ("cleanup-" + repository_id + ".json"))
+            binding, receipt = cleanup.get("binding"), cleanup.get("receipt")
+            require(cleanup.get("phase") == "complete" and isinstance(binding, dict) and isinstance(receipt, dict)
+                    and receipt.get("outcome") == "checkout_removed"
+                    and record.get("lastCleanup") == {k: v for k, v in receipt.items() if k != "recordDigests"}, "empty_root_cleanup_unproven")
+            mirror = self.read(project / "evidence" / ("cleanup-" + binding["cleanupRequestId"] + ".json"))
+            evidence = cleanup.get("evidence")
+            require(mirror == cleanup and isinstance(evidence, dict) and isinstance(evidence.get("authorizationToken"), str), "empty_root_cleanup_unproven")
+            old_raw = expected[repository_id]["oldRaw"] if plan else raw
+            old_hash = hashlib.sha256(old_raw.encode()).hexdigest()
+            anchor = previous["receipt"]["anchor"] if previous else None
+            if anchor and anchor["records"]["projects"].get(repository_id) == old_hash:
+                require(anchor["records"]["root"] == root_old_hash, "empty_root_anchor_changed")
+            else:
+                require(receipt["recordDigests"] == {"root": root_old_hash, "project": old_hash}, "empty_root_cleanup_record_changed")
+            current = self.identity(project)
+            require(original["projectIdentity"]["inode"] == current["inode"]
+                    and original["projectIdentity"]["device"] == old_root["identity"]["device"]
+                    and current["device"] == self.identity(self.root)["device"], "empty_root_identity_changed")
+            replacement = dict(original, projectIdentity=current)
+            projects.append({"repositoryId": repository_id, "old": {k: str(v) for k, v in original["projectIdentity"].items()},
+                             "current": {k: str(v) for k, v in current.items()}, "recordSha256": old_hash,
+                             "newRecordSha256": hashlib.sha256(self._empty_encoded(replacement).encode()).hexdigest(),
+                             "cleanupToken": evidence["authorizationToken"], "cleanupReceipt": receipt})
+        initial = not projects and previous is None
+        require(not initial or old_root["identity"] == self.identity(self.root), "empty_root_volume_provenance_missing")
+        require(old_root["path"] == str(self.root) and old_root["identity"]["inode"] == self.identity(self.root)["inode"], "empty_root_identity_changed")
+        if previous:
+            require(previous["receipt"]["anchor"]["records"]["root"] == root_old_hash, "empty_root_anchor_changed")
+        for line in Path("/proc/self/mountinfo").read_text().splitlines():
+            mounted = re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), line.split()[4])
+            require(not (mounted == str(self.root) or mounted.startswith(str(self.root) + "/")), "empty_root_nested_mount")
+        self.no_consumers(self.root, guardian)
+        new_root = dict(old_root, identity=self.identity(self.root))
+        result = {"schemaVersion": 1, "mode": "initial-current" if initial else "remount", "root": {"path": str(self.root), "old": {k: str(v) for k, v in old_root["identity"].items()},
+                  "current": {k: str(v) for k, v in self.identity(self.root).items()}, "recordSha256": root_old_hash,
+                  "newRecordSha256": hashlib.sha256(self._empty_encoded(new_root).encode()).hexdigest()}, "projects": projects}
+        if previous: result["previousEnrollment"] = previous["receipt"]["enrollmentToken"]
+        require(len(json.dumps(result).encode()) <= 16384, "empty_root_inventory_bound")
+        return result
+
+    def _inspect_empty_root(self, guardian=None, lifetime_id=None):
+        """Read-only private outer seam; never exposed by the managed CLI."""
+        if not (self.state / "root.json").exists(): return None
+        with self.lock(empty_root=True):
+            marker = self.state / "empty-root.json"
+            saved = self.read(marker) if marker.exists() else None
+            plan = saved if saved and saved.get("phase") == "pending" else None
+            if saved and saved.get("phase") == "complete" and saved["receipt"]["anchor"]["currentVolume"]["lifetimeId"] == lifetime_id:
+                require(self._empty_inventory(guardian, saved) == saved["proposal"], "empty_root_inventory_changed")
+                return saved["proposal"]
+            if not plan and self.read(self.state / "root.json")["identity"] == self.identity(self.root) and (saved or list(self.state.glob("github-*.json"))):
+                return None
+            return self._empty_inventory(guardian, plan)
+
+    def _revalidate_empty_root(self, proposal, authority):
+        """Issuer enrollment only; no lease, task, cleanup or execution grant."""
+        with self.lock(empty_root=True):
+            marker_file = self.state / "empty-root.json"
+            marker = self.read(marker_file) if marker_file.exists() else None
+            if marker and marker["phase"] == "complete" and marker["proposalDigest"] != self._empty_digest(proposal):
+                marker = None
+            if marker: require(marker["proposalDigest"] == self._empty_digest(proposal), "empty_root_replay_changed")
+            require(self._empty_inventory(authority.guardian, marker) == proposal, "empty_root_inventory_changed")
+            grant = authority.verify(proposal)
+            require(grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
+            if marker is None:
+                previous = self.read(marker_file) if marker_file.exists() else None
+                old_root = (self.state / "root.json").read_text()
+                root = self.read(self.state / "root.json")
+                root["identity"] = {k: int(v) for k, v in proposal["root"]["current"].items()}
+                records = []
+                for row in proposal["projects"]:
+                    _, file = self.paths(row["repositoryId"])
+                    old = file.read_text(); record = self.read(file)
+                    record["projectIdentity"] = {k: int(v) for k, v in row["current"].items()}
+                    records.append({"repositoryId": row["repositoryId"], "oldRaw": old, "newRaw": self._empty_encoded(record)})
+                marker = {"schemaVersion": 1, "phase": "pending", "proposalDigest": self._empty_digest(proposal), "proposal": proposal,
+                          "oldRootRaw": old_root, "newRootRaw": self._empty_encoded(root), "projects": records, "previous": {"receipt": previous["receipt"]} if previous else None}
+                require(authority.verify(proposal) == grant and grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
+                if previous:
+                    history = self.state / ("empty-root-" + previous["proposalDigest"] + ".json")
+                    if history.exists(): require(self.read(history) == previous, "empty_root_history_changed")
+                    else: self.write(history, previous)
+                self.write(marker_file, marker)
+            replacements = [(self.state / "root.json", marker["newRootRaw"])] + [(self.paths(x["repositoryId"])[1], x["newRaw"]) for x in marker["projects"]]
+            for file, raw in replacements:
+                require(authority.verify(proposal) == grant and grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
+                if file.read_text() != raw: self.write(file, json.loads(raw)["record"])
+            require(authority.verify(proposal) == grant and grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
+            marker["phase"] = "complete"
+            marker["receipt"] = grant
+            self.write(marker_file, marker)
+            return {"revalidated": True, "proposalDigest": marker["proposalDigest"], "leaseRenewed": False}
 
     def paths(self, repository_id):
         require(isinstance(repository_id, str) and re.fullmatch(r"[1-9][0-9]{0,19}", repository_id), "invalid_repository_id")
@@ -962,15 +1118,51 @@ class ManagedProjects:
             return {"status": "controller_authority_unavailable", "checkoutRetained": True,
                     "requestId": record["cleanupRequests"][-1]["id"]}
 
+    def _cleanup_binding(self, record):
+        identity = lambda value: {key: str(value[key]) for key in ("device", "inode")}
+        root = self.read(self.state / "root.json")
+        return {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"],
+                "rootIdentity": identity(root["identity"]), "projectIdentity": identity(record["projectIdentity"]),
+                "checkoutIdentity": identity(record["checkoutIdentity"]), "checkoutIncarnation": record["checkoutIncarnation"],
+                "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0),
+                "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
+
+    def _inspect_cleanup(self, repository_id, task_id):
+        """Private controller preparation; no deletion or invented authority."""
+        with self.lock(cleanup=repository_id):
+            project, receipt, record = self.load(repository_id)
+            marker_file = self.state / f"cleanup-{repository_id}.json"
+            if marker_file.exists():
+                marker = self.read(marker_file)
+                if marker.get("binding", {}).get("taskId") == task_id:
+                    return {"binding": marker["binding"], "disposition": marker["phase"], "observedAt": int(time.time() * 1000)}
+            require(record["lastTaskId"] == task_id and not record["lease"] and record.get("checkoutIdentity") and not record.get("acceptedSource") and not record.get("sourceUpdating"), "cleanup_not_quiescent")
+            last = record["cleanupRequests"][-1] if record["cleanupRequests"] else None
+            if not last or any(last.get(key) != value for key, value in {"taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0)}.items()):
+                require(len(record["cleanupRequests"]) < 100, "cleanup_request_limit")
+                record["cleanupRequests"].append({"id": str(uuid.uuid4()), "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "requestedAt": time.time()})
+                self.write(receipt, record)
+            return {"binding": self._cleanup_binding(record), "disposition": "not_started", "observedAt": int(time.time() * 1000)}
+
     def _remove_with_authority(self, repository_id, task_id, signed_evidence, authority):
         """Internal validation seam; no CLI/env path supplies an authority or calls it.
 
-        Production controller verification is deliberately unimplemented. Unit tests
-        inject their independently keyed test controller, never a self-asserted bool.
+        Installed cleanup supplies the pinned issuer verifier and a separately
+        verified sealed process context. Public CLI requests supply neither.
         """
-        with self.lock():
+        with self.lock(cleanup=repository_id):
             project, receipt, record = self.load(repository_id)
             require(authority is not None, "controller_authority_unavailable")
+            marker_file = self.state / f"cleanup-{repository_id}.json"
+            marker = self.read(marker_file) if marker_file.exists() else None
+            evidence_digest = hashlib.sha256(json.dumps(signed_evidence, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            checkout = project / "checkout"
+            if marker and marker.get("binding", {}).get("taskId") == task_id and not os.path.lexists(checkout):
+                require(marker.get("evidenceDigest") == evidence_digest and hasattr(authority, "verify_history"), "cleanup_replay_changed")
+                authority.verify_history(signed_evidence, marker["binding"])
+                require(not os.path.lexists(checkout) and not record["lease"] and not record.get("acceptedSource") and not record.get("sourceUpdating"), "cleanup_replay_changed")
+                return self._complete_cleanup(project, receipt, record, marker_file, marker, authority)
+
             require(not record.get("sourceUpdating") and not record.get("acceptedSource"), "accepted_source_cleanup_unavailable")
             require(task_id == record["lastTaskId"] and record["cleanupRequests"] and not record["lease"], "cleanup_not_quiescent")
             cleanup_request = record["cleanupRequests"][-1]
@@ -980,8 +1172,9 @@ class ManagedProjects:
                     and cleanup_request.get("checkoutIncarnation") == record["checkoutIncarnation"]
                     and cleanup_request.get("leaseGeneration") == record["leaseGeneration"]
                     and cleanup_request.get("renewalSequence") == record.get("renewalSequence", 0), "cleanup_request_stale")
-            expected = {"repositoryId": repository_id, "taskId": task_id, "revision": record["revision"],
-                        "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "cleanupRequestId": cleanup_request["id"]}
+            expected = self._cleanup_binding(record)
+            if marker and marker.get("phase") != "complete":
+                require(marker.get("binding") == expected and marker.get("evidenceDigest") == evidence_digest, "cleanup_replay_changed")
             evidence = authority.verify(signed_evidence, expected)
             require(isinstance(evidence, dict) and evidence.get("binding") == expected
                     and identifier(evidence.get("completionEventId")) and identifier(evidence.get("policyVersion")), "invalid_completion_evidence")
@@ -989,14 +1182,15 @@ class ManagedProjects:
             observation = evidence.get("productionObservation", {})
             require(isinstance(artifact, dict) and isinstance(observation, dict)
                     and re.fullmatch(r"sha256:[0-9a-f]{64}", artifact.get("digest", ""))
-                    and identifier(artifact.get("objectVersion")) and identifier(observation.get("id"))
+                    and isinstance(artifact.get("objectVersion"), str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,256}", artifact["objectVersion"]) and identifier(observation.get("id"))
                     and observation.get("revision") == record["revision"]
-                    and observation.get("artifactDigest") == artifact["digest"], "invalid_preservation_evidence")
+                    and re.fullmatch(r"[0-9a-f]{64}", observation.get("buildDigest", ""))
+                    and re.fullmatch(r"[0-9a-f]{64}", observation.get("observationDigest", "")), "invalid_preservation_evidence")
             checkout = project / "checkout"
             self.checkout_valid(checkout, record)
             require(self.git(checkout, "rev-parse", "HEAD") == record["revision"], "cleanup_revision_changed")
             self.clean(checkout)
-            self.no_consumers(checkout)
+            self.no_consumers(checkout, authority.guardian if hasattr(authority, "guardian") else None)
             for line in Path("/proc/self/mountinfo").read_text().splitlines():
                 mounted = re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), line.split()[4])
                 require(not (mounted == str(checkout) or mounted.startswith(str(checkout) + "/")), "checkout_has_mount")
@@ -1014,20 +1208,43 @@ class ManagedProjects:
             self.git(checkout, "fetch", "--prune", "--no-tags", "origin", "+refs/heads/*:refs/remotes/origin/*", repository=remote)
             require(not self.git(checkout, "rev-list", "--all", "--reflog", "HEAD", "--not", "--remotes=origin"), "commits_not_preserved_remotely")
             self.clean(checkout)
-            self.no_consumers(checkout)
+            self.no_consumers(checkout, authority.guardian if hasattr(authority, "guardian") else None)
             evidence_dir = project / "evidence"
             self.safe(evidence_dir)
             evidence_dir.mkdir(mode=0o700, exist_ok=True)
             self.write(evidence_dir / f"{evidence['completionEventId']}.json", evidence)
             require(self.identity(checkout) == record["checkoutIdentity"] and shutil.rmtree.avoids_symlink_attacks, "safe_removal_unavailable")
+            require(not hasattr(authority, "before_remove") or authority.before_remove(signed_evidence, expected), "cleanup_authority_expired")
+            marker = {"schemaVersion": 1, "phase": "deleting", "binding": expected, "evidenceDigest": evidence_digest, "evidence": evidence, "startedAt": int(time.time() * 1000)}
+            self.write(marker_file, marker)
+            require(not hasattr(authority, "before_remove") or authority.before_remove(signed_evidence, expected), "cleanup_authority_expired")
             shutil.rmtree(checkout)
+            return self._complete_cleanup(project, receipt, record, marker_file, marker, authority)
+
+    def _complete_cleanup(self, project, receipt, record, marker_file, marker, authority):
+            require(not os.path.lexists(project / "checkout") and not record["lease"], "cleanup_replay_changed")
+            if marker.get("phase") == "complete":
+                require(record.get("lastCleanup") == ({key: value for key, value in marker.get("receipt", {}).items() if key != "recordDigests"} if marker.get("receipt") else None), "cleanup_replay_changed")
+                evidence_path = project / "evidence" / f"cleanup-{marker['binding']['cleanupRequestId']}.json"
+                if evidence_path.exists(): require(self.read(evidence_path) == marker, "cleanup_replay_changed")
+                else: self.write(evidence_path, marker)
+                return {**self.summary(project, record), "cleanupReceipt": marker.get("receipt")}
             record["checkoutIdentity"] = None
             record["checkoutIncarnation"] = None
             record["gitConfigDigest"] = None
             record["preparationId"] = None
             record["status"] = "checkout_removed"
+            result = authority.cleanup_receipt(marker["binding"]) if hasattr(authority, "cleanup_receipt") else None
+            record["lastCleanup"] = result
             self.write(receipt, record)
-            return self.summary(project, record)
+            if result is not None:
+                result = {**result, "recordDigests": {"root": hashlib.sha256((self.state / "root.json").read_bytes()).hexdigest(), "project": hashlib.sha256(receipt.read_bytes()).hexdigest()}}
+            marker["receipt"] = result
+            marker["phase"] = "complete"
+            self.write(marker_file, marker)
+            evidence_dir = project / "evidence"
+            self.write(evidence_dir / f"cleanup-{marker['binding']['cleanupRequestId']}.json", marker)
+            return {**self.summary(project, record), "cleanupReceipt": result}
 
 
 def dispatch(manager, value):

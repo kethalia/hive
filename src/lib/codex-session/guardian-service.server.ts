@@ -9,6 +9,7 @@ import {
 } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
+import type { CheckoutVolumeEvidence } from "../delivery/checkout-cleanup-contracts";
 import {
   accountMaintenanceGrantSchema,
   accountMaintenanceRequestSchema,
@@ -26,6 +27,8 @@ import {
   guardianCheckoutSchema,
   guardianDigest,
 } from "./guardian-contracts";
+import { authorizeEmptyRoot } from "./guardian-empty-root.server";
+import type { EmptyRootVolume } from "./guardian-empty-root-contracts";
 import { readRemountRecoveryTicket, resolveRemountAttestation } from "./guardian-remount.server";
 import {
   type GuardianRemountAttestation,
@@ -104,6 +107,11 @@ export type GuardianProvisionStage =
   | "guardian_bootstrap"
   | "guardian_enrollment_confirmation";
 export interface GuardianServiceDependencies {
+  resolveCleanupVolume?(
+    binding: VerifiedHostBinding,
+    lifetimeId: string,
+  ): Promise<CheckoutVolumeEvidence>;
+  readEmptyRootVolume?(binding: VerifiedHostBinding, lifetimeId: string): Promise<EmptyRootVolume>;
   assertUnstartedPredecessorStopped?(
     binding: VerifiedHostBinding,
     oldBuildId: string,
@@ -384,6 +392,26 @@ export class GuardianService {
     if (!existing)
       requireGuardian(packet.startup.projects.length === 0 && packet.startup.generation === 1);
     requireGuardian(!packet.unstartedTransferContinuation || packet.unstartedTransfer);
+    requireGuardian(
+      !packet.emptyRoot ||
+        (!packet.unstartedTransfer &&
+          packet.startup.projects.length === 0 &&
+          packet.startup.generation === 1 &&
+          this.dependencies.readEmptyRootVolume),
+    );
+    const emptyRoot = packet.emptyRoot
+      ? await authorizeEmptyRoot(
+          this.db,
+          this.workspace(binding),
+          packet.emptyRoot,
+          await this.dependencies.readEmptyRootVolume!(binding, packet.identity.lifetimeId),
+          this.publicKey.export({ type: "spki", format: "pem" }).toString(),
+          this.now(),
+        )
+      : undefined;
+    requireGuardian(
+      !emptyRoot || emptyRoot.currentVolume.lifetimeId === packet.identity.lifetimeId,
+    );
     const remountAttestation =
       packet.unstartedTransferContinuation && packet.unstartedTransfer
         ? resolveRemountAttestation({
@@ -442,7 +470,11 @@ export class GuardianService {
       scope: "workspace:guardian:enroll" as const,
       jti,
       iat: issuedAt,
-      exp: Math.min(issuedAt + 60, Math.floor((remountAttestation?.expiresAt ?? Infinity) / 1000)),
+      exp: Math.min(
+        issuedAt + 60,
+        Math.floor((remountAttestation?.expiresAt ?? Infinity) / 1000),
+        Math.floor(((emptyRoot?.currentVolume.observedAt ?? Infinity) + 30000) / 1000),
+      ),
       runtimeId: runtime.id,
       hiveUserId: principal.hiveUserId,
       coderOwnerId: principal.coderUserId,
@@ -458,6 +490,7 @@ export class GuardianService {
         binding: this.workspace(binding),
       }),
       startupDigest: guardianDigest(packet.startup),
+      ...(emptyRoot ? { emptyRoot } : {}),
       ...(packet.unstartedTransfer
         ? {
             unstartedTransfer: {
@@ -479,6 +512,7 @@ export class GuardianService {
       ).toString("base64url"),
       body = Buffer.from(JSON.stringify(claims)).toString("base64url");
     const grant = `${header}.${body}.${sign(null, Buffer.from(`${header}.${body}`), this.key).toString("base64url")}`;
+    requireGuardian(claims.exp > Math.floor(this.now() / 1000));
     await store.sealGrant({
       ownerId: principal.hiveUserId,
       runtimeId: runtime.id,
@@ -489,6 +523,7 @@ export class GuardianService {
       expiresAt: new Date(claims.exp * 1000),
     });
     this.active();
+    requireGuardian(claims.exp > Math.floor(this.now() / 1000));
     await transport.bootstrap(binding, grant);
     this.active();
     this.dependencies.onProvisionStage?.("guardian_enrollment_confirmation");
@@ -895,6 +930,51 @@ export class GuardianService {
     const runtime = await this.runtime(input);
     this.active();
     if (
+      input.action === "cleanup_prepare" ||
+      input.action === "cleanup_status" ||
+      input.action === "cleanup_ack"
+    ) {
+      requireGuardian(runtime.phase === "tree_closed" || runtime.phase === "open");
+      requireGuardian(input.runtimeGeneration === runtime.generation);
+      const cleanup = await import("@/lib/delivery/checkout-cleanup.server");
+      if (input.action === "cleanup_ack")
+        return cleanup.acknowledgeCheckoutCleanup(this.db, runtime, input.receipt, input.projectId);
+      requireGuardian(input.projectId === input.request.projectId);
+      if (input.action === "cleanup_status")
+        return cleanup.readCheckoutCleanup(
+          this.db,
+          runtime,
+          input.request,
+          this.config.privateKeyPem,
+        );
+      requireGuardian(this.dependencies.resolveCleanupVolume);
+      const binding = await this.resolve(
+        {
+          hiveUserId: runtime.ownerId,
+          coderUserId: (runtime.binding as unknown as RegistrationBinding).ownerId,
+        },
+        runtime.workspaceId,
+      );
+      const closure = await import("@/lib/delivery/epic-closure.server"),
+        closed = await this.db.codexGuardianRuntime.findFirstOrThrow({
+          where: { ownerId: runtime.ownerId, id: input.request.closedRuntimeId },
+        }),
+        scope = await closure.closedTaskScope(this.db, closed, input.projectId);
+      requireGuardian(!scope.epicId || this.env.HIVE_DELIVERY_EPICS_ENABLED === "true");
+      const volume = await this.dependencies.resolveCleanupVolume(binding, runtime.lifetimeId);
+      this.active();
+      this.live(input);
+      return cleanup.prepareCheckoutCleanup(
+        this.db,
+        runtime,
+        input.request,
+        volume,
+        this.config.privateKeyPem,
+        undefined,
+        input.expiresAt,
+      );
+    }
+    if (
       input.action === "epic_release_prepare" ||
       input.action === "epic_release_submit" ||
       input.action === "epic_archive_ack"
@@ -902,19 +982,11 @@ export class GuardianService {
       requireGuardian(
         runtime.phase === "tree_closed" && input.runtimeGeneration === runtime.generation,
       );
-      if (input.action === "epic_release_prepare") {
-        const admission = await this.db.codexGuardianAdmission.findFirst({
-          where: { ownerId: runtime.ownerId, runtimeId: runtime.id, projectId: input.projectId },
-        });
-        requireGuardian(admission);
-        const starts = await this.db.$queryRaw<
-          { intent_id: string }[]
-        >`SELECT intent_id FROM delivery_epic_start_intents WHERE owner_id=${runtime.ownerId}::uuid AND intent_id=${admission.preparationIntentId}::uuid`;
-        if (starts.length === 0) return { eligible: false };
-        requireGuardian(starts.length === 1);
-      }
-      requireGuardian(this.env.HIVE_DELIVERY_EPICS_ENABLED === "true");
+      // Standalone tasks use the same completion-only authority, with their
+      // immutable closure facts retained in existing task events.
       const lifecycle = await import("@/lib/delivery/epic-closure.server");
+      const scope = await lifecycle.closedTaskScope(this.db, runtime, input.projectId);
+      requireGuardian(!scope.epicId || this.env.HIVE_DELIVERY_EPICS_ENABLED === "true");
       if (input.action === "epic_release_prepare")
         return lifecycle.prepareEpicRelease(this.db, runtime, input.projectId);
       if (input.action === "epic_release_submit")

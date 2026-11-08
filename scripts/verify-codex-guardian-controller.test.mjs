@@ -13,6 +13,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -20,8 +21,9 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
 import {
   guardianCanonical as canonical,
   GUARDIAN_CONTROLLER_POLICY_DIGEST,
@@ -31,7 +33,7 @@ import { createDeliveryNativeSpool } from "../templates/ai-dev-k8s/scripts/deliv
 
 const sha = (v) => createHash("sha256").update(v).digest("hex"),
   digest = (v) => sha(canonical(v));
-function fixture() {
+function fixture({ packageManifestSha256 = "2".repeat(64) } = {}) {
   const home = mkdtempSync(join(tmpdir(), "hive-guardian-controller-")),
     issuer = generateKeyPairSync("ed25519");
   const binding = {
@@ -68,7 +70,7 @@ function fixture() {
     phase: "open",
     nonce: Buffer.alloc(32).toString("base64url"),
     configSha256: "1".repeat(64),
-    packageManifestSha256: "2".repeat(64),
+    packageManifestSha256,
     nodeSha256: "3".repeat(64),
     guardianSha256: "4".repeat(64),
     workerSha256: "5".repeat(64),
@@ -94,7 +96,8 @@ function fixture() {
     applicationRequest,
     applicationPhase = "pending",
     closeReply,
-    transportHook;
+    transportHook,
+    closureTransport;
   const reply = async (body, result) => {
     await transportHook?.(body, result);
     return Response.json(result);
@@ -125,6 +128,11 @@ function fixture() {
         ),
       );
       calls.push(body);
+      if (
+        closureTransport &&
+        (body.action.startsWith("epic_") || body.action.startsWith("cleanup_"))
+      )
+        return closureTransport(body);
       if (mode === "unknown") throw new Error("fixture_unknown_commit");
       if (mode === "redirect")
         return new Response(null, {
@@ -214,6 +222,17 @@ function fixture() {
           cleanupAuthorized: false,
         });
       if (body.action === "epic_release_prepare") return Response.json({ eligible: false });
+      if (body.action === "cleanup_status") {
+        assert.equal(body.expiresAt - body.issuedAt, 30500);
+        return Response.json({
+          token:
+            mode === "cleanupMissing"
+              ? null
+              : mode === "cleanupCommitted"
+                ? "retained-refreshed"
+                : "retained-original",
+        });
+      }
       if (body.action === "prepare") {
         generation = 2;
         admission = {
@@ -488,6 +507,13 @@ function fixture() {
     calls,
     onTransport: (callback) => {
       transportHook = callback;
+    },
+    onClosure: (callback) => {
+      closureTransport = callback;
+    },
+    archiveToken: (claims) => {
+      const body = Buffer.from(JSON.stringify(claims)).toString("base64url");
+      return `${body}.${sign(null, Buffer.from(`hive-project-archive-v1\n${body}`), issuer.privateKey).toString("base64url")}`;
     },
     startup,
     get applicationRequest() {
@@ -1264,7 +1290,7 @@ test("closed controller archive is durable, scoped and replayable without active
     saved.state.epicClosure = {
       barrierId,
       archiveDigest: "a".repeat(64),
-      projects: { [projectId]: { acknowledged: true } },
+      projects: { [projectId]: { acknowledged: true, cleanupAcknowledged: false } },
     };
     saved.signature = sign(
       null,
@@ -1275,6 +1301,14 @@ test("closed controller archive is durable, scoped and replayable without active
     await assert.rejects(
       f.client.archiveClosedController({ ...receipt, workerBarrier: { barrierId: randomUUID() } }),
     );
+    await assert.rejects(f.client.archiveClosedController(receipt));
+    saved.state.epicClosure.projects[projectId].cleanupAcknowledged = true;
+    saved.signature = sign(
+      null,
+      Buffer.from(canonical(saved.state)),
+      readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+    ).toString("base64url");
+    writeFileSync(path, JSON.stringify(saved), { mode: 0o600 });
     const result = await f.client.archiveClosedController(receipt);
     assert.equal(result.archived, true);
     const fresh = openGuardianController(f.options);
@@ -2056,3 +2090,245 @@ for (const action of ["prepare", "fence"])
         f.close();
       }
     });
+
+for (const outcome of ["cleanupUncommitted", "cleanupCommitted", "cleanupMissing"]) {
+  test(`stale uncertain cleanup renewal uses factual readback after delayed ${outcome} outcome`, async () => {
+    const f = fixture();
+    try {
+      f.identity();
+      await f.client.bootstrap(f.grant());
+      const path = join(f.options.stateDirectory, "controller.json"),
+        saved = JSON.parse(readFileSync(path)),
+        projectId = randomUUID(),
+        barrierId = randomUUID();
+      const request = {
+          closedRuntimeId: saved.state.runtimeId,
+          projectId,
+          binding: { fixture: "exact-original-incarnation" },
+          controllerArchiveDigest: "a".repeat(64),
+          sourceArchiveDigest: "b".repeat(64),
+        },
+        retry = {
+          previousAuthorizationDigest: "c".repeat(64),
+          disposition: "not_started",
+          observedAt: Date.now() - 120000,
+        };
+      saved.state.epicClosure = {
+        barrierId,
+        projects: {
+          [projectId]: {
+            cleanupRequest: request,
+            cleanupToken: "retained-original",
+            cleanupRefresh: retry,
+          },
+        },
+      };
+      saved.state.pending = {
+        schemaVersion: 1,
+        runtimeId: saved.state.runtimeId,
+        runtimeGeneration: saved.state.generation,
+        eventId: randomUUID(),
+        issuedAt: Date.now() - 120000,
+        expiresAt: Date.now() - 90000,
+        action: "cleanup_prepare",
+        projectId,
+        request: { ...request, retry },
+        proof: "old-expired-wire-proof",
+      };
+      saved.state.hold = true;
+      saved.signature = sign(
+        null,
+        Buffer.from(canonical(saved.state)),
+        readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+      ).toString("base64url");
+      writeFileSync(path, JSON.stringify(saved), { mode: 0o600 });
+      const receipt = {
+        guardianExited: true,
+        lifetimeId: f.startup.lifetimeId,
+        bindingDigest: f.startup.bindingDigest,
+        packageManifestSha256: f.startup.packageManifestSha256,
+        guardianSha256: f.startup.guardianSha256,
+        nodeSha256: f.startup.nodeSha256,
+        generation: saved.state.generation,
+        workerBarrier: { barrierId },
+        projects: [{ projectId }],
+      };
+      f.mode(outcome);
+      const fresh = openGuardianController(f.options),
+        before = f.calls.length;
+      if (outcome === "cleanupMissing") {
+        await assert.rejects(fresh.recoverTreeReceipt(receipt));
+        assert.equal(fresh.status.held, true);
+      } else {
+        await fresh.recoverTreeReceipt(receipt);
+        const restored = JSON.parse(readFileSync(path)).state.epicClosure.projects[projectId];
+        assert.equal(
+          restored.cleanupToken,
+          outcome === "cleanupCommitted" ? "retained-refreshed" : "retained-original",
+        );
+        assert.equal(restored.cleanupRefresh, undefined);
+        assert.equal(fresh.status.held, false);
+      }
+      assert(f.calls.slice(before).every((c) => c.action !== "cleanup_prepare"));
+      assert(f.calls.slice(before).some((c) => c.action === "cleanup_status"));
+    } finally {
+      f.close();
+    }
+  });
+}
+
+for (const changed of [false, true]) {
+  test(`packaged controller refreshes expired archival permission after source completion; changed scope ${changed}`, async () => {
+    const temporary = mkdtempSync(join(tmpdir(), "hive-archive-authority-")),
+      directory = join(temporary, "package");
+    let f;
+    try {
+      execFileSync(process.execPath, [resolve("scripts/build-codex-host-bundle.mjs"), directory], {
+        stdio: "pipe",
+        timeout: 30000,
+      });
+      const manifest = sha(readFileSync(join(directory, "package-manifest.json"))),
+        { openGuardianController: installedController } = await import(
+          pathToFileURL(join(directory, "codex-guardian-controller.mjs")).href
+        );
+      f = fixture({ packageManifestSha256: manifest });
+      f.identity();
+      await f.client.bootstrap(f.grant());
+      const p = f.project(true),
+        target = { projectId: p.projectId, bindingDigest: p.bindingDigest };
+      await f.client.authorizeAdmission(target);
+      const path = join(f.options.stateDirectory, "controller.json"),
+        saved = JSON.parse(readFileSync(path)),
+        barrierId = randomUUID(),
+        binding = f.options.config.binding;
+      const receipt = {
+        guardianExited: true,
+        lifetimeId: f.startup.lifetimeId,
+        bindingDigest: f.startup.bindingDigest,
+        packageManifestSha256: manifest,
+        guardianSha256: f.startup.guardianSha256,
+        nodeSha256: f.startup.nodeSha256,
+        generation: saved.state.generation,
+        workerBarrier: { barrierId },
+        projects: [target],
+      };
+      const release = {
+        schemaVersion: 1,
+        repositoryId: p.record.repositoryId,
+        taskId: p.record.taskId,
+        leaseId: p.record.leaseId,
+        leaseGeneration: p.record.leaseGeneration,
+        revision: p.record.revision,
+        checkoutIncarnation: p.record.checkoutIncarnation,
+        checkoutIdentity: p.record.checkoutIdentity,
+        releasedAt: Date.now() - 120000,
+      };
+      const scope = {
+        schemaVersion: 1,
+        ownerId: binding.ownerId,
+        hiveUserId: binding.hiveUserId,
+        workspaceId: binding.workspaceId,
+        buildId: binding.buildId,
+        projectId: p.projectId,
+        repositoryId: p.record.repositoryId,
+        taskId: p.record.taskId,
+        requestId: p.state.projects[p.projectId].task.request.requestId,
+        leaseId: release.leaseId,
+        leaseGeneration: release.leaseGeneration,
+        checkoutIncarnation: release.checkoutIncarnation,
+        acceptedSourceSha: release.revision,
+        priorLifetimeId: receipt.lifetimeId,
+        barrierId,
+        treeReceiptDigest: digest(receipt),
+        preservationDigest: "d".repeat(64),
+      };
+      const prior = {
+        ...scope,
+        leaseReleaseDigest: digest(release),
+        expiresAt: Date.now() - 50000,
+      };
+      saved.state.epicClosure = {
+        barrierId,
+        projects: {
+          [p.projectId]: {
+            scope,
+            releaseReceipt: release,
+            sourceArchiveDigest: "e".repeat(64),
+            token: f.archiveToken(prior),
+            cleanupRequest: {
+              closedRuntimeId: saved.state.runtimeId,
+              projectId: p.projectId,
+              binding: { fixture: "known-current-incarnation" },
+              controllerArchiveDigest: "f".repeat(64),
+              sourceArchiveDigest: "e".repeat(64),
+            },
+          },
+        },
+      };
+      saved.signature = sign(
+        null,
+        Buffer.from(canonical(saved.state)),
+        readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+      ).toString("base64url");
+      writeFileSync(path, JSON.stringify(saved), { mode: 0o600 });
+      const task = p.state.projects[p.projectId].task;
+      task.prepared = { leaseId: release.leaseId, leaseGeneration: release.leaseGeneration };
+      task.checkoutIncarnation = release.checkoutIncarnation;
+      p.state.guardianBarrier = { barrierId };
+      p.save();
+      let submitted = 0,
+        cleanup = 0;
+      f.onClosure(async (body) => {
+        if (body.action === "epic_release_prepare") return Response.json(scope);
+        if (body.action === "epic_release_submit") {
+          submitted++;
+          assert.deepEqual(body.releaseReceipt, release);
+          return Response.json({
+            token: f.archiveToken({
+              ...prior,
+              ...(changed ? { preservationDigest: "0".repeat(64) } : {}),
+              expiresAt: Date.now() + 45000,
+            }),
+          });
+        }
+        if (body.action === "epic_archive_ack") return Response.json({ archived: true });
+        if (body.action === "cleanup_prepare") {
+          cleanup++;
+          throw Error("fixture_stop_before_cleanup_effect");
+        }
+        throw Error(`unexpected fixture action ${body.action}`);
+      });
+      const installed = installedController(f.options);
+      await installed.recoverTreeReceipt(receipt);
+      await assert.rejects(
+        installed.postTreeClosed(receipt),
+        changed ? /guardian_controller_authority_rejected/ : /fixture_stop_before_cleanup_effect/,
+      );
+      assert.equal(submitted, 1);
+      const state = JSON.parse(readFileSync(path)).state,
+        projectState = JSON.parse(
+          readFileSync(join(f.home, ".local/state/hive/codex-project-controller/projects.json")),
+        ).state;
+      assert.equal(state.epicClosure.projects[p.projectId].sourceArchiveDigest, "e".repeat(64));
+      assert.deepEqual(state.epicClosure.projects[p.projectId].releaseReceipt, release);
+      const archives = readdirSync(
+        join(f.home, ".local/state/hive/codex-project-controller"),
+      ).filter((n) => n.startsWith("projects-archive-"));
+      assert.equal(archives.length, changed ? 0 : 1);
+      assert.equal(projectState.projects[p.projectId].task === null, !changed);
+      assert.equal(cleanup, changed ? 0 : 1);
+      // No source helper/config exists in this fixture. Repeating the source
+      // archive would fail before the actual controller archive could complete.
+      if (!changed)
+        assert.equal(
+          JSON.parse(
+            Buffer.from(state.epicClosure.projects[p.projectId].token.split(".")[0], "base64url"),
+          ).expiresAt > Date.now(),
+          true,
+        );
+    } finally {
+      f?.close();
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+}

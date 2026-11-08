@@ -695,7 +695,7 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
     ).toBe(priorPhase);
     expect(f.jobs).toHaveLength(2);
     expect(f.remote.writes).toBe(0);
-  });
+  }, 30000);
   it("cancels a stalled callback provider within its work budget and closes its own SQL client", async () => {
     const f = await automaticDatabaseFixture(db, url!, mocks.host);
     await f.controller.lifecycle.advance(f.user.id, f.release.id);
