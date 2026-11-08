@@ -203,6 +203,13 @@ const retryArtifacts = [
   { name: "act", download: "/tmp/act.tar.gz" },
   { name: "notesmd-cli", download: "/tmp/notesmd-cli.tar.gz" },
 ];
+const infrastructureRetryArtifacts = [
+  { name: "terraform", download: "/tmp/terraform.zip", checksum: "TERRAFORM_SHA256" },
+  { name: "kubectl", download: "/tmp/kubectl", checksum: "KUBECTL_SHA256" },
+  { name: "helm", download: "/tmp/helm.tar.gz", checksum: "HELM_SHA256" },
+  { name: "argocd", download: "/tmp/argocd", checksum: "ARGOCD_SHA256" },
+];
+retryArtifacts.push(...infrastructureRetryArtifacts);
 async function retryFixture(t, artifact, failure, permanent = false) {
   const root = mkdtempSync(join(tmpdir(), "hive-release-retry-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -224,7 +231,10 @@ async function retryFixture(t, artifact, failure, permanent = false) {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const instruction = installCommand(artifact).replaceAll(/\\\r?\n/g, " "),
-    curl = instruction.match(/\bcurl\s+[\s\S]*?(?=\s*&&|$)/)[0];
+    curl = instruction
+      .match(/\bcurl\s+[\s\S]*?(?=\s*&&|$)/g)
+      ?.find((command) => command.includes(artifact.download));
+  assert.ok(curl, `${artifact.name} curl command must exist`);
   for (const option of [
     "--retry 3",
     "--retry-all-errors",
@@ -234,13 +244,34 @@ async function retryFixture(t, artifact, failure, permanent = false) {
     "--max-time 120",
   ])
     assert.ok(curl.includes(option));
-  const command = curl
-    .replace(/https:\/\/github\.com\/[^"\s]+/, `http://127.0.0.1:${server.address().port}/release`)
-    .replaceAll(artifact.download, join(root, "download"));
+  let command = curl.replace(
+    /https:\/\/[^"\s]+/,
+    `http://127.0.0.1:${server.address().port}/release`,
+  );
+  const installationMarker = join(root, "installed");
+  if (failure === "checksum") {
+    // Execute the real checksum gate immediately after this artifact's curl.
+    // A marker stands in for the following extraction/installation action.
+    const following = instruction.slice(instruction.indexOf(curl) + curl.length);
+    const checksum = following.match(/^\s*&&\s*([\s\S]*?)(?=\s*&&)/)?.[1];
+    assert.ok(checksum?.includes(`$${artifact.checksum}`));
+    assert.match(
+      following.slice(following.indexOf(checksum) + checksum.length),
+      /^\s*&&\s*(unzip|install|tar)\b/,
+    );
+    command += ` && ${checksum} && touch '${installationMarker}'`;
+  }
+  command = command.replaceAll(artifact.download, join(root, "download"));
   const started = performance.now();
   const child = spawn("sh", ["-ec", command], {
     stdio: ["ignore", "ignore", "pipe"],
-    env: { PATH: process.env.PATH, CURL_HOME: root, NO_PROXY: "127.0.0.1", no_proxy: "127.0.0.1" },
+    env: {
+      PATH: process.env.PATH,
+      CURL_HOME: root,
+      NO_PROXY: "127.0.0.1",
+      no_proxy: "127.0.0.1",
+      ...(artifact.checksum ? { [artifact.checksum]: "0".repeat(64) } : {}),
+    },
   });
   let error = "";
   child.stderr.on("data", (bytes) => {
@@ -258,6 +289,10 @@ async function retryFixture(t, artifact, failure, permanent = false) {
     assert.notEqual(result.code, 0);
     assert.equal(requests, 4, "one attempt plus at most three retries");
     assert.ok(performance.now() - started < 12000);
+  } else if (failure === "checksum") {
+    assert.notEqual(result.code, 0, "checksum mismatch must fail");
+    assert.equal(requests, 2);
+    assert.equal(existsSync(installationMarker), false, "checksum must gate installation");
   } else {
     assert.equal(result.code, 0, error);
     assert.equal(requests, 2);
@@ -272,3 +307,10 @@ for (const failure of ["503", "reset"]) {
 }
 test("permanent release connection resets exhaust three retries without falling back", (t) =>
   retryFixture(t, retryArtifacts[0], "reset", true));
+
+for (const artifact of infrastructureRetryArtifacts) {
+  test(`${artifact.name} permanent 503 exhausts three retries without falling back`, (t) =>
+    retryFixture(t, artifact, "503", true));
+  test(`${artifact.name} checksum mismatch prevents extraction or installation`, (t) =>
+    retryFixture(t, artifact, "checksum"));
+}

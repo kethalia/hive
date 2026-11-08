@@ -177,24 +177,24 @@ ARG HELM_SHA256=fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179
 ARG ARGOCD_VERSION=3.3.4
 ARG ARGOCD_SHA256=404bb83c90cdb7f8054187966f26b17d99961d48fa01f4d6000fe0608dcf9c2b
 RUN if [ "$WORKSPACE_VARIANT" = "infrastructure" ]; then \
-      curl -fsSLo /tmp/terraform.zip \
+      curl -fsSLo /tmp/terraform.zip --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 \
           "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
       && printf '%s  %s\n' "$TERRAFORM_SHA256" /tmp/terraform.zip \
           | sha256sum --check --status \
       && unzip -q /tmp/terraform.zip terraform -d /usr/local/bin \
       && chmod 0755 /usr/local/bin/terraform \
-      && curl -fsSLo /tmp/kubectl \
+      && curl -fsSLo /tmp/kubectl --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 \
           "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
       && printf '%s  %s\n' "$KUBECTL_SHA256" /tmp/kubectl \
           | sha256sum --check --status \
       && install -m 0755 /tmp/kubectl /usr/local/bin/kubectl \
-      && curl -fsSLo /tmp/helm.tar.gz \
+      && curl -fsSLo /tmp/helm.tar.gz --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 \
           "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
       && printf '%s  %s\n' "$HELM_SHA256" /tmp/helm.tar.gz \
           | sha256sum --check --status \
       && tar -xzf /tmp/helm.tar.gz -C /tmp linux-amd64/helm \
       && install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm \
-      && curl -fsSLo /tmp/argocd \
+      && curl -fsSLo /tmp/argocd --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 \
           "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-amd64" \
       && printf '%s  %s\n' "$ARGOCD_SHA256" /tmp/argocd \
           | sha256sum --check --status \
