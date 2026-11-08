@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { gunzipSync } from "node:zlib";
+import tar from "tar-stream";
+import { decodeHostArchive } from "../../../scripts/host-archive-codec.mjs";
+import {
+  GUARDIAN_CONTROLLER_POLICY,
+  GUARDIAN_CONTROLLER_POLICY_DIGEST,
+} from "../../../templates/ai-dev-k8s/scripts/codex-guardian-controller.mjs";
 import { PILOT_EVIDENCE_BUCKET } from "../app/delivery-pilot-bucket.mjs";
 import {
   account,
@@ -245,4 +253,100 @@ test("account maintenance is default-off and independently enrolled as a public 
   assert.doesNotThrow(() => validateConfig(c));
   c.previews.vars.HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED = "arbitrary";
   assert.throws(() => validateConfig(c));
+});
+
+// Compare the configuration consumed by the real managed Builds command with
+// checked-in runtime bytes, rather than accepting a manually patched Preview.
+async function packagedFiles(bytes) {
+  const files = new Map(),
+    extract = tar.extract();
+  const done = new Promise((resolve, reject) => {
+    extract.on("error", reject);
+    extract.on("finish", resolve);
+    extract.on("entry", (header, stream, next) => {
+      const chunks = [];
+      stream.on("data", (chunk) => chunks.push(chunk));
+      stream.on("error", reject);
+      stream.on("end", () => {
+        try {
+          if (header.type === "file") {
+            assert.equal(files.has(header.name), false);
+            files.set(header.name, Buffer.concat(chunks));
+          }
+          next();
+        } catch (error) {
+          reject(error);
+          extract.destroy(error);
+        }
+      });
+    });
+  });
+  extract.end(bytes);
+  await done;
+  return files;
+}
+const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const asset = (name) =>
+  readFileSync(new URL(`../../../templates/ai-dev-k8s/assets/${name}`, import.meta.url));
+
+test("managed Preview keeps the packaged host and its exact recovery predecessor enrolled", async () => {
+  const raw = decodeHostArchive(asset("codex-host.tar.xz"));
+  assert.equal(sha256(raw), asset("codex-host.tar.sha256").toString().trim());
+  const files = await packagedFiles(raw),
+    manifestBytes = files.get("package-manifest.json"),
+    manifest = JSON.parse(manifestBytes);
+  for (const [name, digest] of Object.entries(manifest.files))
+    assert.equal(sha256(files.get(name)), digest);
+  const packages = JSON.parse(config.previews.vars.HIVE_GUARDIAN_APPROVED_PACKAGES_JSON);
+  assert.equal(new Set(packages.map((p) => p.packageManifestSha256)).size, packages.length);
+  const expected = {
+    guardianElfSha256: manifest.guardian.elfSha256,
+    nodeSha256: "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
+    protocol: "guardian-v1",
+    policyDigest: GUARDIAN_CONTROLLER_POLICY_DIGEST,
+    metadataPolicyDigest: GUARDIAN_CONTROLLER_POLICY.metadataPolicyDigest,
+  };
+  assert.equal(expected.guardianElfSha256, manifest.files["codex-native-guardian"]);
+  assert.deepEqual(
+    packages.find((p) => p.packageManifestSha256 === sha256(manifestBytes)),
+    { packageManifestSha256: sha256(manifestBytes), ...expected },
+  );
+  const retained = {
+    guardianElfSha256: "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    nodeSha256: "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
+    protocol: "guardian-v1",
+    policyDigest: "0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50",
+    metadataPolicyDigest: "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b",
+  };
+  for (const digest of [
+    "7eb52d53f4c6664743d4da182ff35dbe042bde53017647d18209b4eb885180c7",
+    "36895da38fa1ff06c43e60cdfc37c67d084cafb2649b809c0a14726455b544aa",
+    "80fa379a2dea736517ac5f29113e6d69a3758de8cea6b6ac87abc2cd21addd46",
+    "5ac58e3b8a6b14c25ec8e376bc7a6f88a92094ae00e5fe88f6e538157cb7d3a4",
+    "2210b850e6d73e33cd3380f871b73956c00de98a8266de3c1c90ed209b048f77",
+  ]) {
+    assert.deepEqual(
+      packages.find((p) => p.packageManifestSha256 === digest),
+      { packageManifestSha256: digest, ...retained },
+      "Builds must retain the reviewed package tuple",
+    );
+  }
+});
+
+test("managed Preview account pins match the packaged software bridge and helper", async () => {
+  const raw = gunzipSync(asset("agent-bridge.tar.gz")),
+    files = await packagedFiles(raw),
+    manifestBytes = files.get("manifest.json"),
+    manifest = JSON.parse(manifestBytes);
+  assert.equal(sha256(raw), asset("agent-bridge.tar.sha256").toString().trim());
+  for (const [name, digest] of Object.entries(manifest.files))
+    assert.equal(sha256(files.get(name)), digest);
+  const pins = JSON.parse(config.previews.vars.HIVE_AGENT_TOOLS_PINS_JSON).filter(
+    (p) => p.templateId === "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42" && p.profile === "software",
+  );
+  assert.equal(pins.length, 1);
+  assert.equal(pins[0].manifestSha256, sha256(manifestBytes));
+  assert.equal(pins[0].manifestSha256, asset("agent-bridge.manifest.sha256").toString().trim());
+  assert.equal(pins[0].helperSha256, sha256(files.get("agent-tools.py")));
+  assert.equal(pins[0].helperSha256, asset("agent-bridge.helper.sha256").toString().trim());
 });

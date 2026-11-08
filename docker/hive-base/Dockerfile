@@ -115,7 +115,7 @@ RUN case "${TARGETARCH}" in \
       arm64) coder_arch="arm64"; coder_sha="7d854fbd7fef8341b1b8c1ebfb9fa85c0e96a244a3f63105c45173994d371de8" ;; \
       *) echo "Unsupported Coder CLI architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac && \
-    curl -fsSL "https://github.com/coder/coder/releases/download/v${CODER_VERSION}/coder_${CODER_VERSION}_linux_${coder_arch}.tar.gz" -o /tmp/coder.tar.gz && \
+    curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 "https://github.com/coder/coder/releases/download/v${CODER_VERSION}/coder_${CODER_VERSION}_linux_${coder_arch}.tar.gz" -o /tmp/coder.tar.gz && \
     echo "${coder_sha}  /tmp/coder.tar.gz" | sha256sum -c - && \
     tar --no-same-owner -xzf /tmp/coder.tar.gz -C /usr/bin ./coder && \
     chmod 0755 /usr/bin/coder && \
@@ -123,7 +123,7 @@ RUN case "${TARGETARCH}" in \
     /usr/bin/coder version
 
 # notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
-RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
+RUN curl --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 -fsSLo /tmp/notesmd-cli.tar.gz \
         https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz \
     && printf '%s  %s\n' \
         'a261198233a50a3134f300236c618f4f3bff7574bf82df05ffb69da0a308d9b6' \
@@ -134,7 +134,7 @@ RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
 
 # act v0.2.74 pre-built binary -> /usr/local/bin.
 ENV ACT_VERSION=0.2.74
-RUN curl -fsSLo /tmp/act.tar.gz \
+RUN curl --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 -fsSLo /tmp/act.tar.gz \
         https://github.com/nektos/act/releases/download/v${ACT_VERSION}/act_Linux_x86_64.tar.gz \
     && printf '%s  %s\n' \
         '7512b40671e073a011470e216eb2256d1b3ae37b5970d53dc23b29375ffb90f6' \
