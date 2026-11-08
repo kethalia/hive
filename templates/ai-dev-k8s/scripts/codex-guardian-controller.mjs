@@ -2624,29 +2624,50 @@ export function openGuardianController({
           local.scope = structuredClone(item);
         }
         save();
-        const tokens = [];
+        const archiveClaims = (token) => {
+          check(typeof token === "string" && token.length <= 16384);
+          const parts = token.split(".");
+          check(
+            parts.length === 2 &&
+              parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)) &&
+              verify(
+                null,
+                Buffer.from(`hive-project-archive-v1\n${parts[0]}`),
+                createPublicKey(config.issuerPublicKeyPem),
+                Buffer.from(parts[1], "base64url"),
+              ),
+          );
+          return JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+        };
+        const retainRelease = (local, item) => {
+          if (!local.releaseReceipt) {
+            const replay = runHelper("managed-projects.py", {
+              schemaVersion: 1,
+              operation: "releaseLease",
+              provider: "github",
+              repositoryId: item.repositoryId,
+              taskId: item.taskId,
+              leaseId: item.leaseId,
+              generation: item.leaseGeneration,
+              revision: item.acceptedSourceSha,
+            });
+            check(replay?.ok === true && replay.data?.releaseReceipt);
+            local.releaseReceipt = replay.data.releaseReceipt;
+            save();
+          }
+          return local.releaseReceipt;
+        };
         for (const item of prepared) {
           state.epicClosure.projects[item.projectId] ??= {};
           const local = state.epicClosure.projects[item.projectId];
           if (local.sourceArchiveDigest) {
             check(hex(local.sourceArchiveDigest) && typeof local.token === "string");
-            tokens.push(local.token);
             continue;
           }
-          const release = runHelper("managed-projects.py", {
-            schemaVersion: 1,
-            operation: "releaseLease",
-            provider: "github",
-            repositoryId: item.repositoryId,
-            taskId: item.taskId,
-            leaseId: item.leaseId,
-            generation: item.leaseGeneration,
-            revision: item.acceptedSourceSha,
-          });
-          check(release?.ok === true && release.data?.releaseReceipt);
+          const releaseReceipt = retainRelease(local, item);
           const reply = await call("epic_release_submit", {
             projectId: item.projectId,
-            releaseReceipt: release.data.releaseReceipt,
+            releaseReceipt,
           });
           check(typeof reply?.token === "string");
           const source = runHelper("managed-epic-archive.py", { token: reply.token });
@@ -2654,7 +2675,34 @@ export function openGuardianController({
           local.sourceArchiveDigest = source.archiveDigest;
           local.token = reply.token;
           save();
-          tokens.push(reply.token);
+        }
+        const tokens = [];
+        if (!state.epicClosure.archiveDigest) {
+          for (const item of prepared) {
+            const local = state.epicClosure.projects[item.projectId],
+              prior = archiveClaims(local.token);
+            check(Number.isSafeInteger(prior.expiresAt));
+            if (prior.expiresAt <= Date.now()) {
+              const releaseReceipt = retainRelease(local, item);
+              check(digest(releaseReceipt) === prior.leaseReleaseDigest);
+              const refreshed = await call("epic_release_submit", {
+                  projectId: item.projectId,
+                  releaseReceipt,
+                }),
+                next = archiveClaims(refreshed?.token),
+                { expiresAt: _priorExpiry, ...priorScope } = prior,
+                { expiresAt: _nextExpiry, ...nextScope } = next;
+              check(
+                same(priorScope, nextScope) &&
+                  Number.isSafeInteger(next.expiresAt) &&
+                  next.expiresAt > Date.now() &&
+                  next.expiresAt <= Date.now() + 60000,
+              );
+              local.token = refreshed.token;
+              save();
+            }
+            tokens.push(local.token);
+          }
         }
         const archived = state.epicClosure.archiveDigest
           ? { archiveDigest: state.epicClosure.archiveDigest }

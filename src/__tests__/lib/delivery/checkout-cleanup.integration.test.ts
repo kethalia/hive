@@ -387,6 +387,49 @@ describe.skipIf(!url)("production-backed checkout cleanup, actual owned PostgreS
     await expect(
       acknowledgeCheckoutCleanup(db, f.current, receipt, f.project.id),
     ).resolves.toMatchObject({ cleanupRecorded: true });
+    const leaseEvent = await db.deliveryEvent.findFirstOrThrow({
+        where: { ownerId: f.user.id, taskId: f.taskId, type: "checkout_lease_released" },
+      }),
+      release = (
+        leaseEvent.payload as unknown as { receipt: Parameters<typeof submitEpicRelease>[3] }
+      ).receipt,
+      original = await submitEpicRelease(
+        db,
+        f.current,
+        f.project.id,
+        release,
+        f.guardian.sessionConfig.privateKeyPem,
+      ),
+      originalClaims = JSON.parse(
+        Buffer.from(original.token.split(".")[0], "base64url").toString(),
+      ),
+      future = Date.now() + 50000,
+      clock = vi.spyOn(Date, "now").mockReturnValue(future);
+    try {
+      const refreshed = await submitEpicRelease(
+          db,
+          f.current,
+          f.project.id,
+          release,
+          f.guardian.sessionConfig.privateKeyPem,
+        ),
+        refreshedClaims = JSON.parse(
+          Buffer.from(refreshed.token.split(".")[0], "base64url").toString(),
+        );
+      expect(originalClaims.expiresAt).toBeLessThan(future);
+      expect(refreshedClaims).toEqual({ ...originalClaims, expiresAt: future + 45000 });
+      expect(refreshed.token).not.toBe(original.token);
+    } finally {
+      clock.mockRestore();
+    }
+    expect(await db.deliveryEvent.findUniqueOrThrow({ where: { id: leaseEvent.id } })).toEqual(
+      leaseEvent,
+    );
+    expect(
+      await db.deliveryEvent.count({
+        where: { ownerId: f.user.id, taskId: f.taskId, type: "checkout_lease_released" },
+      }),
+    ).toBe(1);
   }, 60000);
   it("rejects altered owner/source/lease/incarnation/build and corrupt/missing R2 upload evidence before any cleanup authorization", async () => {
     const f = await completed(),
