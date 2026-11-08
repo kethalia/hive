@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "39da0d3ecc2fdcc5674d0ce0d4e778e0299c16af",
+  "ciRun": 42508710177,
+  "reviewedHead": "39da0d3ecc2fdcc5674d0ce0d4e778e0299c16af",
+  "completedAt": "2026-11-08T18:33:43.955454+00:00",
+  "scope": "existing preview databases only",
+  "migrationName": "20261108050000_unused_recovery_resumption",
+  "migrationSha256": "078adc0e3e8f52adf5f301cbc9c9a43269573eea58838d00fe9d4a526dcd5ffd",
+  "databases": {
+    "hive_app_preview": {
+      "migrations": 53,
+      "tables": 72,
+      "rows": 7,
+      "prior52FullHistoryPreserved": true,
+      "allApplicationRowsPreserved": true,
+      "runtimeGrantsPreserved": true,
+      "nativeIsolationVerified": true,
+      "freshBackupFullyDecoded": true
+    },
+    "hive_native_preview": {
+      "migrations": 53,
+      "tables": 72,
+      "rows": 72,
+      "prior52FullHistoryPreserved": true,
+      "allApplicationRowsPreserved": true,
+      "runtimeGrantsPreserved": true,
+      "nativeIsolationVerified": true,
+      "freshBackupFullyDecoded": true
+    }
+  }
+}

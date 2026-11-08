@@ -28,6 +28,10 @@
 - Request credentials only for an approved, necessary operation. State the exact API,
   existing authorization failure, minimum scope and runtime that needs it. First check
   whether the connected integration already performs the required operation.
+- Use the human-readable Coder inventory or filter JSON to an explicit identity,
+  lifecycle and health allowlist before printing it. Raw workspace, resource and agent
+  metadata can contain credentials in environment variables and commands; never dump
+  those responses into tool output, reports or subagent handoffs.
 - Give subagents bounded implementation goals, acceptance criteria and stopping
   conditions. The manager checks proposed architecture against accepted requirements
   before authorizing implementation; successful local tests do not establish that a

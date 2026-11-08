@@ -1941,3 +1941,34 @@ by this source checkpoint.
   merge; actual mobile/desktop Browser Testing acceptance is in progress. Generic
   terminal and workspace-read capabilities remain disabled, and normal-user host
   enrollment and actual terminal connectivity remain open validation work.
+
+- **Validate: mobile menu and scoped discovery accepted, moderate difficulty.** Actual
+  Browser Testing passes Projects routing, repository discovery and local search on
+  mobile and desktop. Settled mobile rendering is verified; a test assertion initially
+  rejected intentional disabled-row opacity and was corrected without changing UI code.
+  All38 admitted requests were read-only. This is dedicated-account acceptance, not
+  normal-user workspace enrollment or shared-thread PhaseB.
+  [Scoped receipt](mobile-project-terminal-menu-20261108.json).
+- **Implement / Review: PR433 merged, high difficulty.** Exact unused-recovery
+  resumption passed54 focused checks (26 actual PostgreSQL),58 controller checks,
+  independent review, current-head Codex review and full CI42508710177. Epic merge
+  `9050a4b2` preserves original enrollment/retirement evidence and permits one bounded
+  atomic renewal only through explicitly enrolled owner retry. The actual shipped b965
+  host accepts the fixed ticket and rejects changed expiry in the local protocol test.
+  These checks do not establish a live task recovery.
+- **Validate: Preview52→53 upgrade complete, moderate difficulty.** Fresh verified
+  backups restored and upgraded locally before applying the reviewed forward migration
+  to both existing Preview databases. All7 application and72 native rows, prior52 full
+  migration records and effective runtime grants are retained; cross-database role
+  isolation still passes. [Local rehearsal](unused-recovery-resumption-local53-rehearsal.json)
+  and [live receipt](neon-preview53-live-upgrade.json).
+- **Diagnose / Implement / Review: PR434 merged, moderate difficulty.** Enabling the
+  existing ordinary-terminal relay exposed a missing Preview WebSocket root setting.
+  The first ticket returned400 before any attachment, input or shell. The corrected
+  same-Worker URL, negative deployment guard and real issuer/config regression passed
+  focused checks, full CI42508823096 and current-head Codex review before epic merge
+  `a6b405b1`. Live attach/resize/reconnect remains pending deployment verification.
+- **Operational prevention.** A broad Coder CLI JSON inventory printed a credential
+  from agent metadata. Subsequent reads use an explicit field allowlist. Repository
+  instructions now require filtering before tool output or handoff; no credential is
+  repeated in public receipts.
