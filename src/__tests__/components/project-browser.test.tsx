@@ -113,4 +113,17 @@ describe("project browser", () => {
     );
     expect(screen.queryByText("private-secret-prose")).not.toBeInTheDocument();
   });
+  it.each([
+    ["workspace_unavailable", "Review workspace setup", "workspace"],
+    ["github_auth_required", "Manage Coder connection", "account"],
+  ] as const)("provides the right setup action for %s without cloning", async (code, label, kind) => {
+    vi.mocked(fetch).mockResolvedValueOnce(response({ error: code }, 502));
+    const setup = vi.fn();
+    render(<ProjectBrowser workspaceId="workspace-1" enabled onSetup={setup} />);
+    fireEvent.click(await screen.findByRole("button", { name: label }));
+    expect(setup).toHaveBeenCalledWith(kind);
+    expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toEqual([
+      "/api/projects?workspaceId=workspace-1&page=1&perPage=100",
+    ]);
+  });
 });

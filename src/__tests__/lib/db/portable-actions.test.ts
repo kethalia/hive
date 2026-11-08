@@ -216,3 +216,15 @@ it("admits agent discovery only with the scoped agent bridge enabled", () => {
     false,
   );
 });
+
+it("admits only GET session discovery under its separate read capability, never legacy repository execution", () => {
+  const incoming = request("/api/discovery/sessions", { method: "GET" });
+  expect(isPortableDiscovery(incoming, false, false)).toBe(false);
+  expect(isPortableDiscovery(incoming, false, true)).toBe(true);
+  expect(
+    isPortableDiscovery(request("/api/discovery/sessions", { method: "POST" }), true, true),
+  ).toBe(false);
+  expect(
+    isPortableDiscovery(request("/api/discovery/repositories", { method: "GET" }), true, true),
+  ).toBe(false);
+});

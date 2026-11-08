@@ -17,6 +17,7 @@ import {
   preparationReasonMessages,
   projectTaskStatusSchema,
 } from "@/lib/projects/task-contracts";
+import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
 import { ConversationView } from "./ConversationView";
 import { ProjectBrowser } from "./ProjectBrowser";
 
@@ -131,14 +132,23 @@ export function ProjectWorkspacePanel({
         </p>
       ) : null}
       {error ? (
-        <p role="alert" className="px-4 text-sm text-destructive">
-          {error}
-        </p>
+        <div role="alert" className="px-4 text-sm text-destructive">
+          <p>{error}</p>
+          <Button
+            variant="outline"
+            onClick={() => requestHiveWindow({ tool: "templates", workspaceId })}
+          >
+            Review workspace setup
+          </Button>
+        </div>
       ) : null}
       <ProjectBrowser
         workspaceId={workspaceId}
         visible={visible}
         enabled={enabled}
+        onSetup={(kind) =>
+          requestHiveWindow({ tool: kind === "account" ? "settings" : "templates", workspaceId })
+        }
         onSelectProject={enabled ? (project, account) => void open(project, account) : undefined}
       />
     </>

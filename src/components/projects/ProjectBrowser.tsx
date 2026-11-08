@@ -10,13 +10,21 @@ import {
   type RepositoryProject,
 } from "@/lib/projects/contracts";
 
-class ProjectBrowserError extends Error {}
+class ProjectBrowserError extends Error {
+  constructor(
+    message: string,
+    readonly setup: "workspace" | "account" = "workspace",
+  ) {
+    super(message);
+  }
+}
 
 interface ProjectBrowserProps {
   workspaceId: string;
   enabled?: boolean;
   visible?: boolean;
   onSelectProject?: (project: RepositoryProject, providerAccountId: string) => void;
+  onSetup?: (kind: "workspace" | "account") => void;
 }
 interface Snapshot {
   workspaceId: string;
@@ -25,6 +33,7 @@ interface Snapshot {
   loading: boolean;
   loaded: boolean;
   error: string | null;
+  setup: "workspace" | "account" | null;
 }
 const empty = (workspaceId: string): Snapshot => ({
   workspaceId,
@@ -33,6 +42,7 @@ const empty = (workspaceId: string): Snapshot => ({
   loading: false,
   loaded: false,
   error: null,
+  setup: null,
 });
 
 /** Read-only and unmounted by default until its transport capability gate passes. */
@@ -41,6 +51,7 @@ export function ProjectBrowser({
   enabled = false,
   visible = true,
   onSelectProject,
+  onSetup,
 }: ProjectBrowserProps) {
   const [state, setState] = useState<Snapshot>(() => empty(workspaceId));
   const [query, setQuery] = useState("");
@@ -79,6 +90,7 @@ export function ProjectBrowser({
             code.success
               ? projectErrorMessages[code.data]
               : "Could not load repositories. Refresh to try again.",
+            code.success && code.data === "github_auth_required" ? "account" : "workspace",
           );
         }
         const result = projectPageSchema.parse(value);
@@ -88,6 +100,7 @@ export function ProjectBrowser({
         if (page > 1 && account.current !== result.providerAccountId)
           throw new ProjectBrowserError(
             "GitHub account changed. Refresh to load its repositories.",
+            "account",
           );
         account.current = result.providerAccountId;
         setState((previous) => {
@@ -105,6 +118,7 @@ export function ProjectBrowser({
             loading: false,
             loaded: true,
             error: null,
+            setup: null,
           };
         });
       } catch (error) {
@@ -113,6 +127,7 @@ export function ProjectBrowser({
         // Revoke all visible/cached metadata on authorization, transport, or schema failure.
         setState({
           ...empty(workspaceId),
+          setup: error instanceof ProjectBrowserError ? error.setup : "workspace",
           error:
             error instanceof ProjectBrowserError
               ? error.message
@@ -181,6 +196,11 @@ export function ProjectBrowser({
         <p role="alert" className="text-sm text-destructive">
           {snapshot.error}
         </p>
+      ) : null}
+      {snapshot.error && onSetup ? (
+        <Button variant="outline" onClick={() => onSetup(snapshot.setup ?? "workspace")}>
+          {snapshot.setup === "account" ? "Manage Coder connection" : "Review workspace setup"}
+        </Button>
       ) : null}
       {snapshot.loaded && !snapshot.loading && repositories.length === 0 ? (
         <p className="text-sm text-muted-foreground">

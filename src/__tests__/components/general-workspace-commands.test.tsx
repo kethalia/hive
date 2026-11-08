@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { DiscoveryError } from "@/lib/discovery/types";
+import type { RuntimeConfig } from "@/lib/runtime-config";
 import { scoreCommand } from "@/lib/terminal/command-search";
 import { getGlobalCommandPaletteSources } from "@/lib/terminal/global-command-palette";
 import { act, cleanup, renderHook, waitFor } from "../helpers/discovery";
@@ -14,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   clones: vi.fn(),
   resolve: vi.fn(),
   create: vi.fn(),
+  runtime: undefined as RuntimeConfig | undefined,
+}));
+vi.mock("@/components/runtime-config-provider", () => ({
+  useRuntimeConfig: () => mocks.runtime ?? { terminalWsUrl: "" },
 }));
 vi.mock("@/lib/actions/workspaces", () => ({
   getWorkspaceSessionsAction: mocks.sessions,
@@ -60,6 +65,7 @@ describe("general workspace search", () => {
   afterEach(cleanup);
   beforeEach(() => {
     vi.resetAllMocks();
+    mocks.runtime = undefined;
     mocks.sessions.mockResolvedValue({ data: [{ name: "main" }, { name: "git-clone-hive" }] });
     mocks.clones.mockResolvedValue({ data: { ok: true, tree: { nodes: [repository] } } });
     mocks.resolve.mockResolvedValue({
@@ -426,6 +432,96 @@ describe("general workspace search", () => {
     await act(async () => finish({ data: [{ name: "stale" }] }));
     expect(action("session:browser:stale")).toBeUndefined();
     expect(action("session:browser:main")).toBeDefined();
+  });
+  it("opens the actual GitHub Projects window independently of disabled terminal discovery and never offers a clone", async () => {
+    const template = "00000000-0000-4000-8000-000000000001";
+    mocks.runtime = {
+      terminalWsUrl: "/",
+      projectDiscoveryEnabled: true,
+      workspaceCapabilities: {
+        projectTemplateIds: [template],
+        readTemplateIds: [],
+        terminalEnabled: false,
+      },
+    };
+    const { onOpenPane } = setup(
+      workspaces.map((w) => ({
+        ...w,
+        template_id: w.id === "software" ? template : "00000000-0000-4000-8000-000000000002",
+      })),
+    );
+    act(() => source().onOpenChange!(true));
+    expect(source().loadingText).toBeUndefined();
+    expect(mocks.clones).not.toHaveBeenCalled();
+    expect(mocks.sessions).not.toHaveBeenCalled();
+    const projects = source().actions!.filter((a) => a.group === "Projects");
+    expect(projects.map((a) => a.label)).toEqual(["Browse GitHub projects"]);
+    act(() => projects[0].onSelect());
+    expect(onOpenPane).toHaveBeenCalledWith({
+      kind: "hive",
+      tool: "projects",
+      label: "Projects",
+      workspaceId: "software",
+    });
+    expect(source().pages?.["create-project"]).toBeUndefined();
+    expect(action("new-terminal").onSelect()).toEqual({ page: "terminal-capability" });
+    expect(
+      source().pages?.["terminal-capability"].actions.some(
+        (a) => a.label === "Manage Coder workspaces",
+      ),
+    ).toBe(true);
+    expect(action("terminal-setup:browser")).toBeDefined();
+    expect(action("retry-terminals:browser")).toBeUndefined();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("queries only enrolled terminal-read templates and a read failure cannot replace GitHub projects with clone results", async () => {
+    const template = "00000000-0000-4000-8000-000000000001";
+    mocks.runtime = {
+      terminalWsUrl: "/",
+      projectDiscoveryEnabled: true,
+      workspaceCapabilities: {
+        projectTemplateIds: [template],
+        readTemplateIds: [template],
+        terminalEnabled: true,
+      },
+    };
+    mocks.sessions.mockRejectedValue(new DiscoveryError("bridge unavailable", 503));
+    const { onOpenPane } = setup(
+      workspaces.map((w) => ({
+        ...w,
+        template_id: w.id === "software" ? template : "00000000-0000-4000-8000-000000000002",
+      })),
+    );
+    act(() => source().onOpenChange!(true));
+    await waitFor(() => expect(action("retry-terminals:software")).toBeDefined());
+    expect(mocks.sessions.mock.calls.every(([v]) => v.workspaceId === "software")).toBe(true);
+    expect(mocks.clones).not.toHaveBeenCalled();
+    expect(action("terminal-review:software")).toBeDefined();
+    act(() => action("new-project").onSelect());
+    expect(onOpenPane).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: "projects", workspaceId: "software" }),
+    );
+    expect(action("new-terminal").onSelect()).toEqual({ page: "create-terminal" });
+    expect(source().actions!.some((a) => a.id.startsWith("repository:"))).toBe(false);
+  });
+  it("routes existing discovered sessions to setup when connection transport remains disabled", async () => {
+    const template = "00000000-0000-4000-8000-000000000001";
+    mocks.runtime = {
+      terminalWsUrl: "/",
+      workspaceCapabilities: {
+        projectTemplateIds: [template],
+        readTemplateIds: [template],
+        terminalEnabled: false,
+      },
+    };
+    const { onOpenPane } = setup(workspaces.map((w) => ({ ...w, template_id: template })));
+    act(() => source().onOpenChange!(true));
+    await waitFor(() => expect(action("session:software:main")).toBeDefined());
+    expect(action("session:software:main").rightLabel).toBe("Setup");
+    expect(action("session:software:main").onSelect()).toEqual({ page: "terminal-capability" });
+    expect(onOpenPane).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(source().pages?.["create-terminal"]).toBeUndefined();
   });
 });
 

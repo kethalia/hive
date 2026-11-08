@@ -19,7 +19,11 @@ import {
 } from "@/components/ui/select";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { fetchSettingsWindow } from "@/lib/settings/window-client";
-import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
+import {
+  type GeneralWindow,
+  hiveToolLabels,
+  requestHiveWindow,
+} from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
 const DeliveryPanel = dynamic(() =>
@@ -107,9 +111,17 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
-  const { projectDiscoveryEnabled, projectTasksEnabled, deliveryEnabled } = useRuntimeConfig();
+  const { projectDiscoveryEnabled, projectTasksEnabled, deliveryEnabled, workspaceCapabilities } =
+    useRuntimeConfig();
   const workspace =
     workspaces.find((w) => w.id === pane.workspaceId) ??
+    (pane.tool === "projects" && workspaceCapabilities
+      ? workspaces.find(
+          (w) =>
+            w.latest_build.status === "running" &&
+            workspaceCapabilities.projectTemplateIds.includes(w.template_id),
+        )
+      : undefined) ??
     workspaces.find((w) => w.latest_build.status === "running") ??
     workspaces[0];
   return (
@@ -183,13 +195,40 @@ export function HiveWorkspacePane({
             </div>
             {workspace?.latest_build.status === "running" ? (
               pane.tool === "projects" ? (
-                <ProjectWorkspacePanel
-                  key={workspace.id}
-                  workspaceId={workspace.id}
-                  enabled={Boolean(projectDiscoveryEnabled)}
-                  tasksEnabled={Boolean(projectTasksEnabled)}
-                  visible={visible}
-                />
+                workspaceCapabilities &&
+                !workspaceCapabilities.projectTemplateIds.includes(workspace.template_id) ? (
+                  <section aria-label="Project workspace setup" className="space-y-3">
+                    <p role="status">
+                      {projectDiscoveryEnabled
+                        ? "This workspace is not configured for GitHub projects. Choose an enabled software workspace or review its template and Hive configuration."
+                        : "GitHub project browsing is not enabled in this Hive preview."}
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        requestHiveWindow({ tool: "templates", workspaceId: workspace.id })
+                      }
+                    >
+                      Review workspace templates
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        requestHiveWindow({ tool: "workspaces", workspaceId: workspace.id })
+                      }
+                    >
+                      Manage Coder workspaces
+                    </Button>
+                  </section>
+                ) : (
+                  <ProjectWorkspacePanel
+                    key={workspace.id}
+                    workspaceId={workspace.id}
+                    enabled={Boolean(projectDiscoveryEnabled)}
+                    tasksEnabled={Boolean(projectTasksEnabled)}
+                    visible={visible}
+                  />
+                )
               ) : (
                 <AgentToolsPanel
                   key={`${workspace.id}:${workspace.latest_build.id}`}
@@ -200,11 +239,26 @@ export function HiveWorkspacePane({
                 />
               )
             ) : (
-              <p className="text-sm text-muted-foreground">
-                {pane.tool === "projects"
-                  ? "Start a Coder workspace to browse connected repositories."
-                  : "Start a Coder workspace to view its agent conversations."}
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {pane.tool === "projects"
+                    ? "Start a Coder workspace to browse connected repositories."
+                    : "Start a Coder workspace to view its agent conversations."}
+                </p>
+                {pane.tool === "projects" ? (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      requestHiveWindow({
+                        tool: "workspaces",
+                        ...(workspace ? { workspaceId: workspace.id } : {}),
+                      })
+                    }
+                  >
+                    Manage Coder workspaces
+                  </Button>
+                ) : null}
+              </div>
             )}
           </div>
         ) : pane.tool === "workspaces" ? (
