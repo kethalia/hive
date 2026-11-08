@@ -30,9 +30,7 @@
     "pvc": [
       {
         "uid": "6c1d77cc-49ba-4098-aa26-acc68251df90",
-        "accessModes": [
-          "ReadWriteOnce"
-        ],
+        "accessModes": ["ReadWriteOnce"],
         "storage": "20Gi"
       }
     ],
