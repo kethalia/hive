@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "39da0d3ecc2fdcc5674d0ce0d4e778e0299c16af",
+  "scope": "local-only migration rehearsal",
+  "result": "passed",
+  "migrationName": "20261108050000_unused_recovery_resumption",
+  "migrationSha256": "078adc0e3e8f52adf5f301cbc9c9a43269573eea58838d00fe9d4a526dcd5ffd",
+  "completedAt": "2026-11-08T18:18:29.778134+00:00",
+  "datasets": {
+    "app": {
+      "restoredRowsMatchOriginal52": true,
+      "tables": 72,
+      "rows": 7,
+      "completedMigrations": 53,
+      "prior52FullHistoryUnchanged": true,
+      "allApplicationRowFingerprintsUnchanged": true,
+      "migrationChecksumsMatchPinnedSource": true,
+      "localTableAclUnchanged": true,
+      "normalPrismaBookkeeping": true
+    },
+    "native": {
+      "restoredRowsMatchOriginal52": true,
+      "tables": 72,
+      "rows": 72,
+      "completedMigrations": 53,
+      "prior52FullHistoryUnchanged": true,
+      "allApplicationRowFingerprintsUnchanged": true,
+      "migrationChecksumsMatchPinnedSource": true,
+      "localTableAclUnchanged": true,
+      "normalPrismaBookkeeping": true
+    }
+  },
+  "limitations": [
+    "Restores use no-owner/no-acl, owned by local coder. Live role ownership, CONNECT isolation, and runtime grants are not reproduced.",
+    "Local server is PostgreSQL17.11; backups decoded/restored using PostgreSQL18 client. No live or baseline-fixture writes."
+  ]
+}

@@ -9,6 +9,8 @@ import {
   guardianRemountTicketSchema,
   guardianTransferContinuationSchema,
 } from "./guardian-remount-contracts";
+import { resumedRecoveryTicket } from "./guardian-resumption.server";
+import { guardianResumptionApprovals } from "./guardian-resumption-contracts";
 import type { GuardianRuntimeIdentity } from "./guardian-store.server";
 import type { GuardianUnstartedTransfer } from "./guardian-unstarted-contracts";
 import type { RegistrationBinding } from "./registration.server";
@@ -132,6 +134,12 @@ export async function readRemountRecoveryTicket(
     recoveryId: string;
   },
 ) {
+  if (
+    guardianResumptionApprovals(env).some(
+      (a) => a.ownerId === scope.ownerId && a.recoveryId === scope.recoveryId,
+    )
+  )
+    return resumedRecoveryTicket(tx, env, scope);
   const events = await tx.codexGuardianOperationReceipt.findMany({
     where: {
       ownerId: scope.ownerId,
