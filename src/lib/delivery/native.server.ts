@@ -46,6 +46,7 @@ export class DeliveryNativeSourceService {
       async (tx) => {
         const scope = await lockManagerCheckout(tx, input, registered, {
           allowBlocked: true,
+          maintenanceObservation: true,
           guardianPolicy: this.dependencies.guardianPolicy,
         });
         if (scope.binding.id !== input.managerBindingId)

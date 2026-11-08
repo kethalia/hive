@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T04:25:18.048551+00:00",
+  "scope": "offline-composed-forward-migration-rehearsal",
+  "database": "hive_preview48_restore_root",
+  "sources": {
+    "migration49": "90616e48714911a7218c9204481a086cb808c63c",
+    "migration50": "a7447ff5385d39dfbf3a758f0b9b53a3e6d855d9"
+  },
+  "migrationChecksums": {
+    "20261108010000_automatic_database_jobs": "6249bceec4ecc0c7c212b5da5b1e469c89e0676c3cfd26e2e987e75cf7bcd409",
+    "20261108020000_account_maintenance": "955c21e6b5476331336aed763845d2aeedd9338b97d56dcb2b977b8e9dd6554f"
+  },
+  "ordered48To49To50Verified": true,
+  "original48HistoryPreserved": true,
+  "all50ChecksumsMatch": true,
+  "originalTablesCompared": 72,
+  "originalRowsCompared": 48,
+  "originalColumnFingerprintsMatch": true,
+  "legacyDefaultsVerified": {
+    "legacySlots": true,
+    "legacyEpochs": true,
+    "legacyBarriers": true,
+    "databaseEffectGuard": true,
+    "maintenanceTransitionGuard": true
+  },
+  "livePreviewChanged": false,
+  "productionChanged": false,
+  "applicationFlowValidated": false,
+  "note": "Composed frozen SQL sources; final combined source/image/runtime acceptance remains separate."
+}

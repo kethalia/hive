@@ -48,6 +48,7 @@ const disabled = [
 // second policy schema or accept plaintext credential settings.
 const previewRuntimeVars = new Set([
   "HIVE_CODEX_ACCOUNTS_ENABLED",
+  "HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED",
   "HIVE_CLAUDE_ACCOUNTS_ENABLED",
   "HIVE_CODEX_ISSUER_KEY_ID",
   "HIVE_CODEX_ISSUER_PUBLIC_KEY",

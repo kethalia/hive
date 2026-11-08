@@ -95,6 +95,16 @@ export class PostgresReleaseEffectJournal implements ReleaseEffectJournal {
         if (prepared) throw Error("release_reserved_action_unavailable");
         return null;
       }
+      // Serialize the first external effect with owner maintenance pause. A
+      // prepared action is known not started; historical reconciliation is a
+      // separate read/receipt path and must not acquire new write authority.
+      const [task] = await tx.$queryRaw<{ pause_requested: boolean; scheduling_paused: boolean }[]>`
+        SELECT pause_requested,scheduling_paused FROM delivery_tasks
+        WHERE id=${row.task_id}::uuid AND owner_id=${this.ownerId}::uuid FOR UPDATE`;
+      if (!task || task.pause_requested || task.scheduling_paused) {
+        if (prepared) throw Error("release_reserved_action_unavailable");
+        return null;
+      }
       const identity = this.identity(row);
       if (!(await this.authorize(tx, identity))) {
         if (prepared) throw Error("release_reserved_action_unavailable");

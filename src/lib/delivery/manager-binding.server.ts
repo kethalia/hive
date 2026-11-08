@@ -1,5 +1,6 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
 import type { Prisma, PrismaClient } from "@hive/db";
+import { parseAccountMaintenance } from "@/lib/codex-session/account-maintenance-store.server";
 import type { GuardianPolicy } from "@/lib/codex-session/guardian-contracts";
 import { lockProducerAdmission } from "@/lib/codex-session/guardian-store.server";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
@@ -7,6 +8,7 @@ import {
   lockActiveRegistration,
   RegistrationRejected,
 } from "@/lib/codex-session/registration-store.server";
+import { resolveEffectiveExecutionAuthority } from "./execution-authority.server";
 import type { ManagerCheckout } from "./manager-contracts";
 import { DeliveryConflict } from "./state";
 
@@ -54,6 +56,27 @@ export function managerCheckoutIdentity(
     .digest("hex");
   return { id: stableDeliveryUuid(bindingDigest), identity, bindingDigest };
 }
+/** Selector only, never authority: callers must still lock and revalidate with
+ * lockManagerCheckout immediately before their existing journal/DB effect. */
+export async function managerCheckoutReference(
+  db: Pick<Tx, "deliveryManagerBinding">,
+  base: Parameters<typeof managerCheckoutIdentity>[0],
+  context: ManagerCheckout,
+) {
+  const retained = await db.deliveryManagerBinding.findMany({
+    where: {
+      ownerId: base.ownerId,
+      projectId: context.projectId,
+      preparationIntentId: context.preparationIntentId,
+      executionEpochVersion: { gt: 0 },
+    },
+    take: 2,
+  });
+  if (retained.length > 1) throw new DeliveryConflict("maintenance_epoch_ambiguous");
+  return retained.length
+    ? { id: retained[0].id, bindingDigest: retained[0].bindingDigest }
+    : managerCheckoutIdentity(base, context);
+}
 export async function authenticateCheckoutHost(
   db: PrismaClient,
   reauthorize: (binding: RegistrationBinding) => Promise<RegistrationBinding>,
@@ -91,6 +114,7 @@ export async function lockManagerCheckout(
     allowBlocked?: boolean;
     progressionProtocol?: 1;
     guardianPolicy?: GuardianPolicy;
+    maintenanceObservation?: boolean;
   } = {},
 ) {
   const { ownerId } = authenticated,
@@ -188,7 +212,7 @@ export async function lockManagerCheckout(
     status.nativeThreadId !== input.managerThreadId
   )
     throw new RegistrationRejected();
-  const { identity, bindingDigest, id } = managerCheckoutIdentity(
+  const derived = managerCheckoutIdentity(
     {
       ownerId,
       conversationId: conversation.id,
@@ -199,7 +223,37 @@ export async function lockManagerCheckout(
     },
     context,
   );
-  if (options.create) {
+  const retained = await tx.deliveryManagerBinding.findMany({
+    where: {
+      ownerId,
+      projectId: context.projectId,
+      preparationIntentId: context.preparationIntentId,
+      executionEpochVersion: { gt: 0 },
+    },
+    take: 2,
+  });
+  if (retained.length > 1) throw new DeliveryConflict("maintenance_epoch_ambiguous");
+  const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+  if (
+    maintenance &&
+    maintenance.phase !== "finished" &&
+    !(
+      options.maintenanceObservation &&
+      ["requested", "waiting-boundary"].includes(maintenance.phase)
+    )
+  )
+    throw new DeliveryConflict("account_maintenance_pending");
+  if (
+    !retained.length &&
+    maintenance &&
+    maintenance.phase === "resuming" &&
+    maintenance.projects.some((p) => p.preparationIntentId === context.preparationIntentId)
+  )
+    throw new DeliveryConflict("maintenance_epoch_uncommitted");
+  const identity = derived.identity,
+    id = retained[0]?.id ?? derived.id,
+    bindingDigest = retained[0]?.bindingDigest ?? derived.bindingDigest;
+  if (options.create && !retained.length) {
     // The intent is a shared checkout lock across native lifetimes; write it so
     // a waiting Serializable snapshot cannot silently miss another new binding.
     await tx.projectTaskIntent.update({ where: { id: intent.id }, data: { updatedAt: now } });
@@ -225,5 +279,34 @@ export async function lockManagerCheckout(
     throw new DeliveryConflict("manager_binding_conflict");
   if (binding.blockedReason && !options.allowBlocked)
     throw new DeliveryConflict("native_reconciliation_required");
-  return { binding, registration, slot, thread, conversation, intent, now };
+  const execution = await resolveEffectiveExecutionAuthority(tx, binding, registration);
+  if (
+    execution.serverInstanceId !== input.serverInstanceId ||
+    execution.nativeThreadId !== input.managerThreadId ||
+    execution.workspaceId !== slot.workspaceId ||
+    execution.buildId !== registration.buildId ||
+    execution.leaseId !== context.leaseId ||
+    execution.leaseGeneration !== context.leaseGeneration ||
+    binding.projectId !== context.projectId ||
+    binding.preparationIntentId !== context.preparationIntentId ||
+    binding.sourceSha !== context.revision
+  )
+    throw new RegistrationRejected();
+  const logicalConversation =
+    execution.kind === "maintenance"
+      ? await tx.deliveryConversation.findUniqueOrThrow({
+          where: { ownerId_id: { ownerId, id: binding.conversationId } },
+        })
+      : conversation;
+  return {
+    binding,
+    execution,
+    registration,
+    slot,
+    thread,
+    conversation: logicalConversation,
+    executionConversation: conversation,
+    intent,
+    now,
+  };
 }

@@ -546,6 +546,7 @@ model DeliveryEvent {
   @@unique([ownerId, aggregateKey, aggregateVersion])
   @@index([ownerId, taskId, attemptId, aggregateVersion], map: "delivery_runtime_events_lookup")
   @@map("delivery_events")
+  maintenanceEpochBindings DeliveryManagerBinding[] @relation("MaintenanceResumeIntent")
 }
 
 model DeliveryStepReport {
@@ -617,6 +618,8 @@ model CodexHostSlot {
   @@unique([ownerId, id])
   @@unique([ownerId, coderOrigin, workspaceId, agentId])
   @@map("codex_host_slots")
+  accountMaintenance Json? @map("account_maintenance")
+  accountMaintenanceVersion Int @default(0) @map("account_maintenance_version")
 }
 
 model CodexRegistrationGrant {
@@ -761,6 +764,13 @@ model DeliveryManagerBinding {
   @@unique([ownerId, bindingDigest])
   @@index([ownerId, preparationIntentId])
   @@map("delivery_manager_bindings")
+  executionEpochVersion Int @default(0) @map("execution_epoch_version")
+  executionEpochRuntimeId String? @map("execution_epoch_runtime_id") @db.Uuid
+  executionEpochEventId String? @map("execution_epoch_event_id") @db.Uuid
+  executionEpochResumeEventId String? @map("execution_epoch_resume_event_id") @db.Uuid
+  executionEpochReceipt CodexGuardianOperationReceipt? @relation("MaintenanceEpochReceipt", fields: [ownerId, executionEpochRuntimeId, executionEpochEventId], references: [ownerId, runtimeId, eventId], onDelete: Restrict, onUpdate: NoAction, map: "manager_maintenance_epoch_receipt_fk")
+  executionEpochResumeEvent DeliveryEvent? @relation("MaintenanceResumeIntent", fields: [ownerId, executionEpochResumeEventId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction, map: "manager_maintenance_resume_event_fk")
+
 }
 
 model DeliverySourceRevision {
@@ -872,6 +882,7 @@ model CodexGuardianOperationReceipt {
   runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction, map: "guardian_operation_receipt_runtime_fk")
   @@id([ownerId, runtimeId, eventId], map: "codex_guardian_operation_receipts_pkey")
   @@map("codex_guardian_operation_receipts")
+  maintenanceEpochBindings DeliveryManagerBinding[] @relation("MaintenanceEpochReceipt")
 }
 
 model CodexGuardianEnrollmentGrant {
@@ -939,6 +950,8 @@ model CodexGuardianBarrier {
   @@unique([ownerId, runtimeId, id])
   @@unique([ownerId, runtimeId, generation])
   @@map("codex_guardian_barriers")
+  purpose String @default("completion")
+  maintenanceId String? @map("maintenance_id") @db.Uuid
 }
 
 model CodexGuardianStopDecision {

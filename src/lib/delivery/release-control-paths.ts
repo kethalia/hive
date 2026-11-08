@@ -7,6 +7,13 @@ export function isReleaseTestControlPath(path: string) {
     path.startsWith("src/lib/delivery/database-job-") ||
     path.startsWith("src/lib/delivery/release-") ||
     path.startsWith("src/lib/delivery/epic-") ||
+    path.startsWith("src/lib/delivery/account-maintenance-") ||
+    path === "src/lib/delivery/execution-authority.server.ts" ||
+    path.startsWith("src/lib/codex-session/account-maintenance-") ||
+    path.startsWith("src/lib/codex-session/guardian-") ||
+    path === "src/lib/codex-session/registration-store.server.ts" ||
+    path === "src/app/api/workspaces/[id]/account-maintenance/route.ts" ||
+    path === "src/app/api/workspaces/[workspaceId]/account-maintenance/route.ts" ||
     path === "scripts/host-epic-merge.ts" ||
     path === "scripts/host-production-release.ts" ||
     path === "scripts/build-codex-host-bundle.mjs" ||

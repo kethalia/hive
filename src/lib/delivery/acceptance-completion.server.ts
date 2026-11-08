@@ -16,6 +16,11 @@ import { productionAcceptanceConfig } from "./acceptance-production.server";
 import type { AcceptanceAuthority } from "./acceptance-store.server";
 import { completeStepInTransaction } from "./completion-transaction.server";
 import { nativeRuntimeBindingSchema } from "./contracts";
+import {
+  currentExecutionActor,
+  executionActorHistory,
+  requireHistoricalExecutionComplete,
+} from "./execution-authority.server";
 import type { ManagerPolicyScope, ResolvedManagerEvidencePolicy } from "./manager.server";
 import { NATIVE_OBSERVER_PRODUCER } from "./native-contracts";
 import { finalizeProductionAcceptance } from "./release-automatic-acceptance.server";
@@ -57,6 +62,7 @@ export class AcceptanceSuccessController {
           now.getTime() - Date.parse(terminal.observedAt) <= 30000,
         "acceptance_completion_terminal_stale",
       );
+    const actor = await currentExecutionActor(tx, binding);
     const now = await clock();
     fresh(now);
     check(
@@ -64,7 +70,7 @@ export class AcceptanceSuccessController {
         binding.currentAttemptId === terminal.attemptId &&
         binding.nativeThreadId === terminal.managerThreadId &&
         binding.nativeThreadId === authority.managerThreadId &&
-        binding.serverInstanceId === authority.serverInstanceId &&
+        actor.serverInstanceId === authority.serverInstanceId &&
         !binding.blockedReason &&
         binding.cursorVersion === terminal.cursorVersion &&
         binding.nativeSequence === terminal.nativeSequence &&
@@ -103,7 +109,7 @@ export class AcceptanceSuccessController {
     );
     // Compare every recorded child in this native lifetime, not merely the most
     // recent attempted step. Background process state remains unknown/held.
-    const cohort = await tx.deliveryAttempt.findMany({
+    const allCohort = await tx.deliveryAttempt.findMany({
       where: {
         ownerId: authority.ownerId,
         managerBindingId: binding.id,
@@ -111,12 +117,19 @@ export class AcceptanceSuccessController {
       },
       take: 21,
     });
+    check(allCohort.length <= 20, "acceptance_completion_cohort_unfinished");
+    const actors = await executionActorHistory(tx, binding);
+    const cohort = allCohort.filter(
+      (member) =>
+        nativeRuntimeBindingSchema.parse(member.runtimeBinding).serverInstanceId ===
+        authority.serverInstanceId,
+    );
     check(
       cohort.length <= 20 &&
         cohort.length === terminal.cohort.length &&
         new Set(terminal.cohort.map((c) => c.childThreadId)).size === terminal.cohort.length,
     );
-    for (const member of cohort) {
+    for (const member of allCohort) {
       const runtime = nativeRuntimeBindingSchema.parse(member.runtimeBinding),
         observed = await tx.deliveryEvent.findFirst({
           where: {
@@ -139,22 +152,26 @@ export class AcceptanceSuccessController {
         turnStatus?: string;
         source?: { parentTurnId: string };
       } | null;
+      const historical = runtime.serverInstanceId !== authority.serverInstanceId;
+      if (historical)
+        await requireHistoricalExecutionComplete(tx, binding, actors, member, observed);
       check(
-        runtime.serverInstanceId === authority.serverInstanceId &&
+        (historical || runtime.serverInstanceId === authority.serverInstanceId) &&
           runtime.managerThreadId === authority.managerThreadId &&
           observed?.type === "native_attempt_observed" &&
           fact?.producer === NATIVE_OBSERVER_PRODUCER &&
           fact.nativeSourceKind === "turn_completed" &&
           fact.turnStatus === "completed" &&
-          terminal.cohort.some(
-            (c) =>
-              c.parentTurnId === fact.source?.parentTurnId &&
-              c.spawnCallId === runtime.operationId &&
-              c.childThreadId === runtime.nativeThreadId &&
-              c.childTurnId === runtime.nativeTurnId &&
-              c.effectiveModel === member.effectiveModel &&
-              c.effectiveEffort === member.effectiveEffort,
-          ),
+          (historical ||
+            terminal.cohort.some(
+              (c) =>
+                c.parentTurnId === fact.source?.parentTurnId &&
+                c.spawnCallId === runtime.operationId &&
+                c.childThreadId === runtime.nativeThreadId &&
+                c.childTurnId === runtime.nativeTurnId &&
+                c.effectiveModel === member.effectiveModel &&
+                c.effectiveEffort === member.effectiveEffort,
+            )),
         "acceptance_completion_cohort_unfinished",
       );
     }

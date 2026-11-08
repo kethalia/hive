@@ -10,7 +10,13 @@ export const terminalSessionNameSchema = z
 
 export const agentOperationSchema = z.discriminatedUnion("operation", [
   z
-    .object({ operation: z.literal("claude-account"), account: claudeAccountRequestSchema })
+    .object({
+      operation: z.literal("claude-account"),
+      account: z.union([
+        claudeAccountRequestSchema,
+        z.object({ action: z.literal("status"), cached: z.literal(true) }).strict(),
+      ]),
+    })
     .strict(),
   z
     .object({
@@ -25,7 +31,15 @@ export const agentOperationSchema = z.discriminatedUnion("operation", [
       sessionName: terminalSessionNameSchema,
     })
     .strict(),
-  z.object({ operation: z.literal("codex-account"), account: codexAccountRequestSchema }).strict(),
+  z
+    .object({
+      operation: z.literal("codex-account"),
+      account: z.union([
+        codexAccountRequestSchema,
+        z.object({ action: z.literal("status"), cached: z.literal(true) }).strict(),
+      ]),
+    })
+    .strict(),
   z.object({ operation: z.literal("identity") }).strict(),
   z.object({ operation: z.literal("inventory") }).strict(),
   z.object({ operation: z.literal("sessions") }).strict(),

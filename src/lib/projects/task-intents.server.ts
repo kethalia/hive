@@ -3,6 +3,10 @@ import { decrypt, encrypt } from "@hive/auth";
 import { Prisma, type PrismaClient, type ProjectTaskIntent } from "@hive/db";
 import { z } from "zod";
 import {
+  lockAccountMaintenanceWorkspace,
+  parseAccountMaintenance,
+} from "@/lib/codex-session/account-maintenance-store.server";
+import {
   type ProjectTaskStatus,
   projectTaskFailureStageSchema,
   projectTaskStatusSchema,
@@ -116,6 +120,26 @@ export class ProjectTaskIntents {
           throw new TaskIntentConflict("task_identity_conflict");
         return previous;
       }
+      const owner = await tx.user.findUniqueOrThrow({ where: { id: input.ownerId } });
+      await lockAccountMaintenanceWorkspace(tx, {
+        hiveUserId: input.ownerId,
+        coderOrigin: owner.coderUrl,
+        workspaceId: input.workspaceId,
+      });
+      const slots = await tx.codexHostSlot.findMany({
+        where: {
+          ownerId: input.ownerId,
+          coderOrigin: owner.coderUrl,
+          workspaceId: input.workspaceId,
+        },
+      });
+      if (
+        slots.some((s) => {
+          const state = parseAccountMaintenance(s.accountMaintenance);
+          return state && state.phase !== "finished";
+        })
+      )
+        throw new TaskIntentConflict("account_maintenance_pending");
       const policyPin = await this.pinRepositoryPolicy?.(tx, input);
       // PostgreSQL arbitrates duplicate inserts. Prisma may emulate this composite
       // upsert with a read then insert, which races on the separately unique task ID.
@@ -156,7 +180,6 @@ export class ProjectTaskIntents {
       await this.captureAcceptanceIntent?.(tx, input, row);
       return row;
     };
-    if (!this.pinRepositoryPolicy && !this.captureAcceptanceIntent) return persist(this.db);
     for (let retry = 0; ; retry++) {
       try {
         return await this.db.$transaction(persist, {
@@ -230,6 +253,10 @@ export class ProjectTaskIntents {
       WITH candidate AS (
         SELECT id, (phase <> 'running' AND progress_at < clock_timestamp()-interval '30 minutes') AS timed_out FROM project_task_intents
         WHERE phase IN ('queued','preparing','running') AND next_attempt_at <= clock_timestamp()
+          AND NOT EXISTS (SELECT 1 FROM codex_host_slots s
+            WHERE s.owner_id=project_task_intents.owner_id AND s.workspace_id=project_task_intents.workspace_id
+              AND s.coder_origin=(SELECT u.coder_url FROM users u WHERE u.id=project_task_intents.owner_id)
+              AND s.account_maintenance IS NOT NULL AND s.account_maintenance->>'phase'<>'finished')
           AND NOT EXISTS (SELECT 1 FROM project_task_recoveries r WHERE r.owner_id=project_task_intents.owner_id AND r.task_id=project_task_intents.id AND r.phase<>'consumed')
           AND NOT EXISTS (SELECT 1 FROM delivery_epic_start_intents e WHERE e.owner_id=project_task_intents.owner_id AND e.intent_id=project_task_intents.id AND e.phase='reserved')
           AND NOT EXISTS (

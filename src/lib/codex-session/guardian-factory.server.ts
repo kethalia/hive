@@ -1,7 +1,12 @@
 import { getDb } from "@hive/db";
+import { createPortableAccountService } from "@/lib/agents/portable-config.server";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { signedHostProjectRequest } from "@/lib/projects/host.server";
+import { projectTaskStatusSchema } from "@/lib/projects/task-contracts";
 import {
   deliverGuardianEnrollment,
+  provisionRegisteredHost,
+  requestGuardianAccountMaintenance,
   requestGuardianEmptyClose,
   requestGuardianIdentity,
 } from "./bootstrap-delivery.server";
@@ -11,7 +16,10 @@ import {
   type GuardianProvisionStage,
   GuardianService,
 } from "./guardian-service.server";
-import { registeredSessionConfig } from "./registered-session.server";
+import {
+  createRegisteredSessionService,
+  registeredSessionConfig,
+} from "./registered-session.server";
 import { resolveVerifiedWorkspaceHost } from "./registration.server";
 import { RegistrationRejected } from "./registration-store.server";
 
@@ -66,6 +74,63 @@ export function createGuardianService(
     return fresh.coder;
   };
   return new GuardianService(db, config, policy, encryptionKey, {
+    async assertMaintenanceAccountsIdle(binding) {
+      const principal = { hiveUserId: binding.hiveUserId, coderUserId: binding.ownerId };
+      for (const provider of ["codex", "claude"] as const) {
+        if (
+          process.env[
+            provider === "codex" ? "HIVE_CODEX_ACCOUNTS_ENABLED" : "HIVE_CLAUDE_ACCOUNTS_ENABLED"
+          ] !== "true"
+        )
+          continue;
+        const result = await createPortableAccountService(provider).execute(
+          principal,
+          binding.workspaceId,
+          {
+            operation: provider === "codex" ? "codex-account" : "claude-account",
+            account: { action: "status", cached: true },
+          },
+          options.signal,
+        );
+        if (
+          !result ||
+          typeof result !== "object" ||
+          !("state" in result) ||
+          result.state === "pending"
+        )
+          throw new RegistrationRejected();
+      }
+    },
+    async registerMaintenanceHost(binding, projects) {
+      if (!projects.length) throw new RegistrationRejected();
+      const user = await db.user.findUniqueOrThrow({ where: { id: binding.hiveUserId } }),
+        p = projects[0];
+      const status = projectTaskStatusSchema.parse(
+        await signedHostProjectRequest(
+          user,
+          binding.workspaceId,
+          "/projects/tasks/status",
+          {
+            schemaVersion: 1,
+            projectId: p.projectId,
+            taskId: p.preparationIntentId,
+            requestId: p.requestId,
+          },
+          options.signal ? { signal: options.signal } : {},
+        ),
+      );
+      if (status.phase !== "awaitingRegistration") return;
+      const service = createRegisteredSessionService(db, config, { signal: options.signal });
+      await provisionRegisteredHost(
+        service.authority,
+        await currentCoder(binding),
+        { hiveUserId: binding.hiveUserId, coderUserId: binding.ownerId },
+        binding.workspaceId,
+        binding.agentId,
+        projects.map((p) => p.projectId),
+        { signal: options.signal },
+      );
+    },
     signal: options.signal,
     onProvisionStage: options.onProvisionStage,
     transport: options.transport ?? {
@@ -79,6 +144,15 @@ export function createGuardianService(
         );
         options.signal?.throwIfAborted();
         return value;
+      },
+      async accountMaintenance(binding, grant) {
+        return requestGuardianAccountMaintenance(
+          await currentCoder(binding),
+          binding,
+          grant,
+          fetchApp,
+          options.signal,
+        );
       },
       async recoverEmptyClose(binding, grant) {
         return requestGuardianEmptyClose(

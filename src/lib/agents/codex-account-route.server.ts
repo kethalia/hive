@@ -1,9 +1,11 @@
+import { getDb } from "@hive/db";
 import { z } from "zod";
 import { getRequestSession } from "@/lib/auth/session";
+import { parseAccountMaintenance } from "@/lib/codex-session/account-maintenance-store.server";
 import { publicationBody } from "@/lib/templates/publication-io";
 import { claudeAccountRequestSchema, claudeAccountStatusSchema } from "./claude-account-contracts";
 import { codexAccountRequestSchema, codexAccountStatusSchema } from "./codex-account-contracts";
-import { createPortableAgentService } from "./portable-config.server";
+import { createPortableAccountService } from "./portable-config.server";
 
 const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 export async function codexAccountRoute(request: Request, workspaceId: string) {
@@ -38,7 +40,7 @@ async function workspaceAccountRoute(
   if (!z.string().uuid().safeParse(workspaceId).success)
     return new Response(null, { status: 400, headers });
   const session = await getRequestSession();
-  if (!session) return new Response(null, { status: 401, headers });
+  if (!session) return Response.json({ error: "not_authenticated" }, { status: 401, headers });
   try {
     const bytes = await publicationBody(
       new Response(request.body, { headers: request.headers }),
@@ -47,12 +49,31 @@ async function workspaceAccountRoute(
     );
     const input: unknown = JSON.parse(new TextDecoder().decode(bytes));
     const principal = { hiveUserId: session.user.id, coderUserId: session.user.coderUserId };
-    const service = createPortableAgentService();
+    const slots = await getDb().codexHostSlot.findMany({
+      where: { ownerId: principal.hiveUserId, workspaceId, coderOrigin: session.user.coderUrl },
+    });
+    const held = slots
+      .map((s) => parseAccountMaintenance(s.accountMaintenance))
+      .filter((s) => s && s.phase !== "finished");
+    const restricted = held.some((s) => s?.phase !== "ready");
+    const action =
+      provider === "codex"
+        ? codexAccountRequestSchema.parse(input)
+        : claudeAccountRequestSchema.parse(input);
+    if (restricted && action.action !== "status" && action.action !== "cancel")
+      return Response.json({ error: "account_maintenance_pending" }, { status: 409, headers });
+    const service = createPortableAccountService(provider);
     if (provider === "claude") {
       const result = await service.execute(
         principal,
         workspaceId,
-        { operation: "claude-account", account: claudeAccountRequestSchema.parse(input) },
+        {
+          operation: "claude-account",
+          account:
+            restricted && action.action === "status"
+              ? { action: "status", cached: true }
+              : claudeAccountRequestSchema.parse(input),
+        },
         request.signal,
       );
       return Response.json(claudeAccountStatusSchema.parse(result), { headers });
@@ -60,7 +81,13 @@ async function workspaceAccountRoute(
     const result = await service.execute(
       principal,
       workspaceId,
-      { operation: "codex-account", account: codexAccountRequestSchema.parse(input) },
+      {
+        operation: "codex-account",
+        account:
+          restricted && action.action === "status"
+            ? { action: "status", cached: true }
+            : codexAccountRequestSchema.parse(input),
+      },
       request.signal,
     );
     return Response.json(codexAccountStatusSchema.parse(result), { headers });

@@ -13,6 +13,11 @@ import { DeliveryConflict } from "./state";
 async function scope(db: PrismaClient, runtime: CodexGuardianRuntime, projectId: string) {
   if (runtime.phase !== "tree_closed" || !runtime.closedBarrierId)
     throw new DeliveryConflict("epic_tree_not_closed");
+  const barrier = await db.codexGuardianBarrier.findUnique({
+    where: { ownerId_id: { ownerId: runtime.ownerId, id: runtime.closedBarrierId } },
+  });
+  if (!barrier || barrier.purpose !== "completion")
+    throw new DeliveryConflict("epic_completion_closure_required");
   const admission = await db.codexGuardianAdmission.findFirst({
     where: { ownerId: runtime.ownerId, runtimeId: runtime.id, projectId, phase: "native" },
     include: { intent: true },

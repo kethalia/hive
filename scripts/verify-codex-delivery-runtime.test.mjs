@@ -30,9 +30,11 @@ function config() {
   };
 }
 async function fixture(t, patch = {}) {
-  const home = mkdtempSync(join(tmpdir(), "hive-delivery-factory-")),
-    key = generateKeyPairSync("ed25519");
-  const physical = {
+  const { reuse, ...runtimePatch } = patch;
+  let preserveHome = false;
+  const home = reuse?.home ?? mkdtempSync(join(tmpdir(), "hive-delivery-factory-")),
+    key = reuse?.key ?? generateKeyPairSync("ed25519");
+  const physical = reuse?.physical ?? {
     projectId: randomUUID(),
     preparationIntentId: randomUUID(),
     repositoryId: "123",
@@ -40,7 +42,7 @@ async function fixture(t, patch = {}) {
     leaseId: randomUUID(),
     leaseGeneration: 1,
   };
-  const project = {
+  const project = reuse?.project ?? {
     projectId: physical.projectId,
     repositoryId: "123",
     taskId: physical.preparationIntentId,
@@ -48,7 +50,7 @@ async function fixture(t, patch = {}) {
     leaseId: physical.leaseId,
     leaseGeneration: 1,
   };
-  const thread = randomUUID(),
+  const thread = reuse?.thread ?? randomUUID(),
     serverInstanceId = randomUUID(),
     calls = [],
     revoked = [];
@@ -194,12 +196,12 @@ async function fixture(t, patch = {}) {
         inputSourceSha: physical.revision,
       });
     },
-    ...patch,
+    ...runtimePatch,
   };
   let runtime;
   t.after(async () => {
     await runtime?.close();
-    rmSync(home, { recursive: true, force: true });
+    if (!preserveHome) rmSync(home, { recursive: true, force: true });
   });
   runtime = await createInstalledDeliveryRuntime(options);
   const turnId = randomUUID();
@@ -213,6 +215,10 @@ async function fixture(t, patch = {}) {
       arguments: { operation, payload },
     });
   return {
+    resumeState() {
+      preserveHome = true;
+      return { home, key, physical, project, thread };
+    },
     runtime,
     options,
     physical,
@@ -618,3 +624,85 @@ for (const mode of ["native", "registration", "close"])
     assert.throws(() => f.runtime.evidenceStatus(), /delivery_runtime_unavailable/);
     await assert.rejects(f.call("create_task", { id: randomUUID() }));
   });
+
+test("maintenance status uses the normal signed read API without reviving the old claim or authorizing writes", async (t) => {
+  let f,
+    meta,
+    reads = 0;
+  f = await fixture(t, {
+    statusFetch: (input) => {
+      reads++;
+      return Response.json(statusResponse(input, f.options.config.binding.hiveUserId, meta));
+    },
+  });
+  const taskId = randomUUID(),
+    stepId = randomUUID();
+  await f.call("create_task", { id: taskId, steps: [{ id: stepId }] });
+  await f.call("claim_step", { taskId, stepId });
+  const prior = f.runtime.adapter.currentSourceContext(f.thread);
+  const reuse = f.resumeState(),
+    originalConfig = f.options.config;
+  await f.runtime.close();
+  f = await fixture(t, {
+    reuse,
+    config: originalConfig,
+    statusFetch: (input) => {
+      reads++;
+      return Response.json(statusResponse(input, f.options.config.binding.hiveUserId, meta));
+    },
+  });
+  const c = {
+    ownerIntentRuntimeId: randomUUID(),
+    ownerIntentEventId: randomUUID(),
+    epochRuntimeId: randomUUID(),
+    nativeReceiptEventId: randomUUID(),
+    epochResumeEventId: randomUUID(),
+    epochVersion: 1,
+    inputRequestId: randomUUID(),
+  };
+  f.supervisor.accountMaintenanceDeliveryContext = (thread, turn) =>
+    thread === f.thread && turn === f.turnId ? { claimContinuation: c } : null;
+  meta = statusMetadata(f);
+  f.options.guardian.currentMetadata = async () => meta;
+  assert.throws(() => f.runtime.adapter.currentSourceContext(f.thread), /native_claim_missing/);
+  const result = JSON.parse((await f.call("read_status", {})).contentItems[0].text);
+  assert.equal(reads, 1);
+  assert.equal(result.scope.attemptId, prior.attemptId);
+  assert.equal(result.scope.serverInstanceId, f.registration.serverInstanceId);
+  assert.equal(result.executionAuthorized, false);
+  assert.throws(() => f.runtime.adapter.currentSourceContext(f.thread), /native_claim_missing/);
+  const count = f.calls.length;
+  await assert.rejects(
+    f.call("complete_step", { attemptId: prior.attemptId }),
+    /first_operation_must_claim/,
+  );
+  await assert.rejects(
+    f.runtime.adapter.handleToolCall({
+      threadId: f.thread,
+      turnId: randomUUID(),
+      callId: randomUUID(),
+      tool: "hive_delivery",
+      arguments: { operation: "claim_step", payload: { taskId, stepId } },
+    }),
+    /lifetime_changed/,
+  );
+  assert.equal(f.calls.length, count);
+});
+test("first-auth-failure maintenance has no fabricated status or claim and preserves normal create/claim", async (t) => {
+  const f = await fixture(t);
+  f.supervisor.accountMaintenanceDeliveryContext = (thread, turn) =>
+    thread === f.thread && turn === f.turnId ? { claimContinuation: null } : null;
+  const status = JSON.parse((await f.call("read_status", {})).contentItems[0].text);
+  assert.deepEqual(status, {
+    state: "no-current-claim",
+    executionAuthorized: false,
+    publicationAuthorized: false,
+    cleanupAuthorized: false,
+  });
+  assert.equal(f.calls.length, 0);
+  const taskId = randomUUID(),
+    stepId = randomUUID();
+  await f.call("create_task", { id: taskId, steps: [{ id: stepId }] });
+  await f.call("claim_step", { taskId, stepId });
+  assert.equal(f.runtime.adapter.currentSourceContext(f.thread).taskId, taskId);
+});

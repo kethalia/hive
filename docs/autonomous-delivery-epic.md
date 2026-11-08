@@ -282,22 +282,31 @@ different builds. Both stopped hosts and their evidence remain retained.
 See the [original attempt](checks/autonomous-delivery/managed-flow-20g-prelaunch-hold.json)
 and [restart record](checks/autonomous-delivery/managed-flow-08cf-restart-20261107.json).
 
-Restart/account/release source is now integrated. The exact combined recovery/account
-image passed installed checks and two signed bootstrap-only restarts. Credential transfer
-then exposed a valid Coder fsGroup HOME rejected by the account lock, before any cache write
-or model start. PR #418 repairs that source; publish and verify its immutable image before
-the real manager/child/source/independent acceptance pilot. Browser Testing Phase B is
-prepared; live shared-thread acceptance remains pending. [Hold](checks/autonomous-delivery/managed-flow-08cf-auth-lock-hold.json).
+Restart/account/release source is integrated. PR418's immutable `c14b701c` image now
+passes installed package/history checks and the actual fsGroup HOME credential lock;
+only the dedicated test account cache was restored. Initial identity availability
+needed a normal guarded installer retry; PR422 supplies bounded automatic startup
+reads. The combined maintenance image and real manager/child/source/independent
+acceptance pilot remain pending. PR425 fixes a demonstrated Next dynamic-route
+parameter conflict that prevented account requests from reaching their guards.
+Browser Testing Phase B is prepared; live shared-thread acceptance remains pending.
+[Installed evidence](checks/autonomous-delivery/managed-flow-08cf-c14b-installation.json).
 
 PR #412 supplies preview epic integration. PR #415 is integrated after full CI/current
 Codex review, with seventeen composed PostgreSQL checks covering connected Builds and
 independent production acceptance. PR #417 makes the existing Builds command deployable
 only after separate explicit first-cutover/ongoing owner enrollment; no enrollment is active.
 Both Preview databases have [migration48](checks/autonomous-delivery/neon-preview-migration48.json).
-D10 extends the existing controlled database workflow to this path; its first composed
-real-PostgreSQL flow passes with simulated providers, while negative/race tests and integration
-remain. GitHub ruleset compatibility and exact protected-target settings also need acceptance;
-no repository protection has been changed.
+D10's source-build workflow in PR423 has thirteen composed PostgreSQL cases and a
+file-built old/new workerd scenario. Automated review found native-wrapper activation,
+slow workflow continuation and serving-before-activation gaps; corrections and current
+review are required before integration. PR424 adds account maintenance, immutable
+execution epochs and compact responses; external-effect reconciliation remains a
+combined acceptance gate. Frozen migrations49/50 passed an ordered local upgrade of
+the restored Preview backup, preserving all original columns/rows and migration history.
+[Rehearsal](checks/autonomous-delivery/neon-preview49-50-local-upgrade.json).
+PR419 implements GitHub ruleset compatibility; the exact protected-target proposal
+still awaits owner approval, and no repository protection has been changed.
 
 Finish the remaining F07/F08/F10 account-backed parity/recovery gates and release-controller
 acceptance. F07 still needs a browser-independent preparation wake; the

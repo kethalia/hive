@@ -5,6 +5,10 @@ import { acceptanceDigest } from "./acceptance-contracts";
 import { acceptancePlanForIntent } from "./acceptance-policy.server";
 import { nativeRuntimeBindingSchema } from "./contracts";
 import { epicDigest } from "./epic-contracts";
+import {
+  executionActorHistory,
+  requireHistoricalExecutionComplete,
+} from "./execution-authority.server";
 import { NATIVE_OBSERVER_PRODUCER } from "./native-contracts";
 import { verifyReleaseEvidence } from "./release-evidence.server";
 import type { RepositoryPolicyStore } from "./repository-policy-store.server";
@@ -104,6 +108,12 @@ export async function epicPreviewReadiness(
     acceptanceDigest(saved.data.identity) !== event.requestDigest
   )
     return null;
+  let actors: Map<string, boolean>;
+  try {
+    actors = await executionActorHistory(tx, binding);
+  } catch {
+    return null;
+  }
   const { identity, receipt } = saved.data,
     terminal = identity.terminal;
   const bound = await store.resolveTask(tx, ownerId, taskId),
@@ -113,7 +123,7 @@ export async function epicPreviewReadiness(
     !plan ||
     identity.ownerId !== ownerId ||
     identity.managerBindingId !== binding.id ||
-    identity.serverInstanceId !== binding.serverInstanceId ||
+    !actors.has(identity.serverInstanceId) ||
     identity.policyDigest !== bound.binding.policyDigest ||
     identity.planDigest !== plan.row.planDigest ||
     identity.producerDigest !== plan.row.producerDigest ||
@@ -170,12 +180,24 @@ export async function epicPreviewReadiness(
     include: { step: true },
     take: 21,
   });
+  if (allMembers.length > 20) return null;
   const cohort = [];
+  const historicalMembers = [];
   for (const member of allMembers) {
     const runtime = nativeRuntimeBindingSchema.safeParse(member.runtimeBinding);
-    if (!runtime.success) return null;
-    if (terminal.cohort.some((entry) => entry.childThreadId === runtime.data.nativeThreadId))
+    if (!runtime.success || !actors.has(runtime.data.serverInstanceId)) return null;
+    if (
+      runtime.data.serverInstanceId === identity.serverInstanceId &&
+      terminal.cohort.some((entry) => entry.childThreadId === runtime.data.nativeThreadId)
+    )
       cohort.push(member);
+    else if (
+      runtime.data.serverInstanceId !== identity.serverInstanceId &&
+      actors.get(runtime.data.serverInstanceId) === true &&
+      attempt.finishedAt &&
+      member.startedAt < attempt.finishedAt
+    )
+      historicalMembers.push(member);
     else if (
       !pinned ||
       member.step.taskId !== taskId ||
@@ -184,7 +206,6 @@ export async function epicPreviewReadiness(
       member.sourceSha !== source.headSha ||
       member.outputRevisionId ||
       runtime.data.sourceSha !== source.headSha ||
-      runtime.data.serverInstanceId !== binding.serverInstanceId ||
       runtime.data.managerThreadId !== binding.nativeThreadId ||
       runtime.data.workspaceId !== binding.workspaceId ||
       runtime.data.buildId !== binding.buildId ||
@@ -192,9 +213,9 @@ export async function epicPreviewReadiness(
       member.startedAt < attempt.finishedAt
     )
       return null;
+    else if (actors.get(runtime.data.serverInstanceId) === true) historicalMembers.push(member);
   }
   if (
-    allMembers.length > 20 ||
     cohort.length > 20 ||
     cohort.length !== terminal.cohort.length ||
     new Set(terminal.cohort.map((member) => member.childThreadId)).size !==
@@ -202,7 +223,7 @@ export async function epicPreviewReadiness(
     !cohort.some((member) => member.id === attempt.id)
   )
     return null;
-  for (const member of cohort) {
+  for (const member of [...cohort, ...historicalMembers]) {
     const parsed = nativeRuntimeBindingSchema.safeParse(member.runtimeBinding);
     if (!parsed.success || member.outcome === "running") return null;
     const runtime = parsed.data;
@@ -227,22 +248,30 @@ export async function epicPreviewReadiness(
       turnStatus?: string;
       source?: { parentTurnId?: string };
     } | null;
+    const historical = actors.get(runtime.serverInstanceId) === true;
+    if (historical) {
+      try {
+        await requireHistoricalExecutionComplete(tx, binding, actors, member, latest);
+      } catch {
+        return null;
+      }
+    }
     if (
       latest?.type !== "native_attempt_observed" ||
       fact?.producer !== NATIVE_OBSERVER_PRODUCER ||
       fact.nativeSourceKind !== "turn_completed" ||
       fact.turnStatus !== "completed" ||
-      runtime.serverInstanceId !== binding.serverInstanceId ||
       runtime.managerThreadId !== binding.nativeThreadId ||
-      !terminal.cohort.some(
-        (entry) =>
-          entry.parentTurnId === fact.source?.parentTurnId &&
-          entry.spawnCallId === runtime.operationId &&
-          entry.childThreadId === runtime.nativeThreadId &&
-          entry.childTurnId === runtime.nativeTurnId &&
-          entry.effectiveModel === member.effectiveModel &&
-          entry.effectiveEffort === member.effectiveEffort,
-      )
+      (cohort.includes(member) &&
+        !terminal.cohort.some(
+          (entry) =>
+            entry.parentTurnId === fact.source?.parentTurnId &&
+            entry.spawnCallId === runtime.operationId &&
+            entry.childThreadId === runtime.nativeThreadId &&
+            entry.childTurnId === runtime.nativeTurnId &&
+            entry.effectiveModel === member.effectiveModel &&
+            entry.effectiveEffort === member.effectiveEffort,
+        ))
     )
       return null;
   }

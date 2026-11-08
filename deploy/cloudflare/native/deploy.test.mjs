@@ -237,3 +237,12 @@ test("workspace Claude accounts require explicit public enrollment without new s
   c.previews.vars.HIVE_CLAUDE_ACCOUNTS_ENABLED = "arbitrary";
   assert.throws(() => validateConfig(c));
 });
+
+test("account maintenance is default-off and independently enrolled as a public boolean", () => {
+  assert.notEqual(config.previews.vars.HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED, "true");
+  const c = clone();
+  c.previews.vars.HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED = "true";
+  assert.doesNotThrow(() => validateConfig(c));
+  c.previews.vars.HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED = "arbitrary";
+  assert.throws(() => validateConfig(c));
+});
