@@ -583,7 +583,9 @@ resource "kubernetes_persistent_volume_claim_v1" "home" {
     }
   }
 
-  wait_until_bound = false
+  # Publish the provider-observed PV identity only after Longhorn binds HOME.
+  # The Immediate storage class does not need the deployment to schedule first.
+  wait_until_bound = true
 
   spec {
     access_modes       = ["ReadWriteOnce"]
