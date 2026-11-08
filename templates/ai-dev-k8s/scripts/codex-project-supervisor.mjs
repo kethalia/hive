@@ -682,8 +682,6 @@ export class ProjectSupervisor {
             permit &&
             id(permit.nativeReceiptEventId) &&
             typeof permit.completed === "boolean" &&
-            Array.isArray(permit.taskState) &&
-            permit.taskState.length <= 32 &&
             (permit.claimContinuation === null ||
               (exact(permit.claimContinuation, [
                 "ownerIntentRuntimeId",
@@ -764,7 +762,6 @@ export class ProjectSupervisor {
           managerBindingId: permit.managerBindingId,
           executionEpochVersion: permit.executionEpochVersion,
           claimContinuation: structuredClone(permit.claimContinuation ?? null),
-          taskState: structuredClone(permit.taskState ?? []),
           serverInstanceId: this.state.serverInstanceId,
           priorTurnId: proof.lastTurnId,
           inputDigest: hash(text),
@@ -812,7 +809,6 @@ export class ProjectSupervisor {
       return null;
     return structuredClone({
       claimContinuation: input.claimContinuation,
-      taskState: input.taskState,
     });
   }
   observeAccountMaintenanceInput(notification) {

@@ -13,6 +13,8 @@ import {
   type MaintenanceNativeRebind,
   maintenanceNativeRebindSchema,
   maintenanceOwnerResumeSchema,
+  maintenanceReadyAuthorization,
+  maintenanceReadyResponseSchema,
   maintenanceResumeScopeSchema,
 } from "./account-maintenance-contracts";
 import {
@@ -1379,17 +1381,7 @@ export class GuardianAdmissionStore {
         (receipt.response as Prisma.JsonObject).maintenance,
       );
       const runnableProjectIds: string[] = [];
-      const authorizations: Array<{
-        projectId: string;
-        nativeReceiptEventId: string;
-        managerBindingId: string | null;
-        executionEpochVersion: number;
-        runnable: boolean;
-        completed: boolean;
-        taskState: unknown[];
-        claimContinuation: Record<string, unknown> | null;
-        holdReason: string | null;
-      }> = [];
+      const authorizations: Array<ReturnType<typeof maintenanceReadyAuthorization>> = [];
       const deadlines = [runtime.authorityUntil.getTime(), registration.expiresAt.getTime()];
       for (const p of resume.projects) {
         const admission = await lockGuardianAdmission(tx, input.ownerId, runtime.id, p.projectId);
@@ -1427,9 +1419,10 @@ export class GuardianAdmissionStore {
         requireGuardian(bindings.length <= 1);
         let runnable = true,
           completed = false;
-        let holdReason: string | null = null;
-        let claimContinuation: Record<string, unknown> | null = null;
-        const taskState: unknown[] = [];
+        let holdReason: ReturnType<typeof maintenanceReadyAuthorization>["holdReason"] = null;
+        let claimContinuation: ReturnType<
+          typeof maintenanceReadyAuthorization
+        >["claimContinuation"] = null;
         const completionStates: boolean[] = [];
         if (bindings.length && bindings[0].executionEpochVersion === 0) {
           const freshBinding = bindings[0];
@@ -1479,19 +1472,6 @@ export class GuardianAdmissionStore {
             if (task.pauseRequested || task.schedulingPaused) runnable = false;
             requireGuardian(task.steps.length <= 64);
             completionStates.push(task.steps.length > 0 && task.steps.every(dependencySatisfied));
-            taskState.push({
-              taskId: task.id,
-              version: task.version,
-              sourceSha: task.sourceSha,
-              pauseRequested: task.pauseRequested,
-              schedulingPaused: task.schedulingPaused,
-              steps: task.steps.map((step) => ({
-                id: step.id,
-                kind: step.kind,
-                state: step.state,
-                version: step.version,
-              })),
-            });
           }
           completed = completionStates.length > 0 && completionStates.every(Boolean);
           if (b.activeAttemptId && !completed) {
@@ -1525,29 +1505,30 @@ export class GuardianAdmissionStore {
           }
         }
         if (runnable) runnableProjectIds.push(p.projectId);
-        authorizations.push({
-          projectId: p.projectId,
-          nativeReceiptEventId: matching[0].eventId,
-          managerBindingId: bindings[0]?.executionEpochVersion > 0 ? bindings[0].id : null,
-          executionEpochVersion: bindings[0]?.executionEpochVersion ?? 0,
-          runnable,
-          completed,
-          taskState,
-          claimContinuation,
-          holdReason,
-        });
+        authorizations.push(
+          maintenanceReadyAuthorization({
+            projectId: p.projectId,
+            nativeReceiptEventId: matching[0].eventId,
+            managerBindingId: bindings[0]?.executionEpochVersion > 0 ? bindings[0].id : null,
+            executionEpochVersion: bindings[0]?.executionEpochVersion ?? 0,
+            runnable,
+            completed,
+            claimContinuation,
+            holdReason,
+          }),
+        );
       }
       const fresh = await databaseNow(tx);
       requireGuardian(deadlines.every((deadline) => deadline > fresh.getTime()));
-      requireGuardian(Buffer.byteLength(JSON.stringify(authorizations)) <= 48000);
-      return {
+      requireGuardian(Buffer.byteLength(JSON.stringify(authorizations)) <= 28000);
+      return maintenanceReadyResponseSchema.parse({
         ready: true,
         maintenanceId: state.id,
         ownerIntentRuntimeId: receipt.runtimeId,
         ownerIntentEventId: receipt.eventId,
         runnableProjectIds,
         authorizations,
-      };
+      });
     });
   }
   async fence(input: {

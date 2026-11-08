@@ -379,23 +379,24 @@ export function createDeliveryManagerAdapter(options) {
       serverInstanceId: claim.serverInstanceId,
       checkoutBinding: claim.checkoutBinding,
     });
-    return {
-      managerThreadId: claim.managerThreadId,
-      registration: {
-        id: fresh.id,
-        serverInstanceId: fresh.serverInstanceId,
-        expiresAt: fresh.expiresAt,
-      },
-      checkoutBinding: structuredClone(claim.checkoutBinding),
-      managerBindingId: claim.managerBindingId,
-      taskId: claim.taskId,
-      stepId: claim.stepId,
-      attemptId: claim.attemptId,
-      attemptLeaseGeneration: claim.leaseGeneration,
-      inputSourceSha: claim.inputSourceSha,
-      ...(claim.sourceContext ? { sourceContext: structuredClone(claim.sourceContext) } : {}),
-    };
+    return projectSourceContext(claim, fresh);
   };
+  const projectSourceContext = (claim, fresh) => ({
+    managerThreadId: claim.managerThreadId,
+    registration: {
+      id: fresh.id,
+      serverInstanceId: fresh.serverInstanceId,
+      expiresAt: fresh.expiresAt,
+    },
+    checkoutBinding: structuredClone(claim.checkoutBinding),
+    managerBindingId: claim.managerBindingId,
+    taskId: claim.taskId,
+    stepId: claim.stepId,
+    attemptId: claim.attemptId,
+    attemptLeaseGeneration: claim.leaseGeneration,
+    inputSourceSha: claim.inputSourceSha,
+    ...(claim.sourceContext ? { sourceContext: structuredClone(claim.sourceContext) } : {}),
+  });
   const readOutput = async (claim) => {
     const publication = nativeSpool.sourcePublication(claim.managerThreadId);
     check(publication, "delivery_source_output_missing");
@@ -642,6 +643,22 @@ export function createDeliveryManagerAdapter(options) {
       return publication
         ? structuredClone((await readOutput(claim)).accepted.sourceContext)
         : structuredClone(claim.sourceContext ?? null);
+    },
+    maintenanceSourceContext(thread, turn) {
+      check(sourceProtocol, "source_protocol_disabled");
+      const c = options.maintenanceContext?.(thread, turn)?.claimContinuation;
+      const prior = nativeSpool.maintenanceReadClaim(thread, turn);
+      if (!prior) return null;
+      const fresh = currentRegistration();
+      check(c && fresh, "maintenance_read_claim_unavailable");
+      assertAuthority({
+        managerThreadId: thread,
+        registrationId: fresh.id,
+        serverInstanceId: fresh.serverInstanceId,
+        checkoutBinding: prior.checkoutBinding,
+        maintenanceContinuation: c,
+      });
+      return projectSourceContext(prior, fresh); // No runnable claim or source publication capability.
     },
     currentSourceContext(thread) {
       check(sourceProtocol, "source_protocol_disabled");
@@ -903,27 +920,25 @@ export function createDeliveryManagerAdapter(options) {
             "delivery_status_payload_invalid",
           );
           const fresh = options.maintenanceContext?.(params.threadId, params.turnId);
+          check(fresh && sourceEqual(fresh, maintenance), "account_maintenance_authority_changed");
+          check(typeof options.readMaintenanceStatus === "function", "delivery_status_unavailable");
+          const result = await options.readMaintenanceStatus(params.threadId, params.turnId);
           check(
-            Buffer.byteLength(JSON.stringify(fresh?.taskState ?? [])) <= 30000,
+            sourceEqual(
+              options.maintenanceContext?.(params.threadId, params.turnId),
+              maintenance,
+            ) &&
+              !closed &&
+              Date.now() < deadline &&
+              Buffer.byteLength(JSON.stringify(result)) <= 32768,
             "delivery_status_unavailable",
           );
-          check(fresh && sourceEqual(fresh, maintenance), "account_maintenance_authority_changed");
           return {
-            contentItems: [
-              {
-                type: "inputText",
-                text: JSON.stringify({
-                  purpose: "account-maintenance",
-                  tasks: fresh.taskState,
-                  executionAuthorized: false,
-                  publicationAuthorized: false,
-                  cleanupAuthorized: false,
-                }),
-              },
-            ],
+            contentItems: [{ type: "inputText", text: JSON.stringify(result) }],
             success: true,
           };
         }
+
         if (command.operation === "read_status") {
           check(
             command.payload &&

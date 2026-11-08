@@ -367,3 +367,52 @@ export const maintenanceResumeScopeSchema = z
   })
   .strict();
 export type MaintenanceResumeScope = z.infer<typeof maintenanceResumeScopeSchema>;
+
+const maintenanceReadyAuthorizationSchema = z
+  .object({
+    projectId: uuid,
+    nativeReceiptEventId: uuid,
+    managerBindingId: uuid.nullable(),
+    executionEpochVersion: version,
+    runnable: z.boolean(),
+    completed: z.boolean(),
+    claimContinuation: maintenanceClaimContinuationSchema.nullable(),
+    holdReason: z.enum(["maintenance_previous_attempt_held"]).nullable(),
+  })
+  .strict();
+/** Fixed control-plane projection. Task/step snapshots belong to per-project
+ * signed status reads, never the shared guardian FD response. */
+export function maintenanceReadyAuthorization(
+  value: z.infer<typeof maintenanceReadyAuthorizationSchema>,
+) {
+  const {
+    projectId,
+    nativeReceiptEventId,
+    managerBindingId,
+    executionEpochVersion,
+    runnable,
+    completed,
+    claimContinuation,
+    holdReason,
+  } = value;
+  return maintenanceReadyAuthorizationSchema.parse({
+    projectId,
+    nativeReceiptEventId,
+    managerBindingId,
+    executionEpochVersion,
+    runnable,
+    completed,
+    claimContinuation,
+    holdReason,
+  });
+}
+export const maintenanceReadyResponseSchema = z
+  .object({
+    ready: z.literal(true),
+    maintenanceId: uuid,
+    ownerIntentRuntimeId: uuid,
+    ownerIntentEventId: uuid,
+    runnableProjectIds: z.array(uuid).max(32),
+    authorizations: z.array(maintenanceReadyAuthorizationSchema).min(1).max(32),
+  })
+  .strict();

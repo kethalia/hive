@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, sign } from "node:crypto";
 import { PrismaClient } from "@hive/db";
 import { afterAll, describe, expect, it } from "vitest";
 import { accountMaintenanceStateSchema } from "@/lib/codex-session/account-maintenance-contracts";
@@ -9,6 +9,8 @@ import {
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { executionActorHistory } from "@/lib/delivery/execution-authority.server";
 import { DeliveryManagerService } from "@/lib/delivery/manager.server";
+import { DeliveryStatusService } from "@/lib/delivery/status.server";
+import { deliveryStatusProofPayload } from "@/lib/delivery/status-contracts";
 import { resumeAccountMaintenanceFixture } from "./account-maintenance-fixture";
 import { guardianFixture } from "./guardian-fixture";
 
@@ -140,6 +142,21 @@ describe.skipIf(!url)("account maintenance owner intent, actual PostgreSQL", () 
         where: { ownerId: f.binding.hiveUserId, type: "pause_requested" },
       }),
     ).toHaveLength(1);
+    const initial = await setup(false);
+    const foreignInitial = {
+      ...saved,
+      ownerId: initial.binding.hiveUserId,
+      coderOwnerId: initial.binding.ownerId,
+      coderOrigin: initial.binding.coderOrigin,
+      workspaceId: initial.binding.workspaceId,
+      buildId: initial.binding.buildId,
+      runtimes: saved.runtimes.map((r) => ({ ...r, buildId: initial.binding.buildId })),
+      phase: "held",
+    };
+    await expect(db.$executeRaw`UPDATE codex_host_slots SET account_maintenance=${JSON.stringify(foreignInitial)}::jsonb,
+      account_maintenance_version=1 WHERE owner_id=${initial.binding.hiveUserId}::uuid`).rejects.toThrow(
+      "account_maintenance_initial_phase_rejected",
+    );
     await expect(
       db.$transaction((tx) =>
         assertAccountMaintenanceAdmission(tx, f.binding, { kind: "enroll", empty: true }),
@@ -240,6 +257,38 @@ describe.skipIf(!url)("account maintenance owner intent, actual PostgreSQL", () 
     if (withTask === "successful") {
       const permit = authority.authorizations[0];
       expect(permit.claimContinuation).toBeTruthy();
+      const prior = await db.deliveryAttempt.findUniqueOrThrow({
+        where: { id: originalBindings[0].currentAttemptId! },
+      });
+      const statusBody = {
+        schemaVersion: 1,
+        action: "read_delivery_status",
+        requestId: randomUUID(),
+        registrationId,
+        serverInstanceId,
+        managerThreadId: f.fixture.managerThreadId,
+        checkoutBinding: f.fixture.context,
+        managerBindingId: originalBindings[0].id,
+        taskId: f.fixture.taskId,
+        stepId: prior.stepId,
+        attemptId: prior.id,
+        attemptLeaseGeneration: prior.leaseGeneration,
+        inputSourceSha: prior.sourceSha,
+        inputSourceContext: null,
+        issuedAt: Date.now() - 1,
+        expiresAt: Date.now() + 30000,
+      };
+      const status = await new DeliveryStatusService(db, f.fixture.dependencies).read({
+        ...statusBody,
+        proof: sign(
+          null,
+          Buffer.from(deliveryStatusProofPayload(statusBody)),
+          f.fixture.keys.privateKey,
+        ).toString("base64url"),
+      });
+      expect(status.scope.attemptId).toBe(prior.id);
+      expect(status.executionAuthorized).toBe(false);
+      expect(status.blockers).toContain("attempt_not_running");
       const manager = new DeliveryManagerService(db, {
         ...f.fixture.dependencies,
         progressionProtocol: 1,
@@ -349,6 +398,19 @@ describe.skipIf(!url)("account maintenance owner intent, actual PostgreSQL", () 
       const currentRuntime = await db.codexGuardianRuntime.findUniqueOrThrow({
         where: { id: idle.id },
       });
+      const finishedSlot = await db.codexHostSlot.findFirstOrThrow({
+        where: { ownerId: f.binding.hiveUserId },
+      });
+      const finished = accountMaintenanceStateSchema.parse(finishedSlot.accountMaintenance);
+      for (const phase of ["ready", "resuming", "requested"])
+        await expect(db.$executeRaw`UPDATE codex_host_slots SET account_maintenance=${JSON.stringify({ ...finished, phase })}::jsonb,
+          account_maintenance_version=account_maintenance_version+1 WHERE id=${finishedSlot.id}::uuid`).rejects.toThrow(
+          "account_maintenance_finished_reentry_rejected",
+        );
+      await expect(db.$executeRaw`UPDATE codex_host_slots SET account_maintenance=${JSON.stringify({ ...finished, phase: "requested", id: randomUUID() })}::jsonb,
+        account_maintenance_version=account_maintenance_version+1 WHERE id=${finishedSlot.id}::uuid`).rejects.toThrow(
+        "account_maintenance_finished_reentry_rejected",
+      );
       const second = await f.store.request(emptyBinding, {
         requestId: randomUUID(),
         expectedVersion: publicState.version,

@@ -360,7 +360,6 @@ function resumeFixture({
         nativeReceiptEventId,
         managerBindingId: null,
         executionEpochVersion: 0,
-        taskState: [],
         claimContinuation: null,
         runnable,
         completed,
@@ -751,7 +750,6 @@ test("a successful step in an unfinished task receives one fixed owner input, wh
   Object.assign(f.authorized.authorizations[0], {
     executionEpochVersion: 1,
     claimContinuation: c,
-    taskState: [{ taskId: randomUUID(), steps: [] }],
   });
   assert.equal(f.supervisor.accountMaintenanceDeliveryContext(f.root, randomUUID()), null);
   await f.supervisor.finishAccountMaintenanceResume(f.scope, f.authorized);

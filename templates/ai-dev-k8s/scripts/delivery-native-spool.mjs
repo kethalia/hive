@@ -879,6 +879,20 @@ export function createDeliveryNativeSpool(options) {
       else if (claim)
         check(contextEqual(claim.sourceContext, sourceContext), "native_source_context_changed");
     },
+    // Private factual selector ONLY; never changes currentClaim/fragmentClaim or
+    // any cursor/actor. A fresh signed status read still revalidates the epoch.
+    maintenanceReadClaim(managerThreadId, parentTurnId) {
+      const c = options.maintenanceContext?.(managerThreadId, parentTurnId)?.claimContinuation;
+      if (!c) return null;
+      this.assertAvailable(managerThreadId, false, c);
+      const cursor = state.cursors[managerThreadId],
+        prior = cursor && state.attempts[cursor.attemptId];
+      check(
+        prior && prior.serverInstanceId !== currentServerInstanceId(),
+        "maintenance_read_claim_unavailable",
+      );
+      return structuredClone(prior);
+    },
     currentClaim(managerThreadId) {
       const claim = claimFor(managerThreadId);
       return claim ? structuredClone(claim) : null;

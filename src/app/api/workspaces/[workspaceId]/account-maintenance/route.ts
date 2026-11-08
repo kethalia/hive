@@ -14,7 +14,10 @@ import {
 export const dynamic = "force-dynamic";
 /** Explicit owner intent only. The model and host operation envelopes cannot
  * manufacture a maintenance request or owner resume-intent receipt. */
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ workspaceId: string }> },
+) {
   if (
     process.env.HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED !== "true" ||
     process.env.HIVE_GUARDIAN_ENABLED !== "true"
@@ -23,8 +26,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const session = await authorizeSessionOwner(request);
     if (session instanceof Response) return session;
-    const { id } = await context.params;
-    if (!z.string().uuid().safeParse(id).success || new URL(request.url).search)
+    const { workspaceId } = await context.params;
+    if (!z.string().uuid().safeParse(workspaceId).success || new URL(request.url).search)
       return sessionError("invalid_request", 400);
     const parsed = accountMaintenanceRequestSchema.safeParse(
       await boundedSessionJson(request, 4096),
@@ -34,7 +37,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(45000)]),
     }).accountMaintenance(
       { hiveUserId: session.user.id, coderUserId: session.user.coderUserId },
-      id,
+      workspaceId,
       parsed.data,
     );
     if (request.signal.aborted) throw Error("account_maintenance_unavailable");

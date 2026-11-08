@@ -26,6 +26,7 @@ it("allows ordinary test changes while protecting authority and fixed execution 
     "src/lib/codex-session/guardian-store.server.ts",
     "src/lib/codex-session/registration-store.server.ts",
     "src/app/api/workspaces/[id]/account-maintenance/route.ts",
+    "src/app/api/workspaces/[workspaceId]/account-maintenance/route.ts",
     "src/lib/delivery/epic-merge-lifecycle.server.ts",
     "src/lib/delivery/epic-readiness.server.ts",
     "src/lib/delivery/epic-claim.server.ts",

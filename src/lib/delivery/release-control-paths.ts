@@ -13,6 +13,7 @@ export function isReleaseTestControlPath(path: string) {
     path.startsWith("src/lib/codex-session/guardian-") ||
     path === "src/lib/codex-session/registration-store.server.ts" ||
     path === "src/app/api/workspaces/[id]/account-maintenance/route.ts" ||
+    path === "src/app/api/workspaces/[workspaceId]/account-maintenance/route.ts" ||
     path === "scripts/host-epic-merge.ts" ||
     path === "src/lib/projects/host.server.ts" ||
     path === "src/lib/codex-session/bootstrap-delivery.server.ts" ||

@@ -30,6 +30,21 @@ ALTER TABLE codex_guardian_barriers
 CREATE FUNCTION hive_account_maintenance_transition() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.account_maintenance IS DISTINCT FROM OLD.account_maintenance THEN
+    IF OLD.account_maintenance IS NULL AND (OLD.account_maintenance_version<>0 OR
+      NEW.account_maintenance->>'phase' IS DISTINCT FROM 'requested') THEN
+      RAISE EXCEPTION 'account_maintenance_initial_phase_rejected';
+    END IF;
+    IF OLD.account_maintenance->>'phase'='finished' AND (
+      NEW.account_maintenance->>'phase' IS DISTINCT FROM 'requested' OR
+      NEW.account_maintenance->>'id' IS NOT DISTINCT FROM OLD.account_maintenance->>'id' OR
+      NEW.account_maintenance->>'resumeRequestId' IS NOT NULL OR
+      NEW.account_maintenance->>'resumeIntentRuntimeId' IS NOT NULL OR
+      NEW.account_maintenance->>'resumeIntentEventId' IS NOT NULL OR
+      NEW.account_maintenance->>'idleRuntimeId' IS NOT NULL OR
+      NEW.account_maintenance->'barrierIds' IS DISTINCT FROM '[]'::jsonb OR
+      NEW.account_maintenance->'treeReceiptDigests' IS DISTINCT FROM '[]'::jsonb) THEN
+      RAISE EXCEPTION 'account_maintenance_finished_reentry_rejected';
+    END IF;
     IF OLD.account_maintenance IS NOT NULL AND OLD.account_maintenance->>'phase'<>'finished'
       AND NEW.account_maintenance->>'phase' IS DISTINCT FROM OLD.account_maintenance->>'phase'
       AND NOT ((OLD.account_maintenance->>'phase',NEW.account_maintenance->>'phase') IN (

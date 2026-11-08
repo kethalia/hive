@@ -10,7 +10,7 @@ vi.mock("@/lib/codex-session/registered-session.server", () => ({
   registeredSessionConfig: () => ({ hiveOrigin: "https://hive.invalid" }),
 }));
 
-import { POST } from "@/app/api/workspaces/[id]/account-maintenance/route";
+import { POST } from "@/app/api/workspaces/[workspaceId]/account-maintenance/route";
 
 const workspaceId = randomUUID();
 const request = (body: unknown = { action: "status" }, origin = "https://hive.invalid") =>
@@ -19,7 +19,7 @@ const request = (body: unknown = { action: "status" }, origin = "https://hive.in
     headers: { Origin: origin, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-const context = { params: Promise.resolve({ id: workspaceId }) };
+const context = { params: Promise.resolve({ workspaceId }) };
 beforeEach(() => {
   for (const name of [
     "HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED",
