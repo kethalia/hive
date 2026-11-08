@@ -23,6 +23,7 @@ function fixture() {
       return value
         ? {
             key: path,
+            version: "actual-provider-upload-version",
             size: value.length,
             body: new ReadableStream({
               start(controller) {
@@ -129,5 +130,70 @@ describe("create-only R2 GitHub artifacts", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+  it("cleanup read requires full bytes and the actual upload version without writing", async () => {
+    const f = fixture();
+    f.values.set(f.key, f.bytes);
+    expect(await f.store.readAndVerify(f.key, f.digest)).toEqual({
+      contentDigest: f.digest,
+      size: f.bytes.length,
+      objectVersion: "actual-provider-upload-version",
+    });
+    expect(f.bucket.put).not.toHaveBeenCalled();
+    for (const version of [undefined, "", "x".repeat(257)]) {
+      vi.mocked(f.bucket.get).mockResolvedValueOnce({
+        key: f.key,
+        version,
+        size: f.bytes.length,
+        body: new ReadableStream({
+          start(c) {
+            c.enqueue(f.bytes);
+            c.close();
+          },
+        }),
+      });
+      await expect(f.store.readAndVerify(f.key, f.digest)).rejects.toThrow(
+        "github_artifact_unverified",
+      );
+    }
+  });
+  it("cleanup read deadline holds on a stalled object and never treats metadata as preservation", async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture();
+      vi.mocked(f.bucket.get).mockResolvedValueOnce({
+        key: f.key,
+        version: "provider-version",
+        size: f.bytes.length,
+        body: new ReadableStream({ cancel: () => new Promise(() => {}) }),
+      });
+      const result = expect(f.store.readAndVerify(f.key, f.digest)).rejects.toThrow(
+        "github_artifact_unavailable",
+      );
+      await vi.advanceTimersByTimeAsync(10001);
+      await result;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("cleanup read sanitizes provider and stream errors without exposing private messages", async () => {
+    const f = fixture();
+    vi.mocked(f.bucket.get).mockRejectedValueOnce(Error("private provider response"));
+    await expect(f.store.readAndVerify(f.key, f.digest)).rejects.toThrow(
+      "github_artifact_unavailable",
+    );
+    vi.mocked(f.bucket.get).mockResolvedValueOnce({
+      key: f.key,
+      version: "provider-version",
+      size: f.bytes.length,
+      body: new ReadableStream({
+        start(c) {
+          c.error(Error("private stream response"));
+        },
+      }),
+    });
+    await expect(f.store.readAndVerify(f.key, f.digest)).rejects.toThrow(
+      "github_artifact_unverified",
+    );
   });
 });

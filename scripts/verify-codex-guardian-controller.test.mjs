@@ -214,6 +214,17 @@ function fixture() {
           cleanupAuthorized: false,
         });
       if (body.action === "epic_release_prepare") return Response.json({ eligible: false });
+      if (body.action === "cleanup_status") {
+        assert.equal(body.expiresAt - body.issuedAt, 30500);
+        return Response.json({
+          token:
+            mode === "cleanupMissing"
+              ? null
+              : mode === "cleanupCommitted"
+                ? "retained-refreshed"
+                : "retained-original",
+        });
+      }
       if (body.action === "prepare") {
         generation = 2;
         admission = {
@@ -1264,7 +1275,7 @@ test("closed controller archive is durable, scoped and replayable without active
     saved.state.epicClosure = {
       barrierId,
       archiveDigest: "a".repeat(64),
-      projects: { [projectId]: { acknowledged: true } },
+      projects: { [projectId]: { acknowledged: true, cleanupAcknowledged: false } },
     };
     saved.signature = sign(
       null,
@@ -1275,6 +1286,14 @@ test("closed controller archive is durable, scoped and replayable without active
     await assert.rejects(
       f.client.archiveClosedController({ ...receipt, workerBarrier: { barrierId: randomUUID() } }),
     );
+    await assert.rejects(f.client.archiveClosedController(receipt));
+    saved.state.epicClosure.projects[projectId].cleanupAcknowledged = true;
+    saved.signature = sign(
+      null,
+      Buffer.from(canonical(saved.state)),
+      readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+    ).toString("base64url");
+    writeFileSync(path, JSON.stringify(saved), { mode: 0o600 });
     const result = await f.client.archiveClosedController(receipt);
     assert.equal(result.archived, true);
     const fresh = openGuardianController(f.options);
@@ -2056,3 +2075,89 @@ for (const action of ["prepare", "fence"])
         f.close();
       }
     });
+
+for (const outcome of ["cleanupUncommitted", "cleanupCommitted", "cleanupMissing"]) {
+  test(`stale uncertain cleanup renewal uses factual readback after delayed ${outcome} outcome`, async () => {
+    const f = fixture();
+    try {
+      f.identity();
+      await f.client.bootstrap(f.grant());
+      const path = join(f.options.stateDirectory, "controller.json"),
+        saved = JSON.parse(readFileSync(path)),
+        projectId = randomUUID(),
+        barrierId = randomUUID();
+      const request = {
+          closedRuntimeId: saved.state.runtimeId,
+          projectId,
+          binding: { fixture: "exact-original-incarnation" },
+          controllerArchiveDigest: "a".repeat(64),
+          sourceArchiveDigest: "b".repeat(64),
+        },
+        retry = {
+          previousAuthorizationDigest: "c".repeat(64),
+          disposition: "not_started",
+          observedAt: Date.now() - 120000,
+        };
+      saved.state.epicClosure = {
+        barrierId,
+        projects: {
+          [projectId]: {
+            cleanupRequest: request,
+            cleanupToken: "retained-original",
+            cleanupRefresh: retry,
+          },
+        },
+      };
+      saved.state.pending = {
+        schemaVersion: 1,
+        runtimeId: saved.state.runtimeId,
+        runtimeGeneration: saved.state.generation,
+        eventId: randomUUID(),
+        issuedAt: Date.now() - 120000,
+        expiresAt: Date.now() - 90000,
+        action: "cleanup_prepare",
+        projectId,
+        request: { ...request, retry },
+        proof: "old-expired-wire-proof",
+      };
+      saved.state.hold = true;
+      saved.signature = sign(
+        null,
+        Buffer.from(canonical(saved.state)),
+        readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+      ).toString("base64url");
+      writeFileSync(path, JSON.stringify(saved), { mode: 0o600 });
+      const receipt = {
+        guardianExited: true,
+        lifetimeId: f.startup.lifetimeId,
+        bindingDigest: f.startup.bindingDigest,
+        packageManifestSha256: f.startup.packageManifestSha256,
+        guardianSha256: f.startup.guardianSha256,
+        nodeSha256: f.startup.nodeSha256,
+        generation: saved.state.generation,
+        workerBarrier: { barrierId },
+        projects: [{ projectId }],
+      };
+      f.mode(outcome);
+      const fresh = openGuardianController(f.options),
+        before = f.calls.length;
+      if (outcome === "cleanupMissing") {
+        await assert.rejects(fresh.recoverTreeReceipt(receipt));
+        assert.equal(fresh.status.held, true);
+      } else {
+        await fresh.recoverTreeReceipt(receipt);
+        const restored = JSON.parse(readFileSync(path)).state.epicClosure.projects[projectId];
+        assert.equal(
+          restored.cleanupToken,
+          outcome === "cleanupCommitted" ? "retained-refreshed" : "retained-original",
+        );
+        assert.equal(restored.cleanupRefresh, undefined);
+        assert.equal(fresh.status.held, false);
+      }
+      assert(f.calls.slice(before).every((c) => c.action !== "cleanup_prepare"));
+      assert(f.calls.slice(before).some((c) => c.action === "cleanup_status"));
+    } finally {
+      f.close();
+    }
+  });
+}

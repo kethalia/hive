@@ -3,6 +3,7 @@ import { createPortableAccountService } from "@/lib/agents/portable-config.serve
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { signedHostProjectRequest } from "@/lib/projects/host.server";
 import { projectTaskStatusSchema } from "@/lib/projects/task-contracts";
+import { checkoutVolumeEvidenceSchema } from "../delivery/checkout-cleanup-contracts";
 import {
   deliverGuardianEnrollment,
   provisionRegisteredHost,
@@ -12,6 +13,7 @@ import {
 } from "./bootstrap-delivery.server";
 import { guardianDeploymentPolicy, guardianDigest } from "./guardian-contracts";
 import { verifyRemountResources } from "./guardian-remount.server";
+import { guardianVolumeSchema } from "./guardian-remount-contracts";
 import {
   type GuardianOwnerTransport,
   type GuardianProvisionStage,
@@ -79,6 +81,53 @@ export function createGuardianService(
     return fresh.coder;
   };
   return new GuardianService(db, config, policy, encryptionKey, {
+    async resolveCleanupVolume(binding, lifetimeId) {
+      const coder = await currentCoder(binding),
+        workspace = await coder.getWorkspace(binding.workspaceId, options.signal),
+        resources = await coder.getWorkspaceResources(binding.workspaceId, binding.buildId);
+      if (
+        workspace.latest_build.id !== binding.buildId ||
+        !workspace.latest_build.template_version_id
+      )
+        throw new RegistrationRejected();
+      const candidates = resources.filter(
+        (r) =>
+          r.type === "kubernetes_deployment_v1" &&
+          r.name === "workspace" &&
+          r.agents?.length === 1 &&
+          r.agents[0].id === binding.agentId,
+      );
+      if (
+        candidates.length !== 1 ||
+        resources.flatMap((r) => r.agents ?? []).filter((a) => a.id === binding.agentId).length !==
+          1
+      )
+        throw new RegistrationRejected();
+      const entries = candidates[0].metadata?.filter((m) => m.key === "hive_home_volume_v1");
+      if (
+        entries?.length !== 1 ||
+        entries[0].sensitive ||
+        typeof entries[0].value !== "string" ||
+        entries[0].value.length > 2048
+      )
+        throw new RegistrationRejected();
+      const volume = guardianVolumeSchema.parse(JSON.parse(entries[0].value));
+      if (
+        volume.pvcName !== `coder-${binding.workspaceId}-home` ||
+        volume.boundVolumeName !== `pvc-${volume.pvcUid}`
+      )
+        throw new RegistrationRejected();
+      await currentCoder(binding);
+      return checkoutVolumeEvidenceSchema.parse({
+        templateVersionId: workspace.latest_build.template_version_id,
+        buildId: binding.buildId,
+        lifetimeId,
+        resourceId: candidates[0].id,
+        observedAt: Date.now(),
+        volume,
+        volumeDigest: guardianDigest(volume),
+      });
+    },
     async assertUnstartedPredecessorStopped(binding, oldBuildId, continuation, attestation) {
       if (oldBuildId === binding.buildId) throw new RegistrationRejected();
       const coder = await currentCoder(binding);

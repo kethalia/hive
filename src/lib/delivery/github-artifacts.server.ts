@@ -5,6 +5,7 @@ import { DeliveryConflict } from "./state";
 export const GITHUB_ARTIFACT_MAX_BYTES = 2 * 1024 * 1024;
 export interface EvidenceR2Object {
   key: string;
+  version?: string;
   size: number;
   body: ReadableStream<Uint8Array>;
 }
@@ -26,6 +27,79 @@ export interface EvidenceR2Bucket {
  * retention/IAM remain deployment gates; this class cannot establish WORM policy. */
 export class R2GitHubArtifactStore implements ImmutableGitHubArtifactStore {
   constructor(private readonly bucket: EvidenceR2Bucket) {}
+
+  /** Cleanup requires a fresh full content read and the actual provider upload
+   * version. An etag, digest or invented identifier is never a version fallback. */
+  async readAndVerify(key: string, digest: string) {
+    if (
+      !/^delivery\/[a-f0-9-]{36}\/github\/[1-9][0-9]{0,19}\/[a-f0-9]{40}\/[a-f0-9]{64}\.json$/.test(
+        key,
+      ) ||
+      !key.endsWith(`/${digest}.json`)
+    )
+      throw new DeliveryConflict("github_artifact_invalid");
+    const controller = new AbortController(),
+      deadline = Date.now() + 10000;
+    const bounded = async <T>(fn: () => Promise<T>) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          fn(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => {
+                controller.abort();
+                reject(new DeliveryConflict("github_artifact_unavailable"));
+              },
+              Math.max(1, deadline - Date.now()),
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    let object: EvidenceR2Object | null;
+    try {
+      object = await bounded(() => this.bucket.get(key));
+    } catch {
+      throw new DeliveryConflict("github_artifact_unavailable");
+    }
+    if (
+      !object?.body ||
+      object.key !== key ||
+      !object.version ||
+      object.version.length > 256 ||
+      !Number.isSafeInteger(object.size) ||
+      object.size < 1 ||
+      object.size > GITHUB_ARTIFACT_MAX_BYTES
+    ) {
+      if (object?.body) void object.body.cancel().catch(() => {});
+      throw new DeliveryConflict("github_artifact_unverified");
+    }
+    const reader = object.body.getReader(),
+      hash = createHash("sha256");
+    let size = 0;
+    try {
+      while (true) {
+        if (controller.signal.aborted) throw new DeliveryConflict("github_artifact_unavailable");
+        const next = await bounded(() => reader.read());
+        if (next.done) break;
+        size += next.value.byteLength;
+        if (size > object.size || size > GITHUB_ARTIFACT_MAX_BYTES)
+          throw new DeliveryConflict("github_artifact_unverified");
+        hash.update(next.value);
+      }
+      if (size !== object.size || hash.digest("hex") !== digest)
+        throw new DeliveryConflict("github_artifact_unverified");
+      return { contentDigest: digest, size, objectVersion: object.version };
+    } catch {
+      if (controller.signal.aborted) throw new DeliveryConflict("github_artifact_unavailable");
+      throw new DeliveryConflict("github_artifact_unverified");
+    } finally {
+      void reader.cancel().catch(() => {});
+    }
+  }
 
   async writeAndVerify(key: string, content: Uint8Array, digest: string) {
     const shape =

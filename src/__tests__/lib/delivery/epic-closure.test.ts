@@ -6,7 +6,7 @@ vi.mock("@/lib/delivery/epic-dependency.server", () => ({
   epicDependencyRelease: async () => ({ mergeSha: "e".repeat(40) }),
 }));
 
-import { submitEpicRelease } from "@/lib/delivery/epic-closure.server";
+import { closedTaskScope, submitEpicRelease } from "@/lib/delivery/epic-closure.server";
 import { epicDigest } from "@/lib/delivery/epic-contracts";
 
 const u = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -21,6 +21,7 @@ it("issues an archive token only for the exact closed lease and retained source"
     lifetimeId: u(5),
     closedBarrierId: u(6),
     phase: "tree_closed",
+    serverInstanceId: "closed-native-server",
     binding: { ownerId: u(7) },
   } as unknown as CodexGuardianRuntime;
   const checkout = {
@@ -46,7 +47,9 @@ it("issues an archive token only for the exact closed lease and retained source"
   };
   let query = 0,
     writes = 0,
-    barrierPurpose = "completion";
+    barrierPurpose = "completion",
+    allocationBuild = u(4),
+    successorConfig = "current-config";
   const db = {
     codexGuardianBarrier: {
       findUnique: async () => ({ purpose: barrierPurpose }),
@@ -64,19 +67,57 @@ it("issues an archive token only for the exact closed lease and retained source"
           id: u(13),
           epicId: u(14),
           sourceSha: release.revision,
-          managerBinding: { leaseId: u(10), leaseGeneration: 1 },
+          managerBinding: {
+            leaseId: u(10),
+            leaseGeneration: 1,
+            serverInstanceId: "closed-native-server",
+            executionEpochVersion: 0,
+            executionEpochRuntimeId: null,
+            executionEpochEventId: null,
+            executionEpochResumeEventId: null,
+            buildId: u(4),
+          },
         },
       ],
     },
-    $queryRaw: async () => {
+    codexGuardianRuntime: {
+      findMany: async () => [
+        {
+          ...runtime,
+          configSha256: "current-config",
+          packageManifestSha256: "current-package",
+          outerPublicKeyPem: "current-key",
+        },
+      ],
+    },
+    $queryRaw: async (parts: TemplateStringsArray) => {
+      if (parts.join("").includes("e.response,r.phase,r.build_id"))
+        return [
+          {
+            phase: "authorization_retired",
+            build_id: allocationBuild,
+            response: {
+              retirement: {
+                newIdentity: {
+                  lifetimeId: runtime.lifetimeId,
+                  configSha256: successorConfig,
+                  packageManifestSha256: "current-package",
+                  outerPublicKeyPem: "current-key",
+                },
+              },
+            },
+          },
+        ];
       query++;
       return query === 1
         ? [{ digest: "c".repeat(64) }]
         : query === 2
           ? [{ phase: "accepted" }]
           : query === 3
-            ? [{ artifact_digest: "d".repeat(64) }]
-            : [{ receipt_digest: epicDigest(release), runtime_id: u(1) }];
+            ? [{ workspace_id: u(3), build_id: allocationBuild }]
+            : query === 4
+              ? [{ artifact_digest: "d".repeat(64) }]
+              : [{ receipt_digest: epicDigest(release), runtime_id: u(1) }];
     },
     $executeRaw: async () => {
       writes++;
@@ -100,6 +141,15 @@ it("issues an archive token only for the exact closed lease and retained source"
     repositoryId: "123",
     leaseReleaseDigest: epicDigest(release),
   });
+  // Unused retirement changes only the allocation's effective build. The
+  // manager binding belongs to the first actual native actor on the new build.
+  allocationBuild = u(44);
+  query = 0;
+  expect((await closedTaskScope(db, runtime, u(8))).task.managerBinding!.buildId).toBe(u(4));
+  successorConfig = "foreign-config";
+  query = 0;
+  await expect(closedTaskScope(db, runtime, u(8))).rejects.toThrow("epic_task_unbound");
+  allocationBuild = u(4);
   query = 0;
   await expect(
     submitEpicRelease(db, runtime, u(8), { ...release, leaseGeneration: 2 }, pem),

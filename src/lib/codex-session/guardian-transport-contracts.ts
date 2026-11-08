@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { epicLeaseReleaseSchema } from "@/lib/delivery/epic-closure-contracts";
 import {
+  checkoutCleanupReceiptSchema,
+  checkoutCleanupRequestSchema,
+} from "../delivery/checkout-cleanup-contracts";
+import {
   accountMaintenanceIdleSnapshotSchema,
   maintenanceNativeRebindSchema,
 } from "./account-maintenance-contracts";
@@ -264,6 +268,33 @@ export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
       projectId: uuid,
       archiveDigest: guardianDigestSchema,
       sourceArchiveDigest: guardianDigestSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("cleanup_prepare"),
+      projectId: uuid,
+      request: checkoutCleanupRequestSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("cleanup_status"),
+      projectId: uuid,
+      request: checkoutCleanupRequestSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("cleanup_ack"),
+      projectId: uuid,
+      receipt: checkoutCleanupReceiptSchema,
     })
     .strict(),
   z.object({ ...common, ...generation, action: z.literal("drain_ready") }).strict(),

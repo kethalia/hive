@@ -151,6 +151,87 @@ class GitDriver:
             process.stdout.close()
 
 
+class InstalledSealedHostObserver:
+    """Construction fact only. Fixed installed bytes, never a PID/request option."""
+    def __init__(self, home):
+        self.home = Path(home).resolve()
+        self.module = Path(__file__).resolve().with_name("codex-unstarted-transfer.mjs")
+
+    def __call__(self):
+        state = self.home / ".local/state/hive/codex-host-guardian"
+        manager = ManagedProjects(self.home)
+        manager.safe(state)
+        if not os.path.lexists(state):
+            return None  # Unguarded installs receive no exemption; scan strictly.
+        manager.private(state, True)
+        manager.private(state / "key")
+        manager.private(state / "lifetime.json")
+        key = (state / "key").read_bytes()
+        require(len(key) == 32 and (state / "lifetime.json").stat().st_size <= 2 * 1024 * 1024, "sealed_guardian_unavailable")
+        saved = json.loads((state / "lifetime.json").read_text())
+        encoded = json.dumps(saved["state"], separators=(",", ":"), ensure_ascii=False).encode()
+        require(hmac.compare_digest(saved["signature"], hmac.new(key, encoded, hashlib.sha256).hexdigest()), "sealed_guardian_unavailable")
+        startup = saved["state"]["events"][4]["value"]
+        install = self.home / ".local/state/hive/codex-host-install/process.json"
+        manager.private(install)
+        require(install.stat().st_size <= 65536, "sealed_guardian_unavailable")
+        archive = json.loads(install.read_text())["archiveSha256"]
+        require(isinstance(archive, str) and re.fullmatch(r"[0-9a-f]{64}", archive), "sealed_guardian_unavailable")
+        directory = self.home / ".local/share/hive/codex-host" / archive
+        require(self.module.parent == directory and self.module.resolve() == self.module, "sealed_guardian_unavailable")
+        manager.private(directory, True)
+        manifest_file = directory / "package-manifest.json"
+        manager.private(manifest_file)
+        require(manifest_file.stat().st_size <= 65536, "sealed_guardian_unavailable")
+        manifest_raw = manifest_file.read_bytes()
+        require(hashlib.sha256(manifest_raw).hexdigest() == startup["packageManifestSha256"], "sealed_guardian_package_changed")
+        manifest = json.loads(manifest_raw)
+        files = manifest.get("files")
+        require(isinstance(files, dict) and 1 <= len(files) <= 64 and self.module.name in files, "sealed_guardian_package_changed")
+        total = 0
+        for name, digest in files.items():
+            require(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", name)
+                    and all(p not in {".", ".."} for p in name.split("/"))
+                    and isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest), "sealed_guardian_package_changed")
+            file = directory / name
+            manager.private(file)
+            info = file.lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 2 * 1024 * 1024, "sealed_guardian_package_changed")
+            total += info.st_size
+            require(total <= 2 * 1024 * 1024 and hashlib.sha256(file.read_bytes()).hexdigest() == digest, "sealed_guardian_package_changed")
+        members = []
+        for member in directory.rglob("*"):
+            members.append(member)
+            require(len(members) <= 128, "sealed_guardian_package_changed")
+        require(all(not p.is_symlink() for p in members)
+                and {str(p.relative_to(directory)) for p in members if p.is_file()} == set(files) | {"package-manifest.json"}, "sealed_guardian_package_changed")
+        # No exception is needed once this exact actor is gone. This does not
+        # establish tree closure: the ordinary scanner and operation guards run.
+        actor = startup["guardianIdentity"]
+        require(type(actor.get("pid")) is int and actor["pid"] > 0, "sealed_guardian_unavailable")
+        try:
+            raw = (Path("/proc") / str(actor["pid"]) / "stat").read_text()
+            fields = raw[raw.rindex(") ") + 2:].split()
+            if fields[0] in {"Z", "X"} or fields[19] != actor["startTime"] or Path("/proc/sys/kernel/random/boot_id").read_text().strip() != actor["bootId"]:
+                return None
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            return None
+        node = Path(startup["outerIdentity"]["executable"])
+        roots = saved["state"]["events"][0]["value"]["hostRootInventory"]
+        require(node.is_absolute() and node.resolve() == node and isinstance(roots, list) and len(roots) == 1
+                and roots[0]["id"] == "host-worker" and roots[0]["role"] == "host"
+                and roots[0]["executable"] == str(node) and roots[0]["sha256"] == startup["nodeSha256"], "sealed_guardian_unavailable")
+        info = node.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
+                and info.st_size <= 256 * 1024 * 1024
+                and hashlib.sha256(node.read_bytes()).hexdigest() == startup["nodeSha256"], "sealed_guardian_unavailable")
+        code = "const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.verifySealedHostConstruction(process.argv[2])));"
+        result = subprocess.run([str(node), "--input-type=module", "-e", code, self.module.as_uri(), str(self.home)],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, timeout=2, check=True)
+        require(len(result.stdout) <= 8192, "sealed_guardian_unavailable")
+        return json.loads(result.stdout)
+
 class ManagedProjects:
     require_source = staticmethod(require)
 
@@ -168,6 +249,13 @@ class ManagedProjects:
         self.resolver = resolver or GitHubResolver()
         self.driver = git or GitDriver()
         self.key = None
+        self._installed_observer = None
+
+    @classmethod
+    def installed(cls, home):
+        manager = cls(home)
+        manager._installed_observer = InstalledSealedHostObserver(manager.home)
+        return manager
 
     def safe(self, path):
         require(path.is_absolute() and path.is_relative_to(self.home) and path.resolve() == path,
@@ -220,7 +308,7 @@ class ManagedProjects:
             raise ManagedError("receipt_invalid") from None
 
     @contextmanager
-    def lock(self, remount=None):
+    def lock(self, remount=None, cleanup=None):
         self.safe(self.state)
         self.state.mkdir(parents=True, mode=0o700, exist_ok=True)
         self.private(self.state, True)
@@ -247,6 +335,12 @@ class ManagedProjects:
                 self.root.mkdir(parents=True, mode=0o700)
                 self.write(root_record, {"schemaVersion": 1, "path": str(self.root), "identity": self.identity(self.root), "createdAt": time.time()})
             root = self.read(root_record)
+            cleanup_markers = list(self.state.glob("cleanup-*.json"))
+            require(len(cleanup_markers) <= 1024, "cleanup_history_limit")
+            for pending_file in cleanup_markers:
+                pending_cleanup = self.read(pending_file)
+                require(pending_cleanup.get("schemaVersion") == 1 and pending_cleanup.get("phase") in {"deleting", "complete"}, "cleanup_reconciliation_required")
+                require(pending_cleanup.get("phase") == "complete" or pending_file.name == f"cleanup-{cleanup}.json", "cleanup_reconciliation_required")
             marker = self.state / "unstarted-remount.json"
             if marker.exists():
                 pending = self.read(marker)
@@ -330,8 +424,10 @@ class ManagedProjects:
         require(not self.git(checkout, "stash", "list"), "checkout_has_stash")
 
     def _sealed_guardian(self, value, checkout):
+        construction = {"guardian", "outer", "sourceSha256", "guardianSha256", "constructionDigest", "cwd", "lifetimeId"}
         require(isinstance(value, dict) and value.get("sourceSha256") == "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3"
-                and value.get("expiresAt", 0) > time.time() * 1000, "sealed_guardian_unavailable")
+                and (set(value) == construction or (set(value) == construction | {"recoveryId", "expiresAt"}
+                     and value["expiresAt"] > time.time() * 1000)), "sealed_guardian_unavailable")
         identity, outer, cwd = value["guardian"], value["outer"], value["cwd"]
         require(cwd["path"] == str(self.home / ".local/share/hive/codex-host") and not Path(cwd["path"]).is_relative_to(checkout),
                 "sealed_guardian_unavailable")
@@ -394,7 +490,7 @@ class ManagedProjects:
                 self._sealed_guardian(sealed, checkout)
 
     def no_consumers(self, path, _guardian=None):
-        require(not self.process_references(path, _guardian), "checkout_in_use")
+        require(not self.process_references(path, _guardian if _guardian is not None else self._installed_observer), "checkout_in_use")
 
     def prepare(self, repository_id, task_id, requested_revision, lease_id=None, generation=None, ttl=900):
         require(identifier(task_id) and revision(requested_revision), "invalid_task_or_revision")
@@ -870,15 +966,51 @@ class ManagedProjects:
             return {"status": "controller_authority_unavailable", "checkoutRetained": True,
                     "requestId": record["cleanupRequests"][-1]["id"]}
 
+    def _cleanup_binding(self, record):
+        identity = lambda value: {key: str(value[key]) for key in ("device", "inode")}
+        root = self.read(self.state / "root.json")
+        return {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"],
+                "rootIdentity": identity(root["identity"]), "projectIdentity": identity(record["projectIdentity"]),
+                "checkoutIdentity": identity(record["checkoutIdentity"]), "checkoutIncarnation": record["checkoutIncarnation"],
+                "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0),
+                "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
+
+    def _inspect_cleanup(self, repository_id, task_id):
+        """Private controller preparation; no deletion or invented authority."""
+        with self.lock(cleanup=repository_id):
+            project, receipt, record = self.load(repository_id)
+            marker_file = self.state / f"cleanup-{repository_id}.json"
+            if marker_file.exists():
+                marker = self.read(marker_file)
+                if marker.get("binding", {}).get("taskId") == task_id:
+                    return {"binding": marker["binding"], "disposition": marker["phase"], "observedAt": int(time.time() * 1000)}
+            require(record["lastTaskId"] == task_id and not record["lease"] and record.get("checkoutIdentity") and not record.get("acceptedSource") and not record.get("sourceUpdating"), "cleanup_not_quiescent")
+            last = record["cleanupRequests"][-1] if record["cleanupRequests"] else None
+            if not last or any(last.get(key) != value for key, value in {"taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0)}.items()):
+                require(len(record["cleanupRequests"]) < 100, "cleanup_request_limit")
+                record["cleanupRequests"].append({"id": str(uuid.uuid4()), "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "requestedAt": time.time()})
+                self.write(receipt, record)
+            return {"binding": self._cleanup_binding(record), "disposition": "not_started", "observedAt": int(time.time() * 1000)}
+
     def _remove_with_authority(self, repository_id, task_id, signed_evidence, authority):
         """Internal validation seam; no CLI/env path supplies an authority or calls it.
 
-        Production controller verification is deliberately unimplemented. Unit tests
-        inject their independently keyed test controller, never a self-asserted bool.
+        Installed cleanup supplies the pinned issuer verifier and a separately
+        verified sealed process context. Public CLI requests supply neither.
         """
-        with self.lock():
+        with self.lock(cleanup=repository_id):
             project, receipt, record = self.load(repository_id)
             require(authority is not None, "controller_authority_unavailable")
+            marker_file = self.state / f"cleanup-{repository_id}.json"
+            marker = self.read(marker_file) if marker_file.exists() else None
+            evidence_digest = hashlib.sha256(json.dumps(signed_evidence, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            checkout = project / "checkout"
+            if marker and marker.get("binding", {}).get("taskId") == task_id and not os.path.lexists(checkout):
+                require(marker.get("evidenceDigest") == evidence_digest and hasattr(authority, "verify_history"), "cleanup_replay_changed")
+                authority.verify_history(signed_evidence, marker["binding"])
+                require(not os.path.lexists(checkout) and not record["lease"] and not record.get("acceptedSource") and not record.get("sourceUpdating"), "cleanup_replay_changed")
+                return self._complete_cleanup(project, receipt, record, marker_file, marker, authority)
+
             require(not record.get("sourceUpdating") and not record.get("acceptedSource"), "accepted_source_cleanup_unavailable")
             require(task_id == record["lastTaskId"] and record["cleanupRequests"] and not record["lease"], "cleanup_not_quiescent")
             cleanup_request = record["cleanupRequests"][-1]
@@ -888,8 +1020,9 @@ class ManagedProjects:
                     and cleanup_request.get("checkoutIncarnation") == record["checkoutIncarnation"]
                     and cleanup_request.get("leaseGeneration") == record["leaseGeneration"]
                     and cleanup_request.get("renewalSequence") == record.get("renewalSequence", 0), "cleanup_request_stale")
-            expected = {"repositoryId": repository_id, "taskId": task_id, "revision": record["revision"],
-                        "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "cleanupRequestId": cleanup_request["id"]}
+            expected = self._cleanup_binding(record)
+            if marker and marker.get("phase") != "complete":
+                require(marker.get("binding") == expected and marker.get("evidenceDigest") == evidence_digest, "cleanup_replay_changed")
             evidence = authority.verify(signed_evidence, expected)
             require(isinstance(evidence, dict) and evidence.get("binding") == expected
                     and identifier(evidence.get("completionEventId")) and identifier(evidence.get("policyVersion")), "invalid_completion_evidence")
@@ -897,14 +1030,15 @@ class ManagedProjects:
             observation = evidence.get("productionObservation", {})
             require(isinstance(artifact, dict) and isinstance(observation, dict)
                     and re.fullmatch(r"sha256:[0-9a-f]{64}", artifact.get("digest", ""))
-                    and identifier(artifact.get("objectVersion")) and identifier(observation.get("id"))
+                    and isinstance(artifact.get("objectVersion"), str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,256}", artifact["objectVersion"]) and identifier(observation.get("id"))
                     and observation.get("revision") == record["revision"]
-                    and observation.get("artifactDigest") == artifact["digest"], "invalid_preservation_evidence")
+                    and re.fullmatch(r"[0-9a-f]{64}", observation.get("buildDigest", ""))
+                    and re.fullmatch(r"[0-9a-f]{64}", observation.get("observationDigest", "")), "invalid_preservation_evidence")
             checkout = project / "checkout"
             self.checkout_valid(checkout, record)
             require(self.git(checkout, "rev-parse", "HEAD") == record["revision"], "cleanup_revision_changed")
             self.clean(checkout)
-            self.no_consumers(checkout)
+            self.no_consumers(checkout, authority.guardian if hasattr(authority, "guardian") else None)
             for line in Path("/proc/self/mountinfo").read_text().splitlines():
                 mounted = re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), line.split()[4])
                 require(not (mounted == str(checkout) or mounted.startswith(str(checkout) + "/")), "checkout_has_mount")
@@ -922,20 +1056,43 @@ class ManagedProjects:
             self.git(checkout, "fetch", "--prune", "--no-tags", "origin", "+refs/heads/*:refs/remotes/origin/*", repository=remote)
             require(not self.git(checkout, "rev-list", "--all", "--reflog", "HEAD", "--not", "--remotes=origin"), "commits_not_preserved_remotely")
             self.clean(checkout)
-            self.no_consumers(checkout)
+            self.no_consumers(checkout, authority.guardian if hasattr(authority, "guardian") else None)
             evidence_dir = project / "evidence"
             self.safe(evidence_dir)
             evidence_dir.mkdir(mode=0o700, exist_ok=True)
             self.write(evidence_dir / f"{evidence['completionEventId']}.json", evidence)
             require(self.identity(checkout) == record["checkoutIdentity"] and shutil.rmtree.avoids_symlink_attacks, "safe_removal_unavailable")
+            require(not hasattr(authority, "before_remove") or authority.before_remove(signed_evidence, expected), "cleanup_authority_expired")
+            marker = {"schemaVersion": 1, "phase": "deleting", "binding": expected, "evidenceDigest": evidence_digest, "evidence": evidence, "startedAt": int(time.time() * 1000)}
+            self.write(marker_file, marker)
+            require(not hasattr(authority, "before_remove") or authority.before_remove(signed_evidence, expected), "cleanup_authority_expired")
             shutil.rmtree(checkout)
+            return self._complete_cleanup(project, receipt, record, marker_file, marker, authority)
+
+    def _complete_cleanup(self, project, receipt, record, marker_file, marker, authority):
+            require(not os.path.lexists(project / "checkout") and not record["lease"], "cleanup_replay_changed")
+            if marker.get("phase") == "complete":
+                require(record.get("lastCleanup") == ({key: value for key, value in marker.get("receipt", {}).items() if key != "recordDigests"} if marker.get("receipt") else None), "cleanup_replay_changed")
+                evidence_path = project / "evidence" / f"cleanup-{marker['binding']['cleanupRequestId']}.json"
+                if evidence_path.exists(): require(self.read(evidence_path) == marker, "cleanup_replay_changed")
+                else: self.write(evidence_path, marker)
+                return {**self.summary(project, record), "cleanupReceipt": marker.get("receipt")}
             record["checkoutIdentity"] = None
             record["checkoutIncarnation"] = None
             record["gitConfigDigest"] = None
             record["preparationId"] = None
             record["status"] = "checkout_removed"
+            result = authority.cleanup_receipt(marker["binding"]) if hasattr(authority, "cleanup_receipt") else None
+            record["lastCleanup"] = result
             self.write(receipt, record)
-            return self.summary(project, record)
+            if result is not None:
+                result = {**result, "recordDigests": {"root": hashlib.sha256((self.state / "root.json").read_bytes()).hexdigest(), "project": hashlib.sha256(receipt.read_bytes()).hexdigest()}}
+            marker["receipt"] = result
+            marker["phase"] = "complete"
+            self.write(marker_file, marker)
+            evidence_dir = project / "evidence"
+            self.write(evidence_dir / f"cleanup-{marker['binding']['cleanupRequestId']}.json", marker)
+            return {**self.summary(project, record), "cleanupReceipt": result}
 
 
 def dispatch(manager, value):
@@ -970,7 +1127,7 @@ def main():
         raw = sys.stdin.buffer.read(8193)
         require(len(raw) <= 8192, "request_too_large")
         # HOME/env cannot redirect production receipts or turn on fixture transports.
-        manager = ManagedProjects(pwd.getpwuid(os.getuid()).pw_dir)
+        manager = ManagedProjects.installed(pwd.getpwuid(os.getuid()).pw_dir)
         result = dispatch(manager, json.loads(raw))
         print(json.dumps({"ok": True, "data": result}))
     except ManagedError as error:

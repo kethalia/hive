@@ -2,15 +2,22 @@ import { createPrivateKey, sign } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { guardianCheckoutSchema } from "@/lib/codex-session/guardian-contracts";
+import { effectiveUnstartedSuccessor } from "@/lib/codex-session/guardian-unstarted-store.server";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
+import { readCheckoutClosure, retainCheckoutClosure } from "./checkout-closure-ledger.server";
 import { type EpicLeaseRelease, epicLeaseReleaseSchema } from "./epic-closure-contracts";
 import { epicDigest } from "./epic-contracts";
 import { epicDependencyRelease } from "./epic-dependency.server";
 import { preserveEpicTask } from "./epic-preservation.server";
+import { executionActorHistory } from "./execution-authority.server";
 import { type EvidenceR2Bucket, R2GitHubArtifactStore } from "./github-artifacts.server";
 import { DeliveryConflict } from "./state";
 
-async function scope(db: PrismaClient, runtime: CodexGuardianRuntime, projectId: string) {
+export async function closedTaskScope(
+  db: Prisma.TransactionClient,
+  runtime: CodexGuardianRuntime,
+  projectId: string,
+) {
   if (runtime.phase !== "tree_closed" || !runtime.closedBarrierId)
     throw new DeliveryConflict("epic_tree_not_closed");
   const barrier = await db.codexGuardianBarrier.findUnique({
@@ -32,7 +39,6 @@ async function scope(db: PrismaClient, runtime: CodexGuardianRuntime, projectId:
         is: {
           preparationIntentId: admission.preparationIntentId,
           workspaceId: runtime.workspaceId,
-          buildId: runtime.buildId,
         },
       },
     },
@@ -41,13 +47,19 @@ async function scope(db: PrismaClient, runtime: CodexGuardianRuntime, projectId:
   });
   if (
     tasks.length !== 1 ||
-    !tasks[0].epicId ||
     !tasks[0].managerBinding ||
     tasks[0].managerBinding.leaseId !== checkout.leaseId ||
     tasks[0].managerBinding.leaseGeneration !== checkout.leaseGeneration
   )
     throw new DeliveryConflict("epic_task_unbound");
-  const task = tasks[0];
+  const task = tasks[0],
+    binding = task.managerBinding;
+  if (!binding) throw new DeliveryConflict("epic_task_unbound");
+  if (
+    !runtime.serverInstanceId ||
+    !(await executionActorHistory(db, binding)).has(runtime.serverInstanceId)
+  )
+    throw new DeliveryConflict("epic_task_unbound");
   await epicDependencyRelease(db, runtime.ownerId, task.id);
   const trees = await db.$queryRaw<
     { digest: string }[]
@@ -57,12 +69,27 @@ async function scope(db: PrismaClient, runtime: CodexGuardianRuntime, projectId:
   >`SELECT phase FROM delivery_epic_start_intents WHERE owner_id=${runtime.ownerId}::uuid AND epic_id=${task.epicId}::uuid AND intent_id=${admission.preparationIntentId}::uuid`;
   if (
     trees.length !== 1 ||
-    starts.length !== 1 ||
-    !["accepted", "finished"].includes(starts[0].phase)
+    (task.epicId && (starts.length !== 1 || !["accepted", "finished"].includes(starts[0].phase)))
   )
     throw new DeliveryConflict("epic_tree_not_closed");
   const epicId = task.epicId;
-  if (!epicId) throw new DeliveryConflict("epic_task_unbound");
+  if (epicId) {
+    const allocations = await db.$queryRaw<
+      { workspace_id: string; build_id: string }[]
+    >`SELECT workspace_id,build_id FROM delivery_epic_start_intents WHERE owner_id=${runtime.ownerId}::uuid AND epic_id=${epicId}::uuid AND intent_id=${admission.preparationIntentId}::uuid`;
+    if (
+      allocations.length !== 1 ||
+      allocations[0].workspace_id !== runtime.workspaceId ||
+      !(await effectiveUnstartedSuccessor(db, {
+        ownerId: runtime.ownerId,
+        taskId: admission.preparationIntentId,
+        workspaceId: runtime.workspaceId,
+        oldBuildId: allocations[0].build_id,
+        newBuildId: binding.buildId,
+      }))
+    )
+      throw new DeliveryConflict("epic_task_unbound");
+  }
   return { admission, checkout, task, epicId, treeDigest: trees[0].digest };
 }
 export async function prepareEpicRelease(
@@ -70,7 +97,7 @@ export async function prepareEpicRelease(
   runtime: CodexGuardianRuntime,
   projectId: string,
 ) {
-  const before = await scope(db, runtime, projectId);
+  const before = await closedTaskScope(db, runtime, projectId);
   const { env } = await getCloudflareContext({ async: true });
   const bucket = (env as unknown as { HIVE_DELIVERY_EVIDENCE?: EvidenceR2Bucket })
     .HIVE_DELIVERY_EVIDENCE;
@@ -82,7 +109,7 @@ export async function prepareEpicRelease(
     before.epicId,
     before.admission.preparationIntentId,
   );
-  const current = await scope(db, runtime, projectId);
+  const current = await closedTaskScope(db, runtime, projectId);
   if (
     before.task.sourceSha !== current.task.sourceSha ||
     before.admission.generation !== current.admission.generation
@@ -117,7 +144,7 @@ export async function submitEpicRelease(
   signingPem: string,
 ) {
   const release = epicLeaseReleaseSchema.parse(raw),
-    current = await scope(db, runtime, projectId);
+    current = await closedTaskScope(db, runtime, projectId);
   const c = current.checkout;
   if (
     release.repositoryId !== c.repositoryId ||
@@ -131,14 +158,43 @@ export async function submitEpicRelease(
   )
     throw new DeliveryConflict("epic_release_scope_changed");
   const releaseDigest = epicDigest(release);
-  const rows = await db.$queryRaw<
-    { artifact_digest: string }[]
-  >`SELECT artifact_digest FROM delivery_epic_preservations WHERE owner_id=${runtime.ownerId}::uuid AND epic_id=${current.task.epicId}::uuid AND intent_id=${current.admission.preparationIntentId}::uuid AND source_sha=${current.task.sourceSha}`;
+  const rows = current.epicId
+    ? await db.$queryRaw<
+        { artifact_digest: string }[]
+      >`SELECT artifact_digest FROM delivery_epic_preservations WHERE owner_id=${runtime.ownerId}::uuid AND epic_id=${current.task.epicId}::uuid AND intent_id=${current.admission.preparationIntentId}::uuid AND source_sha=${current.task.sourceSha}`
+    : await (async () => {
+        const e = await readCheckoutClosure(
+          db,
+          runtime.ownerId,
+          current.admission.preparationIntentId,
+          "preserved",
+        );
+        const p = e?.payload as { sourceSha?: string; artifactDigest?: string } | undefined;
+        return p?.sourceSha === current.task.sourceSha && p.artifactDigest
+          ? [{ artifact_digest: p.artifactDigest }]
+          : [];
+      })();
   if (rows.length !== 1) throw new DeliveryConflict("epic_preservation_unavailable");
-  await db.$executeRaw`INSERT INTO delivery_epic_lease_releases(owner_id,epic_id,intent_id,runtime_id,receipt_digest,receipt) VALUES (${runtime.ownerId}::uuid,${current.task.epicId}::uuid,${current.admission.preparationIntentId}::uuid,${runtime.id}::uuid,${releaseDigest},${JSON.stringify(release)}::jsonb) ON CONFLICT DO NOTHING`;
-  const saved = await db.$queryRaw<
-    { receipt_digest: string; runtime_id: string }[]
-  >`SELECT receipt_digest,runtime_id FROM delivery_epic_lease_releases WHERE owner_id=${runtime.ownerId}::uuid AND epic_id=${current.task.epicId}::uuid AND intent_id=${current.admission.preparationIntentId}::uuid`;
+  if (current.epicId)
+    await db.$executeRaw`INSERT INTO delivery_epic_lease_releases(owner_id,epic_id,intent_id,runtime_id,receipt_digest,receipt) VALUES (${runtime.ownerId}::uuid,${current.task.epicId}::uuid,${current.admission.preparationIntentId}::uuid,${runtime.id}::uuid,${releaseDigest},${JSON.stringify(release)}::jsonb) ON CONFLICT DO NOTHING`;
+  if (!current.epicId)
+    await db.$transaction((tx) =>
+      retainCheckoutClosure(
+        tx,
+        {
+          ownerId: runtime.ownerId,
+          taskId: current.task.id,
+          intentId: current.admission.preparationIntentId,
+        },
+        "lease_released",
+        { receipt: release, receiptDigest: releaseDigest, runtimeId: runtime.id },
+      ),
+    );
+  const saved = current.epicId
+    ? await db.$queryRaw<
+        { receipt_digest: string; runtime_id: string }[]
+      >`SELECT receipt_digest,runtime_id FROM delivery_epic_lease_releases WHERE owner_id=${runtime.ownerId}::uuid AND epic_id=${current.task.epicId}::uuid AND intent_id=${current.admission.preparationIntentId}::uuid`
+    : [{ receipt_digest: releaseDigest, runtime_id: runtime.id }];
   if (
     saved.length !== 1 ||
     saved[0].receipt_digest !== releaseDigest ||
@@ -182,10 +238,31 @@ export async function acknowledgeEpicArchive(
 ) {
   if (!/^[a-f0-9]{64}$/.test(archiveDigest) || !/^[a-f0-9]{64}$/.test(sourceArchiveDigest))
     throw new DeliveryConflict("epic_archive_invalid");
-  const current = await scope(db, runtime, projectId),
+  const current = await closedTaskScope(db, runtime, projectId),
     ownerId = runtime.ownerId,
     epicId = current.epicId,
     intentId = current.admission.preparationIntentId;
+  if (!epicId) {
+    const release = await readCheckoutClosure(db, ownerId, intentId, "lease_released");
+    const p = release?.payload as { receiptDigest?: string; runtimeId?: string } | undefined;
+    if (p?.runtimeId !== runtime.id || !p.receiptDigest)
+      throw new DeliveryConflict("epic_release_scope_changed");
+    const combined = epicDigest({
+      archiveDigest,
+      sourceArchiveDigest,
+      leaseReleaseDigest: p.receiptDigest,
+      treeReceiptDigest: current.treeDigest,
+    });
+    await db.$transaction((tx) =>
+      retainCheckoutClosure(tx, { ownerId, taskId: current.task.id, intentId }, "archived", {
+        archiveDigest: combined,
+        controllerArchiveDigest: archiveDigest,
+        sourceArchiveDigest,
+        runtimeId: runtime.id,
+      }),
+    );
+    return { archived: true, archiveDigest: combined };
+  }
   return db.$transaction(
     async (tx) => {
       const releases = await tx.$queryRaw<

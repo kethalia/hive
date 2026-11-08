@@ -9,6 +9,7 @@ import {
 } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
+import type { CheckoutVolumeEvidence } from "../delivery/checkout-cleanup-contracts";
 import {
   accountMaintenanceGrantSchema,
   accountMaintenanceRequestSchema,
@@ -104,6 +105,10 @@ export type GuardianProvisionStage =
   | "guardian_bootstrap"
   | "guardian_enrollment_confirmation";
 export interface GuardianServiceDependencies {
+  resolveCleanupVolume?(
+    binding: VerifiedHostBinding,
+    lifetimeId: string,
+  ): Promise<CheckoutVolumeEvidence>;
   assertUnstartedPredecessorStopped?(
     binding: VerifiedHostBinding,
     oldBuildId: string,
@@ -895,6 +900,51 @@ export class GuardianService {
     const runtime = await this.runtime(input);
     this.active();
     if (
+      input.action === "cleanup_prepare" ||
+      input.action === "cleanup_status" ||
+      input.action === "cleanup_ack"
+    ) {
+      requireGuardian(runtime.phase === "tree_closed" || runtime.phase === "open");
+      requireGuardian(input.runtimeGeneration === runtime.generation);
+      const cleanup = await import("@/lib/delivery/checkout-cleanup.server");
+      if (input.action === "cleanup_ack")
+        return cleanup.acknowledgeCheckoutCleanup(this.db, runtime, input.receipt, input.projectId);
+      requireGuardian(input.projectId === input.request.projectId);
+      if (input.action === "cleanup_status")
+        return cleanup.readCheckoutCleanup(
+          this.db,
+          runtime,
+          input.request,
+          this.config.privateKeyPem,
+        );
+      requireGuardian(this.dependencies.resolveCleanupVolume);
+      const binding = await this.resolve(
+        {
+          hiveUserId: runtime.ownerId,
+          coderUserId: (runtime.binding as unknown as RegistrationBinding).ownerId,
+        },
+        runtime.workspaceId,
+      );
+      const closure = await import("@/lib/delivery/epic-closure.server"),
+        closed = await this.db.codexGuardianRuntime.findFirstOrThrow({
+          where: { ownerId: runtime.ownerId, id: input.request.closedRuntimeId },
+        }),
+        scope = await closure.closedTaskScope(this.db, closed, input.projectId);
+      requireGuardian(!scope.epicId || this.env.HIVE_DELIVERY_EPICS_ENABLED === "true");
+      const volume = await this.dependencies.resolveCleanupVolume(binding, runtime.lifetimeId);
+      this.active();
+      this.live(input);
+      return cleanup.prepareCheckoutCleanup(
+        this.db,
+        runtime,
+        input.request,
+        volume,
+        this.config.privateKeyPem,
+        undefined,
+        input.expiresAt,
+      );
+    }
+    if (
       input.action === "epic_release_prepare" ||
       input.action === "epic_release_submit" ||
       input.action === "epic_archive_ack"
@@ -902,19 +952,11 @@ export class GuardianService {
       requireGuardian(
         runtime.phase === "tree_closed" && input.runtimeGeneration === runtime.generation,
       );
-      if (input.action === "epic_release_prepare") {
-        const admission = await this.db.codexGuardianAdmission.findFirst({
-          where: { ownerId: runtime.ownerId, runtimeId: runtime.id, projectId: input.projectId },
-        });
-        requireGuardian(admission);
-        const starts = await this.db.$queryRaw<
-          { intent_id: string }[]
-        >`SELECT intent_id FROM delivery_epic_start_intents WHERE owner_id=${runtime.ownerId}::uuid AND intent_id=${admission.preparationIntentId}::uuid`;
-        if (starts.length === 0) return { eligible: false };
-        requireGuardian(starts.length === 1);
-      }
-      requireGuardian(this.env.HIVE_DELIVERY_EPICS_ENABLED === "true");
+      // Standalone tasks use the same completion-only authority, with their
+      // immutable closure facts retained in existing task events.
       const lifecycle = await import("@/lib/delivery/epic-closure.server");
+      const scope = await lifecycle.closedTaskScope(this.db, runtime, input.projectId);
+      requireGuardian(!scope.epicId || this.env.HIVE_DELIVERY_EPICS_ENABLED === "true");
       if (input.action === "epic_release_prepare")
         return lifecycle.prepareEpicRelease(this.db, runtime, input.projectId);
       if (input.action === "epic_release_submit")

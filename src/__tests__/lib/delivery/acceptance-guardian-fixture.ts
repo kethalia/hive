@@ -14,7 +14,12 @@ export async function acceptanceGuardianFixture(
   producer = acceptanceFixtureProducer,
   native: Pick<
     NonNullable<Parameters<typeof guardianFixture>[1]>,
-    "managerThreadId" | "parentTurnId" | "existing" | "physical" | "encryptionKey"
+    | "managerThreadId"
+    | "parentTurnId"
+    | "existing"
+    | "physical"
+    | "encryptionKey"
+    | "workspaceEnrollment"
   > = {},
   options: { baseBranch?: string } = {},
 ) {

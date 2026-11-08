@@ -52,10 +52,10 @@ class TestControllerAuthority:
     def signature(self, payload):
         return hmac.new(self.key, json.dumps(payload, sort_keys=True).encode(), hashlib.sha256).hexdigest()
 
-    def issue(self, record):
-        binding = {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"], "projectIdentity": record["projectIdentity"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
+    def issue(self, record, root_identity):
+        binding = {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"], "rootIdentity": {k: str(v) for k, v in root_identity.items()}, "projectIdentity": {k: str(v) for k, v in record["projectIdentity"].items()}, "checkoutIdentity": {k: str(v) for k, v in record["checkoutIdentity"].items()}, "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
         digest = "sha256:" + "a" * 64
-        payload = {"binding": binding, "completionEventId": "controller-completion-1", "policyVersion": "reviewed-policy-1", "artifact": {"digest": digest, "objectVersion": "immutable-r2-version-1"}, "productionObservation": {"id": "independently-queried-observation-1", "revision": record["revision"], "artifactDigest": digest}}
+        payload = {"binding": binding, "completionEventId": "controller-completion-1", "policyVersion": "reviewed-policy-1", "artifact": {"digest": digest, "objectVersion": "immutable-r2-version-1"}, "productionObservation": {"id": "independently-queried-observation-1", "revision": record["revision"], "buildDigest": "b" * 64, "observationDigest": "c" * 64}}
         return {"payload": payload, "signature": self.signature(payload)}
 
     def verify(self, envelope, expected):
@@ -64,6 +64,9 @@ class TestControllerAuthority:
         payload = envelope["payload"]
         MODULE.require(payload["binding"] == expected, "controller_binding_mismatch")
         return payload
+
+    def verify_history(self, envelope, expected):
+        return self.verify(envelope, expected)
 
 
 class ManagedProjectsTests(unittest.TestCase):
@@ -111,7 +114,7 @@ class ManagedProjectsTests(unittest.TestCase):
     def evidence(self):
         with self.manager.lock():
             _, _, record = self.manager.load("123")
-            return self.authority.issue(record)
+            return self.authority.issue(record, self.manager.read(self.manager.state / "root.json")["identity"])
 
     def cleanup(self, envelope=None):
         return self.manager._remove_with_authority("123", "task-one", envelope or self.evidence(), self.authority)
@@ -219,7 +222,7 @@ class ManagedProjectsTests(unittest.TestCase):
             self.release(restored)
             with self.manager.lock():
                 record = self.manager.load("123")[2]
-                self.assertEqual(record["checkoutIdentity"], old_evidence["payload"]["binding"]["checkoutIdentity"])
+                self.assertEqual({k: str(v) for k,v in record["checkoutIdentity"].items()}, old_evidence["payload"]["binding"]["checkoutIdentity"])
                 self.assertNotEqual(record["checkoutIncarnation"], old_evidence["payload"]["binding"]["checkoutIncarnation"])
             with self.assertRaisesRegex(MODULE.ManagedError, "request_stale"):
                 self.cleanup(old_evidence)
@@ -796,12 +799,60 @@ class ManagedProjectsTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.ManagedError, "lease_not_active"):
             self.manager._renew_controller_lease("123", "project-fixture", authority)
 
+    def test_cleanup_lost_completion_replays_without_a_second_delete_and_retains_history(self):
+        prepared = self.prepare(); self.release(prepared); self.manager.request_cleanup("123", "task-one")
+        evidence = self.evidence()
+        with mock.patch.object(self.manager, "_complete_cleanup", side_effect=RuntimeError("fixture_lost_completion")):
+            with self.assertRaisesRegex(RuntimeError, "fixture_lost_completion"): self.cleanup(evidence)
+        self.assertFalse(Path(prepared["checkoutDirectory"]).exists())
+        with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_reconciliation_required"): self.prepare()
+        with mock.patch.object(MODULE.shutil, "rmtree", side_effect=AssertionError("second deletion")):
+            result = self.cleanup(evidence); self.assertEqual(result["status"], "checkout_removed")
+            self.assertEqual(self.cleanup(evidence), result)
+        self.assertTrue(Path(prepared["projectDirectory"]).is_dir())
+        self.assertTrue((Path(prepared["projectDirectory"]) / "evidence").is_dir())
+
+    def test_partial_cleanup_holds_prepare_and_never_skips_git_or_clean_checks(self):
+        prepared = self.prepare(); self.release(prepared); self.manager.request_cleanup("123", "task-one")
+        evidence = self.evidence(); checkout = Path(prepared["checkoutDirectory"])
+        def partial(path):
+            (Path(path) / "README.md").unlink(); raise OSError("fixture_partial_remove")
+        with mock.patch.object(MODULE.shutil, "rmtree", side_effect=partial):
+            with self.assertRaisesRegex(OSError, "fixture_partial_remove"): self.cleanup(evidence)
+        with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_reconciliation_required"): self.prepare()
+        with mock.patch.object(MODULE.shutil, "rmtree", side_effect=AssertionError("partial retry")):
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_has_work"): self.cleanup(evidence)
+        self.assertTrue(checkout.is_dir())
+        self.assertEqual(self.manager._inspect_cleanup("123", "task-one")["disposition"], "deleting")
+
+    def test_dangling_checkout_symlink_is_not_an_absent_replayed_removal(self):
+        prepared = self.prepare(); self.release(prepared); self.manager.request_cleanup("123", "task-one")
+        evidence = self.evidence(); checkout = Path(prepared["checkoutDirectory"])
+        with mock.patch.object(self.manager, "_complete_cleanup", side_effect=RuntimeError("fixture_lost_completion")):
+            with self.assertRaises(RuntimeError): self.cleanup(evidence)
+        checkout.symlink_to(self.base / "missing-target")
+        with self.assertRaises(MODULE.ManagedError): self.cleanup(evidence)
+        self.assertTrue(os.path.lexists(checkout))
+        with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_reconciliation_required"): self.prepare()
+
+    def test_readonly_cleanup_retry_inspection_reuses_request_and_never_calls_pending_started_clean(self):
+        prepared = self.prepare(); self.release(prepared)
+        first = self.manager._inspect_cleanup("123", "task-one")
+        second = self.manager._inspect_cleanup("123", "task-one")
+        self.assertEqual(first["binding"], second["binding"])
+        self.assertEqual(first["disposition"], "not_started")
+        with mock.patch.object(MODULE.shutil, "rmtree", side_effect=OSError("fixture_pending_delete")):
+            with self.assertRaises(OSError): self.cleanup()
+        pending = self.manager._inspect_cleanup("123", "task-one")
+        self.assertEqual(pending["binding"], first["binding"])
+        self.assertEqual(pending["disposition"], "deleting")
+
     def test_renewal_sequence_fences_prior_signed_cleanup_completion(self):
         value = self.manager.prepare("123", "task", self.sha)
         self.manager.request_cleanup("123", "task")
         with self.manager.lock():
             _, _, record = self.manager.load("123")
-            old_evidence = self.authority.issue(record)
+            old_evidence = self.authority.issue(record, self.manager.read(self.manager.state / "root.json")["identity"])
         renewed = self.manager._renew_controller_lease("123", "project-fixture", self.renewal_authority(value))
         self.manager.release_lease("123", "task", renewed["lease"]["id"], renewed["lease"]["generation"], self.sha)
         with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_request_stale"):
