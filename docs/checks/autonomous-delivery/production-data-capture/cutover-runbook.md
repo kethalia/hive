@@ -15,10 +15,12 @@ resource usage again. Keep the old deployment and final backup recoverable; no c
 deletions are part of this cutover.
 
 Use the existing single `hive` Worker and repository-connected Workers Builds. Production
-`deploy/cloudflare/native/deploy.mjs` currently refuses live deployment; the offline
+`deploy/cloudflare/native/deploy.mjs production` now supports the reviewed owner-enrollment
+gate from PR417. It still refuses deployment without an explicit, unexpired
+`HIVE_NATIVE_PRODUCTION_ENROLLMENT_JSON` build setting. The offline
 `prepare-production.mjs` output is a review artifact, not activation. Owner cutover approval
-must cover the exact production configuration and the reviewed change that unlocks this
-existing deployment command. Do not introduce an upload/promote publisher, another Worker,
+must cover the exact merged main revision, public configuration, verified private resource
+identities and inert parent snapshot before enrolling this existing command. Do not introduce an upload/promote publisher, another Worker,
 or a deployment token. Preserve the separately enrolled epic Preview and its test database;
 its credentials and execution flags are not production defaults.
 
@@ -55,12 +57,15 @@ mismatch, expiration, logout and correct session behavior before enabling the ne
    never the migration owner. Verify no failed migration history or unresolved job remains.
 4. Let the existing connected main build publish the exact approved production configuration
    of `hive`, with background scheduling and autonomous delivery still disabled. Stage the
-   approved production route while the old public entry point remains in maintenance; the
-   removed Preview authorization gate is not a cutover control. Validate the compiled main
+   approved production route as part of that deployment; this can start serving the new app
+   immediately and is an approved cutover effect, not a traffic-free staging operation. Keep
+   the old public entry point in maintenance; the removed Preview authorization gate is not
+   a cutover control. Validate the compiled main
    source SHA/provider build UUID, database identity, configuration/crypto readiness and actual
    production OAuth login without sending notifications, rotating Coder credentials or running
-   delivery jobs. Only after those checks pass, switch the approved public route and permit
-   writes on the Neon-backed app. Authenticated readiness proves configuration/schema access,
+   delivery jobs. Do not claim that these postactivation checks happened before any new write.
+   Treat the activated deployment as potentially accepting Neon writes unless a separately
+   verified maintenance control proves otherwise. Authenticated readiness proves configuration/schema access,
    not historical-key continuity or business acceptance; check those separately.
 5. Observe login, current-user access, repository discovery, Conversation/Terminal stream and
    reconnect, task reports, worker errors and database health. Restore background features one
