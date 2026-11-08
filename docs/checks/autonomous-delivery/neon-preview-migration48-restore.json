@@ -1,0 +1,13 @@
+{
+  "observedAt": "2026-11-08T02:14:27.340936+00:00",
+  "sourceDatabase": "hive_native_preview",
+  "target": "isolated local PostgreSQL17 test database",
+  "fullArchiveRestoreVerified": true,
+  "originalTablesCompared": 72,
+  "originalRowsCompared": 48,
+  "originalRowFingerprintsMatch": true,
+  "upgrade47To48Passed": true,
+  "all48MigrationChecksumsMatch": true,
+  "productionChanged": false,
+  "originalRowsPreservedAfterUpgrade": true
+}

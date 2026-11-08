@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "projectId": "purple-math-59583745",
+  "plan": "free_v3",
+  "periodStart": "2026-11-01T00:00:00Z",
+  "periodEnd": "2026-12-01T00:00:00Z",
+  "computeCuHours": 2.1766666666666667,
+  "activeHours": 8.613333333333333,
+  "minCu": 0.25,
+  "maxCu": 0.25,
+  "documentedFreeCuHoursPerMonth": 100,
+  "documentedAutoSuspendIdleMinutes": 5,
+  "continuous30DayCuHoursAtCurrentSize": 180,
+  "source": "https://neon.com/docs/introduction/plans",
+  "productionCronEnabled": false,
+  "planOrEndpointChanged": false,
+  "note": "Bounded Preview validation remains within the observed compute allowance. This does not establish full production request/storage/egress capacity; minute SQL polling prevents ordinary idle suspension.",
+  "apiReadDate": "2026-11-08",
+  "recordedAt": "2026-11-08T02:27:22.986815+00:00"
+}

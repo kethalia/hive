@@ -293,7 +293,7 @@ def image_asset(path, limit, executable=False):
 
 
 def normalize_agent_config(config, kind):
-    """One authenticated manifest read before hashing the effective config."""
+    """Normalize a validated manifest, retrying only transient helper read failures."""
     require(isinstance(config, dict) and isinstance(config.get("binding"), dict))
     binding = config["binding"]
     expected = {"schemaVersion": 1, "kind": kind, "coderOrigin": binding["coderOrigin"], "workspaceId": binding["workspaceId"], "buildId": binding["buildId"], "appId": binding["appId"], "appOrigin": binding["appOrigin"], "provisionalAgentId": binding["agentId"]}
@@ -308,7 +308,22 @@ def normalize_agent_config(config, kind):
         for key in ("CODER_AGENT_URL", "CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE"):
             if key in os.environ:
                 agent_env[key] = os.environ[key]
-        reply = subprocess.run([f"/proc/self/fd/{helper_fd}"], input=json.dumps(expected, separators=(",", ":")).encode(), env=agent_env, pass_fds=(helper_fd,), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=11, check=True)
+        # The SDK manifest may briefly lag agent startup. Retry only failed
+        # authenticated reads, never a successful response or installer action.
+        deadline = time.monotonic() + 30
+        for attempt in range(10):
+            remaining = deadline - time.monotonic()
+            require(remaining > 0)
+            try:
+                reply = subprocess.run([f"/proc/self/fd/{helper_fd}"], input=json.dumps(expected, separators=(",", ":")).encode(), env=agent_env, pass_fds=(helper_fd,), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=min(11, remaining), check=True)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                remaining = deadline - time.monotonic()
+                if attempt == 9 or remaining <= 0:
+                    raise
+                time.sleep(min(0.5 * 2 ** attempt, 4, remaining))
+                continue
+            require(time.monotonic() < deadline)
+            break
         require(0 < len(reply.stdout) <= 16384)
         value = json.loads(reply.stdout)
         fields = ["schemaVersion", "sdkVersion", "kind", "coderOrigin", "workspaceId", "buildId", "appId", "appOrigin", "provisionalAgentId", "agentId"]
