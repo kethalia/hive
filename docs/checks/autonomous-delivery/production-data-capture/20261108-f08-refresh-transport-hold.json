@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T22:20:14.569963+00:00",
+  "stage": "held_for_get_only_transport_review",
+  "workspaceId": "76a2812a-ea32-48da-89ca-538fcd64f6a2",
+  "buildId": "60d5a4da-521b-4744-bef8-05e811bf30b3",
+  "agentId": "ba5c8ad1-ca9d-4412-91b0-f0188ff5c25f",
+  "infrastructureProfileToolsAndNoOwnerSessionGatePassed": true,
+  "genericStartupErrorRecordedSeparately": true,
+  "collectorSha256": "f5cd4c056a63eb8b122dda2e249ea94a612669ad306fe4773d9be6bbd71b03dd",
+  "unchangedCaptureSha256": "253b0bf34bfd2e48d1e5f9b952818ec172cb57109f5787c4048eba3a4ad512d8",
+  "requests": {
+    "metadataGET": 6,
+    "exactSecretGET": 2,
+    "directDatabaseConnectionAttempts": 1,
+    "databaseSqlSucceeded": false,
+    "tunnelGET": 0,
+    "providerWrites": 0
+  },
+  "selectedSecretKeyNames": {
+    "hive-pg-app": ["uri"],
+    "hive-secrets": ["ENCRYPTION_KEY", "COOKIE_SECRET"]
+  },
+  "selectedSecretFormatValidated": true,
+  "selectedKeysPreservedPrimaryPrivate0600": true,
+  "transferBinaryHashReadbackVerified": true,
+  "secretValuesOrFingerprintsEmitted": false,
+  "sourceCaptureComplete": false,
+  "sourceDumpExists": false,
+  "localRestoreOrNeonWrites": false,
+  "holdReason": "Direct database connection refused; a new GET-only portforward transport requires primary review before any tunnel request.",
+  "transportReview": {
+    "moduleDirectory": "/home/coder/projects/kethalia/.private-hive-f08-refresh-capture-20261108/reviewed-module",
+    "manifest": "/home/coder/projects/kethalia/.private-hive-f08-refresh-capture-20261108/transport-review-manifest.json",
+    "sourceSha256": "7cb1a39c6feb67e441a6f7cba18b64950bd5857da070348695fef133409dd12a",
+    "binarySha256": "d4474b9eae18671055b4f1722c321b96125074efb97863e3f4b7ddae79ab8d01",
+    "officialClientGo": "v0.34.5",
+    "officialGorilla": "v1.5.4-0.20250319132907-e064f32e3674",
+    "officialGoToolchain": "1.26.10 checksum verified; private portable toolchain in Infrastructure only",
+    "testsPassed": 5,
+    "modulesVerified": true,
+    "compiled": true,
+    "executedAgainstProduction": false,
+    "physicalHost": "ingress-nginx-controller.ingress-nginx.svc.cluster.local:443",
+    "logicalTlsServerNameAndHttpHost": "rancher.local.kethalia.com",
+    "systemCertificateVerification": true,
+    "requests": "Only GET /k8s/clusters/local/api/v1/namespaces/hive/pods/hive-pg-2/portforward?ports=5432; no redirect, HTTP POST or fallback dialer.",
+    "localBind": "127.0.0.1 ephemeral port, official client-go forwarder",
+    "limits": {
+      "tcpRequestIds": 3,
+      "combinedPayloadBytes": 268435456,
+      "seconds": 300,
+      "handshakeSeconds": 15
+    },
+    "ownedCleanup": "Single foreground Go process owns all forwarding streams/listeners; SIGINT/SIGTERM cancels its context and the finite timer closes its owned connection. A launch wrapper must retain its Popen handle/PID and wait for that exact owned child on completion; never kill by name or other PID.",
+    "launchRequirements": [
+      "Primary reviews source/manifest and issues transport GO.",
+      "Freshly recheck exact Infrastructure four IDs/build/profile and CNPG currentPrimary/pod UID using only two remaining metadata GETs; do not repeat the original six-GET collector.",
+      "Verify exact reviewed binary hash before foreground launch; keep token file0600. No detached daemon.",
+      "Use ready channel/printed ready JSON; a TCP readiness probe would consume one of the three admitted sessions.",
+      "The three sessions are SQL preflight, read-only exported-snapshot controller, and pg_dump. Local restore remains separately unapproved."
+    ],
+    "firstTestFailurePreserved": "offline-build-result.json and remote first-failed-main_test.go/first-failed-build-private.log; fixture initially used noncanonical Header map keys, corrected to http.Header.Set.",
+    "homeFreeBytesAfterOfflineBuild": 1612869632
+  },
+  "references": [
+    "https://github.com/kubernetes/client-go/blob/v0.34.5/tools/portforward/tunneling_dialer.go#L56",
+    "https://github.com/kubernetes/client-go/blob/v0.34.5/transport/websocket/roundtripper.go#L100",
+    "https://github.com/gorilla/websocket/blob/e064f32e3674/client.go"
+  ],
+  "privateEvidenceRoot": "/home/coder/projects/kethalia/.private-hive-f08-refresh-capture-20261108",
+  "commitOrPush": false
+}

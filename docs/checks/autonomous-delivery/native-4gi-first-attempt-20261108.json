@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-08T22:36:34.781756+00:00",
+  "workspaceId": "5172dea9-a2d7-4ddf-9f58-a970a777f280",
+  "buildId": "81130afc-7453-41ab-9f81-41826ff8840f",
+  "templateVersionId": "40edfc49-2a28-4c8b-bab9-0b0d5b0e240c",
+  "guardianLifetimeId": "fbf05420-04b9-4550-84b3-82ea7b84d9b5",
+  "projectId": "08d245e8-15bd-4f1d-a384-66edc12a7cab",
+  "requestId": "50fb10aa-dd35-445a-a57c-43772dd7052b",
+  "preparationIntentId": "72b48cc5-4a64-55c8-a3c4-bfe70555aa75",
+  "deliveryTaskId": "6704a429-dd3b-4fdd-a6b8-0223574b2fa8",
+  "sourceSha": "9d08a10ba4cf56f5bcc510288fcda05b2dd7f001",
+  "textSha256": "103d74ab6990176c5d11798aef952d8b7f4b8f90b9f78e8124532e2608fb9f75",
+  "requestCounts": {
+    "open": 1,
+    "start": 1,
+    "effectfulStatusWakes": 1,
+    "automaticRetries": 0,
+    "oldTaskRecoveryCalls": 0
+  },
+  "openAck": "200 awaitingTask, exact source9d08, no native thread",
+  "startAck": "200 preparing, exact new intent72b",
+  "firstWakeAck": "200 preparing, failureStage guardian_runtime_reservation, no thread",
+  "authoritativeIntent": {
+    "id": "72b48cc5-4a64-55c8-a3c4-bfe70555aa75",
+    "phase": "queued",
+    "status": {
+      "phase": "preparing",
+      "reason": null,
+      "taskId": "72b48cc5-4a64-55c8-a3c4-bfe70555aa75",
+      "projectId": "08d245e8-15bd-4f1d-a384-66edc12a7cab",
+      "failureStage": "guardian_runtime_reservation",
+      "schemaVersion": 1,
+      "nativeThreadId": null,
+      "terminalSessionName": null
+    },
+    "requestId": "50fb10aa-dd35-445a-a57c-43772dd7052b",
+    "sourceSha": "9d08a10ba4cf56f5bcc510288fcda05b2dd7f001",
+    "updatedAt": "2026-11-08T22:29:35.40099+00:00",
+    "leaseUntil": null,
+    "progressAt": "2026-11-08T22:28:32.272+00:00",
+    "workspaceId": "5172dea9-a2d7-4ddf-9f58-a970a777f280",
+    "failureCount": 1,
+    "leasePresent": false,
+    "nextAttemptAt": "2026-11-08T22:29:45.400989+00:00"
+  },
+  "newRuntimeCount": 0,
+  "newSlotCount": 0,
+  "newAdmissionCount": 0,
+  "newOperationReceiptCount": 0,
+  "deliveryTaskRowCount": 0,
+  "registeredProjectThreadCount": 0,
+  "hostFacts": {
+    "observedAt": "2026-11-08T22:33:26.605Z",
+    "phase": "startupReady",
+    "guardianRawSha256": "3c4a351e7eba5f4cb756f70d26216449f0cf230e15a8d414e0efbc6274c52b65",
+    "projectCount": 1,
+    "openedProjectTask": null,
+    "guardianControllerPresent": false,
+    "supervisorRegistryPresent": false,
+    "nativeAppServers": 0,
+    "tmuxProcesses": 0,
+    "authContentsReadOrHashed": false
+  },
+  "concreteFailureEvidence": {
+    "coderMetadataBoundVolumeName": "",
+    "coderMetadataPvcUid": "4cd09896-c113-488b-b326-8273271b571c",
+    "actualPvcBoundVolumeName": "pvc-4cd09896-c113-488b-b326-8273271b571c",
+    "actualPvcPhase": "Bound",
+    "actualSourceSchemaValidation": {
+      "source": "actual checked-in guardianVolumeSchema",
+      "valid": false,
+      "issues": [
+        {
+          "path": ["boundVolumeName"],
+          "code": "invalid_string"
+        }
+      ],
+      "boundVolumeNameEmpty": true
+    },
+    "sourceConsumer": "guardian-factory.readEmptyRootVolume -> readEmptyRootResource -> guardianVolumeSchema during guardian_runtime_reservation",
+    "sourceProducer": "template main.tf wait_until_bound=false; hive_home_volume_v1.boundVolumeName uses PVC.spec.volume_name",
+    "metadataStaleOrIncomplete": true
+  },
+  "noInstalledOrDatabaseRepair": true,
+  "noFurtherWakes": true,
+  "modelThreadLaunched": false,
+  "delegationObserved": false,
+  "structuredCompletionObserved": false,
+  "liveCanaryAcceptance": false,
+  "oldF672And663Unchanged": true,
+  "nextAction": "root reviews positive provider-volume metadata correction; retain exact new request and all evidence; no retry/authority/identity edit automatically"
+}

@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-08T22:21:16.762476+00:00",
+  "purpose": "partial-live-managed-Codex-account-UI-acceptance",
+  "sourceSha": "9d08a10ba4cf56f5bcc510288fcda05b2dd7f001",
+  "appBuildId": "6ec4c7d4-c6de-4a89-98f9-9aacd650cfb9",
+  "scope": {
+    "hiveUserId": "c451e8a7-e931-49c1-a3e6-77b2da005687",
+    "coderOwnerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "workspaceId": "5172dea9-a2d7-4ddf-9f58-a970a777f280",
+    "buildId": "81130afc-7453-41ab-9f81-41826ff8840f",
+    "templateVersionId": "40edfc49-2a28-4c8b-bab9-0b0d5b0e240c",
+    "accountLifetimeId": "136154a0-7e4d-4ffd-bf64-018039bcf556",
+    "guardianEpochIsSeparateFromAccountLifetime": true,
+    "browserWorkspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "browserWorkspaceReusedPersistent": true,
+    "allWorkspacesRetained": true
+  },
+  "entrypoint": {
+    "window": "Agents",
+    "card": "Accounts \u00b7 managed Codex",
+    "exactWorkspaceSelected": true,
+    "standaloneAccountsWindowClaimed": false
+  },
+  "connect": {
+    "initialState": "signed-out",
+    "initialGeneration": 0,
+    "normalUIClicks": 1,
+    "httpStatus": 200,
+    "pendingGeneration": 1,
+    "initialUIStatusReads": 1,
+    "officialDeviceURLRendered": true,
+    "oneTimeUserCodeRendered": true,
+    "cancelSignInVisible": true,
+    "providerApprovalCompletedExternallyByUser": true,
+    "codeResubmittedByAgent": false,
+    "deviceCodeURLAndPrivateDataExcludedFromReceipt": true
+  },
+  "completion": {
+    "apiStatusHTTP": 200,
+    "apiObservedAt": "2026-11-08T22:15:21.503308+00:00",
+    "state": "signed-in",
+    "generation": 2,
+    "pending": false,
+    "signedInPaintVisuallyInspected": true,
+    "reconnectVisible": true,
+    "disconnectVisible": true,
+    "cancelVisible": false,
+    "postApprovalAPIStatusReads": 1,
+    "postApprovalUIStatusReads": 1,
+    "mutationButtonsClickedAfterApproval": 0
+  },
+  "cleanup": {
+    "connectContextClosed": true,
+    "connectBrowserClosed": true,
+    "statusContextClosed": true,
+    "statusBrowserClosed": true,
+    "bothHarnessesExited": true,
+    "recordedProcessIdentitiesGone": 9,
+    "sameUidLiveChromeCount": 0,
+    "unreadableProcessStatEntries": 0,
+    "signalsSent": 0,
+    "allSSHClosed": true
+  },
+  "boundaries": {
+    "primaryCoderCredentialTransferred": false,
+    "primaryCodexAuthCacheCopied": false,
+    "credentialContentReadOrHashed": false,
+    "taskOrModelCalls": 0,
+    "otherWorkspaceAccountMutations": 0,
+    "connectReplayed": false,
+    "otherProvidersAndGenericInventoryRestrictedByTestGuard": true
+  },
+  "acceptance": {
+    "managedCodexConnectAndSignedInUI": true,
+    "claudeAccount": false,
+    "reconnectOrDisconnectActions": false,
+    "maintenanceResume": false,
+    "genericAgentInventory": false,
+    "normalUserDanielWorkspaces": false,
+    "managedProjectConversationTerminal": false,
+    "nativeModelExecution": false,
+    "production": false
+  },
+  "evidence": {
+    "privateScreenshotsAndTypedReceiptsPreserved": true,
+    "publicReceiptContainsUserCodeOrCredentials": false,
+    "signedInScreenshotSha256": "179d9b7b0367c348d65e771b2426783a50692bf00ac36ac51f4cb0e10245de9d"
+  }
+}

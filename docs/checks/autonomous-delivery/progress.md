@@ -16,7 +16,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | --- | --- | --- |
 | Released baseline | Reconciled with current main | Authorized rebase onto `1ace8774` preserves new dock/config/template features; fresh fetch confirms no newer main. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
-| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases are upgraded through migration52 with prior rows/history and runtime privileges unchanged. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
+| F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases are upgraded through migration53 with prior rows/history and runtime privileges unchanged. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
 | F05/F06 checkout lifecycle | Combined source/package and local lifecycle validated; CI/live acceptance pending | PR429 supplies exact retained-volume remount recovery and the sealed installed process observer. Independent composed cleanup→remount→next-task checks and the combined host package pass; full CI, image installation and live acceptance remain. No live cleanup or original-task retry has run. |
@@ -24,7 +24,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Corrected combined image installed; exact recovery held before native execution | PR431 passed full CI/Codex review and merged at dc770715. Installed image12c0861/packageb965 has all55 runtime members verified on the original20Gi PVC. Build6d1f/epoch01ce is connected/ready; original task, expired lease and signed histories remain intact. Exact remount enrollment/readiness and original-task retry remain pending. |
+| Test workspace | New isolated4Gi runtime connected and signed in; task held before native execution | The original20Gi task/history remains retained and held. A new4Gi software workspace has verified image12c0861/packageb965 and a successful in-app Codex connection. Its first ordinary task exposed stale empty PVC metadata before runtime reservation; no model ran. PR440 corrects template binding metadata. Reviewed host/Worker restart support and installed retry remain. [First-attempt receipt](native-4gi-first-attempt-20261108.json). |
 | D11 epic coordination | Implementation/composed validation passed; live epic pending | Distinct enrolled domains, real-merge corroboration through connected GitHub, immutable source lineage and slow preparation pass actual PostgreSQL composition. Production/archive/writer release remain held. [Local receipt](epic-preview-integration-local.json). |
 | D09 controlled delivery | Production-flow and deployment-gate source integrated; live acceptance pending | PR415 passed full CI/current Codex review and merged at `078e8b67`; seventeen composed PostgreSQL cases passed. PR417 passed CI/review and merged at `50d38bed`; 44 combined deployment checks pass. First-cutover and ongoing approvals remain absent/off. Migration48 is verified on both Preview databases with prior rows/history preserved. Effective GitHub ruleset compatibility and required target protection remain gates; no provider rules were changed. |
 | D10 migrations/backfills | Combined source merged into epic; live installed/production acceptance remain | PR423 merged into the epic at `f05af0bd` after successful CI run `42453520491` and current-head Codex review. Its caller `1a490e02` selects immutable source `768eff79` and wrapper `b8376b76`. Two distinct native-composition artifacts exercise unchanged PrismaNeon CRUD, sessions, ciphertext and assets against one restricted fixture; both trust and password authentication pass. Bounded transport checks reject wrong database/user and require completed SQL before credit. Source-bound callback recovery and immutable paused-task factual reports pass composed PostgreSQL checks. Setup migrations49/50 are verified on both existing Preview databases after decoded backups; original rows, prior48 history and runtime grants are unchanged. This is distinct from controlled production job acceptance. Genuine postmerge main-serving and production job acceptance remain. [Live upgrade](neon-preview49-50-live-upgrade.json). |
@@ -32,8 +32,8 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
 | F07 background-service replacement | Partial implementation; browser-independent preparation gap confirmed | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard, voice and agent-tools transports have local proofs. A same-Worker durable wake proposal awaits owner architecture approval; no new runtime/binding exists. Account-backed integration and legacy hook parity remain. |
 | F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect and same-owner restoration passed the real Browser/app/provider flow; final production acceptance remains. [Scoped evidence](coder-oauth-live-preview.json). |
-| F10 agent account window | Maintenance/recovery source reviewed; installed/browser acceptance pending | PR423 is integrated and preserves task/history/writer identities across owner maintenance and fresh execution epochs. Persisted pause/resume command IDs recover after lost delivery; UI polls status after an unknown initial response without resending the owner mutation. A separately reviewed five-file fix `029a8a08` makes scoped cards independent of disabled generic inventory and retains default-off maintenance enrollment. The reviewed fix is merged through PR426 and deployed. Actual Codex account status passed through the Hive API with generic inventory disabled; pause/resume and browser acceptance remain. |
-| F08 data cutover rehearsal | Captured production data upgrades to all52 migrations locally; live cutover remains off | The November 5 capture retains all 81 original application rows across seven tables and their original fields; prior migration history/checksums match. A decoded upgraded backup is preserved privately and the owned local test database was removed. This does not prove final capture freshness or original production encryption/cookie key continuity. [Schema52 rehearsal](production-data-capture/20261108-schema52-rehearsal.json). |
+| F10 agent account window | Real managed Codex connect and signed-in browser UI accepted; remaining provider/actions pending | PR423 is integrated and preserves task/history/writer identities across owner maintenance and fresh execution epochs. Persisted pause/resume command IDs recover after lost delivery; UI polls status after an unknown initial response without resending the owner mutation. A separately reviewed five-file fix `029a8a08` makes scoped cards independent of disabled generic inventory and retains default-off maintenance enrollment. The reviewed fix is merged through PR426 and deployed. Actual Codex connect, official device flow and signed-in card pass in the real Preview browser with generic inventory disabled. No auth cache was copied. Claude, reconnect/disconnect actions and maintenance resume remain. [Scoped browser receipt](codex-account-ui-preview-20261108.json). |
+| F08 data cutover rehearsal | Fresh capture, local53 upgrade and original encryption-key validation passed; cutover remains off | A new read-only production snapshot contains81 application and7 migration rows. All53 migrations preserve original fields and history in a new local fixture. All7 original ciphertexts authenticate with the captured encryption key; a synthetic current-cookie round trip passes. The upgraded archive is privately retained and fully decoded. Historical cookies, target runtime privileges, final write boundary and recovery/cutover remain unproven. [Local53 receipt](production-data-capture/20261108-f08-local53-restore.json). |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
 ## Resource and cost record
@@ -2088,3 +2088,42 @@ by this source checkpoint.
   changing reservation/replica policy or purchasing capacity. Small inactive test
   template preparation remains pending; capacity must be refreshed before creation.
   [Storage observations](workspace-storage-gate-20261108.json).
+
+
+### November8 isolated workspace, account and fresh-data milestones
+
+- **Prepare / Validate: two4Gi test homes connected, moderate difficulty.**
+  Inactive template variants with empty repository seeds fit the existing two-replica
+  storage policy. Both new homes bound without deleting data or buying capacity.
+  Software is ready with all55 host members verified; independent read service
+  health is200. Infrastructure has its required tools and cleared owner CLI identity,
+  but a nonblocking third-party Codex module exits1, leaving its generic lifecycle
+  at start_error; its inner failure cause is not established. Both workspaces are
+  unmanaged persistent test resources and retained. Global active templates stay
+  unchanged. [Scoped preparation record](isolated-4gi-workspaces-20261108.json).
+- **Validate: managed Codex connection through the app passed, moderate difficulty.**
+  One real Connect click renders the official device flow; the owner completes it.
+  Fresh API status and painted browser card agree on signed-in generation2.
+  No subsequent reconnect/disconnect mutation, model call or auth-cache copy occurs.
+  Claude and maintenance actions remain separate gates.
+- **Understand / Implement: first task held before model execution, high difficulty.**
+  The normal task API accepts one OPEN and one START on source9d08. One status wake
+  reaches guardian reservation and rejects an empty provider boundVolumeName, although
+  the actual PVC is Bound. Authoritative reads show no runtime, registration, native
+  thread or delivery-task row. PR440 waits for HOME binding before metadata creation;
+  all13 CI checks and current-head review passed before integration. The task and
+  signed OPEN-only history are preserved. No repeated start or manual repair follows.
+  Draft PR441 preserves unused bootstrap projects across restart; its companion
+  Worker change and composed acceptance remain pending.
+- **Validate: fresh production snapshot and local upgrade passed, high difficulty.**
+  An independently scoped read-only Infrastructure tunnel captures one snapshot of
+  eight public tables and88 rows. The first attempt fails before a dump; its cause
+  remains unproven. One separately reviewed instrumented attempt succeeds and closes
+  its owned tunnel. A new local fixture restores all original fingerprints and
+  applies53 pinned migrations without changing81 application rows or7 prior migration
+  records. All7 credential ciphertexts authenticate and altered tags fail. Current
+  synthetic cookie signing/tamper checks pass. A decoded901,799-byte upgraded archive
+  remains private. No raw data or keys reach Preview, Neon or Git; no production
+  writes occur. Historical session continuity, production privileges, PITR and cutover
+  are not established. [Fresh capture](production-data-capture/20261108-f08-fresh-capture.json),
+  [local restore and crypto](production-data-capture/20261108-f08-local53-restore.json).
