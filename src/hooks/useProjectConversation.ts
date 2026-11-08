@@ -11,6 +11,7 @@ import {
   type ExpectedProjectSession,
   matchesExpectedProjectSession,
 } from "@/lib/codex-session/session-target";
+import { TERMINAL_AUTH_CLIENT_TIMEOUT_MS } from "@/lib/terminal/auth-deadlines";
 
 const initial: SessionView = { phase: "loading", turns: [], needsRefresh: true, error: null };
 class SessionDenied extends Error {}
@@ -46,7 +47,10 @@ export function useProjectConversation(
         credentials: "same-origin",
         cache: "no-store",
         redirect: "error",
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
+        signal: AbortSignal.any([
+          controller.signal,
+          AbortSignal.timeout(TERMINAL_AUTH_CLIENT_TIMEOUT_MS),
+        ]),
       });
       if (!response.ok) {
         if ([401, 403, 404].includes(response.status)) throw new SessionDenied();
@@ -82,7 +86,10 @@ export function useProjectConversation(
       try {
         const grant = await freshGrant();
         if (disposed) return;
-        const transport = await openCodexSessionTransport(grant, { freshGrant });
+        const transport = await openCodexSessionTransport(grant, {
+          freshGrant,
+          signal: controller.signal,
+        });
         if (disposed) {
           transport.close();
           return;

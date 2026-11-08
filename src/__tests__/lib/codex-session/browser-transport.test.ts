@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   openCodexSessionTransport,
-  SessionTransportError,
   type SessionGrant,
   type SessionSocket,
+  SessionTransportError,
 } from "@/lib/codex-session/browser-transport";
 
 class FakeSocket extends EventTarget implements SessionSocket {
@@ -73,6 +73,86 @@ async function connect(freshGrant?: ReturnType<typeof vi.fn>) {
 }
 
 describe("browser Codex session transport", () => {
+  it("allows a delayed relay upgrade within its existing setup budget without another connection", async () => {
+    const socket = new FakeSocket();
+    sockets.push(socket);
+    const createSocket = vi.fn(() => socket);
+    const freshGrant = vi.fn();
+    const connected = openCodexSessionTransport(grant(), { createSocket, freshGrant });
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(socket.close).not.toHaveBeenCalled();
+    expect(socket.sent).toEqual([]);
+    socket.open();
+    socket.message({ type: "authenticated", protocolVersion: "0.165.0", binding });
+    const transport = await connected;
+    expect(createSocket).toHaveBeenCalledTimes(1);
+    expect(freshGrant).not.toHaveBeenCalled();
+    expect(socket.sent).toEqual([{ type: "authenticate", ticket: "header.payload.signature" }]);
+    transport.close();
+  });
+
+  it("cancels a pending upgrade and ignores its late open/handshake without sending authority", async () => {
+    const socket = new FakeSocket();
+    sockets.push(socket);
+    const controller = new AbortController();
+    const createSocket = vi.fn(() => socket),
+      freshGrant = vi.fn();
+    const pending = openCodexSessionTransport(grant(), {
+      createSocket,
+      freshGrant,
+      signal: controller.signal,
+    });
+    const rejected = expect(pending).rejects.toMatchObject({ reason: "disconnected" });
+    await vi.advanceTimersByTimeAsync(15_000);
+    controller.abort();
+    await rejected;
+    socket.open();
+    socket.message({ type: "authenticated", protocolVersion: "0.165.0", binding });
+    expect(socket.sent).toEqual([]);
+    expect(createSocket).toHaveBeenCalledTimes(1);
+    expect(freshGrant).not.toHaveBeenCalled();
+    expect(socket.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("a shorter signed expiry closes the pending upgrade before the client setup budget", async () => {
+    const socket = new FakeSocket();
+    sockets.push(socket);
+    const pending = openCodexSessionTransport(
+      grant({ expiresAt: Math.floor(Date.now() / 1000) + 8 }),
+      {
+        createSocket: () => socket,
+        freshGrant: vi.fn(),
+      },
+    );
+    const rejected = expect(pending).rejects.toMatchObject({ reason: "revoked" });
+    await vi.advanceTimersByTimeAsync(8000);
+    await rejected;
+    socket.open();
+    socket.message({ type: "authenticated", protocolVersion: "0.165.0", binding });
+    expect(socket.sent).toEqual([]);
+    expect(socket.close).toHaveBeenCalledWith(1008, expect.any(String));
+  });
+
+  it("delayed fresh renewal can finish within the original signed expiry without another socket", async () => {
+    const fresh = vi.fn(
+      () =>
+        new Promise<SessionGrant>((resolve) =>
+          setTimeout(() => resolve(grant({ ticket: "new.payload.signature" })), 15000),
+        ),
+    );
+    const { socket, transport, createSocket } = await connect(fresh);
+    const closed = vi.fn();
+    transport.onClose(closed);
+    await vi.advanceTimersByTimeAsync(46000);
+    expect(closed).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(9000);
+    socket.message({ type: "renewed", expiresAt: Math.floor(Date.now() / 1000) + 60 });
+    expect(closed).not.toHaveBeenCalled();
+    expect(createSocket).toHaveBeenCalledTimes(1);
+    expect(fresh).toHaveBeenCalledTimes(1);
+    transport.close();
+  });
+
   it("converts only the server's HTTPS endpoint and sends the capability in the first frame", async () => {
     const { socket, createSocket, transport } = await connect();
     expect(createSocket).toHaveBeenCalledWith("wss://app.example.com/session");
@@ -151,7 +231,7 @@ describe("browser Codex session transport", () => {
       transport.onClose(closed);
       await vi.advanceTimersByTimeAsync(40_000);
       if (kind === "rejected") socket.message({ type: "renewalRejected" });
-      await vi.advanceTimersByTimeAsync(6000);
+      await vi.advanceTimersByTimeAsync(21000);
       expect(closed).toHaveBeenCalledWith("revoked");
       expect(fresh).toHaveBeenCalledTimes(1);
     }
@@ -210,7 +290,7 @@ describe("browser Codex session transport", () => {
   it("bounds the initial handshake and never sends unauthorized mutation methods", async () => {
     const { promise } = setup();
     const rejected = expect(promise).rejects.toThrow("timed out");
-    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(35000);
     await rejected;
     const { transport, socket } = await connect();
     await expect(transport.request("turn/start" as never, {})).rejects.toThrow("not allowed");

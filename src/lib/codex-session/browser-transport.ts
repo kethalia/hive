@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  TERMINAL_AUTH_CLIENT_TIMEOUT_MS,
+  TERMINAL_RELAY_CLIENT_TIMEOUT_MS,
+} from "../terminal/auth-deadlines";
 import type { AuthorizedSessionTransport, SessionBinding } from "./adapter";
 
 const bindingSchema = z
@@ -48,6 +52,7 @@ type Options = {
   // Must reauthorize through the server; do not return a cached signed ticket.
   freshGrant: () => Promise<SessionGrant>;
   createSocket?: (url: string) => SessionSocket;
+  signal?: AbortSignal;
 };
 const MAX_FRAME_BYTES = 1024 * 1024;
 const TIMEOUT_MS = 5000;
@@ -102,6 +107,8 @@ export function openCodexSessionTransport(
   initial: SessionGrant,
   options: Options,
 ): Promise<AuthorizedSessionTransport> {
+  if (options.signal?.aborted)
+    throw new SessionTransportError("disconnected", "Session connection cancelled.");
   let grant: SessionGrant;
   try {
     grant = validateGrant(initial);
@@ -133,9 +140,13 @@ export function openCodexSessionTransport(
     let expiryTimer: ReturnType<typeof setTimeout> | undefined;
     let renewalDeadline: ReturnType<typeof setTimeout> | undefined;
     const handshakeTimer = setTimeout(
-      () => finish("disconnected", "Session authentication timed out."),
-      TIMEOUT_MS,
+      () =>
+        Date.now() >= current.expiresAt * 1000
+          ? finish("revoked", "Session authorization expired.")
+          : finish("disconnected", "Session authentication timed out."),
+      Math.max(1, Math.min(TERMINAL_RELAY_CLIENT_TIMEOUT_MS, grant.expiresAt * 1000 - Date.now())),
     );
+    const cancel = () => finish("disconnected", "Session connection cancelled.");
 
     function finish(reason: CloseReason, message: string) {
       if (closed) return;
@@ -145,6 +156,7 @@ export function openCodexSessionTransport(
       clearTimeout(renewalTimer);
       clearTimeout(expiryTimer);
       clearTimeout(renewalDeadline);
+      options.signal?.removeEventListener("abort", cancel);
       for (const [type, listener] of listeners) socket.removeEventListener(type, listener);
       for (const request of requests.values()) {
         clearTimeout(request.timer);
@@ -195,7 +207,10 @@ export function openCodexSessionTransport(
       // One bounded fresh authorization attempt; a failure never becomes a retry loop.
       renewalDeadline = setTimeout(
         () => finish("revoked", "Session renewal timed out."),
-        TIMEOUT_MS,
+        Math.max(
+          1,
+          Math.min(TERMINAL_AUTH_CLIENT_TIMEOUT_MS, current.expiresAt * 1000 - Date.now()),
+        ),
       );
       try {
         const next = validateGrant(await options.freshGrant());
@@ -361,5 +376,7 @@ export function openCodexSessionTransport(
       ],
     ];
     for (const [type, listener] of listeners) socket.addEventListener(type, listener);
+    options.signal?.addEventListener("abort", cancel, { once: true });
+    if (options.signal?.aborted) cancel();
   });
 }
