@@ -10,10 +10,11 @@ import {
   publicationBody,
   publicationFetch,
 } from "@/lib/templates/publication-io";
+import { TERMINAL_RELAY_SETUP_TIMEOUT_MS } from "./auth-deadlines";
 
 // Allows the bounded 15s OAuth refresh lease while retaining an outer deadline.
 export const GENERIC_TERMINAL_AUTHORIZATION_MS = 20000;
-export const GENERIC_TERMINAL_HANDSHAKE_MS = 30000;
+export const GENERIC_TERMINAL_HANDSHAKE_MS = TERMINAL_RELAY_SETUP_TIMEOUT_MS;
 
 export type GenericTerminalAuthEnvironment = {
   AUTH_SERVICE?: { fetch: typeof fetch };

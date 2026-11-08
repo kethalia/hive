@@ -38,6 +38,9 @@ const deadline = Date.now() + 180000,
     opens: 0,
     deliveryReads: 0,
   };
+// Match the existing app relay's 30s setup plus browser overhead. These waits
+// remain subordinate to the original 180s guard and signed application grants.
+const connectionTimeout = () => Math.max(1, Math.min(35000, deadline - Date.now()));
 let browser,
   context,
   page,
@@ -151,7 +154,7 @@ try {
       const res = await route.fetch({
         maxRedirects: 0,
         maxRetries: 0,
-        timeout: Math.max(1, Math.min(10000, deadline - Date.now())),
+        timeout: Math.max(1, Math.min(30000, deadline - Date.now())),
       });
       const location = res.headers().location;
       if (
@@ -343,7 +346,7 @@ try {
   await project
     .getByRole("region", { name: "Codex conversation", exact: true })
     .waitFor({ timeout: 90000 });
-  await project.getByText("Connected", { exact: true }).waitFor();
+  await project.getByText("Connected", { exact: true }).waitFor({ timeout: connectionTimeout() });
   const history = project.getByRole("region", { name: "Conversation history", exact: true });
   const response = history.getByRole("article", { name: "Codex message", exact: true });
   await response.getByText(scope.marker, { exact: false }).first().waitFor({ timeout: 90000 });
@@ -357,8 +360,11 @@ try {
   checks.conversationMarkerOnce = true;
   stage = "terminal";
   await project.getByRole("button", { name: "Terminal", exact: true }).click();
-  await page.waitForFunction(() => !!document.querySelector(".xterm-screen"));
-  for (let n = 0; n < 100 && !terminalReady; n++)
+  await page.waitForFunction(() => !!document.querySelector(".xterm-screen"), null, {
+    timeout: connectionTimeout(),
+  });
+  const terminalDeadline = Math.min(deadline, Date.now() + 35000);
+  while (Date.now() < terminalDeadline && !terminalReady)
     await new Promise((resolve) => setTimeout(resolve, 100));
   check(counts.terminalGrants >= 1 && terminalReady);
   checks.terminalAttached = true;
@@ -373,7 +379,7 @@ try {
         .querySelector('[aria-label="Codex conversation"]')
         ?.textContent?.includes("Connected"),
     null,
-    { timeout: 30000 },
+    { timeout: connectionTimeout() },
   );
   await response.getByText(scope.marker, { exact: false }).first().waitFor({ timeout: 30000 });
   for (let n = 0; n < 300 && (counts.sessionGrants < 2 || markerAfter.size < 1); n++)

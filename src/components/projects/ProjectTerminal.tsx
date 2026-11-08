@@ -7,6 +7,10 @@ import {
   type ExpectedProjectSession,
   matchesExpectedProjectSession,
 } from "@/lib/codex-session/session-target";
+import {
+  TERMINAL_AUTH_CLIENT_TIMEOUT_MS,
+  TERMINAL_RELAY_CLIENT_TIMEOUT_MS,
+} from "@/lib/terminal/auth-deadlines";
 import "@xterm/xterm/css/xterm.css";
 
 const grantSchema = z
@@ -79,7 +83,10 @@ export function ProjectTerminal({
         credentials: "same-origin",
         cache: "no-store",
         redirect: "error",
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
+        signal: AbortSignal.any([
+          controller.signal,
+          AbortSignal.timeout(TERMINAL_AUTH_CLIENT_TIMEOUT_MS),
+        ]),
       });
       if (!response.ok) throw new Error("Terminal unavailable");
       const grant = grantSchema.parse(await response.json());
@@ -166,10 +173,26 @@ export function ProjectTerminal({
           Math.max(1000, Math.min(40000, remaining - 10000)),
         );
       };
-      handshake = setTimeout(fail, 5000);
-      socket.addEventListener("open", () => send({ type: "authenticate", ticket: grant.ticket }));
+      handshake = setTimeout(
+        fail,
+        Math.max(
+          1,
+          Math.min(TERMINAL_RELAY_CLIENT_TIMEOUT_MS, grant.expiresAt * 1000 - Date.now()),
+        ),
+      );
+      socket.addEventListener("open", () => {
+        if (disposed || controller.signal.aborted || Date.now() >= current.expiresAt * 1000) {
+          fail();
+          return;
+        }
+        send({ type: "authenticate", ticket: grant.ticket });
+      });
       socket.addEventListener("message", (event) => {
         try {
+          if (disposed || controller.signal.aborted || Date.now() >= current.expiresAt * 1000) {
+            fail();
+            return;
+          }
           if (
             typeof event.data !== "string" ||
             new TextEncoder().encode(event.data).length > 262144

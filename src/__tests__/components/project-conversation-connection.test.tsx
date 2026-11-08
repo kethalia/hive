@@ -104,7 +104,10 @@ describe("project read connection lifecycle", () => {
     );
     const hook = renderHook(() => useProjectConversation("project", true));
     await waitFor(() => expect(mock.open).toHaveBeenCalled());
+    const signal = mock.open.mock.calls[0][1].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
     hook.unmount();
+    expect(signal.aborted).toBe(true);
     await act(async () => resolve(transport));
     expect(transport.close).toHaveBeenCalledTimes(1);
     expect(mock.adapters).toHaveLength(0);
