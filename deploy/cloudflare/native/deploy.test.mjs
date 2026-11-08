@@ -170,7 +170,7 @@ test("provider metadata pins the exact branch and valid slug without exposing to
     (error) => !error.message.includes(token),
   );
 });
-test("production is check/dry-run only, while branch preview cannot target main", () => {
+test("production defaults to check/dry-run only, while branch preview cannot target main", () => {
   assert.throws(() => plan({ branch: "main", target: "production", config }));
   assert.equal(
     plan({ branch: "main", target: "production", check: true, config }).target,
@@ -202,6 +202,11 @@ test("CLI checks do not deploy and reject a mismatched account or production act
   assert.equal(preview.status, 0);
   assert.equal(JSON.parse(preview.stdout).name, oauthPreviewBranch);
   assert.equal(JSON.parse(preview.stdout).origin, undefined);
+  const isolated = run(oauthPreviewBranch, ["preview", "--check"], {
+    HIVE_NATIVE_PRODUCTION_ENROLLMENT_JSON: "malformed unused production enrollment",
+  });
+  assert.equal(isolated.status, 0);
+  assert.equal(isolated.stdout, preview.stdout);
   assert.notEqual(
     run("codex/example", ["preview", "--check"], { CLOUDFLARE_ACCOUNT_ID: "wrong" }).status,
     0,

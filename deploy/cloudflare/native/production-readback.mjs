@@ -4,15 +4,9 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { account } from "./deploy.mjs";
+import { productionPublicVariable, productionTarget } from "./production-configuration.mjs";
 
-export const productionReadbackTarget = Object.freeze({
-  accountId: account,
-  workerName: "hive",
-  zoneId: "b5a1ed758b9cd1c62fcacf9037dc0dea",
-  zoneName: "kethalia.com",
-  hostname: "hive.kethalia.com",
-});
+export const productionReadbackTarget = productionTarget;
 export const READBACK_DEADLINE_MS = 30000;
 export const READBACK_BODY_BYTES = 1024 * 1024;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -49,19 +43,6 @@ const only = (value, keys) => {
   assert.ok(value && typeof value === "object" && !Array.isArray(value));
   assert.ok(Object.keys(value).every((key) => keys.includes(key)));
 };
-const publicBooleans = new Set([
-  "HIVE_NATIVE_PREVIEW_ENABLED",
-  "HIVE_NATIVE_PRODUCTION_ACTIVE",
-  "HIVE_PREVIEW_ACCESS_REQUIRED",
-  "HIVE_DISABLE_BACKGROUND_WORKERS",
-  "HIVE_PROJECT_DISCOVERY_ENABLED",
-  "HIVE_PROJECT_TASKS_ENABLED",
-  "HIVE_DELIVERY_ENABLED",
-  "HIVE_CODEX_GATEWAY_ENABLED",
-  "HIVE_DELIVERY_DISPATCH_ENABLED",
-  "HIVE_TOKEN_ROTATION_ENABLED",
-  "HIVE_CODER_OAUTH_ENABLED",
-]);
 function publicBinding(binding) {
   const base = { name: name(binding.name), type: name(binding.type) };
   // Secret payloads (even unexpected fields) are deliberately never inspected,
@@ -69,17 +50,7 @@ function publicBinding(binding) {
   if (["secret_text", "secret_key"].includes(binding.type)) return base;
   if (binding.type === "plain_text") {
     only(binding, ["name", "type", "text"]);
-    const value = binding.text;
-    if (publicBooleans.has(binding.name)) assert.ok(["true", "false"].includes(value));
-    else if (binding.name === "HIVE_NATIVE_MODE")
-      assert.ok(["bootstrap", "production"].includes(value));
-    else if (binding.name === "HIVE_RUNTIME_TARGET") assert.equal(value, "cloudflare");
-    else if (binding.name === "CODER_URL") assert.equal(value, "https://coder.kethalia.com");
-    else if (binding.name === "HIVE_PUBLIC_ORIGIN")
-      assert.equal(value, "https://hive.kethalia.com");
-    else if (binding.name === "HIVE_CODER_OAUTH_CLIENT_ID")
-      assert.match(value, /^[A-Za-z0-9_-]{1,256}$/);
-    else throw new Error();
+    const value = productionPublicVariable(binding.name, binding.text);
     return { ...base, text: value };
   }
   if (binding.type === "assets") {
@@ -392,8 +363,19 @@ export async function collectProductionReadback({ token, fetcher = fetch, signal
         bindings[0].name === "HIVE_NATIVE_MODE" &&
         bindings[0].type === "plain_text" &&
         bindings[0].text === "bootstrap";
+      const publicConfigurationDigest = digest({
+        runtime: publicVersion.runtime,
+        bindings: publicVersion.bindings,
+        settings: publicSettings(settings),
+        crons,
+        routes,
+        domains,
+        workersDev: bool(subdomain.enabled),
+        versionPreviews: bool(subdomain.previews_enabled),
+      });
       return {
         ...t,
+        publicConfigurationDigest,
         workerTag: worker.tag,
         createdOn: worker.created_on,
         deploymentId,
@@ -404,6 +386,7 @@ export async function collectProductionReadback({ token, fetcher = fetch, signal
         versionDigest: digest(publicVersion),
         scriptSettingsDigest: digest(publicSettings(settings)),
         bindingNames,
+        publicBindings: sorted(bindings.map(publicBinding)),
         secretNames: secrets.map((s) => s.name),
         crons,
         routes,

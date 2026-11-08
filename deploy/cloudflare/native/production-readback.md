@@ -39,7 +39,7 @@ wrong types, negative/fractional counts and multi-page results hold. The collect
 never follows a continuation or infers completeness from page size alone.
 
 Only selected names/IDs, route/domain/schedule metadata and SHA256 digests of a
-reviewed public projection leave the collector. Secret payloads, credential hashes,
+reviewed public projection leave the collector. The sanitized `publicBindings` contain only explicitly allowed public values and secret names/types. `publicConfigurationDigest` covers the runtime/public configuration without code artifact or deployment IDs, for separately approved ongoing Builds transitions. Secret payloads, credential hashes,
 unknown provider payloads, author identities, headers and provider error text are
 never serialized or used as public digest inputs. The artifact declares coverage
 `reviewed-public-config-v1`. Secret values returned unexpectedly under secret binding

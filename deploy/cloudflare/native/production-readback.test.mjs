@@ -505,3 +505,23 @@ test("recognized first-page totals prove completeness only when all supplied cou
   });
   await assert.rejects(partial.collect(), { message: "production_readback_hold" });
 });
+
+test("ongoing public configuration identity survives code-only builds but changes with enrolled policy", async () => {
+  const f = fixture();
+  f.data.version.resources.bindings.push({
+    name: "HIVE_DELIVERY_REPOSITORY_POLICIES_JSON",
+    type: "plain_text",
+    text: "[]",
+  });
+  const first = await f.collect();
+  f.data.version.resources.script.etag = "next-code-artifact";
+  const next = await f.collect();
+  assert.notEqual(first.settingsDigest, next.settingsDigest);
+  assert.equal(first.snapshot.publicConfigurationDigest, next.snapshot.publicConfigurationDigest);
+  f.data.version.resources.bindings.at(-1).text = '[{"version":"next-reviewed-policy"}]';
+  const changed = await f.collect();
+  assert.notEqual(
+    next.snapshot.publicConfigurationDigest,
+    changed.snapshot.publicConfigurationDigest,
+  );
+});

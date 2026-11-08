@@ -7,10 +7,18 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { assertBuildReady } from "../app/build-integrity.mjs";
 import { PILOT_EVIDENCE_BUCKET } from "../app/delivery-pilot-bucket.mjs";
 
+import { account } from "./production-configuration.mjs";
+import {
+  productionEnrollment,
+  publishManagedProduction,
+  verifyRemoteMain,
+} from "./production-enrollment.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../../..");
 const configPath = join(here, "wrangler.jsonc");
-export const account = "225177f82b9234ede14e897fe15e0cb5";
+
+export { account } from "./production-configuration.mjs";
 export const oauthPreviewBranch = "codex/delivery-system-design";
 export const oauthPreviewOrigin = "https://codex-delivery-system-design-hive.b00ste.workers.dev";
 const requiredSecrets = [
@@ -238,13 +246,16 @@ export function validateConfig(c) {
     if (previewOriginVars.has(name)) assert.equal(value, oauthPreviewOrigin);
   }
 }
-export function plan({ branch, target, check = false, dryRun = false, config }) {
+export function plan({ branch, target, check = false, dryRun = false, config, production }) {
   validateConfig(config);
   assert.ok(["preview", "production"].includes(target));
   assert.ok(!(check && dryRun));
   if (target === "production") {
     assert.equal(branch, "main");
-    assert.ok(check || dryRun, "Production deployment is disabled pending cutover approval");
+    assert.ok(
+      check || dryRun || production,
+      "Production deployment is disabled pending cutover approval",
+    );
     return { target, check, dryRun };
   }
   assert.equal(
@@ -254,6 +265,40 @@ export function plan({ branch, target, check = false, dryRun = false, config }) 
   );
   return { target, check, dryRun, ...previewTarget(branch) };
 }
+// Same production command used by connected Builds; injected I/O is only for
+// focused protocol tests, never a configurable publication endpoint or command.
+export async function deployManagedProduction({
+  production,
+  token,
+  assertReady,
+  observe,
+  now,
+  verifyMain = () => verifyRemoteMain(production.sourceRevision),
+  execute = execFileSync,
+}) {
+  const temp = mkdtempSync(join(tmpdir(), "hive-managed-production-"));
+  try {
+    const configFile = join(temp, "wrangler.json");
+    writeFileSync(configFile, JSON.stringify(production.config), { mode: 0o600 });
+    await publishManagedProduction({
+      enrollment: production.enrollment,
+      assertReady,
+      verifyMain,
+      observe,
+      token,
+      now,
+      execute: () =>
+        execute("pnpm", ["exec", "wrangler", "deploy", "--config", configFile, "--strict"], {
+          cwd: root,
+          stdio: "inherit",
+          env: { ...process.env, CLOUDFLARE_ACCOUNT_ID: account },
+        }),
+    });
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 async function run() {
   const [target, ...flags] = process.argv.slice(2);
   assert.ok(
@@ -265,12 +310,42 @@ async function run() {
     execFileSync("git", ["branch", "--show-current"], { cwd: root, encoding: "utf8" }).trim();
   if (process.env.CLOUDFLARE_ACCOUNT_ID) assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
   const config = JSON.parse(readFileSync(configPath, "utf8"));
+  const rawEnrollment = process.env.HIVE_NATIVE_PRODUCTION_ENROLLMENT_JSON;
+  // Preview ignores production enrollment entirely, including its secrets and routes.
+  const production =
+    target === "production" && rawEnrollment
+      ? productionEnrollment({
+          raw: rawEnrollment,
+          config,
+          root,
+          identity: {
+            workersCI: process.env.WORKERS_CI,
+            buildId: process.env.WORKERS_CI_BUILD_UUID,
+            commit: process.env.WORKERS_CI_COMMIT_SHA,
+            branch,
+            head: execFileSync("git", ["rev-parse", "HEAD"], {
+              cwd: root,
+              encoding: "utf8",
+            }).trim(),
+            remote: execFileSync("git", ["remote", "get-url", "origin"], {
+              cwd: root,
+              encoding: "utf8",
+            }).trim(),
+            clean:
+              execFileSync("git", ["status", "--porcelain"], {
+                cwd: root,
+                encoding: "utf8",
+              }).trim() === "",
+          },
+        })
+      : undefined;
   const p = plan({
     branch,
     target,
     check: flags.includes("--check"),
     dryRun: flags.includes("--dry-run"),
     config,
+    production,
   });
   if (p.check) {
     console.log(JSON.stringify(p));
@@ -288,7 +363,7 @@ async function run() {
               HIVE_PREVIEW_ORIGIN: "http://localhost",
               HIVE_PUBLIC_ORIGIN: "http://localhost",
             }
-          : config.vars;
+          : (production?.config.vars ?? config.vars);
       const isolated = {
         name: config.name,
         account_id: account,
@@ -306,7 +381,10 @@ async function run() {
             }
           : {}),
       };
-      writeFileSync(configFile, JSON.stringify(isolated));
+      writeFileSync(
+        configFile,
+        JSON.stringify(p.target === "production" && production ? production.config : isolated),
+      );
       execFileSync(
         "pnpm",
         [
@@ -324,6 +402,14 @@ async function run() {
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }
+    return;
+  }
+  if (p.target === "production") {
+    await deployManagedProduction({
+      production,
+      token: process.env.CLOUDFLARE_API_TOKEN,
+      assertReady: () => assertBuildReady(root),
+    });
     return;
   }
   const resolved = await resolvePreviewOrigin(p.name, process.env.CLOUDFLARE_API_TOKEN);
@@ -354,7 +440,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     await run();
   } catch {
-    console.error("Native Preview deployment failed.");
+    console.error("Native deployment failed.");
     process.exitCode = 1;
   }
 }
