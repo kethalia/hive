@@ -79,16 +79,16 @@ test("typed database dispatch reuses CI with an immutable recipe pin and skips u
   assert.match(ci, /cancel-in-progress: \$\{\{ inputs.operation != 'database' \}\}/);
   assert.match(
     ci,
-    /uses: kethalia\/hive\/\.github\/workflows\/controlled-database-job.yml@ba51c2c6aa2762d920b722a1add69dda3c0a880a/,
+    /uses: kethalia\/hive\/\.github\/workflows\/controlled-database-job.yml@c4c3b91e5f057a656ef6d5dff888dd0923e975d3/,
   );
   assert.match(
     workflow,
-    /HIVE_DATABASE_TRUSTED_RECIPE_SHA: 'ce53b08c39173cbad72f6fb5ff4f9585dd6b57c7'/,
+    /HIVE_DATABASE_TRUSTED_RECIPE_SHA: '898ed70a2a317c508a240c5c06757a7f27ead6a8'/,
   );
-  assert.match(ci, /trusted-revision: ce53b08c39173cbad72f6fb5ff4f9585dd6b57c7/);
+  assert.match(ci, /trusted-revision: 898ed70a2a317c508a240c5c06757a7f27ead6a8/);
   assert.match(
     ci,
-    /inputs.database-trusted-revision == 'ce53b08c39173cbad72f6fb5ff4f9585dd6b57c7'/,
+    /inputs.database-trusted-revision == '898ed70a2a317c508a240c5c06757a7f27ead6a8'/,
   );
   assert.match(ci, /fromJSON\(inputs.database-catalog-json\).automaticExecutionEnabled == true/);
   for (const job of ["build-lint-test", "migration-integration", "quality", "helm-lint"])
