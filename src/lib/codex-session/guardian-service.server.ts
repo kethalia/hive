@@ -10,6 +10,7 @@ import {
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
 import type { CheckoutVolumeEvidence } from "../delivery/checkout-cleanup-contracts";
+import type { RecoveryInspection, RecoveryScope } from "../projects/task-recovery-contracts";
 import {
   accountMaintenanceGrantSchema,
   accountMaintenanceRequestSchema,
@@ -35,6 +36,7 @@ import {
   type GuardianTransferContinuation,
   guardianRemountEnrollments,
 } from "./guardian-remount-contracts";
+import { readRecoveryResumption } from "./guardian-resumption.server";
 import {
   GuardianAdmissionStore,
   type GuardianOperationReceiptInput,
@@ -364,21 +366,115 @@ export class GuardianService {
     workspaceId: string,
     raw: unknown,
     nonce: string,
+    resumption?: {
+      scope: RecoveryScope;
+      inspection: RecoveryInspection;
+      authorize: (tx: Prisma.TransactionClient) => Promise<void>;
+    },
   ) {
     const binding = await this.resolve(principal, workspaceId);
     const parsed = guardianIdentityResponseSchema.parse(raw);
     await this.resampleIssuedAt(parsed);
     const packet = this.verifyIdentity(binding, parsed, nonce);
-    const runtime = await this.requestStore(packet.expiresAt).reserveRuntime(
-      this.workspace(binding),
-      packet.identity,
-    );
+    let runtime: CodexGuardianRuntime;
+    if (resumption) {
+      requireGuardian(
+        nonce === guardianDigest({ scope: resumption.scope, inspection: resumption.inspection }),
+      );
+      const context = await readRecoveryResumption(this.db, this.env, resumption.scope);
+      requireGuardian(context && this.dependencies.assertUnstartedPredecessorStopped);
+      await this.dependencies.assertUnstartedPredecessorStopped(
+        binding,
+        context.attestation.oldBuildId,
+        context.continuation,
+        context.attestation,
+      );
+      this.live(packet);
+      runtime = await this.requestStore(
+        Math.min(packet.expiresAt, context.approval.expiresAt),
+      ).resumeUnusedRecovery(
+        this.workspace(binding),
+        packet,
+        resumption.scope,
+        resumption.inspection,
+        this.env,
+        resumption.authorize,
+      );
+    } else
+      runtime = await this.requestStore(packet.expiresAt).reserveRuntime(
+        this.workspace(binding),
+        packet.identity,
+      );
     requireGuardian(
       runtime.phase === "open" &&
         runtime.operationReceiptsEnabled &&
         packet.startup.generation === runtime.generation,
     );
     return { runtime, packet };
+  }
+  /** Only explicit owner retry calls this. Inspection itself grants no runtime authority. */
+  async unusedRecoveryResumption(scope: RecoveryScope) {
+    const context = await readRecoveryResumption(this.db, this.env, scope);
+    if (!context) return undefined;
+    const prior = await this.db.codexGuardianOperationReceipt.findUnique({
+      where: {
+        ownerId_runtimeId_eventId: {
+          ownerId: scope.ownerId,
+          runtimeId: context.runtime.id,
+          eventId: context.approval.id,
+        },
+      },
+    });
+    requireGuardian(
+      context.runtime.phase === "open" &&
+        context.runtime.generation === 1 &&
+        !context.runtime.nativeLaunchId &&
+        !context.runtime.nativeLaunchDigest &&
+        !context.runtime.nativeLaunchAt &&
+        !context.runtime.producerApproved &&
+        !context.runtime.serverInstanceId &&
+        !context.runtime.hostKeyFingerprint &&
+        !context.runtime.closedBarrierId &&
+        (prior
+          ? prior.action === "unused_recovery_resumed" &&
+            prior.requestDigest === guardianDigest(context.approval) &&
+            context.runtime.authorityUntil.getTime() > this.now()
+          : context.runtime.authorityUntil.getTime() <= this.now()),
+    );
+    const binding = await this.resolve(
+      { hiveUserId: scope.ownerId, coderUserId: scope.coderOwnerId },
+      scope.workspaceId,
+    );
+    requireGuardian(
+      this.dependencies.assertUnstartedPredecessorStopped &&
+        guardianDigest(this.workspace(binding)) === guardianDigest(context.runtime.binding),
+    );
+    const [recovery] = await this.db.$queryRaw<
+      {
+        phase: string;
+        scope: unknown;
+        inspection: unknown;
+        authorization: unknown;
+        receipt: unknown;
+      }[]
+    >`
+      SELECT phase,scope,inspection,"authorization",receipt FROM project_task_recoveries
+      WHERE owner_id=${scope.ownerId}::uuid AND id=${scope.recoveryId}::uuid`;
+    requireGuardian(
+      recovery?.phase === "inspecting" &&
+        !recovery.inspection &&
+        !recovery.authorization &&
+        !recovery.receipt &&
+        guardianDigest(recovery.scope) === guardianDigest(scope),
+    );
+    await this.dependencies.assertUnstartedPredecessorStopped(
+      binding,
+      context.attestation.oldBuildId,
+      context.continuation,
+      context.attestation,
+    );
+    this.active();
+    return context.ticket;
   }
   async provision(principal: RegistrationPrincipal, workspaceId: string) {
     const transport = this.dependencies.transport;

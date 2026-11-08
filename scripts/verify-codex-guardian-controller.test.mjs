@@ -33,7 +33,10 @@ import { createDeliveryNativeSpool } from "../templates/ai-dev-k8s/scripts/deliv
 
 const sha = (v) => createHash("sha256").update(v).digest("hex"),
   digest = (v) => sha(canonical(v));
-function fixture({ packageManifestSha256 = "2".repeat(64) } = {}) {
+function fixture({
+  packageManifestSha256 = "2".repeat(64),
+  controller = openGuardianController,
+} = {}) {
   const home = mkdtempSync(join(tmpdir(), "hive-guardian-controller-")),
     issuer = generateKeyPairSync("ed25519");
   const binding = {
@@ -363,7 +366,7 @@ function fixture({ packageManifestSha256 = "2".repeat(64) } = {}) {
       return reply(body, result);
     },
   };
-  const client = openGuardianController(options);
+  const client = controller(options);
   function identity() {
     packet = client.identity("a".repeat(64));
     return packet;
@@ -1097,6 +1100,148 @@ test("authenticated admission supersedes the historical enrollment cutoff", asyn
     assert.deepEqual(JSON.parse(readFileSync(path)).state.enrollmentRecovery, historical);
   } finally {
     f.close();
+  }
+});
+test("installed normally enrolled guardian can sign owner inspection after server authority expiry without renewal", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "hive-unused-resumption-"));
+  let f;
+  try {
+    // Read the actual shipped package; no package generation or native process.
+    execFileSync("tar", [
+      "-xJf",
+      resolve("templates/ai-dev-k8s/assets/codex-host.tar.xz"),
+      "-C",
+      directory,
+    ]);
+    const manifest = sha(readFileSync(join(directory, "package-manifest.json")));
+    const { openGuardianController: controller } = await import(
+      pathToFileURL(join(directory, "codex-guardian-controller.mjs")).href
+    );
+    const { projectRecovery, recoveryDigest } = await import(
+      pathToFileURL(join(directory, "codex-project-recovery.mjs")).href
+    );
+    f = fixture({ packageManifestSha256: manifest, controller });
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    const before = readFileSync(join(f.options.stateDirectory, "controller.json")),
+      now = Date.now() + 240000;
+    t.mock.method(Date, "now", () => now);
+    assert.equal(JSON.parse(before).state.enrollmentRecovery, undefined);
+    const binding = f.options.config.binding,
+      projectId = randomUUID(),
+      taskId = randomUUID(),
+      requestId = randomUUID(),
+      task = { taskId, request: { requestId, revision: "a".repeat(40) }, digest: "b".repeat(64) },
+      p = { projectId, repositoryId: "11", expectedAccountId: "12", task },
+      scope = {
+        ownerId: binding.hiveUserId,
+        coderOwnerId: binding.ownerId,
+        workspaceId: binding.workspaceId,
+        projectId,
+        taskId,
+        recoveryId: randomUUID(),
+        originalRequestId: requestId,
+        intentVersion: "fixture",
+        intentDigest: "c".repeat(64),
+        hostRequestDigest: task.digest,
+        repositoryId: "11",
+        providerAccountId: "12",
+        revision: task.request.revision,
+      },
+      old = {
+        root: { device: "1", inode: "1" },
+        project: { device: "1", inode: "2" },
+        checkout: { device: "1", inode: "3" },
+      },
+      mapping = {
+        old,
+        current: Object.fromEntries(
+          Object.entries(old).map(([k, v]) => [k, { ...v, device: "2" }]),
+        ),
+        oldRootRecordSha256: "a".repeat(64),
+        oldProjectRecordSha256: "b".repeat(64),
+        oldLeaseDigest: "c".repeat(64),
+      },
+      continuity = {
+        attestationDigest: "d".repeat(64),
+        continuationDigest: "e".repeat(64),
+        originalProofDigest: "f".repeat(64),
+        ownerId: scope.ownerId,
+        workspaceId: scope.workspaceId,
+        projectId,
+        taskId,
+        recoveryId: scope.recoveryId,
+        final: {
+          buildId: binding.buildId,
+          lifetimeId: f.startup.lifetimeId,
+          configSha256: f.startup.configSha256,
+          packageManifestSha256: manifest,
+        },
+        mapping,
+        volume: {
+          pvcUid: randomUUID(),
+          pvcName: "fixture-home",
+          namespace: "coder",
+          storageClass: "longhorn",
+          capacity: "20Gi",
+          boundVolumeName: "pvc-fixture",
+          accessModes: ["ReadWriteOnce"],
+          containerName: "dev",
+          podVolumeName: "home",
+          mountPath: "/home/coder",
+          subPath: "",
+          subPathExpr: "",
+          readOnly: false,
+          claimReadOnly: false,
+        },
+        expiresAt: now + 60000,
+      };
+    // Provenance callbacks are fixture observations; the shipped recovery handler
+    // and actual enrolled guardian perform the ticket freeze and signed identity.
+    const recover = projectRecovery({
+      config: { ownerId: binding.ownerId, workspaceId: binding.workspaceId },
+      buildId: binding.buildId,
+      guardian: {
+        state: { phase: "open", lifetimeId: f.startup.lifetimeId, generation: 1 },
+        identity: (nonce) => f.client.identity(nonce),
+      },
+      save() {},
+      taskDigest: () => task.digest,
+      prove: async () => {},
+      absent: async () => {
+        throw Error("unexpected");
+      },
+      fence: async () => {
+        throw Error("unexpected");
+      },
+      schedule: () => {
+        throw Error("unexpected");
+      },
+    });
+    const request = { schemaVersion: 1, scope, continuity };
+    const inspected = await recover("/projects/tasks/recovery-inspect", p, request);
+    assert.equal(
+      inspected.identity.nonce,
+      recoveryDigest({ scope, inspection: inspected.inspection }),
+    );
+    assert.deepEqual(
+      (await recover("/projects/tasks/recovery-inspect", p, request)).inspection,
+      inspected.inspection,
+    );
+    await assert.rejects(
+      recover("/projects/tasks/recovery-inspect", p, {
+        ...request,
+        continuity: { ...continuity, expiresAt: continuity.expiresAt + 1 },
+      }),
+    );
+    assert.deepEqual(readFileSync(join(f.options.stateDirectory, "controller.json")), before);
+    assert.deepEqual(
+      f.calls.map((c) => c.action),
+      ["enroll"],
+    );
+  } finally {
+    f?.close();
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 test("unused recovered enrollment cannot admit work after its historical cutoff", async (t) => {

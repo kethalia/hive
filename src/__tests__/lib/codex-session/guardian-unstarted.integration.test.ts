@@ -25,8 +25,11 @@ import {
   guardianTransferContinuationSchema,
   UNUSED_INTERMEDIATE_MANIFEST,
 } from "@/lib/codex-session/guardian-remount-contracts";
+import { readRecoveryResumption } from "@/lib/codex-session/guardian-resumption.server";
+import { guardianResumptionApprovalSchema } from "@/lib/codex-session/guardian-resumption-contracts";
 import { GuardianService } from "@/lib/codex-session/guardian-service.server";
 import { GuardianAdmissionStore } from "@/lib/codex-session/guardian-store.server";
+import type { GuardianIdentityResponse } from "@/lib/codex-session/guardian-transport-contracts";
 import {
   guardianEnrollmentClaimsSchema,
   guardianIdentityProofPayload,
@@ -57,6 +60,453 @@ const db = new PrismaClient({
 });
 afterAll(() => db.$disconnect());
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+async function resumptionFixture(attestationMillis = 120000, resumptionMillis = 300000) {
+  const f = await remountFixture();
+  f.attestation.expiresAt = Date.now() + attestationMillis;
+  const r = await f.reserve();
+  // Historical fixture enrollment: insert its original consumed grant and perform
+  // the one reserved->open transition. Never edit an already consumed timestamp.
+  const enrolledAt = new Date(Date.now() - 240000),
+    originalAuthorityUntil = new Date(enrolledAt.getTime() + 180000);
+  const grant = await db.codexGuardianEnrollmentGrant.create({
+    data: {
+      id: randomUUID(),
+      ownerId: f.f.ownerId,
+      runtimeId: r.id,
+      tokenDigest: hash(randomUUID()),
+      bindingDigest: hash(randomUUID()),
+      issuedAt: new Date(enrolledAt.getTime() - 1000),
+      expiresAt: new Date(enrolledAt.getTime() + 59000),
+      consumedAt: enrolledAt,
+      consumptionDigest: hash(randomUUID()),
+    },
+  });
+  const runtime = await db.codexGuardianRuntime.update({
+    where: { id: r.id },
+    data: { phase: "open", enrolledAt, authorityUntil: originalAuthorityUntil },
+  });
+  const approval = guardianResumptionApprovalSchema.parse({
+    schemaVersion: 1,
+    purpose: "unused-recovery-resumption",
+    id: randomUUID(),
+    ownerId: f.f.ownerId,
+    coderOwnerId: f.newBinding.ownerId,
+    workspaceId: f.newBinding.workspaceId,
+    projectId: f.proof.projectId,
+    taskId: f.proof.taskId,
+    recoveryId: f.recoveryInput.recoveryId,
+    runtimeId: r.id,
+    retirementEventId: f.proof.transferId,
+    attestationDigest: guardianDigest(f.attestation),
+    continuationDigest: guardianDigest(f.continuation),
+    final: f.continuation.finalSuccessor,
+    originalAuthorityUntil: originalAuthorityUntil.getTime(),
+    issuedAt: Date.now() - 100,
+    expiresAt: Date.now() + resumptionMillis,
+  });
+  const env = {
+    HIVE_GUARDIAN_REMOUNT_ATTESTATIONS_JSON: JSON.stringify([f.attestation]),
+    HIVE_GUARDIAN_RECOVERY_RESUMPTIONS_JSON: JSON.stringify([approval]),
+  };
+  const owner = ownerService(f, true, env);
+  await expect(
+    owner.service.provision(owner.principal, f.newBinding.workspaceId),
+  ).rejects.toThrow();
+  const ticket = await owner.service.unusedRecoveryResumption(f.recovery!.scope);
+  expect(ticket).toBeDefined();
+  const inspection = {
+    outcome: "existing_preexecution" as const,
+    taskFingerprint: "a".repeat(64),
+    buildId: r.buildId,
+    lifetimeId: r.lifetimeId,
+    guardianGeneration: 1,
+    remount: {
+      attestationDigest: approval.attestationDigest,
+      continuationDigest: approval.continuationDigest,
+      mappingDigest: guardianDigest(ticket!.mapping),
+      volumeDigest: guardianDigest(ticket!.volume),
+      mapping: ticket!.mapping,
+    },
+  };
+  const identityIssuedAt = Date.now();
+  const packet = {
+    ...owner.lastIdentity!,
+    issuedAt: identityIssuedAt,
+    expiresAt: identityIssuedAt + 30000,
+    nonce: guardianDigest({ scope: f.recovery!.scope, inspection }),
+    unstartedTransferReceipt: {
+      transferId: f.proof.transferId,
+      oldRuntimeId: f.old.id,
+      proofDigest: guardianDigest(f.proof),
+      continuationDigest: approval.continuationDigest,
+      attestationDigest: approval.attestationDigest,
+    },
+  };
+  packet.proof = sign(
+    null,
+    Buffer.from(guardianIdentityProofPayload(packet)),
+    f.f.outerPrivateKey,
+  ).toString("base64url");
+  const resume = () =>
+    owner.service.verifyRecoveryIdentity(
+      owner.principal,
+      f.newBinding.workspaceId,
+      packet,
+      packet.nonce,
+      { scope: f.recovery!.scope, inspection, authorize: async () => {} },
+    );
+  return { f, runtime, grant, approval, env, owner, ticket, inspection, packet, resume };
+}
+
+describe.skipIf(!url)("unused successor authority resumption", () => {
+  it("renews once through signed service identity, preserves history and authorizes the same recovery", async () => {
+    const v = await resumptionFixture(),
+      { f } = v;
+    const old = await db.codexGuardianOperationReceipt.findMany({ where: { runtimeId: f.old.id } });
+    const first = await v.resume();
+    expect({ ...first.runtime, authorityUntil: v.runtime.authorityUntil }).toEqual(v.runtime);
+    expect(first.runtime.authorityUntil.getTime()).toBeGreaterThan(Date.now());
+    expect((await v.resume()).runtime.authorityUntil).toEqual(first.runtime.authorityUntil);
+    expect(
+      await db.codexGuardianOperationReceipt.count({
+        where: { runtimeId: v.runtime.id, action: "unused_recovery_resumed" },
+      }),
+    ).toBe(1);
+    expect(
+      await db.codexGuardianOperationReceipt.findMany({ where: { runtimeId: f.old.id } }),
+    ).toEqual(old);
+    expect(await db.codexGuardianEnrollmentGrant.findUnique({ where: { id: v.grant.id } })).toEqual(
+      v.grant,
+    );
+    expect(
+      await f.store.enrollmentReadback({
+        ownerId: f.f.ownerId,
+        runtimeId: v.runtime.id,
+        runtimeGeneration: 1,
+        grantId: v.grant.id,
+        tokenDigest: v.grant.tokenDigest,
+        claimsDigest: v.grant.bindingDigest,
+        consumptionDigest: v.grant.consumptionDigest!,
+      }),
+    ).toEqual({
+      enrolledAt: v.runtime.enrolledAt!.getTime(),
+      authorityUntil: v.approval.originalAuthorityUntil,
+    });
+    expect(await readRemountRecoveryTicket(db, v.env, f.recovery!.scope)).toEqual(v.ticket);
+    const recoveries = new ProjectTaskRecoveries(db, f.intents, v.env);
+    const authorized = await recoveries.authorize(
+      f.recovery!,
+      v.inspection,
+      first.runtime,
+      async () => {},
+    );
+    expect(authorized.authorization!.expiresAt).toBeLessThanOrEqual(
+      first.runtime.authorityUntil.getTime(),
+    );
+    expect(authorized.scope).toEqual(f.recovery!.scope);
+    await expect(v.resume()).rejects.toThrow(); // persisted authorization is never reset
+    const preparation = { ...f.proof.preparation, buildId: v.runtime.buildId };
+    const prepared = await f.store.prepare({
+      ownerId: f.f.ownerId,
+      runtimeId: v.runtime.id,
+      runtimeGeneration: 1,
+      preparation,
+      preparationDigest: preparationDigest(preparation),
+    });
+    const mapped = {
+      ...f.proof.checkout,
+      checkoutIdentity: f.attestation.mapping.current.checkout,
+    };
+    const bound = await f.store.bindCheckout({
+      ownerId: f.f.ownerId,
+      runtimeId: v.runtime.id,
+      runtimeGeneration: prepared.runtime.generation,
+      checkout: mapped,
+    });
+    expect(bound.admission.checkoutBinding).toEqual(mapped);
+    expect(mapped.leaseId).toBe(f.proof.checkout.leaseId);
+    expect(mapped.checkoutIncarnation).toBe(f.proof.checkout.checkoutIncarnation);
+  });
+  it("rejects revoked or changed operator approval and direct expired TTL updates", async () => {
+    const v = await resumptionFixture();
+    await expect(
+      v.f.store.resumeUnusedRecovery(
+        v.f.newBinding,
+        v.packet,
+        v.f.recovery!.scope,
+        v.inspection,
+        {},
+        async () => {},
+      ),
+    ).rejects.toThrow();
+    for (const changed of [
+      { runtimeId: randomUUID() },
+      { recoveryId: randomUUID() },
+      { originalAuthorityUntil: v.approval.originalAuthorityUntil + 1 },
+      { expiresAt: Date.now() - 1 },
+    ]) {
+      const env = {
+        ...v.env,
+        HIVE_GUARDIAN_RECOVERY_RESUMPTIONS_JSON: JSON.stringify([{ ...v.approval, ...changed }]),
+      };
+      await expect(
+        v.f.store.resumeUnusedRecovery(
+          v.f.newBinding,
+          v.packet,
+          v.f.recovery!.scope,
+          v.inspection,
+          env,
+          async () => {},
+        ),
+      ).rejects.toThrow();
+    }
+    await expect(
+      db.codexGuardianRuntime.update({
+        where: { id: v.runtime.id },
+        data: { authorityUntil: new Date(Date.now() + 60000) },
+      }),
+    ).rejects.toThrow();
+    expect(await db.codexGuardianRuntime.findUnique({ where: { id: v.runtime.id } })).toEqual(
+      v.runtime,
+    );
+    expect(
+      await db.codexGuardianOperationReceipt.count({ where: { runtimeId: v.runtime.id } }),
+    ).toBe(0);
+  });
+  it("racing identical owner retries retain one deadline and deny a second grant", async () => {
+    const v = await resumptionFixture();
+    const results = await Promise.all([v.resume(), v.resume()]);
+    expect(results[0].runtime.authorityUntil).toEqual(results[1].runtime.authorityUntil);
+    expect(
+      await db.codexGuardianOperationReceipt.count({ where: { runtimeId: v.runtime.id } }),
+    ).toBe(1);
+    const another = {
+      ...v.env,
+      HIVE_GUARDIAN_RECOVERY_RESUMPTIONS_JSON: JSON.stringify([
+        { ...v.approval, id: randomUUID() },
+      ]),
+    };
+    await expect(
+      v.f.store.resumeUnusedRecovery(
+        v.f.newBinding,
+        v.packet,
+        v.f.recovery!.scope,
+        v.inspection,
+        another,
+        async () => {},
+      ),
+    ).rejects.toThrow();
+  });
+  it("expired renewal cannot extend again and keeps original historical proof and empty-close eligibility", async () => {
+    const v = await resumptionFixture(120000, 1200);
+    const result = await v.resume();
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, result.runtime.authorityUntil.getTime() - Date.now() + 20)),
+    );
+    await expect(v.resume()).rejects.toThrow();
+    await expect(
+      db.codexGuardianRuntime.update({
+        where: { id: v.runtime.id },
+        data: { authorityUntil: new Date(Date.now() + 60000) },
+      }),
+    ).rejects.toThrow();
+    expect(
+      await v.f.store.expiredEmptyReady({
+        ownerId: v.f.f.ownerId,
+        runtimeId: v.runtime.id,
+        workspaceId: v.runtime.workspaceId,
+        bindingDigest: guardianDigest(v.runtime.binding),
+        configSha256: v.runtime.configSha256,
+      }),
+    ).toMatchObject({ runtimeId: v.runtime.id, generation: 1 });
+    expect(
+      (
+        await v.f.store.enrollmentReadback({
+          ownerId: v.f.f.ownerId,
+          runtimeId: v.runtime.id,
+          runtimeGeneration: 1,
+          grantId: v.grant.id,
+          tokenDigest: v.grant.tokenDigest,
+          claimsDigest: v.grant.bindingDigest,
+          consumptionDigest: v.grant.consumptionDigest!,
+        })
+      ).authorityUntil,
+    ).toBe(v.approval.originalAuthorityUntil);
+    expect(
+      (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: v.runtime.id } }))
+        .authorityUntil,
+    ).toEqual(result.runtime.authorityUntil);
+  });
+  it("bad host signature, wrong inspection and stale packet have no renewal effect", async () => {
+    const v = await resumptionFixture();
+    for (const packet of [
+      { ...v.packet, proof: Buffer.alloc(64).toString("base64url") },
+      { ...v.packet, expiresAt: Date.now() - 1 },
+    ])
+      await expect(
+        v.owner.service.verifyRecoveryIdentity(
+          v.owner.principal,
+          v.f.newBinding.workspaceId,
+          packet,
+          packet.nonce,
+          { scope: v.f.recovery!.scope, inspection: v.inspection, authorize: async () => {} },
+        ),
+      ).rejects.toThrow();
+    await expect(
+      v.f.store.resumeUnusedRecovery(
+        v.f.newBinding,
+        v.packet,
+        v.f.recovery!.scope,
+        { ...v.inspection, guardianGeneration: 2 },
+        v.env,
+        async () => {},
+      ),
+    ).rejects.toThrow();
+    expect(await db.codexGuardianRuntime.findUnique({ where: { id: v.runtime.id } })).toEqual(
+      v.runtime,
+    );
+  });
+  it("explicit resumption works after the original attestation expires without replacing its digest", async () => {
+    const v = await resumptionFixture(1200);
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, v.f.attestation.expiresAt - Date.now() + 20)),
+    );
+    const original = guardianDigest(v.f.attestation);
+    await expect(v.f.reserve()).rejects.toThrow(); // Ordinary expiry remains strict.
+    await v.resume();
+    expect((await readRecoveryResumption(db, v.env, v.f.recovery!.scope))!.ticket).toEqual(
+      v.ticket,
+    );
+    expect(v.ticket!.attestationDigest).toBe(original);
+    expect(v.ticket!.expiresAt).toBe(v.approval.expiresAt);
+    expect(await readRemountRecoveryTicket(db, v.env, v.f.recovery!.scope)).toEqual(v.ticket);
+    await expect(
+      readRemountRecoveryTicket(
+        db,
+        { ...v.env, HIVE_GUARDIAN_RECOVERY_RESUMPTIONS_JSON: "[]" },
+        v.f.recovery!.scope,
+      ),
+    ).rejects.toThrow();
+    const changed = {
+      ...v.env,
+      HIVE_GUARDIAN_RECOVERY_RESUMPTIONS_JSON: JSON.stringify([
+        { ...v.approval, expiresAt: v.approval.expiresAt + 1 },
+      ]),
+    };
+    await expect(readRemountRecoveryTicket(db, changed, v.f.recovery!.scope)).rejects.toThrow();
+  });
+  it("deadline expiry during actual SQL rolls back the renewal event and runtime together", async () => {
+    const v = await resumptionFixture();
+    const approval = { ...v.approval, expiresAt: Date.now() + 1100 },
+      env = { ...v.env, HIVE_GUARDIAN_RECOVERY_RESUMPTIONS_JSON: JSON.stringify([approval]) };
+    const name = `resumption_expiry_${v.f.f.ownerId.replaceAll("-", "")}`;
+    await db.$executeRawUnsafe(
+      `CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id='${v.runtime.id}'::uuid THEN PERFORM pg_sleep(1.4); END IF; RETURN NEW; END $$`,
+    );
+    await db.$executeRawUnsafe(
+      `CREATE TRIGGER zz_${name} BEFORE UPDATE ON codex_guardian_runtimes FOR EACH ROW EXECUTE FUNCTION ${name}()`,
+    );
+    try {
+      const service = ownerService(v.f, true, env);
+      await expect(
+        service.service.verifyRecoveryIdentity(
+          service.principal,
+          v.f.newBinding.workspaceId,
+          v.packet,
+          v.packet.nonce,
+          { scope: v.f.recovery!.scope, inspection: v.inspection, authorize: async () => {} },
+        ),
+      ).rejects.toThrow();
+      expect(await db.codexGuardianRuntime.findUnique({ where: { id: v.runtime.id } })).toEqual(
+        v.runtime,
+      );
+      expect(
+        await db.codexGuardianOperationReceipt.count({ where: { runtimeId: v.runtime.id } }),
+      ).toBe(0);
+    } finally {
+      await db.$executeRawUnsafe(`DROP TRIGGER zz_${name} ON codex_guardian_runtimes`);
+      await db.$executeRawUnsafe(`DROP FUNCTION ${name}()`);
+    }
+  });
+  it.each([
+    "registration",
+    "intent",
+  ])("a committed competing %s change is visible after the workspace advisory wait", async (kind) => {
+    const v = await resumptionFixture();
+    let release!: () => void, entered!: () => void;
+    const gate = new Promise<void>((r) => {
+        release = r;
+      }),
+      acquired = new Promise<void>((r) => {
+        entered = r;
+      });
+    const writer = db.$transaction(async (tx) => {
+      await lockAccountMaintenanceWorkspace(tx, v.f.newBinding);
+      if (kind === "intent")
+        await tx.$executeRaw`UPDATE project_task_intents SET updated_at=clock_timestamp()
+        WHERE owner_id=${v.f.f.ownerId}::uuid AND id=${v.f.proof.taskId}::uuid`;
+      else
+        await tx.codexRegistrationGrant.create({
+          data: {
+            id: randomUUID(),
+            ownerId: v.f.f.ownerId,
+            slotId: v.runtime.slotId,
+            generation: 1,
+            binding: v.f.newBinding as unknown as Prisma.InputJsonObject,
+            bindingDigest: guardianDigest(v.f.newBinding),
+            expiresAt: new Date(Date.now() + 60000),
+          },
+        });
+      entered();
+      await gate;
+    });
+    await acquired;
+    const pending = v.resume();
+    await new Promise((r) => setTimeout(r, 40));
+    release();
+    await writer;
+    await expect(pending).rejects.toThrow();
+    expect(await db.codexGuardianRuntime.findUnique({ where: { id: v.runtime.id } })).toEqual(
+      v.runtime,
+    );
+  });
+  it("independent SQL rejects null resumption scope and preserves the immutable renewal event", async () => {
+    const v = await resumptionFixture();
+    await v.resume();
+    const [event] = await db.$queryRaw<
+      { value: Record<string, unknown> }[]
+    >`SELECT to_jsonb(e) AS value FROM codex_guardian_operation_receipts e
+      WHERE owner_id=${v.f.f.ownerId}::uuid AND runtime_id=${v.runtime.id}::uuid AND action='unused_recovery_resumed'`;
+    for (const field of [
+      "approval",
+      "scope",
+      "ticket",
+      "inspection",
+      "authorityUntil",
+      "retirementEventId",
+    ]) {
+      const changed = structuredClone(event.value) as {
+        response: { resumption: Record<string, unknown> };
+      };
+      changed.response.resumption[field] = null;
+      await expect(
+        db.$queryRaw`SELECT hive_guardian_unused_resumption(jsonb_populate_record(NULL::codex_guardian_operation_receipts,${JSON.stringify(changed)}::jsonb)) IS NULL`,
+      ).rejects.toThrow();
+    }
+    await expect(
+      db.codexGuardianOperationReceipt.update({
+        where: {
+          ownerId_runtimeId_eventId: {
+            ownerId: v.f.f.ownerId,
+            runtimeId: v.runtime.id,
+            eventId: v.approval.id,
+          },
+        },
+        data: { response: {} },
+      }),
+    ).rejects.toThrow();
+  });
+});
 async function fixture(begin = true) {
   type Stage = Parameters<
     NonNullable<NonNullable<Parameters<typeof guardianFixture>[1]>["beforeNativeLaunch"]>
@@ -438,9 +888,11 @@ function ownerService(
     attestation?: ReturnType<typeof guardianRemountAttestationSchema.parse>;
   },
   stopped = true,
+  extraEnv: Record<string, string> = {},
 ) {
   let enrollmentClaim: unknown;
   let identityBytes = 0;
+  let lastIdentity: GuardianIdentityResponse | undefined;
   let service: GuardianService;
   service = new GuardianService(db, f.config, f.policy, "19".repeat(32), {
     env: {
@@ -448,6 +900,7 @@ function ownerService(
       ...(f.attestation
         ? { HIVE_GUARDIAN_REMOUNT_ATTESTATIONS_JSON: JSON.stringify([f.attestation]) }
         : {}),
+      ...extraEnv,
     },
     resolveWorkspace: async (p) => {
       expect(p).toEqual({
@@ -511,6 +964,7 @@ function ownerService(
           f.f.outerPrivateKey,
         ).toString("base64url");
         identityBytes = Buffer.byteLength(JSON.stringify(packet));
+        lastIdentity = packet;
         return packet;
       },
       async bootstrap(_b, value) {
@@ -542,6 +996,9 @@ function ownerService(
     service,
     get identityBytes() {
       return identityBytes;
+    },
+    get lastIdentity() {
+      return lastIdentity;
     },
     get enrollmentClaim() {
       return enrollmentClaim;

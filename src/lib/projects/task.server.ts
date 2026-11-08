@@ -425,12 +425,14 @@ export async function retryProjectTask(
       );
     if (attempt.phase === "inspecting") {
       const service = createGuardianService({ onProvisionStage: onStage });
-      await service.provision(
-        { hiveUserId: user.id, coderUserId: user.coderUserId },
-        input.workspaceId,
-      );
+      const resumption = await service.unusedRecoveryResumption(attempt.scope);
+      if (!resumption)
+        await service.provision(
+          { hiveUserId: user.id, coderUserId: user.coderUserId },
+          input.workspaceId,
+        );
       onStage?.("recovery_continuity");
-      const continuity = await service.recoveryContinuity(attempt.scope, onStage);
+      const continuity = resumption ?? (await service.recoveryContinuity(attempt.scope, onStage));
       onStage?.("recovery_inspect");
       const inspected = z
         .object({
@@ -456,6 +458,13 @@ export async function retryProjectTask(
         input.workspaceId,
         inspected.identity,
         guardianDigest({ scope: attempt.scope, inspection: inspected.inspection }),
+        resumption
+          ? {
+              scope: attempt.scope,
+              inspection: inspected.inspection,
+              authorize: (tx) => authorizeIntentPolicy(user.id, input.taskId, tx),
+            }
+          : undefined,
       );
       if (
         packet.identity.lifetimeId !== inspected.inspection.lifetimeId ||
