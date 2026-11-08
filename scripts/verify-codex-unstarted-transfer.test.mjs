@@ -36,6 +36,7 @@ import {
   unstartedRecoveryGuardianAuthority,
   verifyUnstartedProject,
 } from "../templates/ai-dev-k8s/scripts/codex-unstarted-transfer.mjs";
+import { hostArchive } from "./build-codex-host-archive.mjs";
 
 const sha = (v) => createHash("sha256").update(v).digest("hex");
 const mac = (state, key) =>
@@ -1077,9 +1078,13 @@ test("unused epoch replays a crash after authenticated empty controller move", (
   );
 });
 
-test("v1 owner recovery renews once beside the real official guardian while an unknown nondumpable holder blocks", async (t) => {
-  const archive = resolve("templates/ai-dev-k8s/assets/codex-host.tar.xz"),
-    python = "/usr/bin/python3",
+test("v1 recovery and installed two-task reuse observe the official guardian while unknown nondumpable holders block", async (t) => {
+  const buildDirectory = mkdtempSync(join(tmpdir(), "hive-observer-package-"));
+  t.after(() => rmSync(buildDirectory, { recursive: true, force: true }));
+  const artifact = await hostArchive(resolve("."));
+  const archive = join(buildDirectory, "host.tar.xz");
+  writeFileSync(archive, artifact.compressed);
+  const python = "/usr/bin/python3",
     manifest = JSON.parse(
       execFileSync(python, [
         "-I",
@@ -1110,7 +1115,7 @@ with manager.lock():
  project,receipt=manager.paths('123');project.mkdir(parents=True,mode=0o700);checkout=project/'checkout';checkout.mkdir(mode=0o700)
  def git(*args):return subprocess.check_output(['git','-C',str(checkout),'-c','user.name=Fixture','-c','user.email=fixture@example.com',*args],stderr=subprocess.DEVNULL).decode().strip()
  git('init','-b','main');git('remote','add','origin','https://github.com/owner/repository.git');(checkout/'README.md').write_text('fixture\n');git('add','.');git('commit','-m','test: fixture');revision=git('rev-parse','HEAD')
- record={'provider':'github','repositoryId':'123','canonicalUrl':'https://github.com/owner/repository.git','projectIdentity':manager.identity(project),'checkoutIdentity':manager.identity(checkout),'checkoutIncarnation':p['incarnation'],'status':'ready','revision':revision,'leaseGeneration':p['generation'],'lease':{'id':p['leaseId'],'taskId':p['taskId'],'generation':p['generation'],'expiresAt':time.time()-7200},'renewalSequence':0,'stages':[],'cleanupRequests':[],'gitConfigPolicy':1,'gitConfigDigest':manager.config_digest(checkout/'.git/config')}
+ record={'provider':'github','repositoryId':'123','canonicalUrl':'https://github.com/owner/repository.git','projectIdentity':manager.identity(project),'checkoutIdentity':manager.identity(checkout),'checkoutIncarnation':p['incarnation'],'status':'ready','revision':revision,'leaseGeneration':p['generation'],'lease':{'id':p['leaseId'],'taskId':p['taskId'],'generation':p['generation'],'expiresAt':time.time()-7200},'renewalSequence':0,'lastTaskId':p['taskId'],'stages':[],'cleanupRequests':[],'gitConfigPolicy':1,'gitConfigDigest':manager.config_digest(checkout/'.git/config')}
  manager.write(receipt,record)
  print(json.dumps({'directory':str(directory),'revision':revision,'checkoutIdentity':{k:str(v) for k,v in record['checkoutIdentity'].items()},'recordFile':str(receipt)}))`,
       ],
@@ -1273,6 +1278,7 @@ with manager.lock():
           "-c",
           String.raw`import pathlib,importlib.util,sys,os,json,subprocess,copy
 from unittest import mock
+sys.dont_write_bytecode=True
 p=json.load(sys.stdin);spec=importlib.util.spec_from_file_location('fixture_lease',p['leaseSource']);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);manager=m.managed.ManagedProjects(p['home']);authority=m.InstalledUnstartedAuthority(p['home'],os.getppid());checkout=pathlib.Path(p['checkout']);original=pathlib.Path(p['recordFile']).read_bytes();extra=None;real_iterdir=pathlib.Path.iterdir
 # Test-owned process inventory only; production enumerates every process.
 def inventory(path):
@@ -1288,7 +1294,37 @@ with mock.patch.object(pathlib.Path,'iterdir',inventory):
  finally:child.terminate();child.wait(timeout=3);child.stdout.close();child.stderr.close();extra=None
  first=manager._revalidate_unstarted_lease('123',p['projectId'],authority);saved=pathlib.Path(p['recordFile']).read_bytes();second=manager._revalidate_unstarted_lease('123',p['projectId'],authority);assert first==second and pathlib.Path(p['recordFile']).read_bytes()==saved
  assert first['renewalSequence']==1 and first['lease']['id']==p['leaseId'] and first['lease']['generation']==p['generation'] and first['checkoutIncarnation']==p['incarnation']
- print(json.dumps({'nonRemountOwnerRecovery':True,'actualInstalledAuthority':True,'unknownNondumpableHeld':True,'oneRenewal':True,'noNativeOrPrompt':True}))`,
+ installed=m.managed.ManagedProjects.installed(p['home'])
+ class Resolver:
+  def resolve(self,repository):return m.managed.VerifiedRepository(repository,'https://github.com/owner/repository.git')
+ installed.resolver=Resolver()
+ lease=first['lease'];released=installed.release_lease('123',lease['taskId'],lease['id'],lease['generation'],first['revision']);after_release=pathlib.Path(p['recordFile']).read_bytes()
+ assert installed.release_lease('123',lease['taskId'],lease['id'],lease['generation'],first['revision'])==released and pathlib.Path(p['recordFile']).read_bytes()==after_release
+ for name in ['codex-unstarted-transfer.mjs','codex-process-identity.mjs']:
+  member=pathlib.Path(p['leaseSource']).with_name(name);raw=member.read_bytes();mode=member.stat().st_mode&0o777
+  try:
+   member.chmod(0o700);member.write_bytes(raw+b'\n// stale fixture member\n')
+   real_run=m.managed.subprocess.run
+   def checked_run(command,*args,**kwargs):
+    assert '--input-type=module' not in command,'unverified module executed'
+    return real_run(command,*args,**kwargs)
+   with mock.patch.object(m.managed.subprocess,'run',side_effect=checked_run):
+    try:installed.prepare('123','second-task',first['revision']);raise AssertionError('changed package admitted')
+    except m.managed.ManagedError as error:assert str(error)=='sealed_guardian_package_changed'
+   assert pathlib.Path(p['recordFile']).read_bytes()==after_release
+  finally:member.write_bytes(raw);member.chmod(mode)
+ child=subprocess.Popen([sys.executable,'-I','-c',"import ctypes,sys,time;f=open(sys.argv[1]);assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0;print('ready',flush=True);time.sleep(30)",str(checkout/'README.md')],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+ try:
+  assert child.stdout.readline().strip()=='ready';extra=child.pid
+  try:installed.prepare('123','second-task',first['revision']);raise AssertionError('unknown holder bypassed ordinary prepare')
+  except m.managed.ManagedError as error:assert str(error)=='process_inspection_unavailable'
+  assert pathlib.Path(p['recordFile']).read_bytes()==after_release
+ finally:child.terminate();child.wait(timeout=3);child.stdout.close();child.stderr.close();extra=None
+ second_task=installed.prepare('123','second-task',first['revision'])
+ assert second_task['lease']['taskId']=='second-task' and second_task['lease']['generation']>lease['generation'] and second_task['checkoutIdentity']==first['checkoutIdentity'] and second_task['checkoutIncarnation']==first['checkoutIncarnation']
+ try:manager.no_consumers(checkout);raise AssertionError('plain manager acquired installed observer')
+ except m.managed.ManagedError as error:assert str(error)=='process_inspection_unavailable'
+ print(json.dumps({'nonRemountOwnerRecovery':True,'actualInstalledAuthority':True,'unknownNondumpableHeld':True,'oneRenewal':True,'noNativeOrPrompt':True,'installedReleaseReplay':True,'twoTaskCheckoutReuse':True,'plainManagerStrict':True,'packageTamperRejectedBeforeImport':True}))`,
         ],
         {
           input: JSON.stringify({
@@ -1315,6 +1351,10 @@ with mock.patch.object(pathlib.Path,'iterdir',inventory):
       unknownNondumpableHeld: true,
       oneRenewal: true,
       noNativeOrPrompt: true,
+      installedReleaseReplay: true,
+      twoTaskCheckoutReuse: true,
+      plainManagerStrict: true,
+      packageTamperRejectedBeforeImport: true,
     });
     for (const invalid of ["continuity", "native", "expired"]) {
       const altered = structuredClone(state),
@@ -1333,4 +1373,27 @@ with mock.patch.object(pathlib.Path,'iterdir',inventory):
   } finally {
     await guardian.abort();
   }
+  const closedScan = execFileSync(
+    python,
+    [
+      "-I",
+      "-c",
+      String.raw`import pathlib,importlib.util,sys,json,os
+from unittest import mock
+sys.dont_write_bytecode=True
+p=json.load(sys.stdin);spec=importlib.util.spec_from_file_location('installed_managed',p['module']);m=importlib.util.module_from_spec(spec);sys.modules[spec.name]=m;spec.loader.exec_module(m);manager=m.ManagedProjects.installed(p['home']);real=pathlib.Path.iterdir
+with mock.patch.object(pathlib.Path,'iterdir',lambda path:iter(path/str(pid) for pid in [os.getpid(),os.getppid()]) if path==pathlib.Path('/proc') else real(path)):
+ assert manager._installed_observer() is None
+ manager.no_consumers(pathlib.Path(p['checkout']))
+ print('strict-scan-after-exit')`,
+    ],
+    {
+      input: JSON.stringify({
+        module: join(prepared.directory, "managed-projects.py"),
+        home: f.home,
+        checkout: join(f.home, "projects/.hive-managed/github/123/checkout"),
+      }),
+    },
+  );
+  assert.equal(closedScan.toString().trim(), "strict-scan-after-exit");
 });

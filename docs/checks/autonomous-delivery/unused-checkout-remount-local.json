@@ -155,5 +155,45 @@
     "migration51And52AndKernelUnchanged": true,
     "genericCleanupAuthorityChanged": false,
     "providerOrLiveRecoveryEffects": false
+  },
+  "ordinaryInstalledScannerCorrection": {
+    "reviewFinding": "PR429 discussion_r4506422017: ordinary installed checkout reuse lacked construction observer",
+    "authority": "construction is a process fact only; existing repository, lease, request and archive authority unchanged",
+    "wiring": [
+      "installed prepare/reuse/interrupted staging",
+      "installed lease release and replay",
+      "installed signed source archive"
+    ],
+    "defaultStandaloneManagers": "strict; no implicit observer",
+    "liveUnknownProcesses": "strict; unknown same-UID nondumpable processes and readable checkout references denied",
+    "preImportProvenance": "startup-bound manifest; bounded regular private nonsymlink members and full local import graph verified before Node import",
+    "integration": "actual official kernel + built current package; v1 recovery; first-task release/replay; second-task same-checkout/incarnation reuse; unknown prctl0 holder and altered module/dependency rejected before writes; dead actor gives no exemption and full strict scan",
+    "fixtures": "test-owned proc inventory and local Git; no live workspace claim",
+    "independentSourceReview": "clear",
+    "focusedChecks": {
+      "transferAndArchivePassed": 44,
+      "managedProjectsPassed": 43,
+      "officialKernelScannerPassed": 1
+    },
+    "package": {
+      "manifestSha256": "d7b8befcef4cd9fa193a58d8b8a6e22b5aa3d7325ea8c7d86d49d84bd0839dcf",
+      "rawSha256": "f40397787aae4946a2ecfdd2cc914418028e5dd9a7b86e3595a425d3e65a6e1a",
+      "compressedSha256": "40d55c12c752b344bd948f783f8f8897177148a10741de0a913e06b2e1d03dd9",
+      "compressedBytes": 214728,
+      "rawBytes": 1290240,
+      "members": 54,
+      "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+      "guardianSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+      "kernelCI": {
+        "repository": "kethalia/hive",
+        "commit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+        "runId": "42481543864",
+        "runAttempt": "1"
+      }
+    },
+    "schemaAndElfUnchanged": true,
+    "liveEffects": false,
+    "finalArchiveAndRuntimeChecksPassed": 72,
+    "canonicalProfileCheck": "passed (4 variants)"
   }
 }
