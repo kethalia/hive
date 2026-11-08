@@ -22,14 +22,14 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: kethalia/hive/.github/workflows/controlled-tested-tree.yml@ba19f764a2347503f148c1ad9785f8af0d51b895
+    uses: kethalia/hive/.github/workflows/controlled-tested-tree.yml@dbedd96293efb719e7ce4c45cc5a0b33bbe13a8e
     with:
       # Enable only after this exact producer and public endpoint are enrolled.
       attestation-enabled: false
-      trusted-revision: ba19f764a2347503f148c1ad9785f8af0d51b895
+      trusted-revision: dbedd96293efb719e7ce4c45cc5a0b33bbe13a8e
       managed-source-base: codex/delivery-system-design
       attestation-config-json: >-
-        {"controllerOrigin":"https://codex-delivery-system-design-hive.b00ste.workers.dev","audiencePrefix":"urn:hive:release-tested:epic-preview:","controlDigest":"57a236ccf5002b9162a7c39d4bfd0907ff67f35505eadcd5c4ac39aa41ae28ed"}
+        {"controllerOrigin":"https://codex-delivery-system-design-hive.b00ste.workers.dev","audiencePrefix":"urn:hive:release-tested:epic-preview:","controlDigest":"b1887cba68b939438f072e8340783b144b98f06cac2c006fa5b544f939dbebe6"}
 
   build-lint-test:
     name: Build / Lint / Test

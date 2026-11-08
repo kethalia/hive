@@ -1,5 +1,7 @@
 # D09 controlled delivery: local implementation checkpoint
 
+The custom Worker upload workflow and publisher CLI described in the historical local foundation below have been retired. Application publication uses the existing connected Cloudflare Builds pipeline. Do not provision the former upload token, publisher environment or publisher configuration. The artifact parser remains because the D10 Workerd compatibility harness consumes it; it grants no upload or deployment capability. Installed legacy adapter retirement is tracked separately from this source-only setup removal.
+
 This checkpoint is disabled by default and does not authorize the bootstrap main
 merge or production cutover. Preview mode rejects GitHub `main`/`master` merge
 bases. The future production mode additionally requires an explicit operator
