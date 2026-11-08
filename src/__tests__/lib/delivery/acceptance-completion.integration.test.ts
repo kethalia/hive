@@ -6,8 +6,10 @@ import type { RegistrationBinding } from "@/lib/codex-session/registration.serve
 import { AcceptanceSuccessController } from "@/lib/delivery/acceptance-completion.server";
 import { acceptanceDigest, requireIntentDigest } from "@/lib/delivery/acceptance-contracts";
 import { DeliveryAcceptanceService } from "@/lib/delivery/acceptance-service.server";
+import { maintenanceExternalEffectsHeld } from "@/lib/delivery/account-maintenance-effects.server";
 import { acceptedDatabasePlan } from "@/lib/delivery/database-job-store.server";
 import { epicPreviewReadiness } from "@/lib/delivery/epic-readiness.server";
+import { githubSourceDigest } from "@/lib/delivery/github-evidence.server";
 import { PostgresReleaseEffectJournal } from "@/lib/delivery/release-effect-journal.server";
 import { verifyReleaseEvidence } from "@/lib/delivery/release-evidence.server";
 import { repositoryPolicyAdapters } from "@/lib/delivery/repository-policy.server";
@@ -475,6 +477,94 @@ describe.skipIf(!url)("controller factual completion", () => {
     expect(
       await new PostgresReleaseEffectJournal(db, f.user.id, release.authorize).begin(actions[0].id),
     ).toBeNull();
+  }, 15000);
+
+  it("fences prepared external effects against maintenance pause and holds started/lost-ACK actions until a receipt", async () => {
+    const f = await fixture(true, true);
+    await collectCompletionProviderFacts(db, f, f.publication.operationId);
+    await f.service.dispatch(f.envelope({ action: "complete_verified", terminal: f.terminal }));
+    const release = await openReleaseFromSignedEvidence(db, f);
+    const action = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: release.releaseId, kind: "merge" },
+    });
+    const held = () =>
+      db.$transaction((tx) =>
+        maintenanceExternalEffectsHeld(tx, f.user.id, [f.taskId], { lockTasks: true }),
+      );
+    expect(await held()).toBe(false); // prepared is known not started
+    let authorizations = 0;
+    const journal = new PostgresReleaseEffectJournal(db, f.user.id, async (tx, identity) => {
+      authorizations++;
+      return release.authorize(tx, identity);
+    });
+    let unlock!: () => void;
+    let locked!: () => void;
+    const releasePause = new Promise<void>((resolve) => {
+      unlock = resolve;
+    });
+    const pauseLocked = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const pause = db.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM delivery_tasks WHERE id=${f.taskId}::uuid FOR UPDATE`;
+        await tx.deliveryTask.update({ where: { id: f.taskId }, data: { pauseRequested: true } });
+        locked();
+        await releasePause;
+      },
+      { timeout: 10000 },
+    );
+    await pauseLocked;
+    const beginning = journal.begin(action.id);
+    try {
+      // Prove the actual begin is waiting on the owner's task lock before
+      // releasing it; a sequential pause-only check cannot prove this race.
+      await expect
+        .poll(
+          async () => {
+            const [row] = await db.$queryRaw<{ waiting: boolean }[]>`SELECT EXISTS(
+          SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+          AND pid<>pg_backend_pid() AND wait_event_type='Lock'
+          AND query LIKE '%SELECT pause_requested,scheduling_paused%') AS waiting`;
+            return row.waiting;
+          },
+          { timeout: 2000, interval: 20 },
+        )
+        .toBe(true);
+    } finally {
+      unlock();
+    }
+    await pause;
+    expect(await beginning).toBeNull();
+    expect(authorizations).toBe(0);
+    expect(
+      (await db.deliveryReleaseAction.findUniqueOrThrow({ where: { id: action.id } })).phase,
+    ).toBe("prepared");
+    await db.deliveryTask.update({
+      where: { id: f.taskId },
+      data: { pauseRequested: false, schedulingPaused: true },
+    });
+    expect(await journal.begin(action.id)).toBeNull();
+    await db.deliveryTask.update({ where: { id: f.taskId }, data: { schedulingPaused: false } });
+    const identity = await journal.begin(action.id);
+    expect(identity).not.toBeNull();
+    expect(await held()).toBe(true);
+    // Provider ACK loss, no retained remote reference: never replay or infer
+    // absence from an expired lease or a physically closed native tree.
+    await journal.hold(identity!);
+    expect(await held()).toBe(true);
+    const evidence = { fixture: "independently reconciled external provider", actionId: action.id };
+    expect(
+      await journal.record(identity!, {
+        requestDigest: identity!.requestDigest,
+        receiptDigest: githubSourceDigest(evidence),
+        evidence,
+      }),
+    ).toBe(true);
+    expect(await held()).toBe(false);
+    expect(
+      (await db.deliveryReleaseAction.findUniqueOrThrow({ where: { id: action.id } })).phase,
+    ).toBe("observed");
   }, 15000);
 
   it("approves a compatible migration plan from preview acceptance without granting execution or production completion", async () => {

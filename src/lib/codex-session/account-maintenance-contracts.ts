@@ -377,7 +377,9 @@ const maintenanceReadyAuthorizationSchema = z
     runnable: z.boolean(),
     completed: z.boolean(),
     claimContinuation: maintenanceClaimContinuationSchema.nullable(),
-    holdReason: z.enum(["maintenance_previous_attempt_held"]).nullable(),
+    holdReason: z
+      .enum(["maintenance_previous_attempt_held", "maintenance_external_effect_held"])
+      .nullable(),
   })
   .strict();
 /** Fixed control-plane projection. Task/step snapshots belong to per-project

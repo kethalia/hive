@@ -30,6 +30,10 @@ export async function resumeAccountMaintenanceFixture(
   db: PrismaClient,
   f: Scope,
   withTask: boolean | "successful",
+  hooks: {
+    beforeResume?: (context: { denied: () => Promise<unknown> }) => Promise<void>;
+    beforeFinalize?: (context: { denied: () => Promise<unknown> }) => Promise<void>;
+  } = {},
 ) {
   await f.store.request(f.binding, f.input);
   const before = await db.deliveryAttempt.findMany({ where: { ownerId: f.binding.hiveUserId } });
@@ -244,6 +248,9 @@ export async function resumeAccountMaintenanceFixture(
   await expect(
     f.store.requestResume(emptyBinding, { ...resume, maintenanceId: randomUUID() }, archive),
   ).rejects.toThrow();
+  await hooks.beforeResume?.({
+    denied: () => f.store.requestResume(emptyBinding, resume, archive),
+  });
   const resumed = await f.store.requestResume(emptyBinding, resume, archive);
   expect(resumed.state).toBe("resuming");
   expect(await f.store.requestResume(emptyBinding, resume, archive)).toEqual(resumed);
@@ -419,6 +426,7 @@ export async function resumeAccountMaintenanceFixture(
       await db.$executeRawUnsafe(`DROP FUNCTION pg_temp.hive_maintenance_receipt_delay()`);
     }
   }
+  await hooks.beforeFinalize?.({ denied: () => nativeStore.finalizeNative(nativeInput) });
   const finalized = await nativeStore.finalizeNative(nativeInput);
   expect(await nativeStore.finalizeNative(nativeInput)).toEqual(finalized);
   expect((await f.store.status(emptyBinding)).state).toBe("finished");

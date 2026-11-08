@@ -7,6 +7,7 @@ import {
   assertAccountMaintenanceAdmission,
 } from "@/lib/codex-session/account-maintenance-store.server";
 import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
+import { maintenanceExternalEffectsHeld } from "@/lib/delivery/account-maintenance-effects.server";
 import { executionActorHistory } from "@/lib/delivery/execution-authority.server";
 import { DeliveryManagerService } from "@/lib/delivery/manager.server";
 import { DeliveryStatusService } from "@/lib/delivery/status.server";
@@ -197,6 +198,135 @@ describe.skipIf(!url)("account maintenance owner intent, actual PostgreSQL", () 
       db.$executeRaw`UPDATE codex_host_slots SET account_maintenance=${JSON.stringify({ ...accountMaintenanceStateSchema.parse(slot.accountMaintenance), id: randomUUID() })}::jsonb,account_maintenance_version=account_maintenance_version+1 WHERE id=${slot.id}::uuid`,
     ).rejects.toThrow();
     expect((await f.store.status(f.binding)).maintenanceId).toBe(f.input.requestId);
+  });
+  it("parks physically but rejects owner resume and atomic unpause until each source effect is factually consumed", async () => {
+    const f = await setup("successful");
+    const append = async (type: string, payload: object) =>
+      db.deliveryEvent.create({
+        data: {
+          id: randomUUID(),
+          ownerId: f.binding.hiveUserId,
+          taskId: f.fixture.taskId,
+          aggregateKey: randomUUID(),
+          aggregateVersion: 0,
+          type,
+          requestDigest: "a".repeat(64),
+          payload,
+        },
+      });
+    const held = () =>
+      db.$transaction((tx) =>
+        maintenanceExternalEffectsHeld(tx, f.binding.hiveUserId, [f.fixture.taskId], {
+          lockTasks: true,
+        }),
+      );
+    // Even an expired grant can represent a lost provider ACK. Expiry alone
+    // must never manufacture a no-effect receipt.
+    const grant = await append("source_publication_grant", { expiresAt: 1 });
+    expect(await held()).toBe(true);
+    expect(
+      await db.$transaction((tx) =>
+        maintenanceExternalEffectsHeld(tx, randomUUID(), [f.fixture.taskId], { lockTasks: true }),
+      ),
+    ).toBe(true);
+    expect(
+      await db.$transaction((tx) =>
+        maintenanceExternalEffectsHeld(tx, randomUUID(), [f.fixture.taskId]),
+      ),
+    ).toBe(false);
+    let finalGrant: string;
+    const result = await resumeAccountMaintenanceFixture(db, f, "successful", {
+      beforeResume: async ({ denied }) => {
+        expect((await f.store.status(f.binding)).holdReason).toBe("external-outcome-unknown");
+        await expect(denied()).rejects.toThrow();
+        expect(
+          (await db.deliveryTask.findUniqueOrThrow({ where: { id: f.fixture.taskId } }))
+            .pauseRequested,
+        ).toBe(true);
+        await append("source_publication_consumed", { challengeId: grant.id });
+        expect(await held()).toBe(false);
+      },
+      beforeFinalize: async ({ denied }) => {
+        finalGrant = (await append("source_publication_grant", { expiresAt: 1 })).id;
+        await expect(denied()).rejects.toThrow();
+        const binding = await db.deliveryManagerBinding.findFirstOrThrow({
+          where: { ownerId: f.binding.hiveUserId },
+        });
+        expect(binding.executionEpochVersion).toBe(0);
+        expect(
+          (await db.deliveryTask.findUniqueOrThrow({ where: { id: f.fixture.taskId } }))
+            .pauseRequested,
+        ).toBe(true);
+        await append("source_publication_consumed", { challengeId: finalGrant });
+      },
+    });
+    expect(result.authority.authorizations[0].runnable).toBe(true);
+    expect(await held()).toBe(false);
+    expect(
+      await db.deliveryEvent.count({
+        where: { ownerId: f.binding.hiveUserId, type: "source_publication_grant" },
+      }),
+    ).toBe(2);
+    const pending = await append("source_publication_grant", { expiresAt: 1 });
+    const pendingReady = await result.newStore.maintenanceResumeReady(result.readyInput);
+    expect(pendingReady.runnableProjectIds).toEqual([]);
+    expect(pendingReady.authorizations[0]).toMatchObject({
+      runnable: false,
+      holdReason: "maintenance_external_effect_held",
+    });
+    const manager = new DeliveryManagerService(db, {
+      ...f.fixture.dependencies,
+      progressionProtocol: 1,
+    });
+    const claim = f.fixture.managerEnvelope(
+      {
+        operation: "claim_step",
+        payload: {
+          taskId: f.fixture.taskId,
+          stepId: f.nextStep,
+          expectedVersion: 0,
+          requestedModel: "gpt-6.1-sol",
+          requestedEffort: "low",
+        },
+      },
+      {
+        registrationId: result.registrationId,
+        serverInstanceId: result.serverInstanceId,
+        nativeTurnId: randomUUID(),
+        maintenanceContinuation: result.authority.authorizations[0].claimContinuation!,
+      },
+    );
+    await expect(manager.execute(claim)).rejects.toThrow("maintenance_external_effect_held");
+    await append("source_publication_consumed", { challengeId: pending.id });
+    const lateGrant = randomUUID();
+    await db.$executeRawUnsafe(`CREATE FUNCTION pg_temp.hive_maintenance_effect_race() RETURNS trigger LANGUAGE plpgsql AS $body$
+      BEGIN IF NEW.type='account_maintenance_claim_consumed' AND NEW.payload->>'claimEventId'='${claim.eventId}' THEN
+        INSERT INTO delivery_events(id,owner_id,task_id,aggregate_key,aggregate_version,type,request_digest,payload)
+        VALUES ('${lateGrant}'::uuid,NEW.owner_id,NEW.task_id,'maintenance-effect-race',0,'source_publication_grant',repeat('a',64),'{"expiresAt":1}'::jsonb);
+      END IF; RETURN NEW; END $body$`);
+    await db.$executeRawUnsafe(
+      `CREATE TRIGGER hive_maintenance_effect_race AFTER INSERT ON delivery_events FOR EACH ROW EXECUTE FUNCTION pg_temp.hive_maintenance_effect_race()`,
+    );
+    try {
+      await expect(manager.execute(claim)).rejects.toThrow("maintenance_external_effect_held");
+      expect(await db.deliveryEvent.count({ where: { id: lateGrant } })).toBe(0);
+      expect(
+        await db.deliveryEvent.count({
+          where: { ownerId: f.binding.hiveUserId, type: "account_maintenance_claim_consumed" },
+        }),
+      ).toBe(0);
+      expect((await db.deliveryStep.findUniqueOrThrow({ where: { id: f.nextStep } })).state).toBe(
+        "pending",
+      );
+    } finally {
+      await db.$executeRawUnsafe(`DROP TRIGGER hive_maintenance_effect_race ON delivery_events`);
+      await db.$executeRawUnsafe(`DROP FUNCTION pg_temp.hive_maintenance_effect_race()`);
+    }
+    expect(await manager.execute(claim)).toMatchObject({
+      replayed: false,
+      canRun: false,
+      needsRuntimeBinding: true,
+    });
   });
   it.each([
     true,

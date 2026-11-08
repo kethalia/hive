@@ -11,6 +11,7 @@ import {
 } from "@/lib/codex-session/account-maintenance-store.server";
 import { guardianDigest } from "@/lib/codex-session/guardian-contracts";
 import { RegistrationRejected } from "@/lib/codex-session/registration-store.server";
+import { maintenanceExternalEffectsHeld } from "./account-maintenance-effects.server";
 
 type Tx = Prisma.TransactionClient;
 const check: (value: unknown) => asserts value = (value) => {
@@ -257,6 +258,14 @@ export async function commitMaintenanceNativeReceipt(
     }),
   );
   if (complete) {
+    check(
+      !(await maintenanceExternalEffectsHeld(
+        tx,
+        identity.ownerId,
+        state.tasks.map((t) => t.taskId),
+        { lockTasks: true },
+      )),
+    );
     // Preserve unrelated/manual pauses. Only reverse our exact, unchanged pause
     // transition. A concurrent source/review/attempt change holds atomically.
     for (const parked of state.tasks) {

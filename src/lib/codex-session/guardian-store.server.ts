@@ -1,5 +1,6 @@
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
+import { maintenanceExternalEffectsHeld } from "@/lib/delivery/account-maintenance-effects.server";
 import { commitMaintenanceNativeReceipt } from "@/lib/delivery/account-maintenance-epoch.server";
 import { epicConfig } from "@/lib/delivery/epic-config.server";
 import { epicNativeAdmission } from "@/lib/delivery/epic-native-admission.server";
@@ -1503,6 +1504,28 @@ export class GuardianAdmissionStore {
               };
             }
           }
+        }
+        const projectTasks = state.tasks.length
+          ? await tx.deliveryTask.findMany({
+              where: {
+                ownerId: input.ownerId,
+                managerBinding: { is: { preparationIntentId: p.preparationIntentId } },
+              },
+              select: { id: true },
+              take: 33,
+            })
+          : [];
+        requireGuardian(projectTasks.length <= 32);
+        if (
+          await maintenanceExternalEffectsHeld(
+            tx,
+            input.ownerId,
+            projectTasks.map((t) => t.id),
+            { lockTasks: true },
+          )
+        ) {
+          runnable = false;
+          holdReason = "maintenance_external_effect_held";
         }
         if (runnable) runnableProjectIds.push(p.projectId);
         authorizations.push(

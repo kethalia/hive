@@ -86,6 +86,13 @@ export class PostgresReleaseEffectJournal implements ReleaseEffectJournal {
     return this.transaction(async (tx) => {
       const row = await this.locked(tx, actionId);
       if (!row || row.phase !== "prepared" || !this.fenced(row)) return null;
+      // Serialize the first external effect with owner maintenance pause. A
+      // prepared action is known not started; historical reconciliation is a
+      // separate read/receipt path and must not acquire new write authority.
+      const [task] = await tx.$queryRaw<{ pause_requested: boolean; scheduling_paused: boolean }[]>`
+        SELECT pause_requested,scheduling_paused FROM delivery_tasks
+        WHERE id=${row.task_id}::uuid AND owner_id=${this.ownerId}::uuid FOR UPDATE`;
+      if (!task || task.pause_requested || task.scheduling_paused) return null;
       const identity = this.identity(row);
       if (!(await this.authorize(tx, identity))) return null;
       await tx.$executeRaw`UPDATE delivery_release_actions SET phase='effect_started',updated_at=clock_timestamp() WHERE id=${identity.id}::uuid`;

@@ -1,6 +1,7 @@
 import type { Prisma } from "@hive/db";
 import { maintenanceResumeScopeSchema } from "@/lib/codex-session/account-maintenance-contracts";
 import { currentRepairReservation } from "./acceptance-repair.server";
+import { maintenanceExternalEffectsHeld } from "./account-maintenance-effects.server";
 import type { ManagerEnvelope } from "./manager-contracts";
 import { NATIVE_OBSERVER_PRODUCER } from "./native-contracts";
 import { resolveAttemptSource } from "./source-resolver.server";
@@ -44,6 +45,12 @@ export async function authorizeProgressionClaim(
     };
   }
   if (input.maintenanceContinuation) {
+    if (
+      await maintenanceExternalEffectsHeld(tx, ownerId, [input.command.payload.taskId], {
+        lockTasks: true,
+      })
+    )
+      throw new DeliveryConflict("maintenance_external_effect_held");
     const c = input.maintenanceContinuation;
     if (
       binding.executionEpochVersion !== c.epochVersion ||
@@ -208,6 +215,13 @@ export async function recheckMaintenanceClaimDeadline(
 ) {
   const c = input.maintenanceContinuation;
   if (!c) return;
+  if (
+    input.command.operation !== "claim_step" ||
+    (await maintenanceExternalEffectsHeld(tx, ownerId, [input.command.payload.taskId], {
+      lockTasks: true,
+    }))
+  )
+    throw new DeliveryConflict("maintenance_external_effect_held");
   const event = await tx.deliveryEvent.findUniqueOrThrow({
     where: { ownerId_id: { ownerId, id: c.epochResumeEventId } },
   });

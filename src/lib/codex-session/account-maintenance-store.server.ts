@@ -1,5 +1,6 @@
 import { createPublicKey, randomUUID, verify } from "node:crypto";
 import type { Prisma, PrismaClient } from "@hive/db";
+import { maintenanceExternalEffectsHeld } from "@/lib/delivery/account-maintenance-effects.server";
 import {
   type AccountMaintenanceState,
   accountMaintenanceIdleSnapshotSchema,
@@ -164,6 +165,15 @@ export class AccountMaintenanceStore {
             publicView.holdReason = "external-outcome-unknown";
         }
       }
+      if (
+        state &&
+        (await maintenanceExternalEffectsHeld(
+          tx,
+          binding.hiveUserId,
+          state.tasks.map((t) => t.taskId),
+        ))
+      )
+        publicView.holdReason = "external-outcome-unknown";
       return publicView;
     });
   }
@@ -343,6 +353,14 @@ export class AccountMaintenanceStore {
           oldTreeReceiptDigest: trees[0].digest,
         });
       }
+      requireValue(
+        !(await maintenanceExternalEffectsHeld(
+          tx,
+          binding.hiveUserId,
+          state.tasks.map((t) => t.taskId),
+          { lockTasks: true },
+        )),
+      );
       const root = runtimes.find((r) => r.id === projects[0].oldRuntimeId);
       requireValue(root?.operationReceiptsEnabled);
       const admission = await tx.codexGuardianAdmission.findFirstOrThrow({
