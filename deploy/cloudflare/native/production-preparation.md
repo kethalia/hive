@@ -155,7 +155,14 @@ Project preparation also conditionally requires the existing private
 `HIVE_PROJECT_TASK_RECONCILE_SECRET` name when `HIVE_PROJECT_TASKS_ENABLED=true`
 for the same-Worker jobs-to-app wake. Its value stays separate from the auth-service
 secret and is never an enrollment input. `HIVE_TEMPLATE_LOG_VIEW_ENABLED` explicitly
-enables the existing authenticated detailed-log route; absence keeps it off. R2 is limited to one
+enables the existing authenticated detailed-log route; absence keeps it off.
+Enabling `HIVE_DELIVERY_DATABASE_ENABLED` also requires the existing
+`HIVE_DELIVERY_DATABASE_SIGNING_KEY` remote secret name for signed D10 responses.
+Its value is never an enrollment input. The public `HIVE_DELIVERY_DATABASE_CATALOGS_JSON`,
+release configuration, native health and tested-tree flags are separately allowed;
+GitHub's protected `HIVE_DATABASE_URL` stays a workflow secret, never a public
+Worker variable. Automatic delivery uses the existing connected GitHub account,
+not the legacy standalone GitHub/Cloudflare token variables. R2 is limited to one
 explicitly approved production evidence bucket. The only allowed schedules are
 `* * * * *` and `*/5 * * * *`, and each must be explicitly listed after scheduler
 handover. Absent capability flags remain off, including dispatch and rotation;

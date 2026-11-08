@@ -243,6 +243,7 @@ export function validateManagedProductionConfiguration(configuration, mode, conf
     "HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY",
     "HIVE_VOICE_ISSUER_PRIVATE_KEY",
     "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+    "HIVE_DELIVERY_DATABASE_SIGNING_KEY",
   ];
   assert.ok(Array.isArray(configuration.secretNames));
   assert.equal(new Set(configuration.secretNames).size, configuration.secretNames.length);
@@ -251,6 +252,8 @@ export function validateManagedProductionConfiguration(configuration, mode, conf
       secrets.includes(name) || (mode === "ongoing-main" && optionalSecrets.includes(name)),
     );
   for (const name of secrets) assert.ok(configuration.secretNames.includes(name));
+  if (configuration.vars.HIVE_DELIVERY_DATABASE_ENABLED === "true")
+    assert.ok(configuration.secretNames.includes("HIVE_DELIVERY_DATABASE_SIGNING_KEY"));
   if (configuration.vars.HIVE_PROJECT_TASKS_ENABLED === "true")
     assert.ok(configuration.secretNames.includes("HIVE_PROJECT_TASK_RECONCILE_SECRET"));
   if (configuration.vars.HIVE_CODEX_GATEWAY_ENABLED === "true")

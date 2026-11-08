@@ -611,3 +611,46 @@ test("existing project wake requires its named remote secret and template logs r
   retarget(f);
   assert.throws(f.parse); // extra/wrong secret name still rejected
 });
+
+test("D10 ongoing enrollment requires its existing signing-key name without accepting key or token values", () => {
+  const f = fixture("ongoing-main");
+  Object.assign(f.enrollment.configuration.vars, {
+    HIVE_DELIVERY_DATABASE_ENABLED: "true",
+    HIVE_DELIVERY_DATABASE_CATALOGS_JSON: "[]",
+    HIVE_DELIVERY_RELEASE_ENABLED: "true",
+    HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED: "true",
+    HIVE_DELIVERY_RELEASE_TESTED_ENABLED: "true",
+    HIVE_DELIVERY_RELEASE_CONFIG_JSON: "{}",
+    HIVE_DELIVERY_RELEASE_SCHEDULER_ENABLED: "true",
+    HIVE_NATIVE_HEALTH_ENABLED: "true",
+  });
+  retarget(f);
+  assert.throws(f.parse);
+  f.enrollment.configuration.secretNames.push("HIVE_DELIVERY_DATABASE_SIGNING_KEY");
+  retarget(f);
+  const p = f.parse();
+  assert.ok(p.config.secrets.required.includes("HIVE_DELIVERY_DATABASE_SIGNING_KEY"));
+  assert.equal(p.config.vars.HIVE_DELIVERY_DATABASE_CATALOGS_JSON, "[]");
+  f.enrollment.configuration.secretNames = f.enrollment.configuration.secretNames.map((name) =>
+    name === "HIVE_DELIVERY_DATABASE_SIGNING_KEY"
+      ? "HIVE_DELIVERY_DATABASE_SIGNING_KEY_OTHER"
+      : name,
+  );
+  retarget(f);
+  assert.throws(f.parse);
+  f.enrollment.configuration.secretNames = f.enrollment.configuration.secretNames.filter(
+    (name) => name !== "HIVE_DELIVERY_DATABASE_SIGNING_KEY_OTHER",
+  );
+  f.enrollment.configuration.secretNames.push("HIVE_DELIVERY_DATABASE_SIGNING_KEY");
+  for (const name of [
+    "HIVE_DELIVERY_DATABASE_SIGNING_KEY",
+    "HIVE_DELIVERY_DATABASE_GITHUB_TOKEN",
+    "HIVE_DATABASE_URL",
+    "DATABASE_URL",
+  ]) {
+    f.enrollment.configuration.vars[name] = "not-a-public-input";
+    retarget(f);
+    assert.throws(f.parse);
+    delete f.enrollment.configuration.vars[name];
+  }
+});
