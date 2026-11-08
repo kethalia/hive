@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "sourceBase": "b7dfe18f253d2fdf7346cde60f4af8858f61fb96",
+  "scope": "local-only server transport timeout validation",
+  "result": "passed",
+  "change": {
+    "paths": ["/projects/tasks/recovery-inspect", "/projects/tasks/recovery-consume"],
+    "sharedCookieAndPostBudgetMs": 30000,
+    "outerRequestBudgetMs": 30000,
+    "signedTicketTtlChanged": false,
+    "parentCancellationPreserved": true,
+    "shorterSignedExpiryPreserved": true,
+    "genericTransportBudgetMs": 10000,
+    "mergeTransportBudgetMs": 40000
+  },
+  "regressionBeforeFix": {
+    "command": "pnpm exec vitest run src/__tests__/lib/codex-session/bootstrap-delivery.test.ts -t 'shared workspace app transport deadlines'",
+    "failed": 6,
+    "passed": 9,
+    "reason": "Both recovery paths inherited the ten-second cookie-exchange deadline, rejecting delayed cookie exchanges and combined cookie-plus-POST requests before their thirty-second request deadline."
+  },
+  "checks": [
+    {
+      "command": "pnpm exec vitest run src/__tests__/lib/codex-session/bootstrap-delivery.test.ts",
+      "result": "passed",
+      "tests": 33,
+      "newFakeClockCases": 15,
+      "coverage": [
+        "Six-second cookie exchange plus six-second POST succeeds for each recovery path.",
+        "Eleven-second cookie exchange plus one-second POST succeeds for each recovery path.",
+        "Combined cookie exchange and POST abort at thirty seconds for each recovery path.",
+        "Shorter signed expiry wins during cookie exchange and POST for each recovery path.",
+        "Parent cancellation wins during cookie exchange and POST for each recovery path.",
+        "An ordinary epic read still aborts at ten seconds."
+      ]
+    },
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm exec biome check src/lib/codex-session/bootstrap-delivery.server.ts src/__tests__/lib/codex-session/bootstrap-delivery.test.ts",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "limitations": [
+    "Local mocked transport evidence only; production acceptance was not performed.",
+    "No provider operations, host journal changes, database writes, or migration helper runs."
+  ]
+}

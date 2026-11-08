@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deliverGuardianEnrollment,
   deliverRegistrationGrant,
@@ -462,6 +462,160 @@ it("agent transport uses a fixed app endpoint and a scoped cookie", async () => 
       body: JSON.stringify({ ticket: "private-ticket" }),
     },
   ]);
+});
+
+describe("shared workspace app transport deadlines", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-08T00:00:00Z"));
+    // Node's native AbortSignal.timeout does not use the fake timer clock.
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((milliseconds) => {
+      const controller = new AbortController();
+      setTimeout(
+        () => controller.abort(new DOMException("Transport timed out", "TimeoutError")),
+        milliseconds,
+      );
+      return controller.signal;
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  function delayedFixture(fixedPath: string, cookieDelay = 6000, postDelay = 6000) {
+    const f = fixture();
+    f.coder.getApplicationAuthRedirect.mockResolvedValue(
+      `${origin + fixedPath}?coder_application_connect_api_key_35e783=encrypted`,
+    );
+    f.fetcher.mockReset().mockImplementation(async (_raw, init) => {
+      const signal = init?.signal;
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", abort);
+          reject(signal?.reason);
+        };
+        const timer = setTimeout(
+          () => {
+            signal?.removeEventListener("abort", abort);
+            resolve();
+          },
+          init?.method === "GET" ? cookieDelay : postDelay,
+        );
+        signal?.addEventListener("abort", abort, { once: true });
+        if (signal?.aborted) abort();
+      });
+      return init?.method === "GET"
+        ? new Response(null, {
+            status: 303,
+            headers: {
+              Location: fixedPath,
+              "Set-Cookie": `${name}=scoped_secret; Path=/; HttpOnly; Secure`,
+            },
+          })
+        : Response.json({ prepared: true });
+    });
+    return f;
+  }
+
+  describe.each([
+    "/projects/tasks/recovery-inspect",
+    "/projects/tasks/recovery-consume",
+  ] as const)("%s", (path) => {
+    it.each([
+      [6000, 6000],
+      [11000, 1000],
+    ])("allows a %ims cookie exchange plus a %ims POST inside thirty seconds", async (cookie, post) => {
+      const f = delayedFixture(path, cookie, post);
+      const pending = postToVerifiedWorkspaceApp(
+        f.coder,
+        f.issued.binding,
+        { path, body: "{}", expiresAt: f.issued.expiresAt },
+        f.fetcher,
+      );
+      const result = pending.catch((error) => error);
+      await vi.advanceTimersByTimeAsync(cookie + post);
+      expect(await result).toEqual({ prepared: true });
+      expect(f.fetcher).toHaveBeenCalledTimes(2);
+      expect(f.fetcher.mock.calls[1][1]).toMatchObject({
+        method: "POST",
+        redirect: "manual",
+        credentials: "omit",
+        headers: { Cookie: `${name}=scoped_secret` },
+      });
+    });
+
+    it("caps cookie exchange and POST together at thirty seconds", async () => {
+      const f = delayedFixture(path, 12000, 19000);
+      const pending = postToVerifiedWorkspaceApp(
+        f.coder,
+        f.issued.binding,
+        { path, body: "{}", expiresAt: f.issued.expiresAt },
+        f.fetcher,
+      );
+      const result = pending.catch((error) => error);
+      await vi.advanceTimersByTimeAsync(29999);
+      expect(f.fetcher).toHaveBeenCalledTimes(2);
+      expect(f.fetcher.mock.calls[1][1]?.signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await result).toMatchObject({ name: "TimeoutError" });
+      expect(f.fetcher.mock.calls[1][1]?.signal?.aborted).toBe(true);
+    });
+
+    it.each([4000, 9000])("honors a shorter signed expiry after %ims", async (remaining) => {
+      const f = delayedFixture(path);
+      const pending = postToVerifiedWorkspaceApp(
+        f.coder,
+        f.issued.binding,
+        { path, body: "{}", expiresAt: (Date.now() + remaining) / 1000 },
+        f.fetcher,
+      );
+      const result = pending.catch((error) => error);
+      await vi.advanceTimersByTimeAsync(remaining - 1);
+      expect(f.fetcher.mock.calls.at(-1)?.[1]?.signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await result).toMatchObject({ name: "TimeoutError" });
+      expect(f.fetcher).toHaveBeenCalledTimes(remaining < 6000 ? 1 : 2);
+      expect(f.fetcher.mock.calls.at(-1)?.[1]?.signal?.aborted).toBe(true);
+    });
+
+    it.each([4000, 8000])("honors parent cancellation after %ims", async (elapsed) => {
+      const f = delayedFixture(path),
+        controller = new AbortController(),
+        reason = new Error("Parent request cancelled");
+      const pending = postToVerifiedWorkspaceApp(
+        f.coder,
+        f.issued.binding,
+        { path, body: "{}", expiresAt: f.issued.expiresAt, signal: controller.signal },
+        f.fetcher,
+      );
+      const result = pending.catch((error) => error);
+      await vi.advanceTimersByTimeAsync(elapsed);
+      controller.abort(reason);
+      expect(await result).toBe(reason);
+      expect(f.fetcher).toHaveBeenCalledTimes(elapsed < 6000 ? 1 : 2);
+      expect(f.fetcher.mock.calls.at(-1)?.[1]?.signal?.aborted).toBe(true);
+    });
+  });
+
+  it("keeps ordinary epic reads within the shared ten-second budget", async () => {
+    const path = "/projects/epic-read",
+      f = delayedFixture(path);
+    const pending = postToVerifiedWorkspaceApp(
+      f.coder,
+      f.issued.binding,
+      { path, body: "{}", expiresAt: f.issued.expiresAt },
+      f.fetcher,
+    );
+    const result = pending.catch((error) => error);
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+    expect(f.fetcher.mock.calls[1][1]?.signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await result).toMatchObject({ name: "TimeoutError" });
+    expect(f.fetcher.mock.calls[1][1]?.signal?.aborted).toBe(true);
+  });
 });
 
 it("acknowledges an eleven-second read-only merge preflight inside the full signed transport budget", async () => {

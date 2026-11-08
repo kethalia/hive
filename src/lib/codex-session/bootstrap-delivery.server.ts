@@ -121,8 +121,13 @@ async function exchangeAppCookie(
     "/guardian/account-maintenance",
   ].includes(fixedPath);
   const merge = ["/projects/epic-merge", "/projects/production-release"].includes(fixedPath);
+  const recovery = [
+    "/projects/tasks/recovery-inspect",
+    "/projects/tasks/recovery-consume",
+  ].includes(fixedPath);
   const deadline =
-    Date.now() + Math.min(merge ? 40000 : guardianEnrollment ? 30000 : 10000, remaining);
+    Date.now() +
+    Math.min(merge ? 40000 : guardianEnrollment || recovery ? 30000 : 10000, remaining);
   const signal = () => {
     if (Date.now() >= deadline) reject();
     return AbortSignal.timeout(deadline - Date.now());
