@@ -20,6 +20,8 @@ const mock = vi.hoisted(() => ({
   recoveryFinish: vi.fn(),
   guardianProvision: vi.fn(),
   guardianIdentity: vi.fn(),
+  guardianResumption: vi.fn(),
+  guardianContinuity: vi.fn(),
 }));
 vi.mock("@hive/db", () => ({
   getDb: () => ({
@@ -57,7 +59,8 @@ vi.mock("@/lib/projects/task-recovery-store.server", () => ({
 vi.mock("@/lib/codex-session/guardian-factory.server", () => ({
   createGuardianService: () => ({
     provision: mock.guardianProvision,
-    recoveryContinuity: async () => undefined,
+    unusedRecoveryResumption: mock.guardianResumption,
+    recoveryContinuity: mock.guardianContinuity,
     verifyRecoveryIdentity: mock.guardianIdentity,
   }),
 }));
@@ -120,6 +123,8 @@ const result = {
 const input = { workspaceId, requestId, expectedRevision: "a".repeat(40), text: "Fix the bug" };
 beforeEach(() => {
   vi.clearAllMocks();
+  mock.guardianResumption.mockResolvedValue(undefined);
+  mock.guardianContinuity.mockResolvedValue(undefined);
   vi.stubEnv("HIVE_CODEX_MANAGER_MODEL", "fixture-model");
   vi.stubEnv("HIVE_CODEX_MANAGER_EFFORT", "high");
   vi.stubEnv("ENCRYPTION_KEY", "a".repeat(64));
@@ -334,7 +339,10 @@ describe("project task controller", () => {
   });
 });
 
-it("guarded owner recovery stages inspection and CAS before consume, and resumes a lost ACK without another inspection", async () => {
+it.each([
+  false,
+  true,
+])("guarded owner recovery stages inspection and CAS before consume and resumes ACK loss; explicit resumption %s", async (resuming) => {
   const { guardianDigest } = await import("@/lib/codex-session/guardian-contracts");
   vi.stubEnv("HIVE_GUARDIAN_ENABLED", "true");
   const coderUserId = "55555555-5555-4555-8555-555555555555",
@@ -356,7 +364,7 @@ it("guarded owner recovery stages inspection and CAS before consume, and resumes
     revision: "c".repeat(40),
   };
   const inspection = {
-    outcome: "task_absent",
+    outcome: resuming ? "existing_preexecution" : "task_absent",
     taskFingerprint: "d".repeat(64),
     buildId,
     lifetimeId,
@@ -388,6 +396,8 @@ it("guarded owner recovery stages inspection and CAS before consume, and resumes
   mock.recoveryBegin.mockResolvedValue(initial);
   mock.recoveryAuthorize.mockResolvedValue(authorized);
   mock.guardianIdentity.mockResolvedValue({ runtime, packet: identity });
+  const ticket = { attestationDigest: "e".repeat(64), expiresAt: Date.now() + 60000 };
+  if (resuming) mock.guardianResumption.mockResolvedValue(ticket);
   mock.host.mockImplementation(async (_u, _w, path) =>
     path.endsWith("inspect")
       ? { schemaVersion: 1, scope, inspection, identity }
@@ -399,7 +409,21 @@ it("guarded owner recovery stages inspection and CAS before consume, and resumes
     workspaceId,
     identity,
     guardianDigest({ scope, inspection }),
+    resuming ? { scope, inspection, authorize: expect.any(Function) } : undefined,
   );
+  if (resuming) {
+    expect(mock.guardianProvision).not.toHaveBeenCalled();
+    expect(mock.guardianContinuity).not.toHaveBeenCalled();
+    expect(mock.host.mock.calls[0][3]).toEqual({ schemaVersion: 1, scope, continuity: ticket });
+    expect(mock.host.mock.invocationCallOrder[0]).toBeLessThan(
+      mock.guardianIdentity.mock.invocationCallOrder[0],
+    );
+    const tx = { projectTaskIntent: { findUnique: vi.fn().mockResolvedValue(null) } };
+    await mock.guardianIdentity.mock.calls[0][4].authorize(tx);
+    expect(tx.projectTaskIntent.findUnique).toHaveBeenCalledExactlyOnceWith({
+      where: { ownerId_id: { ownerId: user.id, id: taskId } },
+    });
+  }
   expect(mock.recoveryAuthorize.mock.invocationCallOrder[0]).toBeLessThan(
     mock.host.mock.invocationCallOrder[1],
   );
