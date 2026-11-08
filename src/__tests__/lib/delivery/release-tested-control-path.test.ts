@@ -11,7 +11,7 @@ it("allows ordinary test changes while protecting authority and fixed execution 
     expect(isReleaseTestControlPath(path)).toBe(false);
   for (const path of [
     ".github/workflows/controlled-tested-tree.yml",
-    ".github/workflows/controlled-worker-upload.yml",
+    ".github/workflows/controlled-database-job.yml",
     ".github/workflows/ci.yml",
     ".github/actions/test/action.yml",
     "scripts/release/tested-attestor.mjs",
