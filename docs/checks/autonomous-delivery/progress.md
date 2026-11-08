@@ -1972,3 +1972,119 @@ by this source checkpoint.
   from agent metadata. Subsequent reads use an explicit field allowlist. Repository
   instructions now require filtering before tool output or handoff; no credential is
   repeated in public receipts.
+
+
+### November8 retained-task factual ACK reconciliation
+
+- **Validate: original recovery mapping completed once, high difficulty.** The
+  owner-authorized continuation preserved task `f672c7f4`, recovery `663d2784`,
+  original request and source `f861b372`. Its attested device mapping completed,
+  preserving the checkout inodes and lease identity, generation and incarnation;
+  the lease renewed once. The host saved its consumed recovery receipt while the
+  initial HTTP502 left the database recovery authorized. This is an actual partial
+  F05 milestone, not native execution or epic completion.
+- **Validate: immutable receipt reconciled, moderate difficulty.** One separately
+  authorized factual ACK request returned HTTP200 from serving source `bbf7febd`.
+  The database now records the same consumed receipt, digest `34375765…6709`,
+  after the prior runtime and operator deadlines expired. No execution authority
+  was issued or renewed. Runtime and guardian operation records, HMAC project and
+  supervisor journals, and the signed controller journal remained unchanged.
+  The intent remains preparing; only its stale status was cleared during receipt
+  completion. [Sanitized factual receipt](unused-recovery-factual-ack-20261108.json).
+- **Native acceptance remains held.** The original pending fence `ee4d4d02` and
+  controller hold remain. Native creation, first-prompt submission and thread
+  creation are absent; native app-server, tmux, web terminal and audio process
+  counts are zero. The underlying fence failure has not been established. No
+  follow-up request, authority extension, manual repair or model call followed
+  factual reconciliation. Generic-terminal acceptance is separate and remains
+  unclaimed by this receipt.
+
+### November8 connection corrections and retained infrastructure
+
+- **Implement / Review / Deploy: connection budgets aligned, moderate difficulty.**
+  PR435 makes the project browser handshake budget agree with the existing server
+  budget while preserving signed expiry and cancellation. PR436 adds only the two
+  recovery operations to the existing thirty-second cookie-plus-request transport
+  budget. Both passed focused regressions, full CI and current-head review before
+  integration. Neither change renews the held original runtime or proves a native
+  task launch.
+- **Implement / Review / Deploy: public workspace projection, moderate difficulty.**
+  PR437 explicitly reconstructs browser workspace fields for list, get and create
+  actions. Provider-only agent environment and commands no longer cross those
+  browser boundaries. Five synthetic regression cases and139 affected tests pass;
+  full CI and current-head review passed before integration. Server provider data
+  and authorization checks retain their existing behavior.
+- **Implement / Review / Deploy: valid agentless resources accepted, moderate difficulty.**
+  Actual Coder responses contain environment and volume resources without an agents
+  field. PR438 defaults only an omitted field to an empty array, retaining malformed
+  input rejection, resource limits and exact owner/build/connected-agent checks.
+  All52 focused and12 local Workerd checks, typecheck and current-head review pass.
+  Full CI42520705839 passes. Existing Builds serves epic `37437e4c` at deployment
+  `f96542f4`. A real terminal attachment remains unaccepted. Earlier native
+  browser attempts reached one ticket and socket each but no ready event or input;
+  their generic1006 close did not establish an HTTP rejection status or cause.
+- **Validate: Infrastructure start failed and retained workspace stopped, moderate difficulty.**
+  The reused persistent diagnostics workspace started on the reviewed existing
+  template, but its agent remained unconnected. One normal stop completed with a
+  successful build; its75Gi home and history are retained. No SSH or production
+  secret/database access occurred. A separate scoped read-only Rancher request
+  failed during TLS before authentication. F08 remains open; neither a pod failure
+  cause nor current production data/key continuity was established.
+- **Understand: existing-session discovery rollout identified, low difficulty.**
+  The historical runtime-agent identity mismatch was already corrected and signed
+  read operations accepted in the e923 proof; it is not the current blocker.
+  Canonical Preview still disables independent workspace reads and admits no read
+  templates. The normal primary host has no installed read config, and the reused
+  Browser template lacks the app and opt-in entirely. Generic PTY success alone
+  cannot close existing-session discovery. A reviewed read-enabled software build,
+  exact issuer/package enrollment and actual mobile/desktop discovery remain.
+  [Read-only rollout assessment](workspace-read-current-rollout-preparation-20261108.json).
+
+### November8 actual terminal acceptance and workspace storage gate
+
+- **Validate: ordinary terminal transport accepted, moderate difficulty.** On exact
+  serving source `37437e4c`, a real Chrome run receives two HTTP101 upgrades and ready
+  events, reads output, resizes to100×35, reconnects to the same shell PID and exits.
+  Exactly two tickets/attachments and five fixed input frames were used. All browser,
+  shell, tmux and associated audio processes are gone after normal idle winddown;
+  the four original signed/HMAC journals remain unchanged. The earlier resize test
+  failure was a harness acknowledgement error: separate pane/client geometry and
+  filtered stty output already showed35×100. Bounded control-sequence normalization
+  corrected the reader; no product resize change was needed. Historical exact wire
+  controls were not retained. [Scoped aggregate receipt](generic-terminal-preview-acceptance-20261108.json).
+- **Implement / Review: normal terminal exit correction integrated, moderate difficulty.**
+  Actual explicit exit exposed close1013. The relay dropped upstream close1000 and
+  classified it as transient, while the real browser hook automatically reconnects
+  transient closures. PR439 preserves only upstream1000 with a static final reason;
+  other closures and errors remain retryable without forwarding provider details.
+  All72 focused checks, typecheck, current-head Codex review and full CI42524172422
+  pass before epic merge `e63e8ae3`. Existing Builds serves deployment `3f4fe3b9`.
+  A separate real Chrome check receives actual close1000 and wasClean=true, with
+  one ticket/socket, fixed PID marker and exit. All test processes exit naturally;
+  held journals remain unchanged. The hook itself was not mounted in that check;
+  its classifier input is established by actual browser fields and integration tests.
+  [Normal-exit receipt](generic-terminal-normal-exit-preview-20261108.json).
+- **Understand / Validate: new canary blocked by storage, moderate difficulty.** The
+  older idle same-epic workspace stopped normally with its100Gi home/history retained.
+  A fresh distinct software canary was created on the reviewed inactive version and
+  its own20Gi volume. A known create400 rejected mutually exclusive template/version
+  fields without creating a workspace; the corrected request pinned only the version.
+  Its pod schedules but cannot attach the new home volume; the reused Infrastructure
+  workspace has the same attach gate on its existing75Gi volume. Read-only status for
+  these two exact volumes establishes `ReplicaSchedulingFailure: insufficient storage`.
+  The internal ingress route verifies the original Rancher TLS hostname and restores
+  the authorized reads without disabling certificate checks. No native/account/task
+  request ran in the new canary. Stopping workspaces retains their disk allocation.
+- **Understand: no automatic storage cleanup established, low difficulty.** A bounded
+  HOME inventory finds15 PVCs, all mapped to current Coder workspaces, with1020Gi
+  logical capacity including645Gi belonging to stopped workspaces. These figures do
+  not measure actual disk use. Existing receipt states do not establish any completed
+  workspace eligible for automatic deletion; no orphan HOME claim was found. All
+  data remains retained. No volume deletion, replica/scheduling change or paid capacity
+  was performed. A safe storage remediation decision remains before native acceptance.
+  A subsequent logical scheduling read shows adequate physical space but less than
+  11Gi unreserved logical capacity per eligible disk under the current100% policy.
+  Two4Gi test homes with two replicas each appear to fit without deleting data,
+  changing reservation/replica policy or purchasing capacity. Small inactive test
+  template preparation remains pending; capacity must be refreshed before creation.
+  [Storage observations](workspace-storage-gate-20261108.json).

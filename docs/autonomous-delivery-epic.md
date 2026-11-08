@@ -20,7 +20,7 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
 Current implementation checkpoint (2026-11-08): the epic preserves released main
-`1ace8774118b99b28856347edd51410c4f0a0774` and is integrated through `a6b405b1`.
+`1ace8774118b99b28856347edd51410c4f0a0774` and is integrated through `e63e8ae3`.
 The existing single Worker automatically deploys the branch Preview. Database job and
 account-maintenance implementation, scoped account cards and request-bound Cloudflare
 callback execution passed CI/review; both Preview databases have 53 migrations with
@@ -29,20 +29,41 @@ and actual dedicated Codex account status passes through Hive. The current manag
 is blocked before model execution. The metadata timeout and exact-task retirement/recovery
 fixes passed CI/review and are deployed. The combined cleanup/remount image is installed
 on the original persistent volume. Owner recovery retired the predecessor and enrolled
-the new runtime, but remains held at runtime reservation before inspection or model
-execution. Explicit unused-recovery resumption passed review and CI and its forward
-preview migration is applied; live continuation remains pending. The initial reservation
-failure is not yet explained. Mobile Projects/Terminal menu routing and scoped GitHub
+the new runtime. One explicitly enrolled unused-recovery continuation completed the exact
+remount mapping and lease renewal, but lost its response before database acknowledgement.
+One subsequent factual replay reconciled the immutable consumed receipt without renewing
+authority. The original admitted runtime now remains held with an unresolved pending fence;
+no model or first prompt ran. Its signed history and checkout are retained. The reviewed
+two-path recovery transport correction is deployed; it does not revive expired authority.
+Mobile Projects/Terminal menu routing and scoped GitHub
 discovery pass Browser Testing. The first ordinary-terminal ticket exposed missing
-same-Worker URL enrollment; its reviewed correction is integrated, with live attachment
-pending. Shared Conversation/Terminal browser
+same-Worker URL enrollment; its reviewed correction is integrated. Actual Coder resources
+then exposed a strict parser rejecting omitted agent arrays; PR438 corrects that shape and
+passes focused, local Workerd and full CI checks. Existing Builds deployed the correction;
+real Chrome acceptance now passes ready/output, 100×35 resize, reconnect to the same
+shell PID and exit. All test processes exited and held native journals are unchanged.
+PR439 preserves normal upstream closure instead of incorrectly making exit retryable;
+its72 focused tests, typecheck, full CI and current-head review pass. Existing Builds
+deployed it, and a separate Chrome check confirms actual close1000/wasClean=true,
+followed by exact session/process absence and unchanged held journals. The React hook
+was not mounted in that transport check; its classifier is covered by the integration tests.
+Public workspace actions also now project explicit browser fields rather than returning
+provider-only agent metadata. Shared Conversation/Terminal browser
 acceptance, live multi-task coordination, background wake approval and final cutover remain open.
 
 The November 5 production capture has been restored and upgraded locally through all 50
 migrations, with a further upgrade rehearsal through52. Its 81 original application rows and original migration history match; a decoded
 upgraded backup is retained privately. Earlier bounded Worker/session and backup-recovery
 proofs remain scoped evidence. Fresh production capture, original encryption/cookie key
-continuity, streaming and final cutover checks remain open. The real browser checkpoint
+continuity, streaming and final cutover checks remain open. The reused Infrastructure
+workspace and fresh isolated native canary cannot attach their home volumes: exact
+read-only workspace-volume observations report insufficient storage for Longhorn replica
+scheduling. A certificate-verified internal route restored the authorized Rancher reads;
+the ordinary hostname route still fails TLS. The HOME inventory contains15 current
+workspace PVCs, 1020Gi logical capacity including645Gi belonging to stopped workspaces;
+these are not physical usage figures. No orphan or automatically deletable completed
+workspace was established. No storage deletion, replica change or paid capacity was
+authorized or performed. The production capture has not been refreshed. The real browser checkpoint
 covers OAuth login, repository search/enrollment, layout and logout; current-build shared
 sessions and full baseline acceptance remain pending. No production cutover has occurred.
 
