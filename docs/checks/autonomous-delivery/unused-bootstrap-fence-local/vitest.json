@@ -1,1 +1,697 @@
-{"numTotalTestSuites":12,"numPassedTestSuites":12,"numFailedTestSuites":0,"numPendingTestSuites":0,"numTotalTests":70,"numPassedTests":70,"numFailedTests":0,"numPendingTests":0,"numTodoTests":0,"snapshot":{"added":0,"failure":false,"filesAdded":0,"filesRemoved":0,"filesRemovedList":[],"filesUnmatched":0,"filesUpdated":0,"matched":0,"total":0,"unchecked":0,"uncheckedKeysByFile":[],"unmatched":0,"updated":0,"didUpdate":false},"startTime":1794180706448,"success":true,"testResults":[{"assertionResults":[{"ancestorTitles":["empty retained-root issuer boundary"],"fullName":"empty retained-root issuer boundary uses actual immutable completed ledger + signed cleanup volume and fresh current tuple","status":"passed","title":"uses actual immutable completed ledger + signed cleanup volume and fresh current tuple","duration":51.500928000000044,"failureMessages":[],"meta":{}},{"ancestorTitles":["empty retained-root issuer boundary"],"fullName":"empty retained-root issuer boundary corroborates a consumed real enrollment for the next epoch and refuses unconsumed anchors","status":"passed","title":"corroborates a consumed real enrollment for the next epoch and refuses unconsumed anchors","duration":50.49229500000001,"failureMessages":[],"meta":{}},{"ancestorTitles":["empty retained-root issuer boundary"],"fullName":"empty retained-root issuer boundary anchors a fresh root-only current observation before a later real enrolled epoch","status":"passed","title":"anchors a fresh root-only current observation before a later real enrolled epoch","duration":29.73817600000001,"failureMessages":[],"meta":{}},{"ancestorTitles":["empty retained-root issuer boundary"],"fullName":"empty retained-root issuer boundary bounds the maximum proposal inside the existing signed identity frame","status":"passed","title":"bounds the maximum proposal inside the existing signed identity frame","duration":9.948172,"failureMessages":[],"meta":{}},{"ancestorTitles":["empty retained-root issuer boundary"],"fullName":"empty retained-root issuer boundary accepts only the exact current agent-bearing provider volume resource","status":"passed","title":"accepts only the exact current agent-bearing provider volume resource","duration":9.214665999999966,"failureMessages":[],"meta":{}},{"ancestorTitles":["empty retained-root issuer boundary"],"fullName":"empty retained-root issuer boundary does not infer completed cleanup from signed authorization or absent directories","status":"passed","title":"does not infer completed cleanup from signed authorization or absent directories","duration":8.677277000000004,"failureMessages":[],"meta":{}},{"ancestorTitles":["empty retained-root issuer boundary"],"fullName":"empty retained-root issuer boundary rejects changed PVC, source receipt, owner, duplicate project, stale resource and replaced inode","status":"passed","title":"rejects changed PVC, source receipt, owner, duplicate project, stale resource and replaced inode","duration":12.486422000000005,"failureMessages":[],"meta":{}}],"startTime":1794180732237,"endTime":1794180732408.4863,"status":"passed","message":"","name":"/home/coder/projects/kethalia/.worktrees/hive/unused-bootstrap-worker/src/__tests__/lib/codex-session/guardian-empty-root.integration.test.ts"},{"assertionResults":[{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL launch survives database latency beyond the former frame lifetime without authorizing expired frames","status":"passed","title":"launch survives database latency beyond the former frame lifetime without authorizing expired frames","duration":7563.682697,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL records exact prepare/checkout/fence responses atomically and reads historical facts without authority extension","status":"passed","title":"records exact prepare/checkout/fence responses atomically and reads historical facts without authority extension","duration":154.99306699999943,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL rejects original-envelope collisions, missing receipts, wrong signatures and changed lifetime/config bindings","status":"passed","title":"rejects original-envelope collisions, missing receipts, wrong signatures and changed lifetime/config bindings","duration":78.30359399999907,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL cannot retrofit receipts onto a pre-migration held lifetime","status":"passed","title":"cannot retrofit receipts onto a pre-migration held lifetime","duration":73.9994200000001,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL records native finalization in its mutation transaction and replays facts after registration revocation","status":"passed","title":"records native finalization in its mutation transaction and replays facts after registration revocation","duration":143.54978699999992,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL reads an actually expired original frame using only a fresh signed challenge","status":"passed","title":"reads an actually expired original frame using only a fresh signed challenge","duration":314.879277,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL rolls back both receipt and preparation on deadline during receipt insertion","status":"passed","title":"rolls back both receipt and preparation on deadline during receipt insertion","duration":472.61563699999897,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL rolls back both receipt and preparation on abort during receipt insertion","status":"passed","title":"rolls back both receipt and preparation on abort during receipt insertion","duration":466.65384500000073,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL concurrent exact requests cannot duplicate admission or manufacture a second receipt","status":"passed","title":"concurrent exact requests cannot duplicate admission or manufacture a second receipt","duration":76.46032500000001,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL bounds pool wait and transaction timeout by the remaining signed frame lifetime","status":"passed","title":"bounds pool wait and transaction timeout by the remaining signed frame lifetime","duration":57.503467000000455,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL holds new operations on durable receipt exhaustion while retaining every exact receipt and readback","status":"passed","title":"holds new operations on durable receipt exhaustion while retaining every exact receipt and readback","duration":292.4330549999995,"failureMessages":[],"meta":{}},{"ancestorTitles":["committed guardian operation receipts / actual PostgreSQL"],"fullName":"committed guardian operation receipts / actual PostgreSQL retains immutable bounded receipts with append-only privileges for installed runtime roles","status":"passed","title":"retains immutable bounded receipts with append-only privileges for installed runtime roles","duration":59.038291999999274,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL resamples a fresh signed transport clock without accepting future authority: refresh","status":"passed","title":"resamples a fresh signed transport clock without accepting future authority: refresh","duration":32.74056000000019,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL resamples a fresh signed transport clock without accepting future authority: still_future","status":"passed","title":"resamples a fresh signed transport clock without accepting future authority: still_future","duration":23.212537999999768,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL resamples a fresh signed transport clock without accepting future authority: too_far","status":"passed","title":"resamples a fresh signed transport clock without accepting future authority: too_far","duration":22.35135799999989,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL resamples a fresh signed transport clock without accepting future authority: cancel","status":"passed","title":"resamples a fresh signed transport clock without accepting future authority: cancel","duration":24.130886999999348,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL recovers only the exact committed enrollment as read-only historical evidence","status":"passed","title":"recovers only the exact committed enrollment as read-only historical evidence","duration":43.114966000001004,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL requires explicit owner authority to fence an expired empty runtime","status":"passed","title":"requires explicit owner authority to fence an expired empty runtime","duration":65.98042999999961,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL expiry during an observed row-lock wait rolls back empty closure but permits exact historical replay","status":"passed","title":"expiry during an observed row-lock wait rolls back empty closure but permits exact historical replay","duration":5474.958474999999,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL reports trusted transport, identity validation and reservation boundaries","status":"passed","title":"reports trusted transport, identity validation and reservation boundaries","duration":8.401871999998548,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL reports granular identity failures without changing rejection semantics","status":"passed","title":"reports granular identity failures without changing rejection semantics","duration":18.053685000002588,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL resamples the clock without accepting future identities or bypassing cancellation","status":"passed","title":"resamples the clock without accepting future identities or bypassing cancellation","duration":23.19530499999746,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL interrupts the real clock timer on cancellation before reservation","status":"passed","title":"interrupts the real clock timer on cancellation before reservation","duration":3.69827499999883,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL fresh owner-app identity issues a one-use key/lifetime grant and records real enrollment","status":"passed","title":"fresh owner-app identity issues a one-use key/lifetime grant and records real enrollment","duration":62.06953000000067,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL existing native enrollment cannot revive revoked producer or stale registered lifetime","status":"passed","title":"existing native enrollment cannot revive revoked producer or stale registered lifetime","duration":493.3727839999992,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL signed host package/config echoes cannot approve an unlisted or wrong-scope runtime","status":"passed","title":"signed host package/config echoes cannot approve an unlisted or wrong-scope runtime","duration":8.901110999999219,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL forged outer proof fails before fresh Coder resolution and old grant cannot switch keys","status":"passed","title":"forged outer proof fails before fresh Coder resolution and old grant cannot switch keys","duration":32.31869999999981,"failureMessages":[],"meta":{}},{"ancestorTitles":["signed guardian bootstrap/service, actual local PostgreSQL"],"fullName":"signed guardian bootstrap/service, actual local PostgreSQL issuer-grant expiry during enrollment SQL update rolls back consumption even while frame remains live","status":"passed","title":"issuer-grant expiry during enrollment SQL update rolls back consumption even while frame remains live","duration":2353.6196999999993,"failureMessages":[],"meta":{}},{"ancestorTitles":["guardian signed lifetime at real transaction boundary"],"fullName":"guardian signed lifetime at real transaction boundary expiry while SQL update is pending rolls back the authority extension","status":"passed","title":"expiry while SQL update is pending rolls back the authority extension","duration":1424.7572990000008,"failureMessages":[],"meta":{}},{"ancestorTitles":["guardian signed lifetime at real transaction boundary"],"fullName":"guardian signed lifetime at real transaction boundary abort after SQL work starts rolls back and never reports cancellation as commit","status":"passed","title":"abort after SQL work starts rolls back and never reports cancellation as commit","duration":520.1689770000012,"failureMessages":[],"meta":{}},{"ancestorTitles":["owner recovery identity verification"],"fullName":"owner recovery identity verification accepts only a fresh exact signed inspection challenge on an already enrolled live runtime","status":"passed","title":"accepts only a fresh exact signed inspection challenge on an already enrolled live runtime","duration":69.55425100000139,"failureMessages":[],"meta":{}}],"startTime":1794180707610,"endTime":1794180728071.5542,"status":"passed","message":"","name":"/home/coder/projects/kethalia/.worktrees/hive/unused-bootstrap-worker/src/__tests__/lib/codex-session/guardian-service.integration.test.ts"},{"assertionResults":[{"ancestorTitles":["unused bootstrap wire"],"fullName":"unused bootstrap wire requires the explicit proof, exact root binding, and an empty inventory","status":"passed","title":"requires the explicit proof, exact root binding, and an empty inventory","duration":3.8096719999999777,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture enrolls with an explicit unused proof and the same signed proposal","status":"passed","title":"enrolls with an explicit unused proof and the same signed proposal","duration":83.64669600000002,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture replays the exact original grant after mapping before enrollment acknowledgement","status":"passed","title":"replays the exact original grant after mapping before enrollment acknowledgement","duration":30.557634999999948,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture confirms DB-open without issuing another grant before the host receives its acknowledgement","status":"passed","title":"confirms DB-open without issuing another grant before the host receives its acknowledgement","duration":41.53862300000003,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture rejects changed proof on reserved replay without changing the original grant","status":"passed","title":"rejects changed proof on reserved replay without changing the original grant","duration":26.73634999999996,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture rejects an unapproved predecessor package before creating any runtime or grant","status":"passed","title":"rejects an unapproved predecessor package before creating any runtime or grant","duration":4.872850000000028,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture rolls back reservation and slot when grant creation fails","status":"passed","title":"rolls back reservation and slot when grant creation fails","duration":11.938324000000023,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture rejects a historical runtime in another agent slot before granting anything","status":"passed","title":"rejects a historical runtime in another agent slot before granting anything","duration":20.020695000000046,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture rejects an issued legacy registration grant across all agent slots","status":"passed","title":"rejects an issued legacy registration grant across all agent slots","duration":14.994768999999906,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture serializes competing first reservations across different agent slots","status":"passed","title":"serializes competing first reservations across different agent slots","duration":38.30526599999996,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture allows the successor's ordinary runtime replay and native registration on its current agent slot","status":"passed","title":"allows the successor's ordinary runtime replay and native registration on its current agent slot","duration":58.91682700000001,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture fences a delayed guardian predecessor across slots while allowing current and later builds","status":"passed","title":"fences a delayed guardian predecessor across slots while allowing current and later builds","duration":54.87504999999999,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture serializes queued guardian contenders with unused first, including snapshots taken before the lock","status":"passed","title":"serializes queued guardian contenders with unused first, including snapshots taken before the lock","duration":57.82243200000005,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture serializes queued guardian contenders with predecessor first, including snapshots taken before the lock","status":"passed","title":"serializes queued guardian contenders with predecessor first, including snapshots taken before the lock","duration":40.52326999999991,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture fences a delayed legacy predecessor across slots while allowing current and later builds","status":"passed","title":"fences a delayed legacy predecessor across slots while allowing current and later builds","duration":48.03538400000002,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture serializes queued legacy contenders with unused first, including snapshots taken before the lock","status":"passed","title":"serializes queued legacy contenders with unused first, including snapshots taken before the lock","duration":47.67503099999999,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture serializes queued legacy contenders with predecessor first, including snapshots taken before the lock","status":"passed","title":"serializes queued legacy contenders with predecessor first, including snapshots taken before the lock","duration":34.67688799999996,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture retains the exact predecessor fence after normal tree closure without fabricating retirement","status":"passed","title":"retains the exact predecessor fence after normal tree closure without fabricating retirement","duration":53.45112599999993,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture makes the recorded predecessor immutable and rejects changed predecessor replay","status":"passed","title":"makes the recorded predecessor immutable and rejects changed predecessor replay","duration":22.443642000000068,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture does not fence any build when the atomic grant transaction rolls back","status":"passed","title":"does not fence any build when the atomic grant transaction rolls back","duration":20.5899169999999,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture holds an expired reserved grant without renewing its deadline","status":"passed","title":"holds an expired reserved grant without renewing its deadline","duration":1915.3242759999998,"failureMessages":[],"meta":{}},{"ancestorTitles":["unused bootstrap, owned PostgreSQL fixture"],"fullName":"unused bootstrap, owned PostgreSQL fixture keeps incomplete historical metadata separate from current volume authority","status":"passed","title":"keeps incomplete historical metadata separate from current volume authority","duration":4.454703999999765,"failureMessages":[],"meta":{}}],"startTime":1794180728403,"endTime":1794180731038.4546,"status":"passed","message":"","name":"/home/coder/projects/kethalia/.worktrees/hive/unused-bootstrap-worker/src/__tests__/lib/codex-session/guardian-unused-bootstrap.integration.test.ts"},{"assertionResults":[{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration allows one concurrent redemption, persists conversation and issues exact owner read grant","status":"passed","title":"allows one concurrent redemption, persists conversation and issues exact owner read grant","duration":105.60279699999998,"failureMessages":[],"meta":{}},{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration fences older generations and revokes prior lifetimes atomically while preserving history","status":"passed","title":"fences older generations and revokes prior lifetimes atomically while preserving history","duration":67.52050700000001,"failureMessages":[],"meta":{}},{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration denies changed Coder build or owner on redeem and every read/heartbeat renewal","status":"passed","title":"denies changed Coder build or owner on redeem and every read/heartbeat renewal","duration":44.58835099999999,"failureMessages":[],"meta":{}},{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration renews once and returns the same acknowledgement for an exact duplicate","status":"passed","title":"renews once and returns the same acknowledgement for an exact duplicate","duration":61.68075299999998,"failureMessages":[],"meta":{}},{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration rolls back a project mismatch and enforces composite owner FKs","status":"passed","title":"rolls back a project mismatch and enforces composite owner FKs","duration":37.87154400000003,"failureMessages":[],"meta":{}},{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration locks active authority within the same controller transaction","status":"passed","title":"locks active authority within the same controller transaction","duration":42.57424500000002,"failureMessages":[],"meta":{}},{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration serializes conflicting seals and returns one consumed outcome without a duplicate insert","status":"passed","title":"serializes conflicting seals and returns one consumed outcome without a duplicate insert","duration":36.96342600000003,"failureMessages":[],"meta":{}},{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration selects explicit workspace projects despite more than32 retained owner projects","status":"passed","title":"selects explicit workspace projects despite more than32 retained owner projects","duration":12.676656999999977,"failureMessages":[],"meta":{}},{"ancestorTitles":["durable Codex registration"],"fullName":"durable Codex registration recovers a lost latest heartbeat acknowledgement without extending expiry or accepting changed/older requests","status":"passed","title":"recovers a lost latest heartbeat acknowledgement without extending expiry or accepting changed/older requests","duration":93.58188299999995,"failureMessages":[],"meta":{}},{"ancestorTitles":[],"fullName":"authorizes exact registered relay targets and retains native ticket audience","status":"passed","title":"authorizes exact registered relay targets and retains native ticket audience","duration":45.038118000000054,"failureMessages":[],"meta":{}}],"startTime":1794180731257,"endTime":1794180731806.038,"status":"passed","message":"","name":"/home/coder/projects/kethalia/.worktrees/hive/unused-bootstrap-worker/src/__tests__/lib/codex-session/registration-store.integration.test.ts"}]}
+{
+  "numTotalTestSuites": 12,
+  "numPassedTestSuites": 12,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 70,
+  "numPassedTests": 70,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1794180706448,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["empty retained-root issuer boundary"],
+          "fullName": "empty retained-root issuer boundary uses actual immutable completed ledger + signed cleanup volume and fresh current tuple",
+          "status": "passed",
+          "title": "uses actual immutable completed ledger + signed cleanup volume and fresh current tuple",
+          "duration": 51.500928000000044,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["empty retained-root issuer boundary"],
+          "fullName": "empty retained-root issuer boundary corroborates a consumed real enrollment for the next epoch and refuses unconsumed anchors",
+          "status": "passed",
+          "title": "corroborates a consumed real enrollment for the next epoch and refuses unconsumed anchors",
+          "duration": 50.49229500000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["empty retained-root issuer boundary"],
+          "fullName": "empty retained-root issuer boundary anchors a fresh root-only current observation before a later real enrolled epoch",
+          "status": "passed",
+          "title": "anchors a fresh root-only current observation before a later real enrolled epoch",
+          "duration": 29.73817600000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["empty retained-root issuer boundary"],
+          "fullName": "empty retained-root issuer boundary bounds the maximum proposal inside the existing signed identity frame",
+          "status": "passed",
+          "title": "bounds the maximum proposal inside the existing signed identity frame",
+          "duration": 9.948172,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["empty retained-root issuer boundary"],
+          "fullName": "empty retained-root issuer boundary accepts only the exact current agent-bearing provider volume resource",
+          "status": "passed",
+          "title": "accepts only the exact current agent-bearing provider volume resource",
+          "duration": 9.214665999999966,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["empty retained-root issuer boundary"],
+          "fullName": "empty retained-root issuer boundary does not infer completed cleanup from signed authorization or absent directories",
+          "status": "passed",
+          "title": "does not infer completed cleanup from signed authorization or absent directories",
+          "duration": 8.677277000000004,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["empty retained-root issuer boundary"],
+          "fullName": "empty retained-root issuer boundary rejects changed PVC, source receipt, owner, duplicate project, stale resource and replaced inode",
+          "status": "passed",
+          "title": "rejects changed PVC, source receipt, owner, duplicate project, stale resource and replaced inode",
+          "duration": 12.486422000000005,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1794180732237,
+      "endTime": 1794180732408.4863,
+      "status": "passed",
+      "message": "",
+      "name": "/home/coder/projects/kethalia/.worktrees/hive/unused-bootstrap-worker/src/__tests__/lib/codex-session/guardian-empty-root.integration.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL launch survives database latency beyond the former frame lifetime without authorizing expired frames",
+          "status": "passed",
+          "title": "launch survives database latency beyond the former frame lifetime without authorizing expired frames",
+          "duration": 7563.682697,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL records exact prepare/checkout/fence responses atomically and reads historical facts without authority extension",
+          "status": "passed",
+          "title": "records exact prepare/checkout/fence responses atomically and reads historical facts without authority extension",
+          "duration": 154.99306699999943,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL rejects original-envelope collisions, missing receipts, wrong signatures and changed lifetime/config bindings",
+          "status": "passed",
+          "title": "rejects original-envelope collisions, missing receipts, wrong signatures and changed lifetime/config bindings",
+          "duration": 78.30359399999907,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL cannot retrofit receipts onto a pre-migration held lifetime",
+          "status": "passed",
+          "title": "cannot retrofit receipts onto a pre-migration held lifetime",
+          "duration": 73.9994200000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL records native finalization in its mutation transaction and replays facts after registration revocation",
+          "status": "passed",
+          "title": "records native finalization in its mutation transaction and replays facts after registration revocation",
+          "duration": 143.54978699999992,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL reads an actually expired original frame using only a fresh signed challenge",
+          "status": "passed",
+          "title": "reads an actually expired original frame using only a fresh signed challenge",
+          "duration": 314.879277,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL rolls back both receipt and preparation on deadline during receipt insertion",
+          "status": "passed",
+          "title": "rolls back both receipt and preparation on deadline during receipt insertion",
+          "duration": 472.61563699999897,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL rolls back both receipt and preparation on abort during receipt insertion",
+          "status": "passed",
+          "title": "rolls back both receipt and preparation on abort during receipt insertion",
+          "duration": 466.65384500000073,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL concurrent exact requests cannot duplicate admission or manufacture a second receipt",
+          "status": "passed",
+          "title": "concurrent exact requests cannot duplicate admission or manufacture a second receipt",
+          "duration": 76.46032500000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL bounds pool wait and transaction timeout by the remaining signed frame lifetime",
+          "status": "passed",
+          "title": "bounds pool wait and transaction timeout by the remaining signed frame lifetime",
+          "duration": 57.503467000000455,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL holds new operations on durable receipt exhaustion while retaining every exact receipt and readback",
+          "status": "passed",
+          "title": "holds new operations on durable receipt exhaustion while retaining every exact receipt and readback",
+          "duration": 292.4330549999995,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["committed guardian operation receipts / actual PostgreSQL"],
+          "fullName": "committed guardian operation receipts / actual PostgreSQL retains immutable bounded receipts with append-only privileges for installed runtime roles",
+          "status": "passed",
+          "title": "retains immutable bounded receipts with append-only privileges for installed runtime roles",
+          "duration": 59.038291999999274,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL resamples a fresh signed transport clock without accepting future authority: refresh",
+          "status": "passed",
+          "title": "resamples a fresh signed transport clock without accepting future authority: refresh",
+          "duration": 32.74056000000019,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL resamples a fresh signed transport clock without accepting future authority: still_future",
+          "status": "passed",
+          "title": "resamples a fresh signed transport clock without accepting future authority: still_future",
+          "duration": 23.212537999999768,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL resamples a fresh signed transport clock without accepting future authority: too_far",
+          "status": "passed",
+          "title": "resamples a fresh signed transport clock without accepting future authority: too_far",
+          "duration": 22.35135799999989,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL resamples a fresh signed transport clock without accepting future authority: cancel",
+          "status": "passed",
+          "title": "resamples a fresh signed transport clock without accepting future authority: cancel",
+          "duration": 24.130886999999348,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL recovers only the exact committed enrollment as read-only historical evidence",
+          "status": "passed",
+          "title": "recovers only the exact committed enrollment as read-only historical evidence",
+          "duration": 43.114966000001004,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL requires explicit owner authority to fence an expired empty runtime",
+          "status": "passed",
+          "title": "requires explicit owner authority to fence an expired empty runtime",
+          "duration": 65.98042999999961,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL expiry during an observed row-lock wait rolls back empty closure but permits exact historical replay",
+          "status": "passed",
+          "title": "expiry during an observed row-lock wait rolls back empty closure but permits exact historical replay",
+          "duration": 5474.958474999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL reports trusted transport, identity validation and reservation boundaries",
+          "status": "passed",
+          "title": "reports trusted transport, identity validation and reservation boundaries",
+          "duration": 8.401871999998548,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL reports granular identity failures without changing rejection semantics",
+          "status": "passed",
+          "title": "reports granular identity failures without changing rejection semantics",
+          "duration": 18.053685000002588,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL resamples the clock without accepting future identities or bypassing cancellation",
+          "status": "passed",
+          "title": "resamples the clock without accepting future identities or bypassing cancellation",
+          "duration": 23.19530499999746,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL interrupts the real clock timer on cancellation before reservation",
+          "status": "passed",
+          "title": "interrupts the real clock timer on cancellation before reservation",
+          "duration": 3.69827499999883,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL fresh owner-app identity issues a one-use key/lifetime grant and records real enrollment",
+          "status": "passed",
+          "title": "fresh owner-app identity issues a one-use key/lifetime grant and records real enrollment",
+          "duration": 62.06953000000067,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL existing native enrollment cannot revive revoked producer or stale registered lifetime",
+          "status": "passed",
+          "title": "existing native enrollment cannot revive revoked producer or stale registered lifetime",
+          "duration": 493.3727839999992,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL signed host package/config echoes cannot approve an unlisted or wrong-scope runtime",
+          "status": "passed",
+          "title": "signed host package/config echoes cannot approve an unlisted or wrong-scope runtime",
+          "duration": 8.901110999999219,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL forged outer proof fails before fresh Coder resolution and old grant cannot switch keys",
+          "status": "passed",
+          "title": "forged outer proof fails before fresh Coder resolution and old grant cannot switch keys",
+          "duration": 32.31869999999981,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["signed guardian bootstrap/service, actual local PostgreSQL"],
+          "fullName": "signed guardian bootstrap/service, actual local PostgreSQL issuer-grant expiry during enrollment SQL update rolls back consumption even while frame remains live",
+          "status": "passed",
+          "title": "issuer-grant expiry during enrollment SQL update rolls back consumption even while frame remains live",
+          "duration": 2353.6196999999993,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["guardian signed lifetime at real transaction boundary"],
+          "fullName": "guardian signed lifetime at real transaction boundary expiry while SQL update is pending rolls back the authority extension",
+          "status": "passed",
+          "title": "expiry while SQL update is pending rolls back the authority extension",
+          "duration": 1424.7572990000008,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["guardian signed lifetime at real transaction boundary"],
+          "fullName": "guardian signed lifetime at real transaction boundary abort after SQL work starts rolls back and never reports cancellation as commit",
+          "status": "passed",
+          "title": "abort after SQL work starts rolls back and never reports cancellation as commit",
+          "duration": 520.1689770000012,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["owner recovery identity verification"],
+          "fullName": "owner recovery identity verification accepts only a fresh exact signed inspection challenge on an already enrolled live runtime",
+          "status": "passed",
+          "title": "accepts only a fresh exact signed inspection challenge on an already enrolled live runtime",
+          "duration": 69.55425100000139,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1794180707610,
+      "endTime": 1794180728071.5542,
+      "status": "passed",
+      "message": "",
+      "name": "/home/coder/projects/kethalia/.worktrees/hive/unused-bootstrap-worker/src/__tests__/lib/codex-session/guardian-service.integration.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["unused bootstrap wire"],
+          "fullName": "unused bootstrap wire requires the explicit proof, exact root binding, and an empty inventory",
+          "status": "passed",
+          "title": "requires the explicit proof, exact root binding, and an empty inventory",
+          "duration": 3.8096719999999777,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture enrolls with an explicit unused proof and the same signed proposal",
+          "status": "passed",
+          "title": "enrolls with an explicit unused proof and the same signed proposal",
+          "duration": 83.64669600000002,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture replays the exact original grant after mapping before enrollment acknowledgement",
+          "status": "passed",
+          "title": "replays the exact original grant after mapping before enrollment acknowledgement",
+          "duration": 30.557634999999948,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture confirms DB-open without issuing another grant before the host receives its acknowledgement",
+          "status": "passed",
+          "title": "confirms DB-open without issuing another grant before the host receives its acknowledgement",
+          "duration": 41.53862300000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture rejects changed proof on reserved replay without changing the original grant",
+          "status": "passed",
+          "title": "rejects changed proof on reserved replay without changing the original grant",
+          "duration": 26.73634999999996,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture rejects an unapproved predecessor package before creating any runtime or grant",
+          "status": "passed",
+          "title": "rejects an unapproved predecessor package before creating any runtime or grant",
+          "duration": 4.872850000000028,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture rolls back reservation and slot when grant creation fails",
+          "status": "passed",
+          "title": "rolls back reservation and slot when grant creation fails",
+          "duration": 11.938324000000023,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture rejects a historical runtime in another agent slot before granting anything",
+          "status": "passed",
+          "title": "rejects a historical runtime in another agent slot before granting anything",
+          "duration": 20.020695000000046,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture rejects an issued legacy registration grant across all agent slots",
+          "status": "passed",
+          "title": "rejects an issued legacy registration grant across all agent slots",
+          "duration": 14.994768999999906,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture serializes competing first reservations across different agent slots",
+          "status": "passed",
+          "title": "serializes competing first reservations across different agent slots",
+          "duration": 38.30526599999996,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture allows the successor's ordinary runtime replay and native registration on its current agent slot",
+          "status": "passed",
+          "title": "allows the successor's ordinary runtime replay and native registration on its current agent slot",
+          "duration": 58.91682700000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture fences a delayed guardian predecessor across slots while allowing current and later builds",
+          "status": "passed",
+          "title": "fences a delayed guardian predecessor across slots while allowing current and later builds",
+          "duration": 54.87504999999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture serializes queued guardian contenders with unused first, including snapshots taken before the lock",
+          "status": "passed",
+          "title": "serializes queued guardian contenders with unused first, including snapshots taken before the lock",
+          "duration": 57.82243200000005,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture serializes queued guardian contenders with predecessor first, including snapshots taken before the lock",
+          "status": "passed",
+          "title": "serializes queued guardian contenders with predecessor first, including snapshots taken before the lock",
+          "duration": 40.52326999999991,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture fences a delayed legacy predecessor across slots while allowing current and later builds",
+          "status": "passed",
+          "title": "fences a delayed legacy predecessor across slots while allowing current and later builds",
+          "duration": 48.03538400000002,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture serializes queued legacy contenders with unused first, including snapshots taken before the lock",
+          "status": "passed",
+          "title": "serializes queued legacy contenders with unused first, including snapshots taken before the lock",
+          "duration": 47.67503099999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture serializes queued legacy contenders with predecessor first, including snapshots taken before the lock",
+          "status": "passed",
+          "title": "serializes queued legacy contenders with predecessor first, including snapshots taken before the lock",
+          "duration": 34.67688799999996,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture retains the exact predecessor fence after normal tree closure without fabricating retirement",
+          "status": "passed",
+          "title": "retains the exact predecessor fence after normal tree closure without fabricating retirement",
+          "duration": 53.45112599999993,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture makes the recorded predecessor immutable and rejects changed predecessor replay",
+          "status": "passed",
+          "title": "makes the recorded predecessor immutable and rejects changed predecessor replay",
+          "duration": 22.443642000000068,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture does not fence any build when the atomic grant transaction rolls back",
+          "status": "passed",
+          "title": "does not fence any build when the atomic grant transaction rolls back",
+          "duration": 20.5899169999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture holds an expired reserved grant without renewing its deadline",
+          "status": "passed",
+          "title": "holds an expired reserved grant without renewing its deadline",
+          "duration": 1915.3242759999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["unused bootstrap, owned PostgreSQL fixture"],
+          "fullName": "unused bootstrap, owned PostgreSQL fixture keeps incomplete historical metadata separate from current volume authority",
+          "status": "passed",
+          "title": "keeps incomplete historical metadata separate from current volume authority",
+          "duration": 4.454703999999765,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1794180728403,
+      "endTime": 1794180731038.4546,
+      "status": "passed",
+      "message": "",
+      "name": "/home/coder/projects/kethalia/.worktrees/hive/unused-bootstrap-worker/src/__tests__/lib/codex-session/guardian-unused-bootstrap.integration.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration allows one concurrent redemption, persists conversation and issues exact owner read grant",
+          "status": "passed",
+          "title": "allows one concurrent redemption, persists conversation and issues exact owner read grant",
+          "duration": 105.60279699999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration fences older generations and revokes prior lifetimes atomically while preserving history",
+          "status": "passed",
+          "title": "fences older generations and revokes prior lifetimes atomically while preserving history",
+          "duration": 67.52050700000001,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration denies changed Coder build or owner on redeem and every read/heartbeat renewal",
+          "status": "passed",
+          "title": "denies changed Coder build or owner on redeem and every read/heartbeat renewal",
+          "duration": 44.58835099999999,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration renews once and returns the same acknowledgement for an exact duplicate",
+          "status": "passed",
+          "title": "renews once and returns the same acknowledgement for an exact duplicate",
+          "duration": 61.68075299999998,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration rolls back a project mismatch and enforces composite owner FKs",
+          "status": "passed",
+          "title": "rolls back a project mismatch and enforces composite owner FKs",
+          "duration": 37.87154400000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration locks active authority within the same controller transaction",
+          "status": "passed",
+          "title": "locks active authority within the same controller transaction",
+          "duration": 42.57424500000002,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration serializes conflicting seals and returns one consumed outcome without a duplicate insert",
+          "status": "passed",
+          "title": "serializes conflicting seals and returns one consumed outcome without a duplicate insert",
+          "duration": 36.96342600000003,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration selects explicit workspace projects despite more than32 retained owner projects",
+          "status": "passed",
+          "title": "selects explicit workspace projects despite more than32 retained owner projects",
+          "duration": 12.676656999999977,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": ["durable Codex registration"],
+          "fullName": "durable Codex registration recovers a lost latest heartbeat acknowledgement without extending expiry or accepting changed/older requests",
+          "status": "passed",
+          "title": "recovers a lost latest heartbeat acknowledgement without extending expiry or accepting changed/older requests",
+          "duration": 93.58188299999995,
+          "failureMessages": [],
+          "meta": {}
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "authorizes exact registered relay targets and retains native ticket audience",
+          "status": "passed",
+          "title": "authorizes exact registered relay targets and retains native ticket audience",
+          "duration": 45.038118000000054,
+          "failureMessages": [],
+          "meta": {}
+        }
+      ],
+      "startTime": 1794180731257,
+      "endTime": 1794180731806.038,
+      "status": "passed",
+      "message": "",
+      "name": "/home/coder/projects/kethalia/.worktrees/hive/unused-bootstrap-worker/src/__tests__/lib/codex-session/registration-store.integration.test.ts"
+    }
+  ]
+}
