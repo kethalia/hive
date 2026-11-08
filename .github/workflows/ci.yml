@@ -44,16 +44,16 @@ jobs:
     name: Automatic database
     if: >-
       github.event_name == 'workflow_dispatch' && inputs.operation == 'database' &&
-      inputs.database-trusted-revision == 'b11dd01ba7db090e1b7ee0eb75a6043b81982b51' &&
+      inputs.database-trusted-revision == 'ce53b08c39173cbad72f6fb5ff4f9585dd6b57c7' &&
       fromJSON(inputs.database-catalog-json).automaticExecutionEnabled == true
     permissions:
       contents: read
       id-token: write
-    uses: kethalia/hive/.github/workflows/controlled-database-job.yml@b11dd01ba7db090e1b7ee0eb75a6043b81982b51
+    uses: kethalia/hive/.github/workflows/controlled-database-job.yml@ba51c2c6aa2762d920b722a1add69dda3c0a880a
     with:
       enabled: true
       operation: ${{ inputs.database-stage }}
-      trusted-revision: b11dd01ba7db090e1b7ee0eb75a6043b81982b51
+      trusted-revision: ce53b08c39173cbad72f6fb5ff4f9585dd6b57c7
       dispatch-id: ${{ inputs.database-dispatch-id }}
       catalog-json: ${{ inputs.database-catalog-json }}
       approval-json: ${{ inputs.database-approval-json }}
