@@ -23,7 +23,7 @@ class EmptyAuthority:
         self.calls += 1
         MODULE.require(proposal == self.proposal, "fixture_scope_changed")
         return {"expiresAt": self.expires, "enrollmentToken": "fixture-signed-enrollment",
-                "anchor": {"currentVolume": {"lifetimeId": "new-epoch"},
+                "anchor": {**({"unusedBootstrapDigest": MODULE.ManagedProjects._empty_digest(proposal["unusedBootstrap"])} if "unusedBootstrap" in proposal else {}), "currentVolume": {"lifetimeId": "new-epoch"},
                            "records": {"root": proposal["root"]["newRecordSha256"],
                                        "projects": {r["repositoryId"]: r["newRecordSha256"] for r in proposal["projects"]}}}}
 
@@ -80,6 +80,73 @@ class EmptyRootTests(unittest.TestCase):
         with mock.patch.object(self.manager, "identity", lambda path: {**identity(path), "device": identity(path)["device"] + 1}):
             with self.assertRaisesRegex(MODULE.ManagedError, "empty_root_volume_provenance_missing"):
                 self.manager._inspect_empty_root(lifetime_id="later")
+
+    def unused_descriptor(self):
+        fixture_path = Path(__file__).parents[1] / "fixtures/unused-bootstrap-root.json"
+        descriptor = json.loads(fixture_path.read_text())["unusedBootstrap"]
+        descriptor["rootRecordSha256"] = hashlib.sha256((self.manager.state / "root.json").read_bytes()).hexdigest()
+        return descriptor
+
+    def test_unused_bootstrap_maps_only_under_exact_grant_and_replays_after_mapping_ack_loss(self):
+        with self.manager.lock(): pass
+        root_file = self.manager.state / "root.json"
+        raw = root_file.read_bytes()
+        descriptor = self.unused_descriptor()
+        auth = self.home / ".local/share/hive/codex-native/codex/auth.json"
+        auth.parent.mkdir(parents=True)
+        auth.write_bytes(b'opaque fixture auth, not parsed')
+        original_identity = self.manager.identity
+        observed = lambda path: {**original_identity(path), "device": original_identity(path)["device"] + 1}
+        with mock.patch.object(self.manager, "identity", observed):
+            proposal = self.manager._inspect_empty_root(lifetime_id="new-epoch", unused_bootstrap=descriptor)
+            self.assertEqual(proposal["mode"], "initial-unused-remount")
+            self.assertEqual(proposal["projects"], [])
+            self.assertEqual(root_file.read_bytes(), raw)  # Inspection never maps.
+            authority = EmptyAuthority(proposal)
+            wrong = EmptyAuthority(proposal)
+            verify = wrong.verify
+            def wrong_grant(value):
+                result = verify(value); result["anchor"]["unusedBootstrapDigest"] = "0" * 64; return result
+            wrong.verify = wrong_grant
+            with self.assertRaisesRegex(MODULE.ManagedError, "unused_bootstrap_grant_changed"):
+                self.manager._revalidate_empty_root(proposal, wrong)
+            self.assertEqual(root_file.read_bytes(), raw)
+            real_write = self.manager.write
+            def interrupted_write(path, value):
+                real_write(path, value)
+                if path == root_file: raise RuntimeError("fixture mapping ACK lost")
+            with mock.patch.object(self.manager, "write", interrupted_write):
+                with self.assertRaisesRegex(RuntimeError, "ACK lost"):
+                    self.manager._revalidate_empty_root(proposal, authority)
+            self.assertNotEqual(root_file.read_bytes(), raw)
+            self.assertEqual(self.manager._inspect_empty_root(lifetime_id="new-epoch", unused_bootstrap=descriptor), proposal)
+            self.manager._revalidate_empty_root(proposal, authority)
+            # Lost DB/enrollment ACK must return the exact original descriptor.
+            self.assertEqual(self.manager._inspect_empty_root(lifetime_id="new-epoch", unused_bootstrap=descriptor), proposal)
+            self.assertEqual(json.loads(self.manager.read(self.manager.state / "empty-root.json")["oldRootRaw"])["record"], json.loads(raw)["record"])
+            self.assertEqual(auth.read_bytes(), b'opaque fixture auth, not parsed')
+
+    def test_unused_snapshot_rejects_history_checkouts_consumers_and_changed_root(self):
+        with self.manager.lock(): pass
+        self.assertEqual(self.manager._capture_unused_bootstrap_root()["raw"], (self.manager.state / "root.json").read_text())
+        root_raw = (self.manager.state / "root.json").read_bytes()
+        for name in ["github-123.json", "empty-root.json", "unknown.json"]:
+            path = self.manager.state / name
+            path.write_text("{}"); path.chmod(0o600)
+            with self.assertRaises(MODULE.ManagedError):
+                self.manager._capture_unused_bootstrap_root()
+            path.unlink()
+        (self.manager.root / "checkout").mkdir()
+        with self.assertRaisesRegex(MODULE.ManagedError, "empty_root_not_empty"):
+            self.manager._capture_unused_bootstrap_root()
+        (self.manager.root / "checkout").rmdir()
+        with mock.patch.object(self.manager, "process_references", return_value=["opaque"]):
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_in_use"):
+                self.manager._capture_unused_bootstrap_root()
+        descriptor = self.unused_descriptor(); descriptor["rootRecordSha256"] = "0" * 64
+        with self.assertRaisesRegex(MODULE.ManagedError, "unused_bootstrap_root_changed"):
+            self.manager._inspect_empty_root(lifetime_id="new", unused_bootstrap=descriptor)
+        self.assertEqual((self.manager.state / "root.json").read_bytes(), root_raw)
 
     def test_prior_anchored_project_cannot_disappear_on_a_later_epoch(self):
         import shutil

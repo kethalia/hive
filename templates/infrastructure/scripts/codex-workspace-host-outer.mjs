@@ -13,7 +13,7 @@ import {
 import { userInfo } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { initializeEmptyRoot } from "./codex-empty-root.mjs";
+import { captureUnusedBootstrapRoot, initializeEmptyRoot } from "./codex-empty-root.mjs";
 import { openGuardianController } from "./codex-guardian-controller.mjs";
 import { readGuardianStart } from "./codex-guardian-startup.mjs";
 import { openGuardedHost, verifyGuardianPackage } from "./codex-host-guardian.mjs";
@@ -236,6 +236,7 @@ export async function startInstalledGuardedHost() {
               workspaceId: config.binding.workspaceId,
               templateId: config.binding.templateId,
               buildId: config.binding.buildId,
+              captureUnusedRoot: () => captureUnusedBootstrapRoot(home),
             },
             proof,
           );
